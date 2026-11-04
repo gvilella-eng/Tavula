@@ -1,0 +1,22 @@
+# dependências e build
+node_modules/
+dist/
+build/
+*.tsbuildinfo
+
+# estado local da sala (apagar zera a campanha)
+.wrangler/
+.dev.vars
+
+# testes
+test-results/
+playwright-report/
+coverage/
+
+# sistema e editores
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.log
