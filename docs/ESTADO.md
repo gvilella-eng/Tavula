@@ -72,3 +72,33 @@ pnpm 10.34.9 · Node 24.11.1 · TypeScript 7.0.2 · Biome 2.6.5 · wrangler 4.15
   ignora os eventos do socket descartado). É inofensivo e não afeta os testes.
 - O roteiro manual "offline" (desligar a internet e repetir) deve ser feito pelo Vilella; o app não
   referencia nada externo (sem CDN, fonte remota ou analytics).
+
+### Revisão (antes do commit de fechamento)
+
+- `useSala` ignora eventos de socket descartado: o StrictMode do React monta o efeito duas vezes, e o
+  `close` do primeiro socket podia chegar depois do `open` do segundo e mostrar "desconectado".
+- O cabeçalho `Upgrade` é comparado sem diferenciar maiúsculas (`pedeWebSocket`).
+- `@types/node` alinhado com o Node 24.
+- `pnpm verify` refeito: verde. `pnpm dev` também conferido fora do Playwright (Vite responde e a sala
+  responde `ok` em `/saude`).
+
+### Pendências
+
+- **Roteiro manual** (Vilella): `pnpm dev` num terminal, abrir `http://127.0.0.1:5173` no Chrome, ver
+  "conectado" e o eco; repetir com a internet desligada.
+
+### Fluxo de trabalho
+
+- Commit de base no `main` (plano e ficha); o Lote 0 está no branch `lote-0`.
+- Implementação feita por agente; revisão do código e `pnpm verify` refeitos antes de cada commit de
+  fechamento.
+- Ideias não decididas e notas da campanha de referência ficam em `docs/IDEIAS.md`.
+
+## Próximo: Lote 1
+
+Sala autoritativa, usuários de teste, capacidades e permissões, SQLite, reconexão, contador de uso e
+exportar/importar a campanha. Notas para o lote:
+
+- avaliar `@cloudflare/vitest-pool-workers` para testar o Durable Object;
+- com a Hibernation API a sala pode sair da memória com sockets abertos: o estado em memória é só
+  cache do SQLite, e a identidade de cada socket vai no `serializeAttachment`.

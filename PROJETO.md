@@ -321,6 +321,8 @@ Se o arquivo for movido ou renomeado, o app reescaneia a pasta e encontra pelo h
 - O que ainda não foi enviado (mensagem do chat pela metade, campo da ficha em edição) fica como
   rascunho no `localStorage` e volta depois do refresh.
 - A sala grava tudo no SQLite. Se a sala reiniciar, recarrega do banco.
+- Com a Hibernation API a sala pode sair da memória com os sockets ainda abertos: o estado em memória é
+  só um cache do SQLite, e quem é cada socket (usuário, papel) fica no `serializeAttachment` dele.
 - Gravações: token só ao soltar; ficha agrupada (no máximo 1 gravação por segundo por ficha); névoa a
   cada poucos segundos por jogador.
 - Se o mestre fechar o navegador, a mesa continua. Opção de pausar automaticamente quando o mestre sai.
@@ -525,6 +527,7 @@ Tabletop/
 ├─ PROJETO.md                 este documento
 ├─ docs/
 │  ├─ ESTADO.md               o que está pronto, decisões e desvios (atualizado a cada lote)
+│  ├─ IDEIAS.md               ideias não decididas, descartadas e notas da campanha de referência
 │  └─ protocolo.md            todas as mensagens cliente ↔ sala
 ├─ apps/
 │  ├─ web/                    React + Vite + PixiJS
@@ -545,7 +548,8 @@ Tabletop/
 
 Requisitos: Node LTS, pnpm, Chrome ou Edge.
 
-- `pnpm dev`: sobe a sala (`wrangler dev`, local) e o front (`vite`), tudo em `localhost`.
+- `pnpm dev`: sobe a sala (`wrangler dev`, `127.0.0.1:8787`) e o front (`vite`, `127.0.0.1:5173`).
+  Fica rodando no terminal enquanto se joga; abra `http://127.0.0.1:5173`.
 - `pnpm verify`: typecheck + lint + testes de unidade + testes ponta a ponta. **Nenhum lote está
   pronto sem `pnpm verify` verde.**
 - Vários jogadores na mesma máquina: nos testes, um contexto do Playwright por jogador (armazenamento
@@ -946,7 +950,9 @@ dela e revisar o rascunho antes de publicar.
 - filtro por linha de visão no servidor (jogador não recebe nem a posição de tokens fora da visão);
 - editor de templates para importar PDFs de outras fichas;
 - importação de foto de ficha (OCR local), se um dia valer a pena;
-- deploy na internet (Cloudflare, conta pessoal) e login real — outro plano.
+- deploy na internet (Cloudflare, conta pessoal) e login real — outro plano;
+- ideias ainda não decididas (ordem dos lotes, deploy mínimo, importar mapas com paredes, exportar
+  mapas da Masmorra): ver `docs/IDEIAS.md`.
 
 ---
 
@@ -960,7 +966,8 @@ Ficam só no computador do mestre, em `privado/notas/darion.md` (a pasta `privad
 
 Regras para o agente que implementa:
 
-1. **Um lote por vez.** Antes de começar, ler este documento e `docs/ESTADO.md`.
+1. **Um lote por vez.** Antes de começar, ler este documento e `docs/ESTADO.md` (e `docs/IDEIAS.md`
+   quando o lote tocar no assunto).
 2. **Só avança com tudo verde:** `pnpm verify` passando e o roteiro manual feito pelo Vilella.
 3. Ao terminar um lote, atualizar `docs/ESTADO.md` (o que foi feito, decisões tomadas, desvios deste
    plano e o porquê) e `docs/protocolo.md` se o protocolo mudou.
