@@ -1,0 +1,12 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "tabletop-servidor",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-11-03",
+  "send_metrics": false,
+  "dev": { "ip": "127.0.0.1", "port": 8787 },
+  "durable_objects": {
+    "bindings": [{ "name": "SALA", "class_name": "Sala" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Sala"] }]
+}
