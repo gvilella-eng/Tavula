@@ -220,6 +220,13 @@ Os números das portas do E2E estão repetidos em `e2e/playwright.config.ts`, `a
   resposta definitiva (`comRetentativa` em `apps/web/src/api.ts`, com testes).
 - Lembrete do roteiro: a mesa só existe enquanto um terminal mantém o `pnpm dev` rodando.
 
+### Roteiro manual
+
+Feito pelo Vilella em 2026-11-05 com 3 perfis do Chrome (Mestre, Jogador 1, Jogador 2): papéis,
+presença (online / reconectando / offline), nota da mesa sincronizada e nota do mestre visível só
+para o mestre. Na mesma conversa ele definiu o estilo da interface (PROJETO.md 4.13), que entra no
+Lote 2.
+
 ### Sugestões para o PROJETO.md
 
 Aplicadas na revisão: tipos de capacidade e `Permissoes` (4.1), saltos e monotonia do `seq` (4.2),

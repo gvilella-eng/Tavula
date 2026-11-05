@@ -523,6 +523,27 @@ criar cenas, notas do mestre, modelos de objeto, pontos, zonas, ciclos, reaçõe
 - Bom para regras, objetos, NPCs, notas e automações (pode ler a bíblia de uma campanha e popular a
   mesa). Ruim para desenhar paredes em cima de imagem: para isso, o editor de paredes.
 
+### 4.13 Interface
+
+Layout no estilo dos VTTs de mesa (referência: a tela de outra mesa virtual que o Vilella usa): **o mapa ocupa a
+tela e as ferramentas flutuam em volta.** A identidade visual é própria: nada de logotipo, ícones,
+cores ou nomes de terceiros.
+
+- **Mapa em tela cheia** (PixiJS), fundo escuro.
+- **Barra de ferramentas vertical à esquerda**, com ícones e dica ao passar o mouse: selecionar/mover,
+  mão (arrastar o mapa), régua; depois desenhar paredes (lote 5), luzes e pontos (lotes 6–7). No
+  rodapé, o seletor de camada (tokens / mestre). Ferramenta só do mestre só aparece para o mestre.
+- **Controle de zoom flutuante** na borda direita do mapa: +/−, trilho, nível atual, centralizar.
+- **Barra lateral direita recolhível** com abas por ícone: Chat (lote 8), Jogadores (presença e
+  papéis), Fichas (lote 9), Notas, Mestre (permissões, uso de hoje, exportar/importar; depois
+  automações) e Configurações. No lote 8 a caixa de chat fica fixa no rodapé da barra, com o seletor
+  "Como:" (falar como um personagem).
+- **Etiqueta discreta sobre o mapa** com o nome da cena e quem sou eu; o estado da conexão só aparece
+  quando não está conectado.
+- **Tema escuro** por padrão. Ícones e fontes vêm de pacotes npm empacotados no app (ex.:
+  `lucide-react`, `@fontsource/*`), nunca de CDN ou Google Fonts em execução.
+- Alvo é o desktop; em tela estreita a barra lateral recolhe.
+
 ---
 
 ## 5. Estrutura do repositório
@@ -650,7 +671,10 @@ repetir (tem que funcionar igual).
 - envio de movimento com limite de 20/s, interpolação nos outros clientes, gravação só ao soltar;
 - camadas `tokens` e `mestre`; token oculto;
 - **filtro por papel na sala:** jogador nunca recebe token da camada do mestre nem token oculto;
-- régua de distância em metros.
+- régua de distância em metros;
+- **casca da interface** (seção 4.13): mapa em tela cheia, barra de ferramentas à esquerda, zoom
+  flutuante e barra lateral com abas. O que o Lote 1 mostra em página (presença, notas, painel do
+  mestre) passa para as abas Jogadores, Notas e Mestre.
 
 **Verificação automática:**
 - unidade: limitador de envio emite no máximo 20 mensagens/s;
