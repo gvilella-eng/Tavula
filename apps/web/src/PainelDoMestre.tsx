@@ -1,7 +1,7 @@
 import {
   CAPACIDADES_DELEGAVEIS,
+  type Cena,
   type Estado,
-  type Papel,
   ROTULO_DA_CAPACIDADE,
   type Uso,
 } from "@tabletop/shared";
@@ -9,6 +9,7 @@ import { type ChangeEvent, useState } from "react";
 
 type Props = {
   estado: Estado;
+  cena: Cena;
   uso: Uso | null;
   enviar: (tipo: string, dados: object) => string | null;
 };
@@ -19,14 +20,10 @@ function formatarPercentual(valor: number): string {
 
 type Excecao = "herdar" | "sim" | "nao";
 
-export function PainelDoMestre({ estado, uso, enviar }: Props) {
+export function PainelDoMestre({ estado, cena, uso, enviar }: Props) {
   const jogadores = estado.usuarios.filter((u) => u.papel === "jogador");
   const [alvo, setAlvo] = useState<string>("");
   const alvoValido = jogadores.some((u) => u.id === alvo) ? alvo : (jogadores[0]?.id ?? "");
-
-  function mudarPapel(usuarioId: string, papel: Papel) {
-    if (papel === "mestre" || papel === "jogador") enviar("papel.alterar", { usuarioId, papel });
-  }
 
   function mudarPadrao(capacidade: string, valor: boolean) {
     enviar("permissao.alterar", { capacidade, valor });
@@ -56,33 +53,43 @@ export function PainelDoMestre({ estado, uso, enviar }: Props) {
   const excecoes = estado.permissoes.porUsuario[alvoValido] ?? {};
 
   return (
-    <section className="painel-mestre" data-testid="painel-mestre">
-      <h2>Painel do mestre</h2>
-
+    <div className="painel-mestre" data-testid="painel-mestre">
       <p>
         <span data-testid="uso-hoje">
           uso de hoje: {uso ? formatarPercentual(uso.percentual) : "—"}
         </span>
       </p>
 
-      <h3>Papéis</h3>
-      <ul className="lista-simples">
-        {estado.usuarios.map((u) => (
-          <li key={u.id}>
-            <label>
-              {u.nome}{" "}
-              <select
-                data-testid={`papel-${u.id}`}
-                value={u.papel === "mestre" ? "mestre" : "jogador"}
-                onChange={(e) => mudarPapel(u.id, e.target.value as Papel)}
-              >
-                <option value="mestre">mestre</option>
-                <option value="jogador">jogador</option>
-              </select>
-            </label>
-          </li>
-        ))}
-      </ul>
+      <h3>Grid da cena</h3>
+      <div className="linha-opcao">
+        <label>
+          <input
+            type="checkbox"
+            data-testid="grid-visivel"
+            checked={cena.grid.visivel}
+            onChange={(e) => enviar("cena.configurarGrid", { visivel: e.target.checked })}
+          />{" "}
+          Mostrar o grid
+        </label>
+        <label>
+          Quadrado (m){" "}
+          <input
+            type="number"
+            data-testid="grid-quadrado"
+            key={cena.grid.quadradoM}
+            defaultValue={cena.grid.quadradoM}
+            min={0.3}
+            max={10}
+            step={0.25}
+            onBlur={(e) => {
+              const v = Number(e.target.value);
+              if (v >= 0.3 && v <= 10 && v !== cena.grid.quadradoM) {
+                enviar("cena.configurarGrid", { quadradoM: v });
+              }
+            }}
+          />
+        </label>
+      </div>
 
       <h3>Capacidades dos jogadores</h3>
       <label>
@@ -161,6 +168,6 @@ export function PainelDoMestre({ estado, uso, enviar }: Props) {
           />
         </label>
       </p>
-    </section>
+    </div>
   );
 }

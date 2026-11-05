@@ -21,6 +21,7 @@ export const CAPACIDADES_DO_MESTRE = [
   "mesa.configurar",
   "automacao.editar",
   "camadaMestre.ver",
+  "cena.editar",
   "objeto.ajustar",
   "campanha.exportar",
   "campanha.importar",

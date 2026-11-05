@@ -1,41 +1,384 @@
+/* Identidade visual própria: neutro escuro + um acento âmbar. Nada de cores ou ícones de terceiros. */
+:root {
+  --fundo: #0d1015;
+  --painel: #161b23;
+  --painel-2: #1e2530;
+  --borda: #2c3442;
+  --texto: #e8eaed;
+  --texto-suave: #9aa4b2;
+  --acento: #e0a030;
+  --acento-texto: #1a1204;
+  --perigo: #ff6b5a;
+  --raio: 10px;
+  --sombra: 0 6px 24px rgba(0, 0, 0, 0.45);
+  --largura-lateral: 340px;
+  --largura-abas: 52px;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
 body {
   margin: 0;
   font-family: system-ui, sans-serif;
-  color: #1c1c1c;
-  background: #fafafa;
+  font-size: 14px;
+  color: var(--texto);
+  background: var(--fundo);
+  overflow: hidden;
 }
+
+h1,
+h2,
+h3 {
+  margin: 0 0 8px;
+}
+h2 {
+  font-size: 16px;
+}
+h3 {
+  font-size: 14px;
+  margin-top: 16px;
+  color: var(--texto-suave);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  background: var(--painel-2);
+  border: 1px solid var(--borda);
+  border-radius: 8px;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+button:hover {
+  border-color: var(--acento);
+}
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--acento);
+  outline-offset: 1px;
+}
+button.perigo {
+  color: var(--perigo);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+input[type="text"],
+input:not([type]),
+input[type="number"],
+select,
+textarea {
+  background: var(--fundo);
+  border: 1px solid var(--borda);
+  border-radius: 6px;
+  padding: 4px 8px;
+}
+
+/* --- entrada ------------------------------------------------------------------------------ */
 
 .pagina {
-  max-width: 860px;
-  margin: 0 auto;
+  max-width: 480px;
+  margin: 8vh auto;
   padding: 24px;
-}
-
-.cabecalho {
-  position: relative;
-}
-
-.aviso {
-  background: #fff3cd;
-  border: 1px solid #e0c36a;
-  border-radius: 6px;
-  padding: 8px 12px;
+  background: var(--painel);
+  border: 1px solid var(--borda);
+  border-radius: var(--raio);
 }
 
 .lista-simples {
   list-style: none;
   padding: 0;
+  margin: 0;
 }
-
 .lista-simples li {
-  margin: 4px 0;
+  margin: 6px 0;
+}
+.pagina .lista-simples button {
+  width: 100%;
+  text-align: left;
 }
 
+/* --- mesa --------------------------------------------------------------------------------- */
+
+.mesa {
+  position: fixed;
+  inset: 0;
+}
+
+.mapa {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: var(--fundo);
+}
+.mapa canvas {
+  display: block;
+  touch-action: none;
+}
+
+.carregando {
+  margin: 24px;
+}
+
+.so-leitor {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.etiqueta {
+  position: absolute;
+  top: 12px;
+  left: 76px;
+  padding: 6px 12px;
+  background: rgba(22, 27, 35, 0.8);
+  border: 1px solid var(--borda);
+  border-radius: 999px;
+  color: var(--texto-suave);
+  pointer-events: none;
+}
+.etiqueta strong {
+  color: var(--texto);
+}
+.etiqueta .separador {
+  margin: 0 6px;
+}
+.etiqueta .papel {
+  color: var(--acento);
+}
+
+.selo-conexao {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 6px 14px;
+  background: var(--acento);
+  color: var(--acento-texto);
+  border-radius: 999px;
+  font-weight: 600;
+}
+
+.aviso {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  margin: 0;
+  max-width: 60vw;
+  padding: 8px 14px;
+  background: #3a2a10;
+  border: 1px solid var(--acento);
+  border-radius: 8px;
+  box-shadow: var(--sombra);
+}
+
+/* --- barra de ferramentas ----------------------------------------------------------------- */
+
+.barra-ferramentas {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px;
+  background: var(--painel);
+  border: 1px solid var(--borda);
+  border-radius: var(--raio);
+  box-shadow: var(--sombra);
+}
+.barra-ferramentas hr {
+  width: 100%;
+  border: 0;
+  border-top: 1px solid var(--borda);
+  margin: 2px 0;
+}
+.camadas {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.botao-icone {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: var(--texto-suave);
+}
+.botao-icone:hover {
+  color: var(--texto);
+  background: var(--painel-2);
+  border-color: var(--borda);
+}
+.botao-icone[aria-pressed="true"],
+.botao-icone[aria-selected="true"] {
+  color: var(--acento-texto);
+  background: var(--acento);
+}
+.botao-icone.pequeno {
+  width: 28px;
+  height: 28px;
+}
+
+/* --- zoom flutuante ----------------------------------------------------------------------- */
+
+.zoom-flutuante {
+  position: absolute;
+  top: 50%;
+  right: calc(var(--largura-lateral) + var(--largura-abas) + 36px);
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 6px;
+  background: var(--painel);
+  border: 1px solid var(--borda);
+  border-radius: var(--raio);
+  box-shadow: var(--sombra);
+}
+.mesa[data-lateral="fechada"] .zoom-flutuante {
+  right: calc(var(--largura-abas) + 36px);
+}
+.trilho-zoom {
+  writing-mode: vertical-lr;
+  direction: rtl;
+  height: 120px;
+  accent-color: var(--acento);
+}
+.zoom-nivel {
+  font-size: 12px;
+  color: var(--texto-suave);
+}
+
+/* --- régua -------------------------------------------------------------------------------- */
+
+.regua-rotulo {
+  position: absolute;
+  padding: 3px 8px;
+  background: var(--acento);
+  color: var(--acento-texto);
+  font-weight: 600;
+  border-radius: 6px;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+/* --- painel do token ---------------------------------------------------------------------- */
+
+.painel-token {
+  position: absolute;
+  left: 76px;
+  top: 56px;
+  width: 240px;
+  max-height: calc(100% - 80px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--painel);
+  border: 1px solid var(--borda);
+  border-radius: var(--raio);
+  box-shadow: var(--sombra);
+}
+.painel-token header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.painel-token label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: var(--texto-suave);
+}
+.painel-token fieldset {
+  border: 1px solid var(--borda);
+  border-radius: 6px;
+}
+.linha-opcao {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.painel-token label.linha-opcao {
+  flex-direction: row;
+}
+
+/* --- barra lateral ------------------------------------------------------------------------ */
+
+.lateral {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  bottom: 12px;
+  display: flex;
+  flex-direction: row-reverse;
+  background: var(--painel);
+  border: 1px solid var(--borda);
+  border-radius: var(--raio);
+  box-shadow: var(--sombra);
+  overflow: hidden;
+}
+.abas {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px;
+  width: var(--largura-abas);
+  border-left: 1px solid var(--borda);
+}
+.lateral[data-aberta="false"] .abas {
+  border-left: 0;
+}
+.lateral-conteudo {
+  width: var(--largura-lateral);
+  overflow-y: auto;
+  padding: 12px 14px;
+}
+.lateral-conteudo[hidden],
+.painel-aba[hidden] {
+  display: none;
+}
+.linha-jogador {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.nome-jogador {
+  flex: 1;
+}
+.estado-presenca {
+  color: var(--texto-suave);
+  font-size: 12px;
+}
 .bolinha {
   display: inline-block;
   width: 12px;
   height: 12px;
-  margin-right: 8px;
   border-radius: 50%;
 }
 
@@ -43,29 +386,29 @@ body {
   display: block;
   margin: 12px 0;
 }
-
 .campo-nota span {
   display: block;
   font-weight: 600;
+  margin-bottom: 4px;
 }
-
 .campo-nota textarea {
   width: 100%;
-  box-sizing: border-box;
-  font: inherit;
+  resize: vertical;
 }
 
-.painel-mestre {
-  border-top: 2px solid #ccc;
-  margin-top: 24px;
-}
-
-table {
+.painel-mestre table {
   border-collapse: collapse;
+  width: 100%;
+  font-size: 13px;
+}
+.painel-mestre th,
+.painel-mestre td {
+  padding: 4px 6px;
+  text-align: left;
 }
 
-th,
-td {
-  padding: 4px 12px;
-  text-align: left;
+@media (max-width: 760px) {
+  :root {
+    --largura-lateral: 240px;
+  }
 }

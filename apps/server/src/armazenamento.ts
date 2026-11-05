@@ -1,8 +1,11 @@
 import {
+  CENA_PADRAO,
+  type Cena,
   type Estado,
   type EventoSala,
   PERMISSOES_PADRAO,
   type Permissoes,
+  type Token,
   type Usuario,
 } from "@tabletop/shared";
 
@@ -87,7 +90,27 @@ export class Armazenamento {
       permissoes: { ...salvas, jogadores: { ...PERMISSOES_PADRAO, ...salvas.jogadores } },
       notaMesa: this.lerNota("mesa"),
       notaMestre: this.lerNota("mestre"),
+      ...this.carregarMapa(),
     };
+  }
+
+  /** Cenas e tokens. Banco do Lote 1 (sem cena): cria a cena padrão, sem quebrar o resto. */
+  private carregarMapa(): Pick<Estado, "cenas" | "cenaAtivaId" | "tokens"> {
+    const ler = <T>(colecao: string): T[] =>
+      this.sql
+        .exec<{ dados: string }>(
+          "SELECT dados FROM entidades WHERE colecao = ? ORDER BY rowid",
+          colecao,
+        )
+        .toArray()
+        .map((l) => JSON.parse(l.dados) as T);
+    const cenas = ler<Cena>("cenas");
+    if (cenas.length === 0) cenas.push(CENA_PADRAO);
+    const ativa = this.lerMeta("cena_ativa");
+    const cenaAtivaId = cenas.some((c) => c.id === ativa)
+      ? (ativa as string)
+      : (cenas[0]?.id ?? CENA_PADRAO.id);
+    return { cenas, cenaAtivaId, tokens: ler<Token>("tokens") };
   }
 
   private lerNota(id: string): string {
@@ -122,6 +145,9 @@ export class Armazenamento {
     for (const u of estado.usuarios) this.gravarEntidade("usuarios", u.id, u);
     this.gravarEntidade("notas", "mesa", { texto: estado.notaMesa });
     this.gravarEntidade("notas", "mestre", { texto: estado.notaMestre ?? "" });
+    for (const c of estado.cenas) this.gravarEntidade("cenas", c.id, c);
+    for (const t of estado.tokens) this.gravarEntidade("tokens", t.id, t);
+    this.gravarMeta("cena_ativa", estado.cenaAtivaId);
     this.gravarMeta("permissoes", JSON.stringify(estado.permissoes));
     this.gravarMeta("seq", String(estado.seq));
   }
@@ -144,6 +170,24 @@ export class Armazenamento {
         case "permissao.alterada":
           this.gravarMeta("permissoes", JSON.stringify(estado.permissoes));
           break;
+        case "token.criado":
+        case "token.editado":
+          this.gravarEntidade("tokens", ev.dados.token.id, ev.dados.token);
+          break;
+        case "token.movido": {
+          const t = estado.tokens.find((x) => x.id === ev.dados.id);
+          if (t) this.gravarEntidade("tokens", t.id, t);
+          break;
+        }
+        case "token.apagado":
+        case "token.sumiu":
+          this.sql.exec("DELETE FROM entidades WHERE colecao = 'tokens' AND id = ?", ev.dados.id);
+          break;
+        case "cena.gridAlterado": {
+          const c = estado.cenas.find((x) => x.id === ev.dados.cenaId);
+          if (c) this.gravarEntidade("cenas", c.id, c);
+          break;
+        }
       }
     }
     this.gravarMeta("seq", String(estado.seq));

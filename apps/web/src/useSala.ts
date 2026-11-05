@@ -17,6 +17,7 @@ export type StatusConexao = "conectando" | "conectado" | "reconectando";
 /** Algo que a sala contou e que os componentes (campos com rascunho) querem acompanhar. */
 export type Ocorrencia =
   | { tipo: "evento"; evento: EventoSala }
+  | { tipo: "movendo"; id: string; x: number; y: number }
   | { tipo: "erro"; idPedido: string | null; codigo: CodigoDeErro; mensagem: string };
 
 export type Aviso = { numero: number; texto: string; codigo: CodigoDeErro | null };
@@ -79,6 +80,10 @@ export function useSala(opcoes: Opcoes) {
         case "evento":
           setEstado((e) => (e ? reduzir(e, m.dados) : e));
           emitir({ tipo: "evento", evento: m.dados });
+          break;
+        case "token.movendo":
+          // Transitório: não mexe no estado (nem re-renderiza); o mapa interpola até a posição.
+          emitir({ tipo: "movendo", ...m.dados });
           break;
         case "presenca":
           setPresenca(m.dados.usuarios);

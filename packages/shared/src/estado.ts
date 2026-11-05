@@ -25,6 +25,41 @@ export type Permissoes = z.infer<typeof PermissoesSchema>;
 
 export const TAMANHO_MAXIMO_NOTA = 20_000;
 
+export const CAMADAS = ["tokens", "mestre"] as const;
+export const CamadaSchema = z.enum(CAMADAS);
+export type Camada = z.infer<typeof CamadaSchema>;
+
+export const GridSchema = z.object({
+  /** Lado de um quadrado, em metros (padrão do 5e: 1,5). */
+  quadradoM: z.number().min(0.3).max(10),
+  visivel: z.boolean(),
+});
+export type Grid = z.infer<typeof GridSchema>;
+
+export const CenaSchema = z.object({
+  id: z.string().min(1).max(64),
+  nome: z.string().min(1).max(64),
+  larguraM: z.number().positive().max(1000),
+  alturaM: z.number().positive().max(1000),
+  grid: GridSchema,
+});
+export type Cena = z.infer<typeof CenaSchema>;
+
+export const TokenSchema = z.object({
+  id: z.string().min(1).max(64),
+  cenaId: z.string().min(1).max(64),
+  nome: z.string().min(1).max(64),
+  cor: z.string().min(1).max(32),
+  tamanhoQuadrados: z.number().int().min(1).max(4),
+  /** Centro do token, em metros. */
+  x: z.number(),
+  y: z.number(),
+  camada: CamadaSchema,
+  oculto: z.boolean(),
+  controladoPor: z.array(z.string().min(1).max(64)).max(32),
+});
+export type Token = z.infer<typeof TokenSchema>;
+
 /**
  * Estado da campanha. Na visão de um jogador `notaMestre` não existe e `porUsuario` só tem a
  * entrada dele mesmo.
@@ -35,6 +70,10 @@ export const EstadoSchema = z.object({
   permissoes: PermissoesSchema,
   notaMesa: z.string().max(TAMANHO_MAXIMO_NOTA),
   notaMestre: z.string().max(TAMANHO_MAXIMO_NOTA).optional(),
+  cenas: z.array(CenaSchema).min(1),
+  cenaAtivaId: z.string().min(1).max(64),
+  /** Na visão de um jogador: sem os tokens ocultos nem os da camada do mestre. */
+  tokens: z.array(TokenSchema),
 });
 export type Estado = z.infer<typeof EstadoSchema>;
 

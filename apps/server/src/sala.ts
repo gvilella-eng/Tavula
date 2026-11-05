@@ -12,6 +12,7 @@ import {
   mensagem,
   type Presenca,
   processar,
+  tokenVisivelPara,
   type Usuario,
   visaoPara,
 } from "@tabletop/shared";
@@ -53,6 +54,11 @@ export class Sala extends DurableObject<Env> {
   private mensagensDesdeGravacaoDoUso = 0;
   private mensagensDesdeEnvioDoUso = 0;
   private ultimoEnvioDoUso = 0;
+  /**
+   * Tokens que cada socket está arrastando (mandou `token.mover` e ainda não `token.soltar`). Só
+   * memória: enquanto alguém arrasta, a sala recebe mensagens e não hiberna.
+   */
+  private readonly arrastes = new Map<WebSocket, Set<string>>();
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
@@ -186,7 +192,16 @@ export class Sala extends DurableObject<Env> {
       if (r.snapshotPara === "todos") this.banco.salvarTudo(r.estado);
       else this.banco.salvarEventos(r.estado, r.eventos);
     }
+    const antes = this.estado;
     this.estado = r.estado;
+
+    // Movimento ao vivo: transitório, não grava; só quem pode ver o token recebe (menos o remetente).
+    if (r.movendo) {
+      this.marcarArraste(ws, r.movendo.id, true);
+      this.repassarMovimento(ws, r.movendo);
+      return;
+    }
+    if (intencao.tipo === "token.soltar") this.marcarArraste(ws, intencao.dados.id, false);
 
     if (r.exportacao) {
       this.enviar(
@@ -198,7 +213,7 @@ export class Sala extends DurableObject<Env> {
       );
     }
 
-    this.distribuir(r.eventos, r.snapshotPara);
+    this.distribuir(r.eventos, r.snapshotPara, antes);
     if (r.snapshotPara === "todos" || r.snapshotPara.length > 0) this.difundirPresenca();
   }
 
@@ -222,6 +237,7 @@ export class Sala extends DurableObject<Env> {
   }
 
   private async aoSair(ws: WebSocket): Promise<void> {
+    this.desfazerArrastes(ws);
     const identidade = this.identidadeDe(ws);
     if (!identidade) return;
     if (!this.estaOnline(identidade.usuarioId, ws)) {
@@ -353,8 +369,42 @@ export class Sala extends DurableObject<Env> {
     if (usuario.papel === "mestre") this.enviar(ws, this.textoDoUso());
   }
 
+  private marcarArraste(ws: WebSocket, id: string, ativo: boolean): void {
+    const ids = this.arrastes.get(ws) ?? new Set<string>();
+    if (ativo) ids.add(id);
+    else ids.delete(id);
+    if (ids.size > 0) this.arrastes.set(ws, ids);
+    else this.arrastes.delete(ws);
+  }
+
+  /**
+   * Quem caiu no meio de um arraste nunca vai mandar o `token.soltar`: os outros voltam o token
+   * para a posição gravada (senão ficariam vendo uma posição que não existe na sala).
+   */
+  private desfazerArrastes(ws: WebSocket): void {
+    const ids = this.arrastes.get(ws);
+    if (!ids) return;
+    this.arrastes.delete(ws);
+    for (const id of ids) {
+      const token = this.estado.tokens.find((t) => t.id === id);
+      if (token) this.repassarMovimento(ws, { id, x: token.x, y: token.y });
+    }
+  }
+
+  /** `token.movendo`: vai a quem pode ver o token, nunca ao remetente. */
+  private repassarMovimento(remetente: WebSocket, mov: { id: string; x: number; y: number }): void {
+    const token = this.estado.tokens.find((t) => t.id === mov.id);
+    if (!token) return;
+    const texto = mensagem({ tipo: "token.movendo", dados: mov });
+    for (const ws of this.ctx.getWebSockets()) {
+      if (ws === remetente) continue;
+      const usuario = this.usuarioDe(ws);
+      if (usuario && tokenVisivelPara(token, usuario)) this.enviar(ws, texto);
+    }
+  }
+
   /** Entrega cada evento (filtrado por usuário) ou, para quem pede, um snapshot novo. */
-  private distribuir(eventos: EventoSala[], snapshotPara: "todos" | string[]): void {
+  private distribuir(eventos: EventoSala[], snapshotPara: "todos" | string[], antes: Estado): void {
     for (const ws of this.ctx.getWebSockets()) {
       const usuario = this.usuarioDe(ws);
       if (!usuario) {
@@ -366,7 +416,7 @@ export class Sala extends DurableObject<Env> {
         continue;
       }
       for (const ev of eventos) {
-        const visto = eventoPara(ev, usuario);
+        const visto = eventoPara(ev, usuario, antes, this.estado);
         if (visto) this.enviar(ws, mensagem({ tipo: "evento", dados: visto }));
       }
     }

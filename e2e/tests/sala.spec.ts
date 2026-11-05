@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { enviarCru, expect, intencaoCrua, test, USUARIOS } from "./ajudas";
+import { abrirAba, enviarCru, expect, intencaoCrua, test, USUARIOS } from "./ajudas";
 
 test("a tela de entrada lista os 8 usuários e entrar abre a mesa", async ({ page }) => {
   await page.goto("/");
@@ -16,6 +16,7 @@ test("a tela de entrada lista os 8 usuários e entrar abre a mesa", async ({ pag
   // a sessão continua depois do refresh; "trocar usuário" volta para a entrada
   await page.reload();
   await expect(page.getByTestId("eu-nome")).toHaveText("Jogador 3");
+  await abrirAba(page, "configuracoes");
   await page.getByTestId("trocar-usuario").click();
   await expect(page.getByTestId("entrar-mestre")).toBeVisible();
 });
@@ -37,6 +38,7 @@ test("8 contextos entram e uma alteração aparece nos outros 7", async ({ mesa 
   }
 
   // o mestre escreve; os 7 jogadores recebem
+  for (const s of sessoes) await abrirAba(s.pagina, "notas");
   await sessoes[0]?.pagina.getByTestId("nota-mesa").fill("Bem-vindos à masmorra");
   for (const s of sessoes)
     await expect(s.pagina.getByTestId("nota-mesa")).toHaveValue("Bem-vindos à masmorra");
@@ -51,6 +53,7 @@ test("refresh devolve o mesmo estado, inclusive o rascunho não enviado", async 
   const mestre = await mesa.entrar("mestre");
   const j1 = await mesa.entrar("jogador-1");
   const j2 = await mesa.entrar("jogador-2");
+  for (const s of [mestre, j1, j2]) await abrirAba(s.pagina, "notas");
 
   await mestre.pagina.getByTestId("nota-mesa").fill("texto da mesa");
   await mestre.pagina.getByTestId("nota-mestre").fill("texto do mestre");
@@ -59,12 +62,14 @@ test("refresh devolve o mesmo estado, inclusive o rascunho não enviado", async 
   // refresh do mestre: tudo igual
   await mestre.pagina.reload();
   await expect(mestre.pagina.getByTestId("status-conexao")).toHaveText("conectado");
+  await abrirAba(mestre.pagina, "notas");
   await expect(mestre.pagina.getByTestId("nota-mesa")).toHaveValue("texto da mesa");
   await expect(mestre.pagina.getByTestId("nota-mestre")).toHaveValue("texto do mestre");
 
   // digitar e dar refresh na hora (antes dos 300 ms): o texto não se perde
   await j2.pagina.getByTestId("nota-mesa").fill("digitado e recarregado");
   await j2.pagina.reload();
+  await abrirAba(j2.pagina, "notas");
   await expect(j2.pagina.getByTestId("nota-mesa")).toHaveValue("digitado e recarregado");
   await expect(mestre.pagina.getByTestId("nota-mesa")).toHaveValue("digitado e recarregado");
 
@@ -73,6 +78,7 @@ test("refresh devolve o mesmo estado, inclusive o rascunho não enviado", async 
     localStorage.setItem("tabletop:rascunho:jogador-1:mesa", "rascunho pendente");
   });
   await j1.pagina.reload();
+  await abrirAba(j1.pagina, "notas");
   await expect(j1.pagina.getByTestId("nota-mesa")).toHaveValue("rascunho pendente");
   await expect(mestre.pagina.getByTestId("nota-mesa")).toHaveValue("rascunho pendente");
   await expect
@@ -87,6 +93,7 @@ test("reiniciar a sala: todos reconectam sozinhos e o estado volta do SQLite", a
   const mestre = await mesa.entrar("mestre");
   const j1 = await mesa.entrar("jogador-1");
   const j2 = await mesa.entrar("jogador-2");
+  for (const s of [mestre, j1, j2]) await abrirAba(s.pagina, "notas");
   await mestre.pagina.getByTestId("nota-mesa").fill("sobrevive ao reinício");
   await mestre.pagina.getByTestId("nota-mestre").fill("segredo que sobrevive");
   await expect(j1.pagina.getByTestId("nota-mesa")).toHaveValue("sobrevive ao reinício");
@@ -115,8 +122,11 @@ test("o mestre desliga nota.editar: o jogador perde a ação na hora", async ({ 
   const mestre = await mesa.entrar("mestre");
   const j1 = await mesa.entrar("jogador-1");
   const j2 = await mesa.entrar("jogador-2");
+  await abrirAba(j1.pagina, "notas");
+  await abrirAba(j2.pagina, "notas");
   await expect(j1.pagina.getByTestId("nota-mesa")).toBeEnabled();
 
+  await abrirAba(mestre.pagina, "mestre");
   await mestre.pagina.getByTestId("perm-padrao-nota.editar").click();
   await expect(j1.pagina.getByTestId("nota-mesa")).toBeDisabled();
   await expect(j2.pagina.getByTestId("nota-mesa")).toBeDisabled();
@@ -165,14 +175,17 @@ test("mensagem inválida vira erro e a conexão continua", async ({ mesa }) => {
 test("promover um jogador a mestre; o último mestre não se rebaixa", async ({ mesa }) => {
   const mestre = await mesa.entrar("mestre");
   const j1 = await mesa.entrar("jogador-1");
+  await abrirAba(mestre.pagina, "notas");
   await mestre.pagina.getByTestId("nota-mestre").fill("SEGREDO DO MESTRE");
   await expect(j1.pagina.getByTestId("nota-mestre")).toHaveCount(0);
   await expect(j1.pagina.getByTestId("painel-mestre")).toHaveCount(0);
 
   // promoção: o jogador recebe snapshot novo e passa a ver o que é do mestre
+  await abrirAba(mestre.pagina, "jogadores");
   await mestre.pagina.getByTestId("papel-jogador-1").selectOption("mestre");
   await expect(j1.pagina.getByTestId("eu-papel")).toHaveText("mestre");
   await expect(j1.pagina.getByTestId("nota-mestre")).toHaveValue("SEGREDO DO MESTRE");
+  await abrirAba(j1.pagina, "mestre");
   await expect(j1.pagina.getByTestId("painel-mestre")).toBeVisible();
   await expect(j1.pagina.getByTestId("uso-hoje")).toContainText("uso de hoje");
 
@@ -191,15 +204,18 @@ test("promover um jogador a mestre; o último mestre não se rebaixa", async ({ 
 
 test("frames recebidos pelo jogador nunca contêm a nota do mestre", async ({ mesa }) => {
   const mestre = await mesa.entrar("mestre");
+  await abrirAba(mestre.pagina, "notas");
   await mestre.pagina.getByTestId("nota-mestre").fill("SEGREDO-ULTRA-1");
   await expect.poll(() => mestre.frames.some((f) => f.includes("SEGREDO-ULTRA-1"))).toBe(true);
   // exceção de outro jogador também é do mestre
+  await abrirAba(mestre.pagina, "mestre");
   await mestre.pagina.getByTestId("excecao-usuario").selectOption({ label: "Jogador 2" });
   await mestre.pagina.getByTestId("perm-excecao-luz.apagar").selectOption("sim");
 
   // o jogador entra depois (recebe snapshot) ...
   const j1 = await mesa.entrar("jogador-1");
   // ... e o mestre muda de novo (recebe eventos)
+  await abrirAba(mestre.pagina, "notas");
   await mestre.pagina.getByTestId("nota-mestre").fill("SEGREDO-ULTRA-2");
   await mestre.pagina.getByTestId("nota-mesa").fill("nota pública");
   await expect(j1.pagina.getByTestId("nota-mesa")).toHaveValue("nota pública");
@@ -240,16 +256,20 @@ test("presença: ao fechar a aba o outro vê reconectando e depois offline", asy
 
 test("exportar → zerar → importar devolve tudo igual", async ({ mesa, request }) => {
   const mestre = await mesa.entrar("mestre");
+  await abrirAba(mestre.pagina, "notas");
   await mestre.pagina.getByTestId("nota-mesa").fill("nota da mesa exportada");
   await mestre.pagina.getByTestId("nota-mestre").fill("nota do mestre exportada");
+  await abrirAba(mestre.pagina, "mestre");
   await mestre.pagina.getByTestId("perm-padrao-luz.apagar").click();
   await mestre.pagina.getByTestId("excecao-usuario").selectOption({ label: "Jogador 4" });
   await mestre.pagina.getByTestId("perm-excecao-nota.editar").selectOption("nao");
+  await abrirAba(mestre.pagina, "jogadores");
   await mestre.pagina.getByTestId("papel-jogador-1").selectOption("mestre");
   await expect(mestre.pagina.getByTestId("papel-jogador-1")).toHaveValue("mestre");
   const j5 = await mesa.entrar("jogador-5");
   await expect(j5.pagina.getByTestId("nota-mesa")).toHaveValue("nota da mesa exportada");
 
+  await abrirAba(mestre.pagina, "mestre");
   const exportar = async () => {
     const [download] = await Promise.all([
       mestre.pagina.waitForEvent("download"),
@@ -281,6 +301,7 @@ test("exportar → zerar → importar devolve tudo igual", async ({ mesa, reques
 
 test("importar um arquivo inválido mostra um aviso e não muda nada", async ({ mesa }) => {
   const mestre = await mesa.entrar("mestre");
+  await abrirAba(mestre.pagina, "notas");
   await mestre.pagina.getByTestId("nota-mesa").fill("intacta");
   await mestre.pagina.getByTestId("importar-arquivo").setInputFiles({
     name: "ruim.json",

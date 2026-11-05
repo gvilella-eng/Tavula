@@ -17,7 +17,33 @@ export const USUARIOS = [
   "jogador-7",
 ];
 
-export type Sessao = { contexto: BrowserContext; pagina: Page; frames: string[] };
+/** `frames`: recebidos da sala; `enviados`: enviados pelo navegador. */
+export type Sessao = {
+  contexto: BrowserContext;
+  pagina: Page;
+  frames: string[];
+  enviados: string[];
+};
+
+const textoDoFrame = (payload: string | Buffer) =>
+  typeof payload === "string" ? payload : payload.toString("utf8");
+
+/** Abre uma aba da barra lateral (a barra pode estar recolhida) e espera o painel aparecer. */
+export async function abrirAba(pagina: Page, id: string): Promise<void> {
+  await pagina.getByTestId(`aba-${id}`).click();
+  await expect(pagina.getByTestId(`aba-painel-${id}`)).toBeVisible();
+}
+
+/** Espera o mapa (PixiJS) subir: o gancho de teste só existe no modo e2e. */
+export async function esperarMapa(pagina: Page): Promise<void> {
+  await expect
+    .poll(() =>
+      pagina.evaluate(
+        () => (window as unknown as { __tabletop?: unknown }).__tabletop !== undefined,
+      ),
+    )
+    .toBe(true);
+}
 
 /** Um conjunto de navegadores (um contexto por usuário, como se fossem PCs diferentes). */
 export class Mesa {
@@ -39,12 +65,12 @@ export class Mesa {
     const contexto = await this.browser.newContext();
     const pagina = await contexto.newPage();
     const frames: string[] = [];
+    const enviados: string[] = [];
     pagina.on("websocket", (ws) => {
-      ws.on("framereceived", (f) =>
-        frames.push(typeof f.payload === "string" ? f.payload : f.payload.toString("utf8")),
-      );
+      ws.on("framereceived", (f) => frames.push(textoDoFrame(f.payload)));
+      ws.on("framesent", (f) => enviados.push(textoDoFrame(f.payload)));
     });
-    const sessao = { contexto, pagina, frames };
+    const sessao = { contexto, pagina, frames, enviados };
     this.sessoes.push(sessao);
     return sessao;
   }

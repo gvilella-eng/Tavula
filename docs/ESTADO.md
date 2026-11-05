@@ -233,12 +233,168 @@ Aplicadas na revisão: tipos de capacidade e `Permissoes` (4.1), saltos e monoto
 isolamento do E2E e `pnpm dev:e2e` (6), redação do teste de reinício no Lote 1 e modelo do teste de
 frames (9).
 
-## Próximo: Lote 2
+## Lote 2 — Mapa, grid e tokens (entregue)
 
-Mapa, grid e tokens (ver `PROJETO.md`, seção 7). Pontos de partida deixados pelo Lote 1:
+Mesa visual: o mapa (PixiJS v8) ocupa a tela, com tokens sincronizados e a casca da interface do
+PROJETO.md 4.13. Não há imagem de mapa nem de token ainda (Lote 3): fundo escuro liso com o grid e tokens
+que são um círculo colorido com as iniciais do nome, gerados em código. Protocolo em `docs/protocolo.md`.
 
-- novas intenções entram em `packages/shared/src/protocolo.ts` (schema + `capacidadeDaIntencao`),
-  na lógica pura de `nucleo.ts` (`processar`/`reduzir`/`eventoPara`) e em `Armazenamento.salvarEventos`;
-- o agendador (`agendador.ts`) já existe para o relógio da sala do Lote 7;
-- todo lote que cria dado secreto deve incluir um E2E que inspeciona os frames do jogador (modelo:
-  o teste "frames recebidos pelo jogador" em `e2e/tests/sala.spec.ts`).
+### O que foi entregue
+
+- **`packages/shared`** (puro, testado): `Cena` e `Token` em `estado.ts`; `mapa.ts` (`CENA_PADRAO`,
+  `tokenVisivelPara`, `podeMoverToken`, `encaixarNoGrid`, `limitarNaCena`, `medirRegua`, `suavizar`);
+  `limitador.ts` (`criarLimitador`, 20/s com trailing); novas intenções, eventos e a mensagem
+  `token.movendo` em `protocolo.ts`; `nucleo.ts` com as regras, o filtro de sigilo
+  `eventoPara(evento, usuario, antes, depois)` e `visaoPara` filtrando tokens; capacidade `cena.editar`
+  (só do mestre); exportação v2 que ainda aceita a v1.
+- **`apps/server`**: `Armazenamento` grava cenas e tokens (coleções `cenas` e `tokens` em `entidades`,
+  `meta.cena_ativa`); banco do Lote 1 sem cena ganha a cena padrão ao carregar (sem migração e sem perder
+  nada); `Sala` repassa `token.movendo` só a quem pode ver o token (menos o remetente) e passa o estado de
+  antes e de depois ao filtro de eventos.
+- **`apps/web`**: `Mesa.tsx` (layout), `mapa/mapaPixi.ts` (controlador imperativo do Pixi) e
+  `mapa/Mapa.tsx` (ponte React), `BarraDeFerramentas`, `ZoomFlutuante`, `BarraLateral` (abas Jogadores,
+  Notas, Mestre, Configurações), `PainelDoToken`, `abas.tsx`, `preferencias.ts`. Tema escuro com
+  variáveis CSS (neutro + âmbar); ícones `lucide-react`; nada de CDN ou fonte remota.
+- **`fixtures/campanha.seed.json`**: cena `cena-1` (60 × 45 m, quadrado de 1,5 m) e 6 tokens:
+  `tok-jogador-1..3` (Aldric, Brisa, Cael; cada um controlado pelo jogador de mesmo número), `tok-ogro`
+  (visível, tamanho 2), `tok-goblin-oculto` ("Goblin Emboscado", oculto) e `tok-marcador-mestre`
+  ("Marcador Secreto", camada do mestre).
+- **Testes**: unidade (limitador, encaixe, régua, posição na cena, suavização, quem move, sigilo de
+  snapshot e de eventos, transições visível ↔ invisível, exportação v2 e importação v1) e
+  `e2e/tests/mapa.spec.ts`.
+
+### Como rodar
+
+- `pnpm dev` e `pnpm verify`: como antes. Atalhos no mapa: **V** selecionar, **H** mão, **R** régua; roda do
+  mouse = zoom no cursor; botão do meio ou **espaço** + arrastar = pan; **Alt** ao arrastar um token solta
+  sem encaixe; **Esc** limpa a régua.
+- O mestre cria tokens pelo botão "Novo token" (na camada de trabalho escolhida), clica num token para
+  editar (painel flutuante) e arrasta para mover. O grid da cena fica na aba Mestre.
+- **Banco existente** (quem já rodou o Lote 1): nada a fazer. Mas a **semente só vale com o banco vazio**:
+  para ver os tokens de teste numa campanha já criada, apague `apps/server/.wrangler/state` (zera a
+  campanha) ou crie tokens à mão.
+
+### Verificação
+
+`pnpm verify` verde (rodado duas vezes seguidas): 87 testes de unidade em `shared` (eram 49 somando os três
+pacotes no Lote 1; `shared` agora tem sozinho 87), 3 em `server`, 6 em `web` e 21 E2E (13 do Lote 1 + 8 de
+`mapa.spec.ts`) em ~2 min.
+
+### Gancho de teste (só no modo `e2e`)
+
+O canvas não é DOM. Com `import.meta.env.MODE === "e2e"` (`vite --mode e2e`, usado pelo Playwright) o
+controlador instala `window.__tabletop` com `tokens()` (posições na tela do mapa, só os tokens visíveis para
+quem está logado), `paraTela(x, y)` (metros → pixels da página, para o `page.mouse`), `zoom()`,
+`definirZoom`, `centrarEm`, `quadradoM()` e `ferramenta()`. No `pnpm dev` e no build normal ele não existe
+(o `MODE` é `development`/`production`). A régua tem rótulo em DOM (`data-testid="regua-rotulo"`).
+
+### Decisões
+
+- **Posição fora da cena é limitada à borda** (não recusada): arrastar até a borda não gera erro a cada
+  mensagem. Vale para `token.criar`, `token.mover` e `token.soltar`.
+- **Token invisível para quem pergunta responde `token_inexistente`** (igual a um id que não existe), em vez
+  de `sem_permissao`: a resposta não confirma que o goblin existe.
+- **`token.soltar` sempre grava e emite `token.movido`**, mesmo se a posição não mudou: quem viu o movimento
+  ao vivo (`token.movendo`) precisa da posição final exata. O cliente só envia `soltar` se o token saiu do lugar.
+- **`token.editado` carrega o token inteiro** e o cliente faz upsert; é o mesmo evento para "continua
+  visível" e "passou a ser visível". `token.sumiu { id }` só nasce no filtro (nunca é emitido por intenção).
+- **`eventoPara(evento, usuario, antes?, depois?)`** falha fechada: sem o estado, o jogador não recebe
+  evento de token.
+- **Limitador**: envia na hora se já passou 50 ms do último envio; senão guarda só o mais recente e o envia
+  quando vencer o intervalo (trailing). O cliente também não reenvia a mesma posição (com encaixe, o token só
+  "anda" de célula em célula). Em 5 s saem no máximo 101 `token.mover` (o E2E aceita até 110).
+- **Interpolação**: suavização exponencial com constante de 70 ms (`suavizar`), no ticker do Pixi; no
+  `token.movido` o token encosta exatamente na posição final. Quem arrasta não interpola. A posição do
+  estado só reposiciona o token quando **mudou** (não atropela o movimento ao vivo de outro token).
+- **Régua**: pontos inicial e final encaixam no centro da célula (Alt solta); os quadrados são os do maior
+  eixo (5e 2014); a medida continua na tela até Esc, nova medição ou troca de ferramenta.
+- **Selecionar**: o mestre só seleciona tokens da camada de trabalho; o jogador não "seleciona" nada, só
+  arrasta o que controla. Alvo de clique mínimo de 12 px na tela (tokens pequenos em zoom baixo).
+- **`status-conexao`** continua no DOM sempre (visualmente oculto, classe `so-leitor`) com os mesmos
+  textos, porque os testes dependem dele; o selo visível só aparece quando não está `conectado`.
+- **Abas**: todos os painéis ficam montados e só o ativo aparece (o campo de nota mantém rascunho e
+  confirmação ao trocar de aba). O papel dos usuários (`papel-<id>`) foi para a aba Jogadores (só o mestre);
+  as capacidades, o uso, o grid e exportar/importar ficam na aba Mestre. O `data-testid` das seções das abas
+  é `aba-painel-<id>` (para não colidir com `painel-mestre`). Os 13 E2E do Lote 1 só ganharam `abrirAba(...)`.
+- **Barra lateral flutuante** (não ancorada): o mapa ocupa a tela inteira por baixo; o zoom flutuante fica à
+  esquerda dela e muda de lugar quando ela recolhe.
+- **O mestre move qualquer token** que consiga selecionar na camada de trabalho (o filtro de camada é só de
+  seleção na interface; a sala deixa o mestre mover tudo).
+- **Desenho sob demanda**: o Pixi não usa o ticker automático; um laço de `requestAnimationFrame` anima os tokens
+  e só chama `render()` quando algo mudou (`sujo`). Com o ticker contínuo, os 8 navegadores do E2E de 8 contextos
+  estouraram o tempo (WebGL por software); agora esse teste leva ~13 s.
+- **Preferência de encaixe** em `localStorage` (`tabletop:pref:encaixe`, padrão ligado), na aba Configurações.
+
+### Desvios do plano e pontos a avaliar
+
+- Nenhum desvio do desenho pedido. O `Token` não tem `personagemId` nem `assetHash` (Lotes 3 e 4) e a `Cena`
+  não tem `mapa` nem `luzAmbiente` ainda.
+- A cena não guarda `pxPorQuadrado` (PROJETO.md 4.1): o mapa usa 40 px por metro fixos no cliente; isso só
+  passa a importar com imagem de mapa (Lote 3).
+
+### Pontos frágeis / não verificados
+
+- ~~Quem arrasta e cai no meio do movimento~~: resolvido na revisão (ver abaixo).
+- **WebGL**: o Pixi roda em WebGL (`preference: "webgl"`). No Chrome do E2E (headless) funciona; em máquina
+  sem WebGL o mapa não sobe (erro no console). Sem fallback de Canvas 2D.
+- **Aparência não coberta por teste automático**: olho cortado do token oculto, transparência (oculto 50 %;
+  camada do mestre 45 % quando se trabalha na camada de tokens), anel de seleção, rótulo de nome. Conferir
+  no roteiro manual.
+- **Alt ao arrastar** foi testado com o Alt do Playwright (headless). No Chrome do Windows com janela, soltar
+  o Alt pode ativar a barra de menus do navegador; não verificado.
+- **Dois mestres arrastando o mesmo token**: vale o último `soltar`.
+- O pacote do front cresceu com o PixiJS (o aviso de chunk grande do Vite no build é esperado).
+- Cada `token.mover` conta como mensagem recebida (1/20 de requisição). Uma sessão com arraste constante de
+  vários jogadores deve ser acompanhada no "uso de hoje".
+- **Roteiro manual** do Lote 2 (PROJETO.md 7): mover tokens em 2 perfis ao mesmo tempo, esconder um token e
+  conferir no F12 do jogador (aba Network → WS) que ele não chega, medir 3 quadrados (= 4,5 m) com a régua.
+
+### Revisão (antes do commit de fechamento)
+
+- **Arraste abandonado**: se quem arrasta fechava a aba (ou caía) antes do `token.soltar`, os outros ficavam
+  vendo o token numa posição que não existe na sala. Agora a sala guarda em memória os tokens que cada socket
+  está arrastando e, quando o socket fecha, manda aos outros um `token.movendo` com a posição gravada. E2E
+  novo ("quem fecha a aba no meio do arraste…"); conferido que ele **falha** com a correção desligada.
+- **Token que some durante o meu arraste** (o mestre esconde ou apaga): o cliente continuava mandando
+  `token.mover` de um token que a sala diz não existir, e cada um voltava como aviso de erro. Agora o arraste
+  acaba quando o token some do mapa.
+- `pnpm verify` duas vezes seguidas, verde nas duas: 96 testes de unidade (87 shared, 3 server, 6 web) e
+  22 E2E (~1,8 min).
+- **Aparência conferida por print** (mestre e jogador, servidores de teste): ferramentas à esquerda, zoom
+  flutuante, barra lateral com abas, tema escuro com acento âmbar; o mestre vê o goblin oculto (semitransparente,
+  olho cortado) e o marcador da camada do mestre; o jogador não vê nenhum dos dois. Ajuste fino pendente: no
+  zoom inicial (~43 %) os nomes embaixo dos tokens ficam pequenos demais para ler.
+- **Campanha local de quem já rodou o Lote 1**: a semente só vale com o banco vazio, então a campanha do
+  `pnpm dev` ganha a cena padrão mas nenhum token de teste. Para vê-los, apagar `apps/server/.wrangler/state`
+  (zera a campanha) ou criar tokens pelo botão "Novo token".
+
+### Sugestões para o PROJETO.md
+
+Aplicadas na revisão (4.1, 4.2, 4.4, 4.5, seção 9 e "Depois"). Texto original do agente:
+
+- 4.1: atualizar `Token` para `{ id, cenaId, nome, cor, tamanhoQuadrados, x, y, camada, oculto, controladoPor }`
+  (acrescentar `personagemId`/`assetHash` nos Lotes 3 e 4) e `Cena.grid` para `{ quadradoM, visivel }`
+  (`pxPorQuadrado` só quando houver imagem). Acrescentar `cena.editar` a `CapacidadeDoMestre`.
+- 4.2: registrar `token.movendo` (sala → cliente, transitório) e que `token.mover`/`token.soltar` exigem
+  `token.moverProprio` mais a regra "controla e vê"; incluir `token.sumiu` e os códigos `token_inexistente` e
+  `dados_invalidos`; e que a exportação passou à versão 2 (a v1 continua aceita).
+- 4.5: acrescentar que o cliente não reenvia a mesma posição e que o `token.soltar` fica fora do limitador.
+- Seção 9, regra 8: citar o modelo novo de E2E de sigilo ("frames do jogador nunca têm o token oculto nem o
+  da camada do mestre", em `e2e/tests/mapa.spec.ts`) e o gancho `window.__tabletop` (só no modo `e2e`) como
+  padrão para testar o canvas.
+- Lotes 5 e 6: a visibilidade de token por linha de visão deve entrar em `tokenVisivelPara`/`eventoPara`
+  (que já recebem o estado de antes e de depois), reaproveitando `token.sumiu`.
+
+## Próximo: Lote 3
+
+Assets locais (ver `PROJETO.md`, seção 7): imagens da pasta local no lugar do círculo gerado, mapa de fundo
+da cena e `assetHash` no token. Pontos de partida deixados pelo Lote 2:
+
+- `mapa/mapaPixi.ts` cria a aparência do token em `criarVisual` (hoje círculo + iniciais): é onde a imagem do
+  token entra; o fundo da cena é desenhado em `desenharCena`;
+- `Cena` não tem `mapa` e `Token` não tem `assetHash`: o schema, o filtro e a exportação (v3?) precisam
+  crescer juntos; a exportação já aceita versões antigas por `discriminatedUnion("versao", ...)` em
+  `protocolo.ts`;
+- frames binários ainda não existem no protocolo (a sala hoje recusa binário com `mensagem_invalida`);
+- todo lote que cria dado secreto deve incluir um E2E que inspeciona os frames do jogador (modelo: os testes
+  "frames ..." em `e2e/tests/mapa.spec.ts` e `e2e/tests/sala.spec.ts`).

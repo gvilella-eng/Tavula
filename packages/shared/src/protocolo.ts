@@ -7,13 +7,18 @@ import {
 } from "./capacidades.ts";
 import {
   EstadoSchema,
+  GridSchema,
   PapelSchema,
   PermissoesSchema,
   PresencaSchema,
   TAMANHO_MAXIMO_NOTA,
+  TokenSchema,
 } from "./estado.ts";
+import { CENA_PADRAO } from "./mapa.ts";
 
 export const VERSAO_PROTOCOLO = 1;
+/** Versão do arquivo de exportação (a v1, do Lote 1, ainda é aceita na importação). */
+export const VERSAO_EXPORTACAO = 2 as const;
 
 const CapacidadeSchema = z.enum(TODAS_AS_CAPACIDADES as [Capacidade, ...Capacidade[]]);
 const Texto = z.string().max(TAMANHO_MAXIMO_NOTA);
@@ -31,23 +36,45 @@ const PermissoesExportadasSchema = PermissoesSchema.extend({
   jogadores: z.partialRecord(z.enum(CAPACIDADES_DELEGAVEIS), z.boolean()),
 }).transform((p) => ({ ...p, jogadores: { ...PERMISSOES_PADRAO, ...p.jogadores } }));
 
-export const DadosExportadosSchema = EstadoSchema.extend({
+const DadosV2Schema = EstadoSchema.extend({
   notaMestre: Texto,
   permissoes: PermissoesExportadasSchema,
 });
-export type DadosExportados = z.infer<typeof DadosExportadosSchema>;
+export type DadosExportados = z.infer<typeof DadosV2Schema>;
 
-export const ExportacaoSchema = z.object({
-  formato: z.literal("tabletop-campanha"),
-  versao: z.literal(1),
-  exportadoEm: z.string(),
-  dados: DadosExportadosSchema,
-});
+/** v1 (Lote 1): sem cenas nem tokens. Vira a cena padrão e nenhum token. */
+const DadosV1Schema = DadosV2Schema.omit({
+  cenas: true,
+  cenaAtivaId: true,
+  tokens: true,
+}).transform((d) => ({ ...d, cenas: [CENA_PADRAO], cenaAtivaId: CENA_PADRAO.id, tokens: [] }));
+
+const cabecalho = { formato: z.literal("tabletop-campanha"), exportadoEm: z.string() };
+
+/** Aceita a v1 e a v2; o resultado é sempre no formato v2. */
+export const ExportacaoSchema = z
+  .discriminatedUnion("versao", [
+    z.object({ ...cabecalho, versao: z.literal(1), dados: DadosV1Schema }),
+    z.object({ ...cabecalho, versao: z.literal(2), dados: DadosV2Schema }),
+  ])
+  .transform((e) => ({ ...e, versao: VERSAO_EXPORTACAO }));
 export type Exportacao = z.infer<typeof ExportacaoSchema>;
 
 // ---------------------------------------------------------------------------------------------
 // Cliente -> sala: intenções
 // ---------------------------------------------------------------------------------------------
+
+const IdSchema = z.string().min(1).max(64);
+const TokenNovoSchema = TokenSchema.omit({ cenaId: true });
+const MudancasDoTokenSchema = TokenSchema.pick({
+  nome: true,
+  cor: true,
+  tamanhoQuadrados: true,
+  camada: true,
+  oculto: true,
+  controladoPor: true,
+}).partial();
+const PosicaoDoTokenSchema = z.object({ id: IdSchema, x: z.number(), y: z.number() });
 
 function intencao<T extends string, D extends z.ZodType>(tipo: T, dados: D) {
   return z.object({
@@ -78,6 +105,15 @@ export const IntencaoSchema = z.discriminatedUnion("tipo", [
         message: "valor null exige usuarioId",
       }),
   ),
+  intencao("token.criar", z.object({ token: TokenNovoSchema })),
+  intencao("token.editar", z.object({ id: IdSchema, mudancas: MudancasDoTokenSchema })),
+  intencao("token.apagar", z.object({ id: IdSchema })),
+  intencao(
+    "cena.configurarGrid",
+    z.object({ quadradoM: GridSchema.shape.quadradoM.optional(), visivel: z.boolean().optional() }),
+  ),
+  intencao("token.mover", PosicaoDoTokenSchema),
+  intencao("token.soltar", PosicaoDoTokenSchema),
   intencao("campanha.exportar", SemDados),
   intencao("campanha.importar", z.object({ dados: z.unknown() })),
 ]);
@@ -90,6 +126,12 @@ export const capacidadeDaIntencao: Record<TipoIntencao, Capacidade> = {
   "notaMestre.editar": "camadaMestre.ver",
   "papel.alterar": "papel.alterar",
   "permissao.alterar": "permissao.alterar",
+  "token.criar": "cena.editar",
+  "token.editar": "cena.editar",
+  "token.apagar": "cena.editar",
+  "cena.configurarGrid": "cena.editar",
+  "token.mover": "token.moverProprio",
+  "token.soltar": "token.moverProprio",
   "campanha.exportar": "campanha.exportar",
   "campanha.importar": "campanha.importar",
 };
@@ -122,6 +164,14 @@ export const EventoSalaSchema = z.discriminatedUnion("tipo", [
       usuarioId: z.string().optional(),
     }),
   ),
+  eventoDe("token.criado", z.object({ token: TokenSchema })),
+  /** Token inteiro depois da mudança (o cliente faz upsert). */
+  eventoDe("token.editado", z.object({ token: TokenSchema })),
+  eventoDe("token.apagado", z.object({ id: IdSchema })),
+  eventoDe("token.movido", PosicaoDoTokenSchema),
+  /** Só o filtro cria este: o token deixou de ser visível para quem recebe. Sem motivo. */
+  eventoDe("token.sumiu", z.object({ id: IdSchema })),
+  eventoDe("cena.gridAlterado", z.object({ cenaId: IdSchema, grid: GridSchema })),
 ]);
 export type EventoSala = z.infer<typeof EventoSalaSchema>;
 
@@ -132,6 +182,8 @@ export const CODIGOS_DE_ERRO = [
   "usuario_inexistente",
   "capacidade_nao_delegavel",
   "importacao_invalida",
+  "token_inexistente",
+  "dados_invalidos",
 ] as const;
 export const CodigoDeErroSchema = z.enum(CODIGOS_DE_ERRO);
 export type CodigoDeErro = z.infer<typeof CodigoDeErroSchema>;
@@ -156,6 +208,8 @@ export const MensagemDaSalaSchema = z.discriminatedUnion("tipo", [
   mensagemDaSala("evento", EventoSalaSchema),
   mensagemDaSala("presenca", z.object({ usuarios: z.record(z.string(), PresencaSchema) })),
   mensagemDaSala("uso", UsoSchema),
+  /** Movimento ao vivo de um token (transitório: sem `seq`, não é gravado). */
+  mensagemDaSala("token.movendo", PosicaoDoTokenSchema),
   mensagemDaSala(
     "erro",
     z.object({

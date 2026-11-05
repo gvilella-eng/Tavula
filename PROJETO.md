@@ -144,7 +144,8 @@ type CapacidadeDelegavel =          // lista completa em docs/protocolo.md
   | 'dado.rolarOculto' | 'asset.subir';
 type CapacidadeDoMestre =           // só do mestre, nunca delegáveis
   | 'papel.alterar' | 'permissao.alterar' | 'mesa.configurar' | 'automacao.editar'
-  | 'camadaMestre.ver' | 'objeto.ajustar' | 'campanha.exportar' | 'campanha.importar';
+  | 'camadaMestre.ver' | 'objeto.ajustar' | 'campanha.exportar' | 'campanha.importar'
+  | 'cena.editar';
 type Capacidade = CapacidadeDelegavel | CapacidadeDoMestre;
 
 interface Permissoes {
@@ -173,17 +174,22 @@ interface Personagem {
 
 interface Cena {
   id: string; nome: string;
-  mapa: { assetHash: string; larguraM: number; alturaM: number } | null;
-  grid: { quadradoM: number /* 1.5 */; pxPorQuadrado: number };
-  luzAmbiente: number;              // 0 = escuridão total, 1 = dia
+  larguraM: number; alturaM: number;
+  grid: { quadradoM: number /* 1.5 */; visivel: boolean };
+  mapa?: { assetHash: string; pxPorQuadrado: number };   // lote 3
+  luzAmbiente?: number;             // lote 6: 0 = escuridão total, 1 = dia
 }
 
 interface Token {
-  id: string; cenaId: string; personagemId: string | null;
-  assetHash: string;
-  x: number; y: number;             // em metros
+  id: string; cenaId: string;
+  nome: string; cor: string;        // aparência gerada (círculo + iniciais) até existir imagem
+  tamanhoQuadrados: number;         // 1..4
+  x: number; y: number;             // centro, em metros
   camada: 'tokens' | 'mestre';
   oculto: boolean;
+  controladoPor: string[];          // ids de usuário; o mestre move qualquer um
+  assetHash?: string;               // lote 3
+  personagemId?: string | null;     // lote 4
 }
 
 interface Parede {
@@ -266,7 +272,13 @@ quando ele muda de cena.
 - Cada mensagem tem versão do protocolo (`v`). A sala numera os eventos (`seq`): global, só cresce
   (inclusive na importação). Como a sala filtra por papel, o jogador vê saltos no `seq`, o que é aceito.
 - Ao conectar ou reconectar, o cliente recebe um **snapshot filtrado** e depois só eventos.
-- Movimento ao vivo (`token.mover`) é transitório e não é gravado. Só `token.soltar` grava.
+- Movimento ao vivo (`token.mover`) é transitório e não é gravado. Só `token.soltar` grava. A sala
+  repassa o movimento como `token.movendo` só a quem vê o token; se quem arrasta cai antes de soltar,
+  a sala manda aos outros a posição gravada. Mover exige `token.moverProprio` e **controlar e ver** o
+  token (o mestre move qualquer um).
+- **Sigilo de token:** token da camada do mestre ou oculto não chega ao jogador de jeito nenhum. Quando
+  deixa de ser visível para ele, chega só `token.sumiu { id }`, sem motivo; quando passa a ser visível,
+  chega inteiro. Pedido sobre token invisível responde igual a token inexistente (`token_inexistente`).
 - O documento `docs/protocolo.md` lista todas as mensagens e é atualizado em todo lote que mexer nelas.
 
 Exemplos de intenções do cliente: `entrar`, `token.mover`, `token.soltar`, `parede.criar`,
@@ -333,7 +345,8 @@ Se o arquivo for movido ou renomeado, o app reescaneia a pasta e encontra pelo h
 - Se o mestre fechar o navegador, a mesa continua. Opção de pausar automaticamente quando o mestre sai.
 - **Exportar/importar a campanha** (mestre): um JSON com todo o estado da sala (cenas, paredes, fichas,
   objetos, automações, névoa, chat), sem imagens. Serve de backup na pasta `backup/` do mestre e para
-  levar a campanha de uma instalação para outra.
+  levar a campanha de uma instalação para outra. O formato é versionado (hoje v2) e versões antigas
+  continuam importáveis.
 
 ### 4.5 Orçamento do plano grátis (para o futuro deploy)
 
@@ -346,7 +359,8 @@ não precisar de reescrita depois:
 
 Regras que decorrem disso:
 - arrastar token envia no máximo **20 atualizações/s**, só enquanto arrasta; os outros clientes
-  interpolam o movimento;
+  interpolam o movimento; o cliente não reenvia a mesma posição e o `token.soltar` sai na hora, fora
+  do limite;
 - ações rápidas podem ser agrupadas em uma mensagem por "tick" de 50 ms;
 - a sala conta as mensagens recebidas por dia UTC e o painel do mestre mostra "uso de hoje: X%".
 
@@ -980,7 +994,9 @@ dela e revisar o rascunho antes de publicar.
 - handouts (imagem ou texto entregue a um jogador, que fica no inventário dele);
 - som ambiente sincronizado (vento da Inspiração, gotejar, combate), também lido da pasta local;
 - dados 3D (só visual; o resultado continua vindo do servidor);
-- filtro por linha de visão no servidor (jogador não recebe nem a posição de tokens fora da visão);
+- filtro por linha de visão no servidor (jogador não recebe nem a posição de tokens fora da visão):
+  entra em `tokenVisivelPara`/`eventoPara`, que já recebem o estado de antes e de depois, e reaproveita
+  `token.sumiu`;
 - editor de templates para importar PDFs de outras fichas;
 - importação de foto de ficha (OCR local), se um dia valer a pena;
 - deploy na internet (Cloudflare, conta pessoal) e login real — outro plano;
@@ -1009,8 +1025,9 @@ Regras para o agente que implementa:
 5. Lógica de regras, geometria, dados e import de PDF em `packages/shared`, pura e testada.
 6. Toda mensagem nova do protocolo tem schema zod e é filtrada por papel na sala.
 7. Nada que o jogador não pode ver sai da sala para ele. Todo lote que cria dado secreto inclui um
-   teste E2E que inspeciona os frames do jogador (modelo: "frames recebidos pelo jogador" em
-   `e2e/tests/sala.spec.ts`).
+   teste E2E que inspeciona os frames do jogador (modelos: os testes "frames ..." em
+   `e2e/tests/sala.spec.ts` e `e2e/tests/mapa.spec.ts`). O canvas se testa pelo gancho
+   `window.__tabletop`, que só existe no modo `e2e`.
 8. Mudanças de arquitetura em relação a este documento: propor primeiro, implementar depois.
 9. Commits pequenos e um commit de fechamento por lote.
 10. Toda intenção nova declara a capacidade exigida.

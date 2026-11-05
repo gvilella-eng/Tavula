@@ -282,7 +282,16 @@ describe("exportar e importar", () => {
   it("a exportação não leva uso nem presença", () => {
     const x = criarExportacao(criarEstado(), AGORA);
     expect(Object.keys(x.dados).sort()).toEqual(
-      ["notaMesa", "notaMestre", "permissoes", "seq", "usuarios"].sort(),
+      [
+        "cenaAtivaId",
+        "cenas",
+        "notaMesa",
+        "notaMestre",
+        "permissoes",
+        "seq",
+        "tokens",
+        "usuarios",
+      ].sort(),
     );
   });
 
@@ -295,7 +304,7 @@ describe("exportar e importar", () => {
       "texto",
       {},
       { ...boa, formato: "outro" },
-      { ...boa, versao: 2 },
+      { ...boa, versao: 3 },
       { ...boa, dados: { ...boa.dados, usuarios: [] } },
       {
         ...boa,

@@ -48,5 +48,98 @@
       "papel": "jogador",
       "cor": "#808000"
     }
+  ],
+  "cenas": [
+    {
+      "id": "cena-1",
+      "nome": "Cena inicial",
+      "larguraM": 60,
+      "alturaM": 45,
+      "grid": {
+        "quadradoM": 1.5,
+        "visivel": true
+      }
+    }
+  ],
+  "cenaAtivaId": "cena-1",
+  "tokens": [
+    {
+      "id": "tok-jogador-1",
+      "cenaId": "cena-1",
+      "nome": "Aldric",
+      "cor": "#3cb44b",
+      "tamanhoQuadrados": 1,
+      "x": 11.25,
+      "y": 9.75,
+      "camada": "tokens",
+      "oculto": false,
+      "controladoPor": [
+        "jogador-1"
+      ]
+    },
+    {
+      "id": "tok-jogador-2",
+      "cenaId": "cena-1",
+      "nome": "Brisa",
+      "cor": "#4363d8",
+      "tamanhoQuadrados": 1,
+      "x": 15.75,
+      "y": 9.75,
+      "camada": "tokens",
+      "oculto": false,
+      "controladoPor": [
+        "jogador-2"
+      ]
+    },
+    {
+      "id": "tok-jogador-3",
+      "cenaId": "cena-1",
+      "nome": "Cael",
+      "cor": "#f58231",
+      "tamanhoQuadrados": 1,
+      "x": 20.25,
+      "y": 9.75,
+      "camada": "tokens",
+      "oculto": false,
+      "controladoPor": [
+        "jogador-3"
+      ]
+    },
+    {
+      "id": "tok-ogro",
+      "cenaId": "cena-1",
+      "nome": "Ogro",
+      "cor": "#c0392b",
+      "tamanhoQuadrados": 2,
+      "x": 30,
+      "y": 15,
+      "camada": "tokens",
+      "oculto": false,
+      "controladoPor": []
+    },
+    {
+      "id": "tok-goblin-oculto",
+      "cenaId": "cena-1",
+      "nome": "Goblin Emboscado",
+      "cor": "#7f8c3a",
+      "tamanhoQuadrados": 1,
+      "x": 36.75,
+      "y": 18.75,
+      "camada": "tokens",
+      "oculto": true,
+      "controladoPor": []
+    },
+    {
+      "id": "tok-marcador-mestre",
+      "cenaId": "cena-1",
+      "nome": "Marcador Secreto",
+      "cor": "#8e44ad",
+      "tamanhoQuadrados": 1,
+      "x": 30.75,
+      "y": 30.75,
+      "camada": "mestre",
+      "oculto": false,
+      "controladoPor": []
+    }
   ]
 }
