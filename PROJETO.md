@@ -609,6 +609,47 @@ cores ou nomes de terceiros.
   `lucide-react`, `@fontsource/*`), nunca de CDN ou Google Fonts em execução.
 - Alvo é o desktop; em tela estreita a barra lateral recolhe.
 
+#### 4.13.1 Interface v2 (definida pelo Vilella em 2026-11-05; substitui o que conflitar acima)
+
+Base do Lote 4b. **Em definição:** o que cada ícone do menu superior abre o Vilella ainda vai detalhar.
+
+- **Sai** a etiqueta sobre o mapa ("Vendo: X · Grupo em: Y · Mestre"); para onde vai essa informação, ele
+  decide depois.
+- **Menu rápido do mestre**, horizontal, no topo e centralizado, no mesmo estilo da barra da esquerda.
+  Só o mestre vê. Ícones:
+  - cenas;
+  - camadas (4: **mapa**, tokens, mestre, desenho);
+  - visão noturna (só o ícone por enquanto);
+  - novo token;
+  - eventos (as automações da seção 4.11);
+  - iluminação (lanterna; o Vilella vai explicar);
+  - mostrar/esconder a ordem de turno para todos, inclusive para o mestre.
+- **Barra da esquerda** (todos): selecionar, mão, régua, **dados rápidos** e **pincel**.
+  - Dados rápidos: uma grade com os dados (D4, D6, D8, D10, D12, D20, D100) nas linhas e as
+    quantidades nas colunas.
+  - Pincel: voltar, selecionar, formas, cores e borracha.
+- **Camada de desenho:**
+  - Todo desenho feito pelo pincel, de jogador ou mestre, vai para ela, qualquer que seja a camada atual.
+  - É sempre visível para todos, mas só o mestre a vê como camada.
+  - A borracha e o selecionar do pincel só atuam nela, para nenhum jogador mexer nos tokens limpando
+    desenho.
+  - No menu de camadas, ao lado da camada de desenho, o mestre tem "limpar todos os desenhos".
+  - Camadas valem por cena.
+- **Barra da direita:** expandir/recolher, **Chat**, **Fichas**, **Compêndio de magias** e
+  **Configurações**. A aba do mestre de hoje fica por enquanto e migra aos poucos.
+  - Chat: conversa, resultado das rolagens e descrição de magia mandada para o chat.
+  - Fichas (o "diário"):
+    - personagens, NPCs, artefatos, tesouros, handouts etc., organizados em **pastas** sem subpastas;
+    - a pasta define **quem vê**: todos, jogadores escolhidos ou só o mestre. Tudo nela obedece, e o
+      sigilo vale como sempre: o que o jogador não vê não chega ao navegador dele;
+    - cada item define **quem edita**: jogadores escolhidos ou só o mestre. O mestre edita tudo;
+    - arrastar pela borda esquerda do item muda a pasta;
+    - a ficha de D&D completa e o botão "importar ficha" vêm depois.
+  - Compêndio: magias de D&D (um JSON grande) para puxar para a ficha; talvez monstros e armas
+    depois.
+- **Sem menu de "subir arquivo":** a imagem entra onde dá sentido a ela. No editor do item ficam o
+  retrato (avatar) e o token padrão; na cena, o mapa. A aba Biblioteca some como aba própria.
+
 ---
 
 ## 5. Estrutura do repositório
