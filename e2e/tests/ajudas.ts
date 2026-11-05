@@ -17,16 +17,26 @@ export const USUARIOS = [
   "jogador-7",
 ];
 
-/** `frames`: recebidos da sala; `enviados`: enviados pelo navegador. */
+/**
+ * `frames` e `enviados`: os frames de TEXTO recebidos da sala e enviados pelo navegador.
+ * `binarios` e `enviadosBinarios`: os frames binários (pedaços de arquivo), como `Buffer`.
+ */
 export type Sessao = {
   contexto: BrowserContext;
   pagina: Page;
   frames: string[];
   enviados: string[];
+  binarios: Buffer[];
+  enviadosBinarios: Buffer[];
 };
 
-const textoDoFrame = (payload: string | Buffer) =>
-  typeof payload === "string" ? payload : payload.toString("utf8");
+/** Ganchos do modo e2e para os assets (ver apps/web/src/assets/gerente.ts). */
+export type GanchoDeAssets = {
+  atrasoPorPedacoMs?: number;
+  corromperIndice?: number;
+  corromperVezes?: number;
+  limiteTile?: number;
+};
 
 /** Abre uma aba da barra lateral (a barra pode estar recolhida) e espera o painel aparecer. */
 export async function abrirAba(pagina: Page, id: string): Promise<void> {
@@ -50,9 +60,18 @@ export class Mesa {
   private readonly sessoes: Sessao[] = [];
   constructor(private readonly browser: Browser) {}
 
-  /** Abre um contexto, escolhe o usuário na tela de entrada e espera a sala conectar. */
-  async entrar(usuarioId: string): Promise<Sessao> {
+  /**
+   * Abre um contexto, escolhe o usuário na tela de entrada e espera a sala conectar. `gancho`
+   * vira `window.__tabletopE2E` antes da página carregar (envio lento, pedaço corrompido, limite
+   * do tile); só vale no modo e2e.
+   */
+  async entrar(usuarioId: string, gancho?: GanchoDeAssets): Promise<Sessao> {
     const sessao = await this.abrir();
+    if (gancho) {
+      await sessao.pagina.addInitScript((g) => {
+        (window as unknown as { __tabletopE2E?: unknown }).__tabletopE2E = g;
+      }, gancho);
+    }
     await sessao.pagina.goto("/");
     await sessao.pagina.getByTestId(`entrar-${usuarioId}`).click();
     await expect(sessao.pagina.getByTestId("status-conexao")).toHaveText("conectado");
@@ -66,11 +85,18 @@ export class Mesa {
     const pagina = await contexto.newPage();
     const frames: string[] = [];
     const enviados: string[] = [];
+    const binarios: Buffer[] = [];
+    const enviadosBinarios: Buffer[] = [];
+    // Texto chega como string e binário como Buffer: cada um vai para a sua lista.
+    const guardar = (texto: string[], binario: Buffer[]) => (f: { payload: string | Buffer }) => {
+      if (typeof f.payload === "string") texto.push(f.payload);
+      else binario.push(Buffer.from(f.payload));
+    };
     pagina.on("websocket", (ws) => {
-      ws.on("framereceived", (f) => frames.push(textoDoFrame(f.payload)));
-      ws.on("framesent", (f) => enviados.push(textoDoFrame(f.payload)));
+      ws.on("framereceived", guardar(frames, binarios));
+      ws.on("framesent", guardar(enviados, enviadosBinarios));
     });
-    const sessao = { contexto, pagina, frames, enviados };
+    const sessao = { contexto, pagina, frames, enviados, binarios, enviadosBinarios };
     this.sessoes.push(sessao);
     return sessao;
   }

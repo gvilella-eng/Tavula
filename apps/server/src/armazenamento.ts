@@ -1,4 +1,5 @@
 import {
+  type AssetMeta,
   CENA_PADRAO,
   type Cena,
   type Estado,
@@ -32,7 +33,20 @@ const MIGRACOES: Migracao[] = [
       UNIQUE (tipo, chave)
     )`);
   },
+  // Lote 3: quem tem cada asset, por conexão (sobrevive à hibernação; só metadados, nunca bytes).
+  (sql) => {
+    sql.exec(`CREATE TABLE posse (
+      conexao TEXT NOT NULL,
+      usuario TEXT NOT NULL,
+      hash TEXT NOT NULL,
+      PRIMARY KEY (conexao, hash)
+    )`);
+    sql.exec("CREATE INDEX posse_hash ON posse (hash)");
+  },
 ];
+
+/** Quem tem cópia de um asset: uma conexão de um usuário. */
+export type Posse = { conexao: string; usuario: string };
 
 /** Camada de persistência da sala sobre o SQLite do Durable Object. */
 export class Armazenamento {
@@ -94,8 +108,8 @@ export class Armazenamento {
     };
   }
 
-  /** Cenas e tokens. Banco do Lote 1 (sem cena): cria a cena padrão, sem quebrar o resto. */
-  private carregarMapa(): Pick<Estado, "cenas" | "cenaAtivaId" | "tokens"> {
+  /** Cenas, tokens e assets. Banco do Lote 1 (sem cena): cria a cena padrão, sem quebrar o resto. */
+  private carregarMapa(): Pick<Estado, "cenas" | "cenaAtivaId" | "tokens" | "assets"> {
     const ler = <T>(colecao: string): T[] =>
       this.sql
         .exec<{ dados: string }>(
@@ -110,7 +124,7 @@ export class Armazenamento {
     const cenaAtivaId = cenas.some((c) => c.id === ativa)
       ? (ativa as string)
       : (cenas[0]?.id ?? CENA_PADRAO.id);
-    return { cenas, cenaAtivaId, tokens: ler<Token>("tokens") };
+    return { cenas, cenaAtivaId, tokens: ler<Token>("tokens"), assets: ler<AssetMeta>("assets") };
   }
 
   private lerNota(id: string): string {
@@ -147,6 +161,7 @@ export class Armazenamento {
     this.gravarEntidade("notas", "mestre", { texto: estado.notaMestre ?? "" });
     for (const c of estado.cenas) this.gravarEntidade("cenas", c.id, c);
     for (const t of estado.tokens) this.gravarEntidade("tokens", t.id, t);
+    for (const a of estado.assets ?? []) this.gravarEntidade("assets", a.hash, a);
     this.gravarMeta("cena_ativa", estado.cenaAtivaId);
     this.gravarMeta("permissoes", JSON.stringify(estado.permissoes));
     this.gravarMeta("seq", String(estado.seq));
@@ -183,18 +198,72 @@ export class Armazenamento {
         case "token.sumiu":
           this.sql.exec("DELETE FROM entidades WHERE colecao = 'tokens' AND id = ?", ev.dados.id);
           break;
-        case "cena.gridAlterado": {
+        case "cena.gridAlterado":
+        case "cena.mapaAlterado": {
           const c = estado.cenas.find((x) => x.id === ev.dados.cenaId);
           if (c) this.gravarEntidade("cenas", c.id, c);
           break;
         }
+        case "asset.registrado":
+          this.gravarEntidade("assets", ev.dados.meta.hash, ev.dados.meta);
+          break;
       }
     }
     this.gravarMeta("seq", String(estado.seq));
   }
 
+  // --- posse de assets ------------------------------------------------------------------------
+
+  /** Troca tudo o que a conexão tem pelo inventário que ela acabou de mandar. */
+  substituirPosse(conexao: string, usuario: string, hashes: string[]): void {
+    this.sql.exec("DELETE FROM posse WHERE conexao = ?", conexao);
+    for (const hash of new Set(hashes)) {
+      this.sql.exec(
+        "INSERT INTO posse (conexao, usuario, hash) VALUES (?, ?, ?)",
+        conexao,
+        usuario,
+        hash,
+      );
+    }
+  }
+
+  adicionarPosse(conexao: string, usuario: string, hash: string): void {
+    this.sql.exec(
+      "INSERT OR REPLACE INTO posse (conexao, usuario, hash) VALUES (?, ?, ?)",
+      conexao,
+      usuario,
+      hash,
+    );
+  }
+
+  removerPosse(conexao: string, hash: string): void {
+    this.sql.exec("DELETE FROM posse WHERE conexao = ? AND hash = ?", conexao, hash);
+  }
+
+  /** Conexão fechada: ela não tem mais nada. */
+  limparPosse(conexao: string): void {
+    this.sql.exec("DELETE FROM posse WHERE conexao = ?", conexao);
+  }
+
+  /** Quem tem o hash, na ordem em que anunciou (estável). */
+  possesDe(hash: string): Posse[] {
+    return this.sql
+      .exec<Posse>("SELECT conexao, usuario FROM posse WHERE hash = ? ORDER BY rowid", hash)
+      .toArray();
+  }
+
+  /** Ao acordar: some a posse de conexões que não existem mais. */
+  limparPosseOrfa(conexoesVivas: string[]): void {
+    const vivas = new Set(conexoesVivas);
+    const todas = this.sql
+      .exec<{ conexao: string }>("SELECT DISTINCT conexao FROM posse")
+      .toArray();
+    for (const { conexao } of todas) if (!vivas.has(conexao)) this.limparPosse(conexao);
+  }
+
   /** Apaga todo o estado (só para as rotas de teste). */
   apagarTudo(): void {
+    this.sql.exec("DELETE FROM posse");
     this.sql.exec("DELETE FROM entidades");
     this.sql.exec("DELETE FROM agenda");
     this.sql.exec("DELETE FROM meta WHERE chave <> 'versao_esquema'");

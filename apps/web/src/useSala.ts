@@ -5,6 +5,7 @@ import {
   type Exportacao,
   IntencaoSchema,
   lerMensagemDaSala,
+  type MensagemDaSala,
   type Presenca,
   reduzir,
   type Uso,
@@ -18,6 +19,11 @@ export type StatusConexao = "conectando" | "conectado" | "reconectando";
 export type Ocorrencia =
   | { tipo: "evento"; evento: EventoSala }
   | { tipo: "movendo"; id: string; x: number; y: number }
+  | { tipo: "conectado" }
+  /** Vaivém de arquivos: `asset.meta`, `asset.enviar` e `asset.indisponivel`. */
+  | { tipo: "asset"; mensagem: MensagemDaSala }
+  /** Frame binário (pedaço de arquivo repassado pela sala). */
+  | { tipo: "binario"; dados: ArrayBuffer }
   | { tipo: "erro"; idPedido: string | null; codigo: CodigoDeErro; mensagem: string };
 
 export type Aviso = { numero: number; texto: string; codigo: CodigoDeErro | null };
@@ -91,6 +97,11 @@ export function useSala(opcoes: Opcoes) {
         case "uso":
           setUso(m.dados);
           break;
+        case "asset.meta":
+        case "asset.enviar":
+        case "asset.indisponivel":
+          emitir({ tipo: "asset", mensagem: m });
+          break;
         case "exportacao":
           opcoesAtuais.current.aoExportar(m.dados.exportacao);
           break;
@@ -104,6 +115,7 @@ export function useSala(opcoes: Opcoes) {
     function conectar() {
       const ws = new WebSocket(urlDaSala());
       socket.current = ws;
+      ws.binaryType = "arraybuffer";
       // Socket descartado (desmontagem ou StrictMode montando duas vezes) não pode mexer no estado:
       // o "close" dele pode chegar depois do "open" do socket novo.
       const ativo = () => !encerrado && socket.current === ws;
@@ -111,9 +123,12 @@ export function useSala(opcoes: Opcoes) {
         if (!ativo()) return;
         tentativa = 0;
         setStatus("conectado");
+        emitir({ tipo: "conectado" });
       });
       ws.addEventListener("message", (e) => {
-        if (ativo() && typeof e.data === "string") tratar(e.data);
+        if (!ativo()) return;
+        if (typeof e.data === "string") tratar(e.data);
+        else if (e.data instanceof ArrayBuffer) emitir({ tipo: "binario", dados: e.data });
       });
       ws.addEventListener("close", () => {
         if (!ativo()) return;
@@ -157,6 +172,17 @@ export function useSala(opcoes: Opcoes) {
     return id;
   }, []);
 
+  /** Frame binário (pedaço de arquivo). `false` se o socket não está aberto. */
+  const enviarBinario = useCallback((dados: Uint8Array): boolean => {
+    const ws = socket.current;
+    if (ws?.readyState !== WebSocket.OPEN) return false;
+    ws.send(dados as BufferSource);
+    return true;
+  }, []);
+
+  const bufferizado = useCallback(() => socket.current?.bufferedAmount ?? 0, []);
+  const conectado = useCallback(() => socket.current?.readyState === WebSocket.OPEN, []);
+
   const ouvir = useCallback((fn: (o: Ocorrencia) => void) => {
     ouvintes.current.add(fn);
     return () => {
@@ -165,5 +191,17 @@ export function useSala(opcoes: Opcoes) {
   }, []);
 
   const eu = estado?.usuarios.find((u) => u.id === usuarioId) ?? null;
-  return { status, estado, eu, presenca, uso, aviso, enviar, ouvir };
+  return {
+    status,
+    estado,
+    eu,
+    presenca,
+    uso,
+    aviso,
+    enviar,
+    enviarBinario,
+    bufferizado,
+    conectado,
+    ouvir,
+  };
 }

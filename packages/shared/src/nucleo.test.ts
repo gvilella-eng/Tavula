@@ -283,6 +283,7 @@ describe("exportar e importar", () => {
     const x = criarExportacao(criarEstado(), AGORA);
     expect(Object.keys(x.dados).sort()).toEqual(
       [
+        "assets",
         "cenaAtivaId",
         "cenas",
         "notaMesa",
@@ -304,7 +305,7 @@ describe("exportar e importar", () => {
       "texto",
       {},
       { ...boa, formato: "outro" },
-      { ...boa, versao: 3 },
+      { ...boa, versao: 4 },
       { ...boa, dados: { ...boa.dados, usuarios: [] } },
       {
         ...boa,

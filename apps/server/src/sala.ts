@@ -1,5 +1,6 @@
 import { DurableObject } from "cloudflare:workers";
 import {
+  assetVisivelPara,
   type CodigoDeErro,
   calcularUso,
   diaUtc,
@@ -7,7 +8,9 @@ import {
   type EventoSala,
   estadoInicial,
   eventoPara,
+  type Intencao,
   idDoPedido,
+  lerFrameDePedaco,
   lerIntencao,
   mensagem,
   type Presenca,
@@ -19,6 +22,7 @@ import {
 import semente from "../../../fixtures/campanha.seed.json";
 import { Agendador } from "./agendador";
 import { Armazenamento, type UsoDoDia } from "./armazenamento";
+import { Transferencias } from "./transferencias";
 
 /** O valor do cabeçalho Upgrade não diferencia maiúsculas ("websocket", "WebSocket"). */
 export function pedeWebSocket(request: Request): boolean {
@@ -59,11 +63,22 @@ export class Sala extends DurableObject<Env> {
    * memória: enquanto alguém arrasta, a sala recebe mensagens e não hiberna.
    */
   private readonly arrastes = new Map<WebSocket, Set<string>>();
+  /** Envio de arquivos entre navegadores (só memória; a sala nunca grava pedaço). */
+  private readonly transferencias: Transferencias;
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
     this.banco = new Armazenamento(ctx.storage.sql);
     this.agenda = new Agendador(ctx.storage.sql, ctx.storage);
+    this.transferencias = new Transferencias({
+      candidatos: (hash) => this.candidatosA(hash),
+      pedirEnvio: (conexaoId, hash, indices) =>
+        this.enviarA(conexaoId, mensagem({ tipo: "asset.enviar", dados: { hash, indices } })),
+      repassar: (conexaoId, frame) => this.enviarA(conexaoId, frame),
+      avisarIndisponivel: (conexaoId, hash) =>
+        this.enviarA(conexaoId, mensagem({ tipo: "asset.indisponivel", dados: { hash } })),
+      agora: () => Date.now(),
+    });
     void ctx.blockConcurrencyWhile(async () => {
       this.banco.migrar();
       let carregado = this.banco.carregar();
@@ -73,6 +88,8 @@ export class Sala extends DurableObject<Env> {
       }
       this.estado = carregado;
       this.uso = this.banco.lerUso() ?? { dia: diaUtc(new Date()), mensagens: 0, conexoes: 0 };
+      // Ao acordar: conexão que não existe mais não tem cópia de nada.
+      this.banco.limparPosseOrfa(this.conexoesAbertas().map((c) => c.conexaoId));
     });
   }
 
@@ -143,6 +160,7 @@ export class Sala extends DurableObject<Env> {
       this.uso = { dia: diaUtc(new Date()), mensagens: 0, conexoes: 0 };
       this.mensagensDesdeGravacaoDoUso = 0;
       this.mensagensDesdeEnvioDoUso = 0;
+      this.transferencias.limpar();
       for (const ws of this.ctx.getWebSockets()) {
         const usuario = this.usuarioDe(ws);
         if (usuario) this.enviarSnapshot(ws, usuario);
@@ -170,14 +188,15 @@ export class Sala extends DurableObject<Env> {
       return;
     }
 
+    // Frame binário: só pedaço de arquivo, só de quem a sala pediu; o resto some em silêncio.
+    if (typeof bruta !== "string") {
+      this.tratarPedaco(ws, bruta);
+      return;
+    }
+
     const lida = lerIntencao(bruta);
     if (!lida.ok) {
-      this.erro(
-        ws,
-        typeof bruta === "string" ? idDoPedido(bruta) : null,
-        "mensagem_invalida",
-        lida.motivo,
-      );
+      this.erro(ws, idDoPedido(bruta), "mensagem_invalida", lida.motivo);
       return;
     }
     const intencao = lida.valor;
@@ -194,6 +213,7 @@ export class Sala extends DurableObject<Env> {
     }
     const antes = this.estado;
     this.estado = r.estado;
+    this.cuidarDeAsset(ws, usuario, intencao);
 
     // Movimento ao vivo: transitório, não grava; só quem pode ver o token recebe (menos o remetente).
     if (r.movendo) {
@@ -240,6 +260,8 @@ export class Sala extends DurableObject<Env> {
     this.desfazerArrastes(ws);
     const identidade = this.identidadeDe(ws);
     if (!identidade) return;
+    this.banco.limparPosse(identidade.conexaoId);
+    this.transferencias.conexaoSaiu(identidade.conexaoId);
     if (!this.estaOnline(identidade.usuarioId, ws)) {
       await this.agenda.agendar(
         "presenca.expirar",
@@ -332,6 +354,99 @@ export class Sala extends DurableObject<Env> {
     const texto = this.textoDoUso();
     for (const ws of this.ctx.getWebSockets()) {
       if (this.usuarioDe(ws)?.papel === "mestre") this.enviar(ws, texto);
+    }
+  }
+
+  // --- Arquivos (assets) ----------------------------------------------------------------------
+
+  private conexoesAbertas(): { conexaoId: string; ws: WebSocket }[] {
+    const abertas: { conexaoId: string; ws: WebSocket }[] = [];
+    for (const ws of this.ctx.getWebSockets()) {
+      const identidade = this.identidadeDe(ws);
+      if (identidade && ws.readyState === WebSocket.OPEN) {
+        abertas.push({ conexaoId: identidade.conexaoId, ws });
+      }
+    }
+    return abertas;
+  }
+
+  /**
+   * Conexões online com cópia do asset, na ordem em que anunciaram. Só serve quem pode **ver** o
+   * asset agora: senão um jogador que anunciasse o hash da imagem de um token oculto seria chamado
+   * para enviá-la (e descobriria que ela está em uso).
+   */
+  private candidatosA(hash: string) {
+    const abertas = new Set(this.conexoesAbertas().map((c) => c.conexaoId));
+    const candidatos = [];
+    for (const p of this.banco.possesDe(hash)) {
+      if (!abertas.has(p.conexao)) continue;
+      const usuario = this.estado.usuarios.find((u) => u.id === p.usuario);
+      if (!usuario || !assetVisivelPara(hash, this.estado, usuario)) continue;
+      candidatos.push({ conexaoId: p.conexao, usuarioId: usuario.id, papel: usuario.papel });
+    }
+    return candidatos;
+  }
+
+  private enviarA(conexaoId: string, dados: string | ArrayBuffer): void {
+    const alvo = this.conexoesAbertas().find((c) => c.conexaoId === conexaoId);
+    if (!alvo) return;
+    try {
+      alvo.ws.send(dados);
+    } catch {
+      // socket fechando: o webSocketClose cuida
+    }
+  }
+
+  /** Frame binário de pedaço: a coordenação decide se vale (pedido àquele socket) e repassa. */
+  private tratarPedaco(ws: WebSocket, bruto: ArrayBuffer): void {
+    const frame = lerFrameDePedaco(bruto);
+    const identidade = this.identidadeDe(ws);
+    if (!frame || !identidade) return;
+    this.transferencias.frame(identidade.conexaoId, frame, bruto);
+  }
+
+  /** O vaivém de arquivos que não muda o estado (`processar` já conferiu quem pode). */
+  private cuidarDeAsset(ws: WebSocket, usuario: Usuario, intencao: Intencao): void {
+    const identidade = this.identidadeDe(ws);
+    if (!identidade) return;
+    const conexaoId = identidade.conexaoId;
+    // Posse só vale para asset que a pessoa vê (o mesmo filtro vale na hora de escolher quem serve).
+    const conhecido = (hash: string) => assetVisivelPara(hash, this.estado, usuario);
+    switch (intencao.tipo) {
+      case "asset.pedir": {
+        const { hash, faltam } = intencao.dados;
+        const meta = this.estado.assets?.find((a) => a.hash === hash);
+        // Sigilo: asset que a pessoa não vê responde igual a asset que não existe.
+        if (!meta || !assetVisivelPara(hash, this.estado, usuario)) {
+          this.erro(ws, intencao.id, "asset_inexistente", "Arquivo não encontrado.");
+          return;
+        }
+        this.enviar(ws, mensagem({ tipo: "asset.meta", dados: { meta } }));
+        const total = meta.pedacos.length;
+        if (total === 0) return; // manifesto de mapa: não há bytes, só os tiles
+        const indices = faltam ?? Array.from({ length: total }, (_, i) => i);
+        this.transferencias.pedir(conexaoId, hash, total, meta.donoId, indices);
+        return;
+      }
+      case "asset.inventario": {
+        const hashes = intencao.dados.hashes.filter(conhecido);
+        this.banco.substituirPosse(conexaoId, usuario.id, hashes);
+        for (const h of hashes) this.transferencias.posseMudou(h);
+        return;
+      }
+      case "asset.tenho": {
+        const { hash } = intencao.dados;
+        if (!conhecido(hash)) return;
+        this.banco.adicionarPosse(conexaoId, usuario.id, hash);
+        this.transferencias.posseMudou(hash);
+        return;
+      }
+      case "asset.naoTenho": {
+        const { hash } = intencao.dados;
+        this.banco.removerPosse(conexaoId, hash);
+        this.transferencias.naoTem(conexaoId, hash);
+        return;
+      }
     }
   }
 

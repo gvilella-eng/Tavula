@@ -412,3 +412,96 @@ textarea {
     --largura-lateral: 240px;
   }
 }
+
+/* --- biblioteca (arquivos locais) ----------------------------------------------------------- */
+.botao-icone {
+  position: relative;
+}
+.indicador {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--acento);
+  animation: pulsar 1.2s ease-in-out infinite;
+}
+@keyframes pulsar {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.nota {
+  color: var(--texto-suave);
+  font-size: 12px;
+  margin: 6px 0;
+}
+.linha-botoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.soltar {
+  margin-top: 10px;
+  padding: 8px;
+  border: 1px dashed var(--borda);
+  border-radius: var(--raio);
+  min-height: 60px;
+}
+.miniaturas {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+  gap: 8px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+.miniatura {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  padding: 4px;
+}
+.miniatura[aria-pressed="true"] {
+  border-color: var(--acento);
+}
+.miniatura img,
+.miniatura .sem-imagem {
+  width: 72px;
+  height: 72px;
+  object-fit: contain;
+  background: var(--fundo);
+  border-radius: 6px;
+}
+.miniatura .nome {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+}
+.acoes {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  margin-top: 10px;
+}
+.transferencias li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px 8px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.transferencias progress {
+  grid-column: 1 / -1;
+  width: 100%;
+  height: 6px;
+}

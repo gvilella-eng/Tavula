@@ -29,5 +29,6 @@ export function estadoInicial(bruta: unknown): Estado {
     cenas,
     cenaAtivaId: semente.cenaAtivaId ?? cenas[0]?.id ?? CENA_PADRAO.id,
     tokens: semente.tokens ?? [],
+    assets: [],
   };
 }

@@ -1,4 +1,5 @@
 import {
+  type AssetMeta,
   type Camada,
   type Cena,
   criarLimitador,
@@ -9,7 +10,7 @@ import {
   suavizar,
   type Token,
 } from "@tabletop/shared";
-import { Application, Container, Graphics, Text } from "pixi.js";
+import { Application, Container, Graphics, Sprite, Text, Texture } from "pixi.js";
 
 /** Pixels do mundo por metro (zoom 1). O zoom é a escala do `mundo` sobre isso. */
 export const PX_POR_M = 40;
@@ -31,6 +32,14 @@ export type OpcoesDoMapa = {
   podeMover: (token: Token) => boolean;
 };
 
+/** O que o mapa precisa saber das imagens locais (o gerente de assets responde). */
+export type ImagensDoMapa = {
+  meta(hash: string): AssetMeta | undefined;
+  /** O arquivo (ou, no mapa fatiado, todos os tiles) já está no cache local? */
+  pronto(hash: string): boolean;
+  blob(hash: string): Promise<Blob | null>;
+};
+
 export type MedicaoNaTela = { medida: Medida; x: number; y: number };
 
 export type RetornosDoMapa = {
@@ -48,6 +57,8 @@ type Visual = {
   chave: string;
   container: Container;
   anel: Graphics;
+  /** A imagem do token já apareceu (senão vale o círculo gerado). */
+  temImagem: boolean;
   x: number;
   y: number;
   alvoX: number;
@@ -84,11 +95,16 @@ export class MapaPixi {
   private destruido = false;
   private readonly mundo = new Container();
   private readonly fundo = new Graphics();
+  private readonly camadaMapa = new Container();
   private readonly grade = new Graphics();
   private readonly camadaTokens = new Container();
   private readonly camadaMestre = new Container();
   private readonly desenhoDaRegua = new Graphics();
   private readonly visuais = new Map<string, Visual>();
+  private readonly spritesDoMapa = new Map<string, Sprite>();
+  private readonly texturas = new Map<string, Texture>();
+  private readonly carregando = new Set<string>();
+  private imagens: ImagensDoMapa | null = null;
   private readonly ultimasPosicoes = new Map<string, Ponto>();
   private cena: Cena | null = null;
   private tokens: Token[] = [];
@@ -129,6 +145,7 @@ export class MapaPixi {
     this.host.append(this.app.canvas);
     this.mundo.addChild(
       this.fundo,
+      this.camadaMapa,
       this.grade,
       this.camadaTokens,
       this.camadaMestre,
@@ -152,6 +169,7 @@ export class MapaPixi {
     this.pronto = true;
     this.instalarGanchoDeTeste();
     this.desenharCena();
+    this.atualizarMapa();
     this.sincronizarTokens();
     this.centralizar();
     this.atualizarCursor();
@@ -176,6 +194,8 @@ export class MapaPixi {
     if (import.meta.env.MODE === "e2e") {
       (window as unknown as { __tabletop?: unknown }).__tabletop = undefined;
     }
+    for (const t of this.texturas.values()) t.destroy(true);
+    this.texturas.clear();
     this.app.destroy(true, { children: true });
   }
 
@@ -183,11 +203,94 @@ export class MapaPixi {
 
   definirCena(cena: Cena): void {
     const gridMudou = this.cena?.grid.quadradoM !== cena.grid.quadradoM;
+    const tamanhoMudou =
+      this.cena !== null &&
+      (this.cena.larguraM !== cena.larguraM || this.cena.alturaM !== cena.alturaM);
     this.cena = cena;
     if (!this.pronto) return;
     this.desenharCena();
+    this.atualizarMapa();
     if (gridMudou) this.recriarVisuais();
-    if (!this.jaCentralizou) this.centralizar();
+    // Mapa novo muda o tamanho da cena: enquadra de novo.
+    if (!this.jaCentralizou || tamanhoMudou) this.centralizar();
+  }
+
+  /** O gerente de assets (de onde vêm as imagens locais). */
+  definirImagens(imagens: ImagensDoMapa): void {
+    this.imagens = imagens;
+    if (this.pronto) this.imagensMudaram();
+  }
+
+  /** Chegou ou mudou algo no cache de imagens: refaz o fundo e as imagens dos tokens. */
+  imagensMudaram(): void {
+    if (!this.pronto) return;
+    this.atualizarMapa();
+    this.sincronizarTokens();
+  }
+
+  private async carregarTextura(hash: string): Promise<Texture | null> {
+    const pronta = this.texturas.get(hash);
+    if (pronta) return pronta;
+    const blob = await this.imagens?.blob(hash);
+    if (!blob || this.destruido) return null;
+    const textura = Texture.from(await createImageBitmap(blob));
+    if (this.destruido) {
+      textura.destroy(true);
+      return null;
+    }
+    this.texturas.set(hash, textura);
+    return textura;
+  }
+
+  /** Pede a textura em segundo plano (uma vez) e roda `depois` quando ela chegar. */
+  private carregarEDepois(hash: string, depois: () => void): void {
+    if (this.texturas.has(hash) || this.carregando.has(hash)) return;
+    this.carregando.add(hash);
+    this.carregarTextura(hash)
+      .catch((e) => console.error("Falha ao carregar imagem", e))
+      .finally(() => {
+        this.carregando.delete(hash);
+        if (this.pronto) depois();
+      });
+  }
+
+  /** Fundo da cena: o mapa (sprites por tile), na escala px ÷ pxPorQuadrado × quadradoM. */
+  private atualizarMapa(): void {
+    this.sujo = true;
+    const cena = this.cena;
+    const mapa = cena?.mapa;
+    const manter = new Set<string>();
+    const meta = mapa && this.imagens ? this.imagens.meta(mapa.assetHash) : undefined;
+    if (cena && mapa && meta) {
+      const escala = (cena.grid.quadradoM / mapa.pxPorQuadrado) * PX_POR_M;
+      const tiles = meta.tiles ?? [
+        { hash: meta.hash, x: 0, y: 0, largura: meta.largura, altura: meta.altura },
+      ];
+      for (const t of tiles) {
+        manter.add(t.hash);
+        let sprite = this.spritesDoMapa.get(t.hash);
+        if (!sprite) {
+          const textura = this.texturas.get(t.hash);
+          if (!textura) {
+            if (this.imagens?.pronto(t.hash)) {
+              this.carregarEDepois(t.hash, () => this.atualizarMapa());
+            }
+            continue;
+          }
+          sprite = new Sprite(textura);
+          this.spritesDoMapa.set(t.hash, sprite);
+          this.camadaMapa.addChild(sprite);
+        }
+        sprite.position.set(t.x * escala, t.y * escala);
+        sprite.width = t.largura * escala;
+        sprite.height = t.altura * escala;
+      }
+    }
+    for (const [hash, sprite] of this.spritesDoMapa) {
+      if (manter.has(hash)) continue;
+      sprite.destroy();
+      this.spritesDoMapa.delete(hash);
+    }
   }
 
   definirTokens(tokens: Token[]): void {
@@ -349,17 +452,29 @@ export class MapaPixi {
   }
 
   private chaveDe(t: Token): string {
-    return `${t.nome}|${t.cor}|${t.tamanhoQuadrados}|${t.oculto}|${t.camada}`;
+    const imagem = t.assetHash && this.texturas.has(t.assetHash) ? t.assetHash : "";
+    return `${t.nome}|${t.cor}|${t.tamanhoQuadrados}|${t.oculto}|${t.camada}|${imagem}`;
   }
 
   private criarVisual(token: Token, x: number, y: number): Visual {
     const raio = (token.tamanhoQuadrados * this.quadradoM() * PX_POR_M) / 2 - 3;
     const container = new Container();
-    // Imagem de teste gerada: círculo com a cor e as iniciais do nome (nenhum arquivo de imagem).
-    const corpo = new Graphics()
-      .circle(0, 0, raio)
-      .fill(token.cor)
-      .stroke({ width: 3, color: 0x000000, alpha: 0.55 });
+    // Com imagem local: recortada em círculo. Senão (ou enquanto não chega): círculo gerado com a
+    // cor e as iniciais do nome.
+    const textura = token.assetHash ? this.texturas.get(token.assetHash) : undefined;
+    const corpo = new Graphics().circle(0, 0, raio);
+    if (textura) corpo.fill(0x10141a);
+    else corpo.fill(token.cor);
+    corpo.stroke({ width: 3, color: 0x000000, alpha: 0.55 });
+    const imagem = new Container();
+    if (textura) {
+      const figura = new Sprite(textura);
+      figura.anchor.set(0.5);
+      figura.scale.set((raio * 2) / Math.min(textura.width, textura.height));
+      const mascara = new Graphics().circle(0, 0, raio).fill(0xffffff);
+      figura.mask = mascara;
+      imagem.addChild(mascara, figura);
+    }
     const iniciais = new Text({
       text: iniciaisDe(token.nome),
       style: {
@@ -371,6 +486,7 @@ export class MapaPixi {
       },
     });
     iniciais.anchor.set(0.5);
+    iniciais.visible = textura === undefined;
     const rotulo = new Text({
       text: token.nome,
       style: {
@@ -384,7 +500,7 @@ export class MapaPixi {
     rotulo.position.set(0, raio + 4);
     const anel = new Graphics().circle(0, 0, raio + 5).stroke({ width: 3, color: ACENTO });
     anel.visible = false;
-    container.addChild(anel, corpo, iniciais, rotulo);
+    container.addChild(anel, corpo, imagem, iniciais, rotulo);
     if (token.oculto) container.addChild(this.desenharOlhoCortado(raio));
     container.position.set(x * PX_POR_M, y * PX_POR_M);
     (token.camada === "mestre" ? this.camadaMestre : this.camadaTokens).addChild(container);
@@ -393,6 +509,7 @@ export class MapaPixi {
       chave: this.chaveDe(token),
       container,
       anel,
+      temImagem: textura !== undefined,
       x,
       y,
       alvoX: x,
@@ -427,6 +544,9 @@ export class MapaPixi {
     for (const t of this.tokens) {
       if (cenaId !== undefined && t.cenaId !== cenaId) continue;
       ids.add(t.id);
+      if (t.assetHash && this.imagens?.pronto(t.assetHash)) {
+        this.carregarEDepois(t.assetHash, () => this.sincronizarTokens());
+      }
       const antes = this.ultimasPosicoes.get(t.id);
       const mudouNoEstado = !antes || antes.x !== t.x || antes.y !== t.y;
       this.ultimasPosicoes.set(t.id, { x: t.x, y: t.y });
@@ -742,6 +862,19 @@ export class MapaPixi {
       centrarEm: (x: number, y: number) => this.centrarEm(x, y),
       quadradoM: () => this.quadradoM(),
       ferramenta: () => this.opcoes.ferramenta,
+      /** O que o fundo e os tokens mostram de imagem local (para conferir sem olhar o canvas). */
+      imagens: () => ({
+        tiles: [...this.spritesDoMapa].map(([hash, s]) => ({
+          hash,
+          x: s.x,
+          y: s.y,
+          largura: s.width,
+          altura: s.height,
+        })),
+        tokensComImagem: [...this.visuais.values()]
+          .filter((v) => v.temImagem)
+          .map((v) => v.token.id),
+      }),
     };
   }
 }

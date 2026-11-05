@@ -1,0 +1,99 @@
+import {
+  type ArquivoDaFonte,
+  ArquivosSoltos,
+  type FonteDeAssets,
+  Memoria,
+  PastaLocal,
+} from "./fonte";
+
+export type EstadoDaPasta = "nenhuma" | "autorizada" | "reautorizar" | "negada";
+
+/**
+ * As fontes de arquivos deste navegador: a pasta lembrada (quando o navegador deixa), os arquivos
+ * soltos e, nos testes (modo `e2e`), uma `Memoria` que faz o papel da pasta com escrita.
+ */
+export class Fontes {
+  readonly soltos = new ArquivosSoltos();
+  readonly memoria: Memoria | null = import.meta.env.MODE === "e2e" ? new Memoria() : null;
+  private pasta: PastaLocal | null = null;
+  private estadoDaPasta: EstadoDaPasta = "nenhuma";
+  private versao = 0;
+  private readonly ouvintes = new Set<() => void>();
+
+  readonly assinar = (fn: () => void): (() => void) => {
+    this.ouvintes.add(fn);
+    return () => {
+      this.ouvintes.delete(fn);
+    };
+  };
+  readonly versaoAtual = (): number => this.versao;
+  private mudou(): void {
+    this.versao++;
+    for (const fn of this.ouvintes) fn();
+  }
+
+  get estado(): EstadoDaPasta {
+    return this.estadoDaPasta;
+  }
+  get nomeDaPasta(): string | null {
+    return this.pasta?.nome ?? null;
+  }
+
+  /** Recupera a pasta de uma visita anterior. A permissão pode exigir um clique (reautorizar). */
+  async iniciar(): Promise<void> {
+    try {
+      this.pasta = await PastaLocal.lembrada();
+    } catch {
+      this.pasta = null;
+    }
+    await this.conferirPermissao();
+  }
+
+  private async conferirPermissao(): Promise<void> {
+    if (!this.pasta) this.estadoDaPasta = "nenhuma";
+    else {
+      const p = await this.pasta.permissao();
+      this.estadoDaPasta =
+        p === "granted" ? "autorizada" : p === "prompt" ? "reautorizar" : "negada";
+    }
+    this.mudou();
+  }
+
+  async escolherPasta(): Promise<void> {
+    this.pasta = await PastaLocal.escolher();
+    await this.conferirPermissao();
+  }
+
+  /** Precisa ser chamado direto de um clique: o navegador exige gesto do usuário. */
+  async reautorizar(): Promise<boolean> {
+    const ok = (await this.pasta?.autorizar()) ?? false;
+    await this.conferirPermissao();
+    return ok;
+  }
+
+  /** Onde gravar `recebidos/<jogador>/` (só o mestre usa): a pasta com escrita, ou a memória nos testes. */
+  destinoDeCopia(): FonteDeAssets | null {
+    if (this.pasta && this.estadoDaPasta === "autorizada") return this.pasta;
+    return this.memoria;
+  }
+
+  /** Imagens que o usuário pode usar agora: da pasta (se autorizada), soltas e da memória. */
+  async listar(): Promise<ArquivoDaFonte[]> {
+    const listas: ArquivoDaFonte[][] = [];
+    if (this.pasta && this.estadoDaPasta === "autorizada") {
+      try {
+        listas.push(await this.pasta.listar());
+      } catch {
+        // pasta sumiu ou perdeu a permissão: fica só o resto
+      }
+    }
+    listas.push(await this.soltos.listar());
+    if (this.memoria) listas.push(await this.memoria.listar());
+    return listas.flat();
+  }
+
+  adicionarSoltos(arquivos: Iterable<File>): void {
+    this.soltos.adicionar(arquivos);
+    this.mudou();
+  }
+}

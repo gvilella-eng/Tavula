@@ -5,13 +5,25 @@ import {
   podeMoverToken,
   type Token,
 } from "@tabletop/shared";
-import { Crown, Settings, StickyNote, Users } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Crown, Images, Settings, StickyNote, Users } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { AbaConfiguracoes, AbaJogadores, AbaNotas } from "./abas";
+import { CacheOpfs } from "./assets/cache";
+import { Fontes } from "./assets/fontes";
+import { ganchosDoTeste, instalarGanchoDeAssets } from "./assets/ganchoE2E";
+import { type Canal, GerenteDeAssets } from "./assets/gerente";
+import { Processador } from "./assets/processador";
 import { BarraDeFerramentas } from "./BarraDeFerramentas";
 import { BarraLateral } from "./BarraLateral";
+import { Biblioteca } from "./Biblioteca";
 import { Mapa } from "./mapa/Mapa";
-import type { Ferramenta, MapaPixi, MedicaoNaTela, RetornosDoMapa } from "./mapa/mapaPixi";
+import type {
+  Ferramenta,
+  ImagensDoMapa,
+  MapaPixi,
+  MedicaoNaTela,
+  RetornosDoMapa,
+} from "./mapa/mapaPixi";
 import { PainelDoMestre } from "./PainelDoMestre";
 import { PainelDoToken } from "./PainelDoToken";
 import { gravarEncaixePadrao, lerEncaixePadrao } from "./preferencias";
@@ -32,11 +44,26 @@ function baixarExportacao(exportacao: Exportacao) {
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
+const semAssinatura = () => () => {};
+const versaoZero = () => 0;
+
 type Props = { aoSair: () => void; aoPerderSessao: () => void };
 
 /** A mesa: o mapa ocupa a tela e as ferramentas flutuam em volta (PROJETO.md 4.13). */
 export function Mesa({ aoSair, aoPerderSessao }: Props) {
-  const { status, estado, eu, presenca, uso, aviso, enviar, ouvir } = useSala({
+  const {
+    status,
+    estado,
+    eu,
+    presenca,
+    uso,
+    aviso,
+    enviar,
+    enviarBinario,
+    bufferizado,
+    conectado,
+    ouvir,
+  } = useSala({
     aoExportar: baixarExportacao,
     aoPerderSessao,
   });
@@ -49,6 +76,19 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
   const [medicao, setMedicao] = useState<MedicaoNaTela | null>(null);
   const [lateralAberta, setLateralAberta] = useState(true);
   const mapa = useRef<MapaPixi | null>(null);
+
+  // Arquivos locais (PROJETO.md 4.3): fontes (pasta, soltos), processador (worker) e o gerente
+  // (cache OPFS, pedidos, envio). O gerente nasce quando sei quem sou.
+  const processador = useMemo(() => new Processador(), []);
+  const fontes = useMemo(() => new Fontes(), []);
+  const [gerente, setGerente] = useState<GerenteDeAssets | null>(null);
+  const canal = useRef<Canal>({ conectado, enviar, enviarBinario, bufferizado });
+  canal.current = { conectado, enviar, enviarBinario, bufferizado };
+  const estadoAtual = useRef(estado);
+  estadoAtual.current = estado;
+  const euAtual = useRef(eu);
+  euAtual.current = eu;
+  const euId = eu?.id;
 
   const euMestre = eu?.papel === "mestre";
   const permissoes = estado?.permissoes;
@@ -67,6 +107,74 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
     window.addEventListener("keydown", aoTeclar);
     return () => window.removeEventListener("keydown", aoTeclar);
   }, []);
+
+  useEffect(() => {
+    void fontes.iniciar();
+  }, [fontes]);
+
+  useEffect(() => {
+    if (!euId) return;
+    const g = new GerenteDeAssets({
+      cache: new CacheOpfs(),
+      processador,
+      canal: () => canal.current,
+      meuId: euId,
+      euMestre: () => euAtual.current?.papel === "mestre",
+      nomeDoUsuario: (id) => estadoAtual.current?.usuarios.find((u) => u.id === id)?.nome,
+      destinoDeCopia: () => fontes.destinoDeCopia(),
+      ganchos: ganchosDoTeste,
+    });
+    let vivo = true;
+    const desinstalar = instalarGanchoDeAssets(g, fontes);
+    g.iniciar()
+      .then(() => {
+        if (!vivo) return;
+        setGerente(g);
+        g.aoConectar();
+      })
+      .catch((e) => console.error("Falha ao iniciar os arquivos locais", e));
+    return () => {
+      vivo = false;
+      desinstalar();
+      g.encerrar();
+      setGerente(null);
+    };
+  }, [euId, fontes, processador]);
+
+  // O vaivém de arquivos: mensagens da sala, frames binários e reconexões vão para o gerente.
+  useEffect(() => {
+    if (!gerente) return;
+    return ouvir((o) => {
+      if (o.tipo === "asset") gerente.aoMensagem(o.mensagem);
+      else if (o.tipo === "binario") gerente.aoPedaco(o.dados);
+      else if (o.tipo === "conectado") gerente.aoConectar();
+      else if (o.tipo === "erro") gerente.aoErro(o.idPedido, o.codigo);
+    });
+  }, [gerente, ouvir]);
+
+  const versaoDosProntos = useSyncExternalStore(
+    gerente?.assinarProntos ?? semAssinatura,
+    gerente?.versaoDeProntos ?? versaoZero,
+  );
+  const versaoDoGerente = useSyncExternalStore(
+    gerente?.assinar ?? semAssinatura,
+    gerente?.versaoAtual ?? versaoZero,
+  );
+  const imagens = useMemo<ImagensDoMapa | null>(
+    () =>
+      gerente
+        ? {
+            meta: (h) => gerente.meta(h),
+            pronto: (h) => gerente.estaPronto(h),
+            blob: (h) => gerente.blobDe(h),
+          }
+        : null,
+    [gerente],
+  );
+  const transferindo =
+    gerente !== null &&
+    versaoDoGerente >= 0 &&
+    gerente.listarStatus().some((s) => s.estado === "pedindo" || s.estado === "baixando");
 
   // Movimento ao vivo dos outros e recusas da sala vão direto para o mapa (sem re-renderizar).
   useEffect(
@@ -104,6 +212,34 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
   const cena = estado?.cenas.find((c) => c.id === estado.cenaAtivaId) ?? estado?.cenas[0];
   const selecionado = estado?.tokens.find((t) => t.id === selecionadoId) ?? null;
   const pronto = status === "conectado" && estado !== null;
+
+  // Pede o que a mesa usa (mapa da cena, imagens dos tokens). O mestre também recolhe o que os
+  // jogadores subiram, para guardar cópia em recebidos/<jogador>/.
+  const hashDoMapa = cena?.mapa?.assetHash;
+  const tokensDoEstado = estado?.tokens;
+  const assetsDoEstado = estado?.assets;
+  // biome-ignore lint/correctness/useExhaustiveDependencies: roda quando mudam o mapa, os tokens ou as metas
+  useEffect(() => {
+    if (!gerente || !pronto || !euId) return;
+    if (hashDoMapa) gerente.garantir(hashDoMapa);
+    for (const t of tokensDoEstado ?? []) if (t.assetHash) gerente.garantir(t.assetHash);
+    if (!euMestre) return;
+    for (const a of assetsDoEstado ?? []) {
+      gerente.conhecerMeta(a);
+      if (a.donoId === euId || a.tiles) continue;
+      gerente.garantir(a.hash);
+      void gerente.copiarSePreciso(a);
+    }
+  }, [
+    gerente,
+    pronto,
+    euId,
+    euMestre,
+    hashDoMapa,
+    tokensDoEstado,
+    assetsDoEstado,
+    versaoDosProntos,
+  ]);
 
   function escolherCamada(c: Camada) {
     setCamadaTrabalho(c);
@@ -157,6 +293,33 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
               />
             ),
           },
+          ...(gerente
+            ? [
+                {
+                  id: "biblioteca",
+                  titulo: "Biblioteca",
+                  icone: <Images size={20} />,
+                  indicador: transferindo,
+                  conteudo: (
+                    <Biblioteca
+                      gerente={gerente}
+                      fontes={fontes}
+                      processador={processador}
+                      estado={estado}
+                      eu={eu}
+                      enviar={enviar}
+                      tokenSelecionado={selecionado}
+                      centroDoMapa={() =>
+                        mapa.current?.centroDaTelaEmMetros() ?? {
+                          x: (cena?.larguraM ?? 0) / 2,
+                          y: (cena?.alturaM ?? 0) / 2,
+                        }
+                      }
+                    />
+                  ),
+                },
+              ]
+            : []),
           {
             id: "notas",
             titulo: "Notas",
@@ -208,6 +371,8 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
             tokens={estado.tokens}
             opcoes={opcoes}
             retornos={retornos}
+            imagens={imagens}
+            versaoDasImagens={versaoDosProntos}
             aoCriar={(m) => {
               mapa.current = m;
             }}

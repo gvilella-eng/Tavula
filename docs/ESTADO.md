@@ -396,16 +396,211 @@ Aplicadas na revisão (4.1, 4.2, 4.4, 4.5, seção 9 e "Depois"). Texto original
 - Lotes 5 e 6: a visibilidade de token por linha de visão deve entrar em `tokenVisivelPara`/`eventoPara`
   (que já recebem o estado de antes e de depois), reaproveitando `token.sumiu`.
 
-## Próximo: Lote 3
 
-Assets locais (ver `PROJETO.md`, seção 7): imagens da pasta local no lugar do círculo gerado, mapa de fundo
-da cena e `assetHash` no token. Pontos de partida deixados pelo Lote 2:
+## Lote 3 — Assets locais (entregue)
 
-- `mapa/mapaPixi.ts` cria a aparência do token em `criarVisual` (hoje círculo + iniciais): é onde a imagem do
-  token entra; o fundo da cena é desenhado em `desenharCena`;
-- `Cena` não tem `mapa` e `Token` não tem `assetHash`: o schema, o filtro e a exportação (v3?) precisam
-  crescer juntos; a exportação já aceita versões antigas por `discriminatedUnion("versao", ...)` em
-  `protocolo.ts`;
-- frames binários ainda não existem no protocolo (a sala hoje recusa binário com `mensagem_invalida`);
-- todo lote que cria dado secreto deve incluir um E2E que inspeciona os frames do jogador (modelo: os testes
-  "frames ..." em `e2e/tests/mapa.spec.ts` e `e2e/tests/sala.spec.ts`).
+A premissa que diferencia o produto: **mapas e tokens vêm da pasta de cada usuário e o servidor nunca guarda
+imagem.** A sala guarda só metadados (SQLite) e quem tem cada arquivo; os bytes passam pela sala em frames
+binários e ficam no OPFS (cache) de cada navegador. Protocolo, frame binário e regras de sigilo de asset em
+`docs/protocolo.md` (seção "Assets locais").
+
+### O que foi entregue
+
+- **`packages/shared`** (puro, testado): `assets.ts` (`AssetMeta`, limites, `validarMeta`, SHA-256 e pedaços de
+  256 KB, `pedacoConfere`/`arquivoConfere`, frame binário `montarFrameDePedaco`/`lerFrameDePedaco`, tiles
+  `retangulosDeTiles`/`ladoDoTile`/`precisaFatiar`, manifesto `montarManifestoDeMapa`/`hashDoManifesto`,
+  `tamanhoDaCenaComMapa`, `assetVisivelPara`, `hashesUsados`, `escolherProvedor`); `Cena.mapa`,
+  `Token.assetHash` e `Estado.assets` em `estado.ts`; intenções `asset.registrar`, `asset.pedir`,
+  `asset.inventario`, `asset.tenho`, `asset.naoTenho`, `cena.definirMapa`, `token.definirImagem` (e
+  `assetHash` em `token.criar`/`token.editar`); eventos `cena.mapaAlterado`, `asset.registrado` e dimensões
+  em `cena.gridAlterado`; mensagens `asset.meta`, `asset.enviar`, `asset.indisponivel`; código
+  `asset_inexistente`; **exportação v3** (metas dos assets usados; importa v1 e v2).
+- **`apps/server`**: `transferencias.ts` (coordenação em memória, separada do Durable Object e testada em
+  Node: provedor único por hash, repasse a todos, troca de provedor, "indisponível" e retomada);
+  `armazenamento.ts` (coleção `assets` em `entidades` e **migração 2**: tabela `posse` por conexão);
+  `sala.ts` (aceita frames binários só de pedaço e só do socket a quem pediu aquele hash e índice; `asset.pedir`
+  com a regra de sigilo; inventário; limpa a posse ao fechar o socket e, ao acordar, de conexões que não
+  existem mais).
+- **`apps/web`**: pasta `src/assets/` — `fonte.ts` (`FonteDeAssets` com `PastaLocal`, `ArquivosSoltos`,
+  `Memoria`), `fontes.ts` (as fontes deste navegador), `armazem.ts` (IndexedDB: handle da pasta e índice
+  arquivo original → hash), `cache.ts` (OPFS: `assets/<hash>`, `meta/<hash>.json`, `parciais/<hash>/<i>`),
+  `processador.worker.ts` + `processador.ts` (Web Worker: OffscreenCanvas → WebP, tiles, hashes, miniaturas),
+  `gerente.ts` (pedir, conferir, retomar, servir, copiar para o mestre), `ganchoE2E.ts`. `Biblioteca.tsx`
+  (aba nova), indicador de transferência no ícone da aba, `useSala` com frames binários, mapa com fundo por
+  tile e token com imagem recortada em círculo (`mapaPixi.ts`).
+- **Testes**: ver "Verificação".
+
+### Como rodar
+
+- `pnpm dev` e `pnpm verify`: como antes (nenhuma dependência nova).
+- Na mesa: aba **Biblioteca** (ícone de imagens). Escolha uma **pasta** (Chrome/Edge; o handle fica no
+  IndexedDB e, na visita seguinte, aparece "Reautorizar", porque o navegador exige um clique) ou
+  **Adicionar arquivos** / arraste imagens (serve em qualquer navegador; vale só até fechar a página).
+  Mestre: clique numa miniatura e use "Usar como mapa da cena" (informe os pixels por quadrado; padrão 70),
+  "Criar token com esta imagem" ou "Aplicar ao token selecionado". Jogador: "Usar no meu token". A lista de
+  transferências fica na mesma aba.
+- O mestre que escolheu uma pasta ganha `recebidos/<nome do jogador>/<arquivo>-<hash8>.webp` com tudo o que
+  os jogadores sobem.
+
+### Verificação
+
+`pnpm verify` verde **duas vezes seguidas**: 138 testes de unidade (120 em `shared`, 12 em `server`, 6 em
+`web`) e 33 E2E (22 anteriores + 11 novos em `e2e/tests/assets.spec.ts`), E2E em ~3,1 min.
+
+- Unidade (`assets.test.ts`, `transferencias.test.ts`): retângulos dos tiles (cobertura exata, sem sobreposição,
+  limite de lado), frame binário (montar, ler, recusar malformado), conferência de pedaço e de arquivo,
+  manifesto, limites, `assetVisivelPara` (token oculto, camada do mestre, dono, mapa e tiles da cena ativa),
+  intenções de asset (registrar, mapa, imagem do token, capacidades), exportação v3 e importação de v1/v2,
+  e a coordenação das transferências.
+- E2E (imagens geradas no teste; limite do tile reduzido por gancho para fatiar um mapa pequeno): mapa
+  fatiado → 7 jogadores recebem, o SHA-256 de cada arquivo no OPFS bate e o dono envia menos que sete vezes;
+  segunda carga → **zero** frames binários e zero `asset.pedir`; mestre sai → jogador novo recebe de outro
+  jogador; pedaço corrompido → pedido de novo só ele; refresh no meio de uma transferência → retoma só o que
+  faltava; jogador põe imagem no próprio token → aparece para todos e chega a `recebidos/Jogador 1/` (SHA-256
+  igual); **frames**: nenhum frame recebido pelo jogador (texto ou binário) contém o hash, o início do arquivo
+  ou o nome da imagem posta no goblin oculto (com controle positivo no ogro visível); pedir o hash do
+  goblin responde igual a pedir um hash que não existe; frame binário forjado não é repassado; reinício da
+  sala (SQLite + posse refeita pelo inventário); exportar → zerar → importar com mapa e imagem.
+
+### Gancho de teste (só no modo `e2e`)
+
+- `window.__tabletop.imagens()`: tiles do fundo (posição e tamanho em px do mundo) e tokens com imagem.
+- `window.__tabletopAssets`: `inventario()`, `metas()`, `pronto(hash)`, `status()`, `verificarCache()` (relê o OPFS e
+  recalcula o SHA-256), `inicioDe(hash, n)` e `gravados()` (o que a `Memoria`, que no modo e2e faz o papel da
+  pasta com escrita, recebeu em `recebidos/…`).
+- `window.__tabletopE2E` (definido pelo teste antes de a página carregar, via `Mesa.entrar(usuario, gancho)`):
+  `atrasoPorPedacoMs` (envio lento), `corromperIndice` + `corromperVezes` (o provedor estraga o pedaço) e
+  `limiteTile` (limite de lado do tile; em produção é `min(MAX_TEXTURE_SIZE, 8192)`).
+- Os helpers de E2E agora separam frames de **texto** (`frames`, `enviados`) dos **binários** (`binarios`,
+  `enviadosBinarios`, como `Buffer`).
+
+### Decisões
+
+- **`Estado.assets` só existe na sala e na visão do mestre.** O jogador nunca recebe as metas no snapshot nem
+  em evento; recebe `asset.meta` sob demanda, depois de a sala conferir `assetVisivelPara`. O evento
+  `asset.registrado` só vai a mestres (é por ele que o mestre recolhe a cópia de tudo que os jogadores
+  sobem, mesmo o que ainda não está em nenhum token).
+- **Pedir asset invisível = pedir asset inexistente** (`erro` `asset_inexistente`, mesma mensagem). O que
+  difere é só o `idPedido`.
+- **Intenções sem capacidade** (`asset.pedir`, `asset.inventario`, `asset.tenho`, `asset.naoTenho`):
+  `capacidadeDaIntencao` passou a aceitar `null` ("qualquer mestre ou jogador"), porque quem não pode subir
+  arquivo ainda precisa receber o mapa. Todas as demais declaram uma capacidade.
+- **Jogador registra só `token` e `retrato`**; `mapa` e `tile` são do mestre (`sem_permissao`). O dono de um hash é
+  quem o registrou primeiro; quem registra o mesmo hash depois não vira dono, mas **pode usá-lo** no próprio
+  token (ver "Revisão").
+- **Manifesto do mapa fatiado**: `bytes: 0`, sem pedaços; o hash é o SHA-256 do texto canônico dos tiles. Pedir
+  o manifesto devolve só a meta; o cliente pede cada tile. O manifesto não entra no inventário (não tem
+  bytes) e só conta como "pronto" quando todos os tiles estão no cache.
+- **Tiles de tamanho parecido**: `retangulosDeTiles` divide em ⌈lado ÷ máximo⌉ pedaços iguais (±1 px), em vez
+  de sobrar um tile minúsculo na borda. Limites: 30 MB por arquivo, 64 tiles e 200 MB por mapa, 2000 assets
+  na sala, 5000 hashes por inventário.
+- **Um provedor por hash de cada vez**; quem espera o arquivo não serve a si mesmo; provedor parado há mais de
+  15 s (visto no próximo pedido) tem o envio refeito. O cliente tem um **vigia**: sem progresso por 20 s
+  (ou "indisponível"/erro por 30 s) pergunta de novo — cobre a sala que hibernou e esqueceu a transferência.
+- **Tamanho da cena com mapa**: `cena.definirMapa` ajusta `larguraM`/`alturaM` (px ÷ `pxPorQuadrado` ×
+  `quadradoM`); mudar o quadrado do grid com mapa recalcula (por isso `cena.gridAlterado` ganhou as dimensões
+  opcionais). Mapa que passa de 1000 m é recusado (`dados_invalidos`).
+- **Frames contam no orçamento**: cada pedaço recebido pela sala é uma mensagem (20 = 1 requisição). Um arquivo
+  de 30 MB custa ~6 requisições; um token típico (≤ 512 px) cabe em 1 frame.
+- **Posse no SQLite**: uma linha por (conexão, hash). O inventário ao conectar grava uma linha por arquivo no
+  cache; com muitos arquivos e muitas reconexões isso pesa no limite de 100 mil linhas/dia do plano grátis
+  (ver "Frágil").
+- **Processamento**: token e retrato até 512 px (sem ampliar), mapa em WebP na resolução original (qualidade
+  0,92). O índice local usa o **SHA-256 do arquivo original** (+ tipo + limite) para reconhecer arquivo
+  renomeado ou movido e não reprocessar.
+
+### Desvios do plano
+
+- Nenhum desvio de arquitetura. Pequenas escolhas além do texto do plano estão em "Decisões" (`null` em
+  `capacidadeDaIntencao`, `Estado.assets` só do mestre, restrição de tipos para jogador, manifesto sem bytes).
+- A ação "Usar como retrato" não existe ainda (o tipo `retrato` está no modelo e no worker; a interface entra
+  com a ficha, Lote 9). O asset `handout`/`audio` do esboço do PROJETO.md 4.1 também ficou de fora.
+
+### Frágil / não verificado
+
+- **`PastaLocal` (File System Access) não tem teste automático**: o Chrome do Playwright não abre o seletor de
+  pasta. Coberto só por `Memoria` (escrita) e `ArquivosSoltos` (leitura, via `<input type=file>`). O
+  roteiro manual abaixo cobre a pasta real, a **reautorização** depois de reabrir o navegador e a gravação em
+  `recebidos/`.
+- **Firefox e Safari**: não testados. O worker precisa de `OffscreenCanvas.convertToBlob({type:"image/webp"})`
+  (se o navegador não codificar WebP, aparece o erro "Este navegador não converte para WebP") e o OPFS usa
+  `createWritable()` na thread principal (que o Safari não tem). O Chrome/Edge são o alvo.
+- **GPU real**: o limite de tile real (`min(MAX_TEXTURE_SIZE, 8192)`) nunca foi exercitado com um mapa > 8192
+  px; os testes usam o gancho (512 px). Possível linha fina entre tiles por filtragem bilinear (não vista em
+  tela; conferir no roteiro).
+- **Hibernação real da sala**: a limpeza da posse ao acordar e o vigia do cliente existem, mas o E2E só cobre o
+  reinício com `ctx.abort()`, não a hibernação por ociosidade.
+- **Importar a campanha em outra instalação**: a importação traz as metas, mas os arquivos só existem nos
+  navegadores. Sem ninguém online com cópia o mapa aparece como "indisponível" até o mestre escolher de novo
+  o arquivo da pasta (se o WebP processado sair idêntico, o hash coincide e as transferências retomam).
+  Também depois de `/teste/zerar` a posse some (a sala "esquece" todos), igual a um banco novo.
+- **Custo de linhas no SQLite** do inventário (acima) e **custo de frames** no orçamento (acima) não foram
+  medidos num uso real de 3 h.
+- **Cache do navegador**: `navigator.storage.persist()` é só um pedido; o navegador pode negar. Sem cota
+  suficiente o OPFS falha e o asset aparece como erro.
+- Visual da aba Biblioteca conferido só por teste (sem polimento; o Vilella vai revisar a interface).
+
+### Roteiro manual (pendente, do Vilella)
+
+1. Escolher uma pasta real no Chrome com um **mapa grande (> 8192 px)** e usá-lo como mapa: conferir que
+   carrega em tiles (aba Biblioteca mostra o progresso) e que a cena ganha o tamanho certo; em outro perfil,
+   o mesmo mapa aparece e **nada** foi gravado no servidor (`apps/server/.wrangler/state` sem imagens).
+2. Fechar e reabrir o Chrome: a aba Biblioteca mostra a pasta com **Reautorizar**; clicar e ver as miniaturas.
+3. Jogador no **Firefox** arrastando o próprio token para a aba Biblioteca e usando no token dele (se falhar por
+   WebP/OPFS, ver "Frágil").
+4. **Refresh no meio de uma transferência** de um mapa grande (outro perfil): retoma sem baixar tudo de novo.
+5. Conferir que o mestre ganhou `recebidos/<jogador>/…` na pasta dele.
+6. Com a rede desligada (só `localhost`), repetir: nada tenta sair para a internet.
+
+### Revisão (antes do commit de fechamento)
+
+- **Brecha de sigilo na posse (corrigida):** a sala aceitava `asset.tenho`/`asset.inventario` de qualquer hash
+  conhecido e escolhia o provedor só pela posse. Um jogador que anunciasse o hash da imagem de um token oculto
+  seria chamado (`asset.enviar`) para enviá-la e descobriria que ela está em uso. Agora a posse só é aceita
+  para asset que a pessoa **vê** (`assetVisivelPara`) e o provedor é filtrado pela mesma regra na hora da
+  escolha (o asset pode ter ficado oculto depois do anúncio). E2E novo ("anunciar que tem um asset que não vê…",
+  com uma conexão espiã que fica aberta); conferido que ele **falha** sem a correção.
+- **Imagem igual de dois jogadores (corrigido):** a mesma arte baixada do mesmo lugar gera o mesmo hash; o
+  segundo jogador recebia "imagem não encontrada" ao usá-la no próprio token, porque só o primeiro era dono.
+  A restrição não protegia nada (só conhece um hash quem tem o arquivo ou já viu a imagem). Agora qualquer
+  imagem de token registrada pode ir para um token que o jogador controla e vê. O teste de unidade e o E2E que
+  fixavam a regra antiga foram ajustados; a propriedade de sigilo que importa (pedir asset invisível responde
+  igual a inexistente) continua testada.
+- `pnpm verify` duas vezes seguidas, verde nas duas: 138 testes de unidade (120 shared, 12 server, 6 web) e 34 E2E
+  (~3,3 min).
+- Limitação conhecida: se o provedor tiver o arquivo corrompido no próprio cache, quem recebe pede o pedaço de
+  novo ao mesmo provedor e pode ficar em laço (o provedor conferiu o arquivo ao recebê-lo, então só com
+  corrupção em disco). Melhorar quando aparecer: trocar de provedor depois de N pedaços ruins.
+
+### Sugestões para o PROJETO.md
+
+Aplicadas na revisão (4.1, 4.2, 4.3, 4.4, 4.5). Texto original do agente:
+
+- 4.1: acrescentar `Estado.assets` (só sala e mestre), `Cena.mapa` já está; trocar `Asset.tiles?: string[]` por
+  `tiles?: { hash, x, y, largura, altura }[]` e `pedacos: string[]`; `tipo` do Lote 3 é `mapa | token | retrato | tile`
+  (`handout` e `audio` ficam para os lotes que os usarem).
+- 4.2: listar `asset.registrar`, `asset.pedir` (com `faltam`), `asset.inventario`, `asset.tenho`, `asset.naoTenho`,
+  `cena.definirMapa`, `token.definirImagem` e as mensagens `asset.meta`, `asset.enviar`, `asset.indisponivel`
+  (no lugar de `asset.anunciar` e do evento `asset.pedaco`); dizer que `capacidadeDaIntencao` aceita `null`
+  para o vaivém de arquivos.
+- 4.3: registrar o manifesto sem bytes e o hash do manifesto; os limites (30 MB, 64 tiles, 200 MB por mapa); que o
+  jogador só registra `token`/`retrato`; o vigia do cliente; e a decisão sobre importar campanha em outra
+  instalação (os arquivos precisam estar em algum navegador ou na pasta do mestre).
+- 4.4: exportação agora é v3 (v1 e v2 continuam aceitas).
+- 4.5: frames de pedaço contam como mensagens recebidas; um arquivo de 30 MB ≈ 6 requisições.
+- Lote 3 (seção 7): "pronto quando" pode citar `recebidos/<jogador>` e o teste dos frames do goblin oculto.
+
+## Próximo: Lote 4
+
+Personagens e cenas (ver `PROJETO.md`, seção 7). Pontos de partida deixados pelo Lote 3:
+
+- `Cena.mapa` e `cena.definirMapa` operam na **cena ativa**; com várias cenas, `assetVisivelPara` já só mostra
+  ao jogador o mapa da cena ativa (e `eventoPara` envia `cena.mapaAlterado` a todos): ao introduzir "preparar
+  cena" (mapa de uma cena que ainda não é a ativa) é preciso decidir se o mapa da cena preparada fica oculto
+  (hoje `cena.mapaAlterado` iria a todos) e filtrar o evento por cena;
+- `Personagem.tokenPadrao.assetHash` (retrato/token padrão) deve reutilizar `asset.registrar` e
+  `token.definirImagem`; a ação "Usar como retrato" da Biblioteca entra com a ficha;
+- o gerente (`apps/web/src/assets/gerente.ts`) pede o que a cena **ativa** usa (mapa e imagens dos tokens do
+  estado); ao trocar de cena ele já pede o mapa novo, e o grupo que muda de cena leva o `assetHash` dos tokens;
+- `Transferencias` não conhece cena: o sigilo é todo de `assetVisivelPara` (shared), então novas regras de
+  visibilidade (névoa, handouts) entram lá.

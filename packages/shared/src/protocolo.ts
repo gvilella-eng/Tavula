@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { AssetMetaSchema, HashSchema, LIMITES_DE_ASSET, MetaNovaSchema } from "./assets.ts";
 import {
   CAPACIDADES_DELEGAVEIS,
   type Capacidade,
@@ -8,6 +9,7 @@ import {
 import {
   EstadoSchema,
   GridSchema,
+  MapaDaCenaSchema,
   PapelSchema,
   PermissoesSchema,
   PresencaSchema,
@@ -17,8 +19,8 @@ import {
 import { CENA_PADRAO } from "./mapa.ts";
 
 export const VERSAO_PROTOCOLO = 1;
-/** Versão do arquivo de exportação (a v1, do Lote 1, ainda é aceita na importação). */
-export const VERSAO_EXPORTACAO = 2 as const;
+/** Versão do arquivo de exportação (a v1 e a v2 ainda são aceitas na importação). */
+export const VERSAO_EXPORTACAO = 3 as const;
 
 const CapacidadeSchema = z.enum(TODAS_AS_CAPACIDADES as [Capacidade, ...Capacidade[]]);
 const Texto = z.string().max(TAMANHO_MAXIMO_NOTA);
@@ -36,11 +38,17 @@ const PermissoesExportadasSchema = PermissoesSchema.extend({
   jogadores: z.partialRecord(z.enum(CAPACIDADES_DELEGAVEIS), z.boolean()),
 }).transform((p) => ({ ...p, jogadores: { ...PERMISSOES_PADRAO, ...p.jogadores } }));
 
-const DadosV2Schema = EstadoSchema.extend({
+/** v2 (Lote 2): sem metas de assets. Nunca há bytes de imagem numa exportação, só metadados. */
+const DadosV2Schema = EstadoSchema.omit({ assets: true }).extend({
   notaMestre: Texto,
   permissoes: PermissoesExportadasSchema,
 });
-export type DadosExportados = z.infer<typeof DadosV2Schema>;
+
+/** v3 (Lote 3): acrescenta as metas dos assets usados (mapas e imagens de tokens). */
+const DadosV3Schema = DadosV2Schema.extend({
+  assets: z.array(AssetMetaSchema).max(LIMITES_DE_ASSET.assetsNaSala),
+});
+export type DadosExportados = z.infer<typeof DadosV3Schema>;
 
 /** v1 (Lote 1): sem cenas nem tokens. Vira a cena padrão e nenhum token. */
 const DadosV1Schema = DadosV2Schema.omit({
@@ -51,13 +59,18 @@ const DadosV1Schema = DadosV2Schema.omit({
 
 const cabecalho = { formato: z.literal("tabletop-campanha"), exportadoEm: z.string() };
 
-/** Aceita a v1 e a v2; o resultado é sempre no formato v2. */
+/** Aceita a v1, a v2 e a v3; o resultado é sempre no formato v3 (sem assets nas antigas). */
 export const ExportacaoSchema = z
   .discriminatedUnion("versao", [
     z.object({ ...cabecalho, versao: z.literal(1), dados: DadosV1Schema }),
     z.object({ ...cabecalho, versao: z.literal(2), dados: DadosV2Schema }),
+    z.object({ ...cabecalho, versao: z.literal(3), dados: DadosV3Schema }),
   ])
-  .transform((e) => ({ ...e, versao: VERSAO_EXPORTACAO }));
+  .transform((e) => ({
+    ...e,
+    versao: VERSAO_EXPORTACAO,
+    dados: { ...e.dados, assets: "assets" in e.dados ? e.dados.assets : [] },
+  }));
 export type Exportacao = z.infer<typeof ExportacaoSchema>;
 
 // ---------------------------------------------------------------------------------------------
@@ -73,7 +86,9 @@ const MudancasDoTokenSchema = TokenSchema.pick({
   camada: true,
   oculto: true,
   controladoPor: true,
-}).partial();
+})
+  .extend({ assetHash: HashSchema.nullable() })
+  .partial();
 const PosicaoDoTokenSchema = z.object({ id: IdSchema, x: z.number(), y: z.number() });
 
 function intencao<T extends string, D extends z.ZodType>(tipo: T, dados: D) {
@@ -114,14 +129,44 @@ export const IntencaoSchema = z.discriminatedUnion("tipo", [
   ),
   intencao("token.mover", PosicaoDoTokenSchema),
   intencao("token.soltar", PosicaoDoTokenSchema),
+  intencao(
+    "asset.registrar",
+    z.object({ metas: z.array(MetaNovaSchema).min(1).max(LIMITES_DE_ASSET.metasPorRegistro) }),
+  ),
+  /** `faltam`: índices que o cliente ainda não tem (retomada); sem ele vale o arquivo inteiro. */
+  intencao(
+    "asset.pedir",
+    z.object({
+      hash: HashSchema,
+      faltam: z.array(z.number().int().nonnegative()).max(200).optional(),
+    }),
+  ),
+  intencao(
+    "asset.inventario",
+    z.object({ hashes: z.array(HashSchema).max(LIMITES_DE_ASSET.inventario) }),
+  ),
+  intencao("asset.tenho", z.object({ hash: HashSchema })),
+  intencao("asset.naoTenho", z.object({ hash: HashSchema })),
+  intencao(
+    "cena.definirMapa",
+    z.object({
+      assetHash: HashSchema.nullable(),
+      pxPorQuadrado: MapaDaCenaSchema.shape.pxPorQuadrado.optional(),
+    }),
+  ),
+  intencao("token.definirImagem", z.object({ id: IdSchema, assetHash: HashSchema.nullable() })),
   intencao("campanha.exportar", SemDados),
   intencao("campanha.importar", z.object({ dados: z.unknown() })),
 ]);
 export type Intencao = z.infer<typeof IntencaoSchema>;
 export type TipoIntencao = Intencao["tipo"];
 
-/** Capacidade exigida por cada tipo de intenção. Conferida em toda mensagem. */
-export const capacidadeDaIntencao: Record<TipoIntencao, Capacidade> = {
+/**
+ * Capacidade exigida por cada tipo de intenção. Conferida em toda mensagem. `null`: não é uma
+ * ação da mesa e sim o vaivém de arquivos (pedir, inventário, "tenho"); qualquer mestre ou jogador
+ * pode, porque o sigilo é conferido sobre o asset (`assetVisivelPara`).
+ */
+export const capacidadeDaIntencao: Record<TipoIntencao, Capacidade | null> = {
   "nota.editar": "nota.editar",
   "notaMestre.editar": "camadaMestre.ver",
   "papel.alterar": "papel.alterar",
@@ -132,6 +177,13 @@ export const capacidadeDaIntencao: Record<TipoIntencao, Capacidade> = {
   "cena.configurarGrid": "cena.editar",
   "token.mover": "token.moverProprio",
   "token.soltar": "token.moverProprio",
+  "asset.registrar": "asset.subir",
+  "asset.pedir": null,
+  "asset.inventario": null,
+  "asset.tenho": null,
+  "asset.naoTenho": null,
+  "cena.definirMapa": "cena.editar",
+  "token.definirImagem": "asset.subir",
   "campanha.exportar": "campanha.exportar",
   "campanha.importar": "campanha.importar",
 };
@@ -152,6 +204,8 @@ function eventoDe<T extends string, D extends z.ZodType>(tipo: T, dados: D) {
   });
 }
 
+const DimensaoSchema = z.number().positive().max(1000);
+
 export const EventoSalaSchema = z.discriminatedUnion("tipo", [
   eventoDe("nota.alterada", z.object({ texto: Texto })),
   eventoDe("notaMestre.alterada", z.object({ texto: Texto })),
@@ -171,7 +225,27 @@ export const EventoSalaSchema = z.discriminatedUnion("tipo", [
   eventoDe("token.movido", PosicaoDoTokenSchema),
   /** Só o filtro cria este: o token deixou de ser visível para quem recebe. Sem motivo. */
   eventoDe("token.sumiu", z.object({ id: IdSchema })),
-  eventoDe("cena.gridAlterado", z.object({ cenaId: IdSchema, grid: GridSchema })),
+  /** Com mapa, mudar o quadrado muda o tamanho da cena em metros: vem junto no evento. */
+  eventoDe(
+    "cena.gridAlterado",
+    z.object({
+      cenaId: IdSchema,
+      grid: GridSchema,
+      larguraM: DimensaoSchema.optional(),
+      alturaM: DimensaoSchema.optional(),
+    }),
+  ),
+  eventoDe(
+    "cena.mapaAlterado",
+    z.object({
+      cenaId: IdSchema,
+      mapa: MapaDaCenaSchema.nullable(),
+      larguraM: DimensaoSchema,
+      alturaM: DimensaoSchema,
+    }),
+  ),
+  /** Só mestres recebem (as metas dos jogadores chegam por `asset.meta`, sob demanda). */
+  eventoDe("asset.registrado", z.object({ meta: AssetMetaSchema })),
 ]);
 export type EventoSala = z.infer<typeof EventoSalaSchema>;
 
@@ -184,6 +258,7 @@ export const CODIGOS_DE_ERRO = [
   "importacao_invalida",
   "token_inexistente",
   "dados_invalidos",
+  "asset_inexistente",
 ] as const;
 export const CodigoDeErroSchema = z.enum(CODIGOS_DE_ERRO);
 export type CodigoDeErro = z.infer<typeof CodigoDeErroSchema>;
@@ -218,6 +293,15 @@ export const MensagemDaSalaSchema = z.discriminatedUnion("tipo", [
       mensagem: z.string(),
     }),
   ),
+  /** Meta de um asset que o cliente pediu e pode ver (sob demanda; nunca em broadcast). */
+  mensagemDaSala("asset.meta", z.object({ meta: AssetMetaSchema })),
+  /** Pedido da sala ao provedor: mande estes pedaços (frames binários) de `hash`. */
+  mensagemDaSala(
+    "asset.enviar",
+    z.object({ hash: HashSchema, indices: z.array(z.number().int().nonnegative()).max(200) }),
+  ),
+  /** Ninguém online tem o arquivo; a sala retoma sozinha quando alguém com cópia conectar. */
+  mensagemDaSala("asset.indisponivel", z.object({ hash: HashSchema })),
   mensagemDaSala("exportacao", z.object({ idPedido: z.string(), exportacao: ExportacaoSchema })),
 ]);
 export type MensagemDaSala = z.infer<typeof MensagemDaSalaSchema>;

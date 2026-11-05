@@ -1,3 +1,11 @@
+import {
+  type AssetMeta,
+  hashesUsados,
+  LIMITES_DE_ASSET,
+  PX_POR_QUADRADO_PADRAO,
+  tamanhoDaCenaComMapa,
+  validarMeta,
+} from "./assets.ts";
 import { ehCapacidadeDelegavel, pode } from "./capacidades.ts";
 import type { Estado, Token, Usuario } from "./estado.ts";
 import { limitarNaCena, podeMoverToken, tokenVisivelPara } from "./mapa.ts";
@@ -56,16 +64,31 @@ function semIndefinidos<T extends object>(
   };
 }
 
+function metaDoAsset(estado: Estado, hash: string): AssetMeta | undefined {
+  return estado.assets?.find((a) => a.hash === hash);
+}
+
+function imagemDeTokenExiste(estado: Estado, hash: string): boolean {
+  const tipo = metaDoAsset(estado, hash)?.tipo;
+  return tipo === "token" || tipo === "retrato";
+}
+
 function totalDeMestres(estado: Estado): number {
   return estado.usuarios.filter((u) => u.papel === "mestre").length;
 }
 
+/** Só os metadados dos assets que a campanha usa (mapas, imagens de tokens e tiles): nunca bytes. */
 export function criarExportacao(estado: Estado, agora: string): Exportacao {
+  const usados = hashesUsados(estado);
   return {
     formato: "tabletop-campanha",
     versao: VERSAO_EXPORTACAO,
     exportadoEm: agora,
-    dados: { ...estado, notaMestre: estado.notaMestre ?? "" },
+    dados: {
+      ...estado,
+      notaMestre: estado.notaMestre ?? "",
+      assets: (estado.assets ?? []).filter((a) => usados.has(a.hash)),
+    },
   };
 }
 
@@ -81,7 +104,7 @@ export function lerExportacao(
     const problema = r.error.issues[0];
     return { ok: false, motivo: `${problema?.path.join(".") ?? ""}: ${problema?.message ?? ""}` };
   }
-  const { usuarios, permissoes, cenas, cenaAtivaId, tokens } = r.data.dados;
+  const { usuarios, permissoes, cenas, cenaAtivaId, tokens, assets } = r.data.dados;
   const ids = new Set(usuarios.map((u) => u.id));
   if (ids.size !== usuarios.length) return { ok: false, motivo: "ids de usuário repetidos" };
   if (!usuarios.some((u) => u.papel === "mestre"))
@@ -101,6 +124,26 @@ export function lerExportacao(
     }
     if (t.controladoPor.some((id) => !ids.has(id))) {
       return { ok: false, motivo: `token controlado por usuário desconhecido: ${t.id}` };
+    }
+  }
+  const porHash = new Map(assets.map((a) => [a.hash, a]));
+  if (porHash.size !== assets.length) return { ok: false, motivo: "hashes de asset repetidos" };
+  for (const a of assets) {
+    const problema = validarMeta(a);
+    if (problema) return { ok: false, motivo: `asset ${a.hash.slice(0, 8)}: ${problema}` };
+    if (!ids.has(a.donoId)) return { ok: false, motivo: "asset de usuário desconhecido" };
+    for (const tile of a.tiles ?? []) {
+      if (porHash.get(tile.hash)?.tipo !== "tile") return { ok: false, motivo: "tile sem meta" };
+    }
+  }
+  for (const c of cenas) {
+    if (c.mapa && porHash.get(c.mapa.assetHash)?.tipo !== "mapa") {
+      return { ok: false, motivo: `mapa sem meta na cena ${c.id}` };
+    }
+  }
+  for (const t of tokens) {
+    if (t.assetHash !== undefined && !porHash.has(t.assetHash)) {
+      return { ok: false, motivo: `imagem sem meta no token ${t.id}` };
     }
   }
   return { ok: true, exportacao: r.data };
@@ -144,8 +187,32 @@ export function reduzir(estado: Estado, evento: EventoSala): Estado {
       return { ...base, tokens: base.tokens.map((t) => (t.id === id ? { ...t, x, y } : t)) };
     }
     case "cena.gridAlterado": {
-      const { cenaId, grid } = evento.dados;
-      return { ...base, cenas: base.cenas.map((c) => (c.id === cenaId ? { ...c, grid } : c)) };
+      const { cenaId, grid, larguraM, alturaM } = evento.dados;
+      const dimensoes = {
+        ...(larguraM === undefined ? {} : { larguraM }),
+        ...(alturaM === undefined ? {} : { alturaM }),
+      };
+      return {
+        ...base,
+        cenas: base.cenas.map((c) => (c.id === cenaId ? { ...c, grid, ...dimensoes } : c)),
+      };
+    }
+    case "cena.mapaAlterado": {
+      const { cenaId, mapa, larguraM, alturaM } = evento.dados;
+      return {
+        ...base,
+        cenas: base.cenas.map((c) => {
+          if (c.id !== cenaId) return c;
+          const { mapa: _antigo, ...semMapa } = c;
+          return { ...semMapa, larguraM, alturaM, ...(mapa ? { mapa } : {}) };
+        }),
+      };
+    }
+    case "asset.registrado": {
+      const { meta } = evento.dados;
+      const atuais = base.assets ?? [];
+      if (atuais.some((a) => a.hash === meta.hash)) return base;
+      return { ...base, assets: [...atuais, meta] };
     }
     case "permissao.alterada": {
       const { capacidade, valor, usuarioId } = evento.dados;
@@ -185,8 +252,13 @@ export function processar(
   if (!usuario) return recusa("usuario_inexistente", "Usuário desconhecido.");
 
   const exigida = capacidadeDaIntencao[intencao.tipo];
-  if (!pode(usuario, exigida, estado.permissoes)) {
-    return recusa("sem_permissao", `Sem permissão (${exigida}).`);
+  // Sem capacidade (vaivém de arquivos): qualquer mestre ou jogador; o sigilo é do asset.
+  const autorizado =
+    exigida === null
+      ? usuario.papel === "mestre" || usuario.papel === "jogador"
+      : pode(usuario, exigida, estado.permissoes);
+  if (!autorizado) {
+    return recusa("sem_permissao", `Sem permissão (${exigida ?? "mesa"}).`);
   }
 
   const origem = { usuarioId, idPedido: intencao.id };
@@ -250,6 +322,9 @@ export function processar(
       if (!usuariosExistem(estado, novo.controladoPor)) {
         return recusa("usuario_inexistente", "Usuário de controle não encontrado.");
       }
+      if (novo.assetHash !== undefined && !imagemDeTokenExiste(estado, novo.assetHash)) {
+        return recusa("asset_inexistente", "Imagem não encontrada.");
+      }
       const token: Token = { ...novo, ...limitarNaCena(novo, cena), cenaId: cena.id };
       emitir({ tipo: "token.criado", dados: { token } });
       return aplicado();
@@ -262,7 +337,15 @@ export function processar(
       if (mudancas.controladoPor && !usuariosExistem(estado, mudancas.controladoPor)) {
         return recusa("usuario_inexistente", "Usuário de controle não encontrado.");
       }
-      const token: Token = { ...atual, ...semIndefinidos(mudancas) };
+      const { assetHash, ...demais } = mudancas;
+      const token: Token = { ...atual, ...semIndefinidos(demais) };
+      if (assetHash === null) delete token.assetHash;
+      else if (assetHash !== undefined) {
+        if (!imagemDeTokenExiste(estado, assetHash)) {
+          return recusa("asset_inexistente", "Imagem não encontrada.");
+        }
+        token.assetHash = assetHash;
+      }
       if (JSON.stringify(token) === JSON.stringify(atual)) return aplicado();
       emitir({ tipo: "token.editado", dados: { token } });
       return aplicado();
@@ -286,9 +369,112 @@ export function processar(
       if (grid.quadradoM === cena.grid.quadradoM && grid.visivel === cena.grid.visivel) {
         return aplicado();
       }
-      emitir({ tipo: "cena.gridAlterado", dados: { cenaId: cena.id, grid } });
+      // Com mapa, o quadrado define o tamanho da cena em metros (px ÷ pxPorQuadrado × quadradoM).
+      const meta = cena.mapa ? metaDoAsset(estado, cena.mapa.assetHash) : undefined;
+      const tamanho =
+        cena.mapa && meta
+          ? tamanhoDaCenaComMapa(meta, cena.mapa.pxPorQuadrado, grid.quadradoM)
+          : undefined;
+      if (tamanho && (tamanho.larguraM > 1000 || tamanho.alturaM > 1000)) {
+        return recusa("dados_invalidos", "O mapa ficaria grande demais com esse quadrado.");
+      }
+      emitir({ tipo: "cena.gridAlterado", dados: { cenaId: cena.id, grid, ...tamanho } });
       return aplicado();
     }
+
+    case "cena.definirMapa": {
+      const cena = cenaAtiva(estado);
+      const { assetHash, pxPorQuadrado } = intencao.dados;
+      if (assetHash === null) {
+        if (!cena.mapa) return aplicado();
+        emitir({
+          tipo: "cena.mapaAlterado",
+          dados: { cenaId: cena.id, mapa: null, larguraM: cena.larguraM, alturaM: cena.alturaM },
+        });
+        return aplicado();
+      }
+      const meta = metaDoAsset(estado, assetHash);
+      if (meta?.tipo !== "mapa") return recusa("asset_inexistente", "Mapa não encontrado.");
+      const px = pxPorQuadrado ?? cena.mapa?.pxPorQuadrado ?? PX_POR_QUADRADO_PADRAO;
+      const { larguraM, alturaM } = tamanhoDaCenaComMapa(meta, px, cena.grid.quadradoM);
+      if (larguraM > 1000 || alturaM > 1000) {
+        return recusa("dados_invalidos", "O mapa fica grande demais com esse px por quadrado.");
+      }
+      emitir({
+        tipo: "cena.mapaAlterado",
+        dados: { cenaId: cena.id, mapa: { assetHash, pxPorQuadrado: px }, larguraM, alturaM },
+      });
+      return aplicado();
+    }
+
+    case "token.definirImagem": {
+      const { id, assetHash } = intencao.dados;
+      const atual = estado.tokens.find((t) => t.id === id);
+      // Token que não vejo responde igual a token inexistente.
+      if (!atual || !tokenVisivelPara(atual, usuario)) {
+        return recusa("token_inexistente", "Token não encontrado.");
+      }
+      if (usuario.papel !== "mestre" && !atual.controladoPor.includes(usuario.id)) {
+        return recusa("sem_permissao", "Você não controla este token.");
+      }
+      const token: Token = { ...atual };
+      if (assetHash === null) delete token.assetHash;
+      else {
+        // Qualquer imagem de token registrada serve, não só a que eu registrei: a mesma arte baixada
+        // do mesmo lugar gera o mesmo hash, e o segundo jogador precisa conseguir usá-la. Não abre
+        // nada: o hash de um asset que o jogador não vê nunca chega a ele (só o conhece quem já tem o
+        // arquivo ou já viu a imagem).
+        if (!imagemDeTokenExiste(estado, assetHash)) {
+          return recusa("asset_inexistente", "Imagem não encontrada.");
+        }
+        token.assetHash = assetHash;
+      }
+      if (JSON.stringify(token) === JSON.stringify(atual)) return aplicado();
+      emitir({ tipo: "token.editado", dados: { token } });
+      return aplicado();
+    }
+
+    case "asset.registrar": {
+      const { metas } = intencao.dados;
+      const noLote = new Map(metas.map((m) => [m.hash, m]));
+      const existentes = estado.assets ?? [];
+      for (const m of metas) {
+        const problema = validarMeta(m);
+        if (problema) return recusa("dados_invalidos", `Arquivo recusado: ${problema}.`);
+        if (usuario.papel !== "mestre" && (m.tipo === "mapa" || m.tipo === "tile")) {
+          return recusa("sem_permissao", "Só o mestre registra mapas.");
+        }
+        if (m.tiles) {
+          let bytes = 0;
+          for (const t of m.tiles) {
+            const tile = noLote.get(t.hash) ?? existentes.find((a) => a.hash === t.hash);
+            if (tile?.tipo !== "tile") {
+              return recusa("dados_invalidos", "O manifesto cita um tile que não foi registrado.");
+            }
+            bytes += tile.bytes;
+          }
+          if (bytes > LIMITES_DE_ASSET.bytesPorMapa) {
+            return recusa("dados_invalidos", "Mapa grande demais.");
+          }
+        }
+      }
+      const novas = [...noLote.values()].filter((m) => !existentes.some((a) => a.hash === m.hash));
+      if (existentes.length + novas.length > LIMITES_DE_ASSET.assetsNaSala) {
+        return recusa("dados_invalidos", "Arquivos demais registrados na sala.");
+      }
+      // Quem registra um hash que já existe não muda o dono nem o que a sala sabe dele.
+      for (const m of novas) {
+        emitir({ tipo: "asset.registrado", dados: { meta: { ...m, donoId: usuarioId } } });
+      }
+      return aplicado();
+    }
+
+    // Vaivém de arquivos (pedir, inventário, tenho): não muda o estado; a sala cuida disso.
+    case "asset.pedir":
+    case "asset.inventario":
+    case "asset.tenho":
+    case "asset.naoTenho":
+      return aplicado();
 
     case "token.mover":
     case "token.soltar": {
@@ -345,7 +531,7 @@ export function processar(
  */
 export function visaoPara(estado: Estado, usuario: Visao): Estado {
   if (usuario.papel === "mestre") return estado;
-  const { notaMestre: _oculta, ...resto } = estado;
+  const { notaMestre: _oculta, assets: _assets, ...resto } = estado;
   const propria = estado.permissoes.porUsuario[usuario.id];
   return {
     ...resto,
@@ -374,6 +560,7 @@ export function eventoPara(
   const mestre = usuario.papel === "mestre";
   switch (evento.tipo) {
     case "notaMestre.alterada":
+    case "asset.registrado":
       return mestre ? evento : null;
     case "permissao.alterada":
       if (evento.dados.usuarioId === undefined) return evento;

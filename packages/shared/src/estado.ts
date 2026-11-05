@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { AssetMetaSchema, HashSchema } from "./assets.ts";
 import { CAPACIDADES_DELEGAVEIS } from "./capacidades.ts";
 
 export const PAPEIS = ["mestre", "jogador", "assistente"] as const;
@@ -36,12 +37,21 @@ export const GridSchema = z.object({
 });
 export type Grid = z.infer<typeof GridSchema>;
 
+export const MapaDaCenaSchema = z.object({
+  /** Asset do mapa (o arquivo ou, se fatiado, o manifesto). */
+  assetHash: HashSchema,
+  /** Pixels da imagem por quadrado do grid: metros = px ÷ pxPorQuadrado × quadradoM. */
+  pxPorQuadrado: z.number().min(10).max(1000),
+});
+export type MapaDaCena = z.infer<typeof MapaDaCenaSchema>;
+
 export const CenaSchema = z.object({
   id: z.string().min(1).max(64),
   nome: z.string().min(1).max(64),
   larguraM: z.number().positive().max(1000),
   alturaM: z.number().positive().max(1000),
   grid: GridSchema,
+  mapa: MapaDaCenaSchema.optional(),
 });
 export type Cena = z.infer<typeof CenaSchema>;
 
@@ -57,6 +67,8 @@ export const TokenSchema = z.object({
   camada: CamadaSchema,
   oculto: z.boolean(),
   controladoPor: z.array(z.string().min(1).max(64)).max(32),
+  /** Imagem do token (asset do tipo token ou retrato); sem ela vale o círculo gerado. */
+  assetHash: HashSchema.optional(),
 });
 export type Token = z.infer<typeof TokenSchema>;
 
@@ -74,6 +86,8 @@ export const EstadoSchema = z.object({
   cenaAtivaId: z.string().min(1).max(64),
   /** Na visão de um jogador: sem os tokens ocultos nem os da camada do mestre. */
   tokens: z.array(TokenSchema),
+  /** Metadados dos assets registrados. Só existe na sala e na visão do mestre (nunca do jogador). */
+  assets: z.array(AssetMetaSchema).optional(),
 });
 export type Estado = z.infer<typeof EstadoSchema>;
 

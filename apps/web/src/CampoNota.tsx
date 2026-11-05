@@ -69,7 +69,7 @@ export function CampoNota(props: Props) {
   useEffect(
     () =>
       ouvir((o) => {
-        if (o.tipo === "movendo") return;
+        if (o.tipo !== "evento" && o.tipo !== "erro") return;
         const envio = ultimoEnvio.current;
         if (!envio) return;
         const meu =

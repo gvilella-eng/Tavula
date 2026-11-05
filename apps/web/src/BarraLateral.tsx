@@ -1,7 +1,14 @@
 import { PanelRightClose, PanelRightOpen } from "lucide-react";
 import { type ReactNode, useState } from "react";
 
-export type Aba = { id: string; titulo: string; icone: ReactNode; conteudo: ReactNode };
+export type Aba = {
+  id: string;
+  titulo: string;
+  icone: ReactNode;
+  conteudo: ReactNode;
+  /** Bolinha discreta no ícone (ex.: transferência de arquivo em andamento). */
+  indicador?: boolean;
+};
 
 type Props = {
   abas: Aba[];
@@ -53,6 +60,7 @@ export function BarraLateral({ abas, aoMudarAberta }: Props) {
             }}
           >
             {a.icone}
+            {a.indicador && <span className="indicador" data-testid={`indicador-${a.id}`} />}
           </button>
         ))}
       </nav>

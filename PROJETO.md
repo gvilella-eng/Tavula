@@ -247,14 +247,17 @@ interface Modificador {
   origem: 'mestre' | 'automacao'; nota?: string;
 }
 
-interface Asset {
-  hash: string;                                 // SHA-256 do arquivo já processado
-  tipo: 'mapa' | 'token' | 'retrato' | 'handout' | 'audio';
-  mime: string; bytes: number;
-  largura?: number; altura?: number;
-  donoId: string; nomeOriginal: string;
-  tiles?: string[];                             // mapas grandes: hashes dos pedaços
+interface Asset {                               // metadados; os bytes nunca passam pela sala parados
+  hash: string;                                 // SHA-256 do arquivo processado (manifesto: dos tiles)
+  tipo: 'mapa' | 'token' | 'retrato' | 'tile';  // 'handout' e 'audio' entram nos lotes que os usarem
+  mime: string; bytes: number;                  // manifesto de mapa fatiado: bytes 0, sem pedaços
+  largura: number; altura: number;
+  donoId: string; nomeOriginal: string;         // dono = quem registrou primeiro
+  pedacos: string[];                            // SHA-256 de cada pedaço de 256 KB
+  tiles?: { hash: string; x: number; y: number; largura: number; altura: number }[];
 }
+// Estado.assets (as metas) só existe na sala e na visão do mestre; o jogador recebe a meta sob demanda
+// (`asset.meta`), e só do que vê.
 ```
 
 A separação **personagem × token** é importante: o personagem (ficha, visão) existe uma vez só; o
@@ -282,8 +285,9 @@ quando ele muda de cena.
 - O documento `docs/protocolo.md` lista todas as mensagens e é atualizado em todo lote que mexer nelas.
 
 Exemplos de intenções do cliente: `entrar`, `token.mover`, `token.soltar`, `parede.criar`,
-`porta.alternar`, `ficha.alterar` (patch), `dado.rolar`, `chat.enviar`, `asset.anunciar`, `asset.pedir`,
-`asset.tenho`, `cena.ativar`, `grupo.moverPara`, `objeto.acender`, `objeto.apagar`, `objeto.mover`
+`porta.alternar`, `ficha.alterar` (patch), `dado.rolar`, `chat.enviar`, `asset.registrar`, `asset.pedir`
+(com os pedaços que faltam), `asset.inventario`, `asset.tenho`, `asset.naoTenho`, `cena.definirMapa`,
+`token.definirImagem`, `cena.ativar`, `grupo.moverPara`, `objeto.acender`, `objeto.apagar`, `objeto.mover`
 (entregar, guardar, pôr no suporte), `ponto.acenderInicio`/`ponto.acenderFim`, `objeto.ajustar`,
 `ciclo.disparar`/`ciclo.pausar`/`ciclo.retomar`, `evento.disparar`, `papel.alterar`,
 `permissao.alterar`, `nevoa.revelar`.
@@ -291,7 +295,12 @@ Exemplos de intenções do cliente: `entrar`, `token.mover`, `token.soltar`, `pa
 Cada intenção declara a capacidade exigida (princípio 8) e o schema zod dela. O MCP usa exatamente as
 mesmas intenções.
 
-Exemplos de eventos da sala: `snapshot`, `evento`, `presenca`, `asset.pedaco`, `rolagem`, `uso`, `erro`.
+Exemplos de eventos da sala: `snapshot`, `evento`, `presenca`, `asset.meta`, `asset.enviar` (ao
+provedor), `asset.indisponivel`, frame binário de pedaço, `rolagem`, `uso`, `erro`.
+
+As intenções de vaivém de arquivos (`asset.pedir`, `asset.inventario`, `asset.tenho`, `asset.naoTenho`)
+não exigem capacidade (`null` em `capacidadeDaIntencao`): quem não pode subir arquivo ainda precisa
+receber o mapa. Todas as demais declaram uma.
 
 ### 4.3 Assets locais
 
@@ -350,7 +359,21 @@ Se o arquivo for movido ou renomeado, o app reescaneia a pasta e encontra pelo h
   byte a byte igual.
 - **Mapa na cena:** tamanho em metros = pixels da imagem ÷ `pxPorQuadrado` × `quadradoM`; o mestre
   informa `pxPorQuadrado`. Mapa acima do limite vira tiles de no máximo 4096 px.
-- **Limites:** tamanho máximo por arquivo e por mapa (contra travar a sala com um arquivo gigante).
+- **Limites:** 30 MB por arquivo, 64 tiles e 200 MB por mapa, 2000 assets na sala, 5000 hashes por
+  inventário (contra travar a sala com um arquivo gigante).
+
+**Como ficou no Lote 3 (além do acima):**
+- Jogador registra só `token` e `retrato`; `mapa` e `tile` são do mestre.
+- Mapa fatiado: o asset do mapa é um **manifesto** sem bytes (hash = SHA-256 do texto dos tiles) e cada
+  tile é um asset próprio.
+- **Posse só de quem vê:** a sala só aceita "tenho este arquivo" de quem pode ver o asset, e só escolhe
+  como provedor quem pode vê-lo naquele momento.
+- **Imagem de token:** o jogador pode pôr no token que controla qualquer imagem de token registrada,
+  inclusive a mesma arte que outro registrou antes (mesmo hash).
+- **Vigia do cliente:** sem progresso por 20 s (ou "indisponível" por 30 s) pergunta de novo; cobre a sala
+  que hibernou no meio de uma transferência.
+- **Campanha importada em outra instalação** traz só as metas: o mapa fica "indisponível" até alguém com
+  cópia conectar ou o mestre escolher o arquivo de novo na pasta.
 
 ### 4.4 Persistência e refresh
 
@@ -366,7 +389,7 @@ Se o arquivo for movido ou renomeado, o app reescaneia a pasta e encontra pelo h
 - Se o mestre fechar o navegador, a mesa continua. Opção de pausar automaticamente quando o mestre sai.
 - **Exportar/importar a campanha** (mestre): um JSON com todo o estado da sala (cenas, paredes, fichas,
   objetos, automações, névoa, chat), sem imagens. Serve de backup na pasta `backup/` do mestre e para
-  levar a campanha de uma instalação para outra. O formato é versionado (hoje v2) e versões antigas
+  levar a campanha de uma instalação para outra. O formato é versionado (hoje v3, com as metas dos assets e nunca bytes) e versões antigas
   continuam importáveis.
 
 ### 4.5 Orçamento do plano grátis (para o futuro deploy)
@@ -382,6 +405,8 @@ Regras que decorrem disso:
 - arrastar token envia no máximo **20 atualizações/s**, só enquanto arrasta; os outros clientes
   interpolam o movimento; o cliente não reenvia a mesma posição e o `token.soltar` sai na hora, fora
   do limite;
+- cada frame de pedaço de arquivo conta como mensagem recebida: um arquivo de 30 MB ≈ 6 requisições, um
+  token típico (≤ 512 px) cabe em 1 frame;
 - ações rápidas podem ser agrupadas em uma mensagem por "tick" de 50 ms;
 - a sala conta as mensagens recebidas por dia UTC e o painel do mestre mostra "uso de hoje: X%".
 
