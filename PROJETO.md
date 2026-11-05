@@ -876,14 +876,46 @@ mudado (token escondido depois do preparo não tem a chave entregue). Detalhes e
 
 ---
 
-### Lote 4b — Revisão da interface (M)
+### Lote 4b — Interface v2 (G)
 
-**Objetivo:** corrigir e organizar a interface antes dos lotes de exploração (decisão do Vilella,
-2026-11-05). O escopo exato é combinado com ele ao fim do Lote 4.
+**Objetivo:** montar a interface v2 (seção 4.13.1) para o Vilella visualizar e seguir descrevendo
+(decisão dele, 2026-11-05). Recurso novo que ainda não tem lote (pincel, dados, chat, compêndio,
+eventos, iluminação, visão noturna, ordem de turno) aparece só como **interface**, sem funcionar.
 
-**Ponto de partida** (ajustes já vistos, em `docs/ESTADO.md`): zoom inicial pequeno demais (tokens viram
-pontos, nomes ilegíveis); painel do token cobrindo o mapa; barra lateral larga e cortando texto em janela
-estreita; rótulo "arquivos prontos" contando errado; mais o que aparecer com as abas novas do Lote 4.
+**Faixa de cenas** (ícone Cenas do menu superior):
+- painel logo abaixo do menu superior, com ~3 dedos de altura (~160 px) e toda a largura disponível,
+  com rolagem horizontal quando precisar;
+- cards na ordem das cenas, cada um com o número (1, 2, 3…), o nome em cima e uma **prévia do mapa** em
+  baixa resolução;
+- destaque para a cena que o mestre está vendo e marca de onde o grupo está; card "+ Nova cena" no
+  fim; nome editável com duplo clique;
+- **botão direito no card** abre um menu pequeno ao lado, no estilo de menu de contexto (ícone + rótulo
+  por linha): **Ir para** (o mestre passa a ver aquela cena), **Levar grupo**, **Duplicar**, **Preparar**
+  (com progresso) e **Apagar** (com confirmação). Acrescentado por necessidade: **Configurar…** (nome,
+  mapa da cena, pixels por quadrado, grid).
+
+**Também entra:**
+- o menu superior e as barras como descritos;
+- a camada **mapa** funcionando: objetos de cenário abaixo dos tokens, que os jogadores veem e não
+  selecionam;
+- a ordem de turno com o mostrar/esconder sincronizado para todos (o conteúdo vem no Lote 11);
+- **pastas da aba Fichas funcionando**, com sigilo (quem vê vem da pasta), "quem edita" por item e
+  arrastar entre pastas. Quem edita um personagem controla o token dele, e isso substitui o "dono".
+  Por ora os itens são os personagens; os outros tipos aparecem como "em breve";
+- o editor do item com **retrato e token padrão** (a imagem entra ali, sem menu de arquivos);
+- arrastar um item das Fichas para o mapa coloca o token;
+- a escolha da pasta local vai para Configurações;
+- a correção dos ajustes já vistos (zoom inicial, painel do token cobrindo o mapa, texto cortado,
+  contador de arquivos).
+
+**Assumido até o Vilella decidir** (perguntas em aberto):
+- camada mapa = imagem do mapa + objetos de cenário;
+- no pincel, o jogador apaga só os próprios desenhos, e desenhar é uma capacidade delegável, ligada
+  por padrão;
+- nos dados rápidos, a coluna é a quantidade e o resultado vai para o chat (Lote 8);
+- quem vê um item vem só da pasta, mais quem o edita, e isso substitui `ficha.verOutras`;
+- o compêndio lê um JSON da pasta local, fora do repositório (o site citado parece ser a tradução do
+  Livro do Jogador, com direitos autorais; a alternativa livre é o SRD 5.1).
 
 **Pronto quando:** `pnpm verify` verde e o Vilella aprovar a interface.
 
