@@ -13,7 +13,8 @@
     "format": "biome format --write .",
     "test": "pnpm --filter \"!@tabletop/e2e\" -r --parallel test",
     "test:e2e": "pnpm --filter @tabletop/e2e test",
-    "verify": "pnpm typecheck && pnpm lint && pnpm test && pnpm test:e2e"
+    "verify": "pnpm typecheck && pnpm lint && pnpm test && pnpm test:e2e",
+    "dev:e2e": "concurrently -n servidor,web -c blue,green \"pnpm --filter @tabletop/server dev:e2e\" \"pnpm --filter @tabletop/web dev:e2e\""
   },
   "devDependencies": {
     "@biomejs/biome": "2.6.5",

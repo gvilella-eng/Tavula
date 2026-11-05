@@ -138,16 +138,20 @@ type Papel = 'mestre' | 'jogador' | 'assistente';   // assistente = MCP (seção
 interface Usuario   { id: string; nome: string; papel: Papel; cor: string }
 // só o mestre muda papéis; a sala recusa deixar a mesa sem nenhum mestre
 
-type Capacidade =                   // lista completa em docs/protocolo.md
-  | 'token.moverProprio' | 'porta.abrir' | 'tocha.acender' | 'tocha.entregar' | 'ponto.usar'
-  | 'luz.apagar' | 'ficha.verOutras' | 'dado.rolarOculto' | 'asset.subir';
-// só do mestre, nunca delegáveis: papel.alterar, permissao.alterar, mesa.configurar,
-// automacao.editar, camadaMestre.ver, objeto.ajustar
+type CapacidadeDelegavel =          // lista completa em docs/protocolo.md
+  | 'nota.editar' /* entidade de teste do Lote 1 */ | 'token.moverProprio' | 'porta.abrir'
+  | 'tocha.acender' | 'tocha.entregar' | 'ponto.usar' | 'luz.apagar' | 'ficha.verOutras'
+  | 'dado.rolarOculto' | 'asset.subir';
+type CapacidadeDoMestre =           // só do mestre, nunca delegáveis
+  | 'papel.alterar' | 'permissao.alterar' | 'mesa.configurar' | 'automacao.editar'
+  | 'camadaMestre.ver' | 'objeto.ajustar' | 'campanha.exportar' | 'campanha.importar';
+type Capacidade = CapacidadeDelegavel | CapacidadeDoMestre;
 
 interface Permissoes {
-  jogadores: Record<Capacidade, boolean>;                           // padrão da mesa
-  porUsuario: Record<string, Partial<Record<Capacidade, boolean>>>; // exceções por usuário
+  jogadores: Record<CapacidadeDelegavel, boolean>;                           // padrão da mesa
+  porUsuario: Record<string, Partial<Record<CapacidadeDelegavel, boolean>>>; // exceções por usuário
 }
+// capacidade criada num lote futuro entra com o padrão, ao carregar do SQLite e ao importar
 
 interface ConfigDaMesa {            // por campanha; só o mestre altera
   regras: '5e-2014';
@@ -259,7 +263,8 @@ quando ele muda de cena.
 
 - JSON validado com zod para mensagens de controle; **frames binários** para pedaços de arquivo
   (cabeçalho com hash e índice).
-- Cada mensagem tem versão do protocolo (`v`). A sala numera os eventos (`seq`).
+- Cada mensagem tem versão do protocolo (`v`). A sala numera os eventos (`seq`): global, só cresce
+  (inclusive na importação). Como a sala filtra por papel, o jogador vê saltos no `seq`, o que é aceito.
 - Ao conectar ou reconectar, o cliente recebe um **snapshot filtrado** e depois só eventos.
 - Movimento ao vivo (`token.mover`) é transitório e não é gravado. Só `token.soltar` grava.
 - O documento `docs/protocolo.md` lista todas as mensagens e é atualizado em todo lote que mexer nelas.
@@ -552,6 +557,9 @@ Requisitos: Node LTS, pnpm, Chrome ou Edge.
   Fica rodando no terminal enquanto se joga; abra `http://127.0.0.1:5173`.
 - `pnpm verify`: typecheck + lint + testes de unidade + testes ponta a ponta. **Nenhum lote está
   pronto sem `pnpm verify` verde.**
+- Os testes ponta a ponta **nunca tocam a campanha real**: sobem servidores próprios (sala `8788`,
+  front `5174`, estado em `e2e/.estado-sala`) com `MODO=teste`, o único modo em que existem as rotas
+  `/teste/*` (zerar, reiniciar a sala). `pnpm dev:e2e` sobe esses servidores à mão para depurar.
 - Vários jogadores na mesma máquina: nos testes, um contexto do Playwright por jogador (armazenamento
   isolado). À mão, use **perfis diferentes do Chrome** ou navegadores diferentes; janelas anônimas da
   mesma sessão compartilham armazenamento e não simulam PCs diferentes.
@@ -619,7 +627,8 @@ repetir (tem que funcionar igual).
 - unidade: capacidade desligada → intenção recusada; o último mestre não consegue se rebaixar;
 - E2E: 8 contextos entram; uma alteração em um aparece nos outros 7;
 - E2E: refresh de um contexto → estado volta igual;
-- E2E: reiniciar o processo da sala → estado volta do SQLite;
+- E2E: derrubar a instância do Durable Object (rota de teste) → todos reconectam e o estado volta do
+  SQLite (parar o processo inteiro fica no roteiro manual);
 - E2E: o mestre desliga uma capacidade e o jogador perde a ação na hora; o mestre promove um jogador
   e ele passa a receber o que é do mestre;
 - E2E: exportar → apagar o estado → importar devolve tudo igual.
@@ -976,7 +985,8 @@ Regras para o agente que implementa:
 5. Lógica de regras, geometria, dados e import de PDF em `packages/shared`, pura e testada.
 6. Toda mensagem nova do protocolo tem schema zod e é filtrada por papel na sala.
 7. Nada que o jogador não pode ver sai da sala para ele. Todo lote que cria dado secreto inclui um
-   teste E2E que inspeciona os frames do jogador.
+   teste E2E que inspeciona os frames do jogador (modelo: "frames recebidos pelo jogador" em
+   `e2e/tests/sala.spec.ts`).
 8. Mudanças de arquitetura em relação a este documento: propor primeiro, implementar depois.
 9. Commits pequenos e um commit de fechamento por lote.
 10. Toda intenção nova declara a capacidade exigida.

@@ -7,7 +7,8 @@
     "dev": "wrangler dev",
     "types": "wrangler types",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "dev:e2e": "wrangler dev --port 8788 --persist-to ../../e2e/.estado-sala --var MODO:teste"
   },
   "dependencies": {
     "@tabletop/shared": "workspace:*"

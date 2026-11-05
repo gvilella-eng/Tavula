@@ -1,17 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { ecoDe, nomeDaSala, PORTA_SALA, PORTA_WEB } from "./index.ts";
+import { nomeDaSala, PORTA_SALA, PORTA_SALA_E2E, PORTA_WEB, PORTA_WEB_E2E } from "./index.ts";
 
-describe("shared", () => {
-  it("usa portas fixas e distintas", () => {
-    expect(PORTA_SALA).toBe(8787);
-    expect(PORTA_WEB).toBe(5173);
+describe("constantes", () => {
+  it("usa portas fixas e distintas; o E2E tem as dele", () => {
+    expect(new Set([PORTA_SALA, PORTA_WEB, PORTA_SALA_E2E, PORTA_WEB_E2E]).size).toBe(4);
   });
 
   it("tem uma única sala por campanha", () => {
     expect(nomeDaSala()).toBe("campanha");
-  });
-
-  it("devolve o texto recebido como eco", () => {
-    expect(ecoDe("olá, mesa")).toBe("olá, mesa");
   });
 });

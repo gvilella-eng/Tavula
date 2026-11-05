@@ -1,0 +1,71 @@
+body {
+  margin: 0;
+  font-family: system-ui, sans-serif;
+  color: #1c1c1c;
+  background: #fafafa;
+}
+
+.pagina {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+.cabecalho {
+  position: relative;
+}
+
+.aviso {
+  background: #fff3cd;
+  border: 1px solid #e0c36a;
+  border-radius: 6px;
+  padding: 8px 12px;
+}
+
+.lista-simples {
+  list-style: none;
+  padding: 0;
+}
+
+.lista-simples li {
+  margin: 4px 0;
+}
+
+.bolinha {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  margin-right: 8px;
+  border-radius: 50%;
+}
+
+.campo-nota {
+  display: block;
+  margin: 12px 0;
+}
+
+.campo-nota span {
+  display: block;
+  font-weight: 600;
+}
+
+.campo-nota textarea {
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
+}
+
+.painel-mestre {
+  border-top: 2px solid #ccc;
+  margin-top: 24px;
+}
+
+table {
+  border-collapse: collapse;
+}
+
+th,
+td {
+  padding: 4px 12px;
+  text-align: left;
+}

@@ -20,3 +20,6 @@ Thumbs.db
 !.vscode/extensions.json
 .idea/
 *.log
+
+# estado da sala dos testes E2E (descartável)
+e2e/.estado-sala/
