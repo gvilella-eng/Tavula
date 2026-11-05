@@ -540,7 +540,18 @@ binários e ficam no OPFS (cache) de cada navegador. Protocolo, frame binário e
   suficiente o OPFS falha e o asset aparece como erro.
 - Visual da aba Biblioteca conferido só por teste (sem polimento; o Vilella vai revisar a interface).
 
-### Roteiro manual (pendente, do Vilella)
+### Roteiro manual (parcial)
+
+Feito pelo Vilella em 2026-11-05: mapa (`dl.jpg`) e imagem de token (`token_2.png`) da pasta local aparecem na
+mesa ("funcionou"). Ajustes vistos no print dele, para a revisão de interface:
+
+- o rótulo "N arquivos prontos neste navegador" mostra **0** mesmo com o mapa e o token carregados: ele conta
+  só o que veio por transferência (`gerente.listarStatus()`), não o que o próprio usuário processou e já está
+  no cache. Contar o cache (`completos`) em vez do status;
+- a barra lateral corta texto à direita ("A mesa só…", "Adicionar arquivo…").
+
+Ainda não confirmados (itens abaixo): reautorizar a pasta depois de reabrir o Chrome, Firefox, refresh no meio
+de um mapa grande, `recebidos/<jogador>/`, mapa > 8192 px e rede desligada.
 
 1. Escolher uma pasta real no Chrome com um **mapa grande (> 8192 px)** e usá-lo como mapa: conferir que
    carrega em tiles (aba Biblioteca mostra o progresso) e que a cena ganha o tamanho certo; em outro perfil,
