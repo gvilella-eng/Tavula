@@ -368,6 +368,17 @@ quem está logado), `paraTela(x, y)` (metros → pixels da página, para o `page
   `pnpm dev` ganha a cena padrão mas nenhum token de teste. Para vê-los, apagar `apps/server/.wrangler/state`
   (zera a campanha) ou criar tokens pelo botão "Novo token".
 
+### Roteiro manual
+
+Parcial, feito pelo Vilella em 2026-11-05: o mestre criou e editou tokens pelo painel (nome, cor, tamanho,
+camada, oculto, quem controla) no `pnpm dev`. Ele liberou o Lote 3 dizendo que **vai corrigir a interface
+depois**. Ajustes vistos no print dele, para essa revisão:
+
+- no zoom de ~24 % os tokens viram pontinhos e o nome some (o zoom inicial enquadra a cena inteira);
+- o painel do token flutua por cima do mapa, cobrindo parte dele;
+- numa janela de ~1000 px a barra lateral ocupa quase um terço da largura;
+- (já anotado) nomes embaixo dos tokens ilegíveis em zoom baixo.
+
 ### Sugestões para o PROJETO.md
 
 Aplicadas na revisão (4.1, 4.2, 4.4, 4.5, seção 9 e "Depois"). Texto original do agente:

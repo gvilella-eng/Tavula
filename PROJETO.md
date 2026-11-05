@@ -331,6 +331,27 @@ Se o arquivo for movido ou renomeado, o app reescaneia a pasta e encontra pelo h
 **Abstração para testes:** `FonteDeAssets` com implementações `PastaLocal` (File System Access),
 `ArquivosSoltos` (input/arrastar) e `Memoria` (testes automatizados).
 
+**Detalhes decididos para o Lote 3:**
+- **Só entra na sala o arquivo que alguém usa** (mapa de uma cena, imagem de um token, retrato). A pasta
+  nunca é enviada nem listada para os outros; o que o jogador tem na pasta e não usou ninguém vê.
+- **Manifesto com hash por pedaço:** o asset registrado leva o SHA-256 de cada pedaço (256 KB). Pedaço
+  corrompido é detectado na hora e pedido de novo, sem baixar o resto; o hash do arquivo inteiro
+  confere no fim.
+- **Frame binário de pedaço:** `[1 byte tipo][32 bytes hash][uint32 índice][uint32 total][dados]`. A sala só
+  repassa pedaço que ela pediu àquele socket; o resto é descartado.
+- **Sigilo:** o jogador só recebe metadados e pedaços de asset referenciado por algo que ele vê (token
+  visível, mapa da cena ativa) ou que é dele. Pedido de outro asset responde como inexistente, e o hash
+  da imagem de um token oculto nunca chega a ele (o hash vai junto com o token).
+- **Quem tem cada asset** fica no SQLite por conexão (sobrevive à hibernação), refeito pelo inventário que
+  o cliente manda ao conectar e limpo quando a conexão fecha. Ordem de quem serve: dono, mestre, qualquer
+  outro com cópia; se quem serve cai, a sala pede o que falta a outro.
+- **Processamento num Web Worker** (OffscreenCanvas → WebP). Um índice local (IndexedDB) liga o arquivo
+  original ao hash processado, para reconhecer arquivo movido ou renomeado sem depender de o WebP sair
+  byte a byte igual.
+- **Mapa na cena:** tamanho em metros = pixels da imagem ÷ `pxPorQuadrado` × `quadradoM`; o mestre
+  informa `pxPorQuadrado`. Mapa acima do limite vira tiles de no máximo 4096 px.
+- **Limites:** tamanho máximo por arquivo e por mapa (contra travar a sala com um arquivo gigante).
+
 ### 4.4 Persistência e refresh
 
 - Refresh ou queda: o cliente reconecta, recebe o snapshot e lê os assets do cache. Os outros continuam
