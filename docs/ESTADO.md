@@ -212,6 +212,13 @@ Os números das portas do E2E estão repetidos em `e2e/playwright.config.ts`, `a
   falta entra com o padrão, como no carregamento do SQLite (teste novo).
 - `pnpm verify` rodado **duas vezes seguidas**, verde nas duas (49 testes de unidade, 13 E2E em ~52 s),
   para descartar sorte de timing nos testes com 8 navegadores e reconexão.
+- **Página aberta antes de a sala subir** (achado no roteiro manual): no `pnpm dev` o Vite fica pronto
+  em ~0,3 s e o wrangler em ~5 s. A página que carregava nesse intervalo (inclusive a aba já aberta,
+  que o Vite recarrega sozinho quando volta) recebia 5xx do proxy em `/api/eu` e mostrava um erro sem
+  tentar de novo. Agora `/api/eu` e `/api/usuarios` repetem com o mesmo backoff da reconexão enquanto
+  a sala estiver indisponível (rede ou 5xx), mostrando "Conectando à sala…"; 4xx continua sendo
+  resposta definitiva (`comRetentativa` em `apps/web/src/api.ts`, com testes).
+- Lembrete do roteiro: a mesa só existe enquanto um terminal mantém o `pnpm dev` rodando.
 
 ### Sugestões para o PROJETO.md
 

@@ -1,6 +1,13 @@
 import { type Exportacao, pode } from "@tabletop/shared";
 import { useCallback, useEffect, useState } from "react";
-import { entrar, listarUsuarios, sair, type UsuarioDaEntrada, usuarioDaSessao } from "./api";
+import {
+  comRetentativa,
+  entrar,
+  listarUsuarios,
+  sair,
+  type UsuarioDaEntrada,
+  usuarioDaSessao,
+} from "./api";
 import { CampoNota } from "./CampoNota";
 import { PainelDoMestre } from "./PainelDoMestre";
 import { useSala } from "./useSala";
@@ -22,9 +29,11 @@ function TelaDeEntrada({ aoEntrar }: { aoEntrar: (u: UsuarioDaEntrada) => void }
   const [falha, setFalha] = useState<string | null>(null);
 
   useEffect(() => {
-    listarUsuarios()
-      .then(setUsuarios)
-      .catch((e: Error) => setFalha(e.message));
+    const controle = new AbortController();
+    comRetentativa(listarUsuarios, controle.signal)
+      .then((lista) => !controle.signal.aborted && setUsuarios(lista))
+      .catch((e: Error) => !controle.signal.aborted && setFalha(e.message));
+    return () => controle.abort();
   }, []);
 
   async function escolher(u: UsuarioDaEntrada) {
@@ -150,10 +159,13 @@ export function App() {
   const [usuario, setUsuario] = useState<UsuarioDaEntrada | null | undefined>(undefined);
   const [falha, setFalha] = useState<string | null>(null);
 
+  // No `pnpm dev` a página pode abrir antes de a sala subir: espera em vez de mostrar erro.
   useEffect(() => {
-    usuarioDaSessao()
-      .then(setUsuario)
-      .catch((e: Error) => setFalha(e.message));
+    const controle = new AbortController();
+    comRetentativa(usuarioDaSessao, controle.signal)
+      .then((u) => !controle.signal.aborted && setUsuario(u))
+      .catch((e: Error) => !controle.signal.aborted && setFalha(e.message));
+    return () => controle.abort();
   }, []);
 
   const aoSair = useCallback(async () => {
@@ -163,7 +175,7 @@ export function App() {
   const aoPerderSessao = useCallback(() => setUsuario(null), []);
 
   if (falha) return <p role="alert">{falha}</p>;
-  if (usuario === undefined) return <p>Carregando…</p>;
+  if (usuario === undefined) return <p>Conectando à sala…</p>;
   if (usuario === null) return <TelaDeEntrada aoEntrar={setUsuario} />;
   return <Mesa key={usuario.id} aoSair={aoSair} aoPerderSessao={aoPerderSessao} />;
 }
