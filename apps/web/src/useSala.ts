@@ -13,6 +13,12 @@ import {
 } from "@tabletop/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+/** Como anda o preparo de uma cena (só o mestre recebe). */
+export type ProgressoDePreparo = Extract<
+  MensagemDaSala,
+  { tipo: "preparo.progresso" }
+>["dados"]["preparos"][number];
+
 export type StatusConexao = "conectando" | "conectado" | "reconectando";
 
 /** Algo que a sala contou e que os componentes (campos com rascunho) querem acompanhar. */
@@ -20,7 +26,7 @@ export type Ocorrencia =
   | { tipo: "evento"; evento: EventoSala }
   | { tipo: "movendo"; id: string; x: number; y: number }
   | { tipo: "conectado" }
-  /** Vaivém de arquivos: `asset.meta`, `asset.enviar` e `asset.indisponivel`. */
+  /** Vaivém de arquivos: `asset.meta`, `asset.enviar`, `asset.indisponivel` e o pré-envio (`preparo.*`). */
   | { tipo: "asset"; mensagem: MensagemDaSala }
   /** Frame binário (pedaço de arquivo repassado pela sala). */
   | { tipo: "binario"; dados: ArrayBuffer }
@@ -56,6 +62,7 @@ export function useSala(opcoes: Opcoes) {
   const [presenca, setPresenca] = useState<Record<string, Presenca>>({});
   const [uso, setUso] = useState<Uso | null>(null);
   const [aviso, setAviso] = useState<Aviso | null>(null);
+  const [preparos, setPreparos] = useState<ProgressoDePreparo[]>([]);
   const socket = useRef<WebSocket | null>(null);
   const ouvintes = useRef(new Set<(o: Ocorrencia) => void>());
   const opcoesAtuais = useRef(opcoes);
@@ -97,9 +104,14 @@ export function useSala(opcoes: Opcoes) {
         case "uso":
           setUso(m.dados);
           break;
+        case "preparo.progresso":
+          setPreparos(m.dados.preparos);
+          break;
         case "asset.meta":
         case "asset.enviar":
         case "asset.indisponivel":
+        case "preparo.disponivel":
+        case "preparo.chaves":
           emitir({ tipo: "asset", mensagem: m });
           break;
         case "exportacao":
@@ -198,6 +210,7 @@ export function useSala(opcoes: Opcoes) {
     presenca,
     uso,
     aviso,
+    preparos,
     enviar,
     enviarBinario,
     bufferizado,

@@ -601,17 +601,195 @@ Aplicadas na revisão (4.1, 4.2, 4.3, 4.4, 4.5). Texto original do agente:
 - 4.5: frames de pedaço contam como mensagens recebidas; um arquivo de 30 MB ≈ 6 requisições.
 - Lote 3 (seção 7): "pronto quando" pode citar `recebidos/<jogador>` e o teste dos frames do goblin oculto.
 
-## Próximo: Lote 4
+## Lote 4 — Personagens e cenas (entregue)
 
-Personagens e cenas (ver `PROJETO.md`, seção 7). Pontos de partida deixados pelo Lote 3:
+Separa **personagem** (existe uma vez: dono, visão, ficha mínima, token padrão) de **token** (a posição dele numa
+cena) e traz **várias cenas**: o jogador só recebe a cena onde está o grupo, "levar o grupo" é **uma mensagem**, e a
+cena seguinte pode ser **preparada** (pré-envio cifrado) sem quebrar o sigilo. Protocolo, regras de sigilo e o fluxo
+do preparo em `docs/protocolo.md`.
 
-- `Cena.mapa` e `cena.definirMapa` operam na **cena ativa**; com várias cenas, `assetVisivelPara` já só mostra
-  ao jogador o mapa da cena ativa (e `eventoPara` envia `cena.mapaAlterado` a todos): ao introduzir "preparar
-  cena" (mapa de uma cena que ainda não é a ativa) é preciso decidir se o mapa da cena preparada fica oculto
-  (hoje `cena.mapaAlterado` iria a todos) e filtrar o evento por cena;
-- `Personagem.tokenPadrao.assetHash` (retrato/token padrão) deve reutilizar `asset.registrar` e
-  `token.definirImagem`; a ação "Usar como retrato" da Biblioteca entra com a ficha;
-- o gerente (`apps/web/src/assets/gerente.ts`) pede o que a cena **ativa** usa (mapa e imagens dos tokens do
-  estado); ao trocar de cena ele já pede o mapa novo, e o grupo que muda de cena leva o `assetHash` dos tokens;
-- `Transferencias` não conhece cena: o sigilo é todo de `assetVisivelPara` (shared), então novas regras de
-  visibilidade (névoa, handouts) entram lá.
+### O que foi entregue
+
+- **`packages/shared`** (puro, testado): `Personagem` (`PersonagemSchema`), `Token.personagemId?`, `Cena.chegada?`,
+  `Estado.personagens`; `tokenVisivelPara(token, usuario, cenaAtivaId)` (token de outra cena é invisível),
+  `personagemVisivelPara`, `controlaToken`, `podeMoverToken(token, usuario, estado)` (dono do personagem **ou**
+  `controladoPor`), `arrumarNoGrid` (grupo lado a lado, sem sobreposição) e `chegadaDaCena` (`mapa.ts`);
+  `cifra.ts` (AES-GCM 256: `cifrar`, `decifrar`, `decifrarEConferir`, `metaDoCifrado`); `hashesPreparaveis` e o tipo
+  de asset `cifrado` (`assets.ts`); intenções `personagem.criar/editar/apagar/colocar`, `ficha.alterar`, `cena.criar/
+  editar/duplicar/apagar`, `grupo.moverPara`, `cena.preparar` (e `cenaId` em `token.criar`, `cena.configurarGrid`,
+  `cena.definirMapa`); eventos `personagem.alterado/apagado`, `cena.criada/editada/apagada`, `grupo.movido`;
+  mensagens `preparo.disponivel/chaves/progresso`; códigos `personagem_inexistente` e `cena_inexistente`;
+  `visaoPara`/`eventoPara`/`assetVisivelPara` olhando a cena e os personagens; **exportação v4** (importa v1 a v3).
+- **`apps/server`**: `armazenamento.ts` (coleção `personagens`, eventos novos gravados incrementalmente, **migração 3**:
+  tabela `preparos` com as chaves, só da sala); `sala.ts` (`cena.preparar`: guarda e avisa os jogadores;
+  `grupo.moverPara`: entrega as chaves **antes** do snapshot e descarta o preparo; progresso aos mestres; limpeza ao
+  apagar cena e ao importar). Banco anterior ao Lote 4 (sem personagens) continua funcionando.
+- **`apps/web`**: abas **Cenas** (`AbaCenas.tsx`, só mestre) e **Personagens** (`AbaPersonagens.tsx`); "Vendo: X ·
+  Grupo em: Y" sobre o mapa; `Mesa.tsx` guarda a cena vista (estado local do mestre) e manda `cenaId` nas
+  intenções; `Biblioteca.tsx` (mapa e token novo vão para a cena vista; "Usar como imagem do token padrão");
+  `gerente.ts` (`cifrarParaPreparo`, abrir pacotes, apagar o cifrado, pedir só a meta); `mapaPixi.ts` (trocar de
+  cena recria os tokens e reenquadra).
+- **`fixtures/campanha.seed.json`**: Aldric, Brisa e Cael (jogadores 1 a 3) ligados aos tokens, um personagem NPC
+  (Ogro) e a segunda cena **Covil** (40 x 30 m, chegada em 6 m, 15 m) com a "Sentinela do Covil" e o "Vigia Oculto do
+  Covil" (oculto). Os tokens dos jogadores agora têm `controladoPor: []`: quem controla é o dono do personagem.
+
+### Como rodar
+
+- `pnpm dev` e `pnpm verify`: como antes (nenhuma dependência nova). Uma campanha já existente no `pnpm dev` **não**
+  ganha os personagens nem o Covil (a semente só vale para banco vazio); crie pela aba Personagens e Cenas, ou limpe
+  `apps/server/.wrangler/state`.
+- Mestre: aba **Cenas** (Ver, Levar o grupo aqui, Preparar, Duplicar, nome editável, Apagar, "Usar o centro da vista
+  como chegada") e **Personagens** (criar, editar tudo, "Colocar na cena que estou vendo"; a imagem do token padrão se
+  escolhe na Biblioteca). Jogador: aba **Personagens** (PV dele editável; os dos outros só com `ficha.verOutras`).
+
+### Verificação
+
+`pnpm verify` verde **duas vezes seguidas**: 179 testes de unidade (161 em `shared`, 12 em `server`, 6 em `web`; 41 novos) e 42 E2E (34 anteriores + 8 novos em `e2e/tests/cenas.spec.ts`), E2E em ~4,4 min.
+
+- Unidade (`personagens.test.ts`, `semente.test.ts` e ajustes nos antigos): visibilidade por cena (token, asset,
+  snapshot, evento, mapa e grid); personagens no snapshot (próprio, `ficha.verOutras`, NPC nunca, troca de dono);
+  controle (dono, `controladoPor`, outro jogador, outra cena); `grupo.moverPara` (chegada, NPC fica, cena ativa muda,
+  o reducer do cliente chega ao mesmo estado); `arrumarNoGrid` (sem sobreposição, tamanhos mistos, cena pequena);
+  criar, editar, duplicar e apagar cena (nunca a ativa); personagens (criar, editar, colocar, apagar); `ficha.alterar`
+  (dono e mestre sim, outro não, NPC inexistente, PV limitado, mantém ao trocar de cena); cifrar → decifrar → conferir
+  o SHA-256 (e chave errada, arquivo adulterado, hash errado); `cena.preparar` (só o que os jogadores veriam);
+  exportação v4 e importação de v1, v2 e v3.
+- E2E (`e2e/tests/cenas.spec.ts`, 8 testes): levar o grupo gera **1** mensagem do mestre e 7 jogadores mudam de cena
+  (1 snapshot novo cada); PV mantido ao trocar de cena e depois de refresh (e o clamp pelo PV máximo); `ficha.verOutras`
+  e NPC; jogador não move o token de outro (nem forçando) e move se o mestre o pôr em `controladoPor`; o mestre
+  vê e edita a cena 2 (token, grid, nome, chegada, duplicar, apagar) e nenhum evento chega aos jogadores; **frames**
+  antes da ida (texto e binário: nome da cena, ids e nomes dos tokens, hashes do mapa, dos tiles e das imagens, bytes
+  claros; controle positivo no mestre; pedir esses hashes responde `asset_inexistente`); **preparar** (6 tiles + imagem
+  da sentinela, 3 de 7 jogadores com tudo, vigia oculto sem pacote nem chave, preparar de novo acrescenta só o novo,
+  a troca **não baixa nenhum pedaço** e o SHA-256 de cada arquivo no cache bate); reinício da sala com o grupo
+  na cena nova. Conferido que os testes **falham** sem a correção (decifração desligada e `tokenVisivelPara` sem a cena).
+
+### Decisões
+
+- **Controle do token = dono do personagem ou `controladoPor`** (`controlaToken`). A semente dos jogadores 1 a 3 não
+  usa mais `controladoPor`: o dono controla pelo personagem. `token.definirImagem` usa a mesma regra.
+- **O token guarda a própria cópia** de nome, cor, tamanho e imagem (tirada do token padrão em `personagem.colocar`).
+  Editar o personagem depois **não** muda os tokens já postos (documentado em `estado.ts`).
+- **Capacidades**: todas as intenções de mestre do lote usam `cena.editar` (nenhuma capacidade nova);
+  `ficha.alterar` é `null` em `capacidadeDaIntencao` e a regra (dono ou mestre) está em `processar`.
+- **Personagem de jogador tem um token só** (`personagem.colocar` recusa o segundo): o grupo leva o token junto. NPC
+  pode ter quantos tokens quiser.
+- **Ids**: o cliente gera o id da cena (`cena.criar`, `cena.duplicar` com `novoId`) e do token (`personagem.colocar`
+  com `tokenId`); os tokens da cena duplicada ganham `<novoId>-<n>`.
+- **PV**: inteiros de 0 a 9999; `pvAtual` nunca passa de `pvMax` (a sala corta, em `ficha.alterar` e em
+  `personagem.editar`).
+- **`ficha.verOutras` muda → snapshot novo** a quem foi afetado (em vez de remendar a lista de personagens por
+  evento). Perder a visão de um personagem vira `personagem.apagado` para quem o via.
+- **Snapshot para todos sem regravar tudo**: só a importação faz `salvarTudo`; levar o grupo e `ficha.verOutras`
+  mandam snapshot a todos mas gravam só os eventos (importa para o limite de linhas do plano grátis).
+- **Preparo**: validado na sala (`cena.preparar` só aceita `hashCifrado` de um asset `cifrado` registrado e
+  `hashOriginal` de arquivo que os jogadores veriam na cena: mapa/tiles e imagem de token visível). Chaves só no
+  SQLite (`preparos`) e na memória do navegador do mestre durante o preparo; nunca na exportação. Chaves por jogador
+  só do que ele passa a ver depois da ida (`assetVisivelPara` sobre o estado novo). Os originais ficam "em
+  decifração" assim que as chaves chegam (antes do snapshot), então a troca não pede nada pela rede.
+- **Cifrado como asset**: tipo `cifrado`, `nomeOriginal: "cifrado"`, 1 x 1 px, mime genérico; visível a todo jogador;
+  mesmo caminho de pedaços do Lote 3 (o dono, o mestre, serve). Só o mestre registra. Cabe um pouco mais que o limite
+  de arquivo (+28 bytes de IV e etiqueta).
+- **A cena vista pelo mestre** é estado local (`Mesa.tsx`): `null` acompanha o grupo; "Levar o grupo aqui" volta a
+  acompanhar. Se a cena vista é apagada, volta à do grupo.
+
+### Desvios do plano
+
+- Nenhum desvio de arquitetura. Pequenas escolhas em "Decisões". `Personagem.tokenPadrao` ficou `{ cor,
+  tamanhoQuadrados, assetHash? }` (o esboço do `PROJETO.md` tinha só `assetHash` e tamanho; a cor é a aparência
+  gerada até haver imagem) e `Token.personagemId` é opcional (não `string | null`).
+- Testes antigos ajustados por causa da regra nova: a **versão da exportação** passou de 3 para 4 (`assets.test.ts`,
+  `tokens.test.ts`, `nucleo.test.ts` (chaves de `dados`, e a "versão inválida" passou de 4 para 5) e
+  `assets.spec.ts`), `tokenVisivelPara`/`podeMoverToken` ganharam a cena ativa e o estado (`mapa.test.ts`). Nenhum
+  teste foi pulado, desligado ou afrouxado.
+- Um bug do Lote 2/3 apareceu só agora: o mapa (PixiJS) não recriava os tokens quando a cena mudava e os tokens
+  continuavam os mesmos; corrigido em `mapaPixi.definirCena`.
+
+### Frágil / não verificado
+
+- **Arquivos grandes**: cifrar e decifrar leem o arquivo inteiro em memória (de 3 a 4 cópias de até 30 MB); não medido
+  com um tile de 30 MB nem com um mapa de 200 MB.
+- **Cifrado que chega depois da ida** (jogador lento ou offline na hora): fica no cache sem uso; o original vem pelo
+  caminho normal. Não há limpeza dos cifrados antigos (nem no cache nem em `Estado.assets`: contam para o teto de
+  2000 assets da sala; preparar de novo gera cifrados novos).
+- **Mesmo mapa em duas cenas** (cena duplicada): cada preparo gera pacotes próprios, então o mapa é baixado duas vezes
+  se as duas forem preparadas.
+- **O que o preparo revela antes da hora**: quantos arquivos cifrados há e o tamanho aproximado de cada um. O token
+  visível de um NPC leva o `personagemId` (um id opaco); o personagem em si não chega ao jogador.
+- **Hibernação real** da sala com preparos pendentes: os preparos estão no SQLite e o reinício com `ctx.abort()` foi
+  testado só com o grupo já levado, não com o preparo pendente; a mensagem `preparo.disponivel` é refeita ao
+  conectar, o que cobre refresh do jogador, mas esse caminho não tem teste próprio.
+- **Armazenamento (SQLite)**: não há teste de unidade de `armazenamento.ts` (precisa do Durable Object); coberto
+  pelo E2E de reinício. O progresso do preparo faz uma consulta de posse por arquivo a cada `asset.tenho` durante o
+  preparo (poucas linhas lidas, mas não medido no orçamento).
+- **`PastaLocal`** continua sem teste automático (como no Lote 3); o roteiro abaixo usa a pasta real.
+- Visual das abas novas conferido só por teste (sem olhar a tela); **nada foi polido** (é o Lote 4b).
+
+### Roteiro manual (pendente)
+
+1. Mestre com uma **pasta real** (Chrome): criar a cena **Covil**, escolher um mapa e uma imagem para a Sentinela;
+   com 2 ou 3 jogadores em outros perfis, clicar **Preparar** na aba Cenas e ver "N de M jogadores já têm tudo".
+2. Com o F12 aberto num jogador (aba Network, WS): antes de levar o grupo não pode aparecer o nome da cena, o nome
+   dos tokens nem o hash do mapa (só `preparo.disponivel` e os pedaços opacos).
+3. **Levar o grupo aqui**: a troca é instantânea (mapa e token da Sentinela aparecem sem barra de progresso), o
+   Vigia oculto não aparece e o PV dos personagens continua o mesmo.
+4. Editar a cena 2 (token novo, grid, chegada) com o grupo na cena 1: os jogadores não percebem nada.
+5. Refresh do jogador entre **Preparar** e **Levar**: ao voltar ele continua baixando/tem os cifrados e a troca ainda
+   é instantânea.
+6. Personagens: criar um NPC, dar imagem pela Biblioteca, colocar na cena vista; mudar PV como dono e como mestre.
+7. Abrir a campanha antiga do `pnpm dev` (sem personagens): tudo continua funcionando.
+
+### Revisão (antes do commit de fechamento)
+
+- Conferidos no código: filtros de cena e personagem (`visaoPara`, `eventoPara`), entrega das chaves com o estado já
+  mudado e só do que cada jogador passa a ver, e a validação do preparo (só pacote de arquivo visível naquela cena).
+  Nada a corrigir.
+- `pnpm verify` duas vezes seguidas, verde nas duas: 179 testes de unidade (161 shared, 12 server, 6 web) e 42 E2E
+  (~4,5 min).
+- **Incidente:** o agente encerrou um `pnpm dev` do Vilella que estava aberto desde as 15:30 (para cumprir "portas
+  livres no fim"). Antes de cair, o hot-reload rodou o código do Lote 4 sobre a campanha real e aplicou a migração 3
+  (tabela `preparos`, aditiva). O banco continua lá. Daqui em diante, os briefs dos agentes proíbem encerrar
+  processos que eles não iniciaram.
+
+### Sugestões para o PROJETO.md
+
+Aplicadas na revisão (4.1, 4.4, Lote 4 e seção 9). Texto original do agente:
+
+- 4.1: `Personagem.tokenPadrao: { cor, tamanhoQuadrados, assetHash? }` (e `ficha: { pvAtual, pvMax }` até o Lote 9);
+  `Token.personagemId?: string`; `Cena.chegada?: { x, y }`; `Estado.personagens`; `Asset.tipo` ganha `cifrado` (sem
+  nome nem dimensões reais); explicar que o token guarda a própria cópia de nome, cor e imagem.
+- 4.2: listar as intenções novas (`personagem.criar/editar/apagar/colocar`, `ficha.alterar`, `cena.criar/editar/
+  duplicar/apagar`, `grupo.moverPara`, `cena.preparar`), os eventos (`personagem.*`, `cena.criada/editada/apagada`,
+  `grupo.movido`), as mensagens `preparo.disponivel/chaves/progresso` e os códigos `personagem_inexistente` e
+  `cena_inexistente`; `ficha.alterar` com `null` em `capacidadeDaIntencao`.
+- 4.3: o fluxo do preparo cifrado, o asset `cifrado` e o que ele revela (quantidade e tamanho aproximado).
+- 4.4: exportação v4 (personagens; sem preparos nem cifrados).
+- Lotes 5 e 6: o filtro de visão por linha de visão entra em `tokenVisivelPara` (que agora recebe a cena ativa) e em
+  `eventoPara`; a luz ambiente é por cena e a cena do jogador é só a ativa.
+- Seção 9, regra 8: citar `e2e/tests/cenas.spec.ts` (frames antes e depois do preparo) como modelo de teste de
+  sigilo de cena.
+- Lote 4 "Pronto quando": acrescentar o roteiro manual acima.
+
+## Próximo: Lote 4b — Revisão da interface
+
+Ver `PROJETO.md`, seção 7. O escopo exato se combina com o Vilella. Ajustes já vistos (Lote 3 e Lote 4), para a
+revisão:
+
+- **Do Lote 3** (ainda valem): zoom inicial pequeno demais (tokens viram pontos, nomes ilegíveis); painel do token
+  cobrindo o mapa; barra lateral larga demais e cortando texto em janela estreita; "arquivos prontos" conta errado
+  (só o que veio por transferência).
+- **Aba Cenas**: cada linha tem 5 ou 6 botões que quebram em várias linhas na barra estreita; o rótulo "Usar o centro
+  da vista como chegada" é longo; "Apagar" pede confirmação com um segundo botão ao lado (sem diálogo); o nome da cena
+  é um campo editável sem aviso de que confirma ao sair; não há miniatura nem tamanho da cena; "Preparar" mostra só
+  texto ("3 de 7 jogadores já têm tudo"), sem barra de progresso nem como cancelar.
+- **Cena vista × cena do grupo**: só o rótulo "Vendo: X · Grupo em: Y" avisa que o mestre está olhando outra cena; nada
+  no mapa (borda, faixa) impede de editar a cena errada sem perceber.
+- **Aba Personagens (mestre)**: cada cartão tem uns dez campos e não recolhe, a lista fica comprida; a imagem do token
+  padrão aparece só como os 8 primeiros caracteres do hash (sem miniatura) e se escolhe em **outra aba** (Biblioteca);
+  "Colocar na cena que estou vendo (X)" repete o nome da cena; PV são dois campos numéricos sem +/−; a visão é
+  texto solto até o Lote 6.
+- **Aba Personagens (jogador)**: sem retrato; PV como número; os de outros jogadores (com `ficha.verOutras`) aparecem
+  só como texto.
+- **Barra lateral**: com as duas abas novas a faixa de ícones tem 7 (mestre) ou 6 (jogador); conferir com janela
+  estreita.
+- **Painel do token** não mostra a qual personagem o token pertence nem quem o controla por ser o dono.

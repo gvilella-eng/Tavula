@@ -67,7 +67,9 @@ export function PainelDoMestre({ estado, cena, uso, enviar }: Props) {
             type="checkbox"
             data-testid="grid-visivel"
             checked={cena.grid.visivel}
-            onChange={(e) => enviar("cena.configurarGrid", { visivel: e.target.checked })}
+            onChange={(e) =>
+              enviar("cena.configurarGrid", { cenaId: cena.id, visivel: e.target.checked })
+            }
           />{" "}
           Mostrar o grid
         </label>
@@ -84,7 +86,7 @@ export function PainelDoMestre({ estado, cena, uso, enviar }: Props) {
             onBlur={(e) => {
               const v = Number(e.target.value);
               if (v >= 0.3 && v <= 10 && v !== cena.grid.quadradoM) {
-                enviar("cena.configurarGrid", { quadradoM: v });
+                enviar("cena.configurarGrid", { cenaId: cena.id, quadradoM: v });
               }
             }}
           />

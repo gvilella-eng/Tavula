@@ -1,5 +1,5 @@
 import { pode } from "./capacidades.ts";
-import type { Cena, Permissoes, Token, Usuario } from "./estado.ts";
+import type { Cena, Estado, Permissoes, Personagem, Token, Usuario } from "./estado.ts";
 
 /** Cena que existe quando a campanha não define nenhuma (semente, banco antigo, exportação v1). */
 export const CENA_PADRAO: Cena = {
@@ -12,22 +12,52 @@ export const CENA_PADRAO: Cena = {
 
 type Quem = Pick<Usuario, "id" | "papel">;
 
-/** O mestre vê tudo; os demais só tokens da camada `tokens` que não estão ocultos. */
-export function tokenVisivelPara(token: Token, usuario: Quem): boolean {
+/**
+ * O mestre vê tudo. Os demais só veem tokens da cena ativa (onde está o grupo), da camada
+ * `tokens` e não ocultos: token de outra cena conta como invisível.
+ */
+export function tokenVisivelPara(token: Token, usuario: Quem, cenaAtivaId: string): boolean {
   if (usuario.papel === "mestre") return true;
-  return token.camada === "tokens" && !token.oculto;
+  return token.cenaId === cenaAtivaId && token.camada === "tokens" && !token.oculto;
+}
+
+/** O mestre vê todos os personagens; o jogador, os dele e, com `ficha.verOutras`, os de outros jogadores. */
+export function personagemVisivelPara(
+  personagem: Personagem,
+  usuario: Quem,
+  permissoes: Permissoes,
+): boolean {
+  if (usuario.papel === "mestre") return true;
+  if (usuario.papel !== "jogador") return false;
+  if (personagem.donoId === usuario.id) return true;
+  return personagem.donoId !== null && pode(usuario, "ficha.verOutras", permissoes);
+}
+
+/** Quem controla o token: o dono do personagem dele ou quem o mestre pôs em `controladoPor`. */
+export function controlaToken(
+  token: Token,
+  usuario: Quem,
+  personagens: readonly Personagem[],
+): boolean {
+  if (token.controladoPor.includes(usuario.id)) return true;
+  if (token.personagemId === undefined) return false;
+  return personagens.find((p) => p.id === token.personagemId)?.donoId === usuario.id;
 }
 
 /**
  * Quem move: o mestre qualquer token; o jogador só se tem `token.moverProprio`, controla o token
- * e o token é visível para ele.
+ * (`controlaToken`) e o token é visível para ele.
  */
-export function podeMoverToken(token: Token, usuario: Quem, permissoes: Permissoes): boolean {
+export function podeMoverToken(
+  token: Token,
+  usuario: Quem,
+  estado: Pick<Estado, "permissoes" | "cenaAtivaId" | "personagens">,
+): boolean {
   if (usuario.papel === "mestre") return true;
   return (
-    pode(usuario, "token.moverProprio", permissoes) &&
-    token.controladoPor.includes(usuario.id) &&
-    tokenVisivelPara(token, usuario)
+    pode(usuario, "token.moverProprio", estado.permissoes) &&
+    controlaToken(token, usuario, estado.personagens) &&
+    tokenVisivelPara(token, usuario, estado.cenaAtivaId)
   );
 }
 
@@ -94,4 +124,66 @@ export function suavizar(atual: number, alvo: number, dtMs: number, constanteMs:
   const fator = 1 - Math.exp(-Math.max(dtMs, 0) / constanteMs);
   const proximo = atual + (alvo - atual) * fator;
   return Math.abs(alvo - proximo) < 0.002 ? alvo : proximo;
+}
+
+/**
+ * Arruma tokens lado a lado a partir do ponto de chegada, sem sobreposição. Cada token ocupa
+ * `tamanho × tamanho` quadrados; os candidatos são as posições do grid em torno da chegada, da
+ * mesma fileira para as vizinhas (centro, direita, esquerda, depois a fileira de cima e a de
+ * baixo). Devolve o centro de cada token, na ordem de `tamanhos`. Sem lugar livre na cena, o token
+ * fica na chegada mesmo (a cena é pequena demais para o grupo).
+ */
+export function arrumarNoGrid(
+  chegada: { x: number; y: number },
+  cena: Pick<Cena, "larguraM" | "alturaM" | "grid">,
+  tamanhos: number[],
+): { x: number; y: number }[] {
+  const q = cena.grid.quadradoM;
+  const raio = 20;
+  const candidatos: { dx: number; dy: number }[] = [];
+  for (let dy = -raio; dy <= raio; dy++) {
+    for (let dx = -raio; dx <= raio; dx++) candidatos.push({ dx, dy });
+  }
+  candidatos.sort(
+    (a, b) =>
+      Math.abs(a.dy) - Math.abs(b.dy) ||
+      Math.abs(a.dx) - Math.abs(b.dx) ||
+      a.dy - b.dy ||
+      b.dx - a.dx,
+  );
+  const ocupadas = new Set<string>();
+  const celulasDe = (centro: { x: number; y: number }, tamanho: number) => {
+    const i0 = Math.round((centro.x - (tamanho * q) / 2) / q);
+    const j0 = Math.round((centro.y - (tamanho * q) / 2) / q);
+    const celulas: { i: number; j: number }[] = [];
+    for (let j = j0; j < j0 + tamanho; j++)
+      for (let i = i0; i < i0 + tamanho; i++) celulas.push({ i, j });
+    return celulas;
+  };
+  const cabeNaCena = (celulas: { i: number; j: number }[]) =>
+    celulas.every(
+      ({ i, j }) =>
+        i >= 0 &&
+        j >= 0 &&
+        (i + 1) * q <= cena.larguraM + 1e-6 &&
+        (j + 1) * q <= cena.alturaM + 1e-6,
+    );
+  return tamanhos.map((tamanho) => {
+    for (const { dx, dy } of candidatos) {
+      const centro = encaixarNoGrid({ x: chegada.x + dx * q, y: chegada.y + dy * q }, tamanho, q);
+      const celulas = celulasDe(centro, tamanho);
+      if (!cabeNaCena(celulas) || celulas.some(({ i, j }) => ocupadas.has(`${i},${j}`))) continue;
+      for (const { i, j } of celulas) ocupadas.add(`${i},${j}`);
+      return centro;
+    }
+    return limitarNaCena(encaixarNoGrid(chegada, tamanho, q), cena);
+  });
+}
+
+/** Ponto de chegada da cena: o definido pelo mestre ou, sem ele, o centro. */
+export function chegadaDaCena(cena: Pick<Cena, "larguraM" | "alturaM" | "chegada">): {
+  x: number;
+  y: number;
+} {
+  return cena.chegada ?? { x: cena.larguraM / 2, y: cena.alturaM / 2 };
 }

@@ -4,8 +4,10 @@ import {
   type Cena,
   type Estado,
   type EventoSala,
+  type Pacote,
   PERMISSOES_PADRAO,
   type Permissoes,
+  type Personagem,
   type Token,
   type Usuario,
 } from "@tabletop/shared";
@@ -43,7 +45,21 @@ const MIGRACOES: Migracao[] = [
     )`);
     sql.exec("CREATE INDEX posse_hash ON posse (hash)");
   },
+  // Lote 4: preparo cifrado de cenas. As chaves são dado só do mestre e da sala: nunca vão a jogador
+  // antes de o grupo ir para a cena, e não entram na exportação.
+  (sql) => {
+    sql.exec(`CREATE TABLE preparos (
+      cena_id TEXT NOT NULL,
+      hash_cifrado TEXT NOT NULL,
+      hash_original TEXT NOT NULL,
+      chave TEXT NOT NULL,
+      PRIMARY KEY (cena_id, hash_cifrado)
+    )`);
+  },
 ];
+
+/** Um arquivo pré-enviado de uma cena. */
+export type PacoteDeCena = Pacote & { cenaId: string };
 
 /** Quem tem cópia de um asset: uma conexão de um usuário. */
 export type Posse = { conexao: string; usuario: string };
@@ -109,7 +125,10 @@ export class Armazenamento {
   }
 
   /** Cenas, tokens e assets. Banco do Lote 1 (sem cena): cria a cena padrão, sem quebrar o resto. */
-  private carregarMapa(): Pick<Estado, "cenas" | "cenaAtivaId" | "tokens" | "assets"> {
+  private carregarMapa(): Pick<
+    Estado,
+    "cenas" | "cenaAtivaId" | "tokens" | "assets" | "personagens"
+  > {
     const ler = <T>(colecao: string): T[] =>
       this.sql
         .exec<{ dados: string }>(
@@ -124,7 +143,14 @@ export class Armazenamento {
     const cenaAtivaId = cenas.some((c) => c.id === ativa)
       ? (ativa as string)
       : (cenas[0]?.id ?? CENA_PADRAO.id);
-    return { cenas, cenaAtivaId, tokens: ler<Token>("tokens"), assets: ler<AssetMeta>("assets") };
+    return {
+      cenas,
+      cenaAtivaId,
+      tokens: ler<Token>("tokens"),
+      // Banco anterior ao Lote 4: sem personagens, e continua funcionando.
+      personagens: ler<Personagem>("personagens"),
+      assets: ler<AssetMeta>("assets"),
+    };
   }
 
   private lerNota(id: string): string {
@@ -161,6 +187,7 @@ export class Armazenamento {
     this.gravarEntidade("notas", "mestre", { texto: estado.notaMestre ?? "" });
     for (const c of estado.cenas) this.gravarEntidade("cenas", c.id, c);
     for (const t of estado.tokens) this.gravarEntidade("tokens", t.id, t);
+    for (const p of estado.personagens) this.gravarEntidade("personagens", p.id, p);
     for (const a of estado.assets ?? []) this.gravarEntidade("assets", a.hash, a);
     this.gravarMeta("cena_ativa", estado.cenaAtivaId);
     this.gravarMeta("permissoes", JSON.stringify(estado.permissoes));
@@ -207,6 +234,33 @@ export class Armazenamento {
         case "asset.registrado":
           this.gravarEntidade("assets", ev.dados.meta.hash, ev.dados.meta);
           break;
+        case "personagem.alterado":
+          this.gravarEntidade("personagens", ev.dados.personagem.id, ev.dados.personagem);
+          break;
+        case "personagem.apagado":
+          this.sql.exec(
+            "DELETE FROM entidades WHERE colecao = 'personagens' AND id = ?",
+            ev.dados.id,
+          );
+          break;
+        case "cena.criada":
+        case "cena.editada":
+          this.gravarEntidade("cenas", ev.dados.cena.id, ev.dados.cena);
+          break;
+        case "cena.apagada":
+          this.sql.exec(
+            "DELETE FROM entidades WHERE colecao = 'cenas' AND id = ?",
+            ev.dados.cenaId,
+          );
+          break;
+        case "grupo.movido": {
+          this.gravarMeta("cena_ativa", estado.cenaAtivaId);
+          for (const { id } of ev.dados.tokens) {
+            const t = estado.tokens.find((x) => x.id === id);
+            if (t) this.gravarEntidade("tokens", t.id, t);
+          }
+          break;
+        }
       }
     }
     this.gravarMeta("seq", String(estado.seq));
@@ -261,8 +315,47 @@ export class Armazenamento {
     for (const { conexao } of todas) if (!vivas.has(conexao)) this.limparPosse(conexao);
   }
 
+  // --- preparos de cena ----------------------------------------------------------------------
+
+  /** Guarda os pacotes de um preparo (preparar de novo só acrescenta o que falta). */
+  guardarPreparo(cenaId: string, pacotes: Pacote[]): void {
+    for (const p of pacotes) {
+      this.sql.exec(
+        "INSERT OR REPLACE INTO preparos (cena_id, hash_cifrado, hash_original, chave) VALUES (?, ?, ?, ?)",
+        cenaId,
+        p.hashCifrado,
+        p.hashOriginal,
+        p.chave,
+      );
+    }
+  }
+
+  preparos(): PacoteDeCena[] {
+    return this.sql
+      .exec<{ cena_id: string; hash_cifrado: string; hash_original: string; chave: string }>(
+        "SELECT cena_id, hash_cifrado, hash_original, chave FROM preparos ORDER BY rowid",
+      )
+      .toArray()
+      .map((l) => ({
+        cenaId: l.cena_id,
+        hashCifrado: l.hash_cifrado,
+        hashOriginal: l.hash_original,
+        chave: l.chave,
+      }));
+  }
+
+  /** Descarta os preparos de uma cena (depois da ida do grupo, ou se a cena foi apagada). */
+  descartarPreparos(cenaId: string): void {
+    this.sql.exec("DELETE FROM preparos WHERE cena_id = ?", cenaId);
+  }
+
+  descartarTodosOsPreparos(): void {
+    this.sql.exec("DELETE FROM preparos");
+  }
+
   /** Apaga todo o estado (só para as rotas de teste). */
   apagarTudo(): void {
+    this.sql.exec("DELETE FROM preparos");
     this.sql.exec("DELETE FROM posse");
     this.sql.exec("DELETE FROM entidades");
     this.sql.exec("DELETE FROM agenda");

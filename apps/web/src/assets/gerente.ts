@@ -1,12 +1,16 @@
 import {
   type AssetMeta,
   arquivoConfere,
+  cifrar,
+  decifrarEConferir,
   LIMITES_DE_ASSET,
   lerFrameDePedaco,
   limiteDeTextura,
   type MensagemDaSala,
   type MetaNova,
+  metaDoCifrado,
   montarFrameDePedaco,
+  type Pacote,
   pedacoConfere,
   TAMANHO_PEDACO,
   totalDePedacos,
@@ -89,6 +93,8 @@ export class GerenteDeAssets {
   private readonly pedidos = new Map<string, string>();
   private readonly copiados = new Set<string>();
   private readonly corrompidosEnviados = new Map<string, number>();
+  /** Originais que estão sendo decifrados agora: ninguém pede esses pela rede (PROJETO.md, Lote 4). */
+  private readonly decifrando = new Set<string>();
   private readonly ouvintes = new Set<() => void>();
   private readonly ouvintesDeProntos = new Set<() => void>();
   private versao = 0;
@@ -196,7 +202,11 @@ export class GerenteDeAssets {
   }
 
   aoMensagem(m: MensagemDaSala): void {
-    if (m.tipo === "asset.meta") void this.aoMeta(m.dados.meta);
+    if (m.tipo === "preparo.disponivel") {
+      // Pré-envio: baixa os arquivos cifrados (opacos) enquanto o grupo ainda está na outra cena.
+      for (const hash of m.dados.hashes) this.garantir(hash);
+    } else if (m.tipo === "preparo.chaves") this.aoChaves(m.dados.pacotes);
+    else if (m.tipo === "asset.meta") void this.aoMeta(m.dados.meta);
     else if (m.tipo === "asset.enviar") void this.servir(m.dados.hash, m.dados.indices);
     else if (m.tipo === "asset.indisponivel") {
       const st = this.status.get(m.dados.hash);
@@ -252,7 +262,7 @@ export class GerenteDeAssets {
 
   /** Garante que o asset chegue ao cache (idempotente): lê do OPFS, senão pede à sala. */
   garantir(hash: string): void {
-    if (this.estaPronto(hash)) return;
+    if (this.estaPronto(hash) || this.decifrando.has(hash)) return;
     // Já pedido (mesmo indisponível ou com erro): o vigia pergunta de novo de tempos em tempos.
     if (this.status.get(hash)?.estado !== undefined && this.status.get(hash)?.estado !== "pronto")
       return;
@@ -351,6 +361,13 @@ export class GerenteDeAssets {
     }
     st.total = meta.pedacos.length;
     st.ultimoPedaco = Date.now();
+    // O arquivo já estava no cache (veio decifrado do pré-envio): a meta só faltava para desenhar.
+    if (this.completos.has(meta.hash)) {
+      st.estado = "pronto";
+      st.recebidos = meta.pedacos.length;
+      this.aoFicarPronto(meta.hash);
+      return;
+    }
     this.mudou();
   }
 
@@ -473,6 +490,101 @@ export class GerenteDeAssets {
       while (canal.conectado() && canal.bufferizado() > BUFFER_MAXIMO) await dormir(10);
       if (!canal.enviarBinario(montarFrameDePedaco({ hash, indice, total, dados }))) return;
     }
+  }
+
+  // --- pré-envio cifrado de cenas (PROJETO.md, Lote 4) ---------------------------------------
+
+  /**
+   * No mestre: cifra cada arquivo (AES-GCM, chave e IV novos), guarda o cifrado no cache e o
+   * registra como asset `cifrado` (sem nome nem dimensões reais). Devolve os pacotes para a
+   * intenção `cena.preparar` (as chaves só vão à sala).
+   */
+  async cifrarParaPreparo(hashes: string[]): Promise<Pacote[]> {
+    const canal = this.d.canal();
+    if (!canal?.conectado()) throw new Error("Sem conexão com a sala.");
+    const pacotes: Pacote[] = [];
+    const metas: MetaNova[] = [];
+    for (const hashOriginal of hashes) {
+      const arquivo = await this.d.cache.lerArquivo(hashOriginal);
+      if (!arquivo)
+        throw new Error(
+          "Um arquivo da cena não está neste navegador (escolha-o de novo na Biblioteca).",
+        );
+      const { cifrado, chave } = await cifrar(new Uint8Array(await arquivo.arrayBuffer()));
+      const meta = await metaDoCifrado(cifrado);
+      await this.d.cache.gravarArquivo(meta.hash, cifrado as BufferSource);
+      this.completos.add(meta.hash);
+      await this.guardarMeta({ ...meta, donoId: this.d.meuId });
+      metas.push(meta);
+      pacotes.push({ hashCifrado: meta.hash, hashOriginal, chave });
+    }
+    for (let i = 0; i < metas.length; i += LIMITES_DE_ASSET.metasPorRegistro) {
+      const lote = metas.slice(i, i + LIMITES_DE_ASSET.metasPorRegistro);
+      if (canal.enviar("asset.registrar", { metas: lote }) === null) {
+        throw new Error("Sem conexão com a sala.");
+      }
+      for (const m of lote) canal.enviar("asset.tenho", { hash: m.hash });
+    }
+    this.persistir();
+    this.mudou();
+    return pacotes;
+  }
+
+  /**
+   * O grupo foi para a cena: abre o que já baixei cifrado. Marca os originais como "em decifração"
+   * na hora (o snapshot chega logo depois e não pode pedi-los pela rede); o que não chegou a
+   * baixar, ou não confere, segue pelo caminho normal.
+   */
+  private aoChaves(pacotes: Pacote[]): void {
+    const feitos = pacotes.filter(
+      (p) => this.completos.has(p.hashCifrado) && !this.completos.has(p.hashOriginal),
+    );
+    for (const p of feitos) this.decifrando.add(p.hashOriginal);
+    void this.decifrarPacotes(pacotes);
+  }
+
+  private async decifrarPacotes(pacotes: Pacote[]): Promise<void> {
+    for (const p of pacotes) {
+      try {
+        if (this.completos.has(p.hashCifrado)) {
+          if (!this.completos.has(p.hashOriginal)) await this.abrirPacote(p);
+          await this.descartarCifrado(p.hashCifrado);
+        }
+      } catch (e) {
+        console.error("Falha ao decifrar o pré-envio", e);
+      } finally {
+        this.decifrando.delete(p.hashOriginal);
+      }
+      // Não abriu (não baixou, chave ou conteúdo não conferem): o caminho normal pede o original.
+      if (!this.completos.has(p.hashOriginal)) this.garantir(p.hashOriginal);
+    }
+    this.mudou();
+    this.prontosMudaram();
+  }
+
+  private async abrirPacote(p: Pacote): Promise<void> {
+    const arquivo = await this.d.cache.lerArquivo(p.hashCifrado);
+    if (!arquivo) return;
+    const claro = await decifrarEConferir(
+      new Uint8Array(await arquivo.arrayBuffer()),
+      p.chave,
+      p.hashOriginal,
+    );
+    if (!claro) return;
+    await this.d.cache.gravarArquivo(p.hashOriginal, claro as BufferSource);
+    this.completos.add(p.hashOriginal);
+    const canal = this.d.canal();
+    canal?.enviar("asset.tenho", { hash: p.hashOriginal });
+    // Falta só a meta (largura, altura, tiles) para desenhar; sem pedaços ("faltam" vazio).
+    if (this.metas.has(p.hashOriginal)) this.aoFicarPronto(p.hashOriginal);
+    else canal?.enviar("asset.pedir", { hash: p.hashOriginal, faltam: [] });
+  }
+
+  private async descartarCifrado(hash: string): Promise<void> {
+    this.completos.delete(hash);
+    this.status.delete(hash);
+    await this.d.cache.apagarArquivo(hash);
+    this.d.canal()?.enviar("asset.naoTenho", { hash });
   }
 
   // --- usar um arquivo do usuário -------------------------------------------------------------

@@ -59,6 +59,20 @@
         "quadradoM": 1.5,
         "visivel": true
       }
+    },
+    {
+      "id": "cena-covil",
+      "nome": "Covil",
+      "larguraM": 40,
+      "alturaM": 30,
+      "grid": {
+        "quadradoM": 1.5,
+        "visivel": true
+      },
+      "chegada": {
+        "x": 6,
+        "y": 15
+      }
     }
   ],
   "cenaAtivaId": "cena-1",
@@ -73,9 +87,8 @@
       "y": 9.75,
       "camada": "tokens",
       "oculto": false,
-      "controladoPor": [
-        "jogador-1"
-      ]
+      "controladoPor": [],
+      "personagemId": "pers-aldric"
     },
     {
       "id": "tok-jogador-2",
@@ -87,9 +100,8 @@
       "y": 9.75,
       "camada": "tokens",
       "oculto": false,
-      "controladoPor": [
-        "jogador-2"
-      ]
+      "controladoPor": [],
+      "personagemId": "pers-brisa"
     },
     {
       "id": "tok-jogador-3",
@@ -101,9 +113,8 @@
       "y": 9.75,
       "camada": "tokens",
       "oculto": false,
-      "controladoPor": [
-        "jogador-3"
-      ]
+      "controladoPor": [],
+      "personagemId": "pers-cael"
     },
     {
       "id": "tok-ogro",
@@ -115,7 +126,8 @@
       "y": 15,
       "camada": "tokens",
       "oculto": false,
-      "controladoPor": []
+      "controladoPor": [],
+      "personagemId": "pers-ogro"
     },
     {
       "id": "tok-goblin-oculto",
@@ -140,6 +152,100 @@
       "camada": "mestre",
       "oculto": false,
       "controladoPor": []
+    },
+    {
+      "id": "tok-sentinela-covil",
+      "cenaId": "cena-covil",
+      "nome": "Sentinela do Covil",
+      "cor": "#6c3483",
+      "tamanhoQuadrados": 1,
+      "x": 24.75,
+      "y": 14.25,
+      "camada": "tokens",
+      "oculto": false,
+      "controladoPor": []
+    },
+    {
+      "id": "tok-vigia-covil",
+      "cenaId": "cena-covil",
+      "nome": "Vigia Oculto do Covil",
+      "cor": "#1b4f72",
+      "tamanhoQuadrados": 1,
+      "x": 30.75,
+      "y": 20.25,
+      "camada": "tokens",
+      "oculto": true,
+      "controladoPor": []
+    }
+  ],
+  "personagens": [
+    {
+      "id": "pers-aldric",
+      "donoId": "jogador-1",
+      "nome": "Aldric",
+      "tokenPadrao": {
+        "cor": "#3cb44b",
+        "tamanhoQuadrados": 1
+      },
+      "visao": {
+        "alcanceM": null,
+        "visaoNoEscuroM": 18
+      },
+      "ficha": {
+        "pvAtual": 12,
+        "pvMax": 12
+      }
+    },
+    {
+      "id": "pers-brisa",
+      "donoId": "jogador-2",
+      "nome": "Brisa",
+      "tokenPadrao": {
+        "cor": "#4363d8",
+        "tamanhoQuadrados": 1
+      },
+      "visao": {
+        "alcanceM": null,
+        "visaoNoEscuroM": 0
+      },
+      "ficha": {
+        "pvAtual": 9,
+        "pvMax": 9
+      }
+    },
+    {
+      "id": "pers-cael",
+      "donoId": "jogador-3",
+      "nome": "Cael",
+      "tokenPadrao": {
+        "cor": "#f58231",
+        "tamanhoQuadrados": 1
+      },
+      "visao": {
+        "alcanceM": null,
+        "visaoNoEscuroM": 0
+      },
+      "ficha": {
+        "pvAtual": 10,
+        "pvMax": 10
+      }
+    },
+    {
+      "id": "pers-ogro",
+      "donoId": null,
+      "nome": "Ogro",
+      "tokenPadrao": {
+        "cor": "#c0392b",
+        "tamanhoQuadrados": 2
+      },
+      "visao": {
+        "alcanceM": null,
+        "visaoNoEscuroM": 18
+      },
+      "ficha": {
+        "pvAtual": 59,
+        "pvMax": 59
+      }
     }
   ]
 }

@@ -7,6 +7,7 @@ import {
   medirRegua,
   PERMISSOES_PADRAO,
   type Permissoes,
+  type Personagem,
   podeMoverToken,
   suavizar,
   type Token,
@@ -182,24 +183,34 @@ describe("visibilidade e quem pode mover", () => {
   const j1 = { id: "j1", papel: "jogador" as const };
   const j2 = { id: "j2", papel: "jogador" as const };
   const permissoes: Permissoes = { jogadores: { ...PERMISSOES_PADRAO }, porUsuario: {} };
+  /** O que `podeMoverToken` lê do estado: permissões, cena ativa e personagens. */
+  const estadoCom = (p: Permissoes, personagens: Personagem[] = []) => ({
+    permissoes: p,
+    cenaAtivaId: "cena-1",
+    personagens,
+  });
 
   it("jogador não vê token oculto nem da camada do mestre; o mestre vê tudo", () => {
-    expect(tokenVisivelPara(token(), j1)).toBe(true);
-    expect(tokenVisivelPara(token({ oculto: true }), j1)).toBe(false);
-    expect(tokenVisivelPara(token({ camada: "mestre" }), j1)).toBe(false);
-    expect(tokenVisivelPara(token({ camada: "mestre", oculto: true }), mestre)).toBe(true);
-    expect(tokenVisivelPara(token({ oculto: true }), { id: "a", papel: "assistente" })).toBe(false);
+    expect(tokenVisivelPara(token(), j1, "cena-1")).toBe(true);
+    expect(tokenVisivelPara(token({ oculto: true }), j1, "cena-1")).toBe(false);
+    expect(tokenVisivelPara(token({ camada: "mestre" }), j1, "cena-1")).toBe(false);
+    expect(tokenVisivelPara(token({ camada: "mestre", oculto: true }), mestre, "cena-1")).toBe(
+      true,
+    );
+    expect(
+      tokenVisivelPara(token({ oculto: true }), { id: "a", papel: "assistente" }, "cena-1"),
+    ).toBe(false);
   });
 
   it("o mestre move qualquer token", () => {
-    expect(podeMoverToken(token({ oculto: true, controladoPor: [] }), mestre, permissoes)).toBe(
-      true,
-    );
+    expect(
+      podeMoverToken(token({ oculto: true, controladoPor: [] }), mestre, estadoCom(permissoes)),
+    ).toBe(true);
   });
 
   it("o jogador só move o que controla", () => {
-    expect(podeMoverToken(token(), j1, permissoes)).toBe(true);
-    expect(podeMoverToken(token(), j2, permissoes)).toBe(false);
+    expect(podeMoverToken(token(), j1, estadoCom(permissoes))).toBe(true);
+    expect(podeMoverToken(token(), j2, estadoCom(permissoes))).toBe(false);
   });
 
   it("o jogador precisa de token.moverProprio (padrão ou exceção)", () => {
@@ -207,13 +218,13 @@ describe("visibilidade e quem pode mover", () => {
       jogadores: { ...PERMISSOES_PADRAO, "token.moverProprio": false },
       porUsuario: {},
     };
-    expect(podeMoverToken(token(), j1, sem)).toBe(false);
+    expect(podeMoverToken(token(), j1, estadoCom(sem))).toBe(false);
     const comExcecao: Permissoes = { ...sem, porUsuario: { j1: { "token.moverProprio": true } } };
-    expect(podeMoverToken(token(), j1, comExcecao)).toBe(true);
+    expect(podeMoverToken(token(), j1, estadoCom(comExcecao))).toBe(true);
   });
 
   it("o jogador não move token que controla mas não vê (oculto ou do mestre)", () => {
-    expect(podeMoverToken(token({ oculto: true }), j1, permissoes)).toBe(false);
-    expect(podeMoverToken(token({ camada: "mestre" }), j1, permissoes)).toBe(false);
+    expect(podeMoverToken(token({ oculto: true }), j1, estadoCom(permissoes))).toBe(false);
+    expect(podeMoverToken(token({ camada: "mestre" }), j1, estadoCom(permissoes))).toBe(false);
   });
 });

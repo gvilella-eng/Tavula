@@ -1,4 +1,6 @@
 import {
+  type Cena,
+  controlaToken,
   type Estado,
   encaixarNoGrid,
   PX_POR_QUADRADO_PADRAO,
@@ -23,6 +25,8 @@ type Props = {
   enviar: Enviar;
   /** Token que o mestre selecionou no mapa. */
   tokenSelecionado: Token | null;
+  /** A cena que o mestre está vendo: mapa e tokens novos vão para ela. */
+  cena: Cena;
   /** Centro da tela do mapa, em metros (onde nasce o token novo). */
   centroDoMapa: () => { x: number; y: number };
 };
@@ -48,6 +52,7 @@ export function Biblioteca({
   eu,
   enviar,
   tokenSelecionado,
+  cena,
   centroDoMapa,
 }: Props) {
   useSyncExternalStore(fontes.assinar, fontes.versaoAtual);
@@ -58,6 +63,7 @@ export function Biblioteca({
   const [escolhido, setEscolhido] = useState<string | null>(null);
   const [pxPorQuadrado, setPxPorQuadrado] = useState(String(PX_POR_QUADRADO_PADRAO));
   const [tokenDoJogador, setTokenDoJogador] = useState("");
+  const [personagemPadrao, setPersonagemPadrao] = useState("");
   const [ocupado, setOcupado] = useState(false);
   const [mensagem, setMensagem] = useState<string | null>(null);
   const entrada = useRef<HTMLInputElement>(null);
@@ -99,9 +105,10 @@ export function Biblioteca({
     };
   }, [arquivos, processador, miniaturas]);
 
-  const meusTokens = estado.tokens.filter((t) => t.controladoPor.includes(eu.id));
+  const meusTokens = estado.tokens.filter((t) => controlaToken(t, eu, estado.personagens));
   const tokenAlvo = meusTokens.find((t) => t.id === tokenDoJogador) ?? meusTokens[0];
-  const cena = estado.cenas.find((c) => c.id === estado.cenaAtivaId) ?? estado.cenas[0];
+  const personagemAlvo =
+    estado.personagens.find((p) => p.id === personagemPadrao) ?? estado.personagens[0];
   const arquivo = arquivos.find((a) => a.id === escolhido) ?? null;
   const status = gerente.listarStatus();
   const emAndamento = status.filter((s) => s.estado !== "pronto");
@@ -132,15 +139,15 @@ export function Biblioteca({
       return;
     }
     void executar("mapa", (assetHash) =>
-      enviar("cena.definirMapa", { assetHash, pxPorQuadrado: px }),
+      enviar("cena.definirMapa", { cenaId: cena.id, assetHash, pxPorQuadrado: px }),
     );
   }
 
   function criarToken() {
-    if (!cena) return;
     const { x, y } = encaixarNoGrid(centroDoMapa(), 1, cena.grid.quadradoM);
     void executar("token", (assetHash, a) =>
       enviar("token.criar", {
+        cenaId: cena.id,
         token: {
           id: `tok-${crypto.randomUUID().slice(0, 8)}`,
           nome: semExtensao(a.nome).slice(0, 64) || "Token",
@@ -162,6 +169,14 @@ export function Biblioteca({
     if (!alvo) return;
     void executar("token", (assetHash) =>
       enviar("token.editar", { id: alvo.id, mudancas: { assetHash } }),
+    );
+  }
+
+  function usarComoTokenPadrao() {
+    const alvo = personagemAlvo;
+    if (!alvo) return;
+    void executar("token", (assetHash) =>
+      enviar("personagem.editar", { id: alvo.id, mudancas: { assetHash } }),
     );
   }
 
@@ -301,6 +316,31 @@ export function Biblioteca({
               >
                 Criar token com esta imagem
               </button>
+              {estado.personagens.length > 0 && (
+                <>
+                  <select
+                    aria-label="Personagem"
+                    data-testid="biblioteca-personagem"
+                    value={personagemAlvo?.id ?? ""}
+                    onChange={(e) => setPersonagemPadrao(e.target.value)}
+                  >
+                    {estado.personagens.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.nome}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    data-testid="acao-token-padrao"
+                    disabled={ocupado || !personagemAlvo}
+                    onClick={usarComoTokenPadrao}
+                  >
+                    Usar como imagem do token padrão
+                    {personagemAlvo ? ` (${personagemAlvo.nome})` : ""}
+                  </button>
+                </>
+              )}
               <button
                 type="button"
                 data-testid="acao-aplicar-token"

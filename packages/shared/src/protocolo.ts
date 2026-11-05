@@ -7,11 +7,13 @@ import {
   TODAS_AS_CAPACIDADES,
 } from "./capacidades.ts";
 import {
+  CenaSchema,
   EstadoSchema,
   GridSchema,
   MapaDaCenaSchema,
   PapelSchema,
   PermissoesSchema,
+  PersonagemSchema,
   PresencaSchema,
   TAMANHO_MAXIMO_NOTA,
   TokenSchema,
@@ -19,8 +21,8 @@ import {
 import { CENA_PADRAO } from "./mapa.ts";
 
 export const VERSAO_PROTOCOLO = 1;
-/** Versão do arquivo de exportação (a v1 e a v2 ainda são aceitas na importação). */
-export const VERSAO_EXPORTACAO = 3 as const;
+/** Versão do arquivo de exportação (a v1, a v2 e a v3 ainda são aceitas na importação). */
+export const VERSAO_EXPORTACAO = 4 as const;
 
 const CapacidadeSchema = z.enum(TODAS_AS_CAPACIDADES as [Capacidade, ...Capacidade[]]);
 const Texto = z.string().max(TAMANHO_MAXIMO_NOTA);
@@ -39,7 +41,7 @@ const PermissoesExportadasSchema = PermissoesSchema.extend({
 }).transform((p) => ({ ...p, jogadores: { ...PERMISSOES_PADRAO, ...p.jogadores } }));
 
 /** v2 (Lote 2): sem metas de assets. Nunca há bytes de imagem numa exportação, só metadados. */
-const DadosV2Schema = EstadoSchema.omit({ assets: true }).extend({
+const DadosV2Schema = EstadoSchema.omit({ assets: true, personagens: true }).extend({
   notaMestre: Texto,
   permissoes: PermissoesExportadasSchema,
 });
@@ -48,7 +50,13 @@ const DadosV2Schema = EstadoSchema.omit({ assets: true }).extend({
 const DadosV3Schema = DadosV2Schema.extend({
   assets: z.array(AssetMetaSchema).max(LIMITES_DE_ASSET.assetsNaSala),
 });
-export type DadosExportados = z.infer<typeof DadosV3Schema>;
+
+/**
+ * v4 (Lote 4): acrescenta os personagens; as cenas (várias) ganham a chegada. Os preparos (chaves do
+ * pré-envio) nunca entram: são dado da sessão, não da campanha.
+ */
+const DadosV4Schema = DadosV3Schema.extend({ personagens: z.array(PersonagemSchema).max(500) });
+export type DadosExportados = z.infer<typeof DadosV4Schema>;
 
 /** v1 (Lote 1): sem cenas nem tokens. Vira a cena padrão e nenhum token. */
 const DadosV1Schema = DadosV2Schema.omit({
@@ -59,17 +67,22 @@ const DadosV1Schema = DadosV2Schema.omit({
 
 const cabecalho = { formato: z.literal("tabletop-campanha"), exportadoEm: z.string() };
 
-/** Aceita a v1, a v2 e a v3; o resultado é sempre no formato v3 (sem assets nas antigas). */
+/** Aceita de v1 a v4; o resultado é sempre no formato v4 (sem assets nem personagens nas antigas). */
 export const ExportacaoSchema = z
   .discriminatedUnion("versao", [
     z.object({ ...cabecalho, versao: z.literal(1), dados: DadosV1Schema }),
     z.object({ ...cabecalho, versao: z.literal(2), dados: DadosV2Schema }),
     z.object({ ...cabecalho, versao: z.literal(3), dados: DadosV3Schema }),
+    z.object({ ...cabecalho, versao: z.literal(4), dados: DadosV4Schema }),
   ])
   .transform((e) => ({
     ...e,
     versao: VERSAO_EXPORTACAO,
-    dados: { ...e.dados, assets: "assets" in e.dados ? e.dados.assets : [] },
+    dados: {
+      ...e.dados,
+      assets: "assets" in e.dados ? e.dados.assets : [],
+      personagens: "personagens" in e.dados ? e.dados.personagens : [],
+    },
   }));
 export type Exportacao = z.infer<typeof ExportacaoSchema>;
 
@@ -90,6 +103,29 @@ const MudancasDoTokenSchema = TokenSchema.pick({
   .extend({ assetHash: HashSchema.nullable() })
   .partial();
 const PosicaoDoTokenSchema = z.object({ id: IdSchema, x: z.number(), y: z.number() });
+
+const MudancasDoPersonagemSchema = z
+  .object({
+    nome: PersonagemSchema.shape.nome,
+    donoId: PersonagemSchema.shape.donoId,
+    cor: PersonagemSchema.shape.tokenPadrao.shape.cor,
+    tamanhoQuadrados: PersonagemSchema.shape.tokenPadrao.shape.tamanhoQuadrados,
+    assetHash: HashSchema.nullable(),
+    alcanceM: PersonagemSchema.shape.visao.shape.alcanceM,
+    visaoNoEscuroM: PersonagemSchema.shape.visao.shape.visaoNoEscuroM,
+    pvAtual: PersonagemSchema.shape.ficha.shape.pvAtual,
+    pvMax: PersonagemSchema.shape.ficha.shape.pvMax,
+  })
+  .partial();
+
+/** Um arquivo pré-enviado: o cifrado (que todos baixam), o original e a chave (só do mestre e da sala). */
+export const PacoteSchema = z.object({
+  hashCifrado: HashSchema,
+  hashOriginal: HashSchema,
+  chave: HashSchema, // 32 bytes em hexadecimal: mesmo formato (64 caracteres)
+});
+export type Pacote = z.infer<typeof PacoteSchema>;
+export const MAXIMO_DE_PACOTES = 200;
 
 function intencao<T extends string, D extends z.ZodType>(tipo: T, dados: D) {
   return z.object({
@@ -120,12 +156,16 @@ export const IntencaoSchema = z.discriminatedUnion("tipo", [
         message: "valor null exige usuarioId",
       }),
   ),
-  intencao("token.criar", z.object({ token: TokenNovoSchema })),
+  intencao("token.criar", z.object({ token: TokenNovoSchema, cenaId: IdSchema.optional() })),
   intencao("token.editar", z.object({ id: IdSchema, mudancas: MudancasDoTokenSchema })),
   intencao("token.apagar", z.object({ id: IdSchema })),
   intencao(
     "cena.configurarGrid",
-    z.object({ quadradoM: GridSchema.shape.quadradoM.optional(), visivel: z.boolean().optional() }),
+    z.object({
+      cenaId: IdSchema.optional(),
+      quadradoM: GridSchema.shape.quadradoM.optional(),
+      visivel: z.boolean().optional(),
+    }),
   ),
   intencao("token.mover", PosicaoDoTokenSchema),
   intencao("token.soltar", PosicaoDoTokenSchema),
@@ -150,11 +190,56 @@ export const IntencaoSchema = z.discriminatedUnion("tipo", [
   intencao(
     "cena.definirMapa",
     z.object({
+      cenaId: IdSchema.optional(),
       assetHash: HashSchema.nullable(),
       pxPorQuadrado: MapaDaCenaSchema.shape.pxPorQuadrado.optional(),
     }),
   ),
   intencao("token.definirImagem", z.object({ id: IdSchema, assetHash: HashSchema.nullable() })),
+  intencao("personagem.criar", z.object({ personagem: PersonagemSchema })),
+  intencao("personagem.editar", z.object({ id: IdSchema, mudancas: MudancasDoPersonagemSchema })),
+  intencao("personagem.apagar", z.object({ id: IdSchema })),
+  intencao(
+    "personagem.colocar",
+    z.object({
+      personagemId: IdSchema,
+      cenaId: IdSchema,
+      tokenId: IdSchema,
+      x: z.number().optional(),
+      y: z.number().optional(),
+    }),
+  ),
+  /** Dono do personagem ou mestre; `pvAtual` nunca passa de `pvMax`. */
+  intencao(
+    "ficha.alterar",
+    z.object({
+      personagemId: IdSchema,
+      pvAtual: PersonagemSchema.shape.ficha.shape.pvAtual.optional(),
+      pvMax: PersonagemSchema.shape.ficha.shape.pvMax.optional(),
+    }),
+  ),
+  intencao("cena.criar", z.object({ id: IdSchema, nome: CenaSchema.shape.nome })),
+  intencao(
+    "cena.editar",
+    z.object({
+      cenaId: IdSchema,
+      nome: CenaSchema.shape.nome.optional(),
+      /** `null`: volta ao padrão (o centro). */
+      chegada: z
+        .object({ x: z.number().min(0), y: z.number().min(0) })
+        .nullable()
+        .optional(),
+    }),
+  ),
+  intencao("cena.duplicar", z.object({ cenaId: IdSchema, novoId: IdSchema })),
+  intencao("cena.apagar", z.object({ cenaId: IdSchema })),
+  /** Uma única mensagem leva o grupo e torna a cena de destino a ativa. */
+  intencao("grupo.moverPara", z.object({ cenaId: IdSchema })),
+  /** Pré-envio cifrado: os arquivos cifrados já foram registrados; aqui vão as chaves, só para a sala. */
+  intencao(
+    "cena.preparar",
+    z.object({ cenaId: IdSchema, pacotes: z.array(PacoteSchema).min(1).max(MAXIMO_DE_PACOTES) }),
+  ),
   intencao("campanha.exportar", SemDados),
   intencao("campanha.importar", z.object({ dados: z.unknown() })),
 ]);
@@ -163,8 +248,9 @@ export type TipoIntencao = Intencao["tipo"];
 
 /**
  * Capacidade exigida por cada tipo de intenção. Conferida em toda mensagem. `null`: não é uma
- * ação da mesa e sim o vaivém de arquivos (pedir, inventário, "tenho"); qualquer mestre ou jogador
- * pode, porque o sigilo é conferido sobre o asset (`assetVisivelPara`).
+ * ação da mesa e sim o vaivém de arquivos (pedir, inventário, "tenho") ou uma ação que depende de
+ * quem é o dono (`ficha.alterar`); qualquer mestre ou jogador pode enviar, e a regra é conferida
+ * sobre o asset (`assetVisivelPara`) ou sobre o personagem.
  */
 export const capacidadeDaIntencao: Record<TipoIntencao, Capacidade | null> = {
   "nota.editar": "nota.editar",
@@ -184,6 +270,18 @@ export const capacidadeDaIntencao: Record<TipoIntencao, Capacidade | null> = {
   "asset.naoTenho": null,
   "cena.definirMapa": "cena.editar",
   "token.definirImagem": "asset.subir",
+  "personagem.criar": "cena.editar",
+  "personagem.editar": "cena.editar",
+  "personagem.apagar": "cena.editar",
+  "personagem.colocar": "cena.editar",
+  // Dono ou mestre: a capacidade não diz quem é o dono; `processar` confere.
+  "ficha.alterar": null,
+  "cena.criar": "cena.editar",
+  "cena.editar": "cena.editar",
+  "cena.duplicar": "cena.editar",
+  "cena.apagar": "cena.editar",
+  "grupo.moverPara": "cena.editar",
+  "cena.preparar": "cena.editar",
   "campanha.exportar": "campanha.exportar",
   "campanha.importar": "campanha.importar",
 };
@@ -244,6 +342,22 @@ export const EventoSalaSchema = z.discriminatedUnion("tipo", [
       alturaM: DimensaoSchema,
     }),
   ),
+  /** Personagem inteiro depois da mudança (criação, edição ou ficha): o cliente faz upsert. */
+  eventoDe("personagem.alterado", z.object({ personagem: PersonagemSchema })),
+  /** Os tokens dele já saíram em `token.apagado`; este tira o personagem (também de quem deixou de vê-lo). */
+  eventoDe("personagem.apagado", z.object({ id: IdSchema })),
+  /** Só mestres recebem os eventos de cena, exceto `cena.editada` da cena ativa. */
+  eventoDe("cena.criada", z.object({ cena: CenaSchema })),
+  eventoDe("cena.editada", z.object({ cena: CenaSchema })),
+  eventoDe("cena.apagada", z.object({ cenaId: IdSchema })),
+  /** O grupo foi para outra cena: nova cena ativa e nova posição (e cena) dos tokens. Só mestres. */
+  eventoDe(
+    "grupo.movido",
+    z.object({
+      cenaId: IdSchema,
+      tokens: z.array(z.object({ id: IdSchema, x: z.number(), y: z.number() })),
+    }),
+  ),
   /** Só mestres recebem (as metas dos jogadores chegam por `asset.meta`, sob demanda). */
   eventoDe("asset.registrado", z.object({ meta: AssetMetaSchema })),
 ]);
@@ -259,6 +373,8 @@ export const CODIGOS_DE_ERRO = [
   "token_inexistente",
   "dados_invalidos",
   "asset_inexistente",
+  "personagem_inexistente",
+  "cena_inexistente",
 ] as const;
 export const CodigoDeErroSchema = z.enum(CODIGOS_DE_ERRO);
 export type CodigoDeErro = z.infer<typeof CodigoDeErroSchema>;
@@ -303,6 +419,34 @@ export const MensagemDaSalaSchema = z.discriminatedUnion("tipo", [
   /** Ninguém online tem o arquivo; a sala retoma sozinha quando alguém com cópia conectar. */
   mensagemDaSala("asset.indisponivel", z.object({ hash: HashSchema })),
   mensagemDaSala("exportacao", z.object({ idPedido: z.string(), exportacao: ExportacaoSchema })),
+  /**
+   * Pré-envio (Lote 4): baixe estes arquivos cifrados. Sem `cenaId`, sem nome, sem nada sobre o
+   * conteúdo. A sala manda a todo jogador conectado e a quem conecta depois.
+   */
+  mensagemDaSala("preparo.disponivel", z.object({ hashes: z.array(HashSchema).max(2000) })),
+  /**
+   * Ao levar o grupo: as chaves dos pacotes cujo original o jogador passa a ver. Chega antes do
+   * snapshot da cena nova.
+   */
+  mensagemDaSala(
+    "preparo.chaves",
+    z.object({ pacotes: z.array(PacoteSchema).max(MAXIMO_DE_PACOTES) }),
+  ),
+  /** Só mestres: como anda cada preparo (e o que já está nele, para preparar só o que falta). */
+  mensagemDaSala(
+    "preparo.progresso",
+    z.object({
+      preparos: z.array(
+        z.object({
+          cenaId: IdSchema,
+          hashesOriginais: z.array(HashSchema),
+          /** Jogadores com todos os pacotes. */
+          completos: z.number().int().nonnegative(),
+          jogadores: z.number().int().nonnegative(),
+        }),
+      ),
+    }),
+  ),
 ]);
 export type MensagemDaSala = z.infer<typeof MensagemDaSalaSchema>;
 export type TipoMensagemDaSala = MensagemDaSala["tipo"];

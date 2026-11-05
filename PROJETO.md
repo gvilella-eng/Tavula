@@ -166,8 +166,10 @@ interface Personagem {
   id: string;
   donoId: string | null;            // null = NPC controlado pelo mestre
   nome: string;
-  ficha: Ficha;                     // ver lote 9
-  tokenPadrao: { assetHash: string; tamanhoQuadrados: number };
+  ficha: Ficha;                     // até o lote 9: { pvAtual, pvMax }
+  tokenPadrao: { cor: string; tamanhoQuadrados: number; assetHash?: string };
+  // o token colocado guarda a própria cópia de nome, cor, tamanho e imagem do token padrão;
+  // personagem de jogador tem um token só
   visao: { alcanceM: number | null; visaoNoEscuroM: number };
   // a luz vem dos objetos que ele carrega (ObjetoDeLuz), não do personagem
 }
@@ -177,6 +179,7 @@ interface Cena {
   larguraM: number; alturaM: number;
   grid: { quadradoM: number /* 1.5 */; visivel: boolean };
   mapa?: { assetHash: string; pxPorQuadrado: number };   // lote 3
+  chegada?: { x: number; y: number };                    // lote 4: onde o grupo chega (padrão: centro)
   luzAmbiente?: number;             // lote 6: 0 = escuridão total, 1 = dia
 }
 
@@ -189,7 +192,7 @@ interface Token {
   oculto: boolean;
   controladoPor: string[];          // ids de usuário; o mestre move qualquer um
   assetHash?: string;               // lote 3
-  personagemId?: string | null;     // lote 4
+  personagemId?: string;            // lote 4; controla: o dono do personagem ou quem estiver em controladoPor
 }
 
 interface Parede {
@@ -249,7 +252,8 @@ interface Modificador {
 
 interface Asset {                               // metadados; os bytes nunca passam pela sala parados
   hash: string;                                 // SHA-256 do arquivo processado (manifesto: dos tiles)
-  tipo: 'mapa' | 'token' | 'retrato' | 'tile';  // 'handout' e 'audio' entram nos lotes que os usarem
+  tipo: 'mapa' | 'token' | 'retrato' | 'tile' | 'cifrado';  // cifrado: pré-envio do lote 4 (opaco,
+                                                // sem nome real); 'handout' e 'audio' nos lotes que os usarem
   mime: string; bytes: number;                  // manifesto de mapa fatiado: bytes 0, sem pedaços
   largura: number; altura: number;
   donoId: string; nomeOriginal: string;         // dono = quem registrou primeiro
@@ -389,7 +393,8 @@ Se o arquivo for movido ou renomeado, o app reescaneia a pasta e encontra pelo h
 - Se o mestre fechar o navegador, a mesa continua. Opção de pausar automaticamente quando o mestre sai.
 - **Exportar/importar a campanha** (mestre): um JSON com todo o estado da sala (cenas, paredes, fichas,
   objetos, automações, névoa, chat), sem imagens. Serve de backup na pasta `backup/` do mestre e para
-  levar a campanha de uma instalação para outra. O formato é versionado (hoje v3, com as metas dos assets e nunca bytes) e versões antigas
+  levar a campanha de uma instalação para outra. O formato é versionado (hoje v4: personagens, cenas e as metas dos assets, nunca bytes nem as
+  chaves de preparo) e versões antigas
   continuam importáveis.
 
 ### 4.5 Orçamento do plano grátis (para o futuro deploy)
@@ -821,7 +826,12 @@ ser gravado no servidor.
 
 **Roteiro manual:** preparar a cena 2 enquanto o grupo está na cena 1 e conferir que a troca é instantânea.
 
-**Pronto quando:** `pnpm verify` verde.
+**Como ficou:** o pré-envio revela ao jogador só a quantidade e o tamanho aproximado dos arquivos cifrados.
+A sala só aceita pacote de arquivo que os jogadores veriam na cena e entrega as chaves com o estado já
+mudado (token escondido depois do preparo não tem a chave entregue). Detalhes e limitações em
+`docs/ESTADO.md` (Lote 4).
+
+**Pronto quando:** `pnpm verify` verde e o roteiro manual feito.
 
 ---
 
@@ -1107,7 +1117,7 @@ Regras para o agente que implementa:
 6. Toda mensagem nova do protocolo tem schema zod e é filtrada por papel na sala.
 7. Nada que o jogador não pode ver sai da sala para ele. Todo lote que cria dado secreto inclui um
    teste E2E que inspeciona os frames do jogador (modelos: os testes "frames ..." em
-   `e2e/tests/sala.spec.ts` e `e2e/tests/mapa.spec.ts`). O canvas se testa pelo gancho
+   `e2e/tests/sala.spec.ts`, `mapa.spec.ts`, `assets.spec.ts` e `cenas.spec.ts`). O canvas se testa pelo gancho
    `window.__tabletop`, que só existe no modo `e2e`.
 8. Mudanças de arquitetura em relação a este documento: propor primeiro, implementar depois.
 9. Commits pequenos e um commit de fechamento por lote.

@@ -13,6 +13,7 @@ import {
   lerFrameDePedaco,
   lerIntencao,
   mensagem,
+  type Pacote,
   type Presenca,
   processar,
   tokenVisivelPara,
@@ -144,6 +145,8 @@ export class Sala extends DurableObject<Env> {
     this.banco.gravarUso(this.uso);
 
     this.enviarSnapshot(servidor, usuario);
+    this.avisarPreparoA(servidor, usuario);
+    if (usuario.papel === "mestre") this.enviarProgresso();
     this.difundirPresenca();
     return new Response(null, { status: 101, webSocket: cliente });
   }
@@ -161,6 +164,7 @@ export class Sala extends DurableObject<Env> {
       this.mensagensDesdeGravacaoDoUso = 0;
       this.mensagensDesdeEnvioDoUso = 0;
       this.transferencias.limpar();
+      this.banco.descartarTodosOsPreparos();
       for (const ws of this.ctx.getWebSockets()) {
         const usuario = this.usuarioDe(ws);
         if (usuario) this.enviarSnapshot(ws, usuario);
@@ -207,13 +211,14 @@ export class Sala extends DurableObject<Env> {
       return;
     }
 
-    if (r.eventos.length > 0 || r.snapshotPara === "todos") {
-      if (r.snapshotPara === "todos") this.banco.salvarTudo(r.estado);
-      else this.banco.salvarEventos(r.estado, r.eventos);
-    }
+    // Só a importação reescreve tudo. Levar o grupo e mudar `ficha.verOutras` também mandam snapshot
+    // a todos, mas gravam só o que os eventos mudaram.
+    if (intencao.tipo === "campanha.importar") this.banco.salvarTudo(r.estado);
+    else if (r.eventos.length > 0) this.banco.salvarEventos(r.estado, r.eventos);
     const antes = this.estado;
     this.estado = r.estado;
     this.cuidarDeAsset(ws, usuario, intencao);
+    this.cuidarDePreparo(intencao, r.preparo);
 
     // Movimento ao vivo: transitório, não grava; só quem pode ver o token recebe (menos o remetente).
     if (r.movendo) {
@@ -233,6 +238,8 @@ export class Sala extends DurableObject<Env> {
       );
     }
 
+    // As chaves do preparo chegam antes do snapshot: o cliente já sabe que vai decifrar, não baixar.
+    if (r.grupoMovido) this.entregarChaves(r.grupoMovido.cenaId);
     this.distribuir(r.eventos, r.snapshotPara, antes);
     if (r.snapshotPara === "todos" || r.snapshotPara.length > 0) this.difundirPresenca();
   }
@@ -262,6 +269,7 @@ export class Sala extends DurableObject<Env> {
     if (!identidade) return;
     this.banco.limparPosse(identidade.conexaoId);
     this.transferencias.conexaoSaiu(identidade.conexaoId);
+    this.enviarProgresso();
     if (!this.estaOnline(identidade.usuarioId, ws)) {
       await this.agenda.agendar(
         "presenca.expirar",
@@ -450,6 +458,106 @@ export class Sala extends DurableObject<Env> {
     }
   }
 
+  // --- Preparo cifrado de cenas ---------------------------------------------------------------
+
+  /**
+   * Guarda um preparo (`cena.preparar`) e avisa os jogadores para baixarem os arquivos cifrados;
+   * descarta os preparos de cena apagada e os de uma campanha importada (os arquivos cifrados
+   * deixaram de existir).
+   */
+  private cuidarDePreparo(
+    intencao: Intencao,
+    preparo: { cenaId: string; pacotes: Pacote[] } | undefined,
+  ): void {
+    if (intencao.tipo === "campanha.importar") {
+      this.banco.descartarTodosOsPreparos();
+      this.enviarProgresso(true);
+    }
+    if (intencao.tipo === "cena.apagar") {
+      this.banco.descartarPreparos(intencao.dados.cenaId);
+      this.enviarProgresso(true);
+    }
+    if (preparo) {
+      this.banco.guardarPreparo(preparo.cenaId, preparo.pacotes);
+      for (const ws of this.ctx.getWebSockets()) {
+        const usuario = this.usuarioDe(ws);
+        if (usuario) this.avisarPreparoA(ws, usuario);
+      }
+    }
+    if (
+      preparo ||
+      intencao.tipo === "asset.tenho" ||
+      intencao.tipo === "asset.naoTenho" ||
+      intencao.tipo === "asset.inventario"
+    ) {
+      this.enviarProgresso();
+    }
+  }
+
+  /** O jogador baixa o que está preparado (hashes dos arquivos cifrados; nada sobre a cena). */
+  private avisarPreparoA(ws: WebSocket, usuario: Usuario): void {
+    if (usuario.papel !== "jogador") return;
+    const hashes = [...new Set(this.banco.preparos().map((p) => p.hashCifrado))];
+    if (hashes.length > 0)
+      this.enviar(ws, mensagem({ tipo: "preparo.disponivel", dados: { hashes } }));
+  }
+
+  /** Só mestres: quantos jogadores já têm todos os pacotes de cada preparo. */
+  private enviarProgresso(descartou = false): void {
+    const preparos = this.banco.preparos();
+    // Sem preparo nada a contar; só avisa a lista vazia quando um preparo acabou de ser descartado.
+    if (preparos.length === 0 && !descartou) return;
+    const jogadores = this.estado.usuarios.filter((u) => u.papel === "jogador");
+    const quemTem = new Map<string, Set<string>>();
+    const donosDe = (hash: string) => {
+      let s = quemTem.get(hash);
+      if (!s) {
+        s = new Set(this.banco.possesDe(hash).map((p) => p.usuario));
+        quemTem.set(hash, s);
+      }
+      return s;
+    };
+    const porCena = new Map<string, typeof preparos>();
+    for (const p of preparos) porCena.set(p.cenaId, [...(porCena.get(p.cenaId) ?? []), p]);
+    const texto = mensagem({
+      tipo: "preparo.progresso",
+      dados: {
+        preparos: [...porCena].map(([cenaId, pacotes]) => ({
+          cenaId,
+          hashesOriginais: pacotes.map((p) => p.hashOriginal),
+          completos: jogadores.filter((j) => pacotes.every((p) => donosDe(p.hashCifrado).has(j.id)))
+            .length,
+          jogadores: jogadores.length,
+        })),
+      },
+    });
+    for (const ws of this.ctx.getWebSockets()) {
+      if (this.usuarioDe(ws)?.papel === "mestre") this.enviar(ws, texto);
+    }
+  }
+
+  /**
+   * O grupo foi para a cena: cada jogador recebe as chaves só dos pacotes cujo original ele passa a
+   * ver no estado novo (o que está oculto na cena não tem chave para ninguém). Depois da ida os
+   * preparos daquela cena são descartados.
+   */
+  private entregarChaves(cenaId: string): void {
+    const pacotes = this.banco.preparos().filter((p) => p.cenaId === cenaId);
+    if (pacotes.length > 0) {
+      for (const ws of this.ctx.getWebSockets()) {
+        const usuario = this.usuarioDe(ws);
+        if (usuario?.papel !== "jogador") continue;
+        const seus = pacotes
+          .filter((p) => assetVisivelPara(p.hashOriginal, this.estado, usuario))
+          .map(({ hashCifrado, hashOriginal, chave }) => ({ hashCifrado, hashOriginal, chave }));
+        if (seus.length > 0)
+          this.enviar(ws, mensagem({ tipo: "preparo.chaves", dados: { pacotes: seus } }));
+      }
+    }
+    this.banco.descartarPreparos(cenaId);
+    this.enviarProgresso(true);
+  }
+
   // --- Envio ----------------------------------------------------------------------------------
 
   private identidadeDe(ws: WebSocket): Identidade | null {
@@ -514,7 +622,9 @@ export class Sala extends DurableObject<Env> {
     for (const ws of this.ctx.getWebSockets()) {
       if (ws === remetente) continue;
       const usuario = this.usuarioDe(ws);
-      if (usuario && tokenVisivelPara(token, usuario)) this.enviar(ws, texto);
+      if (usuario && tokenVisivelPara(token, usuario, this.estado.cenaAtivaId)) {
+        this.enviar(ws, texto);
+      }
     }
   }
 

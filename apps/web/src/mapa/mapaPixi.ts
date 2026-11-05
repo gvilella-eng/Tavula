@@ -203,6 +203,8 @@ export class MapaPixi {
 
   definirCena(cena: Cena): void {
     const gridMudou = this.cena?.grid.quadradoM !== cena.grid.quadradoM;
+    // Outra cena (o mestre foi ver a cena 2, ou o grupo foi levado): tokens e vista recomeçam.
+    const outraCena = this.cena !== null && this.cena.id !== cena.id;
     const tamanhoMudou =
       this.cena !== null &&
       (this.cena.larguraM !== cena.larguraM || this.cena.alturaM !== cena.alturaM);
@@ -210,9 +212,9 @@ export class MapaPixi {
     if (!this.pronto) return;
     this.desenharCena();
     this.atualizarMapa();
-    if (gridMudou) this.recriarVisuais();
+    if (gridMudou || outraCena) this.recriarVisuais();
     // Mapa novo muda o tamanho da cena: enquadra de novo.
-    if (!this.jaCentralizou || tamanhoMudou) this.centralizar();
+    if (!this.jaCentralizou || tamanhoMudou || outraCena) this.centralizar();
   }
 
   /** O gerente de assets (de onde vêm as imagens locais). */

@@ -505,3 +505,38 @@ textarea {
   width: 100%;
   height: 6px;
 }
+
+/* Cenas e personagens (Lote 4: funcional; a revisão visual é o Lote 4b) */
+.cena-linha,
+.cartao-personagem {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  margin-bottom: 8px;
+  border: 1px solid var(--borda);
+  border-radius: var(--raio);
+}
+
+.cena-linha[data-do-grupo="true"] {
+  border-color: var(--acento);
+}
+
+.cena-titulo {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.selo {
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--borda);
+  color: var(--texto-suave);
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.rotulo-vista {
+  color: var(--texto-suave);
+}

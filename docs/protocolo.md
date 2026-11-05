@@ -1,12 +1,13 @@
 # Protocolo cliente ↔ sala
 
-## Versão atual: v1 (Lotes 1, 2 e 3)
+## Versão atual: v1 (Lotes 1, 2, 3 e 4)
 
 Os schemas zod ficam em `packages/shared/src/protocolo.ts` e `estado.ts`; a lógica pura (conferir
 capacidade, aplicar, filtrar por papel) em `nucleo.ts` e `capacidades.ts`. O cliente e a sala validam
 as mensagens com os mesmos schemas e aplicam eventos com a mesma função (`reduzir`). O Lote 2 acrescentou
 cenas, tokens e o movimento ao vivo, e o Lote 3 os assets locais (mapa, imagem de token, frames binários)
-**sem mudar o número do protocolo**: só entraram mensagens novas.
+e o Lote 4 personagens, várias cenas e o pré-envio cifrado, tudo **sem mudar o número do protocolo**: só entraram
+mensagens novas.
 
 ### Conexão e autenticação (dev)
 
@@ -44,8 +45,9 @@ Toda intenção declara a capacidade exigida (`capacidadeDaIntencao`); a sala co
 Sem a capacidade: `erro` com `sem_permissao`.
 
 **Quem move um token** (`token.mover` e `token.soltar`): o mestre, qualquer token; o jogador, só se
-`pode(eu, "token.moverProprio")` **e** o id dele está em `controladoPor` **e** o token é visível para ele.
-Token invisível para quem pergunta (oculto ou da camada do mestre) responde `token_inexistente`, igual a um
+`pode(eu, "token.moverProprio")` **e** controla o token (é o **dono do personagem** do token **ou** o id dele
+está em `controladoPor`, que o mestre usa para emprestar) **e** o token é visível para ele (da cena ativa).
+Token invisível para quem pergunta (oculto, da camada do mestre ou de outra cena) responde `token_inexistente`, igual a um
 id que não existe: a resposta não revela nada. **Posição fora da cena é limitada à borda** (o centro do token
 fica dentro de `0..larguraM` × `0..alturaM`), não recusada.
 
@@ -55,19 +57,30 @@ fica dentro de `0..larguraM` × `0..alturaM`), não recusada.
 | `notaMestre.editar` | `{ texto }` | `camadaMestre.ver` (só do mestre) | muda a nota que só mestres recebem |
 | `papel.alterar` | `{ usuarioId, papel: "mestre" \| "jogador" }` | `papel.alterar` (só do mestre) | muda o papel; recusa deixar a mesa sem mestre (`ultimo_mestre`) |
 | `permissao.alterar` | `{ capacidade, valor: boolean \| null, usuarioId? }` | `permissao.alterar` (só do mestre) | sem `usuarioId`: muda o padrão da mesa; com `usuarioId`: exceção do usuário; `valor: null` (só com `usuarioId`) remove a exceção. Capacidade exclusiva do mestre: `capacidade_nao_delegavel` |
-| `token.criar` | `{ token: { id, nome, cor, tamanhoQuadrados 1..4, x, y, camada, oculto, controladoPor, assetHash? } }` (o `id` vem do cliente; a sala põe o `cenaId` da cena ativa e limita a posição à cena) | `cena.editar` (só do mestre) | cria o token; `dados_invalidos` se o id já existe; `asset_inexistente` se `assetHash` não é uma imagem (`token`/`retrato`) registrada |
+| `token.criar` | `{ cenaId?, token: { id, nome, cor, tamanhoQuadrados 1..4, x, y, camada, oculto, controladoPor, assetHash?, personagemId? } }` (o `id` vem do cliente; a sala põe o `cenaId` pedido, ou o da cena ativa, e limita a posição à cena) | `cena.editar` (só do mestre) | cria o token; `cena_inexistente` se a cena não existe; `personagem_inexistente` se `personagemId` não existe; `dados_invalidos` se o id já existe; `asset_inexistente` se `assetHash` não é uma imagem (`token`/`retrato`) registrada |
 | `token.editar` | `{ id, mudancas: { nome?, cor?, tamanhoQuadrados?, camada?, oculto?, controladoPor?, assetHash?: hash \| null } }` | `cena.editar` | muda o token (`assetHash: null` tira a imagem); sem mudança real não gera evento |
 | `asset.registrar` | `{ metas: MetaNova[] }` (1 a 65; tiles antes do manifesto, ou no mesmo lote) | `asset.subir` (mestre sempre) | registra os metadados (nunca bytes); o `donoId` é quem mandou. Hash que já existe: nada muda (nem o dono). Jogador só registra `token`/`retrato` (`sem_permissao` para `mapa`/`tile`). `dados_invalidos` se a meta fere os limites (30 MB por arquivo, 64 tiles, 200 MB por mapa, pedaços que não batem com o tamanho, tile fora do mapa, manifesto citando tile não registrado) |
 | `asset.pedir` | `{ hash, faltam?: number[] }` | nenhuma (mestre ou jogador) | a sala responde `asset.meta` e, se há bytes, organiza o envio dos pedaços `faltam` (sem `faltam`: todos). Asset que não existe **ou que a pessoa não vê**: `erro` `asset_inexistente`, igual nos dois casos. Ninguém online com cópia: `asset.indisponivel` |
 | `asset.inventario` | `{ hashes: string[] }` (até 5000) | nenhuma | o que este navegador tem no cache, mandado ao conectar; **substitui** o que a sala sabia desta conexão. Só vale para assets que a sala conhece **e que a pessoa vê** (senão um jogador poderia ser chamado a servir a imagem de um token oculto) |
 | `asset.tenho` | `{ hash }` | nenhuma | esta conexão passou a ter o arquivo completo (conferido). Mesma regra: só vale para asset que a pessoa vê |
 | `asset.naoTenho` | `{ hash }` | nenhuma | esta conexão não tem (mais) o arquivo; se ela estava servindo, a sala pede o que falta a outro |
-| `cena.definirMapa` | `{ assetHash: hash \| null, pxPorQuadrado? }` (10 a 1000; padrão 70, ou o atual) | `cena.editar` | põe (ou, com `null`, tira) o mapa da cena ativa. A cena passa a ter o tamanho dele: metros = px ÷ `pxPorQuadrado` × `quadradoM` (máx. 1000 m, senão `dados_invalidos`). `asset_inexistente` se o hash não é um `mapa` registrado |
-| `token.definirImagem` | `{ id, assetHash: hash \| null }` | `asset.subir` (mestre sempre) | jogador: só no token que **controla e vê**, com qualquer imagem de token (`token`/`retrato`) registrada — inclusive a mesma arte que outro registrou antes (mesmo hash); mestre: qualquer token. Token invisível: `token_inexistente`; hash que não é imagem de token registrada: `asset_inexistente` |
+| `cena.definirMapa` | `{ cenaId?, assetHash: hash \| null, pxPorQuadrado? }` (10 a 1000; padrão 70, ou o atual) | `cena.editar` | põe (ou, com `null`, tira) o mapa da cena (`cenaId`; padrão: a ativa). A cena passa a ter o tamanho dele: metros = px ÷ `pxPorQuadrado` × `quadradoM` (máx. 1000 m, senão `dados_invalidos`). `asset_inexistente` se o hash não é um `mapa` registrado |
+| `token.definirImagem` | `{ id, assetHash: hash \| null }` | `asset.subir` (mestre sempre) | jogador: só no token que **controla** (dono do personagem ou `controladoPor`) **e vê**, com qualquer imagem de token (`token`/`retrato`) registrada — inclusive a mesma arte que outro registrou antes (mesmo hash); mestre: qualquer token. Token invisível: `token_inexistente`; hash que não é imagem de token registrada: `asset_inexistente` |
 | `token.apagar` | `{ id }` | `cena.editar` | apaga o token |
-| `cena.configurarGrid` | `{ quadradoM?, visivel? }` (quadrado de 0,3 a 10 m) | `cena.editar` | muda o grid da cena ativa |
+| `cena.configurarGrid` | `{ cenaId?, quadradoM?, visivel? }` (quadrado de 0,3 a 10 m) | `cena.editar` | muda o grid da cena (`cenaId`; padrão: a ativa) |
 | `token.mover` | `{ id, x, y }` (metros, centro do token) | `token.moverProprio` | **transitório**: não grava, não gera `seq`, não muda o estado; a sala repassa `token.movendo` (abaixo). Limite do cliente: 20 por segundo por arraste |
 | `token.soltar` | `{ id, x, y }` | `token.moverProprio` | grava e gera o evento `token.movido` (sempre, mesmo sem mudança de posição: quem viu o movimento ao vivo precisa da posição final) |
+| `personagem.criar` | `{ personagem }` (`id` do cliente; `donoId` `null` = NPC, ou um jogador; `tokenPadrao { cor, tamanhoQuadrados, assetHash? }`; `visao { alcanceM \| null, visaoNoEscuroM }`; `ficha { pvAtual, pvMax }`) | `cena.editar` (só do mestre) | cria o personagem. `dados_invalidos` (id repetido), `usuario_inexistente` (dono que não é jogador), `asset_inexistente` (imagem) |
+| `personagem.editar` | `{ id, mudancas: { nome?, donoId?, cor?, tamanhoQuadrados?, assetHash?: hash \| null, alcanceM?, visaoNoEscuroM?, pvAtual?, pvMax? } }` | `cena.editar` | muda o personagem; não muda os tokens já postos (cada token tem a própria cópia de nome, cor e imagem). `personagem_inexistente` |
+| `personagem.apagar` | `{ id }` | `cena.editar` | apaga o personagem **e os tokens dele** (eventos `token.apagado` e depois `personagem.apagado`) |
+| `personagem.colocar` | `{ personagemId, cenaId, tokenId, x?, y? }` | `cena.editar` | cria o token a partir do token padrão (camada `tokens`, visível, `personagemId`), na posição dada ou na **chegada** da cena (encaixada no grid). Personagem de jogador só tem **um** token (`dados_invalidos` se já tem) |
+| `ficha.alterar` | `{ personagemId, pvAtual?, pvMax? }` (inteiros de 0 a 9999) | nenhuma (a regra é do dono; `null` em `capacidadeDaIntencao`) | o **dono** do personagem ou o mestre. `pvAtual` nunca passa de `pvMax` (a sala corta). Personagem que a pessoa não vê (NPC, ou de outro jogador sem `ficha.verOutras`): `personagem_inexistente`; visível mas de outro: `sem_permissao` |
+| `cena.criar` | `{ id, nome }` | `cena.editar` | nova cena com o tamanho e o grid padrão (60 x 45 m, quadrado 1,5 m). `dados_invalidos` se o id existe |
+| `cena.editar` | `{ cenaId, nome?, chegada?: { x, y } \| null }` | `cena.editar` | renomeia e/ou define a chegada do grupo (limitada à cena; `null` volta ao centro). `cena_inexistente` |
+| `cena.duplicar` | `{ cenaId, novoId }` | `cena.editar` | copia a cena (nome "… (cópia)", mesmo mapa e grid) e os tokens dela, **menos os de personagem de jogador**, com ids novos |
+| `cena.apagar` | `{ cenaId }` | `cena.editar` | apaga a cena e os tokens dela; **nunca a ativa** (`dados_invalidos`) |
+| `grupo.moverPara` | `{ cenaId }` | `cena.editar` | **uma única mensagem**: os tokens dos personagens de jogador que estão na cena ativa vão para a chegada da cena de destino, lado a lado e sem sobreposição (`arrumarNoGrid`); NPC fica; a cena de destino vira a ativa; **todos recebem snapshot novo**; antes dele cada jogador recebe `preparo.chaves`. Mesma cena: nada muda |
+| `cena.preparar` | `{ cenaId, pacotes: [{ hashCifrado, hashOriginal, chave }] }` (1 a 200; hashes e chave em 64 hex) | `cena.editar` | guarda os pacotes e as chaves (SQLite, tabela `preparos`) e avisa os jogadores com `preparo.disponivel`. A sala só aceita pacote cujo `hashCifrado` é um asset `cifrado` registrado (`asset_inexistente`) e cujo `hashOriginal` é um arquivo que os jogadores veriam naquela cena (mapa e imagem de token visível; `dados_invalidos`). Não gera evento |
 | `campanha.exportar` | `{}` | `campanha.exportar` (só do mestre) | a sala responde `exportacao` a quem pediu |
 | `campanha.importar` | `{ dados }`: o arquivo de exportação inteiro | `campanha.importar` (só do mestre) | substitui o estado inteiro e manda snapshot novo a todos |
 
@@ -84,12 +97,15 @@ fica dentro de `0..larguraM` × `0..alturaM`), não recusada.
 | `asset.meta` | `{ meta }` | **só quem pediu** (`asset.pedir`) e **só se vê o asset**; nunca em broadcast |
 | `asset.enviar` | `{ hash, indices: number[] }` | **só o provedor escolhido**: mande estes pedaços como frames binários |
 | `asset.indisponivel` | `{ hash }` | quem pediu e ficou sem provedor; a sala retoma sozinha quando alguém com cópia conectar |
+| `preparo.disponivel` | `{ hashes }` (arquivos **cifrados**) | **só jogadores**: baixem estes arquivos. Sem `cenaId`, sem nome, sem nada sobre o conteúdo. Mandada ao preparar e a quem conecta com preparo pendente |
+| `preparo.chaves` | `{ pacotes: [{ hashCifrado, hashOriginal, chave }] }` | **só jogadores, só ao levar o grupo**, e só os pacotes cujo `hashOriginal` o jogador **passa a ver** no estado novo. Chega **antes** do snapshot |
+| `preparo.progresso` | `{ preparos: [{ cenaId, hashesOriginais, completos, jogadores }] }` | **só mestres**: quantos jogadores já têm todos os pacotes de cada preparo (lista vazia quando um preparo é descartado) |
 | *(frame binário)* | pedaço, ver abaixo | só quem espera aquele pedaço (repassado pela sala, sem gravar) |
 | `token.movendo` | `{ id, x, y }` | **transitório** (sem `seq`, não gravado): só quem pode ver o token, **menos o remetente**. Nunca vai a um jogador para token oculto ou da camada do mestre. Se quem arrastava cai antes do `token.soltar`, a sala manda um `token.movendo` com a **posição gravada**, para ninguém ficar com o token num lugar que não existe |
 
 Códigos de erro: `mensagem_invalida`, `sem_permissao`, `ultimo_mestre`, `usuario_inexistente`,
 `capacidade_nao_delegavel`, `importacao_invalida`, `token_inexistente`, `dados_invalidos`,
-`asset_inexistente` (asset que não existe **ou** que a pessoa não pode ver: a resposta é idêntica).
+`asset_inexistente` (asset que não existe **ou** que a pessoa não pode ver: a resposta é idêntica), `personagem_inexistente` (idem, para personagem que não existe ou que a pessoa não vê), `cena_inexistente`.
 
 ### Eventos (`evento.dados.tipo`)
 
@@ -104,13 +120,31 @@ Códigos de erro: `mensagem_invalida`, `sem_permissao`, `ultimo_mestre`, `usuari
 | `token.apagado` | `{ id }` | mestres; jogador só se o token era visível para ele |
 | `token.movido` | `{ id, x, y }` (posição final gravada) | mestres; jogador só se o token é visível |
 | `token.sumiu` | `{ id }` | **só jogadores**, e só gerado pelo filtro: o token deixou de ser visível para ele. Sem motivo |
-| `cena.gridAlterado` | `{ cenaId, grid, larguraM?, alturaM? }` (com mapa, mudar o quadrado muda o tamanho da cena: vem junto) | todos |
-| `cena.mapaAlterado` | `{ cenaId, mapa: { assetHash, pxPorQuadrado } \| null, larguraM, alturaM }` | todos (o mapa da cena ativa é visível a todos) |
+| `cena.gridAlterado` | `{ cenaId, grid, larguraM?, alturaM? }` (com mapa, mudar o quadrado muda o tamanho da cena: vem junto) | mestres; jogador **só se for a cena ativa** |
+| `cena.mapaAlterado` | `{ cenaId, mapa: { assetHash, pxPorQuadrado } \| null, larguraM, alturaM }` | mestres; jogador **só se for a cena ativa** |
+| `cena.criada` / `cena.apagada` | `{ cena }` / `{ cenaId }` | **só mestres** |
+| `cena.editada` | `{ cena }` (a cena inteira: nome, chegada; o cliente faz upsert) | mestres; jogador só se for a cena ativa |
+| `grupo.movido` | `{ cenaId, tokens: [{ id, x, y }] }` (nova cena ativa; os tokens passam a ser dessa cena) | **só mestres** (e eles também recebem snapshot novo; os jogadores só o snapshot) |
+| `personagem.alterado` | `{ personagem }` (inteiro; criação, edição ou ficha) | mestres; jogador só se vê o personagem (o dele; de outro jogador com `ficha.verOutras`; NPC nunca). Quem **deixou de ver** recebe `personagem.apagado` |
+| `personagem.apagado` | `{ id }` | mestres; jogador que o via |
 | `asset.registrado` | `{ meta }` | **só mestres** (as metas dos jogadores chegam por `asset.meta`, sob demanda) |
+
+#### Sigilo de cena e de personagem (Lote 4)
+
+- O jogador só recebe a **cena ativa** (onde está o grupo): o snapshot dele tem `cenas: [a ativa]`. Nome, grid,
+  mapa, chegada e tokens das outras cenas nunca chegam a ele; os eventos de cena (criar, editar, apagar, grid,
+  mapa) das outras cenas não são enviados. O mestre olha e edita qualquer cena sem mover o grupo (a cena que ele
+  vê é estado local da tela dele; as intenções de token, grid e mapa dizem de qual cena são).
+- Ao levar o grupo, **todos recebem snapshot novo**; os eventos `grupo.movido` e `cena.*` só vão a mestres.
+- Personagens no snapshot do jogador: os dele inteiros; os de outros jogadores só com `ficha.verOutras`; NPC nunca.
+  Mudar `ficha.verOutras` (padrão ou exceção) manda snapshot novo a quem foi afetado. O `token` visível de um
+  NPC carrega o `personagemId` (um id opaco), mas o personagem em si não chega.
+- `assetVisivelPara` olha a cena: só a imagem de token **da cena ativa**, o mapa e os tiles da cena ativa, a
+  imagem do token padrão de um personagem que ele vê, e os arquivos `cifrado` (opacos).
 
 #### Sigilo dos tokens
 
-Visível para um usuário = mestre (vê tudo) **ou** `camada === "tokens"` e `oculto === false`. O filtro
+Visível para um usuário = mestre (vê tudo) **ou** (`cenaId` é a cena ativa **e** `camada === "tokens"` **e** `oculto === false`). O filtro
 (`eventoPara(evento, usuario, antes, depois)`) conhece o estado de antes e de depois de cada intenção:
 
 | O que aconteceu com o token | Mestre | Jogador |
@@ -131,13 +165,19 @@ um jogador também não traz os tokens invisíveis (`visaoPara`). O cliente apli
 
 ```
 Estado { seq, usuarios: Usuario[], permissoes: Permissoes, notaMesa, notaMestre?,
-         cenas: Cena[], cenaAtivaId, tokens: Token[], assets?: AssetMeta[] /* só na visão do mestre */ }
+         cenas: Cena[] /* jogador: só a ativa */, cenaAtivaId, tokens: Token[],
+         personagens: Personagem[] /* jogador: os que pode ver */, assets?: AssetMeta[] /* só na visão do mestre */ }
 Cena  { id, nome, larguraM, alturaM, grid: { quadradoM, visivel },          // padrão: cena-1, 60 x 45 m, quadrado 1,5 m
-        mapa?: { assetHash, pxPorQuadrado } }
+        mapa?: { assetHash, pxPorQuadrado },
+        chegada?: { x, y } /* onde o grupo chega; padrão: o centro */ }
 Token { id, cenaId, nome, cor, tamanhoQuadrados (1..4), x, y /* centro, em metros */,
         camada: "tokens" | "mestre", oculto, controladoPor: string[] /* ids de usuário */,
-        assetHash?: string /* imagem do token; sem ela vale o círculo gerado */ }
-AssetMeta { hash /* SHA-256 hex do arquivo processado */, tipo: "mapa" | "token" | "retrato" | "tile",
+        assetHash?: string /* imagem do token; sem ela vale o círculo gerado */,
+        personagemId?: string /* o token guarda a PRÓPRIA cópia de nome, cor e imagem do token padrão */ }
+Personagem { id, donoId: string | null /* null = NPC */, nome,
+             tokenPadrao: { cor, tamanhoQuadrados, assetHash? }, visao: { alcanceM: number | null, visaoNoEscuroM },
+             ficha: { pvAtual, pvMax } /* ficha mínima até o Lote 9 */ }
+AssetMeta { hash /* SHA-256 hex do arquivo processado */, tipo: "mapa" | "token" | "retrato" | "tile" | "cifrado",
             mime, bytes, largura, altura, donoId, nomeOriginal,
             pedacos: string[] /* SHA-256 de cada pedaço de 256 KB */,
             tiles?: { hash, x, y, largura, altura }[] /* só no manifesto de mapa fatiado */ }
@@ -148,7 +188,7 @@ Permissoes { jogadores: Record<CapacidadeDelegavel, boolean>, porUsuario: Record
 - `permissoes.jogadores` só tem capacidades delegáveis (as exclusivas do mestre nunca são
   configuráveis).
 - **Jogador** (e assistente): `notaMestre` não existe no snapshot e `porUsuario` só traz a entrada dele.
-- **Jogador**: `tokens` só tem os que ele pode ver (camada `tokens` e não ocultos).
+- **Jogador**: `tokens` só tem os que ele pode ver (da cena ativa, camada `tokens` e não ocultos); `cenas` só tem a ativa; `personagens` só os que ele vê.
 - **Mestre**: recebe tudo, inclusive `assets` (as metas). **Jogador**: `assets` nunca existe no snapshot.
 
 ### Assets locais (Lote 3)
@@ -183,10 +223,41 @@ devolve só a meta; o cliente pede cada tile.
 
 **Sigilo de asset** (`assetVisivelPara`): o mestre vê tudo o que existe; o jogador só vê (1) o que é dele
 (`donoId`), (2) a imagem de um token **visível para ele**, (3) o mapa da **cena ativa** e (4) os tiles desse
-mapa. Consequências: a meta, o hash e os pedaços de um asset invisível nunca chegam ao jogador; o hash da
+mapa; mais, desde o Lote 4, (5) a imagem do token padrão de um personagem que ele vê e (6) os arquivos `cifrado`. Consequências: a meta, o hash e os pedaços de um asset invisível nunca chegam ao jogador; o hash da
 imagem de um token oculto nunca chega (ele vai junto com o token, que o jogador não recebe); pedir esse
 hash responde `asset_inexistente`, **igual** a pedir um que não existe; o snapshot do jogador não leva
 `assets`. Quando o token é revelado, o `token.editado` leva o `assetHash` e o jogador pede o arquivo.
+
+### Preparar cena: pré-envio cifrado (Lote 4)
+
+Objetivo: o grupo ainda está na cena 1 e a cena 2 já pode estar no cache de todos, **sem o jogador saber nada
+dela antes da hora**. Fluxo:
+
+1. **Mestre (navegador)**: para a cena X, junta o mapa (todos os tiles, ou o próprio arquivo) e a imagem dos
+   tokens **visíveis para jogadores** em X (`hashesPreparaveis`; token oculto ou da camada do mestre não entra).
+   Para cada arquivo gera uma chave AES-GCM de 256 bits e um IV de 12 bytes aleatório (WebCrypto), cifra e
+   registra o resultado como asset do tipo **`cifrado`** (`asset.registrar`, só o mestre): o arquivo é
+   `IV (12 B) + texto cifrado + etiqueta (16 B)`, `nomeOriginal: "cifrado"`, `mime: application/octet-stream`,
+   `largura` e `altura` 1. O hash dele é o SHA-256 dos bytes cifrados. Depois manda `cena.preparar`.
+2. **Sala**: guarda no SQLite (tabela `preparos`: `cena_id, hash_cifrado, hash_original, chave`; dado só do mestre
+   e da sala, fora da exportação) e manda `preparo.disponivel { hashes }` a cada jogador conectado (e a quem
+   conectar depois). Asset `cifrado` é visível a todo jogador e trafega pelo **mesmo caminho de pedaços** do
+   Lote 3 (`asset.pedir`, frames binários), em geral servido pelo mestre, o dono. O mestre recebe
+   `preparo.progresso` (jogadores que já têm todos os pacotes de cada preparo; é pela posse que a sala conta).
+3. **Preparar de novo** depois de mudar a cena acrescenta só o que falta (o cliente do mestre usa
+   `hashesOriginais` do progresso para não repetir).
+4. **`grupo.moverPara`**: a sala manda a cada jogador `preparo.chaves` **só com os pacotes cujo `hashOriginal` ele
+   passa a ver no estado novo** (`assetVisivelPara` sobre o estado depois da ida) e **só depois** o snapshot. O
+   jogador decifra o que já baixou, **confere o SHA-256 contra `hashOriginal`**, grava no cache com o hash
+   original, anuncia `asset.tenho`, apaga o cifrado (`asset.naoTenho`) e pede só a meta (`asset.pedir` com
+   `faltam: []`: sem pedaços). Os originais ficam "em decifração" desde a chegada das chaves, para o snapshot
+   não disparar um download. O que não chegou a baixar, ou não confere, vem pelo caminho normal. Os preparos
+   daquela cena são descartados depois da ida (também ao apagar a cena e ao importar uma campanha).
+
+Sigilo: o que o jogador recebe antes da ida são bytes opacos, sem nome nem hash original; a chave só chega
+quando ele já tem direito ao arquivo. O que revela: **quantos** arquivos cifrados há e o tamanho aproximado de
+cada um (original + 28 bytes). Token oculto da cena não tem pacote (o cliente do mestre não o inclui e a sala
+recusa pacote de arquivo que os jogadores não veriam) e, portanto, nem chave.
 
 ### `seq` e saltos
 
@@ -209,28 +280,31 @@ Delegáveis (o mestre liga ou desliga o padrão da mesa e abre exceção por usu
 `tocha.entregar`, `ponto.usar`, `luz.apagar`, `ficha.verOutras`, `dado.rolarOculto`, `asset.subir`.
 
 Só do mestre, nunca delegáveis: `papel.alterar`, `permissao.alterar`, `mesa.configurar`,
-`automacao.editar`, `camadaMestre.ver`, `cena.editar` (criar, editar e apagar tokens; grid), `objeto.ajustar`,
+`automacao.editar`, `camadaMestre.ver`, `cena.editar` (tokens, grid, mapa e, desde o Lote 4, personagens, cenas, levar o grupo e preparar cena), `objeto.ajustar`,
 `campanha.exportar`, `campanha.importar`.
 
 `asset.subir` cobre `asset.registrar` e `token.definirImagem`. As intenções de vaivém de arquivos
-(`asset.pedir`, `asset.inventario`, `asset.tenho`, `asset.naoTenho`) não exigem capacidade
-(`capacidadeDaIntencao` = `null`): qualquer mestre ou jogador pode, porque o sigilo é conferido sobre o
-asset e quem não pode subir ainda precisa ver o mapa.
+(`asset.pedir`, `asset.inventario`, `asset.tenho`, `asset.naoTenho`) e `ficha.alterar` não exigem capacidade
+(`capacidadeDaIntencao` = `null`): qualquer mestre ou jogador pode enviar; nos arquivos o sigilo é conferido sobre o
+asset (quem não pode subir ainda precisa ver o mapa) e na ficha, sobre o dono do personagem.
 
 Regra de `pode(usuario, capacidade, permissoes)`: mestre sempre; assistente nunca (por enquanto);
 jogador: nunca as exclusivas do mestre; senão a exceção por usuário, se houver, senão o padrão da mesa.
 
 ### Exportação
 
-`{ formato: "tabletop-campanha", versao: 3, exportadoEm, dados: { seq, usuarios, permissoes, notaMesa, notaMestre, cenas, cenaAtivaId, tokens, assets } }`.
+`{ formato: "tabletop-campanha", versao: 4, exportadoEm, dados: { seq, usuarios, permissoes, notaMesa, notaMestre, cenas, cenaAtivaId, tokens, personagens, assets } }`.
 Sem contadores de uso nem presença. `assets` são **só as metas dos assets usados** (mapas das cenas, imagens
-dos tokens e os tiles deles), **nunca bytes**; `Cena.mapa` e `Token.assetHash` vão nos próprios objetos. A **v2**
+dos tokens e os tiles deles), **nunca bytes**; `Cena.mapa` e `Token.assetHash` vão nos próprios objetos. A **v4**
+(Lote 4) acrescenta `personagens` (as várias cenas já cabiam desde a v2; a `chegada` vai dentro de cada cena). Os
+**preparos** (chaves do pré-envio) e os assets `cifrado` **nunca** entram. A **v3** (Lote 3, sem `personagens`), a **v2**
 (Lote 2, sem `assets`) e a **v1** (Lote 1, sem `cenas`, `cenaAtivaId` nem `tokens`) continuam sendo aceitas na
-importação: a v2 vira v3 com `assets: []`; a v1 vira a cena padrão e nenhum token. Quem importa um mapa precisa
+importação: o resultado é sempre v4, com `personagens: []` e `assets: []` onde faltavam; a v1 vira a cena padrão e nenhum token. Quem importa um mapa precisa
 de alguém online com os arquivos (o cache dos navegadores serve; se ninguém tiver, o jogo mostra "indisponível").
 Na importação a sala valida com zod e ainda exige: ids de usuário
-únicos, pelo menos um mestre, exceções só para usuários existentes, ids de cena e de token únicos, cena ativa
-existente, tokens em cenas existentes e controlados por usuários existentes, assets válidos (limites, dono
+únicos, pelo menos um mestre, exceções só para usuários existentes, ids de cena, de token e de personagem únicos, cena ativa
+existente, tokens em cenas existentes, de personagens existentes e controlados por usuários existentes, personagens de usuários
+existentes (ou `null`) e com imagem de token padrão com meta, assets válidos (limites, dono
 existente, tiles com meta) e referenciados por `Cena.mapa`/`Token.assetHash` com meta no arquivo, e que **quem importa continue
 mestre** na campanha importada. A importação substitui tudo e manda snapshot novo a todos; sockets de
 usuários que sumiram são fechados. O `seq` **nunca volta**: fica no maior entre o atual e o do arquivo,

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { Estado, Usuario } from "./estado.ts";
-import { tokenVisivelPara } from "./mapa.ts";
+import { personagemVisivelPara, tokenVisivelPara } from "./mapa.ts";
 
 // ---------------------------------------------------------------------------------------------
 // Limites e constantes (PROJETO.md 4.3)
@@ -34,11 +34,18 @@ export const LIMITES_DE_ASSET = {
 
 export const PX_POR_QUADRADO_PADRAO = 70;
 
+/** O arquivo cifrado passa do original por 12 bytes de IV e 16 de etiqueta do AES-GCM (ver `cifra.ts`). */
+export const ACRESCIMO_DA_CIFRA = 12 + 16;
+
 // ---------------------------------------------------------------------------------------------
 // Metadados
 // ---------------------------------------------------------------------------------------------
 
-export const TIPOS_DE_ASSET = ["mapa", "token", "retrato", "tile"] as const;
+/**
+ * `cifrado`: arquivo opaco do pré-envio de uma cena (Lote 4). Sem nome nem dimensões reais; todo
+ * jogador pode baixá-lo, mas só abre com a chave que a sala entrega ao levar o grupo.
+ */
+export const TIPOS_DE_ASSET = ["mapa", "token", "retrato", "tile", "cifrado"] as const;
 export const TipoDeAssetSchema = z.enum(TIPOS_DE_ASSET);
 export type TipoDeAsset = z.infer<typeof TipoDeAssetSchema>;
 
@@ -66,7 +73,9 @@ export const AssetMetaSchema = z.object({
   donoId: z.string().min(1).max(64),
   nomeOriginal: z.string().min(1).max(200),
   /** SHA-256 de cada pedaço de 256 KB. Vazio no manifesto. */
-  pedacos: z.array(HashSchema).max(Math.ceil(LIMITES_DE_ASSET.bytesPorArquivo / TAMANHO_PEDACO)),
+  pedacos: z
+    .array(HashSchema)
+    .max(Math.ceil((LIMITES_DE_ASSET.bytesPorArquivo + ACRESCIMO_DA_CIFRA) / TAMANHO_PEDACO)),
   /** Mapa fatiado: o asset do mapa vira manifesto e cada tile é um asset `tile`. */
   tiles: z.array(TileSchema).min(1).max(LIMITES_DE_ASSET.tilesPorMapa).optional(),
 });
@@ -114,7 +123,9 @@ export function validarMeta(meta: MetaNova | AssetMeta): string | null {
     return "tile grande demais";
   }
   if (meta.bytes <= 0) return "arquivo vazio";
-  if (meta.bytes > LIMITES_DE_ASSET.bytesPorArquivo) return "arquivo grande demais";
+  const limite =
+    LIMITES_DE_ASSET.bytesPorArquivo + (meta.tipo === "cifrado" ? ACRESCIMO_DA_CIFRA : 0);
+  if (meta.bytes > limite) return "arquivo grande demais";
   if (meta.pedacos.length !== totalDePedacos(meta.bytes)) return "pedaços não batem com o tamanho";
   if (
     (meta.tipo === "token" || meta.tipo === "retrato") &&
@@ -325,7 +336,9 @@ function metaDe(estado: Pick<Estado, "assets">, hash: string): AssetMeta | undef
 }
 
 /** Todo hash que algo da campanha usa: mapas das cenas, imagens dos tokens e os tiles deles. */
-export function hashesUsados(estado: Pick<Estado, "assets" | "cenas" | "tokens">): Set<string> {
+export function hashesUsados(
+  estado: Pick<Estado, "assets" | "cenas" | "tokens" | "personagens">,
+): Set<string> {
   const usados = new Set<string>();
   const usar = (hash: string | undefined) => {
     if (hash === undefined) return;
@@ -334,25 +347,71 @@ export function hashesUsados(estado: Pick<Estado, "assets" | "cenas" | "tokens">
   };
   for (const c of estado.cenas) usar(c.mapa?.assetHash);
   for (const t of estado.tokens) usar(t.assetHash);
+  for (const p of estado.personagens) usar(p.tokenPadrao.assetHash);
   return usados;
 }
 
 /**
+ * O que vale pré-enviar de uma cena (Lote 4): os arquivos do mapa (cada tile, ou o próprio arquivo
+ * se não é fatiado; o manifesto não tem bytes) e a imagem dos tokens que os jogadores veriam
+ * (camada `tokens`, não ocultos). O que está oculto não entra: baixa quando aparecer.
+ */
+export function hashesPreparaveis(
+  estado: Pick<Estado, "assets" | "cenas" | "tokens">,
+  cenaId: string,
+): string[] {
+  const saida = new Set<string>();
+  const cena = estado.cenas.find((c) => c.id === cenaId);
+  const mapa = cena?.mapa?.assetHash;
+  if (mapa !== undefined) {
+    const meta = metaDe(estado, mapa);
+    if (meta?.tiles) for (const t of meta.tiles) saida.add(t.hash);
+    else saida.add(mapa);
+  }
+  for (const t of estado.tokens) {
+    if (t.cenaId === cenaId && t.camada === "tokens" && !t.oculto && t.assetHash !== undefined) {
+      saida.add(t.assetHash);
+    }
+  }
+  return [...saida];
+}
+
+/**
  * O usuário pode ver este asset? O mestre vê tudo o que existe. O jogador só vê o que é dele, a
- * imagem de um token visível para ele, o mapa da cena ativa e os tiles desse mapa. Quem pergunta
- * por um asset que não vê recebe a mesma resposta de quem pergunta por um que não existe.
+ * imagem de um token visível para ele (da cena ativa), a imagem do token padrão de um personagem
+ * que ele vê, o mapa da cena ativa e os tiles desse mapa; e os arquivos `cifrado` (opacos: sem a
+ * chave não dizem nada). Quem pergunta por um asset que não vê recebe a mesma resposta de quem
+ * pergunta por um que não existe.
  */
 export function assetVisivelPara(
   hash: string,
-  estado: Pick<Estado, "assets" | "cenas" | "cenaAtivaId" | "tokens">,
+  estado: Pick<
+    Estado,
+    "assets" | "cenas" | "cenaAtivaId" | "tokens" | "personagens" | "permissoes"
+  >,
   usuario: Quem,
 ): boolean {
   const meta = metaDe(estado, hash);
   if (!meta) return false;
   if (usuario.papel === "mestre") return true;
   if (usuario.papel !== "jogador") return false;
+  if (meta.tipo === "cifrado") return true;
   if (meta.donoId === usuario.id) return true;
-  if (estado.tokens.some((t) => t.assetHash === hash && tokenVisivelPara(t, usuario))) return true;
+  if (
+    estado.tokens.some(
+      (t) => t.assetHash === hash && tokenVisivelPara(t, usuario, estado.cenaAtivaId),
+    )
+  ) {
+    return true;
+  }
+  if (
+    estado.personagens.some(
+      (p) =>
+        p.tokenPadrao.assetHash === hash && personagemVisivelPara(p, usuario, estado.permissoes),
+    )
+  ) {
+    return true;
+  }
   const ativa = estado.cenas.find((c) => c.id === estado.cenaAtivaId);
   const mapa = ativa?.mapa?.assetHash;
   if (mapa === undefined) return false;

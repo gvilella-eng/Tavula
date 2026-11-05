@@ -2,11 +2,14 @@ import {
   type Camada,
   type Exportacao,
   encaixarNoGrid,
+  hashesPreparaveis,
   podeMoverToken,
   type Token,
 } from "@tabletop/shared";
-import { Crown, Images, Settings, StickyNote, Users } from "lucide-react";
+import { Clapperboard, Crown, Images, Settings, StickyNote, UserRound, Users } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { AbaCenas } from "./AbaCenas";
+import { AbaPersonagens } from "./AbaPersonagens";
 import { AbaConfiguracoes, AbaJogadores, AbaNotas } from "./abas";
 import { CacheOpfs } from "./assets/cache";
 import { Fontes } from "./assets/fontes";
@@ -58,6 +61,7 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
     presenca,
     uso,
     aviso,
+    preparos,
     enviar,
     enviarBinario,
     bufferizado,
@@ -75,6 +79,8 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
   const [zoom, setZoom] = useState(1);
   const [medicao, setMedicao] = useState<MedicaoNaTela | null>(null);
   const [lateralAberta, setLateralAberta] = useState(true);
+  // A cena que o mestre olha (e edita) sem mover o grupo: estado local da tela dele. `null` = a do grupo.
+  const [cenaVistaId, setCenaVistaId] = useState<string | null>(null);
   const mapa = useRef<MapaPixi | null>(null);
 
   // Arquivos locais (PROJETO.md 4.3): fontes (pasta, soltos), processador (worker) e o gerente
@@ -92,6 +98,8 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
 
   const euMestre = eu?.papel === "mestre";
   const permissoes = estado?.permissoes;
+  const cenaAtivaId = estado?.cenaAtivaId;
+  const personagens = estado?.personagens;
 
   // Atalhos de ferramenta (V, H, R), exceto enquanto escreve num campo.
   useEffect(() => {
@@ -204,19 +212,37 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
       camadaTrabalho,
       encaixe,
       selecionadoId,
-      podeMover: (t: Token) => (eu && permissoes ? podeMoverToken(t, eu, permissoes) : false),
+      podeMover: (t: Token) =>
+        eu && permissoes && cenaAtivaId !== undefined && personagens
+          ? podeMoverToken(t, eu, { permissoes, cenaAtivaId, personagens })
+          : false,
     }),
-    [ferramenta, euMestre, camadaTrabalho, encaixe, selecionadoId, eu, permissoes],
+    [
+      ferramenta,
+      euMestre,
+      camadaTrabalho,
+      encaixe,
+      selecionadoId,
+      eu,
+      permissoes,
+      cenaAtivaId,
+      personagens,
+    ],
   );
 
-  const cena = estado?.cenas.find((c) => c.id === estado.cenaAtivaId) ?? estado?.cenas[0];
-  const selecionado = estado?.tokens.find((t) => t.id === selecionadoId) ?? null;
+  // Cena do grupo e cena vista. O jogador só tem a do grupo (a sala não manda as outras).
+  const cenaDoGrupo = estado?.cenas.find((c) => c.id === estado.cenaAtivaId) ?? estado?.cenas[0];
+  const cena =
+    (euMestre && cenaVistaId ? estado?.cenas.find((c) => c.id === cenaVistaId) : undefined) ??
+    cenaDoGrupo;
+  const selecionado =
+    estado?.tokens.find((t) => t.id === selecionadoId && t.cenaId === cena?.id) ?? null;
   const pronto = status === "conectado" && estado !== null;
 
   // Pede o que a mesa usa (mapa da cena, imagens dos tokens). O mestre também recolhe o que os
   // jogadores subiram, para guardar cópia em recebidos/<jogador>/.
   const hashDoMapa = cena?.mapa?.assetHash;
-  const tokensDoEstado = estado?.tokens;
+  const tokensDoEstado = estado?.tokens.filter((t) => t.cenaId === cena?.id);
   const assetsDoEstado = estado?.assets;
   // biome-ignore lint/correctness/useExhaustiveDependencies: roda quando mudam o mapa, os tokens ou as metas
   useEffect(() => {
@@ -257,6 +283,7 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
     const id = `tok-${crypto.randomUUID().slice(0, 8)}`;
     const cor = CORES_DE_TOKEN[Math.floor(Math.random() * CORES_DE_TOKEN.length)] ?? "#3cb44b";
     enviar("token.criar", {
+      cenaId: cena.id,
       token: {
         id,
         nome: "Novo token",
@@ -270,6 +297,21 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
       },
     });
     setSelecionadoId(id);
+  }
+
+  /** Preparo cifrado da cena: só o que ainda falta (o que já está preparado não repete). */
+  async function prepararCena(cenaId: string): Promise<string | null> {
+    if (!gerente || !estado) return "Os arquivos locais ainda não estão prontos.";
+    const ja = new Set(preparos.find((p) => p.cenaId === cenaId)?.hashesOriginais ?? []);
+    const hashes = hashesPreparaveis(estado, cenaId).filter((h) => !ja.has(h));
+    if (hashes.length === 0) return "Nada novo para preparar.";
+    try {
+      const pacotes = await gerente.cifrarParaPreparo(hashes);
+      if (enviar("cena.preparar", { cenaId, pacotes }) === null) return "Sem conexão com a sala.";
+      return null;
+    } catch (e) {
+      return (e as Error).message;
+    }
   }
 
   function mudarEncaixe(v: boolean) {
@@ -293,7 +335,7 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
               />
             ),
           },
-          ...(gerente
+          ...(gerente && cena
             ? [
                 {
                   id: "biblioteca",
@@ -309,10 +351,49 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
                       eu={eu}
                       enviar={enviar}
                       tokenSelecionado={selecionado}
+                      cena={cena}
                       centroDoMapa={() =>
                         mapa.current?.centroDaTelaEmMetros() ?? {
                           x: (cena?.larguraM ?? 0) / 2,
                           y: (cena?.alturaM ?? 0) / 2,
+                        }
+                      }
+                    />
+                  ),
+                },
+              ]
+            : []),
+          {
+            id: "personagens",
+            titulo: "Personagens",
+            icone: <UserRound size={20} />,
+            conteudo: (
+              <AbaPersonagens
+                estado={estado}
+                eu={eu}
+                cenaVista={{ id: cena?.id ?? estado.cenaAtivaId, nome: cena?.nome ?? "" }}
+                enviar={enviar}
+              />
+            ),
+          },
+          ...(euMestre && cena
+            ? [
+                {
+                  id: "cenas",
+                  titulo: "Cenas",
+                  icone: <Clapperboard size={20} />,
+                  conteudo: (
+                    <AbaCenas
+                      estado={estado}
+                      cenaVistaId={cena.id}
+                      preparos={preparos}
+                      enviar={enviar}
+                      aoVer={setCenaVistaId}
+                      aoPreparar={prepararCena}
+                      centroDaVista={() =>
+                        mapa.current?.centroDaTelaEmMetros() ?? {
+                          x: cena.larguraM / 2,
+                          y: cena.alturaM / 2,
                         }
                       }
                     />
@@ -378,7 +459,15 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
             }}
           />
           <div className="etiqueta" data-testid="etiqueta-mesa">
+            {euMestre && <span className="rotulo-vista">Vendo: </span>}
             <span data-testid="cena-nome">{cena.nome}</span>
+            {euMestre && cenaDoGrupo && (
+              <>
+                <span className="separador">·</span>
+                <span className="rotulo-vista">Grupo em: </span>
+                <span data-testid="grupo-em">{cenaDoGrupo.nome}</span>
+              </>
+            )}
             <span className="separador">·</span>
             <strong data-testid="eu-nome">{eu.nome}</strong>{" "}
             <span data-testid="eu-papel" className="papel">
