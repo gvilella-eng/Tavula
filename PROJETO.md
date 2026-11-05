@@ -655,7 +655,8 @@ Cada lote tem objetivo, entregáveis, verificação automática, roteiro manual 
 Tamanho relativo: **P** (pequeno), **M** (médio), **G** (grande).
 
 Marcos:
-- **Marco A — mesa básica** (lotes 0–4): mapa, tokens, permissões, assets locais, cenas.
+- **Marco A — mesa básica** (lotes 0–4b): mapa, tokens, permissões, assets locais, cenas e a revisão da
+  interface.
 - **Marco B — exploração** (lotes 5–7b): paredes, luz, névoa, objetos de luz, automações. Com isso já
   dá para jogar uma sessão usando fichas fora do app.
 - **Marco C — mesa completa** (lotes 8–11): dados, chat, ficha, import de PDF, combate.
@@ -781,7 +782,7 @@ ser gravado no servidor.
 
 ---
 
-### Lote 4 — Personagens e cenas (M)
+### Lote 4 — Personagens e cenas (G)
 
 **Objetivo:** separar personagem e token; várias cenas por campanha.
 
@@ -792,14 +793,48 @@ ser gravado no servidor.
 - "preparar cena": pré-envia os assets da cena para todos antes de ativá-la;
 - o jogador só controla os tokens dos próprios personagens.
 
+**Decidido antes de começar:**
+- **Sigilo de cena:** o jogador só recebe a cena ativa (onde está o grupo). Nome, grid, mapa e tokens das
+  outras cenas nunca chegam a ele; token de outra cena conta como invisível (`tokenVisivelPara` passa a
+  olhar a cena). Ao levar o grupo para outra cena, cada um recebe um snapshot novo.
+- **O mestre olha e edita qualquer cena** sem mover o grupo (a cena que ele vê é estado local da tela
+  dele). Intenções de token, grid e mapa passam a dizer de qual cena são.
+- **Preparar cena sem quebrar o sigilo:** o pré-envio vai **cifrado** (AES-GCM, uma chave por asset,
+  gerada no navegador do mestre). O cache dos jogadores guarda só bytes opacos, sem nome nem hash
+  original; a sala guarda as chaves (dado só do mestre). Ao levar o grupo, a sala entrega a cada jogador
+  as chaves **só do que ele passa a ver**; ele decifra, confere o SHA-256 original e grava no cache. Só
+  vai para o pré-envio o mapa e a imagem de token visível; o que estiver oculto baixa quando aparecer.
+- **Grupo** = os tokens dos personagens de jogador que estão na cena ativa: "levar o grupo para X" os
+  move para o ponto de chegada de X (definido pelo mestre; padrão, o centro), lado a lado sem se
+  sobrepor. Tokens de NPC ficam onde estão.
+- **Controle do token:** o dono do personagem do token, mais quem estiver em `controladoPor` (para o
+  mestre emprestar um token, como uma criatura invocada ou o personagem de quem faltou).
+- **Ficha mínima** até o Lote 9: só PV atual e máximo (`ficha.alterar`), editáveis pelo dono e pelo
+  mestre. A ficha de outro jogador segue a capacidade `ficha.verOutras`; personagem de NPC é só do mestre.
+
 **Verificação automática:**
 - E2E: mover o grupo entre cenas gera 1 mensagem do mestre e todos os jogadores mudam de cena;
 - E2E: os dados do personagem (ex.: PV de teste) se mantêm ao trocar de cena;
-- E2E: jogador não consegue mover token de outro jogador.
+- E2E: jogador não consegue mover token de outro jogador;
+- E2E (frames): antes de o grupo ir para a cena preparada, nenhum frame do jogador tem o nome dela, os
+  tokens dela nem o hash original do mapa; depois, a troca não baixa nenhum pedaço do que foi preparado.
 
 **Roteiro manual:** preparar a cena 2 enquanto o grupo está na cena 1 e conferir que a troca é instantânea.
 
 **Pronto quando:** `pnpm verify` verde.
+
+---
+
+### Lote 4b — Revisão da interface (M)
+
+**Objetivo:** corrigir e organizar a interface antes dos lotes de exploração (decisão do Vilella,
+2026-11-05). O escopo exato é combinado com ele ao fim do Lote 4.
+
+**Ponto de partida** (ajustes já vistos, em `docs/ESTADO.md`): zoom inicial pequeno demais (tokens viram
+pontos, nomes ilegíveis); painel do token cobrindo o mapa; barra lateral larga e cortando texto em janela
+estreita; rótulo "arquivos prontos" contando errado; mais o que aparecer com as abas novas do Lote 4.
+
+**Pronto quando:** `pnpm verify` verde e o Vilella aprovar a interface.
 
 ---
 
