@@ -1056,6 +1056,95 @@ relatório do Playwright (`[erro na página]`).
 - 4.13.1 e Lote 6: o item "Iluminação dinâmica" mostra "Ligada/Desligada"; o painel de fontes tem acender/apagar por fonte e o espaço "Com tempo" do Lote 7.
 - 10 (em aberto): na visão noturna do mestre, a área vista só com visão no escuro aparece em cor normal.
 
-## Próximo: Lote 7 — Relógio da sala e objetos de luz
+## Lote 7 — Relógio da sala e objetos de luz (entregue, aguardando o roteiro manual)
 
-Ver `PROJETO.md`, seção 7. O Lote 7 parte do que o Lote 6 deixou: as fontes de luz (que ganham modelo, tempo e mochila), o espaço "Com tempo" do painel de fontes e a `ConfigDaMesa`.
+### O que foi entregue
+
+- **`shared`** (puro, testado): `relogio.ts` (`tempoDaSala`, `pausarRelogio`, `retomarRelogio`, `restanteDoObjeto`, `estagioDe`, `proximoMarcoDoObjeto`, `formatarRestante`), `objetos.ts` (`dentroDoAlcance`, `maoLivre`,
+  `objetoParaVisao`, `relogioParaVisao`, `modelosParaJogador`, `modelosPadrao`) e `tochas.ts` (as intenções de tocha, ponto e mochila). `luz.ts` agora trata os cinco portadores (`luzVisivelPara` recebe um contexto, `resolverLuzes` aceita pontos).
+  `nucleo.ts`: `processarSistema` (a intenção interna do tempo), `visaoPara`/`eventoPara` com o instante real e o filtro por `tempoParaJogadores`, exportação **v8** (importa v1 a v7).
+- **Modelo**: `ObjetoDeLuz` (a `FonteDeLuz` evoluída, mesma coleção `luzes`), `ModeloDeObjeto`, `PontoDeLuz`, `RelogioSala`, `ConfigDaMesa` completa, `Personagem.mochila`; `Estado.modelos/pontos/relogio/acendimentos`.
+- **Sala**: o agendador guarda um vencimento `luz.marco` por objeto (próximo estágio, fim ou fim de modificador); pausar cancela, retomar reagenda; o alarm chama `processarSistema`. Ao acordar, o que acabou sai. Banco: modelos por migração, luzes do Lote 6
+  lidas por `objetoDoBanco` (sem reescrever linhas), relógio em `meta`. Gancho `POST /teste/avancar-relogio?ms=N` (só `MODO=teste`).
+- **Interface**: relógio e botão de pausa no fim do menu do mestre, selo "Mesa pausada" para todos; alça da tocha junto ao token (uma por mão, tempo embaixo; arrastar para entregar, pôr no suporte ou segurar sobre o inflamável com o anel; dois cliques apagam/reacendem;
+  botão direito: guardar, pegar do suporte, apagar); ícones dos pontos e dos objetos neles; painel "Fontes de luz" com Fixas, Variáveis (tempo, −1 min/+1 min, lixeira, intensidade), Pontos (+ Suporte, + Inflamável) e detalhe (saldo, histórico, modificadores de raio);
+  mochila no editor do item; seções "Mesa" e "Objetos de luz" na aba Configurações (só mestre); luz que tremula mais no estágio "morrendo".
+
+### Como rodar
+
+- `pnpm verify`. Prints: `PRINTS_DIR=<pasta> pnpm --filter @tabletop/e2e prints lote-7` (o filtro evita o teste de fps do Lote 6).
+
+### Verificação
+
+- `pnpm verify` verde duas vezes seguidas (contagens no relatório final). Unidade nova: `tochas.test.ts` (relógio falso: tocha de 30 min apaga aos 30; pausa de 5 min empurra o fim; penalidade; ajuste do mestre e histórico; terceira tocha com 2 mãos; inflamável antes de `segurarS`;
+  entregar fora do alcance; tocha alheia; importar v7 como v8; sigilo oculto/estágio/exato em snapshot e eventos; o mestre nunca recebe `saldoMs`/`acesaDesdeSala`; nenhum cliente manda o vencimento; alcance Chebyshev).
+- E2E novo (`e2e/tests/tochas.spec.ts`, 10 testes): mochila x−1 novas e 1 usada e refresh sem mudar o tempo; dois cliques e botão direito; entregar com o saldo e a tocha alheia; fim do tempo, pausa e retomada; inflamável (anel); suporte e ponto oculto; frames sem saldo
+  (oculto, estágio, exato); vencimento não aceito do cliente; painel do mestre, configurações e modelos; criar ponto no mapa.
+- Expectativas antigas alteradas: versão da exportação 7 → 8 (unidade, `assets.spec.ts`, `interface.spec.ts`); `acesa: boolean` → `estado` nos testes e nos prints do Lote 6 e na semente; `visaoPara` do mestre já não é o mesmo objeto (o relógio e as luzes vão na forma do navegador);
+  lista de chaves da exportação ganhou `modelos`, `pontos`, `relogio`; "exportar → importar" agora volta com a mesa pausada; `{ versao: 8 }` deixou de ser um caso inválido (virou 9); `luzVisivelPara` mudou de assinatura.
+- Prints (1600×900) em `PRINTS_DIR`: 01 tocha na mão com tempo, 02 duas tochas, 03 anel ao segurar sobre o inflamável, 04 fogueira acesa, 05 tocha no suporte, 06 painel de fontes com variáveis, 07 detalhe com histórico e modificadores, 08 e 08b mochila (jogador e mestre),
+  09 e 09b configurações da mesa e modelos, 10 e 10b mesa pausada (mestre e jogador).
+
+### Gancho de teste
+
+`window.__tabletop` ganhou `alcas()` (id, estado, portador, rótulo de tempo, posição na página), `pontos()` e `anelDeAcender()` (0 a 1). Na sala, `POST /teste/avancar-relogio?ms=N` (404 fora do `MODO=teste`).
+
+### Decisões
+
+- **Dois formatos num schema só**: `ObjetoDeLuz` tem `saldoMs`/`acesaDesdeSala` (só na sala) e `restanteMs`/`contando`/`estagio`/`fatorDeRaio` (só no navegador); `objetoParaVisao` é o único caminho para a tela, no snapshot e em todo evento `fonte.*`.
+- **Marcos**: um vencimento por objeto no agendador, +5 ms de folga; `processarSistema` tem tolerância de 50 ms no fim; o estágio muda com um `fonte.editada` reenviado (o navegador recalcula nada).
+- **Mochila no relógio**: um objeto guardado fica `apagada` e conserva o saldo; objeto `consumida` sai da coleção com o histórico (assumido).
+- **Pausa e config que muda o que o jogador vê mandam snapshot a todos** (`mesa.pausar/retomar`, `tempoParaJogadores`, estágios, visibilidade de ponto).
+- **O relógio do jogador não leva o tempo da sala** (`acumuladoMs: 0`), e os modelos dele vêm sem a duração fora do modo `exato`.
+- **Exportar** guarda saldo e histórico (dado da campanha) e restaura a mesa **pausada**; `acendimentos` nunca entram.
+- (assumido) entregar exige o alcance também para o mestre; apagar ou reacender objeto de ponto exige alcance para o jogador (`luz.apagar` apaga, `ponto.usar` reacende); tirar do suporte: qualquer jogador com token ao alcance e mão livre.
+- (assumido) a tocha apagada continua ocupando a mão; apagar com a penalidade maior que o que sobra consome a tocha.
+- (assumido) ponto com objeto e posição mudada manda snapshot novo; modelo em uso não se apaga; `modelo.editar` não altera objetos já criados (cada objeto copia a luz e a duração).
+- Decimais do histórico em pt-BR ("Raio ×0,5").
+
+### Desvios do plano
+
+- `FonteDeLuz.acesa` virou `estado` também nas intenções `fonte.criar/editar` (mudança de protocolo, documentada).
+- O modelo de objeto fica em `Estado.modelos` (coleção própria, intenções `modelo.*`), não dentro de `ConfigDaMesa`.
+- `tocha.alternar` tem capacidade `null` (conferida dentro: depende do portador); `ponto.pegar` é intenção própria.
+- Clique direito do suporte usa o menu "Pegar do suporte" (não há arrastar a tocha do suporte).
+- Nenhuma dependência nova.
+
+### Frágil / não verificado
+
+- Arrastar a alça no canvas foi testado com mouse sintético no Chrome; toque (celular) não.
+- A contagem do inflamável usa o relógio do navegador (3 s + 60 ms) e a sala confere com 300 ms de tolerância; rede muito lenta pode recusar (`segurar_incompleto`) e o jogador tenta de novo.
+- O anel e as alças sobrepõem-se quando um objeto no ponto fica perto da mão do token (cuidado ao posicionar pontos a menos de 1 quadrado da alça).
+- Com a sala fora do ar por muito tempo, o relógio dela continua (é o tempo real): ao voltar, tochas podem ter acabado.
+- O mestre "vendo como" um jogador recebe o tempo que o mestre recebe (a visão filtrada é só de tela).
+- Não testado com um banco real do Lote 6 (a leitura por `objetoDoBanco` é coberta por teste de unidade; o banco do Vilella não foi aberto).
+- A ordem das intenções `ponto.acenderInicio` no E2E não devolve evento (é transitória): quem testa precisa só enviar.
+
+### Roteiro manual (pendente)
+
+1. Tocha de 2 minutos (editar o modelo na aba Configurações): acender pela mochila, refresh, pausar, retomar; conferir o tempo na alça.
+2. Entregar a tocha a outro perfil arrastando a alça; tentar com um terceiro perfil (não deve conseguir).
+3. Pôr a tocha num suporte e pegar de volta pelo botão direito.
+4. Acender uma fogueira segurando 3 s sobre o inflamável (anel); soltar antes não acende.
+5. Apagar com dois cliques (com penalidade configurada) e devolver 1 min pelo painel do mestre; conferir o histórico.
+6. Trocar "O que os jogadores veem do tempo" para estágio e oculto e olhar o F12 do jogador.
+
+### Revisão (antes do commit de fechamento)
+
+- Sigilo do tempo revisado: `objetoParaVisao` é o único caminho para o navegador (snapshot e eventos `fonte.*`); `saldoMs`/`acesaDesdeSala` nunca saem; o jogador recebe
+  `restanteMs` só no modo exato e `estagio` só no modo estágio; ponto oculto vira luz fixa para o jogador; o vencimento (`processarSistema`) não está no `IntencaoSchema`.
+- Pendência pequena (corrigir no Lote 9): a tocha na mão só chega ao jogador se o token do personagem estiver na cena ativa; quem edita o personagem deveria vê-la na mochila mesmo assim.
+- Prints conferidos (01 a 10b). `pnpm verify`: rodada 1 verde; rodada 2 com uma falha de demora no primeiro teste da rodada (`assets.spec.ts:67`, a página de um jogador não abriu
+  em 150 s, rodada inteira em 9,1 min); repetidas as duas rodadas: verdes (319 + 12 + 6 de unidade, 79 E2E, ~6 min cada). Portas 8788/5174 livres no fim.
+- Sugestões aplicadas no PROJETO.md (4.1 e "Como ficou" do Lote 7). As perguntas do agente entraram nas perguntas do fim.
+
+### Sugestões para o PROJETO.md (aplicadas)
+
+- 4.1: `Estado.modelos` e `Estado.pontos` como coleções, `PontoDeLuz` (o nome `Ponto` é a coordenada), `RelogioSala`, o objeto em dois formatos (sala × navegador) e `ConfigDaMesa.estagios`.
+- 4.8: a exportação restaura com a mesa pausada; apagar/reacender objeto de ponto exige alcance para jogador; o relógio do jogador não leva o tempo da sala.
+- Lote 7: a intenção do vencimento é `processarSistema` (fora de `IntencaoSchema`); gancho `/teste/avancar-relogio`.
+- Perguntas ao Vilella: alcance para o mestre entregar; tocha apagada na mão; modelo editado atualiza objetos existentes?
+
+## Próximo: Lote 8 — Dados e chat
+
+Ver `PROJETO.md`, seção 7.

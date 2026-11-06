@@ -116,27 +116,179 @@ export const LuzSchema = z.object({
 });
 export type Luz = z.infer<typeof LuzSchema>;
 
-/** De onde a luz sai: de um ponto da cena (fixa) ou de um token (criatura que brilha). */
+/** Estágios de um objeto de luz com tempo (a tocha "morrendo" tremula mais). */
+export const ESTAGIOS = ["forte", "fraca", "morrendo"] as const;
+export const EstagioSchema = z.enum(ESTAGIOS);
+export type Estagio = z.infer<typeof EstagioSchema>;
+
+const IdCurto = z.string().min(1).max(64);
+
+/**
+ * De onde a luz sai. `cena`: fixa no mapa. `token`: a criatura que brilha (o "próprio" da 4.1).
+ * `mao`: a mão de um personagem (a luz sai do token dele na cena ativa). `mochila`: guardada (não
+ * ilumina). `ponto`: num suporte ou inflamável do mapa.
+ */
 export const PortadorDeLuzSchema = z.discriminatedUnion("tipo", [
   z.object({ tipo: z.literal("cena"), x: z.number(), y: z.number() }),
-  z.object({ tipo: z.literal("token"), tokenId: z.string().min(1).max(64) }),
+  z.object({ tipo: z.literal("token"), tokenId: IdCurto }),
+  z.object({ tipo: z.literal("mao"), personagemId: IdCurto, mao: z.number().int().min(0).max(9) }),
+  z.object({ tipo: z.literal("mochila"), personagemId: IdCurto }),
+  z.object({ tipo: z.literal("ponto"), pontoId: IdCurto }),
 ]);
 export type PortadorDeLuz = z.infer<typeof PortadorDeLuzSchema>;
 
+/** Só os portadores que o mestre escolhe direto numa fonte fixa (o resto nasce do jogo). */
+export const PortadorFixoSchema = z.discriminatedUnion("tipo", [
+  z.object({ tipo: z.literal("cena"), x: z.number(), y: z.number() }),
+  z.object({ tipo: z.literal("token"), tokenId: IdCurto }),
+]);
+export type PortadorFixo = z.infer<typeof PortadorFixoSchema>;
+
+/** Efeito do mestre sobre a luz: multiplica luz plena e penumbra, com ou sem prazo no relógio da sala. */
+export const ModificadorSchema = z.object({
+  id: IdCurto,
+  raioX: z.number().min(0.1).max(5),
+  /** Fim, em milissegundos do relógio da sala; sem fim vale até o mestre tirar. */
+  ateSala: z.number().nonnegative().optional(),
+  origem: z.enum(["mestre", "automacao"]),
+  nota: z.string().max(200).optional(),
+});
+export type Modificador = z.infer<typeof ModificadorSchema>;
+
+export const ItemDeHistoricoSchema = z.object({
+  /** Instante no relógio da sala (ms). */
+  emSala: z.number().nonnegative(),
+  deltaMs: z.number().optional(),
+  texto: z.string().max(200),
+});
+export type ItemDeHistorico = z.infer<typeof ItemDeHistoricoSchema>;
+
+export const MAXIMO_DE_HISTORICO = 40;
+
 /**
- * Fonte de luz (prévia do `ObjetoDeLuz` da 4.1; o Lote 7 acrescenta modelo, tempo e mochila).
- * `intensidade` multiplica os dois raios (0 a 1).
+ * Objeto de luz (4.8): a tocha, a fogueira, a luz fixa do mapa, a criatura que brilha. É a evolução
+ * da fonte de luz do Lote 6 (mesma coleção `luzes`). `intensidade` multiplica os dois raios (0 a 1).
+ *
+ * Dois formatos de uma coisa só. **Na sala** o objeto traz `saldoMs` (tempo que sobra; `null` = não
+ * se consome) e `acesaDesdeSala` (instante no relógio da sala em que a contagem começou). **No
+ * navegador** esses dois campos NUNCA aparecem (nem para o mestre): a sala manda `restanteMs`
+ * (calculado na hora do envio), `contando` (acesa, com tempo e a mesa rodando) e `estagio`, filtrados
+ * por `ConfigDaMesa.tempoParaJogadores` para quem não é mestre.
  */
-export const FonteDeLuzSchema = z.object({
-  id: z.string().min(1).max(64),
-  cenaId: z.string().min(1).max(64),
+export const ObjetoDeLuzSchema = z.object({
+  id: IdCurto,
+  /** Cena de uma luz `cena` ou `token`; nos demais portadores a cena vem de quem carrega. */
+  cenaId: IdCurto.optional(),
   nome: z.string().min(1).max(64),
+  modeloId: IdCurto.optional(),
   portador: PortadorDeLuzSchema,
+  luz: LuzSchema,
+  intensidade: z.number().min(0).max(1),
+  estado: z.enum(["acesa", "apagada"]),
+  // --- só na sala ---
+  saldoMs: z.number().nonnegative().nullable().optional(),
+  acesaDesdeSala: z.number().nonnegative().optional(),
+  /** Duração total do modelo, para o cálculo dos estágios. Na sala e para o mestre. */
+  duracaoMs: z.number().positive().nullable().optional(),
+  modificadores: z.array(ModificadorSchema).max(20).default([]),
+  historico: z.array(ItemDeHistoricoSchema).max(MAXIMO_DE_HISTORICO).default([]),
+  // --- só no navegador (calculados no envio) ---
+  restanteMs: z.number().nonnegative().optional(),
+  contando: z.boolean().optional(),
+  estagio: EstagioSchema.optional(),
+  /** Produto dos modificadores de raio que valem agora (o jogador não recebe a lista). */
+  fatorDeRaio: z.number().positive().optional(),
+});
+export type ObjetoDeLuz = z.infer<typeof ObjetoDeLuzSchema>;
+/** Nome do Lote 6, mantido porque muita coisa (mapa, painel) o usa. */
+export const FonteDeLuzSchema = ObjetoDeLuzSchema;
+export type FonteDeLuz = ObjetoDeLuz;
+
+/**
+ * Fonte de luz como era até o Lote 6 (exportação v7 e banco antigo): `acesa` em vez de `estado`, sem
+ * tempo, modelo, modificadores nem histórico.
+ */
+export const FonteDeLuzAntigaSchema = z.object({
+  id: IdCurto,
+  cenaId: IdCurto,
+  nome: z.string().min(1).max(64),
+  portador: PortadorFixoSchema,
   luz: LuzSchema,
   intensidade: z.number().min(0).max(1),
   acesa: z.boolean(),
 });
-export type FonteDeLuz = z.infer<typeof FonteDeLuzSchema>;
+
+/** Converte a fonte do Lote 6: acesa vira `estado`, sem consumo, sem modificadores e histórico. */
+export function migrarFonteAntiga(f: z.infer<typeof FonteDeLuzAntigaSchema>): ObjetoDeLuz {
+  const { acesa, ...resto } = f;
+  return {
+    ...resto,
+    estado: acesa ? "acesa" : "apagada",
+    saldoMs: null,
+    modificadores: [],
+    historico: [],
+  };
+}
+
+/** Linha vinda do banco (ou de arquivo): já no formato novo, ou ainda com `acesa`. */
+export function objetoDoBanco(bruto: unknown): ObjetoDeLuz {
+  if (typeof bruto === "object" && bruto !== null && "acesa" in bruto && !("estado" in bruto)) {
+    return migrarFonteAntiga(FonteDeLuzAntigaSchema.parse(bruto));
+  }
+  return ObjetoDeLuzSchema.parse(bruto);
+}
+
+/** Modelo de objeto criado pelo mestre na campanha ("Tocha 5e", "Lanterna", "Fogueira"). */
+export const ModeloDeObjetoSchema = z.object({
+  id: IdCurto,
+  nome: z.string().min(1).max(64),
+  luz: LuzSchema,
+  /** `null` = não se consome. */
+  duracaoS: z
+    .number()
+    .positive()
+    .max(100 * 3600)
+    .nullable(),
+  ocupaMao: z.boolean(),
+  /** Ex.: "chama": usadas pelas automações (Lote 7b). */
+  tags: z.array(z.string().min(1).max(32)).max(12),
+});
+export type ModeloDeObjeto = z.infer<typeof ModeloDeObjetoSchema>;
+
+/**
+ * Ponto do mapa (a "Ponto" da 4.1; o nome `Ponto` já é a coordenada). `suporte`: onde se solta a
+ * tocha. `inflamavel`: segurar a tocha acesa em cima acende o `modeloId` ali.
+ */
+export const PontoDeLuzSchema = z.object({
+  id: IdCurto,
+  cenaId: IdCurto,
+  nome: z.string().min(1).max(64),
+  x: z.number(),
+  y: z.number(),
+  tipo: z.enum(["suporte", "inflamavel"]),
+  /** Suporte: quantos objetos cabem (padrão 1). */
+  capacidade: z.number().int().min(1).max(20).optional(),
+  /** Inflamável: o que ele vira ao queimar. */
+  modeloId: IdCurto.optional(),
+  /** Inflamável: segundos segurando a tocha acesa em cima (padrão 3). */
+  segurarS: z.number().min(0).max(60).optional(),
+  visivelParaJogadores: z.boolean(),
+});
+export type PontoDeLuz = z.infer<typeof PontoDeLuzSchema>;
+
+export const SEGURAR_PADRAO_S = 3;
+
+/**
+ * Relógio da sala (4.8, princípio 6). Pausada: o tempo da sala fica em `acumuladoMs`. Rodando: é
+ * `acumuladoMs + (agora − desdeReal)`, pelo relógio da própria sala. No navegador `acumuladoMs` já
+ * vem com o tempo da sala na hora do envio e o jogador recebe 0 (só `pausada` importa para ele).
+ */
+export const RelogioSalaSchema = z.object({
+  pausada: z.boolean(),
+  acumuladoMs: z.number().nonnegative(),
+  desdeReal: z.number().nonnegative().optional(),
+});
+export type RelogioSala = z.infer<typeof RelogioSalaSchema>;
 
 /** Parâmetros da iluminação e da memória do mapa (`ConfigDaMesa.iluminacao`). */
 export const ConfigIluminacaoSchema = z.object({
@@ -151,8 +303,30 @@ export const ConfigIluminacaoSchema = z.object({
 });
 export type ConfigIluminacao = z.infer<typeof ConfigIluminacaoSchema>;
 
-/** Configuração da mesa, por campanha; só o mestre altera. O Lote 7 acrescenta o resto (4.1). */
-export const ConfigDaMesaSchema = z.object({ iluminacao: ConfigIluminacaoSchema });
+export const TEMPOS_PARA_JOGADORES = ["exato", "estagio", "oculto"] as const;
+export const TempoParaJogadoresSchema = z.enum(TEMPOS_PARA_JOGADORES);
+export type TempoParaJogadores = z.infer<typeof TempoParaJogadoresSchema>;
+
+/** Limiares dos estágios: fração da duração do modelo abaixo da qual a luz está fraca / morrendo. */
+export const ConfigEstagiosSchema = z.object({
+  fraca: z.number().min(0).max(1),
+  morrendo: z.number().min(0).max(1),
+});
+export type ConfigEstagios = z.infer<typeof ConfigEstagiosSchema>;
+
+/** Configuração da mesa, por campanha; só o mestre altera (4.1). */
+export const ConfigDaMesaSchema = z.object({
+  /** No máximo este tanto de objetos na mão de cada personagem. */
+  maosPorPersonagem: z.number().int().min(1).max(6),
+  /** Segundos descontados do saldo ao apagar uma luz com tempo. */
+  penalidadeAoApagarS: z.number().min(0).max(3600),
+  /** Entregar tocha, usar ponto: alcance em metros (distância de quadrados do 5e). */
+  alcanceInteracaoM: z.number().min(0).max(30),
+  /** O que o jogador vê do tempo; o mestre sempre vê o exato. */
+  tempoParaJogadores: TempoParaJogadoresSchema,
+  estagios: ConfigEstagiosSchema,
+  iluminacao: ConfigIluminacaoSchema,
+});
 export type ConfigDaMesa = z.infer<typeof ConfigDaMesaSchema>;
 
 export const CONFIG_ILUMINACAO_PADRAO: ConfigIluminacao = {
@@ -164,19 +338,35 @@ export const CONFIG_ILUMINACAO_PADRAO: ConfigIluminacao = {
   tomDaMemoria: "#6a7791",
 };
 
-export const CONFIG_PADRAO: ConfigDaMesa = { iluminacao: CONFIG_ILUMINACAO_PADRAO };
+export const CONFIG_PADRAO: ConfigDaMesa = {
+  maosPorPersonagem: 2,
+  penalidadeAoApagarS: 0,
+  alcanceInteracaoM: 1.5,
+  tempoParaJogadores: "exato",
+  estagios: { fraca: 0.5, morrendo: 0.1 },
+  iluminacao: CONFIG_ILUMINACAO_PADRAO,
+};
+
+const semIndefinido = (o: object) =>
+  Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined));
 
 /** Configuração gravada no banco (ou vinda de arquivo) com o que faltar preenchido pelo padrão. */
 export function configComPadrao(bruta: unknown): ConfigDaMesa {
-  const iluminacao =
-    typeof bruta === "object" && bruta !== null && "iluminacao" in bruta
-      ? (bruta as { iluminacao: unknown }).iluminacao
-      : undefined;
-  const r = ConfigIluminacaoSchema.partial().safeParse(iluminacao ?? {});
-  const dados = r.success
-    ? Object.fromEntries(Object.entries(r.data).filter(([, v]) => v !== undefined))
-    : {};
-  return { iluminacao: { ...CONFIG_ILUMINACAO_PADRAO, ...dados } };
+  const obj = typeof bruta === "object" && bruta !== null ? (bruta as Record<string, unknown>) : {};
+  const ilum = ConfigIluminacaoSchema.partial().safeParse(obj.iluminacao ?? {});
+  const est = ConfigEstagiosSchema.partial().safeParse(obj.estagios ?? {});
+  const geral = ConfigDaMesaSchema.omit({ iluminacao: true, estagios: true })
+    .partial()
+    .safeParse(obj);
+  return {
+    ...CONFIG_PADRAO,
+    ...(geral.success ? semIndefinido(geral.data) : {}),
+    estagios: { ...CONFIG_PADRAO.estagios, ...(est.success ? semIndefinido(est.data) : {}) },
+    iluminacao: {
+      ...CONFIG_ILUMINACAO_PADRAO,
+      ...(ilum.success ? semIndefinido(ilum.data) : {}),
+    },
+  };
 }
 
 export const TIPOS_DE_PAREDE = ["parede", "porta", "janela", "secreta", "invisivel"] as const;
@@ -248,6 +438,11 @@ export const PersonagemSchema = z.object({
    * Até a ficha completa (Lote 9) é um campo do editor do item.
    */
   modInteligencia: z.number().int().min(-5).max(10).optional(),
+  /**
+   * Mochila mínima (Lote 7): quantas unidades NOVAS de cada modelo de objeto ele carrega. As usadas
+   * são objetos de luz com portador `mochila` (ou `mao`). A ficha do Lote 9 absorve.
+   */
+  mochila: z.record(IdCurto, z.number().int().min(0).max(99)).optional(),
   /** Ficha mínima até o Lote 9. */
   ficha: z.object({
     pvAtual: z.number().int().min(0).max(9999),
@@ -279,8 +474,22 @@ export const EstadoSchema = z.object({
    * Fontes de luz (Lote 6). Na visão de um jogador: só as da cena ativa, sem a de token que ele não vê
    * (oculto ou da camada do mestre).
    */
-  luzes: z.array(FonteDeLuzSchema),
-  /** Configuração da mesa (por ora só a iluminação). Todos recebem. */
+  luzes: z.array(ObjetoDeLuzSchema),
+  /** Modelos de objeto de luz. Na visão de um jogador sem a duração, salvo no modo `exato`. */
+  modelos: z.array(ModeloDeObjetoSchema),
+  /**
+   * Pontos de luz (suportes e inflamáveis). Na visão de um jogador: só os da cena ativa marcados como
+   * visíveis.
+   */
+  pontos: z.array(PontoDeLuzSchema),
+  /** Relógio da sala (ver `RelogioSalaSchema`). */
+  relogio: RelogioSalaSchema,
+  /**
+   * Quem começou a segurar a tocha sobre um inflamável: chave `pontoId|usuarioId` → tempo da sala
+   * (ms). Transitório: nunca vai para o banco, a exportação nem os navegadores.
+   */
+  acendimentos: z.record(z.string(), z.number()).optional(),
+  /** Configuração da mesa. Todos recebem. */
   config: ConfigDaMesaSchema,
   /**
    * Quando o mestre mandou esquecer a memória de cada cena (o `seq` do evento). O navegador compara

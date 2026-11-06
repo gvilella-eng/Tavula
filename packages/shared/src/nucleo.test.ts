@@ -199,7 +199,10 @@ describe("filtro por papel", () => {
   });
 
   it("o mestre recebe tudo", () => {
-    expect(visaoPara(base, { id: "m", papel: "mestre" })).toEqual(base);
+    // O relógio vai na forma do navegador (sem `desdeReal`); o resto é igual.
+    const { relogio: _a, ...vista } = visaoPara(base, { id: "m", papel: "mestre" });
+    const { relogio: _b, ...tudo } = base;
+    expect(vista).toEqual(tudo);
   });
 
   it("eventoPara omite o que o jogador não vê", () => {
@@ -275,7 +278,11 @@ describe("exportar e importar", () => {
       "m",
       intencao("campanha.importar", { dados: JSON.parse(texto) }),
     );
-    expect(r.estado).toEqual(e);
+    // A campanha restaurada volta com a mesa pausada, no tempo em que foi exportada.
+    const { relogio: relogioImportado, ...importado } = r.estado;
+    const { relogio: _original, ...original } = e;
+    expect(importado).toEqual(original);
+    expect(relogioImportado.pausada).toBe(true);
     expect(r.snapshotPara).toBe("todos");
   });
 
@@ -288,6 +295,7 @@ describe("exportar e importar", () => {
         "cenas",
         "config",
         "luzes",
+        "modelos",
         "notaMesa",
         "notaMestre",
         "ordemDeTurnoVisivel",
@@ -295,6 +303,8 @@ describe("exportar e importar", () => {
         "pastas",
         "permissoes",
         "personagens",
+        "pontos",
+        "relogio",
         "seq",
         "tokens",
         "usuarios",
@@ -311,7 +321,7 @@ describe("exportar e importar", () => {
       "texto",
       {},
       { ...boa, formato: "outro" },
-      { ...boa, versao: 8 },
+      { ...boa, versao: 9 },
       { ...boa, dados: { ...boa.dados, usuarios: [] } },
       {
         ...boa,

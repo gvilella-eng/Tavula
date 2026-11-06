@@ -28,6 +28,7 @@ import { EditorDoItem } from "./EditorDoItem";
 import type { PedirImagem } from "./FaixaDeCenas";
 import type { ImagensDoMapa } from "./mapa/mapaPixi";
 import { Popover } from "./Popover";
+import type { TempoDaTela } from "./tempo";
 import type { Ocorrencia } from "./useSala";
 
 type Enviar = (tipo: string, dados: object) => string | null;
@@ -43,6 +44,8 @@ type Props = {
   pedirImagem: PedirImagem;
   /** A cena que o mestre está vendo (onde "Colocar na cena" põe o token). */
   cenaVista: { id: string; nome: string };
+  /** O tempo restante das luzes (a mochila mostra o das tochas usadas). */
+  tempo: TempoDaTela;
 };
 
 const ITENS_EM_BREVE = ["Artefato", "Tesouro", "Handout"];
@@ -384,6 +387,7 @@ export function AbaFichas({
   versaoDasImagens,
   pedirImagem,
   cenaVista,
+  tempo,
 }: Props) {
   const euMestre = eu.papel === "mestre";
   const jogadores = estado.usuarios.filter((u) => u.papel === "jogador");
@@ -575,6 +579,7 @@ export function AbaFichas({
           versaoDasImagens={versaoDasImagens}
           pedirImagem={pedirImagem}
           cenaVista={cenaVista}
+          tempo={tempo}
           aoFechar={() => setItemAberto(null)}
         />
       )}

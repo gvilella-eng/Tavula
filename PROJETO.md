@@ -161,13 +161,15 @@ interface ConfigDaMesa {            // por campanha; só o mestre altera
   penalidadeAoApagarS: number;      // padrão 0 (a campanha de referência usa 60)
   alcanceInteracaoM: number;        // entregar tocha, usar ponto (padrão 1,5)
   tempoParaJogadores: 'exato' | 'estagio' | 'oculto';   // o mestre sempre vê o exato
+  estagios: { fraca: number /* 0.5 */; morrendo: number /* 0.1 */ };  // lote 7: fração da duração
   iluminacao: {                     // lote 6: "Configurações de iluminação"
     memoriaLigada: boolean; memoriaModo: 'inteligencia' | 'fixo';
     memoriaBaseM: number /* 15 */; memoriaPorModM: number /* 3 */; memoriaFixaM: number;
     tomDaMemoria: string;
   };
 }
-// lote 6: só `iluminacao` existe; o Lote 7 acrescenta o resto
+// lote 6 criou `iluminacao`; o lote 7 completou o resto. Modelos e pontos são coleções do estado
+// (`Estado.modelos`, `Estado.pontos`), e o relógio é `Estado.relogio` ({ pausada, acumuladoMs, desdeReal? })
 
 interface Pasta {                   // lote 4b: pastas da aba Fichas, sem subpastas
   id: string; nome: string; ordem: number;
@@ -251,6 +253,9 @@ type Portador =
   | { tipo: 'cena'; cenaId: string; x: number; y: number };  // luz fixa do mapa
 
 interface ObjetoDeLuz {             // uma tocha específica; as novas são só quantidade na mochila
+  // lote 7: é a FonteDeLuz do lote 6 crescida, na mesma coleção `luzes`; estado só 'acesa' | 'apagada'
+  // (consumida sai da coleção). saldoMs e acesaDesde ficam só na sala: o navegador recebe restanteMs,
+  // contando e estagio, filtrados pelo papel e por tempoParaJogadores
   id: string; modeloId: string;
   portador: Portador;
   estado: 'acesa' | 'apagada' | 'consumida';
@@ -262,7 +267,7 @@ interface ObjetoDeLuz {             // uma tocha específica; as novas são só 
   // "−1 min: apagada", "+1 min (mestre): apagou sem querer"
 }
 
-interface Ponto {                   // lugar do mapa onde se põe ou se acende uma luz
+interface Ponto {                   // lugar do mapa onde se põe ou se acende uma luz (no código: PontoDeLuz)
   id: string; cenaId: string; x: number; y: number;
   tipo: 'suporte' | 'inflamavel';
   capacidade?: number;              // suporte: quantos objetos cabem
@@ -1251,6 +1256,24 @@ assumido sem o Vilella está marcado com "(assumido)" e entra nas perguntas do f
   `objeto.ajustar` (só do mestre).
 - **Sigilo de sempre:** a mochila e os objetos dela chegam a quem vê o personagem; a tocha na mão, a
   quem vê o token dele na cena ativa (o filtro do Lote 6).
+
+**Como ficou (2026-11-06):**
+- modelos e pontos são coleções do estado (`Estado.modelos`, `Estado.pontos`; o tipo é `PontoDeLuz`,
+  porque `Ponto` já é a coordenada), não ficam dentro da `ConfigDaMesa`; `RelogioSala` em
+  `packages/shared/src/relogio.ts`;
+- o objeto tem dois formatos: o da sala (com `saldoMs` e `acesaDesdeSala`) e o do navegador
+  (`objetoParaVisao`, o único caminho de saída, com `restanteMs`, `contando` e `estagio` conforme o papel
+  e o `tempoParaJogadores`). O relógio do jogador não leva o tempo da sala; os modelos dele vêm sem a
+  duração fora do modo `exato`;
+- o vencimento é `processarSistema`, fora do `IntencaoSchema` (nenhum cliente consegue mandá-lo); o
+  agendador guarda um marco `luz.marco` por objeto aceso;
+- a exportação v8 restaura a campanha com a mesa pausada;
+- gancho de teste `POST /teste/avancar-relogio?ms=N`, só com `MODO=teste`;
+- assumido pelo agente: o mestre também precisa do alcance para entregar; apagar ou reacender objeto de
+  ponto exige alcance para o jogador; apagar com penalidade maior que o saldo consome a tocha; modelo em
+  uso não pode ser apagado e editar um modelo não muda os objetos já criados;
+- pendência pequena: a tocha na mão só chega ao jogador se o token do personagem estiver na cena ativa;
+  quem edita o personagem deveria vê-la na mochila mesmo assim (corrigir no Lote 9, junto da ficha).
 
 ---
 

@@ -10,33 +10,41 @@ import {
   CenaSchema,
   CONFIG_PADRAO,
   ConfigDaMesaSchema,
+  ConfigEstagiosSchema,
   ConfigIluminacaoSchema,
+  configComPadrao,
   EditoresSchema,
   EstadoDePortaSchema,
   EstadoSchema,
-  FonteDeLuzSchema,
+  FonteDeLuzAntigaSchema,
   GridSchema,
   LuzSchema,
   MapaDaCenaSchema,
+  ModeloDeObjetoSchema,
+  migrarFonteAntiga,
+  ObjetoDeLuzSchema,
   PapelSchema,
   ParedeSchema,
   PastaSchema,
   PermissoesSchema,
   PersonagemSchema,
+  PontoDeLuzSchema,
   PontoSchema,
-  PortadorDeLuzSchema,
+  PortadorFixoSchema,
   PresencaSchema,
+  RelogioSalaSchema,
   TAMANHO_MAXIMO_NOTA,
   TipoDeParedeSchema,
   TokenSchema,
   VisibilidadeSchema,
 } from "./estado.ts";
 import { CENA_PADRAO } from "./mapa.ts";
+import { modelosPadrao } from "./objetos.ts";
 import { migrarPersonagem, PersonagemAntigoSchema, pastasPadrao } from "./pastas.ts";
 
 export const VERSAO_PROTOCOLO = 1;
-/** Versão do arquivo de exportação (de v1 a v6 ainda são aceitas na importação). */
-export const VERSAO_EXPORTACAO = 7 as const;
+/** Versão do arquivo de exportação (de v1 a v7 ainda são aceitas na importação). */
+export const VERSAO_EXPORTACAO = 8 as const;
 
 const CapacidadeSchema = z.enum(TODAS_AS_CAPACIDADES as [Capacidade, ...Capacidade[]]);
 const Texto = z.string().max(TAMANHO_MAXIMO_NOTA);
@@ -64,6 +72,10 @@ const DadosV2Schema = EstadoSchema.omit({
   luzes: true,
   config: true,
   memoriaEsquecida: true,
+  modelos: true,
+  pontos: true,
+  relogio: true,
+  acendimentos: true,
 }).extend({
   notaMestre: Texto,
   permissoes: PermissoesExportadasSchema,
@@ -108,10 +120,24 @@ const DadosV6Schema = DadosV5Schema.extend({
  * dia, sem visão no escuro, modificador 0). `memoriaEsquecida` nunca entra (é dado da sessão).
  */
 const DadosV7Schema = DadosV6Schema.extend({
-  luzes: z.array(FonteDeLuzSchema).max(2000),
-  config: ConfigDaMesaSchema,
+  luzes: z.array(FonteDeLuzAntigaSchema).max(2000),
+  config: z.object({ iluminacao: ConfigIluminacaoSchema }),
 });
-export type DadosExportados = z.infer<typeof DadosV7Schema>;
+
+/**
+ * v8 (Lote 7): as fontes de luz viram objetos de luz (estado, saldo de tempo, modificadores,
+ * histórico, portadores mão, mochila e ponto), a configuração da mesa fica completa e entram os
+ * modelos de objeto, os pontos de luz e o relógio da sala. As mochilas dos personagens são um campo
+ * opcional do personagem (ausente nos arquivos antigos: mochila vazia).
+ */
+const DadosV8Schema = DadosV6Schema.extend({
+  luzes: z.array(ObjetoDeLuzSchema).max(2000),
+  config: ConfigDaMesaSchema,
+  modelos: z.array(ModeloDeObjetoSchema).max(200),
+  pontos: z.array(PontoDeLuzSchema).max(2000),
+  relogio: RelogioSalaSchema,
+});
+export type DadosExportados = z.infer<typeof DadosV8Schema>;
 
 /** v1 (Lote 1): sem cenas nem tokens. Vira a cena padrão e nenhum token. */
 const DadosV1Schema = DadosV2Schema.omit({
@@ -123,9 +149,10 @@ const DadosV1Schema = DadosV2Schema.omit({
 const cabecalho = { formato: z.literal("tabletop-campanha"), exportadoEm: z.string() };
 
 /**
- * Aceita de v1 a v7; o resultado é sempre no formato v7. Nas antigas faltam assets, personagens,
- * pastas, paredes, luzes e configuração: entram vazios ou com o padrão (v4: o dono vira "quem edita"
- * numa pasta só do mestre; paredes só existem a partir da v6 e luzes e configuração, da v7).
+ * Aceita de v1 a v8; o resultado é sempre no formato v8. Nas antigas faltam assets, personagens,
+ * pastas, paredes, luzes, configuração, modelos e pontos: entram vazios ou com o padrão (v4: o dono
+ * vira "quem edita" numa pasta só do mestre; paredes só existem a partir da v6, luzes e configuração
+ * da v7; modelos, pontos e relógio da v8). As luzes da v7 (`acesa`) viram objetos (`estado`).
  */
 export const ExportacaoSchema = z
   .discriminatedUnion("versao", [
@@ -136,20 +163,33 @@ export const ExportacaoSchema = z
     z.object({ ...cabecalho, versao: z.literal(5), dados: DadosV5Schema }),
     z.object({ ...cabecalho, versao: z.literal(6), dados: DadosV6Schema }),
     z.object({ ...cabecalho, versao: z.literal(7), dados: DadosV7Schema }),
+    z.object({ ...cabecalho, versao: z.literal(8), dados: DadosV8Schema }),
   ])
   .transform((e) => {
     const d = e.dados;
+    const luzes =
+      e.versao === 8 ? e.dados.luzes : e.versao === 7 ? e.dados.luzes.map(migrarFonteAntiga) : [];
+    const config =
+      e.versao === 8
+        ? e.dados.config
+        : e.versao === 7
+          ? configComPadrao(e.dados.config)
+          : CONFIG_PADRAO;
     const base = {
       ...d,
       assets: "assets" in d ? d.assets : [],
       pastas: "pastas" in d ? d.pastas : pastasPadrao(),
       ordemDeTurnoVisivel: "ordemDeTurnoVisivel" in d ? d.ordemDeTurnoVisivel : false,
       paredes: "paredes" in d ? d.paredes : [],
-      luzes: "luzes" in d ? d.luzes : [],
-      config: "config" in d ? d.config : CONFIG_PADRAO,
+      luzes,
+      config,
+      modelos: e.versao === 8 ? e.dados.modelos : modelosPadrao(),
+      pontos: e.versao === 8 ? e.dados.pontos : [],
+      // Sem relógio (arquivo antigo) a mesa começa rodando; a sala preenche `desdeReal` ao importar.
+      relogio: e.versao === 8 ? e.dados.relogio : { pausada: false, acumuladoMs: 0 },
     };
     const personagens =
-      e.versao === 5 || e.versao === 6 || e.versao === 7
+      e.versao === 5 || e.versao === 6 || e.versao === 7 || e.versao === 8
         ? e.dados.personagens
         : e.versao === 4
           ? e.dados.personagens.map(migrarPersonagem)
@@ -183,16 +223,73 @@ const MudancasDoTokenSchema = TokenSchema.pick({
   })
   .partial();
 const PosicaoDoTokenSchema = z.object({ id: IdSchema, x: z.number(), y: z.number() });
-const FonteNovaSchema = FonteDeLuzSchema.omit({ cenaId: true });
+/** Fonte fixa do mapa (ou criatura que brilha): sem tempo, modelo nem mochila. */
+const FonteNovaSchema = z.object({
+  id: ObjetoDeLuzSchema.shape.id,
+  nome: ObjetoDeLuzSchema.shape.nome,
+  portador: PortadorFixoSchema,
+  luz: LuzSchema,
+  intensidade: ObjetoDeLuzSchema.shape.intensidade,
+  estado: ObjetoDeLuzSchema.shape.estado,
+});
 const MudancasDaFonteSchema = z
   .object({
-    nome: FonteDeLuzSchema.shape.nome,
-    portador: PortadorDeLuzSchema,
+    nome: ObjetoDeLuzSchema.shape.nome,
+    portador: PortadorFixoSchema,
     luz: LuzSchema.partial(),
-    intensidade: FonteDeLuzSchema.shape.intensidade,
-    acesa: z.boolean(),
+    intensidade: ObjetoDeLuzSchema.shape.intensidade,
+    estado: ObjetoDeLuzSchema.shape.estado,
   })
   .partial();
+const MudancasDaMesaSchema = ConfigDaMesaSchema.omit({ iluminacao: true, estagios: true })
+  .extend({ estagios: ConfigEstagiosSchema.partial() })
+  .partial();
+const PontoNovoSchema = PontoDeLuzSchema.omit({ cenaId: true });
+const MudancasDoPontoSchema = z
+  .object({
+    nome: PontoDeLuzSchema.shape.nome,
+    x: z.number(),
+    y: z.number(),
+    /** `null`: volta ao padrão. */
+    capacidade: PontoDeLuzSchema.shape.capacidade.unwrap().nullable(),
+    modeloId: PontoDeLuzSchema.shape.modeloId.unwrap().nullable(),
+    segurarS: PontoDeLuzSchema.shape.segurarS.unwrap().nullable(),
+    visivelParaJogadores: z.boolean(),
+  })
+  .partial();
+const MudancasDoModeloSchema = ModeloDeObjetoSchema.omit({ id: true })
+  .extend({ luz: LuzSchema.partial() })
+  .partial();
+/** Ajuste individual de um objeto de luz pelo mestre (tudo entra no histórico do objeto). */
+const AjusteDoObjetoSchema = z.discriminatedUnion("acao", [
+  /** Soma (ou tira) tempo do saldo; o objeto precisa ter tempo. */
+  z.object({
+    acao: z.literal("tempo"),
+    deltaMs: z
+      .number()
+      .min(-100 * 3600_000)
+      .max(100 * 3600_000),
+    nota: z.string().max(120).optional(),
+  }),
+  /** Modificador de raio (multiplica luz plena e penumbra), com ou sem prazo no relógio da sala. */
+  z.object({
+    acao: z.literal("modificar"),
+    modificador: z.object({
+      id: z.string().min(1).max(64),
+      raioX: z.number().min(0.1).max(5),
+      /** Duração a partir de agora, no relógio da sala; sem ela vale até o mestre tirar. */
+      duracaoMs: z
+        .number()
+        .positive()
+        .max(100 * 3600_000)
+        .optional(),
+      nota: z.string().max(120).optional(),
+    }),
+  }),
+  z.object({ acao: z.literal("tirarModificador"), id: z.string().min(1).max(64) }),
+  /** Extingue de vez (a lixeira): o objeto sai da coleção, como quando o tempo acaba. */
+  z.object({ acao: z.literal("consumir") }),
+]);
 
 const MudancasDoPersonagemSchema = z
   .object({
@@ -384,13 +481,68 @@ export const IntencaoSchema = z.discriminatedUnion("tipo", [
       fatorDeLuz: CenaSchema.shape.fatorDeLuz.unwrap().optional(),
     }),
   ),
-  /** Cria uma fonte de luz (fixa na cena ou presa a um token da cena). Cena omitida: a ativa. */
+  /** Cria uma fonte de luz fixa (na cena ou presa a um token da cena). Cena omitida: a ativa. */
   intencao("fonte.criar", z.object({ cenaId: IdSchema.optional(), fonte: FonteNovaSchema })),
-  /** Muda nome, luz (raios, cor, tremular), intensidade, acesa ou portador (mover a luz fixa). */
+  /** Muda nome, luz (raios, cor, tremular), intensidade, estado ou portador (mover a luz fixa). */
   intencao("fonte.editar", z.object({ id: IdSchema, mudancas: MudancasDaFonteSchema })),
   intencao("fonte.apagar", z.object({ id: IdSchema })),
   /** Parâmetros da iluminação e da memória do mapa (só o que vier muda). */
   intencao("config.iluminacao", z.object({ mudancas: ConfigIluminacaoSchema.partial() })),
+  /** Configuração da mesa (mãos, penalidade, alcance, tempo para jogadores, estágios). */
+  intencao("config.mesa", z.object({ mudancas: MudancasDaMesaSchema })),
+  /** Pausa ou retoma a mesa: o relógio da sala (tochas, estágios) congela ou volta a correr. */
+  intencao("mesa.pausar", SemDados),
+  intencao("mesa.retomar", SemDados),
+  /** Modelos de objeto de luz (Tocha 5e, Lanterna, Fogueira...). */
+  intencao("modelo.criar", z.object({ modelo: ModeloDeObjetoSchema })),
+  intencao("modelo.editar", z.object({ id: IdSchema, mudancas: MudancasDoModeloSchema })),
+  /** Só modelo sem objeto nem mochila que o use. */
+  intencao("modelo.apagar", z.object({ id: IdSchema })),
+  /** Pontos de luz (suporte e inflamável). Cena omitida: a ativa. */
+  intencao("ponto.criar", z.object({ cenaId: IdSchema.optional(), ponto: PontoNovoSchema })),
+  intencao("ponto.editar", z.object({ id: IdSchema, mudancas: MudancasDoPontoSchema })),
+  /** Apagar o ponto apaga os objetos que estão nele. */
+  intencao("ponto.apagar", z.object({ id: IdSchema })),
+  /**
+   * Acende um objeto da mochila na mão do personagem: um usado (`objetoId`) ou um novo (`novoId` é o
+   * id do objeto que nasce; sai da quantidade da mochila). Dono do personagem ou mestre.
+   */
+  intencao(
+    "tocha.acender",
+    z.object({
+      personagemId: IdSchema,
+      modeloId: IdSchema,
+      objetoId: IdSchema.optional(),
+      novoId: IdSchema.optional(),
+    }),
+  ),
+  /** Apaga (desconta a penalidade) ou reacende (com o mesmo saldo) o objeto: na mão ou num ponto. */
+  intencao("tocha.alternar", z.object({ id: IdSchema })),
+  /** Guarda a tocha da mão na mochila (apagando-a antes, se estiver acesa). */
+  intencao("tocha.guardar", z.object({ id: IdSchema })),
+  /** Entrega a tocha da mão para a mão livre de outro token, dentro do alcance. O saldo vai junto. */
+  intencao("tocha.entregar", z.object({ id: IdSchema, tokenId: IdSchema })),
+  /** Põe a tocha da mão num suporte com espaço, dentro do alcance. */
+  intencao("tocha.posar", z.object({ id: IdSchema, pontoId: IdSchema })),
+  /** Tira a tocha de um suporte para a mão livre do personagem (dentro do alcance). */
+  intencao("ponto.pegar", z.object({ id: IdSchema, personagemId: IdSchema })),
+  /**
+   * Segurar a tocha acesa sobre um ponto inflamável: `Inicio` marca o instante (pelo relógio da sala);
+   * `Fim` só vale se passaram `segurarS`, com a tocha ainda acesa e ao alcance.
+   */
+  intencao("ponto.acenderInicio", z.object({ pontoId: IdSchema, objetoId: IdSchema })),
+  intencao("ponto.acenderFim", z.object({ pontoId: IdSchema, objetoId: IdSchema })),
+  /** Ajustes individuais do mestre num objeto de luz (tempo, modificador de raio, consumir). */
+  intencao("objeto.ajustar", z.object({ id: IdSchema, ajuste: AjusteDoObjetoSchema })),
+  /** Mestre: muda a quantidade de objetos novos de um modelo na mochila. */
+  intencao(
+    "mochila.ajustar",
+    z.object({
+      personagemId: IdSchema,
+      modeloId: IdSchema,
+      delta: z.number().int().min(-99).max(99),
+    }),
+  ),
   /** Manda todos os navegadores esquecerem a memória do mapa de uma cena (omitida: a ativa). */
   intencao("memoria.esquecer", z.object({ cenaId: IdSchema.optional() })),
   /**
@@ -453,6 +605,26 @@ export const capacidadeDaIntencao: Record<TipoIntencao, Capacidade | null> = {
   "fonte.editar": "cena.editar",
   "fonte.apagar": "cena.editar",
   "config.iluminacao": "mesa.configurar",
+  "config.mesa": "mesa.configurar",
+  "mesa.pausar": "mesa.configurar",
+  "mesa.retomar": "mesa.configurar",
+  "modelo.criar": "mesa.configurar",
+  "modelo.editar": "mesa.configurar",
+  "modelo.apagar": "mesa.configurar",
+  "ponto.criar": "cena.editar",
+  "ponto.editar": "cena.editar",
+  "ponto.apagar": "cena.editar",
+  "tocha.acender": "tocha.acender",
+  // Mão: `tocha.acender`; ponto: `luz.apagar` (apagar) ou `ponto.usar` (reacender). `processar` confere.
+  "tocha.alternar": null,
+  "tocha.guardar": "tocha.acender",
+  "tocha.entregar": "tocha.entregar",
+  "tocha.posar": "tocha.entregar",
+  "ponto.pegar": "ponto.usar",
+  "ponto.acenderInicio": "ponto.usar",
+  "ponto.acenderFim": "ponto.usar",
+  "objeto.ajustar": "objeto.ajustar",
+  "mochila.ajustar": "objeto.ajustar",
   "memoria.esquecer": "mesa.configurar",
   "porta.alternar": "porta.abrir",
   "campanha.exportar": "campanha.exportar",
@@ -547,9 +719,25 @@ export const EventoSalaSchema = z.discriminatedUnion("tipo", [
    * Fonte de luz inteira depois da mudança (o cliente faz upsert). O jogador só recebe as da cena
    * ativa e sem a de token que ele não vê; a que deixa de ser visível chega como `fonte.apagada`.
    */
-  eventoDe("fonte.criada", z.object({ fonte: FonteDeLuzSchema })),
-  eventoDe("fonte.editada", z.object({ fonte: FonteDeLuzSchema })),
+  eventoDe("fonte.criada", z.object({ fonte: ObjetoDeLuzSchema })),
+  eventoDe("fonte.editada", z.object({ fonte: ObjetoDeLuzSchema })),
   eventoDe("fonte.apagada", z.object({ id: IdSchema })),
+  /** A mesa foi pausada: o tempo da sala fica em `salaMs` (o jogador recebe 0). */
+  eventoDe("mesa.pausada", z.object({ salaMs: z.number().nonnegative() })),
+  /** A mesa voltou a correr a partir de `salaMs` (o jogador recebe 0). */
+  eventoDe(
+    "mesa.retomada",
+    z.object({ salaMs: z.number().nonnegative(), desdeReal: z.number().nonnegative().optional() }),
+  ),
+  /** Modelo inteiro depois da mudança (o cliente faz upsert). */
+  eventoDe("modelo.alterado", z.object({ modelo: ModeloDeObjetoSchema })),
+  eventoDe("modelo.apagado", z.object({ id: IdSchema })),
+  /**
+   * Ponto de luz inteiro depois da mudança. O jogador só recebe os visíveis da cena ativa; o que
+   * deixa de ser visível chega como `ponto.apagado`.
+   */
+  eventoDe("ponto.alterado", z.object({ ponto: PontoDeLuzSchema })),
+  eventoDe("ponto.apagado", z.object({ id: IdSchema })),
   /** Configuração da mesa inteira depois da mudança. Todos recebem. */
   eventoDe("config.alterada", z.object({ config: ConfigDaMesaSchema })),
   /** O mestre mandou esquecer a memória da cena; `versao` é o `seq` do evento. Jogador: só a cena ativa. */
@@ -581,6 +769,11 @@ export const CODIGOS_DE_ERRO = [
   "fora_de_alcance",
   "trajeto_bloqueado",
   "fonte_inexistente",
+  "ponto_inexistente",
+  "modelo_inexistente",
+  "maos_cheias",
+  "suporte_cheio",
+  "segurar_incompleto",
 ] as const;
 export const CodigoDeErroSchema = z.enum(CODIGOS_DE_ERRO);
 export type CodigoDeErro = z.infer<typeof CodigoDeErroSchema>;

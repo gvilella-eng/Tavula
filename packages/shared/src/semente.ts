@@ -5,16 +5,22 @@ import {
   CONFIG_PADRAO,
   ConfigDaMesaSchema,
   type Estado,
-  FonteDeLuzSchema,
+  FonteDeLuzAntigaSchema,
+  ModeloDeObjetoSchema,
+  migrarFonteAntiga,
+  ObjetoDeLuzSchema,
   ParedeSchema,
   PastaSchema,
   PermissoesSchema,
   PersonagemSchema,
+  PontoDeLuzSchema,
   TokenSchema,
   UsuarioSchema,
 } from "./estado.ts";
 import { CENA_PADRAO } from "./mapa.ts";
+import { modelosPadrao } from "./objetos.ts";
 import { pastasPadrao } from "./pastas.ts";
+import { relogioInicial } from "./relogio.ts";
 
 /** Formato de `fixtures/campanha.seed.json`: usuários e (opcional) permissões iniciais. */
 export const SementeSchema = z.object({
@@ -24,15 +30,22 @@ export const SementeSchema = z.object({
   cenaAtivaId: z.string().optional(),
   tokens: z.array(TokenSchema).optional(),
   paredes: z.array(ParedeSchema).optional(),
-  luzes: z.array(FonteDeLuzSchema).optional(),
+  luzes: z
+    .array(ObjetoDeLuzSchema.or(FonteDeLuzAntigaSchema.transform(migrarFonteAntiga)))
+    .optional(),
+  modelos: z.array(ModeloDeObjetoSchema).optional(),
+  pontos: z.array(PontoDeLuzSchema).optional(),
   config: ConfigDaMesaSchema.optional(),
   pastas: z.array(PastaSchema).optional(),
   personagens: z.array(PersonagemSchema).optional(),
 });
 export type Semente = z.infer<typeof SementeSchema>;
 
-/** Estado inicial de uma campanha vazia a partir da semente. */
-export function estadoInicial(bruta: unknown): Estado {
+/**
+ * Estado inicial de uma campanha vazia a partir da semente. `agoraMs` é o instante real em que o
+ * relógio da sala começa a contar (a sala passa o dele; os testes passam um falso).
+ */
+export function estadoInicial(bruta: unknown, agoraMs: number = Date.now()): Estado {
   const semente = SementeSchema.parse(bruta);
   const cenas = semente.cenas ?? [CENA_PADRAO];
   return {
@@ -49,6 +62,9 @@ export function estadoInicial(bruta: unknown): Estado {
     tokens: semente.tokens ?? [],
     paredes: semente.paredes ?? [],
     luzes: semente.luzes ?? [],
+    modelos: semente.modelos ?? modelosPadrao(),
+    pontos: semente.pontos ?? [],
+    relogio: relogioInicial(agoraMs),
     config: semente.config ?? CONFIG_PADRAO,
     pastas: semente.pastas ?? pastasPadrao(),
     personagens: semente.personagens ?? [],

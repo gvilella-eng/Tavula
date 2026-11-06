@@ -21,6 +21,7 @@ const luz = (id: string, x: number, y: number, claraM = 6, totalM = 12): LuzReso
   totalM,
   cor: "#ffb347",
   tremula: false,
+  morrendo: false,
 });
 
 const olho = (x: number, y: number, extra: Partial<OlhoDeVisao> = {}): OlhoDeVisao => ({

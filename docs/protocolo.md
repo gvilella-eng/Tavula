@@ -1,6 +1,6 @@
 # Protocolo cliente ↔ sala
 
-## Versão atual: v1 (Lotes 1, 2, 3, 4, 4b, 5 e 6)
+## Versão atual: v1 (Lotes 1, 2, 3, 4, 4b, 5, 6 e 7)
 
 Os schemas zod ficam em `packages/shared/src/protocolo.ts` e `estado.ts`; a lógica pura (conferir
 capacidade, aplicar, filtrar por papel) em `nucleo.ts` e `capacidades.ts`. O cliente e a sala validam
@@ -200,8 +200,10 @@ um jogador também não traz os tokens invisíveis (`visaoPara`). O cliente apli
 Estado { seq, usuarios: Usuario[], permissoes: Permissoes, notaMesa, notaMestre?,
          cenas: Cena[] /* jogador: só a ativa */, cenaAtivaId, tokens: Token[],
          pastas: Pasta[] /* jogador: as que vê */, personagens: Personagem[] /* jogador: os que edita ou de pasta que vê */,
-         paredes: Parede[] /* Lote 5 */, luzes: FonteDeLuz[] /* Lote 6; jogador: as da cena ativa que ele pode ver */,
-         config: ConfigDaMesa /* Lote 6; todos */, memoriaEsquecida?: Record<cenaId, seq> /* Lote 6; jogador: só a ativa */,
+         paredes: Parede[] /* Lote 5 */, luzes: ObjetoDeLuz[] /* Lotes 6 e 7; jogador: as que ele pode ver, na forma do navegador */,
+         modelos: ModeloDeObjeto[] /* Lote 7; jogador: sem a duração, salvo no modo "exato" */,
+         pontos: PontoDeLuz[] /* Lote 7; jogador: os visíveis da cena ativa */, relogio: RelogioSala /* Lote 7; jogador: só "pausada" */,
+         config: ConfigDaMesa /* Lotes 6 e 7; todos */, memoriaEsquecida?: Record<cenaId, seq> /* Lote 6; jogador: só a ativa */,
          ordemDeTurnoVisivel: boolean, assets?: AssetMeta[] /* só na visão do mestre */ }
 Cena  { id, nome, larguraM, alturaM, grid: { quadradoM, visivel }, iluminacaoDinamica?, luzAmbiente?, fatorDeLuz?, // Lotes 5 e 6          // padrão: cena-1, 60 x 45 m, quadrado 1,5 m
         mapa?: { assetHash, pxPorQuadrado },
@@ -323,7 +325,7 @@ Só do mestre, nunca delegáveis: `papel.alterar`, `permissao.alterar`, `mesa.co
 
 `mesa.configurar` cobre `pasta.*` e `ordemDeTurno.definir` (Lote 4b). `asset.subir` cobre `asset.registrar`, `token.definirImagem` e
 as imagens que quem edita troca em `personagem.editar`. As intenções de vaivém de arquivos
-(`asset.pedir`, `asset.inventario`, `asset.tenho`, `asset.naoTenho`), `ficha.alterar` e `personagem.editar` não exigem capacidade
+(`asset.pedir`, `asset.inventario`, `asset.tenho`, `asset.naoTenho`), `ficha.alterar`, `personagem.editar` e `tocha.alternar` (Lote 7) não exigem capacidade
 (`capacidadeDaIntencao` = `null`): qualquer mestre ou jogador pode enviar; nos arquivos o sigilo é conferido sobre o
 asset (quem não pode subir ainda precisa ver o mapa) e na ficha, sobre quem edita o personagem.
 
@@ -332,14 +334,14 @@ jogador: nunca as exclusivas do mestre; senão a exceção por usuário, se houv
 
 ### Exportação
 
-`{ formato: "tabletop-campanha", versao: 7, exportadoEm, dados: { seq, usuarios, permissoes, notaMesa, notaMestre, cenas, cenaAtivaId, tokens, paredes, luzes, config, pastas, personagens, ordemDeTurnoVisivel, assets } }`. A **v7** (Lote 6) acrescenta `luzes` (as fontes de luz) e `config` (`ConfigDaMesa`); `Cena.luzAmbiente`/`fatorDeLuz`, `Token.visaoNoEscuroM` e `Personagem.modInteligencia` são campos opcionais (ausentes nos arquivos antigos: cena em luz de dia, sem visão no escuro, modificador 0) e `memoriaEsquecida` **nunca** entra (é dado da sessão); ids de fonte únicos, em cena existente e, se presas a token, a token da mesma cena são conferidos. De v1 a v6 continuam aceitas (o resultado é sempre v7, com `luzes: []` e a configuração padrão). A **v6** (Lote 5) acrescenta `paredes`; `Cena.iluminacaoDinamica` e `Token.alcanceVisaoM` são campos opcionais dentro de cenas e tokens (ausentes nos arquivos antigos: iluminação ligada, visão sem limite). ids de parede únicos e cena existente são conferidos.
+`{ formato: "tabletop-campanha", versao: 8, exportadoEm, dados: { seq, usuarios, permissoes, notaMesa, notaMestre, cenas, cenaAtivaId, tokens, paredes, luzes, modelos, pontos, relogio, config, pastas, personagens, ordemDeTurnoVisivel, assets } }`. A **v8** (Lote 7) troca as fontes de luz por **objetos de luz** (`estado`, `saldoMs`, `acesaDesdeSala`, modificadores e histórico: são dado da campanha e vão no arquivo), completa a `config` e acrescenta `modelos`, `pontos` e o `relogio` (a campanha restaurada volta com a **mesa pausada**, no tempo em que foi exportada; a v7 e as anteriores importam com o relógio rodando a partir da importação); `Personagem.mochila` é opcional; os `acendimentos` pendentes **nunca** entram. De v1 a v7 continuam aceitas (o resultado é sempre v8; `acesa: boolean` vira `estado`, os modelos da semente entram onde faltam). A **v7** (Lote 6) acrescenta `luzes` (as fontes de luz) e `config` (`ConfigDaMesa`); `Cena.luzAmbiente`/`fatorDeLuz`, `Token.visaoNoEscuroM` e `Personagem.modInteligencia` são campos opcionais (ausentes nos arquivos antigos: cena em luz de dia, sem visão no escuro, modificador 0) e `memoriaEsquecida` **nunca** entra (é dado da sessão); ids de fonte únicos, em cena existente e, se presas a token, a token da mesma cena são conferidos. De v1 a v6 continuam aceitas (o resultado é sempre v7, com `luzes: []` e a configuração padrão). A **v6** (Lote 5) acrescenta `paredes`; `Cena.iluminacaoDinamica` e `Token.alcanceVisaoM` são campos opcionais dentro de cenas e tokens (ausentes nos arquivos antigos: iluminação ligada, visão sem limite). ids de parede únicos e cena existente são conferidos.
 Sem contadores de uso nem presença. `assets` são **só as metas dos assets usados** (mapas das cenas, imagens
 dos tokens e os tiles deles), **nunca bytes**; `Cena.mapa` e `Token.assetHash` vão nos próprios objetos. A **v5**
 (Lote 4b) acrescenta `pastas` e `ordemDeTurnoVisivel` e troca, nos personagens, `donoId` por `editores` e `pastaId` (mais `retratoHash`). A **v4**
 (Lote 4, personagens com `donoId`) é migrada na importação: o dono vira "quem edita" e o personagem vai para a pasta "Personagens" (ou "NPCs"), só do mestre. Os
 **preparos** (chaves do pré-envio) e os assets `cifrado` **nunca** entram. A **v3** (Lote 3, sem `personagens`), a **v2**
 (Lote 2, sem `assets`) e a **v1** (Lote 1, sem `cenas`, `cenaAtivaId` nem `tokens`) continuam sendo aceitas na
-importação: o resultado é sempre v7 (a v5 só ganha `paredes: []`, e a v6 só `luzes: []` e a configuração padrão), com `personagens: []`, `assets: []` e as duas pastas padrão onde faltavam; a v1 vira a cena padrão e nenhum token. Quem importa um mapa precisa
+importação: o resultado é sempre v8 (a v5 só ganha `paredes: []`, e a v6 só `luzes: []` e a configuração padrão), com `personagens: []`, `assets: []` e as duas pastas padrão onde faltavam; a v1 vira a cena padrão e nenhum token. Quem importa um mapa precisa
 de alguém online com os arquivos (o cache dos navegadores serve; se ninguém tiver, o jogo mostra "indisponível").
 Na importação a sala valida com zod e ainda exige: ids de usuário
 únicos, pelo menos um mestre, exceções só para usuários existentes, ids de cena, de token e de personagem únicos, cena ativa
@@ -450,6 +452,85 @@ versão que aplicou junto da memória e esquece também se estava offline). Quem
   traz `memoriaEsquecida` dela. `config.alterada`: todos.
 
 Novo código de erro: `fonte_inexistente`.
+
+### Relógio da sala, objetos de luz, mochila e pontos (Lote 7)
+
+**O tempo é da sala** (PROJETO.md 3.1, princípio 6). A sala guarda o relógio, o saldo de cada objeto e o instante em que ele
+começou a contar, tudo no **relógio dela**, e um agendador acorda a sala no próximo marco. O navegador só recebe o que **pode ver** e anima a contagem entre
+um envio e outro; `saldoMs` e `acesaDesdeSala` **nunca** saem da sala (nem para o mestre).
+
+```
+RelogioSala  { pausada, acumuladoMs, desdeReal? }       // tempo da sala = acumuladoMs + (agora − desdeReal), se não pausada
+ObjetoDeLuz  { id, cenaId?, nome, modeloId?, portador, luz, intensidade, estado: "acesa" | "apagada",
+               // só na sala: saldoMs (null = não se consome), acesaDesdeSala, duracaoMs (para os estágios), modificadores, historico
+               // só no navegador: restanteMs, contando, estagio, fatorDeRaio (produto dos modificadores que valem)
+               }
+portador     = { tipo: "cena", x, y } | { tipo: "token", tokenId } | { tipo: "mao", personagemId, mao } |
+               { tipo: "mochila", personagemId } | { tipo: "ponto", pontoId }
+Modificador  { id, raioX, ateSala?, origem: "mestre" | "automacao", nota? }          // fim no relógio da sala; sem fim = até o mestre tirar
+ModeloDeObjeto { id, nome, luz, duracaoS: number | null, ocupaMao, tags }              // Estado.modelos; semente: Tocha 5e (6+6 m, 60 min), Lanterna (9+9 m, 6 h), Fogueira (6+6 m, infinita, sem mão)
+PontoDeLuz   { id, cenaId, nome, x, y, tipo: "suporte" | "inflamavel", capacidade?, modeloId?, segurarS? (3), visivelParaJogadores }   // Estado.pontos
+Personagem.mochila?: Record<modeloId, number>                                         // só as unidades NOVAS; as usadas são objetos com portador mao ou mochila
+ConfigDaMesa { maosPorPersonagem (2), penalidadeAoApagarS (0), alcanceInteracaoM (1,5), tempoParaJogadores: "exato" | "estagio" | "oculto",
+               estagios: { fraca: 0.5, morrendo: 0.1 } /* frações da duração do modelo */, iluminacao }
+```
+
+`FonteDeLuz` do Lote 6 é o `ObjetoDeLuz` (mesma coleção `luzes`): `acesa: boolean` virou `estado`. As fixas do mapa (`cena`) e a criatura que brilha (`token`) continuam
+sem tempo (`saldoMs: null`). Um objeto **consumido** (tempo acabou, ou a lixeira do mestre) **sai da coleção** (o histórico vai junto) e libera a mão. Banco do Lote 6: `objetoDoBanco`
+lê `acesa` como `estado` ao carregar (as linhas só são regravadas quando mudam); os modelos da semente entram por uma migração de esquema.
+
+**Saldo e estágios.** Acesa, o restante é `saldoMs − (sala − acesaDesdeSala)`. Ao apagar, o saldo vira o restante menos `penalidadeAoApagarS` (se não sobra nada, o objeto é consumido).
+O estágio vem do restante sobre `duracaoMs`: `morrendo` (≤ `estagios.morrendo`), `fraca` (≤ `estagios.fraca`), senão `forte`. No estágio `morrendo` a luz tremula mais (só de tela).
+**Mesa pausada**: o relógio congela, o agendador cancela tudo e retomar reagenda a partir do que sobrou (pausa de 5 min empurra o fim em 5 min).
+
+**O que o navegador recebe** (`objetoParaVisao`, no snapshot e em todo evento `fonte.*`; feito na hora do envio):
+
+| quem | `restanteMs` e `contando` | `estagio` | `historico`, `modificadores`, `duracaoMs` | `fatorDeRaio` |
+|---|---|---|---|---|
+| mestre | sempre (se o objeto se consome) | sempre | sim | se ≠ 1 |
+| jogador, `tempoParaJogadores: "exato"` | sim | não | não (lista vazia) | se ≠ 1 |
+| jogador, `"estagio"` | não | sim | não | se ≠ 1 |
+| jogador, `"oculto"` | não | não | não | se ≠ 1 |
+
+`contando` = acesa, com tempo e mesa rodando. O **relógio** do jogador traz só `pausada` (`acumuladoMs: 0`); o do mestre traz o tempo da sala na hora do envio. Os **modelos** do jogador vêm sem a duração
+real fora do modo `exato`. Mudar `tempoParaJogadores` ou os estágios manda **snapshot novo a todos**.
+
+**Quem vê o objeto** (`luzVisivelPara`): fixa, só a da cena ativa; presa a token, só se ele vê o token; **na mão**, a quem vê o token do dono na cena ativa; **na mochila**, a quem vê o personagem;
+**num ponto**, se o ponto é visível a ele **ou se o objeto está aceso** (o objeto num ponto escondido chega como luz fixa na posição, sem o `pontoId`; o ponto nunca chega). `pontos`: o jogador só recebe
+os visíveis da cena ativa; `ponto.alterado` que o esconde chega como `ponto.apagado`. Mudar a visibilidade (ou a posição, com objeto nele) de um ponto manda snapshot novo.
+
+**Alcance** (`dentroDoAlcance`, puro): distância 5e no grid (Chebyshev) entre os quadrados mais próximos ocupados por cada um (token: `tamanhoQuadrados`; ponto: o quadrado que o contém) vezes o lado
+do quadrado ≤ `alcanceInteracaoM`. Com 1,5 m, só adjacentes (inclusive na diagonal).
+
+**Intenções novas**
+
+| `tipo` | `dados` | Capacidade | Efeito |
+|---|---|---|---|
+| `mesa.pausar` / `mesa.retomar` | `{}` | `mesa.configurar` | pausa ou retoma o relógio da sala; eventos `mesa.pausada { salaMs }` / `mesa.retomada { salaMs, desdeReal? }` (o jogador recebe `salaMs: 0`) e **snapshot novo a todos**. Já no estado pedido: nada |
+| `config.mesa` | `{ mudancas: { maosPorPersonagem?, penalidadeAoApagarS?, alcanceInteracaoM?, tempoParaJogadores?, estagios?: { fraca?, morrendo? } } }` | `mesa.configurar` | muda a configuração; emite `config.alterada`; `dados_invalidos` se `morrendo` > `fraca` |
+| `modelo.criar` / `modelo.editar` / `modelo.apagar` | `{ modelo }` / `{ id, mudancas: { nome?, luz?: parcial, duracaoS?: number \| null, ocupaMao?, tags? } }` / `{ id }` | `mesa.configurar` | eventos `modelo.alterado { modelo }` e `modelo.apagado { id }` (todos; o jogador sem a duração). Apagar recusa modelo em uso (objeto, mochila ou ponto): `dados_invalidos`. `modelo_inexistente` |
+| `ponto.criar` / `ponto.editar` / `ponto.apagar` | `{ cenaId?, ponto }` / `{ id, mudancas: { nome?, x?, y?, capacidade?, modeloId?, segurarS?, visivelParaJogadores? } }` (`null` limpa capacidade, modelo e segurarS) / `{ id }` | `cena.editar` | eventos `ponto.alterado { ponto }` e `ponto.apagado { id }`; apagar o ponto apaga os objetos nele. `ponto_inexistente` |
+| `tocha.acender` | `{ personagemId, modeloId, objetoId?, novoId? }` | `tocha.acender` | dono do personagem (ou mestre): acende um objeto **usado** da mochila (`objetoId`) ou um **novo** (`novoId` é o id que nasce; sai da quantidade) numa mão livre. `maos_cheias` (a apagada continua ocupando a mão), `modelo_inexistente`, `dados_invalidos` (sem unidade nova; modelo que não ocupa mão). A luz sai do token dele na cena ativa; sem token lá, o tempo corre e não há luz |
+| `tocha.alternar` | `{ id }` | nenhuma (`null`; conferida: mão → `tocha.acender` e dono; ponto → `luz.apagar` para apagar, `ponto.usar` para reacender, e alcance; fixa e de token: só o mestre) | apaga (desconta `penalidadeAoApagarS`) ou reacende (mesmo saldo). Acender de novo objeto sem o que queimar: `dados_invalidos`. `sem_permissao`, `fora_de_alcance`, `ponto_inexistente`, `fonte_inexistente` (também para o que o usuário não vê) |
+| `tocha.guardar` | `{ id }` | `tocha.acender` | a tocha da mão vai para a mochila (apagada antes, com a penalidade) |
+| `tocha.entregar` | `{ id, tokenId }` | `tocha.entregar` | do dono (ou mestre) para a mão livre de outro token **dentro do alcance** e na mesma cena; o saldo vai junto. `fora_de_alcance`, `maos_cheias`, `token_inexistente`, `dados_invalidos` (token sem personagem) |
+| `tocha.posar` | `{ id, pontoId }` | `tocha.entregar` | põe a tocha da mão num **suporte** dentro do alcance e com espaço (`capacidade`, padrão 1): `suporte_cheio`, `ponto_inexistente` |
+| `ponto.pegar` | `{ id, personagemId }` | `ponto.usar` | tira a tocha do suporte para a mão livre do personagem (que o usuário controla), dentro do alcance |
+| `ponto.acenderInicio` / `ponto.acenderFim` | `{ pontoId, objetoId }` | `ponto.usar` | segurar a tocha **acesa** sobre um **inflamável**: `Inicio` marca o instante pelo **relógio da sala** (pendência transitória em `Estado.acendimentos`, que não vai ao banco, à exportação nem aos navegadores); `Fim` só vale se passaram `segurarS` (padrão 3; tolerância de 300 ms), com a tocha ainda acesa, ao alcance e sem fogo no ponto: cria o objeto do `modeloId` do ponto e torna o ponto visível. A tocha continua na mão. Antes do tempo: `segurar_incompleto` |
+| `objeto.ajustar` | `{ id, ajuste }`, `ajuste` = `{ acao: "tempo", deltaMs, nota? }` \| `{ acao: "modificar", modificador: { id, raioX, duracaoMs?, nota? } }` \| `{ acao: "tirarModificador", id }` \| `{ acao: "consumir" }` | `objeto.ajustar` (só do mestre) | soma ou tira tempo do saldo (entra no histórico: "+1 min (mestre)"; se não sobra nada, consome); modificador de raio com ou sem prazo (no relógio da sala); `consumir` é a lixeira (a tocha de um jogador também) |
+| `mochila.ajustar` | `{ personagemId, modeloId, delta }` | `objeto.ajustar` | o mestre muda a quantidade de unidades novas (de 0 a 99); emite `personagem.alterado` |
+
+Mudam também: `fonte.criar` / `fonte.editar` (só `cena` e `token`; `acesa` virou `estado: "acesa" | "apagada"`); `fonte.editar` não troca o portador de um objeto de jogo; `personagem.apagar` leva junto o que ele carrega
+(mão e mochila); `cena.duplicar` copia os pontos (vazios) e só as luzes fixas; `cena.apagar` apaga os pontos e o que há neles.
+
+**Intenção interna do sistema.** O vencimento (consumir o que acabou, tirar modificador vencido, reenviar o objeto cujo estágio mudou) é `processarSistema`, chamada só pelo alarme do agendador da sala.
+**Não existe em `IntencaoSchema`**: nenhuma mensagem de cliente a alcança (`mensagem_invalida`), e `processar` não reconhece um usuário "sistema". Os eventos dela têm `origem.usuarioId: "sistema"`.
+O agendador guarda um vencimento `luz.marco` por objeto (o próximo marco: virar `fraca`, `morrendo`, acabar, vencer um modificador), em tempo real.
+
+**Eventos novos**: `mesa.pausada`, `mesa.retomada`, `modelo.alterado`, `modelo.apagado`, `ponto.alterado`, `ponto.apagado`; `fonte.*` agora carregam o objeto **na forma do navegador**.
+**Códigos de erro novos**: `ponto_inexistente`, `modelo_inexistente`, `maos_cheias`, `suporte_cheio`, `segurar_incompleto`.
+
+**Gancho de teste da sala** (só com `MODO=teste`, como `/teste/zerar`): `POST /teste/avancar-relogio?ms=N` adianta o relógio da sala em `N` ms. Fora do modo de teste responde 404.
 
 ### Contador de uso
 

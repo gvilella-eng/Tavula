@@ -336,17 +336,21 @@ export class CamadaDeLuz {
   }
 
   private desenharUmaLuz(l: LuzCalculada, agora: number): void {
-    // Tremulação leve: o brilho oscila alguns por cento (a fase vem do id, para as luzes não pulsarem juntas).
+    // Tremulação leve: o brilho oscila alguns por cento (a fase vem do id, para as luzes não pulsarem
+    // juntas). No estágio "morrendo" (tocha no fim) ela oscila bem mais e mais rápido.
     let fator = 1;
     if (l.luz.tremula) {
       let fase = 0;
       for (const c of l.luz.id) fase = (fase * 31 + c.charCodeAt(0)) % 1000;
+      const amplitude = l.luz.morrendo ? 0.4 : 0.12;
+      const ritmo = l.luz.morrendo ? 2.6 : 1;
       fator =
-        0.88 +
-        0.12 *
+        1 -
+        amplitude +
+        amplitude *
           (0.5 +
-            0.25 * Math.sin(agora * 0.011 + fase) +
-            0.25 * Math.sin(agora * 0.0173 + fase * 2.1));
+            0.25 * Math.sin(agora * 0.011 * ritmo + fase) +
+            0.25 * Math.sin(agora * 0.0173 * ritmo + fase * 2.1));
     }
     const cor = corDoPasso(l.luz.cor, fator);
     if (l.total.length >= 3) this.gLuzes.poly(plano(l.total)).fill(cor);

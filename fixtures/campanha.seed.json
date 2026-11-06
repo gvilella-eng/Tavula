@@ -468,7 +468,7 @@
         "tremula": true
       },
       "intensidade": 1,
-      "acesa": true
+      "estado": "acesa"
     },
     {
       "id": "luz-braseiro",
@@ -486,7 +486,7 @@
         "tremula": true
       },
       "intensidade": 1,
-      "acesa": true
+      "estado": "acesa"
     }
   ]
 }

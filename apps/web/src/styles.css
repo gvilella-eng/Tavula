@@ -1546,3 +1546,204 @@ button:disabled:hover {
 .painel-fontes .botao-icone.perigo {
   color: var(--perigo);
 }
+
+/* --- relógio da sala, objetos de luz, mochila e modelos (Lote 7) -------------------------------- */
+
+.separador-vertical {
+  align-self: stretch;
+  width: 1px;
+  margin: 2px 4px;
+  background: var(--borda);
+}
+.relogio-sala {
+  align-self: center;
+  min-width: 52px;
+  padding: 0 8px 0 2px;
+  font-size: 15px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--texto);
+}
+.relogio-sala[data-pausada="true"] {
+  color: var(--acento);
+}
+.selo-pausa {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  z-index: 29;
+  transform: translateX(-50%);
+  padding: 5px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--acento);
+  background: var(--painel);
+  border: 1px solid var(--acento);
+  border-radius: 999px;
+  box-shadow: var(--sombra);
+  opacity: 0.94;
+  pointer-events: none;
+}
+.selo-pausa[data-mestre="true"] {
+  top: 70px;
+}
+
+.menu-titulo {
+  padding: 4px 10px 6px;
+  margin: 0;
+}
+
+.luz-fixas,
+.luz-pontos {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 4px;
+  border-top: 1px dashed var(--borda);
+}
+.luz-variaveis {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.luz-fixas .linha-botoes,
+.luz-pontos .linha-botoes {
+  align-items: center;
+  justify-content: space-between;
+}
+.linha-tempo {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 2px 0;
+}
+.luz-tempo {
+  min-width: 52px;
+  text-align: center;
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: #ffd27a;
+}
+.luz-tempo[data-contando="false"] {
+  color: var(--texto-suave);
+}
+.estagio {
+  margin-left: auto;
+  padding: 1px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 999px;
+  color: #0e2418;
+  background: #6fcf97;
+}
+.estagio[data-estagio="fraca"] {
+  background: #f2c94c;
+  color: #2a2100;
+}
+.estagio[data-estagio="morrendo"] {
+  background: var(--perigo);
+  color: #2a0d09;
+}
+.detalhe-do-objeto {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.detalhe-do-objeto p {
+  margin: 0;
+}
+.historico-do-objeto {
+  max-height: 130px;
+  overflow-y: auto;
+  margin: 2px 0 0;
+  padding: 0;
+  font-size: 12px;
+}
+.historico-do-objeto li {
+  padding: 1px 0;
+}
+
+.mochila {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 4px 0;
+  padding: 6px 8px 8px;
+  border: 1px solid var(--borda);
+  border-radius: 8px;
+}
+.mochila legend {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 6px;
+  font-size: 13px;
+  color: var(--texto-suave);
+}
+.mochila-modelo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.mochila-linha,
+.mochila-usada {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.mochila-linha > span:not(.mochila-quantidade) {
+  color: var(--texto-suave);
+}
+.mochila-quantidade {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+.mochila-usada {
+  padding-left: 12px;
+  font-size: 13px;
+  color: var(--texto-suave);
+}
+.mochila-usada > span {
+  flex: 1;
+  min-width: 160px;
+}
+
+.secao-mesa,
+.secao-objetos {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.secao-mesa label.campo-coluna,
+.secao-objetos label.campo-coluna {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.modelo-de-objeto {
+  padding: 6px 8px;
+  background: var(--painel-2);
+  border: 1px solid var(--borda);
+  border-radius: 8px;
+}
+.modelo-de-objeto summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  cursor: pointer;
+}
+.modelo-nome {
+  font-weight: 600;
+}
+.modelo-corpo {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}

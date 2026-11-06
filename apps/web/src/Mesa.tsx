@@ -5,9 +5,11 @@ import {
   type Exportacao,
   ehPersonagemDeJogador,
   encaixarNoGrid,
+  type FonteDeLuz,
   hashesPreparaveis,
   iluminacaoDinamicaLigada,
   modInteligenciaDe,
+  podeEditarPersonagem,
   podeMoverToken,
   type TipoDeParede,
   type Token,
@@ -30,6 +32,7 @@ import { BarraDeFerramentas } from "./BarraDeFerramentas";
 import { BarraLateral } from "./BarraLateral";
 import { type CamadaDeTrabalho, camadaDoNovoToken } from "./camadas";
 import { FaixaDeCenas, type PedirImagem } from "./FaixaDeCenas";
+import { MenuDaTocha } from "./MenuDaTocha";
 import { MenuSuperior } from "./MenuSuperior";
 import { Mapa } from "./mapa/Mapa";
 import type {
@@ -48,6 +51,7 @@ import { PainelDoMestre } from "./PainelDoMestre";
 import { PainelDoToken } from "./PainelDoToken";
 import { gravarEncaixePadrao, lerEncaixePadrao } from "./preferencias";
 import { SeletorDeImagem } from "./SeletorDeImagem";
+import { useTempoDaSala } from "./tempo";
 import { useSala } from "./useSala";
 import { ZoomFlutuante } from "./ZoomFlutuante";
 
@@ -113,6 +117,13 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
   const [fontesAbertas, setFontesAbertas] = useState(false);
   const [configAberta, setConfigAberta] = useState(false);
   const [luzSelecionadaId, setLuzSelecionadaId] = useState<string | null>(null);
+  // Pontos de luz (suporte e inflamável): o que o mestre edita e o tipo que a ferramenta cria.
+  const [pontoSelecionadoId, setPontoSelecionadoId] = useState<string | null>(null);
+  const [tipoDoNovoPonto, setTipoDoNovoPonto] = useState<"suporte" | "inflamavel">("suporte");
+  // O menu do botão direito na alça da tocha (posição na página).
+  const [menuDaTocha, setMenuDaTocha] = useState<{ luzId: string; x: number; y: number } | null>(
+    null,
+  );
   // "Ver como o jogador X" (só da tela do mestre): `null` = ele mesmo.
   const [verComoId, setVerComoId] = useState<string | null>(null);
   const [avisoLocal, setAvisoLocal] = useState<{ numero: number; texto: string } | null>(null);
@@ -135,6 +146,8 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
   const euId = eu?.id;
 
   const euMestre = eu?.papel === "mestre";
+  // O tempo restante das luzes e o relógio da sala: a sala manda, a tela só anima entre os envios.
+  const tempo = useTempoDaSala(estado);
   const permissoes = estado?.permissoes;
   const cenaAtivaId = estado?.cenaAtivaId;
   const personagens = estado?.personagens;
@@ -333,12 +346,41 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
             portador: { tipo: "cena", x, y },
             luz: { claraM: 6, penumbraM: 6, cor: "#ffb347", tremula: true },
             intensidade: 1,
-            acesa: true,
+            estado: "acesa",
           },
         });
         setLuzSelecionadaId(id);
         setFerramenta("selecionar");
       },
+      colocarPonto: (cenaId, tipo, x, y) => {
+        const id = `pt-${crypto.randomUUID().slice(0, 8)}`;
+        const modelos = estadoAtual.current?.modelos ?? [];
+        const fogueira = modelos.find((m) => !m.ocupaMao) ?? modelos[0];
+        enviar("ponto.criar", {
+          cenaId,
+          ponto: {
+            id,
+            nome: tipo === "suporte" ? "Suporte" : "Inflamável",
+            x,
+            y,
+            tipo,
+            visivelParaJogadores: true,
+            ...(tipo === "suporte" ? { capacidade: 1 } : {}),
+            ...(tipo === "inflamavel" && fogueira ? { modeloId: fogueira.id, segurarS: 3 } : {}),
+          },
+        });
+        setPontoSelecionadoId(id);
+        setFerramenta("selecionar");
+      },
+      moverPonto: (id, x, y) => enviar("ponto.editar", { id, mudancas: { x, y } }),
+      selecionarPonto: setPontoSelecionadoId,
+      entregarTocha: (id, tokenId) => enviar("tocha.entregar", { id, tokenId }),
+      posarTocha: (id, pontoId) => enviar("tocha.posar", { id, pontoId }),
+      alternarTocha: (id) => enviar("tocha.alternar", { id }),
+      acenderPontoInicio: (pontoId, objetoId) =>
+        enviar("ponto.acenderInicio", { pontoId, objetoId }),
+      acenderPontoFim: (pontoId, objetoId) => enviar("ponto.acenderFim", { pontoId, objetoId }),
+      menuDaTocha: (luzId, x, y) => setMenuDaTocha({ luzId, x, y }),
       moverLuz: (id, x, y) =>
         enviar("fonte.editar", { id, mudancas: { portador: { tipo: "cena", x, y } } }),
       selecionarLuz: setLuzSelecionadaId,
@@ -357,11 +399,29 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
   const opcoes = useMemo(
     () => ({
       ferramenta:
-        (ferramenta === "paredes" || ferramenta === "luz") && !modoMestre
+        (ferramenta === "paredes" || ferramenta === "luz" || ferramenta === "ponto") && !modoMestre
           ? ("selecionar" as const)
           : ferramenta,
       mostrarLuzes: fontesAbertas,
       luzSelecionadaId,
+      pontoSelecionadoId,
+      tipoDoNovoPonto,
+      alcanceInteracaoM: estado?.config.alcanceInteracaoM ?? 1.5,
+      restanteDe: tempo.restanteDe,
+      podeMexerNaTocha: (luz: FonteDeLuz) => {
+        if (!eu || usuarioVisto !== null) return false;
+        if (euMestre) return true;
+        if (luz.portador.tipo !== "mao") return true; // objeto num ponto: a sala decide
+        const personagemId = luz.portador.personagemId;
+        const p = personagens?.find((x) => x.id === personagemId);
+        return (
+          p !== undefined &&
+          (podeEditarPersonagem(p, eu) ||
+            (estado?.tokens ?? []).some(
+              (t) => t.personagemId === personagemId && t.controladoPor.includes(eu.id),
+            ))
+        );
+      },
       euMestre,
       modoMestre,
       paredeSelecionadaId: paredeSelecionada?.id ?? null,
@@ -387,8 +447,14 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
       ferramenta,
       fontesAbertas,
       luzSelecionadaId,
+      pontoSelecionadoId,
+      tipoDoNovoPonto,
+      estado?.config.alcanceInteracaoM,
+      estado?.tokens,
+      tempo.restanteDe,
       euMestre,
       modoMestre,
+      usuarioVisto,
       paredeSelecionada?.id,
       tipoDaNovaParede,
       visao,
@@ -406,7 +472,8 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
     const abrindo = !fontesAbertas;
     setFontesAbertas(abrindo);
     setLuzSelecionadaId(null);
-    if (!abrindo && ferramenta === "luz") setFerramenta("selecionar");
+    setPontoSelecionadoId(null);
+    if (!abrindo && (ferramenta === "luz" || ferramenta === "ponto")) setFerramenta("selecionar");
   }
 
   function alternarParedes() {
@@ -448,6 +515,19 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
     assetsDoEstado,
     versaoDosProntos,
   ]);
+
+  /** O personagem que mexe nas tochas: o do token selecionado (mestre) ou o primeiro que eu controlo. */
+  function meuPersonagemId(): string | undefined {
+    if (!estado || !eu) return undefined;
+    const doSelecionado = selecionado?.personagemId;
+    if (euMestre && doSelecionado) return doSelecionado;
+    return estado.tokens.find(
+      (t) =>
+        t.cenaId === estado.cenaAtivaId &&
+        t.personagemId !== undefined &&
+        controlaToken(t, eu, estado.personagens),
+    )?.personagemId;
+  }
 
   function escolherCamada(c: CamadaDeTrabalho) {
     setCamadaTrabalho(c);
@@ -545,6 +625,7 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
                 versaoDasImagens={versaoDosProntos}
                 pedirImagem={pedirImagem}
                 cenaVista={cenaVista}
+                tempo={tempo}
               />
             ),
           },
@@ -561,6 +642,8 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
             indicador: transferindo,
             conteudo: (
               <AbaConfiguracoes
+                estado={estado}
+                enviar={enviar}
                 nome={eu.nome}
                 papel={eu.papel}
                 encaixe={encaixe}
@@ -600,6 +683,7 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
             tokens={estadoVisto?.tokens ?? estado.tokens}
             paredes={estadoVisto?.paredes ?? estado.paredes}
             luzes={estadoVisto?.luzes ?? estado.luzes}
+            pontos={estadoVisto?.pontos ?? estado.pontos}
             opcoes={opcoes}
             retornos={retornos}
             imagens={imagens}
@@ -639,6 +723,11 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
               aoAlternarConfig={() => setConfigAberta(!configAberta)}
               paredesAtivas={ferramenta === "paredes" && modoMestre}
               aoAlternarParedes={alternarParedes}
+              pausada={estado.relogio.pausada}
+              aoAlternarPausa={() =>
+                enviar(estado.relogio.pausada ? "mesa.retomar" : "mesa.pausar", {})
+              }
+              salaMs={tempo.salaMs}
               jogadores={estado.usuarios.filter((u) => u.papel === "jogador")}
               verComoId={usuarioVisto?.id ?? null}
               aoVerComo={(id) => {
@@ -647,6 +736,16 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
                 if (id !== null && ferramenta === "paredes") setFerramenta("selecionar");
               }}
             />
+          )}
+          {estado.relogio.pausada && (
+            <div
+              className="selo-pausa"
+              data-testid="selo-pausa"
+              data-mestre={euMestre}
+              role="status"
+            >
+              Mesa pausada
+            </div>
           )}
           {usuarioVisto && (
             <div className="selo-ver-como" data-testid="ver-como-selo">
@@ -721,12 +820,22 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
           {modoMestre && fontesAbertas && (
             <PainelDeFontesDeLuz
               cena={cena}
-              fontes={estado.luzes.filter((l) => l.cenaId === cena.id)}
-              tokens={estado.tokens.filter((t) => t.cenaId === cena.id)}
+              estado={estado}
+              tempo={tempo}
               selecionadaId={luzSelecionadaId}
               aoSelecionar={setLuzSelecionadaId}
               colocando={ferramenta === "luz"}
               aoColocar={() => setFerramenta(ferramenta === "luz" ? "selecionar" : "luz")}
+              pontoSelecionadoId={pontoSelecionadoId}
+              aoSelecionarPonto={setPontoSelecionadoId}
+              colocandoPonto={ferramenta === "ponto" ? tipoDoNovoPonto : null}
+              aoColocarPonto={(tipo) => {
+                if (ferramenta === "ponto" && tipoDoNovoPonto === tipo) setFerramenta("selecionar");
+                else {
+                  setTipoDoNovoPonto(tipo);
+                  setFerramenta("ponto");
+                }
+              }}
               enviar={enviar}
               aoFechar={alternarFontes}
             />
@@ -746,6 +855,17 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
               enviar={enviar}
               pedirImagem={pedirImagem}
               aoFechar={() => setSelecionadoId(null)}
+            />
+          )}
+          {menuDaTocha && (
+            <MenuDaTocha
+              estado={estado}
+              luzId={menuDaTocha.luzId}
+              x={menuDaTocha.x}
+              y={menuDaTocha.y}
+              personagemId={meuPersonagemId()}
+              enviar={enviar}
+              aoFechar={() => setMenuDaTocha(null)}
             />
           )}
           <BarraLateral abas={abas} aoMudarAberta={setLateralAberta} />

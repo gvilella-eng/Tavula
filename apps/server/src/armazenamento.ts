@@ -5,14 +5,20 @@ import {
   configComPadrao,
   type Estado,
   type EventoSala,
-  type FonteDeLuz,
+  type ModeloDeObjeto,
+  modelosPadrao,
+  type ObjetoDeLuz,
+  objetoDoBanco,
   type Pacote,
   type Parede,
   type Pasta,
   PERMISSOES_PADRAO,
   type Permissoes,
+  type PontoDeLuz,
   pastasPadrao,
   personagemDoBanco,
+  type RelogioSala,
+  RelogioSalaSchema,
   type Token,
   type Usuario,
 } from "@tabletop/shared";
@@ -82,6 +88,18 @@ const MIGRACOES: Migracao[] = [
         "INSERT OR IGNORE INTO entidades (colecao, id, dados) VALUES ('pastas', ?, ?)",
         pasta.id,
         JSON.stringify(pasta),
+      );
+    }
+  },
+  // Lote 7: os modelos de objeto de luz (Tocha 5e, Lanterna, Fogueira) entram na campanha antiga. As
+  // luzes do Lote 6 (`acesa: boolean`) NÃO são reescritas aqui: `objetoDoBanco` as lê no formato novo
+  // ao carregar, e cada uma é regravada quando mudar. O relógio da sala nasce ao primeiro carregamento.
+  (sql) => {
+    for (const modelo of modelosPadrao()) {
+      sql.exec(
+        "INSERT OR IGNORE INTO entidades (colecao, id, dados) VALUES ('modelos', ?, ?)",
+        modelo.id,
+        JSON.stringify(modelo),
       );
     }
   },
@@ -161,6 +179,9 @@ export class Armazenamento {
     | "tokens"
     | "paredes"
     | "luzes"
+    | "modelos"
+    | "pontos"
+    | "relogio"
     | "config"
     | "memoriaEsquecida"
     | "assets"
@@ -189,7 +210,10 @@ export class Armazenamento {
       // Lote 5: banco anterior não tem a coleção (nada a migrar: `entidades` é genérica).
       paredes: ler<Parede>("paredes"),
       // Lote 6: coleção nova e configuração com padrão; banco anterior continua como estava.
-      luzes: ler<FonteDeLuz>("luzes"),
+      luzes: ler<unknown>("luzes").map(objetoDoBanco) satisfies ObjetoDeLuz[],
+      modelos: ler<ModeloDeObjeto>("modelos"),
+      pontos: ler<PontoDeLuz>("pontos"),
+      relogio: this.lerRelogio(),
       config: configComPadrao(JSON.parse(this.lerMeta("config") ?? "{}")),
       memoriaEsquecida: JSON.parse(this.lerMeta("memoria_esquecida") ?? "{}") as Record<
         string,
@@ -201,6 +225,17 @@ export class Armazenamento {
       ordemDeTurnoVisivel: this.lerMeta("ordem_de_turno") === "1",
       assets: ler<AssetMeta>("assets"),
     };
+  }
+
+  /** O relógio da sala; sem ele (banco antigo) a mesa está rodando e a sala preenche `desdeReal`. */
+  private lerRelogio(): RelogioSala {
+    const bruto = this.lerMeta("relogio");
+    const r = bruto === null ? undefined : RelogioSalaSchema.safeParse(JSON.parse(bruto));
+    return r?.success ? r.data : { pausada: false, acumuladoMs: 0 };
+  }
+
+  gravarRelogio(relogio: RelogioSala): void {
+    this.gravarMeta("relogio", JSON.stringify(relogio));
   }
 
   private lerNota(id: string): string {
@@ -239,6 +274,9 @@ export class Armazenamento {
     for (const t of estado.tokens) this.gravarEntidade("tokens", t.id, t);
     for (const p of estado.paredes) this.gravarEntidade("paredes", p.id, p);
     for (const l of estado.luzes) this.gravarEntidade("luzes", l.id, l);
+    for (const m of estado.modelos) this.gravarEntidade("modelos", m.id, m);
+    for (const p of estado.pontos) this.gravarEntidade("pontos", p.id, p);
+    this.gravarRelogio(estado.relogio);
     this.gravarMeta("config", JSON.stringify(estado.config));
     this.gravarMeta("memoria_esquecida", JSON.stringify(estado.memoriaEsquecida ?? {}));
     for (const p of estado.pastas) this.gravarEntidade("pastas", p.id, p);
@@ -297,6 +335,22 @@ export class Armazenamento {
           break;
         case "config.alterada":
           this.gravarMeta("config", JSON.stringify(estado.config));
+          break;
+        case "mesa.pausada":
+        case "mesa.retomada":
+          this.gravarRelogio(estado.relogio);
+          break;
+        case "modelo.alterado":
+          this.gravarEntidade("modelos", ev.dados.modelo.id, ev.dados.modelo);
+          break;
+        case "modelo.apagado":
+          this.sql.exec("DELETE FROM entidades WHERE colecao = 'modelos' AND id = ?", ev.dados.id);
+          break;
+        case "ponto.alterado":
+          this.gravarEntidade("pontos", ev.dados.ponto.id, ev.dados.ponto);
+          break;
+        case "ponto.apagado":
+          this.sql.exec("DELETE FROM entidades WHERE colecao = 'pontos' AND id = ?", ev.dados.id);
           break;
         case "memoria.esquecida":
           this.gravarMeta("memoria_esquecida", JSON.stringify(estado.memoriaEsquecida ?? {}));

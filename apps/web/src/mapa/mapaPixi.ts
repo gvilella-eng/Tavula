@@ -10,10 +10,12 @@ import {
   corEmCanais,
   criarGrade,
   criarLimitador,
+  dentroDoAlcance,
   encaixarNoGrid,
   esquecerAlemDoAlcance,
   esquecerTudo,
   type FonteDeLuz,
+  formatarRestante,
   type GradeDeMemoria,
   gradeServe,
   imagemDaMemoria,
@@ -28,7 +30,9 @@ import {
   nivelDeLuz,
   opacidadeNoPonto,
   type Parede,
+  type PontoDeLuz,
   resolverLuzes,
+  SEGURAR_PADRAO_S,
   suavizar,
   type TipoDeParede,
   type Token,
@@ -50,7 +54,28 @@ export const ZOOM_MAX = 4;
 const TAU_MS = 70;
 const ACENTO = 0xe0a030;
 
-export type Ferramenta = "selecionar" | "mao" | "regua" | "paredes" | "luz";
+export type Ferramenta = "selecionar" | "mao" | "regua" | "paredes" | "luz" | "ponto";
+
+/** A alça de uma tocha sendo arrastada: onde está (metros) e, sobre um inflamável, a contagem. */
+type AlcaArrastada = {
+  luzId: string;
+  pos: Ponto;
+  segurando: { pontoId: string; desde: number; fimEnviado: boolean } | null;
+};
+
+/** O que está sob a tocha arrastada. */
+type AlvoDaAlca =
+  | { tipo: "token"; tokenId: string }
+  | { tipo: "suporte" | "inflamavel"; ponto: PontoDeLuz };
+
+/** A alça (ou o ícone no ponto) de um objeto de luz: um pequeno desenho do mesmo tamanho na tela. */
+type AlcaVisual = {
+  luzId: string;
+  container: Container;
+  corpo: Graphics;
+  rotulo: Text;
+  chave: string;
+};
 
 /**
  * Quem enxerga: o token, o alcance de visão (`null` = sem limite), a visão no escuro e até onde ele se
@@ -107,6 +132,15 @@ export type OpcoesDoMapa = {
   /** O painel das fontes de luz está aberto: o mestre vê, arrasta e seleciona as luzes no mapa. */
   mostrarLuzes: boolean;
   luzSelecionadaId: string | null;
+  /** O ponto que o mestre está editando e o tipo que a ferramenta "ponto" cria. */
+  pontoSelecionadoId: string | null;
+  tipoDoNovoPonto: "suporte" | "inflamavel";
+  /** Alcance de interação (m): só para mostrar o círculo do ponto; quem confere é a sala. */
+  alcanceInteracaoM: number;
+  /** Tempo restante (ms) do objeto, já animado entre os envios; `undefined` quando este usuário não o vê. */
+  restanteDe: (luzId: string) => number | undefined;
+  /** Pode arrastar, apagar e guardar esta tocha (dono do personagem ou mestre)? */
+  podeMexerNaTocha: (luz: FonteDeLuz) => boolean;
 };
 
 /** O que o mapa precisa saber das imagens locais (o gerente de assets responde). */
@@ -142,6 +176,20 @@ export type RetornosDoMapa = {
   /** O mestre soltou uma luz fixa em outro ponto. */
   moverLuz: (id: string, x: number, y: number) => void;
   selecionarLuz: (id: string | null) => void;
+  /** A ferramenta de ponto clicou no mapa: cria um suporte ou inflamável ali. */
+  colocarPonto: (cenaId: string, tipo: "suporte" | "inflamavel", x: number, y: number) => void;
+  moverPonto: (id: string, x: number, y: number) => void;
+  selecionarPonto: (id: string | null) => void;
+  /** A alça da tocha foi solta sobre outro token (entregar) ou sobre um suporte (pôr). */
+  entregarTocha: (luzId: string, tokenId: string) => void;
+  posarTocha: (luzId: string, pontoId: string) => void;
+  /** Dois cliques na alça (ou no ícone do ponto aceso): apaga ou reacende. */
+  alternarTocha: (luzId: string) => void;
+  /** Começou (e terminou) a segurar a tocha acesa sobre um ponto inflamável. */
+  acenderPontoInicio: (pontoId: string, luzId: string) => void;
+  acenderPontoFim: (pontoId: string, luzId: string) => void;
+  /** Clique direito numa alça: o menu da tocha, na posição da página. */
+  menuDaTocha: (luzId: string, x: number, y: number) => void;
 };
 
 type Ponto = { x: number; y: number };
@@ -173,6 +221,8 @@ type Gesto =
   | { tipo: "bandeira"; deslocamento: Ponto }
   | { tipo: "ponta"; id: string; ponta: "a" | "b" }
   | { tipo: "luz"; id: string; deslocamento: Ponto }
+  | { tipo: "ponto"; id: string; deslocamento: Ponto }
+  | { tipo: "alca"; luzId: string }
   | { tipo: "regua" };
 
 /** Cor e espessura (px na tela) de cada tipo de parede quando a ferramenta de paredes está ativa. */
@@ -225,6 +275,16 @@ export class MapaPixi {
   private luzArrastada: { id: string; pos: Ponto } | null = null;
   /** Marcas das luzes (só o mestre, com o painel de fontes aberto). */
   private readonly marcasDeLuz = new Graphics();
+  /** Pontos de luz (suportes e inflamáveis) e o anel de "segurar para acender". */
+  private readonly desenhoDosPontos = new Graphics();
+  private chaveDosPontos = "";
+  private pontos: PontoDeLuz[] = [];
+  /** Ponto que o mestre está arrastando (a posição ao vivo, antes de a sala confirmar). */
+  private pontoArrastado: { id: string; pos: Ponto } | null = null;
+  /** Alças das tochas e ícones dos objetos nos pontos: acima do véu de luz (sempre à vista). */
+  private readonly camadaDeAlcas = new Container();
+  private readonly alcas = new Map<string, AlcaVisual>();
+  private alcaArrastada: AlcaArrastada | null = null;
   // Memória do mapa (só de tela; IndexedDB por usuário e cena).
   private readonly armazem = new ArmazemDeMemoria();
   private gradeDaMemoria: GradeDeMemoria | null = null;
@@ -313,6 +373,8 @@ export class MapaPixi {
       this.paredesAbaixo,
       this.paredesAcima,
       this.marcasDeLuz,
+      this.desenhoDosPontos,
+      this.camadaDeAlcas,
       this.bandeira,
       this.desenhoDaRegua,
     );
@@ -520,6 +582,15 @@ export class MapaPixi {
     this.luzes = luzes;
     if (!this.pronto) return;
     this.visaoSuja = true;
+    this.desenharMarcasDeLuz();
+  }
+
+  /** Os pontos de luz da cena (o que a sala mandou para quem está olhando). */
+  definirPontos(pontos: PontoDeLuz[]): void {
+    this.pontos = pontos;
+    if (!this.pronto) return;
+    this.visaoSuja = true;
+    this.chaveDosPontos = "";
     this.desenharMarcasDeLuz();
   }
 
@@ -889,6 +960,8 @@ export class MapaPixi {
 
   private passo(agora: number, dt: number): void {
     this.animar(dt);
+    this.passoDaContagem();
+    this.desenharAlcas();
     if (this.visaoSuja) this.recalcularVisao();
     else if (this.visibilidadeSuja) this.atualizarVisibilidadeDosTokens();
     if (this.memoriaPendente && agora - this.ultimaMarcacao >= INTERVALO_DA_MEMORIA_MS) {
@@ -924,7 +997,13 @@ export class MapaPixi {
       // Quem enxerga (ou carrega uma luz) andou: os polígonos mudam. Quem não: só a visibilidade dele.
       if (
         this.opcoes.visao.fontes.some((f) => f.tokenId === v.token.id) ||
-        this.luzes.some((l) => l.portador.tipo === "token" && l.portador.tokenId === v.token.id)
+        this.luzes.some(
+          (l) =>
+            (l.portador.tipo === "token" && l.portador.tokenId === v.token.id) ||
+            (l.portador.tipo === "mao" &&
+              v.token.personagemId !== undefined &&
+              l.portador.personagemId === v.token.personagemId),
+        )
       ) {
         this.visaoSuja = true;
         if (this.marcasVisiveis()) this.desenharMarcasDeLuz();
@@ -963,10 +1042,16 @@ export class MapaPixi {
       const v = this.visuais.get(f.tokenId);
       return v ? [{ x: v.x, y: v.y, alcanceM: f.alcanceM, visaoNoEscuroM: f.visaoNoEscuroM }] : [];
     });
-    const luzes = resolverLuzes(this.luzesDaTela(), cena, this.tokens, (id) => {
-      const v = this.visuais.get(id);
-      return v ? { x: v.x, y: v.y } : undefined;
-    });
+    const luzes = resolverLuzes(
+      this.luzesDaTela(),
+      cena,
+      this.tokens,
+      (id) => {
+        const v = this.visuais.get(id);
+        return v ? { x: v.x, y: v.y } : undefined;
+      },
+      this.pontosDaTela(),
+    );
     this.modelo = calcularModelo({
       olhos,
       luzes,
@@ -1143,10 +1228,12 @@ export class MapaPixi {
     if (!cena) return [];
     const resultado: { luz: FonteDeLuz; pos: Ponto }[] = [];
     for (const luz of this.luzesDaTela()) {
-      if (luz.cenaId !== cena.id) continue;
+      // A tocha na mão e o objeto num ponto já têm a alça; a marca do painel é das fixas e das de token.
       if (luz.portador.tipo === "cena") {
+        if (luz.cenaId !== cena.id) continue;
         resultado.push({ luz, pos: { x: luz.portador.x, y: luz.portador.y } });
-      } else {
+      } else if (luz.portador.tipo === "token") {
+        if (luz.cenaId !== cena.id) continue;
         const v = this.visuais.get(luz.portador.tokenId);
         if (v) resultado.push({ luz, pos: { x: v.x, y: v.y } });
       }
@@ -1170,7 +1257,7 @@ export class MapaPixi {
       const r = 9 / z;
       const selecionada = luz.id === this.opcoes.luzSelecionadaId;
       if (selecionada) {
-        const k = luz.intensidade * (this.cena?.fatorDeLuz ?? 1);
+        const k = luz.intensidade * (this.cena?.fatorDeLuz ?? 1) * (luz.fatorDeRaio ?? 1);
         const clara = luz.luz.claraM * k * PX_POR_M;
         const total = (luz.luz.claraM + luz.luz.penumbraM) * k * PX_POR_M;
         g.circle(cx, cy, total).stroke({ width: 1.5 / z, color: COR_DA_LUZ, alpha: 0.6 });
@@ -1180,10 +1267,10 @@ export class MapaPixi {
         const a = (i / 8) * Math.PI * 2;
         g.moveTo(cx + Math.cos(a) * r * 1.35, cy + Math.sin(a) * r * 1.35)
           .lineTo(cx + Math.cos(a) * r * 1.9, cy + Math.sin(a) * r * 1.9)
-          .stroke({ width: 1.6 / z, color: luz.acesa ? COR_DA_LUZ : 0x8a94a3 });
+          .stroke({ width: 1.6 / z, color: luz.estado === "acesa" ? COR_DA_LUZ : 0x8a94a3 });
       }
       g.circle(cx, cy, r)
-        .fill({ color: luz.acesa ? COR_DA_LUZ : 0x3a414d, alpha: 0.95 })
+        .fill({ color: luz.estado === "acesa" ? COR_DA_LUZ : 0x3a414d, alpha: 0.95 })
         .stroke({ width: (selecionada ? 3 : 2) / z, color: selecionada ? ACENTO : 0x1a1204 });
     }
   }
@@ -1202,6 +1289,386 @@ export class MapaPixi {
       }
     }
     return achada;
+  }
+
+  // --- pontos de luz e alças das tochas ------------------------------------------------------------
+
+  /** Os pontos da cena como a tela os mostra (o que o mestre está arrastando vale a posição ao vivo). */
+  private pontosDaTela(): PontoDeLuz[] {
+    const a = this.pontoArrastado;
+    const cenaId = this.cena?.id;
+    return this.pontos
+      .filter((p) => p.cenaId === cenaId)
+      .map((p) => (a && a.id === p.id ? { ...p, x: a.pos.x, y: a.pos.y } : p));
+  }
+
+  /** Onde o objeto de luz está agora na tela (metros): cena, token, mão, ponto. Na mochila: lugar nenhum. */
+  private posicaoDoObjeto(luz: FonteDeLuz): Ponto | undefined {
+    const cena = this.cena;
+    if (!cena) return undefined;
+    const p = luz.portador;
+    switch (p.tipo) {
+      case "cena":
+        return luz.cenaId === cena.id ? { x: p.x, y: p.y } : undefined;
+      case "token": {
+        const v = this.visuais.get(p.tokenId);
+        return v && luz.cenaId === cena.id ? { x: v.x, y: v.y } : undefined;
+      }
+      case "mao": {
+        const v = this.visualDoPersonagem(p.personagemId);
+        return v ? { x: v.x, y: v.y } : undefined;
+      }
+      case "ponto": {
+        const ponto = this.pontosDaTela().find((x) => x.id === p.pontoId);
+        return ponto ? { x: ponto.x, y: ponto.y } : undefined;
+      }
+      case "mochila":
+        return undefined;
+    }
+  }
+
+  /** O token (desenhado nesta cena) do personagem. */
+  private visualDoPersonagem(personagemId: string): Visual | undefined {
+    for (const v of this.visuais.values()) if (v.token.personagemId === personagemId) return v;
+    return undefined;
+  }
+
+  /** O objeto aparece na tela? (a mão só se o token do dono aparece; o do ponto, só se o jogador o vê) */
+  private objetoVisivelNaTela(luz: FonteDeLuz, pos: Ponto): boolean {
+    if (luz.portador.tipo === "mao") {
+      const v = this.visualDoPersonagem(luz.portador.personagemId);
+      return v?.container.visible === true;
+    }
+    if (this.opcoes.visao.modo !== "jogador") return true;
+    return this.modelo !== null && veNoPonto(this.modelo, pos);
+  }
+
+  /** Onde a alça (ou o ícone do objeto no ponto) fica, em metros do mundo. Ao arrastar, segue o ponteiro. */
+  private ancoraDaAlca(
+    luz: FonteDeLuz,
+    ordemNoPonto: number,
+  ): { mundo: Ponto; lado: number } | null {
+    const arrasto = this.alcaArrastada;
+    if (arrasto && arrasto.luzId === luz.id) return { mundo: arrasto.pos, lado: 0 };
+    const centro = this.posicaoDoObjeto(luz);
+    if (!centro) return null;
+    const z = this.vista.zoom;
+    const p = luz.portador;
+    if (p.tipo === "mao") {
+      const v = this.visualDoPersonagem(p.personagemId);
+      const raioPx = v ? (v.token.tamanhoQuadrados * this.quadradoM() * PX_POR_M) / 2 : 20;
+      const lado = p.mao % 2 === 0 ? -1 : 1;
+      const camada = Math.floor(p.mao / 2);
+      const dx = (lado * (raioPx + 24 / z)) / PX_POR_M;
+      const dy = (camada * 30) / z / PX_POR_M;
+      return { mundo: { x: centro.x + dx, y: centro.y + dy }, lado };
+    }
+    // No ponto (suporte, fogueira): o ícone fica acima do ponto, lado a lado se houver mais de um.
+    return {
+      mundo: { x: centro.x + (ordemNoPonto * 34) / z / PX_POR_M, y: centro.y - 52 / z / PX_POR_M },
+      lado: 0,
+    };
+  }
+
+  /** Texto sob a alça: o tempo restante (para quem pode ver) ou o estágio. */
+  private rotuloDaAlca(luz: FonteDeLuz): string {
+    const restante = this.opcoes.restanteDe(luz.id);
+    if (restante !== undefined) return formatarRestante(restante);
+    return luz.estagio ?? "";
+  }
+
+  /** Os objetos que aparecem como alça ou ícone, com a âncora de cada um. */
+  private alcasDaTela(): { luz: FonteDeLuz; mundo: Ponto }[] {
+    const resultado: { luz: FonteDeLuz; mundo: Ponto }[] = [];
+    const porPonto = new Map<string, number>();
+    for (const luz of this.luzes) {
+      const p = luz.portador;
+      if (p.tipo !== "mao" && p.tipo !== "ponto") continue;
+      const pos = this.posicaoDoObjeto(luz);
+      if (!pos || !this.objetoVisivelNaTela(luz, pos)) continue;
+      const ordem = p.tipo === "ponto" ? (porPonto.get(p.pontoId) ?? 0) : 0;
+      if (p.tipo === "ponto") porPonto.set(p.pontoId, ordem + 1);
+      const a = this.ancoraDaAlca(luz, ordem);
+      if (a) resultado.push({ luz, mundo: a.mundo });
+    }
+    return resultado;
+  }
+
+  /** Desenha uma chama (acesa) ou o contorno apagado, centrada em (0, 0), em pixels da tela. */
+  private desenharChama(g: Graphics, acesa: boolean): void {
+    const k = 1.3;
+    g.moveTo(0, -8 * k)
+      .bezierCurveTo(7 * k, -2 * k, 6 * k, 6 * k, 0, 8 * k)
+      .bezierCurveTo(-6 * k, 6 * k, -7 * k, -2 * k, 0, -8 * k);
+    if (acesa) {
+      g.fill(0xff9a3c);
+      g.moveTo(0, -2 * k)
+        .bezierCurveTo(3.5 * k, k, 3 * k, 5 * k, 0, 6 * k)
+        .bezierCurveTo(-3 * k, 5 * k, -3.5 * k, k, 0, -2 * k)
+        .fill(0xffe08a);
+    } else g.stroke({ width: 1.8, color: 0x8a94a3 });
+  }
+
+  private criarAlca(luzId: string): AlcaVisual {
+    const container = new Container();
+    const corpo = new Graphics();
+    const rotulo = new Text({
+      text: "",
+      style: {
+        fill: 0xfff1d0,
+        fontSize: 13,
+        fontWeight: "700",
+        fontFamily: "system-ui, sans-serif",
+        stroke: { color: 0x000000, width: 4 },
+      },
+    });
+    rotulo.anchor.set(0.5, 0);
+    rotulo.position.set(0, 18);
+    container.addChild(corpo, rotulo);
+    this.camadaDeAlcas.addChild(container);
+    return { luzId, container, corpo, rotulo, chave: "" };
+  }
+
+  /**
+   * Redesenha as alças das tochas (uma por mão, junto ao token), os ícones dos objetos nos pontos e o
+   * anel de "segurar para acender". Tudo com o mesmo tamanho na tela, qualquer que seja o zoom.
+   */
+  private desenharAlcas(): void {
+    const z = this.vista.zoom;
+    const vivos = new Set<string>();
+    const arrasto = this.alcaArrastada;
+    for (const { luz, mundo } of this.alcasDaTela()) {
+      vivos.add(luz.id);
+      let alca = this.alcas.get(luz.id);
+      if (!alca) {
+        alca = this.criarAlca(luz.id);
+        this.alcas.set(luz.id, alca);
+      }
+      const acesa = luz.estado === "acesa";
+      const rotulo = this.rotuloDaAlca(luz);
+      const dono = this.opcoes.podeMexerNaTocha(luz);
+      const arrastando = arrasto?.luzId === luz.id;
+      const chave = `${mundo.x.toFixed(3)},${mundo.y.toFixed(3)}|${z}|${acesa}|${rotulo}|${dono}|${arrastando}|${luz.estagio ?? ""}`;
+      if (chave === alca.chave) continue;
+      alca.chave = chave;
+      this.sujo = true;
+      alca.container.position.set(mundo.x * PX_POR_M, mundo.y * PX_POR_M);
+      alca.container.scale.set((arrastando ? 1.2 : 1) / z);
+      const g = alca.corpo.clear();
+      g.circle(0, 0, 16)
+        .fill({ color: 0x10141a, alpha: 0.94 })
+        .stroke({ width: 2.5, color: acesa ? COR_DA_LUZ : 0x6b7686 });
+      if (dono && luz.portador.tipo === "mao") {
+        // O dono pode arrastar: um pontinho de destaque no canto.
+        g.circle(12, -12, 3.5).fill(ACENTO);
+      }
+      this.desenharChama(g, acesa);
+      alca.rotulo.text = rotulo;
+      alca.rotulo.visible = rotulo !== "";
+      alca.container.alpha = acesa ? 1 : 0.8;
+    }
+    for (const [id, alca] of this.alcas) {
+      if (vivos.has(id)) continue;
+      alca.container.destroy({ children: true });
+      this.alcas.delete(id);
+      this.sujo = true;
+    }
+    this.desenharPontos(z, arrasto);
+  }
+
+  /** Ícones dos pontos (suporte e inflamável), o alcance do selecionado e o anel de acender. */
+  private desenharPontos(z: number, arrasto: AlcaArrastada | null): void {
+    const g = this.desenhoDosPontos;
+    const r = 10 / z;
+    const progresso = arrasto?.segurando ? this.progressoDeAcender() : null;
+    const chave = JSON.stringify([
+      z,
+      this.opcoes.pontoSelecionadoId,
+      this.opcoes.alcanceInteracaoM,
+      this.pontosDaTela(),
+      this.opcoes.modoMestre,
+      this.opcoes.visao.modo,
+      this.modelo !== null,
+      progresso === null ? null : Math.round(progresso * 40),
+      arrasto?.segurando?.pontoId ?? null,
+      this.luzes.filter((l) => l.portador.tipo === "ponto").map((l) => `${l.id}${l.estado}`),
+    ]);
+    if (chave === this.chaveDosPontos) return;
+    this.chaveDosPontos = chave;
+    this.sujo = true;
+    g.clear();
+    for (const ponto of this.pontosDaTela()) {
+      const pos = { x: ponto.x, y: ponto.y };
+      if (!this.opcoes.modoMestre && !this.pontoNaVisao(pos)) continue;
+      const cx = ponto.x * PX_POR_M;
+      const cy = ponto.y * PX_POR_M;
+      const suporte = ponto.tipo === "suporte";
+      const cor = suporte ? 0x7fd1b9 : 0xff9a4d;
+      const alpha = ponto.visivelParaJogadores ? 1 : 0.55;
+      const selecionado = ponto.id === this.opcoes.pontoSelecionadoId;
+      if (selecionado) {
+        const q = this.quadradoM();
+        const alcance = (this.opcoes.alcanceInteracaoM + q / 2) * PX_POR_M;
+        g.circle(cx, cy, alcance).stroke({ width: 1.5 / z, color: cor, alpha: 0.55 });
+      }
+      g.circle(cx, cy, r)
+        .fill({ color: 0x10141a, alpha: 0.9 * alpha })
+        .stroke({ width: (selecionado ? 3 : 2) / z, color: selecionado ? ACENTO : cor, alpha });
+      if (suporte) {
+        // um "U": a tocha se apoia nele
+        g.moveTo(cx - r * 0.5, cy - r * 0.35)
+          .lineTo(cx - r * 0.5, cy + r * 0.2)
+          .lineTo(cx + r * 0.5, cy + r * 0.2)
+          .lineTo(cx + r * 0.5, cy - r * 0.35)
+          .stroke({ width: 1.8 / z, color: cor, alpha });
+      } else {
+        // lenha cruzada
+        g.moveTo(cx - r * 0.55, cy + r * 0.4)
+          .lineTo(cx + r * 0.55, cy - r * 0.4)
+          .moveTo(cx - r * 0.55, cy - r * 0.4)
+          .lineTo(cx + r * 0.55, cy + r * 0.4)
+          .stroke({ width: 2 / z, color: cor, alpha });
+      }
+    }
+    // O anel que enche enquanto a tocha acesa é segurada sobre o inflamável.
+    const seg = arrasto?.segurando;
+    if (seg && progresso !== null) {
+      const ponto = this.pontosDaTela().find((x) => x.id === seg.pontoId);
+      if (ponto) {
+        const cx = ponto.x * PX_POR_M;
+        const cy = ponto.y * PX_POR_M;
+        const raioDoAnel = 30 / z;
+        g.circle(cx, cy, raioDoAnel).stroke({ width: 6 / z, color: 0x000000, alpha: 0.6 });
+        if (progresso > 0) {
+          g.moveTo(cx, cy - raioDoAnel);
+          g.arc(
+            cx,
+            cy,
+            raioDoAnel,
+            -Math.PI / 2,
+            -Math.PI / 2 + Math.PI * 2 * Math.min(1, progresso),
+          );
+          g.stroke({ width: 6 / z, color: 0xffb347, cap: "round" });
+        }
+      }
+    }
+  }
+
+  private pontoNaVisao(pos: Ponto): boolean {
+    if (this.opcoes.visao.modo !== "jogador") return true;
+    return this.modelo !== null && veNoPonto(this.modelo, pos);
+  }
+
+  /** Quanto falta do "segurar" (0 a 1), ou `null` se não há contagem. */
+  private progressoDeAcender(): number | null {
+    const seg = this.alcaArrastada?.segurando;
+    if (!seg) return null;
+    const ponto = this.pontos.find((p) => p.id === seg.pontoId);
+    const exigidoMs = (ponto?.segurarS ?? SEGURAR_PADRAO_S) * 1000;
+    if (exigidoMs <= 0) return 1;
+    return Math.min(1, (performance.now() - seg.desde) / exigidoMs);
+  }
+
+  /** A alça (ou ícone de objeto no ponto) sob o ponto da tela. */
+  private alcaEm(p: Ponto): { luz: FonteDeLuz; tela: Ponto } | null {
+    let achada: { luz: FonteDeLuz; tela: Ponto } | null = null;
+    let melhor = 15;
+    for (const { luz, mundo } of this.alcasDaTela()) {
+      const t = this.paraTela(mundo.x, mundo.y);
+      const d = Math.hypot(p.x - t.x, p.y - t.y);
+      if (d <= melhor) {
+        melhor = d;
+        achada = { luz, tela: t };
+      }
+    }
+    return achada;
+  }
+
+  /** O ponto de luz (suporte ou inflamável) cujo ícone está sob o ponto da tela. */
+  private pontoEm(p: Ponto): PontoDeLuz | null {
+    let achado: PontoDeLuz | null = null;
+    let melhor = 15;
+    for (const ponto of this.pontosDaTela()) {
+      if (!this.opcoes.modoMestre && !this.pontoNaVisao(ponto)) continue;
+      const t = this.paraTela(ponto.x, ponto.y);
+      const d = Math.hypot(p.x - t.x, p.y - t.y);
+      if (d <= melhor) {
+        melhor = d;
+        achado = ponto;
+      }
+    }
+    return achado;
+  }
+
+  /** O que está embaixo da tocha arrastada: outro token, um suporte ou um inflamável. */
+  private alvoDaAlca(m: Ponto, luz: FonteDeLuz): AlvoDaAlca | null {
+    const q = this.quadradoM();
+    const dono =
+      luz.portador.tipo === "mao" ? this.visualDoPersonagem(luz.portador.personagemId) : undefined;
+    for (const v of this.visuais.values()) {
+      if (v === dono || !v.container.visible || v.token.personagemId === undefined) continue;
+      if (v.token.camada !== "tokens") continue;
+      const raio = Math.max((v.token.tamanhoQuadrados * q) / 2, 12 / (this.vista.zoom * PX_POR_M));
+      if (Math.hypot(m.x - v.x, m.y - v.y) <= raio) return { tipo: "token", tokenId: v.token.id };
+    }
+    const margem = Math.max(q * 0.6, 14 / (this.vista.zoom * PX_POR_M));
+    for (const ponto of this.pontosDaTela()) {
+      if (Math.hypot(m.x - ponto.x, m.y - ponto.y) > margem) continue;
+      return { tipo: ponto.tipo, ponto };
+    }
+    return null;
+  }
+
+  /** O token do dono da tocha está ao alcance do ponto? (só uma dica; a sala confere de verdade) */
+  private aoAlcanceDoPonto(luz: FonteDeLuz, ponto: PontoDeLuz): boolean {
+    if (luz.portador.tipo !== "mao") return false;
+    const v = this.visualDoPersonagem(luz.portador.personagemId);
+    if (!v) return false;
+    return dentroDoAlcance(
+      { x: v.x, y: v.y, tamanhoQuadrados: v.token.tamanhoQuadrados },
+      ponto,
+      this.opcoes.alcanceInteracaoM,
+      this.quadradoM(),
+    );
+  }
+
+  /** Atualiza o que a tocha arrastada está tocando e começa (ou desfaz) a contagem do inflamável. */
+  private atualizarAlvoDaAlca(): void {
+    const arrasto = this.alcaArrastada;
+    if (!arrasto) return;
+    const luz = this.luzes.find((l) => l.id === arrasto.luzId);
+    if (!luz) return;
+    const alvo = this.alvoDaAlca(arrasto.pos, luz);
+    const sobreInflamavel =
+      alvo?.tipo === "inflamavel" &&
+      luz.estado === "acesa" &&
+      this.aoAlcanceDoPonto(luz, alvo.ponto);
+    if (alvo?.tipo === "inflamavel" && sobreInflamavel) {
+      if (arrasto.segurando?.pontoId !== alvo.ponto.id) {
+        arrasto.segurando = { pontoId: alvo.ponto.id, desde: performance.now(), fimEnviado: false };
+        this.retornos().acenderPontoInicio(alvo.ponto.id, luz.id);
+      }
+    } else if (arrasto.segurando) {
+      arrasto.segurando = null;
+    }
+    this.chaveDosPontos = "";
+  }
+
+  /** Cada quadro: a contagem do inflamável chegou ao fim? Então pede para acender (a tocha volta à mão). */
+  private passoDaContagem(): void {
+    const arrasto = this.alcaArrastada;
+    const seg = arrasto?.segurando;
+    if (!arrasto || !seg) return;
+    this.chaveDosPontos = "";
+    const ponto = this.pontos.find((p) => p.id === seg.pontoId);
+    const exigidoMs = (ponto?.segurarS ?? SEGURAR_PADRAO_S) * 1000;
+    if (seg.fimEnviado || performance.now() - seg.desde < exigidoMs + 60) return;
+    seg.fimEnviado = true;
+    this.retornos().acenderPontoFim(seg.pontoId, arrasto.luzId);
+    // A tocha volta para a mão; o arraste acaba aqui.
+    this.alcaArrastada = null;
+    this.gesto = null;
+    this.atualizarCursor();
   }
 
   // --- paredes e portas -------------------------------------------------------------------------
@@ -1430,8 +1897,18 @@ export class MapaPixi {
     this.desenharParedes();
   }
 
-  private readonly aoDuploClique = () => {
-    if (this.desenhando) this.encerrarDesenho();
+  private readonly aoDuploClique = (e: MouseEvent) => {
+    if (this.desenhando) {
+      this.encerrarDesenho();
+      return;
+    }
+    // Dois cliques na alça da tocha (ou no objeto aceso de um ponto): apaga ou reacende.
+    if (this.opcoes.ferramenta !== "selecionar") return;
+    const r = this.app.canvas.getBoundingClientRect();
+    const alca = this.alcaEm({ x: e.clientX - r.left, y: e.clientY - r.top });
+    if (!alca) return;
+    if (alca.luz.portador.tipo === "mao" && !this.opcoes.podeMexerNaTocha(alca.luz)) return;
+    this.retornos().alternarTocha(alca.luz.id);
   };
 
   // --- bandeira do ponto de chegada -------------------------------------------------------------
@@ -1543,6 +2020,12 @@ export class MapaPixi {
       return;
     }
     if (e.button === 2) {
+      // Clique direito na alça da tocha (ou no objeto de um ponto): o menu da tocha.
+      const alca = this.opcoes.ferramenta === "selecionar" ? this.alcaEm(p) : null;
+      if (alca) {
+        this.retornos().menuDaTocha(alca.luz.id, e.clientX, e.clientY);
+        return;
+      }
       // Clique direito no ícone da porta (mestre): tranca ou destranca.
       const porta = this.opcoes.modoMestre ? this.portaEm(p) : null;
       if (porta) this.retornos().trancarPorta(porta.id);
@@ -1574,6 +2057,45 @@ export class MapaPixi {
         this.cena,
       );
       this.retornos().colocarLuz(this.cena.id, ponto.x, ponto.y);
+      return;
+    }
+
+    if (this.opcoes.ferramenta === "ponto") {
+      if (!this.opcoes.modoMestre) return;
+      const m = this.paraMundo(p);
+      const ponto = limitarNaCena(
+        this.encaixaAgora(e.altKey) ? encaixarNoGrid(m, 1, this.quadradoM()) : m,
+        this.cena,
+      );
+      this.retornos().colocarPonto(this.cena.id, this.opcoes.tipoDoNovoPonto, ponto.x, ponto.y);
+      return;
+    }
+
+    // A alça da tocha: só o dono (ou o mestre) a arrasta; a dos outros ignora o clique.
+    const alca = this.alcaEm(p);
+    if (alca) {
+      if (alca.luz.portador.tipo === "mao" && this.opcoes.podeMexerNaTocha(alca.luz)) {
+        const m = this.paraMundo(p);
+        this.alcaArrastada = { luzId: alca.luz.id, pos: m, segurando: null };
+        this.gesto = { tipo: "alca", luzId: alca.luz.id };
+        this.app.canvas.setPointerCapture(e.pointerId);
+        this.atualizarCursor();
+      }
+      return;
+    }
+
+    const pontoMarcado = this.marcasVisiveis() ? this.pontoEm(p) : null;
+    if (pontoMarcado) {
+      this.retornos().selecionarPonto(pontoMarcado.id);
+      const m = this.paraMundo(p);
+      this.gesto = {
+        tipo: "ponto",
+        id: pontoMarcado.id,
+        deslocamento: { x: pontoMarcado.x - m.x, y: pontoMarcado.y - m.y },
+      };
+      this.pontoArrastado = { id: pontoMarcado.id, pos: { x: pontoMarcado.x, y: pontoMarcado.y } };
+      this.app.canvas.setPointerCapture(e.pointerId);
+      this.atualizarCursor();
       return;
     }
 
@@ -1612,7 +2134,10 @@ export class MapaPixi {
     const v = this.tokenEm(p);
     if (!v) {
       this.retornos().selecionar(null);
-      if (this.marcasVisiveis()) this.retornos().selecionarLuz(null);
+      if (this.marcasVisiveis()) {
+        this.retornos().selecionarLuz(null);
+        this.retornos().selecionarPonto(null);
+      }
       return;
     }
     if (this.opcoes.euMestre) this.retornos().selecionar(v.token.id);
@@ -1648,7 +2173,32 @@ export class MapaPixi {
         this.cursorDaParede = this.pontoDaParede(this.paraMundo(p), e.altKey);
         this.desenharParedes();
       }
-      this.atualizarCursor(this.tokenEm(p), this.sobreABandeira(p));
+      this.atualizarCursor(this.tokenEm(p), this.sobreABandeira(p), this.alcaEm(p) !== null);
+      return;
+    }
+    if (g.tipo === "alca") {
+      if (this.alcaArrastada) {
+        this.alcaArrastada.pos = this.paraMundo(p);
+        this.atualizarAlvoDaAlca();
+      }
+      return;
+    }
+    if (g.tipo === "ponto") {
+      if (!this.cena) return;
+      const m = this.paraMundo(p);
+      const alvo = limitarNaCena(
+        this.encaixaAgora(e.altKey)
+          ? encaixarNoGrid(
+              { x: m.x + g.deslocamento.x, y: m.y + g.deslocamento.y },
+              1,
+              this.quadradoM(),
+            )
+          : { x: m.x + g.deslocamento.x, y: m.y + g.deslocamento.y },
+        this.cena,
+      );
+      this.pontoArrastado = { id: g.id, pos: alvo };
+      this.visaoSuja = true;
+      this.chaveDosPontos = "";
       return;
     }
     if (g.tipo === "ponta") {
@@ -1738,6 +2288,33 @@ export class MapaPixi {
       const b = this.posicaoDaBandeira;
       if (b && this.cena) this.retornos().chegada(this.cena.id, b.x, b.y);
     }
+    if (g.tipo === "alca") {
+      const arrasto = this.alcaArrastada;
+      const luz = this.luzes.find((l) => l.id === g.luzId);
+      this.alcaArrastada = null;
+      this.chaveDosPontos = "";
+      if (arrasto && luz) {
+        const alvo = this.alvoDaAlca(arrasto.pos, luz);
+        if (alvo?.tipo === "token") this.retornos().entregarTocha(luz.id, alvo.tokenId);
+        else if (alvo?.tipo === "suporte") this.retornos().posarTocha(luz.id, alvo.ponto.id);
+      }
+      this.atualizarCursor();
+      return;
+    }
+    if (g.tipo === "ponto") {
+      const arrasto = this.pontoArrastado;
+      if (arrasto) this.retornos().moverPonto(arrasto.id, arrasto.pos.x, arrasto.pos.y);
+      // O ponto fica onde foi solto até a sala confirmar (o evento chega em seguida).
+      setTimeout(() => {
+        this.pontoArrastado = null;
+        if (this.pronto) {
+          this.visaoSuja = true;
+          this.chaveDosPontos = "";
+        }
+      }, 400);
+      this.atualizarCursor();
+      return;
+    }
     if (g.tipo === "luz") {
       const arrasto = this.luzArrastada;
       if (arrasto) this.retornos().moverLuz(arrasto.id, arrasto.pos.x, arrasto.pos.y);
@@ -1822,16 +2399,29 @@ export class MapaPixi {
     }
   };
 
-  private atualizarCursor(sobre: Visual | null = null, sobreBandeira = false): void {
+  private atualizarCursor(
+    sobre: Visual | null = null,
+    sobreBandeira = false,
+    sobreAlca = false,
+  ): void {
     if (!this.pronto) return;
     const g = this.gesto;
     let cursor = "default";
-    if (g?.tipo === "pan" || g?.tipo === "bandeira" || g?.tipo === "luz") cursor = "grabbing";
+    if (
+      g?.tipo === "pan" ||
+      g?.tipo === "bandeira" ||
+      g?.tipo === "luz" ||
+      g?.tipo === "ponto" ||
+      g?.tipo === "alca"
+    )
+      cursor = "grabbing";
+    else if (sobreAlca && this.opcoes.ferramenta === "selecionar") cursor = "grab";
     else if (this.espaco || this.opcoes.ferramenta === "mao") cursor = "grab";
     else if (sobreBandeira && this.opcoes.ferramenta === "selecionar") cursor = "grab";
     else if (
       this.opcoes.ferramenta === "regua" ||
       this.opcoes.ferramenta === "luz" ||
+      this.opcoes.ferramenta === "ponto" ||
       this.ferramentaDeParedes()
     )
       cursor = "crosshair";
@@ -1913,6 +2503,30 @@ export class MapaPixi {
         this.marcasVisiveis()
           ? this.posicoesDasLuzes().map((i) => ({ id: i.luz.id, ...i.pos }))
           : [],
+      /** As alças das tochas e os ícones dos objetos nos pontos (posição na página, em pixels). */
+      alcas: () => {
+        const r = this.app.canvas.getBoundingClientRect();
+        return this.alcasDaTela().map(({ luz, mundo }) => {
+          const t = this.paraTela(mundo.x, mundo.y);
+          return {
+            id: luz.id,
+            estado: luz.estado,
+            portador: luz.portador.tipo,
+            rotulo: this.rotuloDaAlca(luz),
+            x: r.left + t.x,
+            y: r.top + t.y,
+          };
+        });
+      },
+      /** Os pontos de luz que a tela mostra (posição na página) e a contagem de acender, se houver. */
+      pontos: () => {
+        const r = this.app.canvas.getBoundingClientRect();
+        return this.pontosDaTela().map((p) => {
+          const t = this.paraTela(p.x, p.y);
+          return { id: p.id, tipo: p.tipo, x: r.left + t.x, y: r.top + t.y };
+        });
+      },
+      anelDeAcender: () => this.progressoDeAcender(),
       /** Pontos da sequência de paredes em desenho. */
       desenhando: () => this.desenhando?.length ?? 0,
       /** Metros do mundo -> pixels CSS da página (para o `page.mouse`). */

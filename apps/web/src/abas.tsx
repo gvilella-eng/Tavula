@@ -5,6 +5,7 @@ import { type ArquivoDaFonte, temSeletorDePasta } from "./assets/fonte";
 import type { Fontes } from "./assets/fontes";
 import type { GerenteDeAssets, StatusDeAsset } from "./assets/gerente";
 import { CampoNota } from "./CampoNota";
+import { SecaoMesa, SecaoObjetosDeLuz } from "./PainelDaMesa";
 import type { Ocorrencia } from "./useSala";
 
 type Enviar = (tipo: string, dados: object) => string | null;
@@ -59,6 +60,8 @@ const ROTULO_DO_ESTADO: Record<StatusDeAsset["estado"], string> = {
 };
 
 type PropsConfig = {
+  estado: Estado;
+  enviar: Enviar;
   nome: string;
   papel: Papel;
   encaixe: boolean;
@@ -166,8 +169,13 @@ function Transferencias({ gerente }: { gerente: GerenteDeAssets }) {
   );
 }
 
-/** Trocar de usuário, preferências locais, pasta local de imagens e transferências. */
+/**
+ * Trocar de usuário, preferências locais, pasta local de imagens e transferências. O mestre também
+ * edita aqui a configuração da mesa e os modelos de objeto de luz.
+ */
 export function AbaConfiguracoes({
+  estado,
+  enviar,
   nome,
   papel,
   encaixe,
@@ -194,6 +202,8 @@ export function AbaConfiguracoes({
         />
         Encaixar tokens no grid (segure Alt ao arrastar para soltar sem encaixe)
       </label>
+      {papel === "mestre" && <SecaoMesa config={estado.config} enviar={enviar} />}
+      {papel === "mestre" && <SecaoObjetosDeLuz estado={estado} enviar={enviar} />}
       <PastaLocal fontes={fontes} />
       {gerente && <Transferencias gerente={gerente} />}
     </>

@@ -30,7 +30,10 @@ const fonte = (id: string, extra: Partial<FonteDeLuz> = {}): FonteDeLuz => ({
   portador: { tipo: "cena", x: 10, y: 10 },
   luz: { claraM: 6, penumbraM: 6, cor: "#ffb347", tremula: false },
   intensidade: 1,
-  acesa: true,
+  estado: "acesa",
+  saldoMs: null,
+  modificadores: [],
+  historico: [],
   ...extra,
 });
 
@@ -136,7 +139,7 @@ describe("raio efetivo", () => {
     const e = criarEstado();
     const c1 = { ...(e.cenas[0] as Estado["cenas"][number]), fatorDeLuz: 0.5 };
     const r = resolverLuzes(
-      [...e.luzes, fonte("apagada", { acesa: false }), fonte("zerada", { intensidade: 0 })],
+      [...e.luzes, fonte("apagada", { estado: "apagada" }), fonte("zerada", { intensidade: 0 })],
       c1,
       e.tokens,
     );
@@ -166,7 +169,8 @@ describe("sigilo das fontes de luz", () => {
     }
   });
   it("luzVisivelPara: o mestre vê todas", () => {
-    for (const l of e.luzes) expect(luzVisivelPara(l, MESTRE, e.tokens, "c1")).toBe(true);
+    for (const l of e.luzes)
+      expect(luzVisivelPara(l, MESTRE, { ...e, cenaAtivaId: "c1" })).toBe(true);
   });
   it("o evento de uma luz de outra cena ou de token oculto não chega ao jogador", () => {
     const outra = aplicar(
@@ -229,7 +233,7 @@ describe("intenções das fontes de luz", () => {
         portador: { tipo: "cena", x: 50, y: -3 },
         luz: { claraM: 6, penumbraM: 6, cor: "#ffffff", tremula: true },
         intensidade: 1,
-        acesa: true,
+        estado: "acesa",
         ...extra,
       },
     });
@@ -385,8 +389,8 @@ describe("exportação v7", () => {
     e = aplicar(e, "m", intencao("config.iluminacao", { mudancas: { memoriaBaseM: 20 } })).estado;
     e = aplicar(e, "m", intencao("memoria.esquecer")).estado;
     const x = criarExportacao(e, AGORA);
-    expect(x.versao).toBe(7);
-    expect(VERSAO_EXPORTACAO).toBe(7);
+    expect(x.versao).toBe(8);
+    expect(VERSAO_EXPORTACAO).toBe(8);
     expect(x.dados.luzes).toEqual(e.luzes);
     expect(x.dados.config.iluminacao.memoriaBaseM).toBe(20);
     // a memória esquecida é da sessão, não da campanha
@@ -403,7 +407,7 @@ describe("exportação v7", () => {
     const { luzes: _l, config: _c, ...semLuz } = v7.dados;
     const v6 = { ...v7, versao: 6, dados: semLuz };
     const l6 = lerExportacao(v6);
-    expect(l6.ok && l6.exportacao.versao).toBe(7);
+    expect(l6.ok && l6.exportacao.versao).toBe(8);
     expect(l6.ok && l6.exportacao.dados.luzes).toEqual([]);
     expect(l6.ok && l6.exportacao.dados.config).toEqual(CONFIG_PADRAO);
     const v5 = { ...v6, versao: 5 };
@@ -413,7 +417,7 @@ describe("exportação v7", () => {
     const { cenas: _c1, cenaAtivaId: _a, tokens: _t, ...v1dados } = semParedes;
     const { assets: _as, personagens: _pe, pastas: _pa, ordemDeTurnoVisivel: _o, ...v1 } = v1dados;
     const l1 = lerExportacao({ ...v7, versao: 1, dados: v1 });
-    expect(l1.ok && l1.exportacao.versao).toBe(7);
+    expect(l1.ok && l1.exportacao.versao).toBe(8);
     expect(l1.ok && l1.exportacao.dados.config).toEqual(CONFIG_PADRAO);
     // v2, v3, v4
     for (const versao of [2, 3, 4]) {

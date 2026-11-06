@@ -431,7 +431,7 @@ test("a visão noturna do mestre considera a luz: o que algum jogador vê aparec
   await expect.poll(() => veEm(p, 31.5, 9.75)).toBe(true);
   expect(await veEm(p, 45, 35)).toBe(false); // ninguém vê (nem luz)
   // apaga o braseiro: o mesmo ponto passa a ficar apagado
-  await intencao(p, "fonte.editar", { id: "luz-braseiro", mudancas: { acesa: false } });
+  await intencao(p, "fonte.editar", { id: "luz-braseiro", mudancas: { estado: "apagada" } });
   await expect.poll(() => veEm(p, 31.5, 9.75)).toBe(false);
   // com a visão noturna desligada, tudo claro
   await p.getByTestId("menu-visao-noturna").click();
@@ -452,7 +452,7 @@ test("frames: a fonte de luz de outra cena ou de token oculto nunca chega ao jog
         portador: { tipo: "cena", x: 5, y: 5 },
         luz: { claraM: 3, penumbraM: 3, cor: "#ffffff", tremula: false },
         intensidade: 1,
-        acesa: true,
+        estado: "acesa",
       },
     });
 
@@ -474,7 +474,7 @@ test("frames: a fonte de luz de outra cena ou de token oculto nunca chega ao jog
       portador: { tipo: "token", tokenId: "tok-goblin-oculto" },
       luz: { claraM: 3, penumbraM: 3, cor: "#ffffff", tremula: false },
       intensidade: 1,
-      acesa: true,
+      estado: "acesa",
     },
   });
   await intencao(mestre.pagina, "fonte.criar", {
@@ -484,7 +484,7 @@ test("frames: a fonte de luz de outra cena ou de token oculto nunca chega ao jog
       portador: { tipo: "token", tokenId: "tok-marcador-mestre" },
       luz: { claraM: 3, penumbraM: 3, cor: "#ffffff", tremula: false },
       intensidade: 1,
-      acesa: true,
+      estado: "acesa",
     },
   });
   // uma luz visível chega, para provar que o canal funciona

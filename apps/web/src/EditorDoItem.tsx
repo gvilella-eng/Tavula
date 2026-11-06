@@ -12,7 +12,9 @@ import { useEffect, useState } from "react";
 import { Avatar } from "./Avatar";
 import { Campo } from "./Campo";
 import type { PedirImagem } from "./FaixaDeCenas";
+import { MochilaDoItem } from "./MochilaDoItem";
 import type { ImagensDoMapa } from "./mapa/mapaPixi";
+import type { TempoDaTela } from "./tempo";
 
 type Enviar = (tipo: string, dados: object) => string | null;
 
@@ -35,6 +37,8 @@ type Props = {
   pedirImagem: PedirImagem;
   /** Nome da cena que o mestre está vendo (onde "Colocar na cena" põe o token). */
   cenaVista: { id: string; nome: string };
+  /** O tempo restante das luzes (a mochila mostra o das usadas). */
+  tempo: TempoDaTela;
   aoFechar: () => void;
 };
 
@@ -52,6 +56,7 @@ export function EditorDoItem({
   versaoDasImagens,
   pedirImagem,
   cenaVista,
+  tempo,
   aoFechar,
 }: Props) {
   const euMestre = eu.papel === "mestre";
@@ -265,6 +270,7 @@ export function EditorDoItem({
                 PV {p.ficha.pvAtual} / {p.ficha.pvMax}
               </p>
             )}
+            <MochilaDoItem personagem={p} estado={estado} eu={eu} enviar={enviar} tempo={tempo} />
             {euMestre && (
               <details className="avancado">
                 <summary>Token padrão e visão</summary>

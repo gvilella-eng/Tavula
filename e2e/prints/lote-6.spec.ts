@@ -166,7 +166,7 @@ test("fps de referência: 30 luzes e 500 paredes, arrastando o token do jogador 
           portador: { tipo: "cena", x: 4 + (i % 10) * 5.5, y: 5 + Math.floor(i / 10) * 12 },
           luz: { claraM: 4, penumbraM: 4, cor: "#ffb347", tremula: i % 2 === 0 },
           intensidade: 1,
-          acesa: true,
+          estado: "acesa",
         },
       }),
     );

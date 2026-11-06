@@ -1,4 +1,4 @@
-import type { Usuario } from "@tabletop/shared";
+import { formatarRestante, type Usuario } from "@tabletop/shared";
 import {
   BrickWall,
   Check,
@@ -13,7 +13,9 @@ import {
   Lightbulb,
   ListOrdered,
   Moon,
+  Pause,
   Pencil,
+  Play,
   SlidersHorizontal,
   User,
   Users,
@@ -22,6 +24,7 @@ import {
 import { type ReactNode, useRef, useState } from "react";
 import { CAMADAS_DE_TRABALHO, type CamadaDeTrabalho, ROTULO_DA_CAMADA } from "./camadas";
 import { Popover, useFecharFora } from "./Popover";
+import { useTic } from "./tempo";
 
 type Props = {
   faixaAberta: boolean;
@@ -41,6 +44,10 @@ type Props = {
   aoAlternarFontes: () => void;
   configAberta: boolean;
   aoAlternarConfig: () => void;
+  /** A mesa está pausada? O botão pausa ou retoma; `salaMs` é o relógio da sala (ms), vindo da sala. */
+  pausada: boolean;
+  aoAlternarPausa: () => void;
+  salaMs: () => number | undefined;
   /** A ferramenta de paredes e portas está ativa? */
   paredesAtivas: boolean;
   aoAlternarParedes: () => void;
@@ -154,6 +161,23 @@ function ListaDoMenu(props: {
         </button>
       ))}
     </div>
+  );
+}
+
+/** O relógio da sala: conta sozinho entre os envios da sala (e para na pausa). */
+function RelogioDaSala({
+  pausada,
+  salaMs,
+}: {
+  pausada: boolean;
+  salaMs: () => number | undefined;
+}) {
+  useTic(!pausada);
+  const ms = salaMs();
+  return (
+    <span className="relogio-sala" data-testid="relogio-sala" data-pausada={pausada}>
+      {ms === undefined ? "--:--" : formatarRestante(ms)}
+    </span>
   );
 }
 
@@ -297,6 +321,21 @@ export function MenuSuperior(p: Props) {
         >
           <ListOrdered size={20} />
         </Botao>
+        <span className="separador-vertical" aria-hidden="true" />
+        <Botao
+          testid="menu-pausa"
+          titulo={
+            p.pausada
+              ? "Retomar a mesa (o tempo volta a correr)"
+              : "Pausar a mesa (congela as tochas)"
+          }
+          ativo={p.pausada}
+          alerta={p.pausada}
+          aoClicar={p.aoAlternarPausa}
+        >
+          {p.pausada ? <Play size={20} /> : <Pause size={20} />}
+        </Botao>
+        <RelogioDaSala pausada={p.pausada} salaMs={p.salaMs} />
       </nav>
 
       {aberto === "camadas" && (

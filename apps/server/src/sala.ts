@@ -16,6 +16,9 @@ import {
   type Pacote,
   type Presenca,
   processar,
+  processarSistema,
+  proximoMarcoDoObjeto,
+  tempoDaSala,
   tokenVisivelPara,
   type Usuario,
   visaoPara,
@@ -88,6 +91,9 @@ export class Sala extends DurableObject<Env> {
         this.banco.salvarTudo(carregado);
       }
       this.estado = carregado;
+      this.iniciarRelogio();
+      // Ao acordar: objeto que acabou enquanto a sala dormia sai agora; o resto volta à fila.
+      await this.rodarTempo([]);
       this.uso = this.banco.lerUso() ?? { dia: diaUtc(new Date()), mensagens: 0, conexoes: 0 };
       // Ao acordar: conexão que não existe mais não tem cópia de nada.
       this.banco.limparPosseOrfa(this.conexoesAbertas().map((c) => c.conexaoId));
@@ -108,7 +114,7 @@ export class Sala extends DurableObject<Env> {
     }
     if (pathname === "/api/entrar" && request.method === "POST") return this.entrar(request);
     if (pathname === "/ws") return this.abrirSocket(request);
-    if (pathname.startsWith("/teste/")) return this.rotaDeTeste(pathname);
+    if (pathname.startsWith("/teste/")) return this.rotaDeTeste(new URL(request.url));
     return new Response("Não encontrado", { status: 404 });
   }
 
@@ -152,7 +158,8 @@ export class Sala extends DurableObject<Env> {
   }
 
   /** Rotas que só existem com `MODO=teste` (E2E): nunca no `pnpm dev`. */
-  private async rotaDeTeste(pathname: string): Promise<Response> {
+  private async rotaDeTeste(url: URL): Promise<Response> {
+    const { pathname } = url;
     if (this.env.MODO !== "teste") return new Response("Não encontrado", { status: 404 });
 
     if (pathname === "/teste/zerar") {
@@ -160,6 +167,7 @@ export class Sala extends DurableObject<Env> {
       await this.ctx.storage.deleteAlarm();
       this.estado = estadoInicial(semente);
       this.banco.salvarTudo(this.estado);
+      this.iniciarRelogio();
       this.uso = { dia: diaUtc(new Date()), mensagens: 0, conexoes: 0 };
       this.mensagensDesdeGravacaoDoUso = 0;
       this.mensagensDesdeEnvioDoUso = 0;
@@ -172,6 +180,24 @@ export class Sala extends DurableObject<Env> {
       }
       this.difundirPresenca();
       return json({ ok: true });
+    }
+    if (pathname === "/teste/avancar-relogio") {
+      // Gancho de teste: adianta o relógio da sala em `ms` (tochas envelhecem sem esperar minutos
+      // reais). Só existe com MODO=teste; nunca no `pnpm dev`.
+      const ms = Number(url.searchParams.get("ms"));
+      if (!Number.isFinite(ms) || ms < 0) return json({ erro: "ms inválido" }, 400);
+      const antes = this.estado;
+      this.estado = {
+        ...antes,
+        relogio: { ...antes.relogio, acumuladoMs: antes.relogio.acumuladoMs + ms },
+      };
+      this.banco.gravarRelogio(this.estado.relogio);
+      await this.rodarTempo([]);
+      for (const ws of this.ctx.getWebSockets()) {
+        const usuario = this.usuarioDe(ws);
+        if (usuario) this.enviarSnapshot(ws, usuario);
+      }
+      return json({ ok: true, salaMs: tempoDaSala(this.estado.relogio, Date.now()) });
     }
     if (pathname === "/teste/reiniciar-sala") {
       // Esquece a memória e derruba os sockets, como um reinício do processo. O estado volta do SQLite.
@@ -205,7 +231,8 @@ export class Sala extends DurableObject<Env> {
     }
     const intencao = lida.valor;
 
-    const r = processar(this.estado, usuario.id, intencao, new Date().toISOString());
+    const agoraMs = Date.now();
+    const r = processar(this.estado, usuario.id, intencao, new Date(agoraMs).toISOString());
     if (!r.ok) {
       this.erro(ws, intencao.id, r.erro.codigo, r.erro.mensagem);
       // Soltou do outro lado de uma parede: quem viu o arraste ao vivo volta o token para onde ele está.
@@ -225,6 +252,7 @@ export class Sala extends DurableObject<Env> {
     this.estado = r.estado;
     this.cuidarDeAsset(ws, usuario, intencao);
     this.cuidarDePreparo(intencao, r.preparo);
+    if (r.eventos.length > 0 || intencao.tipo === "campanha.importar") await this.reagendarLuzes();
 
     // Movimento ao vivo: transitório, não grava; só quem pode ver o token recebe (menos o remetente).
     if (r.movendo) {
@@ -290,9 +318,55 @@ export class Sala extends DurableObject<Env> {
 
   override async alarm(): Promise<void> {
     const vencidos = this.agenda.tomarVencidos(Date.now());
+    const marcos: string[] = [];
     for (const v of vencidos) {
       if (v.tipo === "presenca.expirar") this.difundirPresenca();
       else if (v.tipo === "uso.enviar") this.enviarUso();
+      else if (v.tipo === "luz.marco") marcos.push(v.chave);
+    }
+    if (marcos.length > 0) await this.rodarTempo(marcos);
+    await this.agenda.reprogramar();
+  }
+
+  // --- Relógio da sala e vencimento das luzes -------------------------------------------------
+
+  /** Mesa rodando sem instante de partida (banco antigo, campanha nova): começa a contar agora. */
+  private iniciarRelogio(): void {
+    const r = this.estado.relogio;
+    if (r.pausada || r.desdeReal !== undefined) return;
+    this.estado = { ...this.estado, relogio: { ...r, desdeReal: Date.now() } };
+    this.banco.gravarRelogio(this.estado.relogio);
+  }
+
+  /**
+   * O tempo passou: a intenção INTERNA do sistema (nenhum cliente a alcança) consome o que acabou,
+   * tira modificadores vencidos e reenvia os objetos cujo marco (estágio) venceu. Depois reagenda.
+   */
+  private async rodarTempo(marcos: string[]): Promise<void> {
+    const r = processarSistema(this.estado, new Date().toISOString(), marcos);
+    if (r.ok && r.eventos.length > 0) {
+      this.banco.salvarEventos(r.estado, r.eventos);
+      const antes = this.estado;
+      this.estado = r.estado;
+      this.distribuir(r.eventos, [], antes);
+    }
+    await this.reagendarLuzes();
+  }
+
+  /**
+   * Um vencimento por objeto (o próximo marco: mudar de estágio, acabar, vencer um modificador),
+   * em tempo real. Pausada, tudo é cancelado; ao retomar, reagenda a partir do que sobrou.
+   */
+  private async reagendarLuzes(): Promise<void> {
+    for (const chave of this.agenda.chaves("luz.marco")) this.agenda.cancelar("luz.marco", chave);
+    const relogio = this.estado.relogio;
+    if (!relogio.pausada) {
+      const agora = Date.now();
+      const sala = tempoDaSala(relogio, agora);
+      for (const l of this.estado.luzes) {
+        const ms = proximoMarcoDoObjeto(l, sala, this.estado.config.estagios);
+        if (ms !== null) await this.agenda.agendar("luz.marco", l.id, agora + Math.ceil(ms) + 5);
+      }
     }
     await this.agenda.reprogramar();
   }
@@ -592,7 +666,7 @@ export class Sala extends DurableObject<Env> {
       ws,
       mensagem({
         tipo: "snapshot",
-        dados: { usuarioId: usuario.id, estado: visaoPara(this.estado, usuario) },
+        dados: { usuarioId: usuario.id, estado: visaoPara(this.estado, usuario, Date.now()) },
       }),
     );
     if (usuario.papel === "mestre") this.enviar(ws, this.textoDoUso());
@@ -636,6 +710,7 @@ export class Sala extends DurableObject<Env> {
 
   /** Entrega cada evento (filtrado por usuário) ou, para quem pede, um snapshot novo. */
   private distribuir(eventos: EventoSala[], snapshotPara: "todos" | string[], antes: Estado): void {
+    const agoraMs = Date.now();
     for (const ws of this.ctx.getWebSockets()) {
       const usuario = this.usuarioDe(ws);
       if (!usuario) {
@@ -647,7 +722,7 @@ export class Sala extends DurableObject<Env> {
         continue;
       }
       for (const ev of eventos) {
-        const visto = eventoPara(ev, usuario, antes, this.estado);
+        const visto = eventoPara(ev, usuario, antes, this.estado, agoraMs);
         if (visto) this.enviar(ws, mensagem({ tipo: "evento", dados: visto }));
       }
     }

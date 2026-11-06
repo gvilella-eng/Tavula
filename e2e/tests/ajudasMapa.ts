@@ -46,6 +46,19 @@ export type GanchoDoMapa = {
   lembraNoPonto(x: number, y: number): boolean;
   opacidadeDaMemoria(x: number, y: number): number;
   marcasDeLuz(): { id: string; x: number; y: number }[];
+  /** As alças das tochas e os ícones dos objetos nos pontos (posição na página). */
+  alcas(): {
+    id: string;
+    estado: "acesa" | "apagada";
+    portador: string;
+    rotulo: string;
+    x: number;
+    y: number;
+  }[];
+  /** Os pontos de luz que a tela mostra (posição na página). */
+  pontos(): { id: string; tipo: string; x: number; y: number }[];
+  /** A contagem de acender (0 a 1) enquanto se segura a tocha sobre um inflamável. */
+  anelDeAcender(): number | null;
 };
 
 export const tokensDe = (p: Page) =>
