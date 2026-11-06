@@ -469,12 +469,15 @@ quem escolhe o usuário mestre na tela de entrada é mestre.
   servidor nem de desenvolvimento.
 - **Por token o mestre define:** alcance de visão, visão no escuro, quem controla e quem enxerga
   através dele. A luz vem dos objetos que o personagem carrega (seção 4.8).
-- **Visão do mestre:** o mestre é o único que vê o mapa inteiro sem precisar de luz. Modos:
-  - *normal*: tudo visível;
-  - *visão noturna* (checkbox, como no jogo 3D): o que está escuro aparece com o filtro de visão
-    noturna (tons de cinza) e a **união do que todos os jogadores estão vendo** aparece normal. A união
-    sai barata: a máscara de visão de cada jogador é desenhada na mesma RenderTexture, sem conta de
-    polígonos;
+- **Visão do mestre:** o mestre é o único que vê o mapa inteiro sem precisar de luz. É uma escolha
+  **só da tela dele** (não vai para a sala nem afeta os jogadores). Modos (definidos pelo Vilella em
+  2026-11-06):
+  - **visão noturna ligada** (padrão; ícone no menu superior): o que os jogadores estão iluminando
+    aparece claro e normal, e o resto do mapa aparece num tom mais apagado, para distinguir o que está
+    de fato iluminado. A união sai barata: a máscara de cada jogador é desenhada na mesma
+    RenderTexture, sem conta de polígonos;
+  - **visão noturna desligada**: tudo claro, como se a cena estivesse toda iluminada (como desligar a
+    iluminação dinâmica, mas só para o mestre);
   - *ver como o jogador X*.
 
 ### 4.8 Relógio da sala e objetos de luz
@@ -648,7 +651,7 @@ Base do Lote 4b. **Em definição:** o que cada ícone do menu superior abre o V
   Só o mestre vê. Ícones:
   - cenas;
   - camadas (4: **mapa**, tokens, mestre, desenho);
-  - visão noturna (só o ícone por enquanto);
+  - visão noturna: liga/desliga o modo do mestre descrito na 4.7 (só a tela dele);
   - novo token;
   - eventos (as automações da seção 4.11);
   - iluminação (lanterna): abre uma lista logo abaixo com:
