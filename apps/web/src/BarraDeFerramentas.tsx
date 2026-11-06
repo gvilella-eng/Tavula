@@ -1,21 +1,21 @@
-import type { Camada } from "@tabletop/shared";
-import { CirclePlus, Crown, Hand, Layers, MousePointer2, Ruler } from "lucide-react";
-import type { ReactNode } from "react";
+import { Brush, Dices, Hand, MousePointer2, Ruler } from "lucide-react";
+import { type ReactNode, useState } from "react";
+import { DadosRapidos } from "./DadosRapidos";
 import type { Ferramenta } from "./mapa/mapaPixi";
+import { SubBarraPincel } from "./SubBarraPincel";
 
 type Props = {
   ferramenta: Ferramenta;
   aoEscolher: (f: Ferramenta) => void;
-  euMestre: boolean;
-  camadaTrabalho: Camada;
-  aoEscolherCamada: (c: Camada) => void;
-  aoNovoToken: () => void;
+  /** Mostra o resultado (por enquanto só um aviso: os dados chegam com o chat, Lote 8). */
+  aoRolar: (quantidade: number, faces: number) => void;
 };
 
 function Botao(props: {
   testid: string;
   titulo: string;
   ativo?: boolean;
+  gatilho?: boolean;
   aoClicar: () => void;
   children: ReactNode;
 }) {
@@ -27,6 +27,7 @@ function Botao(props: {
       title={props.titulo}
       aria-label={props.titulo}
       aria-pressed={props.ativo}
+      data-popover-gatilho={props.gatilho ? "" : undefined}
       onClick={props.aoClicar}
     >
       {props.children}
@@ -34,52 +35,68 @@ function Botao(props: {
   );
 }
 
-/** Barra vertical à esquerda. "Novo token" e o seletor de camada só aparecem para o mestre. */
+/** Barra vertical à esquerda (todos): selecionar, mão, régua, dados rápidos e pincel. */
 export function BarraDeFerramentas(p: Props) {
+  const [dadosAbertos, setDadosAbertos] = useState(false);
+  const [pincelAberto, setPincelAberto] = useState(false);
+
+  if (pincelAberto) {
+    return (
+      <div className="barra-esquerda-area">
+        <SubBarraPincel aoVoltar={() => setPincelAberto(false)} />
+      </div>
+    );
+  }
+
   const ferramentas: { id: Ferramenta; titulo: string; icone: ReactNode }[] = [
     { id: "selecionar", titulo: "Selecionar e mover (V)", icone: <MousePointer2 size={20} /> },
     { id: "mao", titulo: "Mão: arrastar o mapa (H)", icone: <Hand size={20} /> },
     { id: "regua", titulo: "Régua (R)", icone: <Ruler size={20} /> },
   ];
   return (
-    <nav className="barra-ferramentas" aria-label="Ferramentas" data-testid="barra-ferramentas">
-      {ferramentas.map((f) => (
-        <Botao
-          key={f.id}
-          testid={`ferramenta-${f.id}`}
-          titulo={f.titulo}
-          ativo={p.ferramenta === f.id}
-          aoClicar={() => p.aoEscolher(f.id)}
-        >
-          {f.icone}
-        </Botao>
-      ))}
-      {p.euMestre && (
-        <>
-          <hr />
-          <Botao testid="novo-token" titulo="Novo token" aoClicar={p.aoNovoToken}>
-            <CirclePlus size={20} />
+    <div className="barra-esquerda-area">
+      <nav className="barra-ferramentas" aria-label="Ferramentas" data-testid="barra-ferramentas">
+        {ferramentas.map((f) => (
+          <Botao
+            key={f.id}
+            testid={`ferramenta-${f.id}`}
+            titulo={f.titulo}
+            ativo={p.ferramenta === f.id}
+            aoClicar={() => p.aoEscolher(f.id)}
+          >
+            {f.icone}
           </Botao>
-          <div className="camadas">
-            <Botao
-              testid="camada-tokens"
-              titulo="Trabalhar na camada de tokens"
-              ativo={p.camadaTrabalho === "tokens"}
-              aoClicar={() => p.aoEscolherCamada("tokens")}
-            >
-              <Layers size={20} />
-            </Botao>
-            <Botao
-              testid="camada-mestre"
-              titulo="Trabalhar na camada do mestre"
-              ativo={p.camadaTrabalho === "mestre"}
-              aoClicar={() => p.aoEscolherCamada("mestre")}
-            >
-              <Crown size={20} />
-            </Botao>
-          </div>
-        </>
+        ))}
+        <hr />
+        <Botao
+          testid="ferramenta-dados"
+          titulo="Dados rápidos"
+          ativo={dadosAbertos}
+          gatilho
+          aoClicar={() => setDadosAbertos(!dadosAbertos)}
+        >
+          <Dices size={20} />
+        </Botao>
+        <Botao
+          testid="ferramenta-pincel"
+          titulo="Pincel (em breve)"
+          aoClicar={() => {
+            setDadosAbertos(false);
+            setPincelAberto(true);
+          }}
+        >
+          <Brush size={20} />
+        </Botao>
+      </nav>
+      {dadosAbertos && (
+        <DadosRapidos
+          aoRolar={(q, f) => {
+            p.aoRolar(q, f);
+            setDadosAbertos(false);
+          }}
+          aoFechar={() => setDadosAbertos(false)}
+        />
       )}
-    </nav>
+    </div>
   );
 }

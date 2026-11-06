@@ -770,26 +770,113 @@ Aplicadas na revisão (4.1, 4.4, Lote 4 e seção 9). Texto original do agente:
   sigilo de cena.
 - Lote 4 "Pronto quando": acrescentar o roteiro manual acima.
 
-## Próximo: Lote 4b — Revisão da interface
+## Lote 4b — Interface v2 (entregue, para o Vilella ver)
 
-Ver `PROJETO.md`, seção 7. O escopo exato se combina com o Vilella. Ajustes já vistos (Lote 3 e Lote 4), para a
-revisão:
+Monta a interface v2 (`PROJETO.md` 4.13.1) para o Vilella visualizar e seguir descrevendo. Recurso novo sem lote
+(pincel, dados, chat, compêndio, eventos, iluminação, visão noturna, ordem de turno) é **só interface**. Protocolo em
+`docs/protocolo.md` (pastas, quem edita, ordem de turno, camada `mapa`).
 
-- **Do Lote 3** (ainda valem): zoom inicial pequeno demais (tokens viram pontos, nomes ilegíveis); painel do token
-  cobrindo o mapa; barra lateral larga demais e cortando texto em janela estreita; "arquivos prontos" conta errado
-  (só o que veio por transferência).
-- **Aba Cenas**: cada linha tem 5 ou 6 botões que quebram em várias linhas na barra estreita; o rótulo "Usar o centro
-  da vista como chegada" é longo; "Apagar" pede confirmação com um segundo botão ao lado (sem diálogo); o nome da cena
-  é um campo editável sem aviso de que confirma ao sair; não há miniatura nem tamanho da cena; "Preparar" mostra só
-  texto ("3 de 7 jogadores já têm tudo"), sem barra de progresso nem como cancelar.
-- **Cena vista × cena do grupo**: só o rótulo "Vendo: X · Grupo em: Y" avisa que o mestre está olhando outra cena; nada
-  no mapa (borda, faixa) impede de editar a cena errada sem perceber.
-- **Aba Personagens (mestre)**: cada cartão tem uns dez campos e não recolhe, a lista fica comprida; a imagem do token
-  padrão aparece só como os 8 primeiros caracteres do hash (sem miniatura) e se escolhe em **outra aba** (Biblioteca);
-  "Colocar na cena que estou vendo (X)" repete o nome da cena; PV são dois campos numéricos sem +/−; a visão é
-  texto solto até o Lote 6.
-- **Aba Personagens (jogador)**: sem retrato; PV como número; os de outros jogadores (com `ficha.verOutras`) aparecem
-  só como texto.
-- **Barra lateral**: com as duas abas novas a faixa de ícones tem 7 (mestre) ou 6 (jogador); conferir com janela
-  estreita.
-- **Painel do token** não mostra a qual personagem o token pertence nem quem o controla por ser o dono.
+### O que foi entregue
+
+- **Layout:** a etiqueta sobre o mapa saiu (as mesmas informações ficam só para leitores de tela, `so-leitor`); o selo
+  de conexão só aparece sem conexão. **Menu superior do mestre** (`MenuSuperior.tsx`): Cenas, Camadas (popover com
+  mapa/tokens/mestre/desenho e "Limpar desenhos" desabilitado), Visão noturna (liga/desliga sem efeito), Novo token,
+  Eventos e Iluminação (painéis "em breve") e Ordem de turno. **Barra da esquerda** (todos): selecionar, mão, régua,
+  **dados rápidos** (grade D4 a D100 × 2 a 6; só mostra o aviso "3d20 — os dados chegam com o chat") e **pincel**
+  (sub-barra: voltar, selecionar, 4 formas, 6 cores, borracha; "em breve"). **Barra da direita** de largura fixa:
+  Chat, Fichas, Compêndio, Configurações e Mestre. Somem como abas: Jogadores, Notas, Personagens, Cenas, Biblioteca.
+- **Faixa de cenas** (`FaixaDeCenas.tsx`): ~164 px de altura, rolagem horizontal; cards numerados com nome e **prévia
+  do mapa** gerada no navegador do mestre a partir do cache (junta os tiles; `previaDaCena.ts`), grid quando não há mapa;
+  destaque da cena vista, marca do grupo, "+ Nova cena", duplo clique renomeia. **Botão direito** abre o menu de contexto:
+  Ir para, Levar grupo, Duplicar, Preparar (barra de progresso no card), **Configurar…** (nome, mapa, px por quadrado,
+  grid visível; `ConfigurarCena.tsx`) e Apagar (com confirmação). O ponto de chegada agora é uma **bandeira arrastável no
+  mapa** (só o mestre, na cena que ele vê; `mapaPixi.ts`).
+- **Camada `mapa`** funcionando (shared + mapa): abaixo dos tokens; o jogador vê e não seleciona nem move; o mestre
+  seleciona com a camada de trabalho `mapa`. `tokenVisivelPara`, `podeMoverToken`, `hashesPreparaveis` atualizados.
+- **Pastas das Fichas** (shared, sala, web): `Pasta`, `Personagem.pastaId/editores/retratoHash` (sem `donoId`), intenções
+  `pasta.criar/editar/apagar`, eventos `pasta.alterada/apagada`, `ordemDeTurno.definir`/`ordemDeTurno.alterada`,
+  `Estado.pastas` e `Estado.ordemDeTurnoVisivel`. Quem vê o item = pasta + quem edita (substitui `ficha.verOutras`, que
+  continua no tipo e some da interface). Controle do token = quem edita + `controladoPor`. **Exportação v5**
+  (importa v1 a v4). Migração SQLite (nº 4 em `armazenamento.ts`) leva o banco antigo para as pastas "Personagens" e
+  "NPCs" (só mestre).
+- **Aba Fichas** (`AbaFichas.tsx`, `EditorDoItem.tsx`): Notas fixas no topo; pastas recolhíveis (criar, renomear, apagar
+  só vazia, visibilidade todos/escolhidos/só mestre); alça à esquerda do item arrasta para outra pasta ou **para o mapa**
+  (cria o token na cena vista, onde soltou); "+ Novo" (Personagem e NPC; Artefato, Tesouro, Handout desabilitados);
+  editor com retrato e token padrão (`SeletorDeImagem.tsx`: pasta local ou arquivo), quem edita (chips), PV, Duplicar,
+  Apagar, "Importar ficha" desabilitado. O jogador que edita troca retrato e token (`asset.subir`).
+- **Ajustes já vistos:** zoom inicial 100% centrado no grupo (mestre) ou no token do jogador, ou no centro da cena;
+  painel do token compacto no canto inferior esquerdo; barra lateral de largura fixa sem texto cortado; o contador de
+  "arquivos prontos" conta o cache (`gerente.inventario()`); pasta local (escolher, reautorizar, ver) e transferências
+  foram para Configurações; papéis dos usuários foram para a aba Mestre.
+- Dependências novas: nenhuma (`lucide-react` já existia).
+
+### Como rodar
+
+`pnpm dev` e `pnpm verify` como antes. Campanha já existente no `pnpm dev` é migrada ao abrir (pastas "Personagens" e
+"NPCs"); nada precisa ser apagado.
+
+### Verificação
+
+- Unidade: `fichas.test.ts` (novo: visibilidade por pasta, transições, controle por quem edita, camada mapa, ordem de
+  turno, migração, exportação v5 e importação de v1 a v4) e os testes antigos ajustados.
+- E2E: os 42 antigos continuam, com as interações adaptadas (abas e botões mudaram de lugar; nada foi afrouxado). Novos:
+  `fichas.spec.ts` (frames de pasta, quem edita, arrastar para o mapa, retrato/token padrão, camada mapa) e
+  `interface.spec.ts` (ordem de turno, menus, dados, pincel, barra da direita, zoom inicial, faixa e menu de contexto).
+  Ajudas novas: `abrirFaixa`, `menuDaCena`, `escolherCamada`, `definirMapa`, `imagemDoTokenSelecionado`, `ajudasMapa.ts`.
+
+### Decisões
+
+- Pasta e ordem de turno exigem `mesa.configurar` (só do mestre). `personagem.editar` não exige capacidade: o mestre
+  muda tudo e quem edita muda só as imagens (com `asset.subir`).
+- Mudar a visibilidade de uma pasta manda snapshot novo a todos; mover item de pasta usa a transição de personagem.
+- O jogador que edita um item cuja pasta ele não vê o recebe, mas não a pasta: a interface o põe em "Seus itens".
+- Quando quem edita troca o token padrão, a interface também põe a imagem nos tokens dele daquele personagem (via
+  `token.definirImagem`); o mestre muda só o padrão, como antes.
+- O jogador só conhece os personagens que vê: o zoom inicial dele centra nos tokens que ele controla.
+
+### Desvios do plano
+
+- Painel do token no canto inferior esquerdo (não colado no token): colado no token cobria os vizinhos.
+- Progresso do preparo no card é curto ("3/7 · 7 arquivos"); o texto longo antigo ficou no `title`.
+
+### Só interface (sem função ainda)
+
+Pincel e camada de desenho (e "Limpar desenhos"), dados rápidos (só avisa), chat (lista vazia, caixa e "Como:"
+desabilitados), compêndio (busca sem dados), eventos, iluminação, visão noturna, painel de ordem de turno (vazio; só o
+liga/desliga é real), "Importar ficha", e os itens Artefato, Tesouro e Handout.
+
+### Frágil / não verificado
+
+- Arrastar e soltar usa HTML5 DnD: testado no Chrome (Playwright), não em Firefox/Safari.
+- A prévia da cena usa o cache; mapas enormes geram a prévia na primeira vez que a faixa abre (pode demorar um instante).
+- Cena duplicada copia a referência do mapa; preparar cena duplicada precisa refazer o preparo.
+- A bandeira de chegada só é arrastável com a ferramenta Selecionar.
+
+### Revisão (antes do commit de fechamento)
+
+- A sessão caiu com o agente na reta final (código, testes, prints e esta seção já prontos). Na retomada, em
+  2026-11-06: `pnpm verify` duas vezes seguidas, verde nas duas: 198 testes de unidade (180 shared, 12 server,
+  6 web) e 51 E2E (~4,1 min). Prints conferidos um a um.
+- Conferidos no código: visibilidade por pasta + quem edita (`personagemVisivelPara`), controle do token por quem
+  edita, camada `mapa` visível e não movível pelo jogador, e a migração (`donoId` → quem edita, pastas "só
+  mestre"), que mantém quem via o quê.
+- O `pnpm dev` do Vilella (8787/5173), que estava aberto quando o lote começou, não estava mais rodando na
+  retomada; não dá para saber se caiu com a sessão.
+
+### Sugestões para o PROJETO.md
+
+Aplicadas na revisão (4.1 e o Lote 4b). Texto original do agente:
+
+- 4.1: `Pasta`, `Personagem { pastaId, editores, retratoHash? }` (sem `donoId`), `Token.camada` com `mapa`, `Estado.pastas` e
+  `ordemDeTurnoVisivel`; 4.13: a barra superior, a faixa de cenas, o painel do token e a bandeira de chegada.
+- Marcar como decididas as "Assumidas": quem vê = pasta + quem edita; `ficha.verOutras` sem efeito (remover do tipo
+  depois de uma versão de exportação).
+- Lote 4b "Pronto quando": acrescentar o roteiro manual (abrir a faixa, botão direito, arrastar item para o mapa, mover
+  item entre pastas com um jogador conectado).
+- Seção 9, regra 8: citar `e2e/tests/fichas.spec.ts` como modelo de teste de sigilo de pastas.
+
+## Próximo: a combinar com o Vilella depois de ver a interface
+
+Ver `PROJETO.md`, seção 7. O Lote 5 (paredes) só começa depois que o Vilella aprovar a interface v2 e detalhar o que
+ainda está em aberto (eventos, iluminação, visão noturna, camada de desenho). Os ajustes já vistos do Lote 3 e 4 foram
+tratados no Lote 4b (acima).

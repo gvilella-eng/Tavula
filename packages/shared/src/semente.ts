@@ -3,12 +3,14 @@ import { PERMISSOES_PADRAO } from "./capacidades.ts";
 import {
   CenaSchema,
   type Estado,
+  PastaSchema,
   PermissoesSchema,
   PersonagemSchema,
   TokenSchema,
   UsuarioSchema,
 } from "./estado.ts";
 import { CENA_PADRAO } from "./mapa.ts";
+import { pastasPadrao } from "./pastas.ts";
 
 /** Formato de `fixtures/campanha.seed.json`: usuários e (opcional) permissões iniciais. */
 export const SementeSchema = z.object({
@@ -17,6 +19,7 @@ export const SementeSchema = z.object({
   cenas: z.array(CenaSchema).min(1).optional(),
   cenaAtivaId: z.string().optional(),
   tokens: z.array(TokenSchema).optional(),
+  pastas: z.array(PastaSchema).optional(),
   personagens: z.array(PersonagemSchema).optional(),
 });
 export type Semente = z.infer<typeof SementeSchema>;
@@ -37,7 +40,9 @@ export function estadoInicial(bruta: unknown): Estado {
     cenas,
     cenaAtivaId: semente.cenaAtivaId ?? cenas[0]?.id ?? CENA_PADRAO.id,
     tokens: semente.tokens ?? [],
+    pastas: semente.pastas ?? pastasPadrao(),
     personagens: semente.personagens ?? [],
+    ordemDeTurnoVisivel: false,
     assets: [],
   };
 }

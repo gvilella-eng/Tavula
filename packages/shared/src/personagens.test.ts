@@ -68,7 +68,8 @@ function personagem(
 ): Personagem {
   return {
     id,
-    donoId,
+    pastaId: donoId === null ? "pasta-npcs" : "pasta-personagens",
+    editores: { tipo: "jogadores", ids: donoId === null ? [] : [donoId] },
     nome: `Pers ${id}`,
     tokenPadrao: { cor: "#123456", tamanhoQuadrados: 1 },
     visao: { alcanceM: null, visaoNoEscuroM: 0 },
@@ -198,31 +199,20 @@ describe("sigilo de cena", () => {
 });
 
 describe("personagens no snapshot", () => {
-  it("o jogador vê os dele; NPC nunca; os de outros só com ficha.verOutras", () => {
+  it("o jogador vê os que edita; NPC e itens de pasta só do mestre nunca", () => {
     const e = criarEstado();
     expect(visaoPara(e, j1).personagens.map((p) => p.id)).toEqual(["p1"]);
     expect(visaoPara(e, j3).personagens).toEqual([]);
     expect(visaoPara(e, mestre).personagens).toHaveLength(3);
+    expect(JSON.stringify(visaoPara(e, j1))).not.toContain("Ogro Secreto");
+    // a capacidade antiga não abre mais nada (a pasta é que decide quem vê)
     const com = aplicar(
       e,
       "m",
       intencao("permissao.alterar", { capacidade: "ficha.verOutras", valor: true }),
     );
-    expect(com.snapshotPara).toBe("todos");
-    expect(visaoPara(com.estado, j1).personagens.map((p) => p.id)).toEqual(["p1", "p2"]);
-    expect(JSON.stringify(visaoPara(com.estado, j1))).not.toContain("Ogro Secreto");
-    // por usuário: só ele ganha o snapshot novo
-    const so = aplicar(
-      e,
-      "m",
-      intencao("permissao.alterar", {
-        capacidade: "ficha.verOutras",
-        valor: true,
-        usuarioId: "j3",
-      }),
-    );
-    expect(so.snapshotPara).toEqual(["j3"]);
-    expect(visaoPara(so.estado, j3).personagens.map((p) => p.id)).toEqual(["p1", "p2"]);
+    expect(com.snapshotPara).toEqual([]);
+    expect(visaoPara(com.estado, j1).personagens.map((p) => p.id)).toEqual(["p1"]);
   });
 
   it("eventos de personagem: o dono e o mestre recebem; NPC e alheio não; a visão some com apagado", () => {
@@ -238,11 +228,14 @@ describe("personagens no snapshot", () => {
       intencao("personagem.editar", { id: "npc", mudancas: { pvAtual: 1 } }),
     );
     expect(eventoPara(npc.eventos[0] as EventoSala, j1, e, npc.estado)).toBeNull();
-    // troca de dono: quem perdeu a visão recebe "apagado"
+    // troca de quem edita: quem perdeu a visão recebe "apagado"
     const troca = aplicar(
       e,
       "m",
-      intencao("personagem.editar", { id: "p1", mudancas: { donoId: "j3" } }),
+      intencao("personagem.editar", {
+        id: "p1",
+        mudancas: { editores: { tipo: "jogadores", ids: ["j3"] } },
+      }),
     );
     const evt = troca.eventos[0] as EventoSala;
     expect(eventoPara(evt, j1, e, troca.estado)?.tipo).toBe("personagem.apagado");
@@ -475,7 +468,11 @@ describe("personagens: criar, editar, colocar, apagar", () => {
       "m",
       intencao("personagem.editar", { id: "p1", mudancas: { nome: "Aldric", pvMax: 5 } }),
     ).estado.personagens.find((p) => p.id === "p1") as Personagem;
-    expect(ed).toMatchObject({ nome: "Aldric", ficha: { pvAtual: 5, pvMax: 5 }, donoId: "j1" });
+    expect(ed).toMatchObject({
+      nome: "Aldric",
+      ficha: { pvAtual: 5, pvMax: 5 },
+      editores: { tipo: "jogadores", ids: ["j1"] },
+    });
   });
 
   it("colocar cria o token a partir do token padrão (cópia própria) na chegada", () => {
@@ -559,14 +556,14 @@ describe("ficha.alterar", () => {
       aplicar(e, "m", intencao("ficha.alterar", { personagemId: "p1", pvMax: 20 })).estado
         .personagens[0]?.ficha,
     ).toEqual({ pvAtual: 10, pvMax: 20 });
-    // sem poder ver o personagem alheio: inexistente; vendo (verOutras): sem permissão
+    // sem poder ver o personagem alheio: inexistente; vendo (pasta de todos): sem permissão
     expect(codigo(e, "j2", intencao("ficha.alterar", { personagemId: "p1", pvAtual: 1 }))).toBe(
       "personagem_inexistente",
     );
     const vendo = aplicar(
       e,
       "m",
-      intencao("permissao.alterar", { capacidade: "ficha.verOutras", valor: true }),
+      intencao("pasta.editar", { id: "pasta-personagens", visivel: { tipo: "todos" } }),
     ).estado;
     expect(codigo(vendo, "j2", intencao("ficha.alterar", { personagemId: "p1", pvAtual: 1 }))).toBe(
       "sem_permissao",
@@ -757,7 +754,7 @@ describe("cena.preparar", () => {
   });
 });
 
-describe("exportação v4", () => {
+describe("exportação v5", () => {
   it("leva personagens e a chegada das cenas; volta igual; nunca leva preparos nem cifrados", () => {
     let e = criarEstado();
     e = aplicar(
@@ -767,8 +764,9 @@ describe("exportação v4", () => {
     ).estado;
     const x = criarExportacao(e, AGORA);
     expect(x.versao).toBe(VERSAO_EXPORTACAO);
-    expect(x.versao).toBe(4);
+    expect(x.versao).toBe(5);
     expect(x.dados.personagens).toHaveLength(3);
+    expect(x.dados.pastas.map((p) => p.id)).toEqual(["pasta-personagens", "pasta-npcs"]);
     expect(x.dados.cenas[1]?.chegada).toEqual({ x: 6, y: 15 });
     expect(x.dados.assets).toEqual([]); // o cifrado não é usado por nada da campanha
     expect(JSON.stringify(x)).not.toContain("chave");
@@ -776,7 +774,7 @@ describe("exportação v4", () => {
     expect(lida.ok && lida.exportacao.dados).toEqual(x.dados);
   });
 
-  it("importa v1, v2 e v3 (sem personagens) como v4 e recusa personagem incoerente", () => {
+  it("importa v1, v2 e v3 (sem personagens) como v5 e recusa personagem incoerente", () => {
     const e = criarEstado();
     const v4 = criarExportacao(e, AGORA);
     const { personagens: _p, ...resto } = v4.dados;
@@ -786,7 +784,7 @@ describe("exportação v4", () => {
     };
     const v3 = { ...v4, versao: 3, dados: dadosV3 };
     const l3 = lerExportacao(v3);
-    expect(l3.ok && l3.exportacao.versao).toBe(4);
+    expect(l3.ok && l3.exportacao.versao).toBe(5);
     expect(l3.ok && l3.exportacao.dados.personagens).toEqual([]);
     expect(l3.ok && l3.exportacao.dados.cenas).toHaveLength(2);
     const { assets: _a, ...dadosV2 } = dadosV3;
@@ -801,6 +799,7 @@ describe("exportação v4", () => {
     expect(ruim({ personagens: [personagem("p1", "fantasma")] })).toBe(false);
     expect(ruim({ personagens: [personagem("p1", "j1"), personagem("p1", "j2")] })).toBe(false);
     expect(ruim({ personagens: [] })).toBe(false); // há tokens de personagem
+    expect(ruim({ personagens: [{ ...personagem("p1", "j1"), pastaId: "nada" }] })).toBe(false);
     expect(
       ruim({
         personagens: [

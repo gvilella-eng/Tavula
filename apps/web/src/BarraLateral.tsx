@@ -22,7 +22,7 @@ type Props = {
  */
 export function BarraLateral({ abas, aoMudarAberta }: Props) {
   const [aberta, setAberta] = useState(true);
-  const [ativa, setAtiva] = useState("jogadores");
+  const [ativa, setAtiva] = useState("chat");
   const ativaValida = abas.some((a) => a.id === ativa) ? ativa : (abas[0]?.id ?? "");
 
   function definirAberta(v: boolean) {

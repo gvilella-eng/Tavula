@@ -1,16 +1,21 @@
 import type { Camada, Token, Usuario } from "@tabletop/shared";
-import { Trash2, X } from "lucide-react";
+import { ImagePlus, Trash2, X } from "lucide-react";
 import { useEffect, useState } from "react";
+import type { PedirImagem } from "./FaixaDeCenas";
 
 type Props = {
   token: Token;
   jogadores: Usuario[];
   enviar: (tipo: string, dados: object) => string | null;
+  pedirImagem: PedirImagem;
   aoFechar: () => void;
 };
 
-/** Painel flutuante do mestre para editar o token selecionado. Cada mudança vai na hora. */
-export function PainelDoToken({ token, jogadores, enviar, aoFechar }: Props) {
+/**
+ * Painel compacto do mestre para o token selecionado. Fica no canto inferior esquerdo, ao lado da
+ * barra de ferramentas: não cobre o centro do mapa nem os tokens vizinhos. Cada mudança vai na hora.
+ */
+export function PainelDoToken({ token, jogadores, enviar, pedirImagem, aoFechar }: Props) {
   const [nome, setNome] = useState(token.nome);
   // Outro token selecionado, ou o nome mudou por fora: acompanha a sala.
   // biome-ignore lint/correctness/useExhaustiveDependencies: só quando o token ou o nome da sala mudam
@@ -52,29 +57,31 @@ export function PainelDoToken({ token, jogadores, enviar, aoFechar }: Props) {
           onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
         />
       </label>
-      <label>
-        Cor
-        <input
-          type="color"
-          data-testid="token-cor"
-          value={/^#[0-9a-f]{6}$/i.test(token.cor) ? token.cor : "#888888"}
-          onChange={(e) => editar({ cor: e.target.value })}
-        />
-      </label>
-      <label>
-        Tamanho (quadrados)
-        <select
-          data-testid="token-tamanho"
-          value={token.tamanhoQuadrados}
-          onChange={(e) => editar({ tamanhoQuadrados: Number(e.target.value) })}
-        >
-          {[1, 2, 3, 4].map((n) => (
-            <option key={n} value={n}>
-              {n}
-            </option>
-          ))}
-        </select>
-      </label>
+      <div className="linha-par">
+        <label>
+          Cor
+          <input
+            type="color"
+            data-testid="token-cor"
+            value={/^#[0-9a-f]{6}$/i.test(token.cor) ? token.cor : "#888888"}
+            onChange={(e) => editar({ cor: e.target.value })}
+          />
+        </label>
+        <label>
+          Tamanho
+          <select
+            data-testid="token-tamanho"
+            value={token.tamanhoQuadrados}
+            onChange={(e) => editar({ tamanhoQuadrados: Number(e.target.value) })}
+          >
+            {[1, 2, 3, 4].map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
       <label>
         Camada
         <select
@@ -82,6 +89,7 @@ export function PainelDoToken({ token, jogadores, enviar, aoFechar }: Props) {
           value={token.camada}
           onChange={(e) => editar({ camada: e.target.value as Camada })}
         >
+          <option value="mapa">mapa (cenário)</option>
           <option value="tokens">tokens</option>
           <option value="mestre">mestre</option>
         </select>
@@ -95,31 +103,54 @@ export function PainelDoToken({ token, jogadores, enviar, aoFechar }: Props) {
         />
         Oculto para os jogadores
       </label>
-      <fieldset>
+      <div className="linha-botoes">
+        <button
+          type="button"
+          data-testid="token-imagem"
+          onClick={() =>
+            pedirImagem("Imagem do token", "token", (assetHash) => editar({ assetHash }))
+          }
+        >
+          <ImagePlus size={16} /> Imagem…
+        </button>
+        {token.assetHash && (
+          <button
+            type="button"
+            data-testid="token-sem-imagem"
+            onClick={() => editar({ assetHash: null })}
+          >
+            Tirar
+          </button>
+        )}
+        <button
+          type="button"
+          className="perigo"
+          data-testid="token-apagar"
+          onClick={() => {
+            enviar("token.apagar", { id: token.id });
+            aoFechar();
+          }}
+        >
+          <Trash2 size={16} /> Apagar
+        </button>
+      </div>
+      <fieldset className="quem-controla">
         <legend>Quem controla</legend>
-        {jogadores.map((u) => (
-          <label key={u.id} className="linha-opcao">
-            <input
-              type="checkbox"
+        <div className="chips">
+          {jogadores.map((u) => (
+            <button
+              key={u.id}
+              type="button"
+              className="chip"
               data-testid={`token-controla-${u.id}`}
-              checked={token.controladoPor.includes(u.id)}
-              onChange={(e) => alternarControle(u.id, e.target.checked)}
-            />
-            {u.nome}
-          </label>
-        ))}
+              aria-pressed={token.controladoPor.includes(u.id)}
+              onClick={() => alternarControle(u.id, !token.controladoPor.includes(u.id))}
+            >
+              {u.nome}
+            </button>
+          ))}
+        </div>
       </fieldset>
-      <button
-        type="button"
-        className="perigo"
-        data-testid="token-apagar"
-        onClick={() => {
-          enviar("token.apagar", { id: token.id });
-          aoFechar();
-        }}
-      >
-        <Trash2 size={16} /> Apagar token
-      </button>
     </section>
   );
 }

@@ -6,6 +6,7 @@ export * from "./estado.ts";
 export * from "./limitador.ts";
 export * from "./mapa.ts";
 export * from "./nucleo.ts";
+export * from "./pastas.ts";
 export * from "./protocolo.ts";
 export * from "./semente.ts";
 export * from "./uso.ts";

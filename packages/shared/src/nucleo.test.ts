@@ -288,6 +288,8 @@ describe("exportar e importar", () => {
         "cenas",
         "notaMesa",
         "notaMestre",
+        "ordemDeTurnoVisivel",
+        "pastas",
         "permissoes",
         "personagens",
         "seq",
@@ -306,7 +308,7 @@ describe("exportar e importar", () => {
       "texto",
       {},
       { ...boa, formato: "outro" },
-      { ...boa, versao: 5 },
+      { ...boa, versao: 6 },
       { ...boa, dados: { ...boa.dados, usuarios: [] } },
       {
         ...boa,

@@ -1,5 +1,5 @@
 import { pode } from "./capacidades.ts";
-import type { Cena, Estado, Permissoes, Personagem, Token, Usuario } from "./estado.ts";
+import type { Cena, Estado, Pasta, Personagem, Token, Usuario } from "./estado.ts";
 
 /** Cena que existe quando a campanha não define nenhuma (semente, banco antigo, exportação v1). */
 export const CENA_PADRAO: Cena = {
@@ -13,27 +13,61 @@ export const CENA_PADRAO: Cena = {
 type Quem = Pick<Usuario, "id" | "papel">;
 
 /**
- * O mestre vê tudo. Os demais só veem tokens da cena ativa (onde está o grupo), da camada
- * `tokens` e não ocultos: token de outra cena conta como invisível.
+ * O mestre vê tudo. Os demais só veem tokens da cena ativa, das camadas `mapa` e `tokens` e não
+ * ocultos: token de outra cena conta como invisível.
  */
 export function tokenVisivelPara(token: Token, usuario: Quem, cenaAtivaId: string): boolean {
   if (usuario.papel === "mestre") return true;
-  return token.cenaId === cenaAtivaId && token.camada === "tokens" && !token.oculto;
+  return (
+    token.cenaId === cenaAtivaId &&
+    (token.camada === "tokens" || token.camada === "mapa") &&
+    !token.oculto
+  );
 }
 
-/** O mestre vê todos os personagens; o jogador, os dele e, com `ficha.verOutras`, os de outros jogadores. */
-export function personagemVisivelPara(
-  personagem: Personagem,
+/** A pasta é visível para este usuário? O mestre vê todas; o jogador, as "todos" e as que o citam. */
+export function pastaVisivelPara(pasta: Pasta, usuario: Quem): boolean {
+  if (usuario.papel === "mestre") return true;
+  if (usuario.papel !== "jogador") return false;
+  const v = pasta.visivel;
+  if (v.tipo === "todos") return true;
+  return v.tipo === "jogadores" && v.ids.includes(usuario.id);
+}
+
+/** Personagem de jogador: tem alguém que o edita. NPC não tem ninguém (só o mestre). */
+export function ehPersonagemDeJogador(personagem: Pick<Personagem, "editores">): boolean {
+  const e = personagem.editores;
+  return e.tipo === "todos" || e.ids.length > 0;
+}
+
+/** Quem edita o personagem: o mestre sempre; o jogador se for citado (ou "todos os jogadores"). */
+export function podeEditarPersonagem(
+  personagem: Pick<Personagem, "editores">,
   usuario: Quem,
-  permissoes: Permissoes,
 ): boolean {
   if (usuario.papel === "mestre") return true;
   if (usuario.papel !== "jogador") return false;
-  if (personagem.donoId === usuario.id) return true;
-  return personagem.donoId !== null && pode(usuario, "ficha.verOutras", permissoes);
+  const e = personagem.editores;
+  return e.tipo === "todos" || e.ids.includes(usuario.id);
 }
 
-/** Quem controla o token: o dono do personagem dele ou quem o mestre pôs em `controladoPor`. */
+/**
+ * Quem vê o item: o mestre; quem o edita; e quem vê a pasta dele. Pasta que não existe (ou que o
+ * jogador não vê) não revela nada.
+ */
+export function personagemVisivelPara(
+  personagem: Personagem,
+  usuario: Quem,
+  pastas: readonly Pasta[],
+): boolean {
+  if (usuario.papel === "mestre") return true;
+  if (usuario.papel !== "jogador") return false;
+  if (podeEditarPersonagem(personagem, usuario)) return true;
+  const pasta = pastas.find((p) => p.id === personagem.pastaId);
+  return pasta !== undefined && pastaVisivelPara(pasta, usuario);
+}
+
+/** Quem controla o token: quem edita o personagem dele ou quem o mestre pôs em `controladoPor`. */
 export function controlaToken(
   token: Token,
   usuario: Quem,
@@ -41,12 +75,14 @@ export function controlaToken(
 ): boolean {
   if (token.controladoPor.includes(usuario.id)) return true;
   if (token.personagemId === undefined) return false;
-  return personagens.find((p) => p.id === token.personagemId)?.donoId === usuario.id;
+  const p = personagens.find((x) => x.id === token.personagemId);
+  return p !== undefined && podeEditarPersonagem(p, usuario);
 }
 
 /**
  * Quem move: o mestre qualquer token; o jogador só se tem `token.moverProprio`, controla o token
- * (`controlaToken`) e o token é visível para ele.
+ * (`controlaToken`), o token é visível para ele e está na camada `tokens` (o cenário da camada
+ * `mapa` é fixo para os jogadores).
  */
 export function podeMoverToken(
   token: Token,
@@ -55,6 +91,7 @@ export function podeMoverToken(
 ): boolean {
   if (usuario.papel === "mestre") return true;
   return (
+    token.camada === "tokens" &&
     pode(usuario, "token.moverProprio", estado.permissoes) &&
     controlaToken(token, usuario, estado.personagens) &&
     tokenVisivelPara(token, usuario, estado.cenaAtivaId)

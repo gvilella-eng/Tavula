@@ -2,6 +2,7 @@ import {
   CAPACIDADES_DELEGAVEIS,
   type Cena,
   type Estado,
+  type Papel,
   ROTULO_DA_CAPACIDADE,
   type Uso,
 } from "@tabletop/shared";
@@ -20,10 +21,17 @@ function formatarPercentual(valor: number): string {
 
 type Excecao = "herdar" | "sim" | "nao";
 
+/** `ficha.verOutras` continua no tipo (importação antiga), mas quem vê a ficha agora é a pasta. */
+const CAPACIDADES_NA_TELA = CAPACIDADES_DELEGAVEIS.filter((c) => c !== "ficha.verOutras");
+
 export function PainelDoMestre({ estado, cena, uso, enviar }: Props) {
   const jogadores = estado.usuarios.filter((u) => u.papel === "jogador");
   const [alvo, setAlvo] = useState<string>("");
   const alvoValido = jogadores.some((u) => u.id === alvo) ? alvo : (jogadores[0]?.id ?? "");
+
+  function mudarPapel(usuarioId: string, papel: Papel) {
+    if (papel === "mestre" || papel === "jogador") enviar("papel.alterar", { usuarioId, papel });
+  }
 
   function mudarPadrao(capacidade: string, valor: boolean) {
     enviar("permissao.alterar", { capacidade, valor });
@@ -59,6 +67,25 @@ export function PainelDoMestre({ estado, cena, uso, enviar }: Props) {
           uso de hoje: {uso ? formatarPercentual(uso.percentual) : "—"}
         </span>
       </p>
+
+      <h3>Papéis dos usuários</h3>
+      <ul className="lista-simples" data-testid="papeis">
+        {estado.usuarios.map((u) => (
+          <li key={u.id} className="linha-jogador" data-testid={`papel-linha-${u.id}`}>
+            <span className="bolinha" style={{ background: u.cor }} />
+            <span className="nome-jogador">{u.nome}</span>
+            <select
+              aria-label={`Papel de ${u.nome}`}
+              data-testid={`papel-${u.id}`}
+              value={u.papel === "mestre" ? "mestre" : "jogador"}
+              onChange={(e) => mudarPapel(u.id, e.target.value as Papel)}
+            >
+              <option value="mestre">mestre</option>
+              <option value="jogador">jogador</option>
+            </select>
+          </li>
+        ))}
+      </ul>
 
       <h3>Grid da cena</h3>
       <div className="linha-opcao">
@@ -117,7 +144,7 @@ export function PainelDoMestre({ estado, cena, uso, enviar }: Props) {
           </tr>
         </thead>
         <tbody>
-          {CAPACIDADES_DELEGAVEIS.map((c) => {
+          {CAPACIDADES_NA_TELA.map((c) => {
             const excecao = excecoes[c];
             const valor: Excecao = excecao === undefined ? "herdar" : excecao ? "sim" : "nao";
             return (

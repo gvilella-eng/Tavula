@@ -8,21 +8,25 @@ import {
 } from "./capacidades.ts";
 import {
   CenaSchema,
+  EditoresSchema,
   EstadoSchema,
   GridSchema,
   MapaDaCenaSchema,
   PapelSchema,
+  PastaSchema,
   PermissoesSchema,
   PersonagemSchema,
   PresencaSchema,
   TAMANHO_MAXIMO_NOTA,
   TokenSchema,
+  VisibilidadeSchema,
 } from "./estado.ts";
 import { CENA_PADRAO } from "./mapa.ts";
+import { migrarPersonagem, PersonagemAntigoSchema, pastasPadrao } from "./pastas.ts";
 
 export const VERSAO_PROTOCOLO = 1;
-/** Versão do arquivo de exportação (a v1, a v2 e a v3 ainda são aceitas na importação). */
-export const VERSAO_EXPORTACAO = 4 as const;
+/** Versão do arquivo de exportação (de v1 a v4 ainda são aceitas na importação). */
+export const VERSAO_EXPORTACAO = 5 as const;
 
 const CapacidadeSchema = z.enum(TODAS_AS_CAPACIDADES as [Capacidade, ...Capacidade[]]);
 const Texto = z.string().max(TAMANHO_MAXIMO_NOTA);
@@ -41,7 +45,12 @@ const PermissoesExportadasSchema = PermissoesSchema.extend({
 }).transform((p) => ({ ...p, jogadores: { ...PERMISSOES_PADRAO, ...p.jogadores } }));
 
 /** v2 (Lote 2): sem metas de assets. Nunca há bytes de imagem numa exportação, só metadados. */
-const DadosV2Schema = EstadoSchema.omit({ assets: true, personagens: true }).extend({
+const DadosV2Schema = EstadoSchema.omit({
+  assets: true,
+  personagens: true,
+  pastas: true,
+  ordemDeTurnoVisivel: true,
+}).extend({
   notaMestre: Texto,
   permissoes: PermissoesExportadasSchema,
 });
@@ -52,11 +61,23 @@ const DadosV3Schema = DadosV2Schema.extend({
 });
 
 /**
- * v4 (Lote 4): acrescenta os personagens; as cenas (várias) ganham a chegada. Os preparos (chaves do
- * pré-envio) nunca entram: são dado da sessão, não da campanha.
+ * v4 (Lote 4): acrescenta os personagens (com `donoId`); as cenas (várias) ganham a chegada. Os
+ * preparos (chaves do pré-envio) nunca entram: são dado da sessão, não da campanha.
  */
-const DadosV4Schema = DadosV3Schema.extend({ personagens: z.array(PersonagemSchema).max(500) });
-export type DadosExportados = z.infer<typeof DadosV4Schema>;
+const DadosV4Schema = DadosV3Schema.extend({
+  personagens: z.array(PersonagemAntigoSchema).max(500),
+});
+
+/**
+ * v5 (Lote 4b): os personagens trocam o dono por "quem edita" e ganham pasta e retrato; entram as
+ * pastas das Fichas e o estado da ordem de turno.
+ */
+const DadosV5Schema = DadosV3Schema.extend({
+  personagens: z.array(PersonagemSchema).max(500),
+  pastas: z.array(PastaSchema).max(200),
+  ordemDeTurnoVisivel: z.boolean(),
+});
+export type DadosExportados = z.infer<typeof DadosV5Schema>;
 
 /** v1 (Lote 1): sem cenas nem tokens. Vira a cena padrão e nenhum token. */
 const DadosV1Schema = DadosV2Schema.omit({
@@ -67,23 +88,34 @@ const DadosV1Schema = DadosV2Schema.omit({
 
 const cabecalho = { formato: z.literal("tabletop-campanha"), exportadoEm: z.string() };
 
-/** Aceita de v1 a v4; o resultado é sempre no formato v4 (sem assets nem personagens nas antigas). */
+/**
+ * Aceita de v1 a v5; o resultado é sempre no formato v5. Nas antigas faltam assets, personagens e
+ * pastas: entram vazios (v1 a v3) ou migrados (v4: o dono vira "quem edita" numa pasta só do mestre).
+ */
 export const ExportacaoSchema = z
   .discriminatedUnion("versao", [
     z.object({ ...cabecalho, versao: z.literal(1), dados: DadosV1Schema }),
     z.object({ ...cabecalho, versao: z.literal(2), dados: DadosV2Schema }),
     z.object({ ...cabecalho, versao: z.literal(3), dados: DadosV3Schema }),
     z.object({ ...cabecalho, versao: z.literal(4), dados: DadosV4Schema }),
+    z.object({ ...cabecalho, versao: z.literal(5), dados: DadosV5Schema }),
   ])
-  .transform((e) => ({
-    ...e,
-    versao: VERSAO_EXPORTACAO,
-    dados: {
-      ...e.dados,
-      assets: "assets" in e.dados ? e.dados.assets : [],
-      personagens: "personagens" in e.dados ? e.dados.personagens : [],
-    },
-  }));
+  .transform((e) => {
+    const d = e.dados;
+    const base = {
+      ...d,
+      assets: "assets" in d ? d.assets : [],
+      pastas: "pastas" in d ? d.pastas : pastasPadrao(),
+      ordemDeTurnoVisivel: "ordemDeTurnoVisivel" in d ? d.ordemDeTurnoVisivel : false,
+    };
+    const personagens =
+      e.versao === 5
+        ? e.dados.personagens
+        : e.versao === 4
+          ? e.dados.personagens.map(migrarPersonagem)
+          : [];
+    return { ...e, versao: VERSAO_EXPORTACAO, dados: { ...base, personagens } };
+  });
 export type Exportacao = z.infer<typeof ExportacaoSchema>;
 
 // ---------------------------------------------------------------------------------------------
@@ -107,7 +139,10 @@ const PosicaoDoTokenSchema = z.object({ id: IdSchema, x: z.number(), y: z.number
 const MudancasDoPersonagemSchema = z
   .object({
     nome: PersonagemSchema.shape.nome,
-    donoId: PersonagemSchema.shape.donoId,
+    editores: EditoresSchema,
+    pastaId: PersonagemSchema.shape.pastaId,
+    /** `null`: tira o retrato. */
+    retratoHash: HashSchema.nullable(),
     cor: PersonagemSchema.shape.tokenPadrao.shape.cor,
     tamanhoQuadrados: PersonagemSchema.shape.tokenPadrao.shape.tamanhoQuadrados,
     assetHash: HashSchema.nullable(),
@@ -197,6 +232,23 @@ export const IntencaoSchema = z.discriminatedUnion("tipo", [
   ),
   intencao("token.definirImagem", z.object({ id: IdSchema, assetHash: HashSchema.nullable() })),
   intencao("personagem.criar", z.object({ personagem: PersonagemSchema })),
+  intencao("pasta.criar", z.object({ pasta: PastaSchema })),
+  intencao(
+    "pasta.editar",
+    z.object({
+      id: IdSchema,
+      nome: PastaSchema.shape.nome.optional(),
+      visivel: VisibilidadeSchema.optional(),
+    }),
+  ),
+  /** Só pasta vazia. */
+  intencao("pasta.apagar", z.object({ id: IdSchema })),
+  /** Mostra ou esconde o painel de ordem de turno para todos (inclusive o mestre). */
+  intencao("ordemDeTurno.definir", z.object({ visivel: z.boolean() })),
+  /**
+   * Mestre: qualquer mudança. Quem edita o personagem (jogador): só as imagens (`assetHash`,
+   * `retratoHash`), e com `asset.subir`.
+   */
   intencao("personagem.editar", z.object({ id: IdSchema, mudancas: MudancasDoPersonagemSchema })),
   intencao("personagem.apagar", z.object({ id: IdSchema })),
   intencao(
@@ -249,8 +301,8 @@ export type TipoIntencao = Intencao["tipo"];
 /**
  * Capacidade exigida por cada tipo de intenção. Conferida em toda mensagem. `null`: não é uma
  * ação da mesa e sim o vaivém de arquivos (pedir, inventário, "tenho") ou uma ação que depende de
- * quem é o dono (`ficha.alterar`); qualquer mestre ou jogador pode enviar, e a regra é conferida
- * sobre o asset (`assetVisivelPara`) ou sobre o personagem.
+ * quem edita o personagem (`ficha.alterar`, `personagem.editar`); qualquer mestre ou jogador pode
+ * enviar, e a regra é conferida sobre o asset (`assetVisivelPara`) ou sobre o personagem.
  */
 export const capacidadeDaIntencao: Record<TipoIntencao, Capacidade | null> = {
   "nota.editar": "nota.editar",
@@ -271,10 +323,15 @@ export const capacidadeDaIntencao: Record<TipoIntencao, Capacidade | null> = {
   "cena.definirMapa": "cena.editar",
   "token.definirImagem": "asset.subir",
   "personagem.criar": "cena.editar",
-  "personagem.editar": "cena.editar",
+  // Quem edita o personagem (só as imagens) ou o mestre: `processar` confere.
+  "personagem.editar": null,
   "personagem.apagar": "cena.editar",
+  "pasta.criar": "mesa.configurar",
+  "pasta.editar": "mesa.configurar",
+  "pasta.apagar": "mesa.configurar",
+  "ordemDeTurno.definir": "mesa.configurar",
   "personagem.colocar": "cena.editar",
-  // Dono ou mestre: a capacidade não diz quem é o dono; `processar` confere.
+  // Quem edita ou o mestre: a capacidade não diz quem edita; `processar` confere.
   "ficha.alterar": null,
   "cena.criar": "cena.editar",
   "cena.editar": "cena.editar",
@@ -344,6 +401,11 @@ export const EventoSalaSchema = z.discriminatedUnion("tipo", [
   ),
   /** Personagem inteiro depois da mudança (criação, edição ou ficha): o cliente faz upsert. */
   eventoDe("personagem.alterado", z.object({ personagem: PersonagemSchema })),
+  /** Pasta inteira depois da mudança (criação, nome, visibilidade): o cliente faz upsert. */
+  eventoDe("pasta.alterada", z.object({ pasta: PastaSchema })),
+  /** Só o filtro cria o "some" de pasta que o jogador deixou de ver; o mestre também a recebe ao apagar. */
+  eventoDe("pasta.apagada", z.object({ id: IdSchema })),
+  eventoDe("ordemDeTurno.alterada", z.object({ visivel: z.boolean() })),
   /** Os tokens dele já saíram em `token.apagado`; este tira o personagem (também de quem deixou de vê-lo). */
   eventoDe("personagem.apagado", z.object({ id: IdSchema })),
   /** Só mestres recebem os eventos de cena, exceto `cena.editada` da cena ativa. */
@@ -375,6 +437,7 @@ export const CODIGOS_DE_ERRO = [
   "asset_inexistente",
   "personagem_inexistente",
   "cena_inexistente",
+  "pasta_inexistente",
 ] as const;
 export const CodigoDeErroSchema = z.enum(CODIGOS_DE_ERRO);
 export type CodigoDeErro = z.infer<typeof CodigoDeErroSchema>;

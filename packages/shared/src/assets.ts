@@ -347,14 +347,17 @@ export function hashesUsados(
   };
   for (const c of estado.cenas) usar(c.mapa?.assetHash);
   for (const t of estado.tokens) usar(t.assetHash);
-  for (const p of estado.personagens) usar(p.tokenPadrao.assetHash);
+  for (const p of estado.personagens) {
+    usar(p.tokenPadrao.assetHash);
+    usar(p.retratoHash);
+  }
   return usados;
 }
 
 /**
  * O que vale pré-enviar de uma cena (Lote 4): os arquivos do mapa (cada tile, ou o próprio arquivo
  * se não é fatiado; o manifesto não tem bytes) e a imagem dos tokens que os jogadores veriam
- * (camada `tokens`, não ocultos). O que está oculto não entra: baixa quando aparecer.
+ * (camadas `mapa` e `tokens`, não ocultos). O que está oculto não entra: baixa quando aparecer.
  */
 export function hashesPreparaveis(
   estado: Pick<Estado, "assets" | "cenas" | "tokens">,
@@ -369,7 +372,7 @@ export function hashesPreparaveis(
     else saida.add(mapa);
   }
   for (const t of estado.tokens) {
-    if (t.cenaId === cenaId && t.camada === "tokens" && !t.oculto && t.assetHash !== undefined) {
+    if (t.cenaId === cenaId && t.camada !== "mestre" && !t.oculto && t.assetHash !== undefined) {
       saida.add(t.assetHash);
     }
   }
@@ -378,17 +381,14 @@ export function hashesPreparaveis(
 
 /**
  * O usuário pode ver este asset? O mestre vê tudo o que existe. O jogador só vê o que é dele, a
- * imagem de um token visível para ele (da cena ativa), a imagem do token padrão de um personagem
- * que ele vê, o mapa da cena ativa e os tiles desse mapa; e os arquivos `cifrado` (opacos: sem a
+ * imagem de um token visível para ele (da cena ativa), a imagem do token padrão e o retrato de um
+ * personagem que ele vê, o mapa da cena ativa e os tiles desse mapa; e os arquivos `cifrado` (opacos: sem a
  * chave não dizem nada). Quem pergunta por um asset que não vê recebe a mesma resposta de quem
  * pergunta por um que não existe.
  */
 export function assetVisivelPara(
   hash: string,
-  estado: Pick<
-    Estado,
-    "assets" | "cenas" | "cenaAtivaId" | "tokens" | "personagens" | "permissoes"
-  >,
+  estado: Pick<Estado, "assets" | "cenas" | "cenaAtivaId" | "tokens" | "personagens" | "pastas">,
   usuario: Quem,
 ): boolean {
   const meta = metaDe(estado, hash);
@@ -407,7 +407,8 @@ export function assetVisivelPara(
   if (
     estado.personagens.some(
       (p) =>
-        p.tokenPadrao.assetHash === hash && personagemVisivelPara(p, usuario, estado.permissoes),
+        (p.tokenPadrao.assetHash === hash || p.retratoHash === hash) &&
+        personagemVisivelPara(p, usuario, estado.pastas),
     )
   ) {
     return true;

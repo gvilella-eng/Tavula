@@ -2,11 +2,12 @@ import { readFileSync } from "node:fs";
 import type { Page } from "@playwright/test";
 import { abrirAba, enviarCru, esperarMapa, expect, intencaoCrua, type Mesa, test } from "./ajudas";
 import {
-  adicionarArquivos,
   arquivoPng,
   assets,
-  escolherArquivo,
+  definirMapa,
+  escolherNoSeletor,
   esperarPronto,
+  imagemDoTokenSelecionado,
   imagensDoMapa,
   type MetaVista,
   metaPorNome,
@@ -47,12 +48,6 @@ async function selecionarToken(p: Page, id: string) {
   await expect(p.getByTestId("painel-token")).toBeVisible();
 }
 
-/** O mestre usa o arquivo como mapa da cena (px por quadrado padrão: 70). */
-async function poMapa(p: Page, nome: string) {
-  await escolherArquivo(p, nome);
-  await p.getByTestId("acao-mapa").click();
-}
-
 const totalDePedacos = (metas: MetaVista[], manifesto: MetaVista) =>
   (manifesto.tiles ?? []).reduce(
     (soma, t) => soma + (metas.find((m) => m.hash === t.hash)?.pedacos.length ?? 0),
@@ -78,8 +73,11 @@ test("o mestre põe um mapa fatiado: os 7 jogadores recebem os tiles, o hash bat
   const jogadores = [];
   for (const j of JOGADORES) jogadores.push(await entrarNoMapa(mesa, j));
 
-  await adicionarArquivos(mestre.pagina, [arquivoPng("masmorra.png", pngDeRuido(1200, 800, 7, 2))]);
-  await poMapa(mestre.pagina, "masmorra.png");
+  await definirMapa(
+    mestre.pagina,
+    "cena-1",
+    arquivoPng("masmorra.png", pngDeRuido(1200, 800, 7, 2)),
+  );
 
   const manifesto = await metaPorNome(mestre.pagina, "masmorra.png");
   expect(manifesto.tipo).toBe("mapa");
@@ -116,8 +114,7 @@ test("segunda carga da página: zero pedaços binários (veio do cache OPFS)", a
   test.setTimeout(90_000);
   const mestre = await entrarNoMapa(mesa, "mestre", { limiteTile: 512 });
   const j1 = await entrarNoMapa(mesa, "jogador-1");
-  await adicionarArquivos(mestre.pagina, [arquivoPng("sala.png", pngDeRuido(900, 700, 3, 2))]);
-  await poMapa(mestre.pagina, "sala.png");
+  await definirMapa(mestre.pagina, "cena-1", arquivoPng("sala.png", pngDeRuido(900, 700, 3, 2)));
   const manifesto = await metaPorNome(mestre.pagina, "sala.png");
   await esperarPronto(j1.pagina, manifesto.hash);
   await expect
@@ -151,14 +148,13 @@ test("o mestre sai: um jogador novo recebe o mapa de outro jogador que já tinha
   test.setTimeout(120_000);
   const mestre = await entrarNoMapa(mesa, "mestre", { limiteTile: 512 });
   const j1 = await entrarNoMapa(mesa, "jogador-1");
-  await adicionarArquivos(mestre.pagina, [arquivoPng("cripta.png", pngDeRuido(1000, 600, 5, 2))]);
-  await poMapa(mestre.pagina, "cripta.png");
+  await definirMapa(mestre.pagina, "cena-1", arquivoPng("cripta.png", pngDeRuido(1000, 600, 5, 2)));
   const manifesto = await metaPorNome(mestre.pagina, "cripta.png");
   await esperarPronto(j1.pagina, manifesto.hash);
 
   // o mestre vai embora: a sala segue, o jogador 1 vê o mestre offline
   await mestre.contexto.close();
-  await abrirAba(j1.pagina, "jogadores");
+  await abrirAba(j1.pagina, "chat");
   await expect(j1.pagina.getByTestId("presenca-estado-mestre")).not.toHaveText("online", {
     timeout: 20_000,
   });
@@ -184,8 +180,7 @@ test("pedaço corrompido é detectado e pedido de novo; o asset termina íntegro
   // o dono corrompe o pedaço 1 da primeira vez que o envia
   const mestre = await entrarNoMapa(mesa, "mestre", { corromperIndice: 1, corromperVezes: 1 });
   const j1 = await entrarNoMapa(mesa, "jogador-1");
-  await adicionarArquivos(mestre.pagina, [arquivoPng("grande.png", pngDeRuido(900, 700, 11, 1))]);
-  await poMapa(mestre.pagina, "grande.png");
+  await definirMapa(mestre.pagina, "cena-1", arquivoPng("grande.png", pngDeRuido(900, 700, 11, 1)));
   const meta = await metaPorNome(mestre.pagina, "grande.png");
   expect(meta.tiles).toBeUndefined(); // sem fatiar: um arquivo só
   expect(meta.pedacos.length).toBeGreaterThanOrEqual(3);
@@ -208,8 +203,7 @@ test("refresh no meio de uma transferência: retoma do que já estava no cache e
   test.setTimeout(120_000);
   const mestre = await entrarNoMapa(mesa, "mestre", { atrasoPorPedacoMs: 1200 });
   const j1 = await entrarNoMapa(mesa, "jogador-1");
-  await adicionarArquivos(mestre.pagina, [arquivoPng("lento.png", pngDeRuido(900, 700, 13, 1))]);
-  await poMapa(mestre.pagina, "lento.png");
+  await definirMapa(mestre.pagina, "cena-1", arquivoPng("lento.png", pngDeRuido(900, 700, 13, 1)));
   const meta = await metaPorNome(mestre.pagina, "lento.png");
   const total = meta.pedacos.length;
   expect(total).toBeGreaterThanOrEqual(3);
@@ -246,9 +240,11 @@ test("o jogador põe imagem no próprio token: aparece para todos e chega a rece
 
   // o Aldric (tok-jogador-1) é do jogador 1; sem imagem ainda
   expect((await imagensDoMapa(j2.pagina)).tokensComImagem).toEqual([]);
-  await adicionarArquivos(j1.pagina, [arquivoPng("aldric.png", pngDeRuido(300, 300, 21, 4))]);
-  await escolherArquivo(j1.pagina, "aldric.png");
-  await j1.pagina.getByTestId("acao-meu-token").click();
+  // quem edita o personagem troca o token dele no editor do item (Fichas)
+  await abrirAba(j1.pagina, "fichas");
+  await j1.pagina.getByTestId("ficha-abrir-pers-aldric").click();
+  await j1.pagina.getByTestId("editor-token").click();
+  await escolherNoSeletor(j1.pagina, arquivoPng("aldric.png", pngDeRuido(300, 300, 21, 4)));
   const meta = await metaPorNome(j1.pagina, "aldric.png");
   expect(meta.tipo).toBe("token");
   expect(meta.largura).toBeLessThanOrEqual(512);
@@ -275,19 +271,12 @@ test("o jogador põe imagem no próprio token: aparece para todos e chega a rece
 
 /** O mestre põe uma imagem no goblin oculto e outra no ogro (visível); devolve os dois hashes. */
 async function imagensNoGoblinENoOgro(mestre: Page) {
-  await adicionarArquivos(mestre, [
-    arquivoPng("goblin.png", pngDeRuido(200, 200, 31, 4)),
-    arquivoPng("ogro.png", pngDeRuido(200, 200, 32, 4)),
-  ]);
   await selecionarToken(mestre, "tok-goblin-oculto");
-  await escolherArquivo(mestre, "goblin.png");
-  await mestre.getByTestId("acao-aplicar-token").click();
+  await imagemDoTokenSelecionado(mestre, arquivoPng("goblin.png", pngDeRuido(200, 200, 31, 4)));
   const goblin = await metaPorNome(mestre, "goblin.png");
-  await expect(mestre.getByTestId("biblioteca-mensagem")).toHaveCount(0);
 
   await selecionarToken(mestre, "tok-ogro");
-  await escolherArquivo(mestre, "ogro.png");
-  await mestre.getByTestId("acao-aplicar-token").click();
+  await imagemDoTokenSelecionado(mestre, arquivoPng("ogro.png", pngDeRuido(200, 200, 32, 4)));
   const ogro = await metaPorNome(mestre, "ogro.png");
   return { goblin, ogro };
 }
@@ -427,9 +416,9 @@ test("a sala só repassa pedaço que ela pediu àquele socket: frame forjado som
   const mestre = await entrarNoMapa(mesa, "mestre");
   const j1 = await entrarNoMapa(mesa, "jogador-1");
   const j2 = await entrarNoMapa(mesa, "jogador-2");
-  await adicionarArquivos(mestre.pagina, [arquivoPng("rei.png", pngDeRuido(200, 200, 41, 4))]);
-  await escolherArquivo(mestre.pagina, "rei.png");
-  await mestre.pagina.getByTestId("acao-criar-token").click();
+  await mestre.pagina.getByTestId("novo-token").click();
+  await expect(mestre.pagina.getByTestId("painel-token")).toBeVisible();
+  await imagemDoTokenSelecionado(mestre.pagina, arquivoPng("rei.png", pngDeRuido(200, 200, 41, 4)));
   const meta = await metaPorNome(mestre.pagina, "rei.png");
   await esperarPronto(j1.pagina, meta.hash);
   await esperarPronto(j2.pagina, meta.hash);
@@ -464,10 +453,11 @@ test("reiniciar a sala: o mapa volta do SQLite e a posse é refeita pelo invent�
   test.setTimeout(120_000);
   const mestre = await entrarNoMapa(mesa, "mestre", { limiteTile: 512 });
   const j1 = await entrarNoMapa(mesa, "jogador-1");
-  await adicionarArquivos(mestre.pagina, [
+  await definirMapa(
+    mestre.pagina,
+    "cena-1",
     arquivoPng("reinicio.png", pngDeRuido(1000, 600, 51, 2)),
-  ]);
-  await poMapa(mestre.pagina, "reinicio.png");
+  );
   const manifesto = await metaPorNome(mestre.pagina, "reinicio.png");
   await esperarPronto(j1.pagina, manifesto.hash);
 
@@ -489,7 +479,7 @@ test("reiniciar a sala: o mapa volta do SQLite e a posse é refeita pelo invent�
 
   // o mestre sai; o jogador 2 entra sem cache e recebe do jogador 1 (posse refeita pelo inventário)
   await mestre.contexto.close();
-  await abrirAba(j1.pagina, "jogadores");
+  await abrirAba(j1.pagina, "chat");
   await expect(j1.pagina.getByTestId("presenca-estado-mestre")).not.toHaveText("online", {
     timeout: 20_000,
   });
@@ -505,15 +495,17 @@ test("exportar → zerar → importar: o mapa e as imagens voltam só como metad
   test.setTimeout(120_000);
   const mestre = await entrarNoMapa(mesa, "mestre", { limiteTile: 512 });
   const j1 = await entrarNoMapa(mesa, "jogador-1");
-  await adicionarArquivos(mestre.pagina, [
+  await definirMapa(
+    mestre.pagina,
+    "cena-1",
     arquivoPng("exporta.png", pngDeRuido(1000, 600, 61, 2)),
-    arquivoPng("brasao.png", pngDeRuido(200, 200, 62, 4)),
-  ]);
-  await poMapa(mestre.pagina, "exporta.png");
+  );
   const manifesto = await metaPorNome(mestre.pagina, "exporta.png");
   await selecionarToken(mestre.pagina, "tok-ogro");
-  await escolherArquivo(mestre.pagina, "brasao.png");
-  await mestre.pagina.getByTestId("acao-aplicar-token").click();
+  await imagemDoTokenSelecionado(
+    mestre.pagina,
+    arquivoPng("brasao.png", pngDeRuido(200, 200, 62, 4)),
+  );
   const brasao = await metaPorNome(mestre.pagina, "brasao.png");
   await esperarPronto(j1.pagina, manifesto.hash);
   await esperarPronto(j1.pagina, brasao.hash);
@@ -529,7 +521,7 @@ test("exportar → zerar → importar: o mapa e as imagens voltam só como metad
   };
   const antes = await exportar();
   const json = JSON.parse(antes.texto);
-  expect(json.versao).toBe(4);
+  expect(json.versao).toBe(5);
   // só metadados: o manifesto, os tiles (2 x 2) e a imagem do token; nenhum byte de imagem
   expect(json.dados.assets).toHaveLength((manifesto.tiles?.length ?? 0) + 2);
   expect(json.dados.cenas[0].mapa).toEqual({ assetHash: manifesto.hash, pxPorQuadrado: 70 });

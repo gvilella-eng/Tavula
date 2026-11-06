@@ -1,20 +1,22 @@
 import type { Page } from "@playwright/test";
 import {
   abrirAba,
+  abrirFaixa,
   enviarCru,
   esperarMapa,
   expect,
   intencaoCrua,
   type Mesa,
+  menuDaCena,
   type Sessao,
   test,
 } from "./ajudas";
 import {
-  adicionarArquivos,
   arquivoPng,
   assets,
-  escolherArquivo,
+  definirMapa,
   esperarPronto,
+  imagemDoTokenSelecionado,
   imagensDoMapa,
   type MetaVista,
   metaPorNome,
@@ -30,6 +32,7 @@ type Gancho = {
   centrarEm(x: number, y: number): void;
   definirZoom(z: number): void;
   zoom(): number;
+  bandeira(): { x: number; y: number } | null;
 };
 const PX_POR_M = 40;
 
@@ -90,6 +93,51 @@ async function selecionarToken(p: Page, id: string) {
   await expect(p.getByTestId("painel-token")).toBeVisible();
 }
 
+/** Fichas → clica no item (abre o editor). */
+async function abrirItem(p: Page, personagemId: string) {
+  await abrirAba(p, "fichas");
+  await p.getByTestId(`ficha-abrir-${personagemId}`).click();
+  await expect(p.getByTestId("editor-item")).toBeVisible();
+}
+
+async function fecharItem(p: Page) {
+  await p.getByTestId("editor-fechar").click();
+  await expect(p.getByTestId("editor-item")).toHaveCount(0);
+}
+
+/** Arrasta a bandeira do ponto de chegada (mouse de verdade); devolve onde estava e onde ficou. */
+async function arrastarBandeira(p: Page, dxM: number, dyM: number) {
+  const lido = () =>
+    p.evaluate(() => {
+      const h = (window as unknown as { __tabletop: Gancho }).__tabletop;
+      const b = h.bandeira();
+      return b ? { ...b, tela: h.paraTela(b.x, b.y) } : null;
+    });
+  const antes = await lido();
+  if (!antes) throw new Error("sem bandeira");
+  await p.evaluate(
+    ([x, y]) =>
+      (window as unknown as { __tabletop: Gancho }).__tabletop.centrarEm(x as number, y as number),
+    [antes.x, antes.y],
+  );
+  const inicio = (await lido()) as NonNullable<Awaited<ReturnType<typeof lido>>>;
+  const zoom = await p.evaluate(() =>
+    (window as unknown as { __tabletop: Gancho }).__tabletop.zoom(),
+  );
+  // a bandeira fica acima e à direita do ponto: agarra um pouco acima da base
+  await p.mouse.move(inicio.tela.x + 4, inicio.tela.y - 12);
+  await p.mouse.down();
+  await p.mouse.move(
+    inicio.tela.x + 4 + dxM * PX_POR_M * zoom,
+    inicio.tela.y - 12 + dyM * PX_POR_M * zoom,
+    { steps: 10 },
+  );
+  await p.mouse.up();
+  await expect.poll(async () => (await lido())?.x).not.toBe(antes.x);
+  const depois = (await lido()) as NonNullable<Awaited<ReturnType<typeof lido>>>;
+  return { antes: { x: antes.x, y: antes.y }, depois: { x: depois.x, y: depois.y } };
+}
+
 const JOGADORES = ["jogador-1", "jogador-2", "jogador-3"];
 const SETE = [...JOGADORES, "jogador-4", "jogador-5", "jogador-6", "jogador-7"];
 
@@ -98,8 +146,7 @@ const doTipo = (frames: string[], tipo: string) =>
   frames.filter((f) => f.includes(`"tipo":"${tipo}"`));
 
 async function levarOGrupo(mestre: Page, cenaId: string) {
-  await abrirAba(mestre, "cenas");
-  await mestre.getByTestId(`cena-levar-${cenaId}`).click();
+  await menuDaCena(mestre, cenaId, "levar");
 }
 
 test("levar o grupo: 1 mensagem do mestre e todos os jogadores mudam de cena", async ({ mesa }) => {
@@ -111,13 +158,13 @@ test("levar o grupo: 1 mensagem do mestre e todos os jogadores mudam de cena", a
     await expect(j.pagina.getByTestId("cena-nome")).toHaveText("Cena inicial");
   await expect(mestre.pagina.getByTestId("grupo-em")).toHaveText("Cena inicial");
 
-  await abrirAba(mestre.pagina, "cenas");
+  await abrirFaixa(mestre.pagina);
   await expect(
-    mestre.pagina.locator('[data-testid="cena-linha"][data-do-grupo="true"]'),
+    mestre.pagina.locator('[data-testid="cena-card"][data-do-grupo="true"]'),
   ).toHaveAttribute("data-cena-id", "cena-1");
   const antes = mestre.enviados.length;
   const snapshots = jogadores.map((j) => doTipo(j.frames, "snapshot").length);
-  await mestre.pagina.getByTestId("cena-levar-cena-covil").click();
+  await menuDaCena(mestre.pagina, "cena-covil", "levar");
 
   for (const j of jogadores) {
     await expect(j.pagina.getByTestId("cena-nome")).toHaveText("Covil");
@@ -156,17 +203,18 @@ test("o PV do personagem se mantém ao trocar de cena e depois de refresh", asyn
   const mestre = await entrarNoMapa(mesa, "mestre");
   const j1 = await entrarNoMapa(mesa, "jogador-1");
   const j2 = await entrarNoMapa(mesa, "jogador-2");
-  await abrirAba(j1.pagina, "personagens");
-  await abrirAba(mestre.pagina, "personagens");
-  await abrirAba(j2.pagina, "personagens");
+  await abrirItem(j1.pagina, "pers-aldric");
+  await abrirAba(j2.pagina, "fichas");
 
   // o jogador altera o PV do próprio personagem; o mestre vê; o outro jogador não vê a ficha
   const campo = j1.pagina.getByTestId("pv-atual-pers-aldric");
   await expect(campo).toHaveValue("12");
   await campo.fill("5");
   await campo.blur();
+  await abrirItem(mestre.pagina, "pers-aldric");
   await expect(mestre.pagina.getByTestId("pv-atual-pers-aldric")).toHaveValue("5");
-  await expect(j2.pagina.getByTestId("personagem-pers-aldric")).toHaveCount(0);
+  await fecharItem(mestre.pagina);
+  await expect(j2.pagina.getByTestId("ficha-item-pers-aldric")).toHaveCount(0);
 
   await levarOGrupo(mestre.pagina, "cena-covil");
   await expect(j1.pagina.getByTestId("cena-nome")).toHaveText("Covil");
@@ -177,11 +225,11 @@ test("o PV do personagem se mantém ao trocar de cena e depois de refresh", asyn
 
   await j1.pagina.reload();
   await esperarMapa(j1.pagina);
-  await abrirAba(j1.pagina, "personagens");
+  await abrirItem(j1.pagina, "pers-aldric");
   await expect(j1.pagina.getByTestId("pv-atual-pers-aldric")).toHaveValue("5");
 
   // o mestre edita o PV máximo: o PV atual nunca passa dele
-  await abrirAba(mestre.pagina, "personagens");
+  await abrirItem(mestre.pagina, "pers-aldric");
   const max = mestre.pagina.getByTestId("pv-max-pers-aldric");
   await max.fill("4");
   await max.blur();
@@ -204,31 +252,6 @@ test("o PV do personagem se mantém ao trocar de cena e depois de refresh", asyn
     intencaoCrua("grupo.moverPara", { cenaId: "cena-covil" }),
   );
   expect(criar?.dados.codigo).toBe("sem_permissao");
-});
-
-test("o jogador vê a ficha dos outros só com ficha.verOutras, e nunca a do NPC", async ({
-  mesa,
-}) => {
-  const mestre = await entrarNoMapa(mesa, "mestre");
-  const j1 = await entrarNoMapa(mesa, "jogador-1");
-  await abrirAba(j1.pagina, "personagens");
-  await expect(j1.pagina.getByTestId("personagem-pers-aldric")).toBeVisible();
-  await expect(j1.pagina.getByTestId("personagem-pers-brisa")).toHaveCount(0);
-
-  await abrirAba(mestre.pagina, "mestre");
-  await mestre.pagina.getByTestId("perm-padrao-ficha.verOutras").click();
-  await expect(j1.pagina.getByTestId("personagem-pers-brisa")).toBeVisible();
-  await expect(j1.pagina.getByTestId("pv-pers-brisa")).toHaveText("PV 9 / 9"); // só leitura
-  await expect(j1.pagina.getByTestId("personagem-pers-ogro")).toHaveCount(0);
-  const snapshot = JSON.parse(doTipo(j1.frames, "snapshot").at(-1) ?? "{}");
-  expect(snapshot.dados.estado.personagens.map((p: { id: string }) => p.id).sort()).toEqual([
-    "pers-aldric",
-    "pers-brisa",
-    "pers-cael",
-  ]);
-
-  await mestre.pagina.getByTestId("perm-padrao-ficha.verOutras").click();
-  await expect(j1.pagina.getByTestId("personagem-pers-brisa")).toHaveCount(0);
 });
 
 test("o jogador não move o token de outro jogador; move se o mestre o pôr em controladoPor", async ({
@@ -274,9 +297,12 @@ test("o mestre vê e edita a cena 2 enquanto o grupo continua na 1; os jogadores
   const j1 = await entrarNoMapa(mesa, "jogador-1");
   const j2 = await entrarNoMapa(mesa, "jogador-2");
 
-  await abrirAba(mestre.pagina, "cenas");
+  await abrirFaixa(mestre.pagina);
   const antes = [j1.frames.length, j2.frames.length];
-  await mestre.pagina.getByTestId("cena-ver-cena-covil").click();
+  await menuDaCena(mestre.pagina, "cena-covil", "ir");
+  await expect(
+    mestre.pagina.locator('[data-testid="cena-card"][data-vista="true"]'),
+  ).toHaveAttribute("data-cena-id", "cena-covil");
   await expect(mestre.pagina.getByTestId("cena-nome")).toHaveText("Covil");
   await expect(mestre.pagina.getByTestId("grupo-em")).toHaveText("Cena inicial");
   await expect
@@ -294,14 +320,19 @@ test("o mestre vê e edita a cena 2 enquanto o grupo continua na 1; os jogadores
   await abrirAba(mestre.pagina, "mestre");
   await mestre.pagina.getByTestId("grid-quadrado").fill("2");
   await mestre.pagina.getByTestId("grid-quadrado").blur();
-  await abrirAba(mestre.pagina, "cenas");
-  await mestre.pagina.getByTestId("cena-nome-cena-covil").fill("Covil dos Ratos");
-  await mestre.pagina.getByTestId("cena-nome-cena-covil").blur();
+  // duplo clique no nome renomeia
+  await mestre.pagina.getByTestId("cena-nome-cena-covil").dblclick();
+  await mestre.pagina.getByTestId("cena-nome-editar-cena-covil").fill("Covil dos Ratos");
+  await mestre.pagina.getByTestId("cena-nome-editar-cena-covil").press("Enter");
   await expect(mestre.pagina.getByTestId("cena-nome")).toHaveText("Covil dos Ratos");
-  await mestre.pagina.getByTestId("cena-chegada-cena-covil").click();
-  await expect(mestre.pagina.getByTestId("cena-chegada-valor-cena-covil")).toBeVisible();
-  await mestre.pagina.getByTestId("cena-duplicar-cena-covil").click();
-  await expect(mestre.pagina.getByTestId("cena-linha")).toHaveCount(3);
+  // o ponto de chegada é a bandeira arrastável no mapa (só do mestre, na cena que ele vê)
+  const bandeira = await arrastarBandeira(mestre.pagina, 3, 3);
+  expect(bandeira.depois.x).toBeGreaterThan(bandeira.antes.x + 1);
+  await expect
+    .poll(() => mestre.enviados.filter((f) => f.includes('"chegada":{')).length)
+    .toBeGreaterThan(0);
+  await menuDaCena(mestre.pagina, "cena-covil", "duplicar");
+  await expect(mestre.pagina.getByTestId("cena-card")).toHaveCount(3);
   await mestre.pagina.waitForTimeout(500);
 
   // os jogadores não receberam NENHUM evento e continuam na cena 1
@@ -318,10 +349,15 @@ test("o mestre vê e edita a cena 2 enquanto o grupo continua na 1; os jogadores
     expect((await gancho(j.pagina)).some((t) => t.id === "tok-ogro")).toBe(true);
   }
   // o mestre não moveu o grupo, e a cena apagada some (a do grupo não pode ser apagada)
-  await expect(mestre.pagina.getByTestId("cena-apagar-cena-1")).toBeDisabled();
-  await mestre.pagina.getByTestId("cena-apagar-cena-covil").click();
-  await mestre.pagina.getByTestId("cena-apagar-confirmar-cena-covil").click();
-  await expect(mestre.pagina.getByTestId("cena-linha")).toHaveCount(2);
+  await mestre.pagina
+    .locator('[data-testid="cena-card"][data-cena-id="cena-1"]')
+    .click({ button: "right" });
+  await expect(mestre.pagina.getByTestId("menu-cena-apagar")).toBeDisabled();
+  await mestre.pagina.keyboard.press("Escape");
+  await expect(mestre.pagina.getByTestId("menu-cena")).toHaveCount(0);
+  await menuDaCena(mestre.pagina, "cena-covil", "apagar");
+  await mestre.pagina.getByTestId("confirmar-apagar-cena-sim").click();
+  await expect(mestre.pagina.getByTestId("cena-card")).toHaveCount(2);
   await expect(mestre.pagina.getByTestId("cena-nome")).toHaveText("Cena inicial"); // a vista voltou ao grupo
   const forcado = await enviarCru(mestre.pagina, intencaoCrua("cena.apagar", { cenaId: "cena-1" }));
   expect(forcado?.dados.codigo).toBe("dados_invalidos");
@@ -349,29 +385,18 @@ async function montarCovil(mesa: Mesa, quemEntra: string[]): Promise<Covil> {
   const jogadores: Sessao[] = [];
   for (const j of quemEntra) jogadores.push(await entrarNoMapa(mesa, j));
   const p = mestre.pagina;
-  await adicionarArquivos(p, [
-    arquivoPng("covil.png", pngDeRuido(1300, 1000, 21, 2)),
-    arquivoPng("sentinela.png", pngDeRuido(160, 160, 22, 4)),
-    arquivoPng("vigia.png", pngDeRuido(160, 160, 23, 4)),
-  ]);
-  await abrirAba(p, "cenas");
-  await p.getByTestId("cena-ver-cena-covil").click();
+  await menuDaCena(p, "cena-covil", "ir");
   await expect(p.getByTestId("cena-nome")).toHaveText("Covil");
-  await escolherArquivo(p, "covil.png");
-  await p.getByTestId("biblioteca-px").fill("35");
-  await p.getByTestId("acao-mapa").click();
+  await definirMapa(p, "cena-covil", arquivoPng("covil.png", pngDeRuido(1300, 1000, 21, 2)), 35);
   const mapa = await metaPorNome(p, "covil.png");
   await expect.poll(async () => (await imagensDoMapa(p)).tiles.length).toBe(6);
 
   await selecionarToken(p, "tok-sentinela-covil");
-  await escolherArquivo(p, "sentinela.png");
-  await p.getByTestId("acao-aplicar-token").click();
+  await imagemDoTokenSelecionado(p, arquivoPng("sentinela.png", pngDeRuido(160, 160, 22, 4)));
   const sentinela = await metaPorNome(p, "sentinela.png");
   await selecionarToken(p, "tok-vigia-covil");
-  await escolherArquivo(p, "vigia.png");
-  await p.getByTestId("acao-aplicar-token").click();
+  await imagemDoTokenSelecionado(p, arquivoPng("vigia.png", pngDeRuido(160, 160, 23, 4)));
   const vigia = await metaPorNome(p, "vigia.png");
-  await expect(p.getByTestId("biblioteca-mensagem")).toHaveCount(0);
   await expect
     .poll(async () => (await assets(p, "metas")).filter((m) => m.tipo === "tile").length)
     .toBe(6);
@@ -478,15 +503,15 @@ test("preparar: os jogadores baixam os pacotes cifrados antes; a troca não baix
   ]);
 
   // preparar: 6 tiles + a imagem da sentinela (o vigia está oculto e não entra)
-  await abrirAba(p, "cenas");
-  await p.getByTestId("cena-preparar-cena-covil").click();
-  await expect(p.getByTestId("cena-progresso-cena-covil")).toContainText(
-    "3 de 7 jogadores já têm tudo",
-    {
-      timeout: 90_000,
-    },
-  );
+  await menuDaCena(p, "cena-covil", "preparar");
+  await expect(p.getByTestId("cena-progresso-cena-covil")).toContainText("3/7", {
+    timeout: 90_000,
+  });
   await expect(p.getByTestId("cena-progresso-cena-covil")).toContainText("7 arquivos");
+  await expect(p.getByTestId("cena-progresso-cena-covil")).toHaveAttribute(
+    "title",
+    /3 de 7 jogadores já têm tudo/,
+  );
   const preparar1 = doTipo(mestre.enviados, "cena.preparar");
   expect(preparar1).toHaveLength(1);
   const pacotes = JSON.parse(preparar1[0] ?? "{}").dados.pacotes as {
@@ -520,24 +545,17 @@ test("preparar: os jogadores baixam os pacotes cifrados antes; a troca não baix
   }
 
   // preparar de novo depois de mudar a cena acrescenta só o que falta
-  await abrirAba(p, "cenas");
   await p.getByTestId("novo-token").click();
   await expect(p.getByTestId("painel-token")).toBeVisible();
-  await adicionarArquivos(p, [arquivoPng("rato.png", pngDeRuido(160, 160, 24, 4))]);
-  await escolherArquivo(p, "rato.png");
-  await p.getByTestId("acao-aplicar-token").click();
+  await imagemDoTokenSelecionado(p, arquivoPng("rato.png", pngDeRuido(160, 160, 24, 4)));
   const rato = await metaPorNome(p, "rato.png");
-  await abrirAba(p, "cenas");
-  await p.getByTestId("cena-preparar-cena-covil").click();
+  await menuDaCena(p, "cena-covil", "preparar");
   await expect(p.getByTestId("cena-progresso-cena-covil")).toContainText("8 arquivos", {
     timeout: 60_000,
   });
-  await expect(p.getByTestId("cena-progresso-cena-covil")).toContainText(
-    "3 de 7 jogadores já têm tudo",
-    {
-      timeout: 60_000,
-    },
-  );
+  await expect(p.getByTestId("cena-progresso-cena-covil")).toContainText("3/7", {
+    timeout: 60_000,
+  });
   const preparar2 = doTipo(mestre.enviados, "cena.preparar");
   expect(preparar2).toHaveLength(2);
   expect(
@@ -591,7 +609,7 @@ test("preparar: os jogadores baixam os pacotes cifrados antes; a troca não baix
     expect(j.frames.join("\n")).not.toContain("Vigia Oculto");
   }
   // o preparo foi descartado: o progresso some e preparar de novo não tem o que acrescentar
-  await abrirAba(p, "cenas");
+  await abrirFaixa(p);
   await expect(p.getByTestId("cena-progresso-cena-covil")).toHaveCount(0);
 });
 
@@ -602,14 +620,19 @@ test("o grupo na cena nova, a cena criada e os personagens sobrevivem ao reiníc
   test.setTimeout(60_000);
   const mestre = await entrarNoMapa(mesa, "mestre");
   const j1 = await entrarNoMapa(mesa, "jogador-1");
-  await abrirAba(mestre.pagina, "cenas");
-  await mestre.pagina.getByTestId("cena-nova-nome").fill("Floresta");
+  await abrirFaixa(mestre.pagina);
   await mestre.pagina.getByTestId("cena-nova").click();
-  await expect(mestre.pagina.getByTestId("cena-linha")).toHaveCount(3);
-  await abrirAba(mestre.pagina, "personagens");
-  await mestre.pagina.getByTestId("personagem-novo-nome").fill("Lyra");
-  await mestre.pagina.getByTestId("personagem-novo").click();
-  await expect(mestre.pagina.locator('[data-testid^="personagem-pers-"]').first()).toBeVisible();
+  await expect(mestre.pagina.getByTestId("cena-card")).toHaveCount(3);
+  await abrirAba(mestre.pagina, "fichas");
+  await mestre.pagina.getByTestId("ficha-novo").click();
+  await mestre.pagina.getByTestId("ficha-novo-personagem").click();
+  const nomeNovo = mestre.pagina.locator(
+    '[data-testid="editor-item"] [data-testid^="personagem-nome-"]',
+  );
+  await nomeNovo.fill("Lyra");
+  await nomeNovo.blur();
+  await fecharItem(mestre.pagina);
+  await expect(mestre.pagina.getByText("Lyra")).toBeVisible();
   await levarOGrupo(mestre.pagina, "cena-covil");
   await expect(j1.pagina.getByTestId("cena-nome")).toHaveText("Covil");
   await esperarPosicao(j1.pagina, "tok-jogador-1", 6.75, 15.75);
@@ -625,7 +648,8 @@ test("o grupo na cena nova, a cena criada e os personagens sobrevivem ao reiníc
   await expect(j1.pagina.getByTestId("cena-nome")).toHaveText("Covil");
   await esperarPosicao(j1.pagina, "tok-jogador-1", 6.75, 15.75);
   await expect(mestre.pagina.getByTestId("grupo-em")).toHaveText("Covil");
-  await expect(mestre.pagina.getByTestId("cena-linha")).toHaveCount(3);
-  await abrirAba(mestre.pagina, "personagens");
-  await expect(mestre.pagina.locator('[data-testid^="personagem-pers-"]')).toHaveCount(5);
+  await expect(mestre.pagina.getByTestId("cena-card")).toHaveCount(3);
+  await abrirAba(mestre.pagina, "fichas");
+  await expect(mestre.pagina.locator('[data-testid^="ficha-item-pers-"]')).toHaveCount(5);
+  await expect(mestre.pagina.getByTestId("ficha-pasta-pasta-personagens")).toBeVisible();
 });

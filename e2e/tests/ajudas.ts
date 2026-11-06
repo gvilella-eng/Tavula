@@ -44,6 +44,35 @@ export async function abrirAba(pagina: Page, id: string): Promise<void> {
   await expect(pagina.getByTestId(`aba-painel-${id}`)).toBeVisible();
 }
 
+/** Menu superior do mestre → Cenas: abre a faixa de cenas (se já não está aberta). */
+export async function abrirFaixa(pagina: Page): Promise<void> {
+  if (!(await pagina.getByTestId("faixa-cenas").isVisible())) {
+    await pagina.getByTestId("menu-cenas").click();
+  }
+  await expect(pagina.getByTestId("faixa-cenas")).toBeVisible();
+}
+
+export type AcaoDaCena = "ir" | "levar" | "duplicar" | "preparar" | "apagar" | "configurar";
+
+/** Botão direito no card da cena e escolhe uma linha do menu de contexto. */
+export async function menuDaCena(pagina: Page, cenaId: string, acao: AcaoDaCena): Promise<void> {
+  await abrirFaixa(pagina);
+  await pagina.locator(`[data-testid="cena-card"][data-cena-id="${cenaId}"]`).click({
+    button: "right",
+  });
+  await expect(pagina.getByTestId("menu-cena")).toBeVisible();
+  await pagina.getByTestId(`menu-cena-${acao}`).click();
+}
+
+/** Menu superior → Camadas → escolhe a camada de trabalho. */
+export async function escolherCamada(
+  pagina: Page,
+  camada: "mapa" | "tokens" | "mestre" | "desenho",
+): Promise<void> {
+  await pagina.getByTestId("menu-camadas").click();
+  await pagina.getByTestId(`camada-${camada}`).click();
+}
+
 /** Espera o mapa (PixiJS) subir: o gancho de teste só existe no modo e2e. */
 export async function esperarMapa(pagina: Page): Promise<void> {
   await expect

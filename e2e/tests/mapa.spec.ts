@@ -2,6 +2,7 @@ import type { Page } from "@playwright/test";
 import {
   abrirAba,
   enviarCru,
+  escolherCamada,
   esperarMapa,
   expect,
   intencaoCrua,
@@ -225,10 +226,10 @@ test("frames do jogador nunca têm o token oculto nem o da camada do mestre", as
   // o mestre arrasta o oculto e o da camada do mestre
   await arrastar(mestre.pagina, "tok-goblin-oculto", 3, 3);
   await esperarPosicao(mestre.pagina, "tok-goblin-oculto", 39.75, 21.75);
-  await mestre.pagina.getByTestId("camada-mestre").click();
+  await escolherCamada(mestre.pagina, "mestre");
   await arrastar(mestre.pagina, "tok-marcador-mestre", -3, 0);
   await esperarPosicao(mestre.pagina, "tok-marcador-mestre", 27.75, 30.75);
-  await mestre.pagina.getByTestId("camada-tokens").click();
+  await escolherCamada(mestre.pagina, "tokens");
 
   // movimento de token visível chega (controle de que a captura enxerga o movimento)
   await arrastar(mestre.pagina, "tok-jogador-3", 3, 0);
@@ -470,7 +471,7 @@ test("o mestre cria, edita e apaga tokens; camada e grid", async ({ mesa }) => {
     .toBeGreaterThan((criado?.x ?? 0) + 1);
 
   // camada do mestre: token novo que o jogador não vê
-  await mestre.pagina.getByTestId("camada-mestre").click();
+  await escolherCamada(mestre.pagina, "mestre");
   await mestre.pagina.getByTestId("novo-token").click();
   await expect.poll(async () => (await idsDe(mestre.pagina)).length).toBe(8);
   expect((await idsDe(j1.pagina)).length).toBe(5);
@@ -478,7 +479,7 @@ test("o mestre cria, edita e apaga tokens; camada e grid", async ({ mesa }) => {
   // apagar
   await mestre.pagina.getByTestId("token-apagar").click();
   await expect.poll(async () => (await idsDe(mestre.pagina)).length).toBe(7);
-  await mestre.pagina.getByTestId("camada-tokens").click();
+  await escolherCamada(mestre.pagina, "tokens");
   await centrarNoToken(mestre.pagina, criado?.id ?? "");
   const t = await tokenDe(mestre.pagina, criado?.id ?? "");
   const pos = await mestre.pagina.evaluate(

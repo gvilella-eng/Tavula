@@ -8,15 +8,18 @@ import {
   validarMeta,
 } from "./assets.ts";
 import { ehCapacidadeDelegavel, pode } from "./capacidades.ts";
-import type { Cena, Estado, Personagem, Token, Usuario } from "./estado.ts";
+import type { Cena, Estado, Pasta, Personagem, Token, Usuario } from "./estado.ts";
 import {
   arrumarNoGrid,
   CENA_PADRAO,
   chegadaDaCena,
   controlaToken,
+  ehPersonagemDeJogador,
   encaixarNoGrid,
   limitarNaCena,
+  pastaVisivelPara,
   personagemVisivelPara,
+  podeEditarPersonagem,
   podeMoverToken,
   tokenVisivelPara,
 } from "./mapa.ts";
@@ -88,6 +91,18 @@ function personagemDe(estado: Estado, id: string): Personagem | undefined {
   return estado.personagens.find((p) => p.id === id);
 }
 
+function pastaDe(estado: Pick<Estado, "pastas">, id: string): Pasta | undefined {
+  return estado.pastas.find((p) => p.id === id);
+}
+
+const SEM_PASTA = "Pasta não encontrada.";
+
+/** Token de personagem de jogador? (O personagem pode ter sido apagado: então não é.) */
+function ehDoGrupo(estado: Estado, t: Token): boolean {
+  const p = t.personagemId === undefined ? undefined : personagemDe(estado, t.personagemId);
+  return p !== undefined && ehPersonagemDeJogador(p);
+}
+
 function usuariosExistem(estado: Estado, ids: string[]): boolean {
   return ids.every((id) => estado.usuarios.some((u) => u.id === id));
 }
@@ -113,6 +128,10 @@ function ehJogador(estado: Estado, id: string): boolean {
   return estado.usuarios.some((u) => u.id === id && u.papel === "jogador");
 }
 
+function editoresValidos(estado: Estado, editores: Personagem["editores"]): boolean {
+  return editores.tipo === "todos" || editores.ids.every((id) => ehJogador(estado, id));
+}
+
 function totalDeMestres(estado: Estado): number {
   return estado.usuarios.filter((u) => u.papel === "mestre").length;
 }
@@ -133,8 +152,8 @@ export function criarExportacao(estado: Estado, agora: string): Exportacao {
 }
 
 /**
- * Valida um arquivo de exportação (de v1 a v4; o resultado é sempre v4): formato, ids únicos, pelo
- * menos um mestre, exceções válidas, cena ativa, personagens e tokens coerentes.
+ * Valida um arquivo de exportação (de v1 a v5; o resultado é sempre v5): formato, ids únicos, pelo
+ * menos um mestre, exceções válidas, cena ativa, pastas, personagens e tokens coerentes.
  */
 export function lerExportacao(
   bruto: unknown,
@@ -144,7 +163,8 @@ export function lerExportacao(
     const problema = r.error.issues[0];
     return { ok: false, motivo: `${problema?.path.join(".") ?? ""}: ${problema?.message ?? ""}` };
   }
-  const { usuarios, permissoes, cenas, cenaAtivaId, tokens, assets, personagens } = r.data.dados;
+  const { usuarios, permissoes, cenas, cenaAtivaId, tokens, assets, personagens, pastas } =
+    r.data.dados;
   const ids = new Set(usuarios.map((u) => u.id));
   if (ids.size !== usuarios.length) return { ok: false, motivo: "ids de usuário repetidos" };
   if (!usuarios.some((u) => u.papel === "mestre"))
@@ -162,9 +182,19 @@ export function lerExportacao(
   if (idsDePersonagens.size !== personagens.length) {
     return { ok: false, motivo: "ids de personagem repetidos" };
   }
+  const idsDePastas = new Set(pastas.map((p) => p.id));
+  if (idsDePastas.size !== pastas.length) return { ok: false, motivo: "ids de pasta repetidos" };
+  for (const pasta of pastas) {
+    if (pasta.visivel.tipo === "jogadores" && pasta.visivel.ids.some((id) => !ids.has(id))) {
+      return { ok: false, motivo: `pasta visível para usuário desconhecido: ${pasta.id}` };
+    }
+  }
   for (const p of personagens) {
-    if (p.donoId !== null && !ids.has(p.donoId)) {
+    if (p.editores.tipo === "jogadores" && p.editores.ids.some((id) => !ids.has(id))) {
       return { ok: false, motivo: `personagem de usuário desconhecido: ${p.id}` };
+    }
+    if (!idsDePastas.has(p.pastaId)) {
+      return { ok: false, motivo: `personagem em pasta desconhecida: ${p.id}` };
     }
   }
   for (const t of tokens) {
@@ -201,6 +231,9 @@ export function lerExportacao(
   for (const p of personagens) {
     if (p.tokenPadrao.assetHash !== undefined && !porHash.has(p.tokenPadrao.assetHash)) {
       return { ok: false, motivo: `imagem sem meta no personagem ${p.id}` };
+    }
+    if (p.retratoHash !== undefined && !porHash.has(p.retratoHash)) {
+      return { ok: false, motivo: `retrato sem meta no personagem ${p.id}` };
     }
   }
   return { ok: true, exportacao: r.data };
@@ -300,6 +333,20 @@ export function reduzir(estado: Estado, evento: EventoSala): Estado {
         }),
       };
     }
+    case "pasta.alterada": {
+      const { pasta } = evento.dados;
+      const existe = base.pastas.some((x) => x.id === pasta.id);
+      return {
+        ...base,
+        pastas: existe
+          ? base.pastas.map((x) => (x.id === pasta.id ? pasta : x))
+          : [...base.pastas, pasta],
+      };
+    }
+    case "pasta.apagada":
+      return { ...base, pastas: base.pastas.filter((x) => x.id !== evento.dados.id) };
+    case "ordemDeTurno.alterada":
+      return { ...base, ordemDeTurnoVisivel: evento.dados.visivel };
     case "asset.registrado": {
       const { meta } = evento.dados;
       const atuais = base.assets ?? [];
@@ -402,9 +449,6 @@ export function processar(
         dados:
           alvoId === undefined ? { capacidade, valor } : { capacidade, valor, usuarioId: alvoId },
       });
-      // Ver a ficha dos outros muda o que cada jogador pode ter: snapshot novo em vez de remendar.
-      if (capacidade === "ficha.verOutras")
-        return aplicado(alvoId === undefined ? "todos" : [alvoId]);
       return aplicado();
     }
 
@@ -606,14 +650,14 @@ export function processar(
       if (personagemDe(estado, p.id)) {
         return recusa("dados_invalidos", "Já existe um personagem com esse id.");
       }
-      if (p.donoId !== null && !ehJogador(estado, p.donoId)) {
-        return recusa("usuario_inexistente", "Dono não encontrado (precisa ser um jogador).");
+      if (!pastaDe(estado, p.pastaId)) return recusa("pasta_inexistente", SEM_PASTA);
+      if (!editoresValidos(estado, p.editores)) {
+        return recusa("usuario_inexistente", "Editor não encontrado (precisa ser um jogador).");
       }
-      if (
-        p.tokenPadrao.assetHash !== undefined &&
-        !imagemDeTokenExiste(estado, p.tokenPadrao.assetHash)
-      ) {
-        return recusa("asset_inexistente", "Imagem não encontrada.");
+      for (const h of [p.tokenPadrao.assetHash, p.retratoHash]) {
+        if (h !== undefined && !imagemDeTokenExiste(estado, h)) {
+          return recusa("asset_inexistente", "Imagem não encontrada.");
+        }
       }
       emitir({ tipo: "personagem.alterado", dados: { personagem: p } });
       return aplicado();
@@ -621,23 +665,47 @@ export function processar(
 
     case "personagem.editar": {
       const atual = personagemDe(estado, intencao.dados.id);
-      if (!atual) return recusa("personagem_inexistente", SEM_PERSONAGEM);
-      const m = intencao.dados.mudancas;
-      if (m.donoId !== undefined && m.donoId !== null && !ehJogador(estado, m.donoId)) {
-        return recusa("usuario_inexistente", "Dono não encontrado (precisa ser um jogador).");
+      // Personagem que não vejo responde igual a personagem inexistente.
+      if (!atual || !personagemVisivelPara(atual, usuario, estado.pastas)) {
+        return recusa("personagem_inexistente", SEM_PERSONAGEM);
       }
-      if (typeof m.assetHash === "string" && !imagemDeTokenExiste(estado, m.assetHash)) {
-        return recusa("asset_inexistente", "Imagem não encontrada.");
+      const m = intencao.dados.mudancas;
+      if (usuario.papel !== "mestre") {
+        // Quem edita (jogador) troca só as imagens, e precisa poder subir arquivos.
+        if (!podeEditarPersonagem(atual, usuario)) {
+          return recusa("sem_permissao", "Você não edita este personagem.");
+        }
+        if (Object.keys(semIndefinidos(m)).some((k) => k !== "assetHash" && k !== "retratoHash")) {
+          return recusa("sem_permissao", "Só o mestre muda isso.");
+        }
+        if (!pode(usuario, "asset.subir", estado.permissoes)) {
+          return recusa("sem_permissao", "Sem permissão (asset.subir).");
+        }
+      }
+      if (m.editores !== undefined && !editoresValidos(estado, m.editores)) {
+        return recusa("usuario_inexistente", "Editor não encontrado (precisa ser um jogador).");
+      }
+      if (m.pastaId !== undefined && !pastaDe(estado, m.pastaId)) {
+        return recusa("pasta_inexistente", SEM_PASTA);
+      }
+      for (const h of [m.assetHash, m.retratoHash]) {
+        if (typeof h === "string" && !imagemDeTokenExiste(estado, h)) {
+          return recusa("asset_inexistente", "Imagem não encontrada.");
+        }
       }
       const tokenPadrao = {
         cor: m.cor ?? atual.tokenPadrao.cor,
         tamanhoQuadrados: m.tamanhoQuadrados ?? atual.tokenPadrao.tamanhoQuadrados,
       };
       const assetHash = m.assetHash === undefined ? atual.tokenPadrao.assetHash : m.assetHash;
+      const retratoHash = m.retratoHash === undefined ? atual.retratoHash : m.retratoHash;
+      const { retratoHash: _r, ...semRetrato } = atual;
       const personagem = limitarPv({
-        ...atual,
+        ...semRetrato,
+        ...(retratoHash === null || retratoHash === undefined ? {} : { retratoHash }),
         nome: m.nome ?? atual.nome,
-        donoId: m.donoId === undefined ? atual.donoId : m.donoId,
+        pastaId: m.pastaId ?? atual.pastaId,
+        editores: m.editores ?? atual.editores,
         tokenPadrao:
           assetHash === null || assetHash === undefined
             ? tokenPadrao
@@ -657,11 +725,11 @@ export function processar(
       const { personagemId, pvAtual, pvMax } = intencao.dados;
       const atual = personagemDe(estado, personagemId);
       // Personagem que não vejo responde igual a personagem inexistente (NPC nunca aparece).
-      if (!atual || !personagemVisivelPara(atual, usuario, estado.permissoes)) {
+      if (!atual || !personagemVisivelPara(atual, usuario, estado.pastas)) {
         return recusa("personagem_inexistente", SEM_PERSONAGEM);
       }
-      if (usuario.papel !== "mestre" && atual.donoId !== usuario.id) {
-        return recusa("sem_permissao", "A ficha não é sua.");
+      if (!podeEditarPersonagem(atual, usuario)) {
+        return recusa("sem_permissao", "Você não edita esta ficha.");
       }
       const personagem = limitarPv({
         ...atual,
@@ -669,6 +737,57 @@ export function processar(
       });
       if (JSON.stringify(personagem) === JSON.stringify(atual)) return aplicado();
       emitir({ tipo: "personagem.alterado", dados: { personagem } });
+      return aplicado();
+    }
+
+    case "pasta.criar": {
+      const { pasta } = intencao.dados;
+      if (pastaDe(estado, pasta.id)) {
+        return recusa("dados_invalidos", "Já existe uma pasta com esse id.");
+      }
+      if (
+        pasta.visivel.tipo === "jogadores" &&
+        !pasta.visivel.ids.every((id) => ehJogador(estado, id))
+      ) {
+        return recusa("usuario_inexistente", "Jogador não encontrado.");
+      }
+      emitir({ tipo: "pasta.alterada", dados: { pasta } });
+      return aplicado();
+    }
+
+    case "pasta.editar": {
+      const { id, nome, visivel } = intencao.dados;
+      const atual = pastaDe(estado, id);
+      if (!atual) return recusa("pasta_inexistente", SEM_PASTA);
+      if (visivel?.tipo === "jogadores" && !visivel.ids.every((x) => ehJogador(estado, x))) {
+        return recusa("usuario_inexistente", "Jogador não encontrado.");
+      }
+      const pasta: Pasta = {
+        ...atual,
+        nome: nome ?? atual.nome,
+        visivel: visivel ?? atual.visivel,
+      };
+      if (JSON.stringify(pasta) === JSON.stringify(atual)) return aplicado();
+      emitir({ tipo: "pasta.alterada", dados: { pasta } });
+      // Mudar quem vê a pasta faz os itens dela aparecerem ou sumirem para cada jogador: snapshot novo.
+      const mudouVisibilidade = JSON.stringify(pasta.visivel) !== JSON.stringify(atual.visivel);
+      return aplicado(mudouVisibilidade ? "todos" : []);
+    }
+
+    case "pasta.apagar": {
+      const { id } = intencao.dados;
+      if (!pastaDe(estado, id)) return recusa("pasta_inexistente", SEM_PASTA);
+      if (estado.personagens.some((p) => p.pastaId === id)) {
+        return recusa("dados_invalidos", "Só uma pasta vazia pode ser apagada.");
+      }
+      emitir({ tipo: "pasta.apagada", dados: { id } });
+      return aplicado();
+    }
+
+    case "ordemDeTurno.definir": {
+      const { visivel } = intencao.dados;
+      if (visivel === estado.ordemDeTurnoVisivel) return aplicado();
+      emitir({ tipo: "ordemDeTurno.alterada", dados: { visivel } });
       return aplicado();
     }
 
@@ -691,7 +810,7 @@ export function processar(
       if (estado.tokens.some((t) => t.id === tokenId)) {
         return recusa("dados_invalidos", "Já existe um token com esse id.");
       }
-      if (p.donoId !== null && estado.tokens.some((t) => t.personagemId === p.id)) {
+      if (ehPersonagemDeJogador(p) && estado.tokens.some((t) => t.personagemId === p.id)) {
         return recusa(
           "dados_invalidos",
           "Este personagem já tem um token (o grupo leva o token junto).",
@@ -759,11 +878,7 @@ export function processar(
         return recusa("dados_invalidos", "Já existe uma cena com esse id.");
       }
       // Cópia da cena e dos tokens, menos os dos personagens de jogador (esses vivem no grupo).
-      const copiados = estado.tokens.filter(
-        (t) =>
-          t.cenaId === cenaId &&
-          (t.personagemId === undefined || personagemDe(estado, t.personagemId)?.donoId === null),
-      );
+      const copiados = estado.tokens.filter((t) => t.cenaId === cenaId && !ehDoGrupo(estado, t));
       const novos = copiados.map(
         (t, i): Token => ({ ...t, id: `${novoId.slice(0, 56)}-${i + 1}`, cenaId: novoId }),
       );
@@ -797,10 +912,7 @@ export function processar(
       if (destino.id === estado.cenaAtivaId) return aplicado();
       // O grupo: tokens de personagens de jogador que estão na cena ativa. Os de NPC ficam.
       const grupo = estado.tokens.filter(
-        (t) =>
-          t.cenaId === estado.cenaAtivaId &&
-          t.personagemId !== undefined &&
-          (personagemDe(estado, t.personagemId)?.donoId ?? null) !== null,
+        (t) => t.cenaId === estado.cenaAtivaId && ehDoGrupo(estado, t),
       );
       const posicoes = arrumarNoGrid(
         limitarNaCena(chegadaDaCena(destino), destino),
@@ -870,9 +982,9 @@ export function processar(
 
 /**
  * Snapshot filtrado do jogador: sem `notaMestre` e sem as metas dos assets; só as exceções dele; só
- * a cena ativa (nada de nome, grid, mapa ou chegada das outras); só tokens visíveis dessa cena; e
- * só os personagens que ele pode ver (os dele; os de outros jogadores com `ficha.verOutras`; NPC
- * nunca).
+ * a cena ativa (nada de nome, grid, mapa ou chegada das outras); só tokens visíveis dessa cena; só
+ * as pastas que ele vê e só os personagens que ele edita ou que estão numa pasta que ele vê (nome de
+ * pasta ou item de pasta "só mestre" nunca chega).
  */
 export function visaoPara(estado: Estado, usuario: Visao): Estado {
   if (usuario.papel === "mestre") return estado;
@@ -886,9 +998,8 @@ export function visaoPara(estado: Estado, usuario: Visao): Estado {
     },
     cenas: [cenaAtiva(estado)],
     tokens: estado.tokens.filter((t) => tokenVisivelPara(t, usuario, estado.cenaAtivaId)),
-    personagens: estado.personagens.filter((p) =>
-      personagemVisivelPara(p, usuario, estado.permissoes),
-    ),
+    pastas: estado.pastas.filter((p) => pastaVisivelPara(p, usuario)),
+    personagens: estado.personagens.filter((p) => personagemVisivelPara(p, usuario, estado.pastas)),
   };
 }
 
@@ -922,7 +1033,23 @@ export function eventoPara(
       return mestre ? evento : null;
     case "nota.alterada":
     case "papel.alterado":
+    case "ordemDeTurno.alterada":
       return evento;
+    case "pasta.alterada": {
+      if (mestre) return evento;
+      const depoisP = (depois ?? antes)?.pastas.find((p) => p.id === evento.dados.pasta.id);
+      if (depoisP && pastaVisivelPara(depoisP, usuario)) return evento;
+      const antiga = antes?.pastas.find((p) => p.id === evento.dados.pasta.id);
+      if (antiga && pastaVisivelPara(antiga, usuario)) {
+        return { ...evento, tipo: "pasta.apagada", dados: { id: antiga.id } };
+      }
+      return null;
+    }
+    case "pasta.apagada": {
+      if (mestre) return evento;
+      const antiga = antes?.pastas.find((p) => p.id === evento.dados.id);
+      return antiga && pastaVisivelPara(antiga, usuario) ? evento : null;
+    }
     case "permissao.alterada":
       if (evento.dados.usuarioId === undefined) return evento;
       return mestre || evento.dados.usuarioId === usuario.id ? evento : null;
@@ -955,11 +1082,11 @@ export function eventoPara(
       return mestre ? null : evento;
     case "personagem.alterado": {
       if (mestre) return evento;
-      const permissoes = (depois ?? antes)?.permissoes;
-      if (!permissoes) return null;
-      if (personagemVisivelPara(evento.dados.personagem, usuario, permissoes)) return evento;
+      const pastas = (depois ?? antes)?.pastas;
+      if (!pastas) return null;
+      if (personagemVisivelPara(evento.dados.personagem, usuario, pastas)) return evento;
       const antigo = antes?.personagens.find((p) => p.id === evento.dados.personagem.id);
-      if (antigo && personagemVisivelPara(antigo, usuario, antes?.permissoes ?? permissoes)) {
+      if (antigo && personagemVisivelPara(antigo, usuario, antes?.pastas ?? pastas)) {
         return { ...evento, tipo: "personagem.apagado", dados: { id: antigo.id } };
       }
       return null;
@@ -967,7 +1094,7 @@ export function eventoPara(
     case "personagem.apagado": {
       if (mestre) return evento;
       const antigo = antes?.personagens.find((p) => p.id === evento.dados.id);
-      return antigo && antes && personagemVisivelPara(antigo, usuario, antes.permissoes)
+      return antigo && antes && personagemVisivelPara(antigo, usuario, antes.pastas)
         ? evento
         : null;
     }

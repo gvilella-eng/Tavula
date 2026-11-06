@@ -1,6 +1,6 @@
 import { deflateSync } from "node:zlib";
 import { expect, type Page } from "@playwright/test";
-import { abrirAba } from "./ajudas";
+import { menuDaCena } from "./ajudas";
 
 // Imagens geradas no teste (nada de arquivo grande no repositório) e ajudas da aba Biblioteca.
 
@@ -133,21 +133,43 @@ export function imagensDoMapa(pagina: Page): Promise<ImagensVistas> {
   );
 }
 
-/** Adiciona arquivos pela aba Biblioteca (o mesmo caminho do input de arquivos soltos). */
-export async function adicionarArquivos(pagina: Page, arquivos: ArquivoDeTeste[]): Promise<void> {
-  await abrirAba(pagina, "biblioteca");
-  await pagina.getByTestId("biblioteca-arquivos").setInputFiles(arquivos);
-  for (const a of arquivos) {
-    await expect(
-      pagina.locator(`[data-testid="biblioteca-item"][data-nome="${a.name}"]`),
-    ).toBeVisible();
-  }
+/**
+ * Escolhe um arquivo no seletor de imagem que está aberto (o mesmo caminho do "Escolher arquivo…")
+ * e espera o seletor fechar: o arquivo foi processado e registrado.
+ */
+export async function escolherNoSeletor(pagina: Page, arquivo: ArquivoDeTeste): Promise<void> {
+  await expect(pagina.getByTestId("seletor-imagem")).toBeVisible();
+  await pagina.getByTestId("seletor-arquivo").setInputFiles(arquivo);
+  await expect(pagina.getByTestId("seletor-imagem")).toHaveCount(0, { timeout: 30_000 });
 }
 
-export async function escolherArquivo(pagina: Page, nome: string): Promise<void> {
-  await abrirAba(pagina, "biblioteca");
-  await pagina.locator(`[data-testid="biblioteca-item"][data-nome="${nome}"]`).click();
-  await expect(pagina.getByTestId("biblioteca-acoes")).toContainText(nome);
+/**
+ * O mestre usa o arquivo como mapa da cena: card da cena → Configurar… → escolher a imagem →
+ * (pixels por quadrado) → Salvar. Sem `px` vale o padrão do diálogo.
+ */
+export async function definirMapa(
+  pagina: Page,
+  cenaId: string,
+  arquivo: ArquivoDeTeste,
+  px?: number,
+): Promise<void> {
+  await menuDaCena(pagina, cenaId, "configurar");
+  await expect(pagina.getByTestId("configurar-cena")).toBeVisible();
+  await pagina.getByTestId("cfg-mapa").click();
+  await escolherNoSeletor(pagina, arquivo);
+  await expect(pagina.getByTestId("cfg-mapa-estado")).toContainText("Imagem nova");
+  if (px !== undefined) await pagina.getByTestId("cfg-px").fill(String(px));
+  await pagina.getByTestId("cfg-salvar").click();
+  await expect(pagina.getByTestId("configurar-cena")).toHaveCount(0);
+}
+
+/** Painel do token (já aberto): "Imagem…" e o arquivo. */
+export async function imagemDoTokenSelecionado(
+  pagina: Page,
+  arquivo: ArquivoDeTeste,
+): Promise<void> {
+  await pagina.getByTestId("token-imagem").click();
+  await escolherNoSeletor(pagina, arquivo);
 }
 
 /** Espera o asset (ou o mapa fatiado inteiro) estar no cache local desta página. */

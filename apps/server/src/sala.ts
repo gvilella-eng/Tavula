@@ -211,7 +211,7 @@ export class Sala extends DurableObject<Env> {
       return;
     }
 
-    // Só a importação reescreve tudo. Levar o grupo e mudar `ficha.verOutras` também mandam snapshot
+    // Só a importação reescreve tudo. Levar o grupo e mudar quem vê uma pasta também mandam snapshot
     // a todos, mas gravam só o que os eventos mudaram.
     if (intencao.tipo === "campanha.importar") this.banco.salvarTudo(r.estado);
     else if (r.eventos.length > 0) this.banco.salvarEventos(r.estado, r.eventos);

@@ -5,9 +5,11 @@ import {
   type Estado,
   type EventoSala,
   type Pacote,
+  type Pasta,
   PERMISSOES_PADRAO,
   type Permissoes,
-  type Personagem,
+  pastasPadrao,
+  personagemDoBanco,
   type Token,
   type Usuario,
 } from "@tabletop/shared";
@@ -55,6 +57,30 @@ const MIGRACOES: Migracao[] = [
       chave TEXT NOT NULL,
       PRIMARY KEY (cena_id, hash_cifrado)
     )`);
+  },
+  // Lote 4b: pastas das Fichas. O personagem troca `donoId` por "quem edita" e vai para uma pasta só do
+  // mestre ("Personagens" ou "NPCs"): quem o via continua vendo (o antigo dono) e quem não via, não.
+  (sql) => {
+    const linhas = sql
+      .exec<{ id: string; dados: string }>(
+        "SELECT id, dados FROM entidades WHERE colecao = 'personagens'",
+      )
+      .toArray();
+    for (const l of linhas) {
+      const novo = personagemDoBanco(JSON.parse(l.dados));
+      sql.exec(
+        "UPDATE entidades SET dados = ? WHERE colecao = 'personagens' AND id = ?",
+        JSON.stringify(novo),
+        l.id,
+      );
+    }
+    for (const pasta of pastasPadrao()) {
+      sql.exec(
+        "INSERT OR IGNORE INTO entidades (colecao, id, dados) VALUES ('pastas', ?, ?)",
+        pasta.id,
+        JSON.stringify(pasta),
+      );
+    }
   },
 ];
 
@@ -127,7 +153,7 @@ export class Armazenamento {
   /** Cenas, tokens e assets. Banco do Lote 1 (sem cena): cria a cena padrão, sem quebrar o resto. */
   private carregarMapa(): Pick<
     Estado,
-    "cenas" | "cenaAtivaId" | "tokens" | "assets" | "personagens"
+    "cenas" | "cenaAtivaId" | "tokens" | "assets" | "personagens" | "pastas" | "ordemDeTurnoVisivel"
   > {
     const ler = <T>(colecao: string): T[] =>
       this.sql
@@ -148,7 +174,9 @@ export class Armazenamento {
       cenaAtivaId,
       tokens: ler<Token>("tokens"),
       // Banco anterior ao Lote 4: sem personagens, e continua funcionando.
-      personagens: ler<Personagem>("personagens"),
+      personagens: ler<unknown>("personagens").map(personagemDoBanco),
+      pastas: ler<Pasta>("pastas").sort((a, b) => a.ordem - b.ordem),
+      ordemDeTurnoVisivel: this.lerMeta("ordem_de_turno") === "1",
       assets: ler<AssetMeta>("assets"),
     };
   }
@@ -187,9 +215,11 @@ export class Armazenamento {
     this.gravarEntidade("notas", "mestre", { texto: estado.notaMestre ?? "" });
     for (const c of estado.cenas) this.gravarEntidade("cenas", c.id, c);
     for (const t of estado.tokens) this.gravarEntidade("tokens", t.id, t);
+    for (const p of estado.pastas) this.gravarEntidade("pastas", p.id, p);
     for (const p of estado.personagens) this.gravarEntidade("personagens", p.id, p);
     for (const a of estado.assets ?? []) this.gravarEntidade("assets", a.hash, a);
     this.gravarMeta("cena_ativa", estado.cenaAtivaId);
+    this.gravarMeta("ordem_de_turno", estado.ordemDeTurnoVisivel ? "1" : "0");
     this.gravarMeta("permissoes", JSON.stringify(estado.permissoes));
     this.gravarMeta("seq", String(estado.seq));
   }
@@ -242,6 +272,15 @@ export class Armazenamento {
             "DELETE FROM entidades WHERE colecao = 'personagens' AND id = ?",
             ev.dados.id,
           );
+          break;
+        case "pasta.alterada":
+          this.gravarEntidade("pastas", ev.dados.pasta.id, ev.dados.pasta);
+          break;
+        case "pasta.apagada":
+          this.sql.exec("DELETE FROM entidades WHERE colecao = 'pastas' AND id = ?", ev.dados.id);
+          break;
+        case "ordemDeTurno.alterada":
+          this.gravarMeta("ordem_de_turno", ev.dados.visivel ? "1" : "0");
           break;
         case "cena.criada":
         case "cena.editada":

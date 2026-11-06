@@ -26,7 +26,12 @@ export type Permissoes = z.infer<typeof PermissoesSchema>;
 
 export const TAMANHO_MAXIMO_NOTA = 20_000;
 
-export const CAMADAS = ["tokens", "mestre"] as const;
+/**
+ * Camadas de objetos do mapa, de baixo para cima: `mapa` (cenário: o jogador vê, não seleciona nem
+ * move), `tokens` e `mestre` (só o mestre vê). A camada de desenho do pincel ainda só existe na
+ * interface.
+ */
+export const CAMADAS = ["mapa", "tokens", "mestre"] as const;
 export const CamadaSchema = z.enum(CAMADAS);
 export type Camada = z.infer<typeof CamadaSchema>;
 
@@ -79,11 +84,38 @@ export const TokenSchema = z.object({
 });
 export type Token = z.infer<typeof TokenSchema>;
 
+/** Quem pode editar um personagem (e controlar o token dele): todos os jogadores ou os escolhidos. */
+export const EditoresSchema = z.discriminatedUnion("tipo", [
+  z.object({ tipo: z.literal("todos") }),
+  z.object({ tipo: z.literal("jogadores"), ids: z.array(z.string().min(1).max(64)).max(32) }),
+]);
+export type Editores = z.infer<typeof EditoresSchema>;
+
+/** Quem vê uma pasta (e tudo o que está nela). */
+export const VisibilidadeSchema = z.discriminatedUnion("tipo", [
+  z.object({ tipo: z.literal("todos") }),
+  z.object({ tipo: z.literal("mestre") }),
+  z.object({ tipo: z.literal("jogadores"), ids: z.array(z.string().min(1).max(64)).max(32) }),
+]);
+export type Visibilidade = z.infer<typeof VisibilidadeSchema>;
+
+/** Pasta das Fichas: sem subpastas. Quem vê a pasta vê tudo o que há nela. */
+export const PastaSchema = z.object({
+  id: z.string().min(1).max(64),
+  nome: z.string().min(1).max(64),
+  ordem: z.number().int().min(0).max(10_000),
+  visivel: VisibilidadeSchema,
+});
+export type Pasta = z.infer<typeof PastaSchema>;
+
 export const PersonagemSchema = z.object({
   id: z.string().min(1).max(64),
-  /** `null` = NPC do mestre. */
-  donoId: z.string().min(1).max(64).nullable(),
+  pastaId: z.string().min(1).max(64),
+  /** "Pode ser controlado e editado por". NPC: nenhum jogador (o mestre edita tudo). */
+  editores: EditoresSchema,
   nome: z.string().min(1).max(64),
+  /** Retrato (avatar) do item; asset do tipo retrato ou token. */
+  retratoHash: HashSchema.optional(),
   tokenPadrao: z.object({
     cor: z.string().min(1).max(32),
     tamanhoQuadrados: z.number().int().min(1).max(4),
@@ -104,7 +136,7 @@ export type Personagem = z.infer<typeof PersonagemSchema>;
 
 /**
  * Estado da campanha. Na visão de um jogador `notaMestre` não existe, `porUsuario` só tem a
- * entrada dele mesmo e `cenas` só tem a cena ativa.
+ * entrada dele mesmo, `cenas` só tem a cena ativa e `pastas`/`personagens` só têm o que ele vê.
  */
 export const EstadoSchema = z.object({
   seq: z.number().int().nonnegative(),
@@ -116,8 +148,12 @@ export const EstadoSchema = z.object({
   cenaAtivaId: z.string().min(1).max(64),
   /** Na visão de um jogador: sem os tokens ocultos nem os da camada do mestre. */
   tokens: z.array(TokenSchema),
-  /** Na visão de um jogador: os dele e, com `ficha.verOutras`, os de outros jogadores (nunca NPC). */
+  /** Na visão de um jogador: só as pastas que ele vê. */
+  pastas: z.array(PastaSchema),
+  /** Na visão de um jogador: os que ele edita e os das pastas que ele vê. */
   personagens: z.array(PersonagemSchema),
+  /** O painel flutuante de ordem de turno aparece para todos? (o conteúdo vem no Lote 11) */
+  ordemDeTurnoVisivel: z.boolean(),
   /** Metadados dos assets registrados. Só existe na sala e na visão do mestre (nunca do jogador). */
   assets: z.array(AssetMetaSchema).optional(),
 });

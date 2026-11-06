@@ -6,7 +6,10 @@ describe("semente da campanha", () => {
   it("a semente real traz personagens ligados aos tokens, o NPC e uma segunda cena", () => {
     const e = estadoInicial(semente);
     expect(e.personagens.map((p) => p.nome)).toEqual(["Aldric", "Brisa", "Cael", "Ogro"]);
-    expect(e.personagens.find((p) => p.nome === "Ogro")?.donoId).toBeNull();
+    expect(e.personagens.find((p) => p.nome === "Ogro")?.editores).toEqual({
+      tipo: "jogadores",
+      ids: [],
+    });
     expect(e.cenas.map((c) => c.nome)).toEqual(["Cena inicial", "Covil"]);
     expect(e.tokens.filter((t) => t.cenaId === "cena-covil").length).toBeGreaterThanOrEqual(1);
     for (const t of e.tokens.filter((x) => x.personagemId !== undefined)) {

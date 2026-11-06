@@ -1,16 +1,19 @@
 import {
-  type Camada,
+  controlaToken,
   type Exportacao,
+  ehPersonagemDeJogador,
   encaixarNoGrid,
   hashesPreparaveis,
   podeMoverToken,
   type Token,
 } from "@tabletop/shared";
-import { Clapperboard, Crown, Images, Settings, StickyNote, UserRound, Users } from "lucide-react";
+import { BookOpen, Crown, MessagesSquare, NotebookText, Settings } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { AbaCenas } from "./AbaCenas";
-import { AbaPersonagens } from "./AbaPersonagens";
-import { AbaConfiguracoes, AbaJogadores, AbaNotas } from "./abas";
+import { AbaChat } from "./AbaChat";
+import { AbaCompendio } from "./AbaCompendio";
+import { AbaFichas } from "./AbaFichas";
+import { AbaConfiguracoes } from "./abas";
+import { lerItemArrastado } from "./arrasto";
 import { CacheOpfs } from "./assets/cache";
 import { Fontes } from "./assets/fontes";
 import { ganchosDoTeste, instalarGanchoDeAssets } from "./assets/ganchoE2E";
@@ -18,7 +21,9 @@ import { type Canal, GerenteDeAssets } from "./assets/gerente";
 import { Processador } from "./assets/processador";
 import { BarraDeFerramentas } from "./BarraDeFerramentas";
 import { BarraLateral } from "./BarraLateral";
-import { Biblioteca } from "./Biblioteca";
+import { type CamadaDeTrabalho, camadaDoNovoToken } from "./camadas";
+import { FaixaDeCenas, type PedirImagem } from "./FaixaDeCenas";
+import { MenuSuperior } from "./MenuSuperior";
 import { Mapa } from "./mapa/Mapa";
 import type {
   Ferramenta,
@@ -27,13 +32,16 @@ import type {
   MedicaoNaTela,
   RetornosDoMapa,
 } from "./mapa/mapaPixi";
+import { OrdemDeTurno } from "./OrdemDeTurno";
 import { PainelDoMestre } from "./PainelDoMestre";
 import { PainelDoToken } from "./PainelDoToken";
 import { gravarEncaixePadrao, lerEncaixePadrao } from "./preferencias";
+import { SeletorDeImagem } from "./SeletorDeImagem";
 import { useSala } from "./useSala";
 import { ZoomFlutuante } from "./ZoomFlutuante";
 
 const CORES_DE_TOKEN = ["#3cb44b", "#4363d8", "#f58231", "#911eb4", "#e6194b", "#42d4f4"];
+const DURACAO_DO_AVISO_LOCAL_MS = 3500;
 
 function baixarExportacao(exportacao: Exportacao) {
   const blob = new Blob([JSON.stringify(exportacao, null, 2)], { type: "application/json" });
@@ -52,7 +60,13 @@ const versaoZero = () => 0;
 
 type Props = { aoSair: () => void; aoPerderSessao: () => void };
 
-/** A mesa: o mapa ocupa a tela e as ferramentas flutuam em volta (PROJETO.md 4.13). */
+type PedidoDeImagem = {
+  titulo: string;
+  tipo: "mapa" | "token" | "retrato";
+  aoUsar: (hash: string) => void;
+};
+
+/** A mesa: o mapa ocupa a tela e as ferramentas flutuam em volta (PROJETO.md 4.13 e 4.13.1). */
 export function Mesa({ aoSair, aoPerderSessao }: Props) {
   const {
     status,
@@ -73,12 +87,16 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
   });
 
   const [ferramenta, setFerramenta] = useState<Ferramenta>("selecionar");
-  const [camadaTrabalho, setCamadaTrabalho] = useState<Camada>("tokens");
+  const [camadaTrabalho, setCamadaTrabalho] = useState<CamadaDeTrabalho>("tokens");
   const [selecionadoId, setSelecionadoId] = useState<string | null>(null);
   const [encaixe, setEncaixe] = useState(lerEncaixePadrao);
   const [zoom, setZoom] = useState(1);
   const [medicao, setMedicao] = useState<MedicaoNaTela | null>(null);
   const [lateralAberta, setLateralAberta] = useState(true);
+  const [faixaAberta, setFaixaAberta] = useState(false);
+  const [visaoNoturna, setVisaoNoturna] = useState(false);
+  const [avisoLocal, setAvisoLocal] = useState<{ numero: number; texto: string } | null>(null);
+  const [pedidoDeImagem, setPedidoDeImagem] = useState<PedidoDeImagem | null>(null);
   // A cena que o mestre olha (e edita) sem mover o grupo: estado local da tela dele. `null` = a do grupo.
   const [cenaVistaId, setCenaVistaId] = useState<string | null>(null);
   const mapa = useRef<MapaPixi | null>(null);
@@ -115,6 +133,13 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
     window.addEventListener("keydown", aoTeclar);
     return () => window.removeEventListener("keydown", aoTeclar);
   }, []);
+
+  // O aviso curto local (dados rápidos) some sozinho.
+  useEffect(() => {
+    if (!avisoLocal) return;
+    const t = setTimeout(() => setAvisoLocal(null), DURACAO_DO_AVISO_LOCAL_MS);
+    return () => clearTimeout(t);
+  }, [avisoLocal]);
 
   useEffect(() => {
     void fontes.iniciar();
@@ -198,6 +223,7 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
     () => ({
       mover: (id, x, y) => enviar("token.mover", { id, x, y }),
       soltar: (id, x, y) => enviar("token.soltar", { id, x, y }),
+      chegada: (cenaId, x, y) => enviar("cena.editar", { cenaId, chegada: { x, y } }),
       selecionar: setSelecionadoId,
       zoom: setZoom,
       medir: setMedicao,
@@ -212,6 +238,14 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
       camadaTrabalho,
       encaixe,
       selecionadoId,
+      // O mestre vê o grupo todo; o jogador só conhece os personagens dele (os outros não chegam).
+      ehDoGrupo: (t: Token) => {
+        if (euMestre) {
+          const p = personagens?.find((x) => x.id === t.personagemId);
+          return p !== undefined && ehPersonagemDeJogador(p);
+        }
+        return eu !== null && personagens !== undefined && controlaToken(t, eu, personagens);
+      },
       podeMover: (t: Token) =>
         eu && permissoes && cenaAtivaId !== undefined && personagens
           ? podeMoverToken(t, eu, { permissoes, cenaAtivaId, personagens })
@@ -239,16 +273,20 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
     estado?.tokens.find((t) => t.id === selecionadoId && t.cenaId === cena?.id) ?? null;
   const pronto = status === "conectado" && estado !== null;
 
-  // Pede o que a mesa usa (mapa da cena, imagens dos tokens). O mestre também recolhe o que os
-  // jogadores subiram, para guardar cópia em recebidos/<jogador>/.
+  // Pede o que a mesa usa (mapa da cena, imagens dos tokens, retratos e tokens padrão das fichas).
+  // O mestre também recolhe o que os jogadores subiram, para guardar cópia em recebidos/<jogador>/.
   const hashDoMapa = cena?.mapa?.assetHash;
   const tokensDoEstado = estado?.tokens.filter((t) => t.cenaId === cena?.id);
   const assetsDoEstado = estado?.assets;
-  // biome-ignore lint/correctness/useExhaustiveDependencies: roda quando mudam o mapa, os tokens ou as metas
+  // biome-ignore lint/correctness/useExhaustiveDependencies: roda quando mudam o mapa, os tokens, as fichas ou as metas
   useEffect(() => {
     if (!gerente || !pronto || !euId) return;
     if (hashDoMapa) gerente.garantir(hashDoMapa);
     for (const t of tokensDoEstado ?? []) if (t.assetHash) gerente.garantir(t.assetHash);
+    for (const p of personagens ?? []) {
+      if (p.retratoHash) gerente.garantir(p.retratoHash);
+      if (p.tokenPadrao.assetHash) gerente.garantir(p.tokenPadrao.assetHash);
+    }
     if (!euMestre) return;
     for (const a of assetsDoEstado ?? []) {
       gerente.conhecerMeta(a);
@@ -263,11 +301,12 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
     euMestre,
     hashDoMapa,
     tokensDoEstado,
+    personagens,
     assetsDoEstado,
     versaoDosProntos,
   ]);
 
-  function escolherCamada(c: Camada) {
+  function escolherCamada(c: CamadaDeTrabalho) {
     setCamadaTrabalho(c);
     // Na camada errada o token não é selecionável: solta a seleção da outra camada.
     if (selecionado && selecionado.camada !== c) setSelecionadoId(null);
@@ -291,12 +330,27 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
         tamanhoQuadrados: 1,
         x,
         y,
-        camada: camadaTrabalho,
+        camada: camadaDoNovoToken(camadaTrabalho),
         oculto: false,
         controladoPor: [],
       },
     });
     setSelecionadoId(id);
+  }
+
+  /** Um item das Fichas foi solto no mapa: o token dele nasce na cena que o mestre vê, onde soltou. */
+  function soltarItemNoMapa(dados: string, x: number, y: number) {
+    const item = lerItemArrastado(dados);
+    if (!item || !euMestre || !cena) return;
+    const p = personagens?.find((q) => q.id === item.id);
+    if (!p) return;
+    const ponto = encaixarNoGrid({ x, y }, p.tokenPadrao.tamanhoQuadrados, cena.grid.quadradoM);
+    enviar("personagem.colocar", {
+      personagemId: p.id,
+      cenaId: cena.id,
+      tokenId: `tok-${crypto.randomUUID().slice(0, 8)}`,
+      ...(encaixe ? ponto : { x, y }),
+    });
   }
 
   /** Preparo cifrado da cena: só o que ainda falta (o que já está preparado não repete). */
@@ -314,99 +368,64 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
     }
   }
 
+  const pedirImagem: PedirImagem = (titulo, tipo, aoUsar) =>
+    setPedidoDeImagem({ titulo, tipo, aoUsar });
+
   function mudarEncaixe(v: boolean) {
     setEncaixe(v);
     gravarEncaixePadrao(v);
   }
 
+  const cenaVista = { id: cena?.id ?? estado?.cenaAtivaId ?? "", nome: cena?.nome ?? "" };
+
   const abas =
     estado && eu
       ? [
           {
-            id: "jogadores",
-            titulo: "Jogadores",
-            icone: <Users size={20} />,
-            conteudo: (
-              <AbaJogadores
-                estado={estado}
-                presenca={presenca}
-                euMestre={euMestre}
-                enviar={enviar}
-              />
-            ),
+            id: "chat",
+            titulo: "Chat",
+            icone: <MessagesSquare size={20} />,
+            conteudo: <AbaChat estado={estado} presenca={presenca} euId={eu.id} />,
           },
-          ...(gerente && cena
-            ? [
-                {
-                  id: "biblioteca",
-                  titulo: "Biblioteca",
-                  icone: <Images size={20} />,
-                  indicador: transferindo,
-                  conteudo: (
-                    <Biblioteca
-                      gerente={gerente}
-                      fontes={fontes}
-                      processador={processador}
-                      estado={estado}
-                      eu={eu}
-                      enviar={enviar}
-                      tokenSelecionado={selecionado}
-                      cena={cena}
-                      centroDoMapa={() =>
-                        mapa.current?.centroDaTelaEmMetros() ?? {
-                          x: (cena?.larguraM ?? 0) / 2,
-                          y: (cena?.alturaM ?? 0) / 2,
-                        }
-                      }
-                    />
-                  ),
-                },
-              ]
-            : []),
           {
-            id: "personagens",
-            titulo: "Personagens",
-            icone: <UserRound size={20} />,
+            id: "fichas",
+            titulo: "Fichas",
+            icone: <NotebookText size={20} />,
             conteudo: (
-              <AbaPersonagens
+              <AbaFichas
                 estado={estado}
                 eu={eu}
-                cenaVista={{ id: cena?.id ?? estado.cenaAtivaId, nome: cena?.nome ?? "" }}
+                pronto={pronto}
                 enviar={enviar}
+                ouvir={ouvir}
+                imagens={imagens}
+                versaoDasImagens={versaoDosProntos}
+                pedirImagem={pedirImagem}
+                cenaVista={cenaVista}
               />
             ),
           },
-          ...(euMestre && cena
-            ? [
-                {
-                  id: "cenas",
-                  titulo: "Cenas",
-                  icone: <Clapperboard size={20} />,
-                  conteudo: (
-                    <AbaCenas
-                      estado={estado}
-                      cenaVistaId={cena.id}
-                      preparos={preparos}
-                      enviar={enviar}
-                      aoVer={setCenaVistaId}
-                      aoPreparar={prepararCena}
-                      centroDaVista={() =>
-                        mapa.current?.centroDaTelaEmMetros() ?? {
-                          x: cena.larguraM / 2,
-                          y: cena.alturaM / 2,
-                        }
-                      }
-                    />
-                  ),
-                },
-              ]
-            : []),
           {
-            id: "notas",
-            titulo: "Notas",
-            icone: <StickyNote size={20} />,
+            id: "compendio",
+            titulo: "Compêndio",
+            icone: <BookOpen size={20} />,
+            conteudo: <AbaCompendio />,
+          },
+          {
+            id: "configuracoes",
+            titulo: "Configurações",
+            icone: <Settings size={20} />,
+            indicador: transferindo,
             conteudo: (
-              <AbaNotas estado={estado} eu={eu} pronto={pronto} enviar={enviar} ouvir={ouvir} />
+              <AbaConfiguracoes
+                nome={eu.nome}
+                papel={eu.papel}
+                encaixe={encaixe}
+                aoMudarEncaixe={mudarEncaixe}
+                aoSair={aoSair}
+                fontes={fontes}
+                gerente={gerente}
+              />
             ),
           },
           ...(euMestre && cena
@@ -421,20 +440,6 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
                 },
               ]
             : []),
-          {
-            id: "configuracoes",
-            titulo: "Configurações",
-            icone: <Settings size={20} />,
-            conteudo: (
-              <AbaConfiguracoes
-                nome={eu.nome}
-                papel={eu.papel}
-                encaixe={encaixe}
-                aoMudarEncaixe={mudarEncaixe}
-                aoSair={aoSair}
-              />
-            ),
-          },
         ]
       : [];
 
@@ -454,33 +459,59 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
             retornos={retornos}
             imagens={imagens}
             versaoDasImagens={versaoDosProntos}
+            aoSoltarItem={soltarItemNoMapa}
             aoCriar={(m) => {
               mapa.current = m;
             }}
           />
-          <div className="etiqueta" data-testid="etiqueta-mesa">
-            {euMestre && <span className="rotulo-vista">Vendo: </span>}
+          {/* A etiqueta sobre o mapa saiu: quem sou eu e onde estamos ficam só para leitores de tela. */}
+          <div className="so-leitor" data-testid="etiqueta-mesa">
             <span data-testid="cena-nome">{cena.nome}</span>
-            {euMestre && cenaDoGrupo && (
-              <>
-                <span className="separador">·</span>
-                <span className="rotulo-vista">Grupo em: </span>
-                <span data-testid="grupo-em">{cenaDoGrupo.nome}</span>
-              </>
-            )}
-            <span className="separador">·</span>
-            <strong data-testid="eu-nome">{eu.nome}</strong>{" "}
-            <span data-testid="eu-papel" className="papel">
-              {eu.papel}
-            </span>
+            {euMestre && cenaDoGrupo && <span data-testid="grupo-em">{cenaDoGrupo.nome}</span>}
+            <strong data-testid="eu-nome">{eu.nome}</strong>
+            <span data-testid="eu-papel">{eu.papel}</span>
           </div>
+          {euMestre && (
+            <MenuSuperior
+              faixaAberta={faixaAberta}
+              aoAlternarFaixa={() => setFaixaAberta(!faixaAberta)}
+              camadaTrabalho={camadaTrabalho}
+              aoEscolherCamada={escolherCamada}
+              visaoNoturna={visaoNoturna}
+              aoAlternarVisaoNoturna={() => setVisaoNoturna(!visaoNoturna)}
+              aoNovoToken={criarToken}
+              ordemVisivel={estado.ordemDeTurnoVisivel}
+              aoAlternarOrdem={() =>
+                enviar("ordemDeTurno.definir", { visivel: !estado.ordemDeTurnoVisivel })
+              }
+            />
+          )}
+          {euMestre && faixaAberta && (
+            <FaixaDeCenas
+              estado={estado}
+              cenaVistaId={cena.id}
+              preparos={preparos}
+              imagens={imagens}
+              versaoDasImagens={versaoDosProntos}
+              enviar={enviar}
+              aoIrPara={(id) => setCenaVistaId(id === estado.cenaAtivaId ? null : id)}
+              aoLevarGrupo={(id) => {
+                enviar("grupo.moverPara", { cenaId: id });
+                setCenaVistaId(null);
+              }}
+              aoPreparar={prepararCena}
+              pedirImagem={pedirImagem}
+            />
+          )}
           <BarraDeFerramentas
             ferramenta={ferramenta}
             aoEscolher={setFerramenta}
-            euMestre={euMestre}
-            camadaTrabalho={camadaTrabalho}
-            aoEscolherCamada={escolherCamada}
-            aoNovoToken={criarToken}
+            aoRolar={(q, faces) =>
+              setAvisoLocal({
+                numero: (avisoLocal?.numero ?? 0) + 1,
+                texto: `${q}d${faces} — os dados chegam com o chat`,
+              })
+            }
           />
           <ZoomFlutuante
             zoom={zoom}
@@ -497,15 +528,29 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
               {medicao.medida.rotulo}
             </div>
           )}
+          {estado.ordemDeTurnoVisivel && <OrdemDeTurno />}
           {euMestre && selecionado && (
             <PainelDoToken
               token={selecionado}
               jogadores={estado.usuarios.filter((u) => u.papel === "jogador")}
               enviar={enviar}
+              pedirImagem={pedirImagem}
               aoFechar={() => setSelecionadoId(null)}
             />
           )}
           <BarraLateral abas={abas} aoMudarAberta={setLateralAberta} />
+          {pedidoDeImagem && gerente && (
+            <SeletorDeImagem
+              titulo={pedidoDeImagem.titulo}
+              fontes={fontes}
+              processador={processador}
+              aoEscolher={async (arquivo) => {
+                const hash = await gerente.usarArquivo(arquivo, pedidoDeImagem.tipo);
+                pedidoDeImagem.aoUsar(hash);
+              }}
+              aoFechar={() => setPedidoDeImagem(null)}
+            />
+          )}
         </>
       ) : (
         <p className="carregando">Carregando a mesa…</p>
@@ -515,6 +560,11 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
         <div className="selo-conexao" role="status">
           {status}
         </div>
+      )}
+      {avisoLocal && (
+        <p className="aviso aviso-dados" role="status" data-testid="aviso-dados">
+          {avisoLocal.texto}
+        </p>
       )}
       {aviso && (
         <p className="aviso" role="alert" data-testid="aviso" data-codigo={aviso.codigo ?? ""}>

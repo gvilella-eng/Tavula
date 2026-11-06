@@ -1,7 +1,7 @@
 import {
   type AssetMeta,
-  type Camada,
   type Cena,
+  chegadaDaCena,
   criarLimitador,
   encaixarNoGrid,
   limitarNaCena,
@@ -11,6 +11,7 @@ import {
   type Token,
 } from "@tabletop/shared";
 import { Application, Container, Graphics, Sprite, Text, Texture } from "pixi.js";
+import type { CamadaDeTrabalho } from "../camadas";
 
 /** Pixels do mundo por metro (zoom 1). O zoom é a escala do `mundo` sobre isso. */
 export const PX_POR_M = 40;
@@ -25,7 +26,9 @@ export type Ferramenta = "selecionar" | "mao" | "regua";
 export type OpcoesDoMapa = {
   ferramenta: Ferramenta;
   euMestre: boolean;
-  camadaTrabalho: Camada;
+  camadaTrabalho: CamadaDeTrabalho;
+  /** Token de personagem de jogador (o grupo): o zoom inicial centra neles. */
+  ehDoGrupo: (token: Token) => boolean;
   /** Encaixe ligado (preferência); segurar Alt enquanto arrasta inverte. */
   encaixe: boolean;
   selecionadoId: string | null;
@@ -45,6 +48,8 @@ export type MedicaoNaTela = { medida: Medida; x: number; y: number };
 export type RetornosDoMapa = {
   mover: (id: string, x: number, y: number) => void;
   soltar: (id: string, x: number, y: number) => void;
+  /** O mestre arrastou a bandeira do ponto de chegada (da cena que ele está vendo). */
+  chegada: (cenaId: string, x: number, y: number) => void;
   selecionar: (id: string | null) => void;
   zoom: (zoom: number) => void;
   medir: (medicao: MedicaoNaTela | null) => void;
@@ -76,6 +81,7 @@ type Gesto =
       ultimoEnviado: Ponto | null;
       limitador: ReturnType<typeof criarLimitador<Ponto>>;
     }
+  | { tipo: "bandeira"; deslocamento: Ponto }
   | { tipo: "regua" };
 
 function iniciaisDe(nome: string): string {
@@ -97,9 +103,15 @@ export class MapaPixi {
   private readonly fundo = new Graphics();
   private readonly camadaMapa = new Container();
   private readonly grade = new Graphics();
+  /** Objetos de cenário (camada `mapa`): acima da imagem do mapa e abaixo dos tokens. */
+  private readonly camadaCenario = new Container();
   private readonly camadaTokens = new Container();
   private readonly camadaMestre = new Container();
   private readonly desenhoDaRegua = new Graphics();
+  /** Bandeira do ponto de chegada do grupo (só o mestre a vê e arrasta). */
+  private readonly bandeira = new Container();
+  private posicaoDaBandeira: Ponto | null = null;
+  private focoPendente = false;
   private readonly visuais = new Map<string, Visual>();
   private readonly spritesDoMapa = new Map<string, Sprite>();
   private readonly texturas = new Map<string, Texture>();
@@ -147,10 +159,13 @@ export class MapaPixi {
       this.fundo,
       this.camadaMapa,
       this.grade,
+      this.camadaCenario,
       this.camadaTokens,
       this.camadaMestre,
+      this.bandeira,
       this.desenhoDaRegua,
     );
+    this.desenharBandeira();
     this.app.stage.addChild(this.mundo);
     this.ultimoQuadro = performance.now();
     this.quadro = requestAnimationFrame(this.laco);
@@ -171,7 +186,8 @@ export class MapaPixi {
     this.desenharCena();
     this.atualizarMapa();
     this.sincronizarTokens();
-    this.centralizar();
+    this.vistaInicial();
+    this.atualizarBandeira();
     this.atualizarCursor();
   }
 
@@ -213,8 +229,16 @@ export class MapaPixi {
     this.desenharCena();
     this.atualizarMapa();
     if (gridMudou || outraCena) this.recriarVisuais();
-    // Mapa novo muda o tamanho da cena: enquadra de novo.
-    if (!this.jaCentralizou || tamanhoMudou || outraCena) this.centralizar();
+    // Outra cena ou mapa novo (tamanho novo): volta a abrir em 100%, no grupo ou no centro da cena.
+    if (!this.jaCentralizou || tamanhoMudou || outraCena) {
+      this.vistaInicial();
+      // Os tokens da cena nova podem chegar logo depois, no mesmo ciclo do React: refaz o foco uma vez.
+      this.focoPendente = true;
+      queueMicrotask(() => {
+        this.focoPendente = false;
+      });
+    }
+    this.atualizarBandeira();
   }
 
   /** O gerente de assets (de onde vêm as imagens locais). */
@@ -297,7 +321,9 @@ export class MapaPixi {
 
   definirTokens(tokens: Token[]): void {
     this.tokens = tokens;
-    if (this.pronto) this.sincronizarTokens();
+    if (!this.pronto) return;
+    this.sincronizarTokens();
+    if (this.focoPendente) this.vistaInicial();
   }
 
   definirOpcoes(opcoes: OpcoesDoMapa): void {
@@ -306,6 +332,7 @@ export class MapaPixi {
     if (!this.pronto) return;
     if (trocouFerramenta) this.limparRegua();
     this.atualizarEstilos();
+    this.atualizarBandeira();
     this.atualizarCursor();
   }
 
@@ -345,6 +372,29 @@ export class MapaPixi {
     this.zoomEm(fator, { x: this.largura() / 2, y: this.altura() / 2 });
   }
 
+  /**
+   * Vista inicial legível: 100% de zoom, centrada no grupo (média dos tokens de jogadores da cena)
+   * ou, sem grupo, no centro da cena. "Centralizar" (botão do zoom) continua enquadrando a cena.
+   */
+  vistaInicial(): void {
+    if (!this.pronto || !this.cena) return;
+    const grupo = this.tokens.filter((t) => t.cenaId === this.cena?.id && this.opcoes.ehDoGrupo(t));
+    const foco =
+      grupo.length > 0
+        ? {
+            x: grupo.reduce((soma, t) => soma + t.x, 0) / grupo.length,
+            y: grupo.reduce((soma, t) => soma + t.y, 0) / grupo.length,
+          }
+        : { x: this.cena.larguraM / 2, y: this.cena.alturaM / 2 };
+    this.vista = {
+      zoom: 1,
+      x: this.largura() / 2 - foco.x * PX_POR_M,
+      y: this.altura() / 2 - foco.y * PX_POR_M,
+    };
+    this.jaCentralizou = this.largura() > 0;
+    this.aplicarVista();
+  }
+
   /** Cabe a cena inteira na tela e a centraliza. */
   centralizar(): void {
     if (!this.pronto || !this.cena) return;
@@ -369,6 +419,12 @@ export class MapaPixi {
     this.vista.x = this.largura() / 2 - xM * PX_POR_M * this.vista.zoom;
     this.vista.y = this.altura() / 2 - yM * PX_POR_M * this.vista.zoom;
     this.aplicarVista();
+  }
+
+  /** Ponto da página (clientX/clientY) em metros do mundo (para soltar um item das Fichas no mapa). */
+  pontoDaPaginaEmMetros(clientX: number, clientY: number): Ponto {
+    const r = this.app.canvas.getBoundingClientRect();
+    return this.paraMundo({ x: clientX - r.left, y: clientY - r.top });
   }
 
   /** Metros do mundo no centro da tela (para criar o token novo à vista). */
@@ -425,10 +481,11 @@ export class MapaPixi {
     this.mundo.scale.set(this.vista.zoom);
     this.retornos().zoom(this.vista.zoom);
     this.desenharRegua();
+    this.escalarBandeira();
   }
 
   private readonly aoRedimensionar = () => {
-    if (!this.jaCentralizou) this.centralizar();
+    if (!this.jaCentralizou) this.vistaInicial();
     else this.aplicarVista();
   };
 
@@ -449,7 +506,7 @@ export class MapaPixi {
     this.grade.stroke({ width: 1, color: 0xffffff, alpha: 0.1, pixelLine: true });
   }
 
-  private quadradoM(): number {
+  quadradoM(): number {
     return this.cena?.grid.quadradoM ?? 1.5;
   }
 
@@ -505,7 +562,7 @@ export class MapaPixi {
     container.addChild(anel, corpo, imagem, iniciais, rotulo);
     if (token.oculto) container.addChild(this.desenharOlhoCortado(raio));
     container.position.set(x * PX_POR_M, y * PX_POR_M);
-    (token.camada === "mestre" ? this.camadaMestre : this.camadaTokens).addChild(container);
+    this.camadaDe(token).addChild(container);
     return {
       token,
       chave: this.chaveDe(token),
@@ -530,6 +587,11 @@ export class MapaPixi {
     g.moveTo(cx - 8, cy + 7).lineTo(cx + 8, cy - 7);
     g.stroke({ width: 2, color: 0xff6b5a });
     return g;
+  }
+
+  private camadaDe(token: Token): Container {
+    if (token.camada === "mestre") return this.camadaMestre;
+    return token.camada === "mapa" ? this.camadaCenario : this.camadaTokens;
   }
 
   private recriarVisuais(): void {
@@ -598,8 +660,10 @@ export class MapaPixi {
     for (const v of this.visuais.values()) {
       const t = v.token;
       let alpha = 1;
+      const trabalho = this.opcoes.camadaTrabalho;
       if (t.oculto) alpha = 0.5;
-      else if (t.camada === "mestre" && this.opcoes.camadaTrabalho === "tokens") alpha = 0.45;
+      else if (t.camada === "mestre" && trabalho === "tokens") alpha = 0.45;
+      else if (this.opcoes.euMestre && trabalho === "mapa" && t.camada !== "mapa") alpha = 0.6;
       v.container.alpha = alpha;
       v.anel.visible = this.opcoes.selecionadoId === t.id;
     }
@@ -631,6 +695,47 @@ export class MapaPixi {
       v.container.position.set(v.x * PX_POR_M, v.y * PX_POR_M);
       this.sujo = true;
     }
+  }
+
+  // --- bandeira do ponto de chegada -------------------------------------------------------------
+
+  private desenharBandeira(): void {
+    const g = new Graphics();
+    g.moveTo(0, 0).lineTo(0, -30).stroke({ width: 3, color: 0xffffff });
+    g.poly([0, -30, 22, -23, 0, -16]).fill(ACENTO).stroke({ width: 1.5, color: 0x1a1204 });
+    g.circle(0, 0, 3.5).fill(0xffffff);
+    this.bandeira.addChild(g);
+    this.bandeira.visible = false;
+  }
+
+  /** O ponto de chegada da cena que o mestre vê (só ele vê a bandeira). */
+  private atualizarBandeira(posicao?: Ponto): void {
+    this.sujo = true;
+    const cena = this.cena;
+    const visivel = cena !== null && this.opcoes.euMestre;
+    this.bandeira.visible = visivel;
+    if (!cena || !visivel) {
+      this.posicaoDaBandeira = null;
+      return;
+    }
+    if (posicao === undefined && this.gesto?.tipo === "bandeira") return;
+    const p = posicao ?? chegadaDaCena(cena);
+    this.posicaoDaBandeira = p;
+    this.bandeira.position.set(p.x * PX_POR_M, p.y * PX_POR_M);
+    this.escalarBandeira();
+  }
+
+  /** A bandeira tem sempre o mesmo tamanho na tela, qualquer que seja o zoom. */
+  private escalarBandeira(): void {
+    this.sujo = true;
+    this.bandeira.scale.set(1 / this.vista.zoom);
+  }
+
+  private sobreABandeira(p: Ponto): boolean {
+    const b = this.posicaoDaBandeira;
+    if (!b || !this.opcoes.euMestre || this.opcoes.ferramenta !== "selecionar") return false;
+    const t = this.paraTela(b.x, b.y);
+    return p.x >= t.x - 10 && p.x <= t.x + 28 && p.y >= t.y - 36 && p.y <= t.y + 8;
   }
 
   // --- régua ----------------------------------------------------------------------------------
@@ -667,14 +772,17 @@ export class MapaPixi {
     return { x: e.clientX - r.left, y: e.clientY - r.top };
   }
 
+  /** O token (selecionável) sob o ponto. Cenário e camadas que não são minhas ficam transparentes ao clique. */
   private tokenEm(p: Ponto): Visual | null {
     const m = this.paraMundo(p);
     const minimo = 12 / (this.vista.zoom * PX_POR_M); // alvo mínimo de 12 px na tela
     let achado: Visual | null = null;
-    // A camada do mestre fica por cima; dentro de cada camada vale o último desenhado.
-    const ordem = [...this.visuais.values()].sort(
-      (a, b) => Number(a.token.camada === "mestre") - Number(b.token.camada === "mestre"),
-    );
+    // De baixo para cima: mapa, tokens, mestre; dentro de cada camada vale o último desenhado.
+    const peso = (v: Visual) =>
+      v.token.camada === "mestre" ? 2 : v.token.camada === "mapa" ? 0 : 1;
+    const ordem = [...this.visuais.values()]
+      .filter((v) => this.selecionavel(v.token))
+      .sort((a, b) => peso(a) - peso(b));
     for (const v of ordem) {
       const raio = Math.max((v.token.tamanhoQuadrados * this.quadradoM()) / 2, minimo);
       if (Math.hypot(m.x - v.x, m.y - v.y) <= raio) achado = v;
@@ -708,9 +816,18 @@ export class MapaPixi {
       return;
     }
 
+    if (this.sobreABandeira(p) && this.cena) {
+      const m = this.paraMundo(p);
+      const b = this.posicaoDaBandeira as Ponto;
+      this.gesto = { tipo: "bandeira", deslocamento: { x: b.x - m.x, y: b.y - m.y } };
+      this.app.canvas.setPointerCapture(e.pointerId);
+      this.atualizarCursor();
+      return;
+    }
+
     const v = this.tokenEm(p);
-    if (!v || !this.selecionavel(v.token)) {
-      if (!v) this.retornos().selecionar(null);
+    if (!v) {
+      this.retornos().selecionar(null);
       return;
     }
     if (this.opcoes.euMestre) this.retornos().selecionar(v.token.id);
@@ -742,13 +859,27 @@ export class MapaPixi {
     const g = this.gesto;
     const p = this.posicaoNaTela(e);
     if (!g) {
-      this.atualizarCursor(this.tokenEm(p));
+      this.atualizarCursor(this.tokenEm(p), this.sobreABandeira(p));
       return;
     }
     if (g.tipo === "pan") {
       this.vista.x = g.vistaInicial.x + (p.x - g.inicio.x);
       this.vista.y = g.vistaInicial.y + (p.y - g.inicio.y);
       this.aplicarVista();
+      return;
+    }
+    if (g.tipo === "bandeira") {
+      if (!this.cena) return;
+      const m = this.paraMundo(p);
+      const q = this.quadradoM();
+      const alvo = limitarNaCena(
+        this.encaixaAgora(e.altKey)
+          ? encaixarNoGrid({ x: m.x + g.deslocamento.x, y: m.y + g.deslocamento.y }, 1, q)
+          : { x: m.x + g.deslocamento.x, y: m.y + g.deslocamento.y },
+        this.cena,
+      );
+      this.posicaoDaBandeira = alvo;
+      this.atualizarBandeira(alvo);
       return;
     }
     if (g.tipo === "regua") {
@@ -781,6 +912,10 @@ export class MapaPixi {
     this.gesto = null;
     if (this.app.canvas.hasPointerCapture(e.pointerId)) {
       this.app.canvas.releasePointerCapture(e.pointerId);
+    }
+    if (g.tipo === "bandeira") {
+      const b = this.posicaoDaBandeira;
+      if (b && this.cena) this.retornos().chegada(this.cena.id, b.x, b.y);
     }
     if (g.tipo === "token") {
       // O soltar sai na hora, fora do limitador; o movimento pendente deixa de importar.
@@ -823,12 +958,13 @@ export class MapaPixi {
     }
   };
 
-  private atualizarCursor(sobre: Visual | null = null): void {
+  private atualizarCursor(sobre: Visual | null = null, sobreBandeira = false): void {
     if (!this.pronto) return;
     const g = this.gesto;
     let cursor = "default";
-    if (g?.tipo === "pan") cursor = "grabbing";
+    if (g?.tipo === "pan" || g?.tipo === "bandeira") cursor = "grabbing";
     else if (this.espaco || this.opcoes.ferramenta === "mao") cursor = "grab";
+    else if (sobreBandeira && this.opcoes.ferramenta === "selecionar") cursor = "grab";
     else if (this.opcoes.ferramenta === "regua") cursor = "crosshair";
     else if (g?.tipo === "token") cursor = "grabbing";
     else if (sobre && this.selecionavel(sobre.token)) {
@@ -860,6 +996,8 @@ export class MapaPixi {
         return { x: r.left + p.x, y: r.top + p.y };
       },
       zoom: () => this.vista.zoom,
+      /** Ponto de chegada mostrado pela bandeira (só no mestre). */
+      bandeira: () => this.posicaoDaBandeira,
       definirZoom: (z: number) => this.definirZoom(z),
       centrarEm: (x: number, y: number) => this.centrarEm(x, y),
       quadradoM: () => this.quadradoM(),

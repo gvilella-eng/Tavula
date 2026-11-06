@@ -181,7 +181,13 @@
   "personagens": [
     {
       "id": "pers-aldric",
-      "donoId": "jogador-1",
+      "pastaId": "pasta-personagens",
+      "editores": {
+        "tipo": "jogadores",
+        "ids": [
+          "jogador-1"
+        ]
+      },
       "nome": "Aldric",
       "tokenPadrao": {
         "cor": "#3cb44b",
@@ -198,7 +204,13 @@
     },
     {
       "id": "pers-brisa",
-      "donoId": "jogador-2",
+      "pastaId": "pasta-personagens",
+      "editores": {
+        "tipo": "jogadores",
+        "ids": [
+          "jogador-2"
+        ]
+      },
       "nome": "Brisa",
       "tokenPadrao": {
         "cor": "#4363d8",
@@ -215,7 +227,13 @@
     },
     {
       "id": "pers-cael",
-      "donoId": "jogador-3",
+      "pastaId": "pasta-personagens",
+      "editores": {
+        "tipo": "jogadores",
+        "ids": [
+          "jogador-3"
+        ]
+      },
       "nome": "Cael",
       "tokenPadrao": {
         "cor": "#f58231",
@@ -232,7 +250,11 @@
     },
     {
       "id": "pers-ogro",
-      "donoId": null,
+      "pastaId": "pasta-npcs",
+      "editores": {
+        "tipo": "jogadores",
+        "ids": []
+      },
       "nome": "Ogro",
       "tokenPadrao": {
         "cor": "#c0392b",
@@ -245,6 +267,24 @@
       "ficha": {
         "pvAtual": 59,
         "pvMax": 59
+      }
+    }
+  ],
+  "pastas": [
+    {
+      "id": "pasta-personagens",
+      "nome": "Personagens",
+      "ordem": 0,
+      "visivel": {
+        "tipo": "mestre"
+      }
+    },
+    {
+      "id": "pasta-npcs",
+      "nome": "NPCs",
+      "ordem": 1,
+      "visivel": {
+        "tipo": "mestre"
       }
     }
   ]

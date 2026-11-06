@@ -1,5 +1,6 @@
 import type { Cena, Token } from "@tabletop/shared";
 import { useEffect, useRef } from "react";
+import { TIPO_DE_ARRASTO_DA_FICHA } from "../arrasto";
 import { type ImagensDoMapa, MapaPixi, type OpcoesDoMapa, type RetornosDoMapa } from "./mapaPixi";
 
 type Props = {
@@ -12,6 +13,8 @@ type Props = {
   versaoDasImagens: number;
   /** Entrega o controlador (zoom, centralizar, movimento ao vivo) quando ele existe. */
   aoCriar: (mapa: MapaPixi | null) => void;
+  /** Um item das Fichas foi solto no mapa (dados do arrasto e a posição em metros). */
+  aoSoltarItem?: (dados: string, x: number, y: number) => void;
 };
 
 /** Ponte React ↔ Pixi: cria o controlador uma vez e empurra dados e opções para ele. */
@@ -23,6 +26,7 @@ export function Mapa({
   imagens,
   versaoDasImagens,
   aoCriar,
+  aoSoltarItem,
 }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const mapa = useRef<MapaPixi | null>(null);
@@ -58,5 +62,22 @@ export function Mapa({
     if (imagens) mapa.current?.definirImagens(imagens);
   }, [imagens, versaoDasImagens]);
 
-  return <div ref={host} className="mapa" data-testid="mapa" />;
+  return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: o mapa é um canvas; o arrasto das Fichas só precisa de dragover e drop
+    <div
+      ref={host}
+      className="mapa"
+      data-testid="mapa"
+      onDragOver={(e) => {
+        if (e.dataTransfer.types.includes(TIPO_DE_ARRASTO_DA_FICHA)) e.preventDefault();
+      }}
+      onDrop={(e) => {
+        const dados = e.dataTransfer.getData(TIPO_DE_ARRASTO_DA_FICHA);
+        if (!dados) return;
+        e.preventDefault();
+        const p = mapa.current?.pontoDaPaginaEmMetros(e.clientX, e.clientY);
+        if (p) aoSoltarItem?.(dados, p.x, p.y);
+      }}
+    />
+  );
 }

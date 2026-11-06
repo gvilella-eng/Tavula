@@ -162,9 +162,17 @@ interface ConfigDaMesa {            // por campanha; só o mestre altera
   tempoParaJogadores: 'exato' | 'estagio' | 'oculto';   // o mestre sempre vê o exato
 }
 
-interface Personagem {
+interface Pasta {                   // lote 4b: pastas da aba Fichas, sem subpastas
+  id: string; nome: string; ordem: number;
+  visivel: { tipo: 'todos' } | { tipo: 'mestre' } | { tipo: 'jogadores'; ids: string[] };
+}
+
+interface Personagem {              // um item das Fichas (por ora só personagem e NPC)
   id: string;
-  donoId: string | null;            // null = NPC controlado pelo mestre
+  pastaId: string;                  // quem VÊ: a pasta, mais quem edita
+  editores: { tipo: 'todos' } | { tipo: 'jogadores'; ids: string[] };  // "pode ser controlado e
+                                    // editado por"; NPC = ninguém; o mestre edita tudo
+  retratoHash?: string;             // retrato (avatar), escolhido no editor do item
   nome: string;
   ficha: Ficha;                     // até o lote 9: { pvAtual, pvMax }
   tokenPadrao: { cor: string; tamanhoQuadrados: number; assetHash?: string };
@@ -188,9 +196,9 @@ interface Token {
   nome: string; cor: string;        // aparência gerada (círculo + iniciais) até existir imagem
   tamanhoQuadrados: number;         // 1..4
   x: number; y: number;             // centro, em metros
-  camada: 'tokens' | 'mestre';
+  camada: 'mapa' | 'tokens' | 'mestre';  // mapa (4b): cenário abaixo dos tokens; o jogador vê e não mexe
   oculto: boolean;
-  controladoPor: string[];          // ids de usuário; o mestre move qualquer um
+  controladoPor: string[];          // ids de usuário, além de quem edita o personagem; o mestre move qualquer um
   assetHash?: string;               // lote 3
   personagemId?: string;            // lote 4; controla: o dono do personagem ou quem estiver em controladoPor
 }
@@ -916,6 +924,13 @@ eventos, iluminação, visão noturna, ordem de turno) aparece só como **interf
 - quem vê um item vem só da pasta, mais quem o edita, e isso substitui `ficha.verOutras`;
 - o compêndio lê um JSON da pasta local, fora do repositório (o site citado parece ser a tradução do
   Livro do Jogador, com direitos autorais; a alternativa livre é o SRD 5.1).
+
+**Como ficou:** detalhes, decisões, o que é só interface e prints em `docs/ESTADO.md` (Lote 4b). Exportação
+v5 (pastas, quem edita, ordem de turno; importa v1 a v4). `ficha.verOutras` continua no tipo, sem efeito.
+
+**Roteiro manual:** abrir a faixa de cenas e usar o botão direito; arrastar um item das Fichas para o mapa;
+mover um item entre pastas com um jogador conectado e ver aparecer/sumir para ele; escolher retrato e token
+no editor; ligar a ordem de turno.
 
 **Pronto quando:** `pnpm verify` verde e o Vilella aprovar a interface.
 
