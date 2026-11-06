@@ -747,11 +747,15 @@ Tamanho relativo: **P** (pequeno), **M** (médio), **G** (grande).
 Marcos:
 - **Marco A — mesa básica** (lotes 0–4b): mapa, tokens, permissões, assets locais, cenas e a revisão da
   interface.
-- **Marco B — exploração** (lotes 5–7b): paredes, luz, névoa, objetos de luz, automações. Com isso já
-  dá para jogar uma sessão usando fichas fora do app.
-- **Marco C — mesa completa** (lotes 8–11): dados, chat, ficha, import de PDF, combate.
-- **Marco D — mesa assistida** (lote 12): MCP. Pode vir logo depois do 7b se a ideia for construir a
-  campanha com IA antes dos lotes 8–11.
+- **Marco B — exploração** (lotes 5–7): paredes, luz, memória do mapa, objetos de luz. Com isso já dá
+  para jogar uma sessão usando fichas fora do app.
+- **Marco C — mesa completa** (lotes 8–11, 13 e 14): dados, chat, ficha, import de PDF, combate, pincel
+  e compêndio.
+- **Marco D — automações e IA, por último** (lotes 7b e 12): eventos/automações e MCP.
+
+**Ordem decidida pelo Vilella (2026-11-06):** primeiro deixar a mesa toda funcionando (5, 6, 7, 8, 9, 10,
+11, 13, 14); as automações (7b, o ícone de eventos) e o MCP (12) ficam para o fim. Os números dos lotes
+não mudaram, só a ordem.
 
 ---
 
@@ -986,11 +990,35 @@ no editor; ligar a ordem de turno.
 - porta secreta chega ao jogador como parede comum;
 - o mestre vê tudo e pode alternar "ver como o jogador X".
 
+**Decidido antes de começar (2026-11-06):**
+- **Visão só de tela** (decisão do Vilella, 4.7): o polígono de visão é calculado no navegador e o que
+  está fora dele não é desenhado; a sala não filtra tokens por visão. A sala continua filtrando o que é
+  segredo de propósito: porta **secreta fechada** chega ao jogador como `parede`, e **aberta**, como
+  porta aberta (ele a descobriu); paredes de outra cena não chegam.
+- **Onde fica a ferramenta:** item "Paredes e portas" na lista do ícone de iluminação (lanterna) do menu
+  do mestre. Desenhar em sequência com cliques (Esc encerra), encaixe nos cantos do grid (Alt solta),
+  arrastar as pontas, selecionar para mudar tipo e estado, Delete apaga.
+- **Portas:** ícone no meio da porta. O jogador abre ou fecha porta destrancada **ao alcance** de um token
+  que controla (1,5 m por padrão; o mesmo `alcanceInteracaoM` da tocha), com `porta.abrir`. O mestre
+  tranca, destranca e abre qualquer uma. Porta trancada avisa "trancada".
+- **Paredes bloqueiam passagem:** parede, porta fechada, janela e invisível bloqueiam o movimento. O
+  jogador não consegue soltar o token atravessando uma delas (a sala confere o trajeto; o mestre
+  ignora). Janela e invisível não bloqueiam a visão.
+- **Visão:** vem do personagem do token (`visao.alcanceM`, `null` = sem limite) ou, para token sem
+  personagem, de um alcance no próprio token. O jogador vê a união da visão dos tokens que controla. Fora
+  dela, escuro (a memória do mapa é do Lote 6).
+- **Iluminação dinâmica por cena** já entra aqui como o liga/desliga da visão por paredes, no item da
+  lanterna: desligada, os jogadores veem a cena inteira (menos a camada do mestre).
+- **Visão noturna do mestre** já entra com a visão: ligada, o que algum jogador vê aparece normal e o
+  resto mais apagado; desligada, tudo claro (no Lote 6 passa a considerar a luz). "Ver como o jogador X"
+  fica junto, num menu do mesmo ícone.
+
 **Verificação automática:**
 - unidade: polígono em sala quadrada vazia; sala com pilar no meio; porta aberta × fechada; janela;
   token encostado num canto; segmentos colineares;
 - unidade: 500 segmentos e 8 fontes calculados em menos de 16 ms;
-- E2E: o jogador não recebe o tipo `secreta` em nenhum frame.
+- unidade: trajeto atravessando parede, porta fechada, janela e invisível é recusado; porta aberta deixa passar;
+- E2E: o jogador não recebe o tipo `secreta` em nenhum frame (fechada vira `parede`, aberta vira porta).
 
 **Roteiro manual:** desenhar um corredor com porta, abrir e fechar e ver a visão do jogador mudar.
 
