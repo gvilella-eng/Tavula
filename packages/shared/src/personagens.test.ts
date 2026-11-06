@@ -764,7 +764,7 @@ describe("exportação v5", () => {
     ).estado;
     const x = criarExportacao(e, AGORA);
     expect(x.versao).toBe(VERSAO_EXPORTACAO);
-    expect(x.versao).toBe(5);
+    expect(x.versao).toBe(6);
     expect(x.dados.personagens).toHaveLength(3);
     expect(x.dados.pastas.map((p) => p.id)).toEqual(["pasta-personagens", "pasta-npcs"]);
     expect(x.dados.cenas[1]?.chegada).toEqual({ x: 6, y: 15 });
@@ -784,7 +784,7 @@ describe("exportação v5", () => {
     };
     const v3 = { ...v4, versao: 3, dados: dadosV3 };
     const l3 = lerExportacao(v3);
-    expect(l3.ok && l3.exportacao.versao).toBe(5);
+    expect(l3.ok && l3.exportacao.versao).toBe(6);
     expect(l3.ok && l3.exportacao.dados.personagens).toEqual([]);
     expect(l3.ok && l3.exportacao.dados.cenas).toHaveLength(2);
     const { assets: _a, ...dadosV2 } = dadosV3;

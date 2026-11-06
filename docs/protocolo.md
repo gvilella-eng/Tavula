@@ -1,6 +1,6 @@
 # Protocolo cliente ↔ sala
 
-## Versão atual: v1 (Lotes 1, 2, 3, 4 e 4b)
+## Versão atual: v1 (Lotes 1, 2, 3, 4, 4b e 5)
 
 Os schemas zod ficam em `packages/shared/src/protocolo.ts` e `estado.ts`; a lógica pura (conferir
 capacidade, aplicar, filtrar por papel) em `nucleo.ts` e `capacidades.ts`. O cliente e a sala validam
@@ -330,14 +330,14 @@ jogador: nunca as exclusivas do mestre; senão a exceção por usuário, se houv
 
 ### Exportação
 
-`{ formato: "tabletop-campanha", versao: 5, exportadoEm, dados: { seq, usuarios, permissoes, notaMesa, notaMestre, cenas, cenaAtivaId, tokens, pastas, personagens, ordemDeTurnoVisivel, assets } }`.
+`{ formato: "tabletop-campanha", versao: 6, exportadoEm, dados: { seq, usuarios, permissoes, notaMesa, notaMestre, cenas, cenaAtivaId, tokens, paredes, pastas, personagens, ordemDeTurnoVisivel, assets } }`. A **v6** (Lote 5) acrescenta `paredes`; `Cena.iluminacaoDinamica` e `Token.alcanceVisaoM` são campos opcionais dentro de cenas e tokens (ausentes nos arquivos antigos: iluminação ligada, visão sem limite). De v1 a v5 continuam aceitas (o resultado é sempre v6, com `paredes: []`); ids de parede únicos e cena existente são conferidos.
 Sem contadores de uso nem presença. `assets` são **só as metas dos assets usados** (mapas das cenas, imagens
 dos tokens e os tiles deles), **nunca bytes**; `Cena.mapa` e `Token.assetHash` vão nos próprios objetos. A **v5**
 (Lote 4b) acrescenta `pastas` e `ordemDeTurnoVisivel` e troca, nos personagens, `donoId` por `editores` e `pastaId` (mais `retratoHash`). A **v4**
 (Lote 4, personagens com `donoId`) é migrada na importação: o dono vira "quem edita" e o personagem vai para a pasta "Personagens" (ou "NPCs"), só do mestre. Os
 **preparos** (chaves do pré-envio) e os assets `cifrado` **nunca** entram. A **v3** (Lote 3, sem `personagens`), a **v2**
 (Lote 2, sem `assets`) e a **v1** (Lote 1, sem `cenas`, `cenaAtivaId` nem `tokens`) continuam sendo aceitas na
-importação: o resultado é sempre v5, com `personagens: []`, `assets: []` e as duas pastas padrão onde faltavam; a v1 vira a cena padrão e nenhum token. Quem importa um mapa precisa
+importação: o resultado é sempre v6 (a v5 só ganha `paredes: []`), com `personagens: []`, `assets: []` e as duas pastas padrão onde faltavam; a v1 vira a cena padrão e nenhum token. Quem importa um mapa precisa
 de alguém online com os arquivos (o cache dos navegadores serve; se ninguém tiver, o jogo mostra "indisponível").
 Na importação a sala valida com zod e ainda exige: ids de usuário
 únicos, pelo menos um mestre, exceções só para usuários existentes, ids de cena, de token e de personagem únicos, cena ativa
@@ -348,6 +348,53 @@ mestre** na campanha importada. A importação substitui tudo e manda snapshot n
 usuários que sumiram são fechados. O `seq` **nunca volta**: fica no maior entre o atual e o do arquivo,
 para nenhum número já enviado ser reaproveitado. Capacidade delegável que o arquivo não traz (criada
 depois da exportação) entra com o padrão da mesa.
+
+### Paredes, portas e linha de visão (Lote 5)
+
+`Parede { id, cenaId, a: {x,y}, b: {x,y} (metros), tipo: "parede" | "porta" | "janela" | "secreta" | "invisivel", estado?: "aberta" | "fechada" | "trancada" }`.
+`estado` só existe em `porta` e `secreta` (sem ele nascem fechadas; outro tipo perde o estado). `Estado.paredes` guarda todas.
+
+**O que bloqueia** (`bloqueiaVisao` / `bloqueiaPassagem` em `shared/src/paredes.ts`): visão: parede, porta fechada ou trancada, secreta
+fechada. Passagem: o mesmo, mais janela e invisível. Porta e secreta **abertas** não bloqueiam nada.
+
+**Intenções** (todas do mestre, capacidade `cena.editar`, salvo `porta.alternar`):
+
+| `tipo` | `dados` | Efeito |
+|---|---|---|
+| `parede.criar` | `{ cenaId?, paredes: [{ id, a, b, tipo, estado? }] }` (1 a 200) | cria a sequência numa mensagem; um `parede.criada` por parede; pontas limitadas à cena; recusa id repetido e parede sem comprimento |
+| `parede.editar` | `{ id, a?, b?, tipo?, estado? }` | `parede.editada`; `parede_inexistente` se não existe |
+| `parede.apagar` | `{ id }` | `parede.apagada` |
+| `cena.configurarIluminacao` | `{ cenaId?, dinamica }` | muda `Cena.iluminacaoDinamica` (sem o campo vale ligada); emite `cena.editada`, que o jogador recebe se for a cena ativa |
+| `porta.alternar` | `{ id }` | capacidade `porta.abrir`. Ver abaixo |
+
+`token.editar` aceita `alcanceVisaoM` (`null` tira o limite): alcance de visão de token **sem personagem**. Com personagem vale `visao.alcanceM`.
+`cena.duplicar` copia as paredes da cena e `cena.apagar` apaga as dela (`parede.apagada` por parede).
+
+**`porta.alternar`.** Mestre: qualquer porta ou secreta (a trancada abre; aberta fecha). Jogador: só `tipo: "porta"`, destrancada, com algum
+token que ele controla a no máximo `ALCANCE_INTERACAO_PADRAO_M` (1,5 m; o `alcanceInteracaoM` da mesa ainda não é configurável) do **meio** da porta.
+Respostas de `erro`: `porta_trancada`; `fora_de_alcance`; `porta_inexistente` (id inexistente, de outra cena, parede comum
+ou **secreta**: para o jogador não há porta ali; a secreta só o mestre opera).
+
+**Trajeto bloqueado.** `token.soltar` de jogador: se o segmento da posição gravada até a nova cruza algo que bloqueia passagem
+(paredes da cena do token, inclusive a secreta), a sala responde `erro` com `trajeto_bloqueado` e nada muda; os outros clientes que viram o arraste ao
+vivo recebem `token.movendo` com a posição gravada. O mestre ignora. `token.mover` (ao vivo) não é conferido: o cliente do jogador já não deixa
+o token passar, e a sala confere ao soltar. Parede sobre a qual o token já está não conta (não fica preso).
+
+**Eventos** `parede.criada`, `parede.editada` (parede inteira; o cliente faz upsert) e `parede.apagada { id }`. Quem recebe:
+
+- **mestres**: tudo, como é;
+- **jogador**: só paredes da cena ativa e **com a secreta disfarçada** (`paredeParaJogador`): secreta fechada ou trancada chega como `tipo: "parede"` sem
+  estado; secreta aberta chega como `porta` `aberta`. A sala usa o estado de antes e de depois da intenção (como nos tokens):
+  se o que o jogador veria não mudou (trancar ou destrancar a secreta), o evento nem chega; senão vai o evento já convertido
+  (abrir: `porta` aberta; fechar: volta a `parede`). O jogador **nunca** recebe `secreta`, nem no snapshot (`visaoPara` converte e só traz a cena ativa) nem em evento.
+  `invisivel` chega como é (o cliente precisa dela para o trajeto) e não é desenhada.
+
+**Visão só de tela.** A sala **não** filtra tokens por visão: o que está fora da visão ou no escuro chega ao navegador, que não o desenha (para
+esconder de verdade, marque como oculto). O navegador calcula o polígono de visibilidade de cada token que o jogador controla
+(`poligonoDeVisibilidade`, varredura angular) e escurece o resto. Com `iluminacaoDinamica` desligada a cena fica toda visível. A visão noturna do
+mestre e o "ver como o jogador X" são estado só da tela dele (o "ver como" aplica `visaoPara` localmente).
+
+Novos códigos de erro: `parede_inexistente`, `porta_inexistente`, `porta_trancada`, `fora_de_alcance`, `trajeto_bloqueado`.
 
 ### Contador de uso
 

@@ -1,5 +1,6 @@
 import {
   type AssetMeta,
+  bloqueiaVisao,
   type Cena,
   chegadaDaCena,
   criarLimitador,
@@ -7,10 +8,16 @@ import {
   limitarNaCena,
   type Medida,
   medirRegua,
+  meioDaParede,
+  type Parede,
+  poligonoDeVisibilidade,
+  pontoNaUniao,
   suavizar,
+  type TipoDeParede,
   type Token,
+  trajetoBloqueado,
 } from "@tabletop/shared";
-import { Application, Container, Graphics, Sprite, Text, Texture } from "pixi.js";
+import { Application, Container, Graphics, RenderTexture, Sprite, Text, Texture } from "pixi.js";
 import type { CamadaDeTrabalho } from "../camadas";
 
 /** Pixels do mundo por metro (zoom 1). O zoom é a escala do `mundo` sobre isso. */
@@ -21,7 +28,27 @@ export const ZOOM_MAX = 4;
 const TAU_MS = 70;
 const ACENTO = 0xe0a030;
 
-export type Ferramenta = "selecionar" | "mao" | "regua";
+export type Ferramenta = "selecionar" | "mao" | "regua" | "paredes";
+
+/** Quem enxerga (o token e o alcance; `null` = sem limite). A posição vem do próprio mapa. */
+export type FonteDeVisao = { tokenId: string; alcanceM: number | null };
+
+/**
+ * Como a tela mostra a visão (só de tela, nunca vai para a sala):
+ * - `jogador`: fora da união da visão das fontes é escuro e os tokens de lá não são desenhados;
+ * - `noturna` (mestre): o que as fontes veem fica normal e o resto, apagado;
+ * - `claro`: tudo claro.
+ */
+export type ConfigDeVisao = {
+  modo: "jogador" | "noturna" | "claro";
+  fontes: FonteDeVisao[];
+};
+
+/** Tamanho (em pixels da tela) dos ícones das portas e das alças das pontas. */
+const RAIO_DO_ICONE = 11;
+const RAIO_DA_ALCA = 6;
+/** Resolução máxima (lado maior, em pixels) da textura do véu da visão. */
+const LADO_MAXIMO_DO_VEU = 3000;
 
 export type OpcoesDoMapa = {
   ferramenta: Ferramenta;
@@ -33,6 +60,12 @@ export type OpcoesDoMapa = {
   encaixe: boolean;
   selecionadoId: string | null;
   podeMover: (token: Token) => boolean;
+  /** O mestre vendo como mestre (não "como o jogador X"): vê todas as paredes e as portas secretas. */
+  modoMestre: boolean;
+  paredeSelecionadaId: string | null;
+  /** Tipo das paredes que a ferramenta de paredes desenha. */
+  tipoDaNovaParede: TipoDeParede;
+  visao: ConfigDeVisao;
 };
 
 /** O que o mapa precisa saber das imagens locais (o gerente de assets responde). */
@@ -53,6 +86,16 @@ export type RetornosDoMapa = {
   selecionar: (id: string | null) => void;
   zoom: (zoom: number) => void;
   medir: (medicao: MedicaoNaTela | null) => void;
+  /** Uma sequência desenhada vira paredes (numa mensagem só). */
+  criarParedes: (cenaId: string, segmentos: { a: Ponto; b: Ponto }[], tipo: TipoDeParede) => void;
+  /** Arrastou uma ponta da parede. */
+  moverPonta: (id: string, ponta: "a" | "b", ponto: Ponto) => void;
+  selecionarParede: (id: string | null) => void;
+  apagarParede: (id: string) => void;
+  /** Clique no ícone da porta. */
+  alternarPorta: (id: string) => void;
+  /** Clique direito no ícone da porta (só o mestre): tranca ou destranca. */
+  trancarPorta: (id: string) => void;
 };
 
 type Ponto = { x: number; y: number };
@@ -82,7 +125,25 @@ type Gesto =
       limitador: ReturnType<typeof criarLimitador<Ponto>>;
     }
   | { tipo: "bandeira"; deslocamento: Ponto }
+  | { tipo: "ponta"; id: string; ponta: "a" | "b" }
   | { tipo: "regua" };
+
+/** Cor e espessura (px na tela) de cada tipo de parede quando a ferramenta de paredes está ativa. */
+const ESTILO_DA_PAREDE: Record<TipoDeParede, { cor: number; largura: number }> = {
+  parede: { cor: 0xf1f3f5, largura: 4 },
+  porta: { cor: 0xe0a030, largura: 5 },
+  janela: { cor: 0x4fc3f7, largura: 4 },
+  secreta: { cor: 0xb388ff, largura: 4 },
+  invisivel: { cor: 0x8a94a3, largura: 2 },
+};
+
+function distanciaAoSegmento(p: Ponto, a: Ponto, b: Ponto): number {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const c2 = dx * dx + dy * dy;
+  const t = c2 === 0 ? 0 : Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / c2));
+  return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy));
+}
 
 function iniciaisDe(nome: string): string {
   const palavras = nome.trim().split(/\s+/).filter(Boolean);
@@ -107,6 +168,26 @@ export class MapaPixi {
   private readonly camadaCenario = new Container();
   private readonly camadaTokens = new Container();
   private readonly camadaMestre = new Container();
+  /** Véu da visão (RenderTexture): escuro onde ninguém vê. Acima dos tokens, abaixo das paredes do mestre. */
+  private readonly veu = new Sprite();
+  private readonly veuFonte = new Container();
+  private readonly veuFundo = new Graphics();
+  private readonly veuBuracos = new Graphics();
+  private veuTextura: RenderTexture | null = null;
+  private veuTamanho = { w: 0, h: 0 };
+  /** Portas que o jogador vê: abaixo do véu (só aparecem onde ele enxerga). */
+  private readonly paredesAbaixo = new Graphics();
+  /** Paredes, portas e a ferramenta do mestre: acima do véu. */
+  private readonly paredesAcima = new Graphics();
+  private paredes: Parede[] = [];
+  private poligonos: Ponto[][] = [];
+  private visaoSuja = true;
+  private visibilidadeSuja = true;
+  private chaveDaVisao = "";
+  /** Pontos já clicados da sequência de paredes em desenho. */
+  private desenhando: Ponto[] | null = null;
+  private cursorDaParede: Ponto | null = null;
+  private pontaArrastada: { id: string; ponta: "a" | "b"; pos: Ponto } | null = null;
   private readonly desenhoDaRegua = new Graphics();
   /** Bandeira do ponto de chegada do grupo (só o mestre a vê e arrasta). */
   private readonly bandeira = new Container();
@@ -162,9 +243,16 @@ export class MapaPixi {
       this.camadaCenario,
       this.camadaTokens,
       this.camadaMestre,
+      this.veu,
+      this.paredesAbaixo,
+      this.paredesAcima,
       this.bandeira,
       this.desenhoDaRegua,
     );
+    this.veuFundo.blendMode = "normal";
+    this.veuBuracos.blendMode = "erase";
+    this.veuFonte.addChild(this.veuFundo, this.veuBuracos);
+    this.veu.visible = false;
     this.desenharBandeira();
     this.app.stage.addChild(this.mundo);
     this.ultimoQuadro = performance.now();
@@ -177,11 +265,13 @@ export class MapaPixi {
     c.addEventListener("pointercancel", this.aoSoltar);
     c.addEventListener("wheel", this.aoRolar, { passive: false });
     c.addEventListener("contextmenu", this.impedir);
+    c.addEventListener("dblclick", this.aoDuploClique);
     window.addEventListener("keydown", this.aoTeclaBaixo);
     window.addEventListener("keyup", this.aoTeclaCima);
     this.app.renderer.on("resize", this.aoRedimensionar);
 
     this.pronto = true;
+    this.chaveDaVisao = this.chaveDe_visao();
     this.instalarGanchoDeTeste();
     this.desenharCena();
     this.atualizarMapa();
@@ -189,6 +279,7 @@ export class MapaPixi {
     this.vistaInicial();
     this.atualizarBandeira();
     this.atualizarCursor();
+    this.desenharParedes();
   }
 
   destruir(): void {
@@ -203,6 +294,7 @@ export class MapaPixi {
     c.removeEventListener("pointercancel", this.aoSoltar);
     c.removeEventListener("wheel", this.aoRolar);
     c.removeEventListener("contextmenu", this.impedir);
+    c.removeEventListener("dblclick", this.aoDuploClique);
     window.removeEventListener("keydown", this.aoTeclaBaixo);
     window.removeEventListener("keyup", this.aoTeclaCima);
     if (this.gesto?.tipo === "token") this.gesto.limitador.cancelar();
@@ -212,6 +304,8 @@ export class MapaPixi {
     }
     for (const t of this.texturas.values()) t.destroy(true);
     this.texturas.clear();
+    this.veuTextura?.destroy(true);
+    this.veuTextura = null;
     this.app.destroy(true, { children: true });
   }
 
@@ -226,6 +320,8 @@ export class MapaPixi {
       (this.cena.larguraM !== cena.larguraM || this.cena.alturaM !== cena.alturaM);
     this.cena = cena;
     if (!this.pronto) return;
+    this.visaoSuja = true;
+    this.desenharParedes();
     this.desenharCena();
     this.atualizarMapa();
     if (gridMudou || outraCena) this.recriarVisuais();
@@ -330,10 +426,32 @@ export class MapaPixi {
     const trocouFerramenta = opcoes.ferramenta !== this.opcoes.ferramenta;
     this.opcoes = opcoes;
     if (!this.pronto) return;
-    if (trocouFerramenta) this.limparRegua();
+    if (trocouFerramenta) {
+      this.limparRegua();
+      this.desenhando = null;
+      this.cursorDaParede = null;
+    }
+    const chave = this.chaveDe_visao();
+    if (chave !== this.chaveDaVisao) {
+      this.chaveDaVisao = chave;
+      this.visaoSuja = true;
+    }
     this.atualizarEstilos();
     this.atualizarBandeira();
     this.atualizarCursor();
+    this.desenharParedes();
+  }
+
+  private chaveDe_visao(): string {
+    return `${this.opcoes.visao.modo}|${JSON.stringify(this.opcoes.visao.fontes)}`;
+  }
+
+  /** Paredes da cena (o que a sala mandou para quem está olhando). */
+  definirParedes(paredes: Parede[]): void {
+    this.paredes = paredes;
+    if (!this.pronto) return;
+    this.visaoSuja = true;
+    this.desenharParedes();
   }
 
   /** A sala recusou algo: volta cada token para a posição que ela tem. */
@@ -482,6 +600,7 @@ export class MapaPixi {
     this.retornos().zoom(this.vista.zoom);
     this.desenharRegua();
     this.escalarBandeira();
+    this.desenharParedes();
   }
 
   private readonly aoRedimensionar = () => {
@@ -621,9 +740,11 @@ export class MapaPixi {
         v.container.destroy({ children: true });
         v = this.criarVisual(t, x, y);
         this.visuais.set(t.id, v);
+        this.visibilidadeSuja = true;
       } else if (!v) {
         v = this.criarVisual(t, t.x, t.y);
         this.visuais.set(t.id, v);
+        this.visaoSuja = true;
       }
       v.token = t;
       // Só reposiciona quando a posição gravada mudou: não atropela um movimento ao vivo em curso.
@@ -647,7 +768,9 @@ export class MapaPixi {
       v.container.destroy({ children: true });
       this.visuais.delete(id);
       this.ultimasPosicoes.delete(id);
+      this.visaoSuja = true;
     }
+    this.visibilidadeSuja = true;
     this.atualizarEstilos();
   }
 
@@ -674,6 +797,8 @@ export class MapaPixi {
     const dt = agora - this.ultimoQuadro;
     this.ultimoQuadro = agora;
     this.animar(dt);
+    if (this.visaoSuja) this.recalcularVisao();
+    else if (this.visibilidadeSuja) this.atualizarVisibilidadeDosTokens();
     if (this.sujo) {
       this.sujo = false;
       this.app.render();
@@ -694,8 +819,313 @@ export class MapaPixi {
       }
       v.container.position.set(v.x * PX_POR_M, v.y * PX_POR_M);
       this.sujo = true;
+      // Quem enxerga andou: o polígono muda. Quem não enxerga andou: só a visibilidade dele.
+      if (this.opcoes.visao.fontes.some((f) => f.tokenId === v.token.id)) this.visaoSuja = true;
+      else this.visibilidadeSuja = true;
     }
   }
+
+  // --- visão (só de tela) -----------------------------------------------------------------------
+
+  /** Os polígonos de visão das fontes (a posição é a mostrada na tela) e o véu escuro. */
+  private recalcularVisao(): void {
+    this.visaoSuja = false;
+    this.sujo = true;
+    const cena = this.cena;
+    const { modo, fontes } = this.opcoes.visao;
+    this.poligonos = [];
+    if (!cena || modo === "claro") {
+      this.veu.visible = false;
+      this.atualizarVisibilidadeDosTokens();
+      return;
+    }
+    const segmentos = this.paredes
+      .filter((p) => p.cenaId === cena.id && bloqueiaVisao(p))
+      .map((p) => ({ a: p.a, b: p.b }));
+    for (const f of fontes) {
+      const v = this.visuais.get(f.tokenId);
+      if (!v) continue;
+      this.poligonos.push(poligonoDeVisibilidade({ x: v.x, y: v.y }, segmentos, cena, f.alcanceM));
+    }
+    this.desenharVeu(cena, modo);
+    this.atualizarVisibilidadeDosTokens();
+  }
+
+  /** Desenha o véu na RenderTexture: cor cheia com um buraco (apagado) por polígono de visão. */
+  private desenharVeu(cena: Cena, modo: "jogador" | "noturna"): void {
+    const w = Math.ceil(cena.larguraM * PX_POR_M);
+    const h = Math.ceil(cena.alturaM * PX_POR_M);
+    if (!this.veuTextura || this.veuTamanho.w !== w || this.veuTamanho.h !== h) {
+      this.veuTextura?.destroy(true);
+      this.veuTextura = RenderTexture.create({
+        width: w,
+        height: h,
+        resolution: Math.min(1, LADO_MAXIMO_DO_VEU / Math.max(w, h)),
+        antialias: true,
+      });
+      this.veuTamanho = { w, h };
+      this.veu.texture = this.veuTextura;
+    }
+    this.veu.position.set(0, 0);
+    this.veu.width = w;
+    this.veu.height = h;
+    this.veuFundo
+      .clear()
+      .rect(0, 0, w, h)
+      .fill(modo === "jogador" ? { color: 0x0d1015, alpha: 1 } : { color: 0x000000, alpha: 0.55 });
+    this.veuBuracos.clear();
+    for (const poligono of this.poligonos) {
+      if (poligono.length < 3) continue;
+      this.veuBuracos
+        .poly(poligono.flatMap((q) => [q.x * PX_POR_M, q.y * PX_POR_M]))
+        .fill(0xffffff);
+    }
+    this.app.renderer.render({ container: this.veuFonte, target: this.veuTextura, clear: true });
+    this.veu.visible = true;
+  }
+
+  /** Para o jogador, token fora da união da visão não é desenhado (as fontes sempre aparecem). */
+  private atualizarVisibilidadeDosTokens(): void {
+    this.visibilidadeSuja = false;
+    this.sujo = true;
+    const { modo, fontes } = this.opcoes.visao;
+    for (const v of this.visuais.values()) {
+      const ehFonte = fontes.some((f) => f.tokenId === v.token.id);
+      v.container.visible =
+        modo !== "jogador" ||
+        v.token.camada === "mapa" ||
+        ehFonte ||
+        pontoNaUniao({ x: v.x, y: v.y }, this.poligonos);
+    }
+  }
+
+  // --- paredes e portas -------------------------------------------------------------------------
+
+  private ferramentaDeParedes(): boolean {
+    return this.opcoes.ferramenta === "paredes" && this.opcoes.modoMestre;
+  }
+
+  /** A parede com a ponta em arrasto aplicada (a visão local da edição, antes de a sala confirmar). */
+  private comPontaArrastada(p: Parede): Parede {
+    const a = this.pontaArrastada;
+    if (!a || a.id !== p.id) return p;
+    return a.ponta === "a" ? { ...p, a: a.pos } : { ...p, b: a.pos };
+  }
+
+  /** Ícone no meio da porta: sempre do mesmo tamanho na tela. Fechada, aberta ou trancada. */
+  private desenharIcone(g: Graphics, parede: Parede, z: number): void {
+    const meio = meioDaParede(parede);
+    const cx = meio.x * PX_POR_M;
+    const cy = meio.y * PX_POR_M;
+    const r = RAIO_DO_ICONE / z;
+    const estado = parede.estado ?? "fechada";
+    const cor =
+      parede.tipo === "secreta"
+        ? 0xb388ff
+        : estado === "trancada"
+          ? 0xff6b5a
+          : estado === "aberta"
+            ? 0x6fcf97
+            : 0xe0a030;
+    g.circle(cx, cy, r)
+      .fill({ color: 0x10141a, alpha: 0.92 })
+      .stroke({ width: 2 / z, color: cor });
+    const l = r * 0.42;
+    if (estado === "aberta") {
+      // porta aberta: só o contorno
+      g.rect(cx - l, cy - l * 1.3, l * 2, l * 2.6).stroke({ width: 1.6 / z, color: cor });
+    } else {
+      g.rect(cx - l, cy - l * 1.3, l * 2, l * 2.6).fill(cor);
+      if (estado === "trancada") g.circle(cx, cy, l * 0.35).fill(0x10141a);
+    }
+  }
+
+  /**
+   * Redesenha tudo o que é parede: as linhas (só o mestre), os ícones das portas (todos; o da secreta
+   * só o mestre), a seleção com as alças e a sequência em desenho. Os tamanhos são em pixels da tela.
+   */
+  private desenharParedes(): void {
+    this.sujo = true;
+    const abaixo = this.paredesAbaixo.clear();
+    const acima = this.paredesAcima.clear();
+    const cena = this.cena;
+    if (!cena) return;
+    const z = this.vista.zoom;
+    const mestre = this.opcoes.modoMestre;
+    const ferramenta = this.ferramentaDeParedes();
+    const g = mestre ? acima : abaixo;
+    for (const original of this.paredes) {
+      if (original.cenaId !== cena.id) continue;
+      const parede = this.comPontaArrastada(original);
+      const ehPorta = parede.tipo === "porta" || (mestre && parede.tipo === "secreta");
+      const a = { x: parede.a.x * PX_POR_M, y: parede.a.y * PX_POR_M };
+      const b = { x: parede.b.x * PX_POR_M, y: parede.b.y * PX_POR_M };
+      if (mestre) {
+        const estilo = ESTILO_DA_PAREDE[parede.tipo];
+        if (ferramenta) {
+          g.moveTo(a.x, a.y)
+            .lineTo(b.x, b.y)
+            .stroke({ width: estilo.largura / z, color: estilo.cor });
+        } else {
+          g.moveTo(a.x, a.y)
+            .lineTo(b.x, b.y)
+            .stroke({ width: 2 / z, color: 0xc9d1dc, alpha: 0.4 });
+        }
+      } else if (parede.tipo === "porta") {
+        const cor = parede.estado === "aberta" ? 0x6fcf97 : 0xe0a030;
+        g.moveTo(a.x, a.y)
+          .lineTo(b.x, b.y)
+          .stroke({ width: (parede.estado === "aberta" ? 2 : 4) / z, color: cor, alpha: 0.85 });
+      }
+      if (ehPorta) this.desenharIcone(g, parede, z);
+    }
+    if (!ferramenta) return;
+    const sel = this.paredes.find((x) => x.id === this.opcoes.paredeSelecionadaId);
+    if (sel && sel.cenaId === cena.id) {
+      const parede = this.comPontaArrastada(sel);
+      const a = { x: parede.a.x * PX_POR_M, y: parede.a.y * PX_POR_M };
+      const b = { x: parede.b.x * PX_POR_M, y: parede.b.y * PX_POR_M };
+      acima
+        .moveTo(a.x, a.y)
+        .lineTo(b.x, b.y)
+        .stroke({ width: 9 / z, color: ACENTO, alpha: 0.35 });
+      for (const q of [a, b]) {
+        acima
+          .circle(q.x, q.y, RAIO_DA_ALCA / z)
+          .fill(0xffffff)
+          .stroke({ width: 2 / z, color: ACENTO });
+      }
+    }
+    const pontos = this.desenhando;
+    if (pontos && pontos.length > 0) {
+      const cor = ESTILO_DA_PAREDE[this.opcoes.tipoDaNovaParede].cor;
+      const todos = this.cursorDaParede ? [...pontos, this.cursorDaParede] : pontos;
+      const [primeiro, ...resto] = todos;
+      if (primeiro) {
+        acima.moveTo(primeiro.x * PX_POR_M, primeiro.y * PX_POR_M);
+        for (const q of resto) acima.lineTo(q.x * PX_POR_M, q.y * PX_POR_M);
+        acima.stroke({ width: 4 / z, color: cor, alpha: 0.85 });
+      }
+      for (const q of pontos) acima.circle(q.x * PX_POR_M, q.y * PX_POR_M, 4 / z).fill(cor);
+    }
+  }
+
+  /**
+   * O jogador só vê (e só clica) a porta que está na sua visão. O meio da porta fica na borda do
+   * polígono, então vale olhar um pouco para cada lado dela.
+   */
+  private portaVisivel(parede: Parede): boolean {
+    if (this.opcoes.visao.modo !== "jogador") return true;
+    const meio = meioDaParede(parede);
+    const dx = parede.b.x - parede.a.x;
+    const dy = parede.b.y - parede.a.y;
+    const n = Math.hypot(dx, dy) || 1;
+    const nx = (-dy / n) * 0.15;
+    const ny = (dx / n) * 0.15;
+    return (
+      pontoNaUniao({ x: meio.x + nx, y: meio.y + ny }, this.poligonos) ||
+      pontoNaUniao({ x: meio.x - nx, y: meio.y - ny }, this.poligonos)
+    );
+  }
+
+  /** A porta (ou, para o mestre, a secreta) cujo ícone está sob o ponto da tela. */
+  private portaEm(p: Ponto): Parede | null {
+    const cena = this.cena;
+    if (!cena) return null;
+    let achada: Parede | null = null;
+    let melhor = RAIO_DO_ICONE + 3;
+    for (const parede of this.paredes) {
+      if (parede.cenaId !== cena.id) continue;
+      if (parede.tipo !== "porta" && !(this.opcoes.modoMestre && parede.tipo === "secreta"))
+        continue;
+      if (!this.portaVisivel(parede)) continue;
+      const meio = meioDaParede(parede);
+      const t = this.paraTela(meio.x, meio.y);
+      const d = Math.hypot(p.x - t.x, p.y - t.y);
+      if (d <= melhor) {
+        melhor = d;
+        achada = parede;
+      }
+    }
+    return achada;
+  }
+
+  /** A parede cujo corpo está sob o ponto da tela (as pontas ficam livres para começar outra). */
+  private paredeEm(p: Ponto): Parede | null {
+    const cena = this.cena;
+    if (!cena) return null;
+    let achada: Parede | null = null;
+    let melhor = 8;
+    for (const parede of this.paredes) {
+      if (parede.cenaId !== cena.id) continue;
+      const a = this.paraTela(parede.a.x, parede.a.y);
+      const b = this.paraTela(parede.b.x, parede.b.y);
+      if (Math.hypot(p.x - a.x, p.y - a.y) < 10 || Math.hypot(p.x - b.x, p.y - b.y) < 10) continue;
+      const d = distanciaAoSegmento(p, a, b);
+      if (d <= melhor) {
+        melhor = d;
+        achada = parede;
+      }
+    }
+    return achada;
+  }
+
+  /** Ponto do mundo para a parede: encaixa nos cantos do grid (Alt solta). */
+  private pontoDaParede(m: Ponto, alt: boolean): Ponto {
+    const ponto = this.encaixaAgora(alt) ? encaixarNoGrid(m, 2, this.quadradoM()) : m;
+    return this.cena ? limitarNaCena(ponto, this.cena) : ponto;
+  }
+
+  /** Clique com a ferramenta de paredes: continua a sequência, arrasta uma ponta, seleciona ou começa. */
+  private apertarComParedes(p: Ponto, e: PointerEvent): void {
+    const ponto = this.pontoDaParede(this.paraMundo(p), e.altKey);
+    if (this.desenhando) {
+      const ultimo = this.desenhando[this.desenhando.length - 1];
+      if (!ultimo || Math.hypot(ultimo.x - ponto.x, ultimo.y - ponto.y) > 0.05) {
+        this.desenhando.push(ponto);
+      }
+      this.cursorDaParede = ponto;
+      this.desenharParedes();
+      return;
+    }
+    const sel = this.paredes.find((x) => x.id === this.opcoes.paredeSelecionadaId);
+    if (sel) {
+      for (const ponta of ["a", "b"] as const) {
+        const t = this.paraTela(sel[ponta].x, sel[ponta].y);
+        if (Math.hypot(p.x - t.x, p.y - t.y) <= RAIO_DA_ALCA + 5) {
+          this.gesto = { tipo: "ponta", id: sel.id, ponta };
+          this.pontaArrastada = { id: sel.id, ponta, pos: sel[ponta] };
+          this.app.canvas.setPointerCapture(e.pointerId);
+          return;
+        }
+      }
+    }
+    const alvo = this.paredeEm(p);
+    if (alvo) {
+      this.retornos().selecionarParede(alvo.id);
+      return;
+    }
+    this.retornos().selecionarParede(null);
+    this.desenhando = [ponto];
+    this.cursorDaParede = ponto;
+    this.desenharParedes();
+  }
+
+  /** Esc ou duplo clique: a sequência vira paredes (com menos de dois pontos não vira nada). */
+  private encerrarDesenho(): void {
+    const pontos = this.desenhando;
+    this.desenhando = null;
+    this.cursorDaParede = null;
+    if (pontos && pontos.length >= 2 && this.cena) {
+      const segmentos = pontos.slice(1).map((b, i) => ({ a: pontos[i] as Ponto, b }));
+      this.retornos().criarParedes(this.cena.id, segmentos, this.opcoes.tipoDaNovaParede);
+    }
+    this.desenharParedes();
+  }
+
+  private readonly aoDuploClique = () => {
+    if (this.desenhando) this.encerrarDesenho();
+  };
 
   // --- bandeira do ponto de chegada -------------------------------------------------------------
 
@@ -781,7 +1211,7 @@ export class MapaPixi {
     const peso = (v: Visual) =>
       v.token.camada === "mestre" ? 2 : v.token.camada === "mapa" ? 0 : 1;
     const ordem = [...this.visuais.values()]
-      .filter((v) => this.selecionavel(v.token))
+      .filter((v) => v.container.visible && this.selecionavel(v.token))
       .sort((a, b) => peso(a) - peso(b));
     for (const v of ordem) {
       const raio = Math.max((v.token.tamanhoQuadrados * this.quadradoM()) / 2, minimo);
@@ -805,7 +1235,20 @@ export class MapaPixi {
       this.atualizarCursor();
       return;
     }
+    if (e.button === 2) {
+      // Clique direito no ícone da porta (mestre): tranca ou destranca.
+      const porta = this.opcoes.modoMestre ? this.portaEm(p) : null;
+      if (porta) this.retornos().trancarPorta(porta.id);
+      return;
+    }
     if (e.button !== 0 || !this.cena) return;
+
+    if (this.ferramentaDeParedes()) {
+      const porta = this.desenhando ? null : this.portaEm(p);
+      if (porta) this.retornos().selecionarParede(porta.id);
+      else this.apertarComParedes(p, e);
+      return;
+    }
 
     if (this.opcoes.ferramenta === "regua") {
       const a = this.pontoDaRegua(this.paraMundo(p), e.altKey);
@@ -813,6 +1256,12 @@ export class MapaPixi {
       this.gesto = { tipo: "regua" };
       this.app.canvas.setPointerCapture(e.pointerId);
       this.desenharRegua();
+      return;
+    }
+
+    const porta = this.portaEm(p);
+    if (porta) {
+      this.retornos().alternarPorta(porta.id);
       return;
     }
 
@@ -859,7 +1308,19 @@ export class MapaPixi {
     const g = this.gesto;
     const p = this.posicaoNaTela(e);
     if (!g) {
+      if (this.ferramentaDeParedes() && this.desenhando) {
+        this.cursorDaParede = this.pontoDaParede(this.paraMundo(p), e.altKey);
+        this.desenharParedes();
+      }
       this.atualizarCursor(this.tokenEm(p), this.sobreABandeira(p));
+      return;
+    }
+    if (g.tipo === "ponta") {
+      const sel = this.pontaArrastada;
+      if (sel) {
+        sel.pos = this.pontoDaParede(this.paraMundo(p), e.altKey);
+        this.desenharParedes();
+      }
       return;
     }
     if (g.tipo === "pan") {
@@ -897,6 +1358,18 @@ export class MapaPixi {
       alvo = encaixarNoGrid(alvo, v.token.tamanhoQuadrados, this.quadradoM());
     }
     alvo = limitarNaCena(alvo, this.cena);
+    // O jogador não atravessa parede, porta fechada, janela nem parede invisível: o token fica onde
+    // ainda podia estar (a sala confere de novo ao soltar; o mestre ignora).
+    if (
+      !this.opcoes.euMestre &&
+      trajetoBloqueado(
+        g.origem,
+        alvo,
+        this.paredes.filter((q) => q.cenaId === this.cena?.id),
+      )
+    ) {
+      return;
+    }
     v.alvoX = alvo.x;
     v.alvoY = alvo.y;
     if (alvo.x !== g.origem.x || alvo.y !== g.origem.y) g.moveu = true;
@@ -917,6 +1390,12 @@ export class MapaPixi {
       const b = this.posicaoDaBandeira;
       if (b && this.cena) this.retornos().chegada(this.cena.id, b.x, b.y);
     }
+    if (g.tipo === "ponta") {
+      const arrasto = this.pontaArrastada;
+      if (arrasto) this.retornos().moverPonta(arrasto.id, arrasto.ponta, arrasto.pos);
+      // A ponta fica onde foi solta até a sala confirmar (o evento chega em seguida).
+      return this.liberarPonta();
+    }
     if (g.tipo === "token") {
       // O soltar sai na hora, fora do limitador; o movimento pendente deixa de importar.
       g.limitador.cancelar();
@@ -925,6 +1404,15 @@ export class MapaPixi {
     }
     this.atualizarCursor();
   };
+
+  /** A sala confirma a edição pelo estado; um instante depois a ponta passa a vir de lá. */
+  private liberarPonta(): void {
+    setTimeout(() => {
+      this.pontaArrastada = null;
+      if (this.pronto) this.desenharParedes();
+    }, 400);
+    this.atualizarCursor();
+  }
 
   private readonly aoRolar = (e: WheelEvent) => {
     e.preventDefault();
@@ -948,7 +1436,21 @@ export class MapaPixi {
       e.preventDefault();
       this.atualizarCursor();
     }
-    if (e.key === "Escape") this.limparRegua();
+    if (e.key === "Escape") {
+      this.limparRegua();
+      if (this.desenhando) this.encerrarDesenho();
+      else if (this.ferramentaDeParedes() && this.opcoes.paredeSelecionadaId) {
+        this.retornos().selecionarParede(null);
+      }
+    }
+    if (
+      (e.key === "Delete" || e.key === "Backspace") &&
+      this.ferramentaDeParedes() &&
+      this.opcoes.paredeSelecionadaId
+    ) {
+      e.preventDefault();
+      this.retornos().apagarParede(this.opcoes.paredeSelecionadaId);
+    }
   };
 
   private readonly aoTeclaCima = (e: KeyboardEvent) => {
@@ -965,7 +1467,7 @@ export class MapaPixi {
     if (g?.tipo === "pan" || g?.tipo === "bandeira") cursor = "grabbing";
     else if (this.espaco || this.opcoes.ferramenta === "mao") cursor = "grab";
     else if (sobreBandeira && this.opcoes.ferramenta === "selecionar") cursor = "grab";
-    else if (this.opcoes.ferramenta === "regua") cursor = "crosshair";
+    else if (this.opcoes.ferramenta === "regua" || this.ferramentaDeParedes()) cursor = "crosshair";
     else if (g?.tipo === "token") cursor = "grabbing";
     else if (sobre && this.selecionavel(sobre.token)) {
       cursor = this.opcoes.podeMover(sobre.token) ? "grab" : "pointer";
@@ -988,7 +1490,27 @@ export class MapaPixi {
           tamanho: v.token.tamanhoQuadrados,
           oculto: v.token.oculto,
           camada: v.token.camada,
+          /** Está sendo desenhado (o jogador não desenha o que está fora da visão). */
+          desenhado: v.container.visible,
         })),
+      /** As portas que a tela mostra (ícone), com o meio em metros. */
+      portas: () =>
+        this.paredes
+          .filter(
+            (q) =>
+              q.cenaId === this.cena?.id &&
+              (q.tipo === "porta" || (this.opcoes.modoMestre && q.tipo === "secreta")),
+          )
+          .map((q) => ({ id: q.id, tipo: q.tipo, estado: q.estado, meio: meioDaParede(q) })),
+      /** Quantas paredes a tela tem (o que a sala mandou para quem olha). */
+      paredes: () => this.paredes.map((q) => ({ id: q.id, tipo: q.tipo, estado: q.estado })),
+      /** A visão: modo, fontes e quantos polígonos; e se um ponto (metros) está dentro da união. */
+      visao: () => ({ modo: this.opcoes.visao.modo, poligonos: this.poligonos.length }),
+      veNoPonto: (x: number, y: number) =>
+        this.opcoes.visao.modo === "claro" || pontoNaUniao({ x, y }, this.poligonos),
+      veuVisivel: () => this.veu.visible,
+      /** Pontos da sequência de paredes em desenho. */
+      desenhando: () => this.desenhando?.length ?? 0,
       /** Metros do mundo -> pixels CSS da página (para o `page.mouse`). */
       paraTela: (xM: number, yM: number) => {
         const r = this.app.canvas.getBoundingClientRect();

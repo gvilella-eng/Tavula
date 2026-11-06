@@ -8,7 +8,7 @@ import {
   validarMeta,
 } from "./assets.ts";
 import { ehCapacidadeDelegavel, pode } from "./capacidades.ts";
-import type { Cena, Estado, Pasta, Personagem, Token, Usuario } from "./estado.ts";
+import type { Cena, Estado, Parede, Pasta, Personagem, Token, Usuario } from "./estado.ts";
 import {
   arrumarNoGrid,
   CENA_PADRAO,
@@ -23,6 +23,14 @@ import {
   podeMoverToken,
   tokenVisivelPara,
 } from "./mapa.ts";
+import {
+  ALCANCE_INTERACAO_PADRAO_M,
+  alternarPortaDoJogador,
+  alternarPortaDoMestre,
+  iluminacaoDinamicaLigada,
+  paredeParaJogador,
+  trajetoBloqueado,
+} from "./paredes.ts";
 import {
   type CodigoDeErro,
   capacidadeDaIntencao,
@@ -103,6 +111,14 @@ function ehDoGrupo(estado: Estado, t: Token): boolean {
   return p !== undefined && ehPersonagemDeJogador(p);
 }
 
+/** Só porta e secreta têm estado; sem ele nascem fechadas. */
+function estadoDaParede(
+  tipo: Parede["tipo"],
+  estado: Parede["estado"],
+): { estado?: NonNullable<Parede["estado"]> } {
+  return tipo === "porta" || tipo === "secreta" ? { estado: estado ?? "fechada" } : {};
+}
+
 function usuariosExistem(estado: Estado, ids: string[]): boolean {
   return ids.every((id) => estado.usuarios.some((u) => u.id === id));
 }
@@ -152,7 +168,7 @@ export function criarExportacao(estado: Estado, agora: string): Exportacao {
 }
 
 /**
- * Valida um arquivo de exportação (de v1 a v5; o resultado é sempre v5): formato, ids únicos, pelo
+ * Valida um arquivo de exportação (de v1 a v6; o resultado é sempre v6): formato, ids únicos, pelo
  * menos um mestre, exceções válidas, cena ativa, pastas, personagens e tokens coerentes.
  */
 export function lerExportacao(
@@ -163,7 +179,7 @@ export function lerExportacao(
     const problema = r.error.issues[0];
     return { ok: false, motivo: `${problema?.path.join(".") ?? ""}: ${problema?.message ?? ""}` };
   }
-  const { usuarios, permissoes, cenas, cenaAtivaId, tokens, assets, personagens, pastas } =
+  const { usuarios, permissoes, cenas, cenaAtivaId, tokens, assets, personagens, pastas, paredes } =
     r.data.dados;
   const ids = new Set(usuarios.map((u) => u.id));
   if (ids.size !== usuarios.length) return { ok: false, motivo: "ids de usuário repetidos" };
@@ -177,6 +193,14 @@ export function lerExportacao(
   if (!idsDeCenas.has(cenaAtivaId)) return { ok: false, motivo: "cena ativa inexistente" };
   if (new Set(tokens.map((t) => t.id)).size !== tokens.length) {
     return { ok: false, motivo: "ids de token repetidos" };
+  }
+  if (new Set(paredes.map((p) => p.id)).size !== paredes.length) {
+    return { ok: false, motivo: "ids de parede repetidos" };
+  }
+  for (const p of paredes) {
+    if (!idsDeCenas.has(p.cenaId)) {
+      return { ok: false, motivo: `parede em cena desconhecida: ${p.id}` };
+    }
   }
   const idsDePersonagens = new Set(personagens.map((p) => p.id));
   if (idsDePersonagens.size !== personagens.length) {
@@ -276,6 +300,19 @@ export function reduzir(estado: Estado, evento: EventoSala): Estado {
       const { id, x, y } = evento.dados;
       return { ...base, tokens: base.tokens.map((t) => (t.id === id ? { ...t, x, y } : t)) };
     }
+    case "parede.criada":
+    case "parede.editada": {
+      const { parede } = evento.dados;
+      const existe = base.paredes.some((x) => x.id === parede.id);
+      return {
+        ...base,
+        paredes: existe
+          ? base.paredes.map((x) => (x.id === parede.id ? parede : x))
+          : [...base.paredes, parede],
+      };
+    }
+    case "parede.apagada":
+      return { ...base, paredes: base.paredes.filter((x) => x.id !== evento.dados.id) };
     case "cena.gridAlterado": {
       const { cenaId, grid, larguraM, alturaM } = evento.dados;
       const dimensoes = {
@@ -480,8 +517,10 @@ export function processar(
       if (mudancas.controladoPor && !usuariosExistem(estado, mudancas.controladoPor)) {
         return recusa("usuario_inexistente", "Usuário de controle não encontrado.");
       }
-      const { assetHash, ...demais } = mudancas;
+      const { assetHash, alcanceVisaoM, ...demais } = mudancas;
       const token: Token = { ...atual, ...semIndefinidos(demais) };
+      if (alcanceVisaoM === null) delete token.alcanceVisaoM;
+      else if (alcanceVisaoM !== undefined) token.alcanceVisaoM = alcanceVisaoM;
       if (assetHash === null) delete token.assetHash;
       else if (assetHash !== undefined) {
         if (!imagemDeTokenExiste(estado, assetHash)) {
@@ -637,6 +676,18 @@ export function processar(
       }
       const cena = estado.cenas.find((c) => c.id === token.cenaId) ?? cenaAtiva(estado);
       const posicao = limitarNaCena({ x, y }, cena);
+      // O jogador não atravessa parede, porta fechada, janela nem parede invisível; o mestre ignora.
+      if (
+        intencao.tipo === "token.soltar" &&
+        usuario.papel !== "mestre" &&
+        trajetoBloqueado(
+          { x: token.x, y: token.y },
+          posicao,
+          estado.paredes.filter((p) => p.cenaId === token.cenaId),
+        )
+      ) {
+        return recusa("trajeto_bloqueado", "Uma parede bloqueia o caminho.");
+      }
       if (intencao.tipo === "token.mover") {
         return { ok: true, estado, eventos, snapshotPara: [], movendo: { id, ...posicao } };
       }
@@ -890,6 +941,12 @@ export function processar(
         dados: { cena: { ...origem, id: novoId, nome: `${origem.nome} (cópia)`.slice(0, 64) } },
       });
       for (const token of novos) emitir({ tipo: "token.criado", dados: { token } });
+      estado.paredes
+        .filter((p) => p.cenaId === cenaId)
+        .forEach((p, i) => {
+          const parede: Parede = { ...p, id: `${novoId.slice(0, 50)}-p${i + 1}`, cenaId: novoId };
+          emitir({ tipo: "parede.criada", dados: { parede } });
+        });
       return aplicado();
     }
 
@@ -901,6 +958,9 @@ export function processar(
       }
       for (const t of estado.tokens.filter((x) => x.cenaId === cenaId)) {
         emitir({ tipo: "token.apagado", dados: { id: t.id } });
+      }
+      for (const p of estado.paredes.filter((x) => x.cenaId === cenaId)) {
+        emitir({ tipo: "parede.apagada", dados: { id: p.id } });
       }
       emitir({ tipo: "cena.apagada", dados: { cenaId } });
       return aplicado();
@@ -952,6 +1012,102 @@ export function processar(
       return { ...aplicado(), preparo: { cenaId, pacotes } };
     }
 
+    case "parede.criar": {
+      const cena = cenaDoPedido(estado, intencao.dados.cenaId);
+      if (!cena) return recusa("cena_inexistente", SEM_CENA);
+      const ids = new Set(estado.paredes.map((p) => p.id));
+      const novas: Parede[] = [];
+      for (const n of intencao.dados.paredes) {
+        if (ids.has(n.id)) return recusa("dados_invalidos", "Já existe uma parede com esse id.");
+        ids.add(n.id);
+        const a = limitarNaCena(n.a, cena);
+        const b = limitarNaCena(n.b, cena);
+        if (a.x === b.x && a.y === b.y) return recusa("dados_invalidos", "Parede sem comprimento.");
+        novas.push({
+          id: n.id,
+          cenaId: cena.id,
+          a,
+          b,
+          tipo: n.tipo,
+          ...estadoDaParede(n.tipo, n.estado),
+        });
+      }
+      for (const parede of novas) emitir({ tipo: "parede.criada", dados: { parede } });
+      return aplicado();
+    }
+
+    case "parede.editar": {
+      const { id, a, b, tipo, estado: novoEstado } = intencao.dados;
+      const atual = estado.paredes.find((p) => p.id === id);
+      if (!atual) return recusa("parede_inexistente", "Parede não encontrada.");
+      const cena = estado.cenas.find((c) => c.id === atual.cenaId) ?? cenaAtiva(estado);
+      const novoTipo = tipo ?? atual.tipo;
+      const parede: Parede = {
+        id: atual.id,
+        cenaId: atual.cenaId,
+        a: a ? limitarNaCena(a, cena) : atual.a,
+        b: b ? limitarNaCena(b, cena) : atual.b,
+        tipo: novoTipo,
+        ...estadoDaParede(novoTipo, novoEstado ?? atual.estado),
+      };
+      if (parede.a.x === parede.b.x && parede.a.y === parede.b.y) {
+        return recusa("dados_invalidos", "Parede sem comprimento.");
+      }
+      if (JSON.stringify(parede) === JSON.stringify(atual)) return aplicado();
+      emitir({ tipo: "parede.editada", dados: { parede } });
+      return aplicado();
+    }
+
+    case "parede.apagar": {
+      if (!estado.paredes.some((p) => p.id === intencao.dados.id)) {
+        return recusa("parede_inexistente", "Parede não encontrada.");
+      }
+      emitir({ tipo: "parede.apagada", dados: { id: intencao.dados.id } });
+      return aplicado();
+    }
+
+    case "cena.configurarIluminacao": {
+      const cena = cenaDoPedido(estado, intencao.dados.cenaId);
+      if (!cena) return recusa("cena_inexistente", SEM_CENA);
+      if (iluminacaoDinamicaLigada(cena) === intencao.dados.dinamica) return aplicado();
+      emitir({
+        tipo: "cena.editada",
+        dados: { cena: { ...cena, iluminacaoDinamica: intencao.dados.dinamica } },
+      });
+      return aplicado();
+    }
+
+    case "porta.alternar": {
+      const porta = estado.paredes.find((p) => p.id === intencao.dados.id);
+      const inexistente = recusa("porta_inexistente", "Não há porta aí.");
+      if (usuario.papel === "mestre") {
+        if (!porta || (porta.tipo !== "porta" && porta.tipo !== "secreta")) return inexistente;
+        emitir({
+          tipo: "parede.editada",
+          dados: { parede: { ...porta, estado: alternarPortaDoMestre(porta) } },
+        });
+        return aplicado();
+      }
+      // Porta de outra cena responde igual a porta inexistente.
+      if (!porta || porta.cenaId !== estado.cenaAtivaId) return inexistente;
+      const tokensDele = estado.tokens.filter(
+        (t) =>
+          t.cenaId === estado.cenaAtivaId &&
+          tokenVisivelPara(t, usuario, estado.cenaAtivaId) &&
+          controlaToken(t, usuario, estado.personagens),
+      );
+      const r = alternarPortaDoJogador(porta, tokensDele, ALCANCE_INTERACAO_PADRAO_M);
+      if (!r.ok) {
+        if (r.motivo === "trancada") return recusa("porta_trancada", "A porta está trancada.");
+        if (r.motivo === "longe") {
+          return recusa("fora_de_alcance", "Você está longe demais da porta.");
+        }
+        return inexistente;
+      }
+      emitir({ tipo: "parede.editada", dados: { parede: { ...porta, estado: r.estado } } });
+      return aplicado();
+    }
+
     case "campanha.exportar":
       return {
         ok: true,
@@ -983,7 +1139,7 @@ export function processar(
 /**
  * Snapshot filtrado do jogador: sem `notaMestre` e sem as metas dos assets; só as exceções dele; só
  * a cena ativa (nada de nome, grid, mapa ou chegada das outras); só tokens visíveis dessa cena; só
- * as pastas que ele vê e só os personagens que ele edita ou que estão numa pasta que ele vê (nome de
+ * as paredes da cena ativa (a secreta disfarçada), as pastas que ele vê e só os personagens que ele edita ou que estão numa pasta que ele vê (nome de
  * pasta ou item de pasta "só mestre" nunca chega).
  */
 export function visaoPara(estado: Estado, usuario: Visao): Estado {
@@ -998,6 +1154,7 @@ export function visaoPara(estado: Estado, usuario: Visao): Estado {
     },
     cenas: [cenaAtiva(estado)],
     tokens: estado.tokens.filter((t) => tokenVisivelPara(t, usuario, estado.cenaAtivaId)),
+    paredes: estado.paredes.filter((p) => p.cenaId === estado.cenaAtivaId).map(paredeParaJogador),
     pastas: estado.pastas.filter((p) => pastaVisivelPara(p, usuario)),
     personagens: estado.personagens.filter((p) => personagemVisivelPara(p, usuario, estado.pastas)),
   };
@@ -1080,6 +1237,22 @@ export function eventoPara(
     }
     case "token.sumiu":
       return mestre ? null : evento;
+    case "parede.criada":
+    case "parede.editada": {
+      if (mestre) return evento;
+      const parede = evento.dados.parede;
+      if (parede.cenaId !== ativaDepois) return null;
+      const nova = paredeParaJogador(parede);
+      const antiga = antes?.paredes.find((p) => p.id === parede.id);
+      // Mudança que o jogador não percebe (trancar ou destrancar a secreta) nem chega a ele.
+      if (antiga && JSON.stringify(paredeParaJogador(antiga)) === JSON.stringify(nova)) return null;
+      return { ...evento, dados: { parede: nova } };
+    }
+    case "parede.apagada": {
+      if (mestre) return evento;
+      const antiga = antes?.paredes.find((p) => p.id === evento.dados.id);
+      return antiga && antiga.cenaId === ativaAntes ? evento : null;
+    }
     case "personagem.alterado": {
       if (mestre) return evento;
       const pastas = (depois ?? antes)?.pastas;

@@ -5,6 +5,7 @@ import {
   type Estado,
   type EventoSala,
   type Pacote,
+  type Parede,
   type Pasta,
   PERMISSOES_PADRAO,
   type Permissoes,
@@ -153,7 +154,14 @@ export class Armazenamento {
   /** Cenas, tokens e assets. Banco do Lote 1 (sem cena): cria a cena padrão, sem quebrar o resto. */
   private carregarMapa(): Pick<
     Estado,
-    "cenas" | "cenaAtivaId" | "tokens" | "assets" | "personagens" | "pastas" | "ordemDeTurnoVisivel"
+    | "cenas"
+    | "cenaAtivaId"
+    | "tokens"
+    | "paredes"
+    | "assets"
+    | "personagens"
+    | "pastas"
+    | "ordemDeTurnoVisivel"
   > {
     const ler = <T>(colecao: string): T[] =>
       this.sql
@@ -173,6 +181,8 @@ export class Armazenamento {
       cenas,
       cenaAtivaId,
       tokens: ler<Token>("tokens"),
+      // Lote 5: banco anterior não tem a coleção (nada a migrar: `entidades` é genérica).
+      paredes: ler<Parede>("paredes"),
       // Banco anterior ao Lote 4: sem personagens, e continua funcionando.
       personagens: ler<unknown>("personagens").map(personagemDoBanco),
       pastas: ler<Pasta>("pastas").sort((a, b) => a.ordem - b.ordem),
@@ -215,6 +225,7 @@ export class Armazenamento {
     this.gravarEntidade("notas", "mestre", { texto: estado.notaMestre ?? "" });
     for (const c of estado.cenas) this.gravarEntidade("cenas", c.id, c);
     for (const t of estado.tokens) this.gravarEntidade("tokens", t.id, t);
+    for (const p of estado.paredes) this.gravarEntidade("paredes", p.id, p);
     for (const p of estado.pastas) this.gravarEntidade("pastas", p.id, p);
     for (const p of estado.personagens) this.gravarEntidade("personagens", p.id, p);
     for (const a of estado.assets ?? []) this.gravarEntidade("assets", a.hash, a);
@@ -254,6 +265,13 @@ export class Armazenamento {
         case "token.apagado":
         case "token.sumiu":
           this.sql.exec("DELETE FROM entidades WHERE colecao = 'tokens' AND id = ?", ev.dados.id);
+          break;
+        case "parede.criada":
+        case "parede.editada":
+          this.gravarEntidade("paredes", ev.dados.parede.id, ev.dados.parede);
+          break;
+        case "parede.apagada":
+          this.sql.exec("DELETE FROM entidades WHERE colecao = 'paredes' AND id = ?", ev.dados.id);
           break;
         case "cena.gridAlterado":
         case "cena.mapaAlterado": {

@@ -1,20 +1,27 @@
+import type { Usuario } from "@tabletop/shared";
 import {
+  BrickWall,
+  Check,
   CirclePlus,
   Clapperboard,
   Crown,
   Eraser,
+  Flame,
   Flashlight,
   Map as IconeMapa,
   Layers,
+  Lightbulb,
   ListOrdered,
   Moon,
   Pencil,
+  SlidersHorizontal,
+  User,
   Users,
   Zap,
 } from "lucide-react";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useRef, useState } from "react";
 import { CAMADAS_DE_TRABALHO, type CamadaDeTrabalho, ROTULO_DA_CAMADA } from "./camadas";
-import { Popover } from "./Popover";
+import { Popover, useFecharFora } from "./Popover";
 
 type Props = {
   faixaAberta: boolean;
@@ -26,6 +33,16 @@ type Props = {
   aoNovoToken: () => void;
   ordemVisivel: boolean;
   aoAlternarOrdem: () => void;
+  /** Iluminação dinâmica da cena que o mestre olha (liga/desliga a visão por paredes dos jogadores). */
+  iluminacaoDinamica: boolean;
+  aoAlternarIluminacao: () => void;
+  /** A ferramenta de paredes e portas está ativa? */
+  paredesAtivas: boolean;
+  aoAlternarParedes: () => void;
+  /** Jogadores para o "ver como" e quem o mestre está vendo (`null` = ele mesmo). */
+  jogadores: Usuario[];
+  verComoId: string | null;
+  aoVerComo: (id: string | null) => void;
 };
 
 const ICONE_DA_CAMADA: Record<CamadaDeTrabalho, ReactNode> = {
@@ -41,6 +58,8 @@ function Botao(props: {
   ativo?: boolean;
   gatilho?: boolean;
   aoClicar: () => void;
+  /** Clique direito (o menu de contexto do navegador não abre). */
+  aoClicarDireito?: () => void;
   children: ReactNode;
 }) {
   return (
@@ -53,13 +72,74 @@ function Botao(props: {
       aria-pressed={props.ativo}
       data-popover-gatilho={props.gatilho ? "" : undefined}
       onClick={props.aoClicar}
+      onContextMenu={(e) => {
+        if (!props.aoClicarDireito) return;
+        e.preventDefault();
+        props.aoClicarDireito();
+      }}
     >
       {props.children}
     </button>
   );
 }
 
-type PainelAberto = "camadas" | "eventos" | "iluminacao" | null;
+type ItemDaLista = {
+  id: string;
+  rotulo: string;
+  icone: ReactNode;
+  /** `true`/`false`: item de liga/desliga (mostra o visto quando ligado). */
+  marcado?: boolean;
+  desabilitado?: boolean;
+  dica?: string;
+  aoClicar: () => void;
+};
+
+/**
+ * Lista que abre logo abaixo do ícone, no estilo do menu de contexto da faixa de cenas. Fecha ao
+ * clicar fora, com Esc ou ao escolher um item.
+ */
+function ListaDoMenu(props: {
+  testid: string;
+  titulo: string;
+  itens: ItemDaLista[];
+  aoFechar: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  useFecharFora(ref, props.aoFechar);
+  return (
+    <div
+      ref={ref}
+      className="menu-contexto menu-lista"
+      role="menu"
+      aria-label={props.titulo}
+      data-testid={props.testid}
+    >
+      {props.itens.map((i) => (
+        <button
+          key={i.id}
+          type="button"
+          {...(i.marcado === undefined
+            ? { role: "menuitem" }
+            : { role: "menuitemcheckbox", "aria-checked": i.marcado })}
+          className="item-menu"
+          data-testid={`${props.testid}-${i.id}`}
+          disabled={i.desabilitado}
+          title={i.dica}
+          onClick={() => {
+            props.aoFechar();
+            i.aoClicar();
+          }}
+        >
+          {i.icone}
+          <span>{i.rotulo}</span>
+          {i.marcado && <Check size={14} className="item-menu-visto" />}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+type PainelAberto = "camadas" | "eventos" | "iluminacao" | "verComo" | null;
 
 /** Menu rápido do mestre: horizontal, centralizado no topo (PROJETO.md 4.13.1). */
 export function MenuSuperior(p: Props) {
@@ -86,14 +166,41 @@ export function MenuSuperior(p: Props) {
         >
           <Layers size={20} />
         </Botao>
-        <Botao
-          testid="menu-visao-noturna"
-          titulo="Visão noturna (ainda sem efeito)"
-          ativo={p.visaoNoturna}
-          aoClicar={p.aoAlternarVisaoNoturna}
-        >
-          <Moon size={20} />
-        </Botao>
+        <div className="botao-com-lista">
+          <Botao
+            testid="menu-visao-noturna"
+            titulo="Visão noturna (clique direito: ver como um jogador)"
+            ativo={p.visaoNoturna}
+            gatilho
+            aoClicar={p.aoAlternarVisaoNoturna}
+            aoClicarDireito={() => alternar("verComo")}
+          >
+            <Moon size={20} />
+          </Botao>
+          {aberto === "verComo" && (
+            <ListaDoMenu
+              testid="ver-como"
+              titulo="Ver como"
+              aoFechar={() => setAberto(null)}
+              itens={[
+                {
+                  id: "eu",
+                  rotulo: "Eu mesmo (mestre)",
+                  icone: <Crown size={16} />,
+                  marcado: p.verComoId === null,
+                  aoClicar: () => p.aoVerComo(null),
+                },
+                ...p.jogadores.map((j) => ({
+                  id: j.id,
+                  rotulo: j.nome,
+                  icone: <User size={16} />,
+                  marcado: p.verComoId === j.id,
+                  aoClicar: () => p.aoVerComo(j.id),
+                })),
+              ]}
+            />
+          )}
+        </div>
         <Botao testid="novo-token" titulo="Novo token" aoClicar={p.aoNovoToken}>
           <CirclePlus size={20} />
         </Botao>
@@ -106,15 +213,56 @@ export function MenuSuperior(p: Props) {
         >
           <Zap size={20} />
         </Botao>
-        <Botao
-          testid="menu-iluminacao"
-          titulo="Iluminação (em breve)"
-          ativo={aberto === "iluminacao"}
-          gatilho
-          aoClicar={() => alternar("iluminacao")}
-        >
-          <Flashlight size={20} />
-        </Botao>
+        <div className="botao-com-lista">
+          <Botao
+            testid="menu-iluminacao"
+            titulo="Iluminação"
+            ativo={aberto === "iluminacao" || p.paredesAtivas}
+            gatilho
+            aoClicar={() => alternar("iluminacao")}
+          >
+            <Flashlight size={20} />
+          </Botao>
+          {aberto === "iluminacao" && (
+            <ListaDoMenu
+              testid="lanterna"
+              titulo="Iluminação"
+              aoFechar={() => setAberto(null)}
+              itens={[
+                {
+                  id: "iluminacao",
+                  rotulo: "Iluminação dinâmica",
+                  icone: <Lightbulb size={16} />,
+                  marcado: p.iluminacaoDinamica,
+                  aoClicar: p.aoAlternarIluminacao,
+                },
+                {
+                  id: "paredes",
+                  rotulo: "Paredes e portas",
+                  icone: <BrickWall size={16} />,
+                  marcado: p.paredesAtivas,
+                  aoClicar: p.aoAlternarParedes,
+                },
+                {
+                  id: "fontes",
+                  rotulo: "Fontes de luz",
+                  icone: <Flame size={16} />,
+                  desabilitado: true,
+                  dica: "Em breve (Lotes 6 e 7)",
+                  aoClicar: () => {},
+                },
+                {
+                  id: "config",
+                  rotulo: "Configurações de iluminação",
+                  icone: <SlidersHorizontal size={16} />,
+                  desabilitado: true,
+                  dica: "Em breve (Lote 6)",
+                  aoClicar: () => {},
+                },
+              ]}
+            />
+          )}
+        </div>
         <Botao
           testid="menu-ordem-turno"
           titulo="Ordem de turno: mostrar ou esconder para todos"
@@ -172,16 +320,6 @@ export function MenuSuperior(p: Props) {
           aoFechar={() => setAberto(null)}
         >
           <p className="nota">Em breve: as automações da mesa (tocha apagando, porta rangendo…).</p>
-        </Popover>
-      )}
-      {aberto === "iluminacao" && (
-        <Popover
-          testid="painel-iluminacao"
-          titulo="Iluminação"
-          className="popover-menu"
-          aoFechar={() => setAberto(null)}
-        >
-          <p className="nota">Em breve: luz ambiente, tochas e objetos de luz.</p>
         </Popover>
       )}
     </div>

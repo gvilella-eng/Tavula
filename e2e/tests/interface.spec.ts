@@ -78,7 +78,7 @@ test("a ordem de turno liga e desliga para todos, inclusive o mestre; só o mest
     mestre.pagina.getByTestId("exportar").click(),
   ]);
   const json = JSON.parse(readFileSync(await download.path(), "utf8"));
-  expect(json.versao).toBe(5);
+  expect(json.versao).toBe(6);
   expect(json.dados.ordemDeTurnoVisivel).toBe(true);
   expect(json.dados.pastas.map((p: { id: string }) => p.id)).toEqual([
     "pasta-personagens",
@@ -149,19 +149,24 @@ test("menu superior, camadas, dados rápidos e pincel (interface; o que não tem
   // o seletor de camada saiu da barra da esquerda
   await expect(p.getByTestId("barra-ferramentas").getByTestId("camada-tokens")).toHaveCount(0);
 
-  // visão noturna: liga e desliga, sem efeito
-  await p.getByTestId("menu-visao-noturna").click();
+  // visão noturna: ligada por padrão desde o Lote 5 (antes era um botão sem efeito); liga e desliga
   await expect(p.getByTestId("menu-visao-noturna")).toHaveAttribute("aria-pressed", "true");
   await p.getByTestId("menu-visao-noturna").click();
   await expect(p.getByTestId("menu-visao-noturna")).toHaveAttribute("aria-pressed", "false");
-  // eventos e iluminação: painéis "em breve"
+  await p.getByTestId("menu-visao-noturna").click();
+  await expect(p.getByTestId("menu-visao-noturna")).toHaveAttribute("aria-pressed", "true");
+  // eventos: painel "em breve"; iluminação (lanterna): uma lista logo abaixo do ícone, no Lote 5
   await p.getByTestId("menu-eventos").click();
   await expect(p.getByTestId("painel-eventos")).toContainText("Em breve");
   await p.getByTestId("menu-iluminacao").click();
-  await expect(p.getByTestId("painel-iluminacao")).toContainText("Em breve");
+  await expect(p.getByTestId("lanterna")).toBeVisible();
+  await expect(p.getByTestId("lanterna-iluminacao")).toHaveAttribute("aria-checked", "true");
+  await expect(p.getByTestId("lanterna-paredes")).toBeEnabled();
+  await expect(p.getByTestId("lanterna-fontes")).toBeDisabled();
+  await expect(p.getByTestId("lanterna-config")).toBeDisabled();
   await expect(p.getByTestId("painel-eventos")).toHaveCount(0);
   await p.keyboard.press("Escape");
-  await expect(p.getByTestId("painel-iluminacao")).toHaveCount(0);
+  await expect(p.getByTestId("lanterna")).toHaveCount(0);
 
   // a barra da esquerda (todos): selecionar, mão, régua, dados e pincel
   for (const s of [mestre, j1]) {

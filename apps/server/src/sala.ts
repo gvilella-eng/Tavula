@@ -208,6 +208,12 @@ export class Sala extends DurableObject<Env> {
     const r = processar(this.estado, usuario.id, intencao, new Date().toISOString());
     if (!r.ok) {
       this.erro(ws, intencao.id, r.erro.codigo, r.erro.mensagem);
+      // Soltou do outro lado de uma parede: quem viu o arraste ao vivo volta o token para onde ele está.
+      if (intencao.tipo === "token.soltar" && r.erro.codigo === "trajeto_bloqueado") {
+        this.marcarArraste(ws, intencao.dados.id, false);
+        const token = this.estado.tokens.find((t) => t.id === intencao.dados.id);
+        if (token) this.repassarMovimento(ws, { id: token.id, x: token.x, y: token.y });
+      }
       return;
     }
 

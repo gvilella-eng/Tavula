@@ -59,6 +59,11 @@ export const CenaSchema = z.object({
   mapa: MapaDaCenaSchema.optional(),
   /** Onde o grupo chega ao ser levado para esta cena, em metros (padrão: o centro). */
   chegada: z.object({ x: z.number().min(0), y: z.number().min(0) }).optional(),
+  /**
+   * Iluminação dinâmica (Lote 5): os jogadores só veem o que os tokens deles enxergam, respeitando as
+   * paredes. Sem o campo vale ligada; desligada, veem a cena inteira (menos a camada do mestre).
+   */
+  iluminacaoDinamica: z.boolean().optional(),
 });
 export type Cena = z.infer<typeof CenaSchema>;
 
@@ -81,8 +86,38 @@ export const TokenSchema = z.object({
    * (tirada do token padrão ao ser colocado): mudar o personagem não muda os tokens já postos.
    */
   personagemId: z.string().min(1).max(64).optional(),
+  /**
+   * Alcance de visão, em metros, de um token SEM personagem (o mestre define no painel do token).
+   * Token de personagem usa `visao.alcanceM` do personagem. Sem o campo, sem limite.
+   */
+  alcanceVisaoM: z.number().positive().max(1000).optional(),
 });
 export type Token = z.infer<typeof TokenSchema>;
+
+export const PontoSchema = z.object({ x: z.number(), y: z.number() });
+export type Ponto = z.infer<typeof PontoSchema>;
+
+export const TIPOS_DE_PAREDE = ["parede", "porta", "janela", "secreta", "invisivel"] as const;
+export const TipoDeParedeSchema = z.enum(TIPOS_DE_PAREDE);
+export type TipoDeParede = z.infer<typeof TipoDeParedeSchema>;
+
+export const ESTADOS_DE_PORTA = ["aberta", "fechada", "trancada"] as const;
+export const EstadoDePortaSchema = z.enum(ESTADOS_DE_PORTA);
+export type EstadoDePorta = z.infer<typeof EstadoDePortaSchema>;
+
+/**
+ * Segmento de parede de uma cena, em metros. `estado` só vale para `porta` e `secreta` (as demais
+ * não têm). O jogador nunca recebe `secreta` (ver `paredeParaJogador`).
+ */
+export const ParedeSchema = z.object({
+  id: z.string().min(1).max(64),
+  cenaId: z.string().min(1).max(64),
+  a: PontoSchema,
+  b: PontoSchema,
+  tipo: TipoDeParedeSchema,
+  estado: EstadoDePortaSchema.optional(),
+});
+export type Parede = z.infer<typeof ParedeSchema>;
 
 /** Quem pode editar um personagem (e controlar o token dele): todos os jogadores ou os escolhidos. */
 export const EditoresSchema = z.discriminatedUnion("tipo", [
@@ -148,6 +183,11 @@ export const EstadoSchema = z.object({
   cenaAtivaId: z.string().min(1).max(64),
   /** Na visão de um jogador: sem os tokens ocultos nem os da camada do mestre. */
   tokens: z.array(TokenSchema),
+  /**
+   * Paredes e portas. Na visão de um jogador: só as da cena ativa, com a porta secreta já disfarçada
+   * (fechada vira `parede`, aberta vira `porta` aberta).
+   */
+  paredes: z.array(ParedeSchema),
   /** Na visão de um jogador: só as pastas que ele vê. */
   pastas: z.array(PastaSchema),
   /** Na visão de um jogador: os que ele edita e os das pastas que ele vê. */

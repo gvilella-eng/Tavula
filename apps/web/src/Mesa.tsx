@@ -1,11 +1,15 @@
 import {
+  alcanceDeVisao,
   controlaToken,
   type Exportacao,
   ehPersonagemDeJogador,
   encaixarNoGrid,
   hashesPreparaveis,
+  iluminacaoDinamicaLigada,
   podeMoverToken,
+  type TipoDeParede,
   type Token,
+  visaoPara,
 } from "@tabletop/shared";
 import { BookOpen, Crown, MessagesSquare, NotebookText, Settings } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
@@ -26,6 +30,7 @@ import { FaixaDeCenas, type PedirImagem } from "./FaixaDeCenas";
 import { MenuSuperior } from "./MenuSuperior";
 import { Mapa } from "./mapa/Mapa";
 import type {
+  ConfigDeVisao,
   Ferramenta,
   ImagensDoMapa,
   MapaPixi,
@@ -33,6 +38,7 @@ import type {
   RetornosDoMapa,
 } from "./mapa/mapaPixi";
 import { OrdemDeTurno } from "./OrdemDeTurno";
+import { PainelDasParedes } from "./PainelDasParedes";
 import { PainelDoMestre } from "./PainelDoMestre";
 import { PainelDoToken } from "./PainelDoToken";
 import { gravarEncaixePadrao, lerEncaixePadrao } from "./preferencias";
@@ -94,7 +100,12 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
   const [medicao, setMedicao] = useState<MedicaoNaTela | null>(null);
   const [lateralAberta, setLateralAberta] = useState(true);
   const [faixaAberta, setFaixaAberta] = useState(false);
-  const [visaoNoturna, setVisaoNoturna] = useState(false);
+  // Visão noturna do mestre: ligada por padrão; só da tela dele (nunca vai para a sala).
+  const [visaoNoturna, setVisaoNoturna] = useState(true);
+  const [paredeSelecionadaId, setParedeSelecionadaId] = useState<string | null>(null);
+  const [tipoDaNovaParede, setTipoDaNovaParede] = useState<TipoDeParede>("parede");
+  // "Ver como o jogador X" (só da tela do mestre): `null` = ele mesmo.
+  const [verComoId, setVerComoId] = useState<string | null>(null);
   const [avisoLocal, setAvisoLocal] = useState<{ numero: number; texto: string } | null>(null);
   const [pedidoDeImagem, setPedidoDeImagem] = useState<PedidoDeImagem | null>(null);
   // A cena que o mestre olha (e edita) sem mover o grupo: estado local da tela dele. `null` = a do grupo.
@@ -219,6 +230,50 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
     [ouvir],
   );
 
+  // Cena do grupo e cena vista. O jogador só tem a do grupo (a sala não manda as outras).
+  const cenaDoGrupo = estado?.cenas.find((c) => c.id === estado.cenaAtivaId) ?? estado?.cenas[0];
+  // "Ver como o jogador X": o mestre passa a ver o que a sala mandaria a ele (o mesmo filtro), na cena do grupo.
+  const usuarioVisto =
+    euMestre && verComoId !== null
+      ? (estado?.usuarios.find((u) => u.id === verComoId && u.papel === "jogador") ?? null)
+      : null;
+  const modoMestre = euMestre && usuarioVisto === null;
+  const cena =
+    (usuarioVisto
+      ? undefined
+      : euMestre && cenaVistaId
+        ? estado?.cenas.find((c) => c.id === cenaVistaId)
+        : undefined) ?? cenaDoGrupo;
+  const estadoVisto = useMemo(
+    () => (estado && usuarioVisto ? visaoPara(estado, usuarioVisto) : estado),
+    [estado, usuarioVisto],
+  );
+  const selecionado =
+    estado?.tokens.find((t) => t.id === selecionadoId && t.cenaId === cena?.id) ?? null;
+  const paredeSelecionada =
+    estado?.paredes.find((x) => x.id === paredeSelecionadaId && x.cenaId === cena?.id) ?? null;
+  const pronto = status === "conectado" && estado !== null;
+
+  // A visão é só de tela. Jogador (ou o mestre "vendo como" um): enxerga o que os tokens que ele
+  // controla veem; o mestre com visão noturna: o que algum jogador vê aparece normal. Cena com a
+  // iluminação dinâmica desligada, ou sem nenhum jogador (visão noturna), fica toda clara.
+  const iluminada = cena ? iluminacaoDinamicaLigada(cena) : true;
+  const visaoCalculada: ConfigDeVisao = (() => {
+    if (!estado || !eu || !cena || !iluminada) return { modo: "claro", fontes: [] };
+    const donos = modoMestre
+      ? estado.usuarios.filter((u) => u.papel === "jogador")
+      : [usuarioVisto ?? eu];
+    const fontes = estado.tokens
+      .filter(
+        (t) => t.cenaId === cena.id && donos.some((u) => controlaToken(t, u, estado.personagens)),
+      )
+      .map((t) => ({ tokenId: t.id, alcanceM: alcanceDeVisao(t, estado.personagens) }));
+    if (!modoMestre) return { modo: "jogador", fontes };
+    return { modo: visaoNoturna && fontes.length > 0 ? "noturna" : "claro", fontes };
+  })();
+  const chaveDaVisao = JSON.stringify(visaoCalculada);
+  const visao = useMemo(() => JSON.parse(chaveDaVisao) as ConfigDeVisao, [chaveDaVisao]);
+
   const retornos = useMemo<RetornosDoMapa>(
     () => ({
       mover: (id, x, y) => enviar("token.mover", { id, x, y }),
@@ -227,14 +282,43 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
       selecionar: setSelecionadoId,
       zoom: setZoom,
       medir: setMedicao,
+      criarParedes: (cenaId, segmentos, tipo) =>
+        enviar("parede.criar", {
+          cenaId,
+          paredes: segmentos.map((seg) => ({
+            id: `par-${crypto.randomUUID().slice(0, 8)}`,
+            a: seg.a,
+            b: seg.b,
+            tipo,
+          })),
+        }),
+      moverPonta: (id, ponta, ponto) => enviar("parede.editar", { id, [ponta]: ponto }),
+      selecionarParede: setParedeSelecionadaId,
+      apagarParede: (id) => {
+        enviar("parede.apagar", { id });
+        setParedeSelecionadaId(null);
+      },
+      alternarPorta: (id) => enviar("porta.alternar", { id }),
+      trancarPorta: (id) => {
+        const atual = estadoAtual.current?.paredes.find((x) => x.id === id);
+        if (!atual) return;
+        enviar("parede.editar", {
+          id,
+          estado: atual.estado === "trancada" ? "fechada" : "trancada",
+        });
+      },
     }),
     [enviar],
   );
 
   const opcoes = useMemo(
     () => ({
-      ferramenta,
+      ferramenta: ferramenta === "paredes" && !modoMestre ? ("selecionar" as const) : ferramenta,
       euMestre,
+      modoMestre,
+      paredeSelecionadaId: paredeSelecionada?.id ?? null,
+      tipoDaNovaParede,
+      visao,
       camadaTrabalho,
       encaixe,
       selecionadoId,
@@ -254,6 +338,10 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
     [
       ferramenta,
       euMestre,
+      modoMestre,
+      paredeSelecionada?.id,
+      tipoDaNovaParede,
+      visao,
       camadaTrabalho,
       encaixe,
       selecionadoId,
@@ -264,14 +352,12 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
     ],
   );
 
-  // Cena do grupo e cena vista. O jogador só tem a do grupo (a sala não manda as outras).
-  const cenaDoGrupo = estado?.cenas.find((c) => c.id === estado.cenaAtivaId) ?? estado?.cenas[0];
-  const cena =
-    (euMestre && cenaVistaId ? estado?.cenas.find((c) => c.id === cenaVistaId) : undefined) ??
-    cenaDoGrupo;
-  const selecionado =
-    estado?.tokens.find((t) => t.id === selecionadoId && t.cenaId === cena?.id) ?? null;
-  const pronto = status === "conectado" && estado !== null;
+  function alternarParedes() {
+    const entrando = ferramenta !== "paredes";
+    setFerramenta(entrando ? "paredes" : "selecionar");
+    setSelecionadoId(null);
+    setParedeSelecionadaId(null);
+  }
 
   // Pede o que a mesa usa (mapa da cena, imagens dos tokens, retratos e tokens padrão das fichas).
   // O mestre também recolhe o que os jogadores subiram, para guardar cópia em recebidos/<jogador>/.
@@ -454,7 +540,8 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
         <>
           <Mapa
             cena={cena}
-            tokens={estado.tokens}
+            tokens={estadoVisto?.tokens ?? estado.tokens}
+            paredes={estadoVisto?.paredes ?? estado.paredes}
             opcoes={opcoes}
             retornos={retornos}
             imagens={imagens}
@@ -484,7 +571,34 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
               aoAlternarOrdem={() =>
                 enviar("ordemDeTurno.definir", { visivel: !estado.ordemDeTurnoVisivel })
               }
+              iluminacaoDinamica={iluminada}
+              aoAlternarIluminacao={() =>
+                enviar("cena.configurarIluminacao", { cenaId: cena.id, dinamica: !iluminada })
+              }
+              paredesAtivas={ferramenta === "paredes" && modoMestre}
+              aoAlternarParedes={alternarParedes}
+              jogadores={estado.usuarios.filter((u) => u.papel === "jogador")}
+              verComoId={usuarioVisto?.id ?? null}
+              aoVerComo={(id) => {
+                setVerComoId(id);
+                setSelecionadoId(null);
+                if (id !== null && ferramenta === "paredes") setFerramenta("selecionar");
+              }}
             />
+          )}
+          {usuarioVisto && (
+            <div className="selo-ver-como" data-testid="ver-como-selo">
+              <span>
+                Vendo como <strong>{usuarioVisto.nome}</strong>
+              </span>
+              <button
+                type="button"
+                data-testid="ver-como-voltar"
+                onClick={() => setVerComoId(null)}
+              >
+                Voltar a mim
+              </button>
+            </div>
           )}
           {euMestre && faixaAberta && (
             <FaixaDeCenas
@@ -529,7 +643,20 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
             </div>
           )}
           {estado.ordemDeTurnoVisivel && <OrdemDeTurno />}
-          {euMestre && selecionado && (
+          {modoMestre && ferramenta === "paredes" && (
+            <PainelDasParedes
+              tipoNovo={tipoDaNovaParede}
+              aoEscolherTipoNovo={setTipoDaNovaParede}
+              selecionada={paredeSelecionada}
+              enviar={enviar}
+              aoApagar={(id) => {
+                enviar("parede.apagar", { id });
+                setParedeSelecionadaId(null);
+              }}
+              aoFechar={alternarParedes}
+            />
+          )}
+          {modoMestre && ferramenta !== "paredes" && selecionado && (
             <PainelDoToken
               token={selecionado}
               jogadores={estado.usuarios.filter((u) => u.papel === "jogador")}

@@ -13,6 +13,8 @@ export type TokenVisto = {
   tamanho: number;
   oculto: boolean;
   camada: string;
+  /** Está sendo desenhado (o jogador não desenha o que está fora da visão). */
+  desenhado: boolean;
 };
 
 export type GanchoDoMapa = {
@@ -23,6 +25,11 @@ export type GanchoDoMapa = {
   centrarEm(x: number, y: number): void;
   quadradoM(): number;
   bandeira(): { x: number; y: number } | null;
+  portas(): { id: string; tipo: string; estado?: string; meio: { x: number; y: number } }[];
+  paredes(): { id: string; tipo: string; estado?: string }[];
+  visao(): { modo: "jogador" | "noturna" | "claro"; poligonos: number };
+  veNoPonto(x: number, y: number): boolean;
+  veuVisivel(): boolean;
 };
 
 export const tokensDe = (p: Page) =>

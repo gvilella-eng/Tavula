@@ -521,7 +521,7 @@ test("exportar → zerar → importar: o mapa e as imagens voltam só como metad
   };
   const antes = await exportar();
   const json = JSON.parse(antes.texto);
-  expect(json.versao).toBe(5);
+  expect(json.versao).toBe(6);
   // só metadados: o manifesto, os tiles (2 x 2) e a imagem do token; nenhum byte de imagem
   expect(json.dados.assets).toHaveLength((manifesto.tiles?.length ?? 0) + 2);
   expect(json.dados.cenas[0].mapa).toEqual({ assetHash: manifesto.hash, pxPorQuadrado: 70 });

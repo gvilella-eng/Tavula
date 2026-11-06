@@ -189,6 +189,7 @@ interface Cena {
   grid: { quadradoM: number /* 1.5 */; visivel: boolean };
   mapa?: { assetHash: string; pxPorQuadrado: number };   // lote 3
   chegada?: { x: number; y: number };                    // lote 4: onde o grupo chega (padrão: centro)
+  iluminacaoDinamica?: boolean;                          // lote 5: padrão ligada; desligada, o jogador vê tudo
   luzAmbiente?: number;             // lote 6: 0 = escuridão total, 1 = dia
 }
 
@@ -201,6 +202,7 @@ interface Token {
   oculto: boolean;
   controladoPor: string[];          // ids de usuário, além de quem edita o personagem; o mestre move qualquer um
   assetHash?: string;               // lote 3
+  alcanceVisaoM?: number;           // lote 5: só para token sem personagem (com personagem vale a visão dele)
   personagemId?: string;            // lote 4; controla: o dono do personagem ou quem estiver em controladoPor
 }
 
@@ -478,7 +480,12 @@ quem escolhe o usuário mestre na tela de entrada é mestre.
     RenderTexture, sem conta de polígonos;
   - **visão noturna desligada**: tudo claro, como se a cena estivesse toda iluminada (como desligar a
     iluminação dinâmica, mas só para o mestre);
-  - *ver como o jogador X*.
+  - *ver como o jogador X*: clique direito no ícone da visão noturna (lua) abre a lista de jogadores; um
+    selo "Vendo como X" com "Voltar a mim" fica na tela enquanto durar. O mestre continua com poderes de
+    mestre; só a tela muda.
+- **Como o escuro é desenhado** (Lote 5): um véu escuro numa RenderTexture com os polígonos de visão
+  "apagados" dele (blend `erase`), não máscaras do Pixi, que somam sobreposições. A memória do mapa do
+  Lote 6 pode reaproveitar o mesmo véu.
 
 ### 4.8 Relógio da sala e objetos de luz
 
@@ -656,6 +663,7 @@ Base do Lote 4b. **Em definição:** o que cada ícone do menu superior abre o V
   - eventos (as automações da seção 4.11);
   - iluminação (lanterna): abre uma lista logo abaixo com:
     - **Iluminação dinâmica** (liga/desliga; padrão ligada; ver 4.7);
+    - **Paredes e portas** (Lote 5): a ferramenta de desenhar paredes e escolher o tipo;
     - **Fontes de luz**: abre um painel flutuante, no estilo da ordem de turno, com todas as fontes de
       luz da cena: as fixas (ex.: uma parede flamejante num canto) e as variáveis (tocha, fogueira).
       - **intensidade** é o alcance da luz (raio da luz plena e da penumbra), de 0 a 100%. Toda fonte
@@ -1019,6 +1027,14 @@ no editor; ligar a ordem de turno.
 - unidade: 500 segmentos e 8 fontes calculados em menos de 16 ms;
 - unidade: trajeto atravessando parede, porta fechada, janela e invisível é recusado; porta aberta deixa passar;
 - E2E: o jogador não recebe o tipo `secreta` em nenhum frame (fechada vira `parede`, aberta vira porta).
+
+**Como ficou:**
+- a secreta é operada só pelo mestre, mesmo aberta;
+- o alcance para abrir porta é a constante 1,5 m até existir `ConfigDaMesa` (Lote 7);
+- a conferência do trajeto usa o segmento reto, sem o raio do token;
+- sem migração de banco: as paredes entram como uma coleção nova e os campos são opcionais;
+- exportação v6.
+- Detalhes em `docs/ESTADO.md` (Lote 5).
 
 **Roteiro manual:** desenhar um corredor com porta, abrir e fechar e ver a visão do jogador mudar.
 

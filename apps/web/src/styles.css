@@ -1343,3 +1343,35 @@ button:disabled:hover {
 .painel-token .linha-botoes button {
   padding: 4px 8px;
 }
+
+/* --- lista do menu superior (lanterna, ver como) e visão do mestre ------------------------------ */
+
+.botao-com-lista {
+  position: relative;
+  display: flex;
+}
+.menu-lista {
+  position: absolute;
+  top: calc(100% + 12px);
+  left: 50%;
+  transform: translateX(-50%);
+}
+.item-menu-visto {
+  margin-left: auto;
+  color: var(--acento);
+}
+.selo-ver-como {
+  position: absolute;
+  top: 12px;
+  left: 76px;
+  z-index: 28;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  font-size: 13px;
+  background: var(--painel);
+  border: 1px solid var(--acento);
+  border-radius: var(--raio);
+  box-shadow: var(--sombra);
+}

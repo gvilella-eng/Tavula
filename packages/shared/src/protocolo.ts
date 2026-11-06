@@ -9,15 +9,19 @@ import {
 import {
   CenaSchema,
   EditoresSchema,
+  EstadoDePortaSchema,
   EstadoSchema,
   GridSchema,
   MapaDaCenaSchema,
   PapelSchema,
+  ParedeSchema,
   PastaSchema,
   PermissoesSchema,
   PersonagemSchema,
+  PontoSchema,
   PresencaSchema,
   TAMANHO_MAXIMO_NOTA,
+  TipoDeParedeSchema,
   TokenSchema,
   VisibilidadeSchema,
 } from "./estado.ts";
@@ -25,8 +29,8 @@ import { CENA_PADRAO } from "./mapa.ts";
 import { migrarPersonagem, PersonagemAntigoSchema, pastasPadrao } from "./pastas.ts";
 
 export const VERSAO_PROTOCOLO = 1;
-/** Versão do arquivo de exportação (de v1 a v4 ainda são aceitas na importação). */
-export const VERSAO_EXPORTACAO = 5 as const;
+/** Versão do arquivo de exportação (de v1 a v5 ainda são aceitas na importação). */
+export const VERSAO_EXPORTACAO = 6 as const;
 
 const CapacidadeSchema = z.enum(TODAS_AS_CAPACIDADES as [Capacidade, ...Capacidade[]]);
 const Texto = z.string().max(TAMANHO_MAXIMO_NOTA);
@@ -50,6 +54,7 @@ const DadosV2Schema = EstadoSchema.omit({
   personagens: true,
   pastas: true,
   ordemDeTurnoVisivel: true,
+  paredes: true,
 }).extend({
   notaMestre: Texto,
   permissoes: PermissoesExportadasSchema,
@@ -77,7 +82,16 @@ const DadosV5Schema = DadosV3Schema.extend({
   pastas: z.array(PastaSchema).max(200),
   ordemDeTurnoVisivel: z.boolean(),
 });
-export type DadosExportados = z.infer<typeof DadosV5Schema>;
+
+/**
+ * v6 (Lote 5): acrescenta as paredes e portas (com o estado das portas). A iluminação dinâmica de
+ * cada cena e o alcance de visão do token são campos opcionais da cena e do token: arquivos antigos
+ * os trazem ausentes (cena com iluminação ligada, token sem limite).
+ */
+const DadosV6Schema = DadosV5Schema.extend({
+  paredes: z.array(ParedeSchema).max(5000),
+});
+export type DadosExportados = z.infer<typeof DadosV6Schema>;
 
 /** v1 (Lote 1): sem cenas nem tokens. Vira a cena padrão e nenhum token. */
 const DadosV1Schema = DadosV2Schema.omit({
@@ -89,8 +103,9 @@ const DadosV1Schema = DadosV2Schema.omit({
 const cabecalho = { formato: z.literal("tabletop-campanha"), exportadoEm: z.string() };
 
 /**
- * Aceita de v1 a v5; o resultado é sempre no formato v5. Nas antigas faltam assets, personagens e
- * pastas: entram vazios (v1 a v3) ou migrados (v4: o dono vira "quem edita" numa pasta só do mestre).
+ * Aceita de v1 a v6; o resultado é sempre no formato v6. Nas antigas faltam assets, personagens,
+ * pastas e paredes: entram vazios (v1 a v3) ou migrados (v4: o dono vira "quem edita" numa pasta só
+ * do mestre; paredes só existem a partir da v6).
  */
 export const ExportacaoSchema = z
   .discriminatedUnion("versao", [
@@ -99,6 +114,7 @@ export const ExportacaoSchema = z
     z.object({ ...cabecalho, versao: z.literal(3), dados: DadosV3Schema }),
     z.object({ ...cabecalho, versao: z.literal(4), dados: DadosV4Schema }),
     z.object({ ...cabecalho, versao: z.literal(5), dados: DadosV5Schema }),
+    z.object({ ...cabecalho, versao: z.literal(6), dados: DadosV6Schema }),
   ])
   .transform((e) => {
     const d = e.dados;
@@ -107,9 +123,10 @@ export const ExportacaoSchema = z
       assets: "assets" in d ? d.assets : [],
       pastas: "pastas" in d ? d.pastas : pastasPadrao(),
       ordemDeTurnoVisivel: "ordemDeTurnoVisivel" in d ? d.ordemDeTurnoVisivel : false,
+      paredes: "paredes" in d ? d.paredes : [],
     };
     const personagens =
-      e.versao === 5
+      e.versao === 5 || e.versao === 6
         ? e.dados.personagens
         : e.versao === 4
           ? e.dados.personagens.map(migrarPersonagem)
@@ -123,6 +140,8 @@ export type Exportacao = z.infer<typeof ExportacaoSchema>;
 // ---------------------------------------------------------------------------------------------
 
 const IdSchema = z.string().min(1).max(64);
+const MAXIMO_DE_PAREDES_POR_MENSAGEM = 200;
+const ParedeNovaSchema = ParedeSchema.omit({ cenaId: true });
 const TokenNovoSchema = TokenSchema.omit({ cenaId: true });
 const MudancasDoTokenSchema = TokenSchema.pick({
   nome: true,
@@ -132,7 +151,11 @@ const MudancasDoTokenSchema = TokenSchema.pick({
   oculto: true,
   controladoPor: true,
 })
-  .extend({ assetHash: HashSchema.nullable() })
+  .extend({
+    assetHash: HashSchema.nullable(),
+    /** `null`: sem limite de visão. */
+    alcanceVisaoM: TokenSchema.shape.alcanceVisaoM.unwrap().nullable(),
+  })
   .partial();
 const PosicaoDoTokenSchema = z.object({ id: IdSchema, x: z.number(), y: z.number() });
 
@@ -292,6 +315,36 @@ export const IntencaoSchema = z.discriminatedUnion("tipo", [
     "cena.preparar",
     z.object({ cenaId: IdSchema, pacotes: z.array(PacoteSchema).min(1).max(MAXIMO_DE_PACOTES) }),
   ),
+  /** Uma sequência de paredes numa mensagem só (o mestre desenhando). Cena omitida: a ativa. */
+  intencao(
+    "parede.criar",
+    z.object({
+      cenaId: IdSchema.optional(),
+      paredes: z.array(ParedeNovaSchema).min(1).max(MAXIMO_DE_PAREDES_POR_MENSAGEM),
+    }),
+  ),
+  /** Mudar as pontas, o tipo ou o estado. Porta sem estado nasce fechada; outro tipo perde o estado. */
+  intencao(
+    "parede.editar",
+    z.object({
+      id: IdSchema,
+      a: PontoSchema.optional(),
+      b: PontoSchema.optional(),
+      tipo: TipoDeParedeSchema.optional(),
+      estado: EstadoDePortaSchema.optional(),
+    }),
+  ),
+  intencao("parede.apagar", z.object({ id: IdSchema })),
+  /** Liga ou desliga a iluminação dinâmica (a visão por paredes dos jogadores) de uma cena. */
+  intencao(
+    "cena.configurarIluminacao",
+    z.object({ cenaId: IdSchema.optional(), dinamica: z.boolean() }),
+  ),
+  /**
+   * Abre ou fecha uma porta. Jogador: só `porta` destrancada, com um token dele ao alcance. Mestre:
+   * qualquer porta (inclusive a secreta e a trancada, que abre).
+   */
+  intencao("porta.alternar", z.object({ id: IdSchema })),
   intencao("campanha.exportar", SemDados),
   intencao("campanha.importar", z.object({ dados: z.unknown() })),
 ]);
@@ -339,6 +392,11 @@ export const capacidadeDaIntencao: Record<TipoIntencao, Capacidade | null> = {
   "cena.apagar": "cena.editar",
   "grupo.moverPara": "cena.editar",
   "cena.preparar": "cena.editar",
+  "parede.criar": "cena.editar",
+  "parede.editar": "cena.editar",
+  "parede.apagar": "cena.editar",
+  "cena.configurarIluminacao": "cena.editar",
+  "porta.alternar": "porta.abrir",
   "campanha.exportar": "campanha.exportar",
   "campanha.importar": "campanha.importar",
 };
@@ -420,6 +478,13 @@ export const EventoSalaSchema = z.discriminatedUnion("tipo", [
       tokens: z.array(z.object({ id: IdSchema, x: z.number(), y: z.number() })),
     }),
   ),
+  /**
+   * Parede inteira depois da mudança (o cliente faz upsert). Para o jogador a porta secreta já vem
+   * disfarçada; mudança que ele não percebe (trancar a secreta) nem chega.
+   */
+  eventoDe("parede.criada", z.object({ parede: ParedeSchema })),
+  eventoDe("parede.editada", z.object({ parede: ParedeSchema })),
+  eventoDe("parede.apagada", z.object({ id: IdSchema })),
   /** Só mestres recebem (as metas dos jogadores chegam por `asset.meta`, sob demanda). */
   eventoDe("asset.registrado", z.object({ meta: AssetMetaSchema })),
 ]);
@@ -438,6 +503,11 @@ export const CODIGOS_DE_ERRO = [
   "personagem_inexistente",
   "cena_inexistente",
   "pasta_inexistente",
+  "parede_inexistente",
+  "porta_inexistente",
+  "porta_trancada",
+  "fora_de_alcance",
+  "trajeto_bloqueado",
 ] as const;
 export const CodigoDeErroSchema = z.enum(CODIGOS_DE_ERRO);
 export type CodigoDeErro = z.infer<typeof CodigoDeErroSchema>;

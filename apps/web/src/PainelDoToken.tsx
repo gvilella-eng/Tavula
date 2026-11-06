@@ -94,6 +94,29 @@ export function PainelDoToken({ token, jogadores, enviar, pedirImagem, aoFechar 
           <option value="mestre">mestre</option>
         </select>
       </label>
+      {token.personagemId === undefined ? (
+        <label>
+          Alcance da visão (m; vazio = sem limite)
+          <input
+            data-testid="token-alcance-visao"
+            inputMode="decimal"
+            key={`alcance-${token.id}-${token.alcanceVisaoM ?? ""}`}
+            defaultValue={token.alcanceVisaoM === undefined ? "" : String(token.alcanceVisaoM)}
+            onBlur={(e) => {
+              const texto = e.target.value.trim().replace(",", ".");
+              const n = Number(texto);
+              if (texto === "") editar({ alcanceVisaoM: null });
+              else if (Number.isFinite(n) && n > 0 && n <= 1000) editar({ alcanceVisaoM: n });
+              else
+                e.target.value =
+                  token.alcanceVisaoM === undefined ? "" : String(token.alcanceVisaoM);
+            }}
+            onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+          />
+        </label>
+      ) : (
+        <p className="nota">A visão vem do personagem (editor da ficha).</p>
+      )}
       <label className="linha-opcao">
         <input
           type="checkbox"

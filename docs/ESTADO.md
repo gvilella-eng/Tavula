@@ -875,8 +875,92 @@ Aplicadas na revisão (4.1 e o Lote 4b). Texto original do agente:
   item entre pastas com um jogador conectado).
 - Seção 9, regra 8: citar `e2e/tests/fichas.spec.ts` como modelo de teste de sigilo de pastas.
 
-## Próximo: a combinar com o Vilella depois de ver a interface
+## Lote 5 — Paredes, portas e linha de visão (entregue, aguardando o roteiro manual)
 
-Ver `PROJETO.md`, seção 7. O Lote 5 (paredes) só começa depois que o Vilella aprovar a interface v2 e detalhar o que
-ainda está em aberto (eventos, iluminação, visão noturna, camada de desenho). Os ajustes já vistos do Lote 3 e 4 foram
-tratados no Lote 4b (acima).
+### O que foi entregue
+
+- **`shared`** (puro, testado): `paredes.ts` (o que bloqueia visão e passagem, `paredeParaJogador`, `trajetoBloqueado`, `alternarPortaDoJogador`, `alcanceDeVisao`,
+  `iluminacaoDinamicaLigada`) e `visao.ts` (`poligonoDeVisibilidade`, `pontoNoPoligono`, `pontoNaUniao`). Schemas: `Parede`, `Cena.iluminacaoDinamica?`, `Token.alcanceVisaoM?`,
+  `Estado.paredes`; intenções `parede.criar/editar/apagar`, `cena.configurarIluminacao`, `porta.alternar`; eventos `parede.criada/editada/apagada`;
+  erros novos; exportação **v6** (importa v1 a v5).
+- **Sala**: sigilo da secreta (snapshot e eventos, com a transição antes/depois), paredes só da cena ativa para o jogador, `token.soltar` recusado
+  atravessando parede (`trajeto_bloqueado`; os outros voltam o token com `token.movendo`), `porta.alternar` com alcance e trancada. `armazenamento.ts` grava a coleção
+  `paredes` em `entidades`.
+- **Interface**: lista da lanterna (Iluminação dinâmica, Paredes e portas, Fontes de luz e Configurações desabilitadas); ferramenta de paredes
+  (`PainelDasParedes.tsx` + `mapaPixi.ts`); ícones das portas; visão do jogador por véu em RenderTexture; visão noturna do mestre (ligada por padrão);
+  "ver como" (clique direito na lua); campo de alcance de visão no painel do token (sem personagem).
+- **Semente**: sala na Cena inicial (4,5–18 m em x, 24–36 m em y) com porta, janela, porta trancada e porta secreta; alcance de visão de Aldric (24 m), Brisa e Cael (18 m).
+
+### Como rodar
+
+Nada novo. Para ver: entrar como mestre, abrir a lanterna → Paredes e portas, e como jogador 1 mover o Aldric para dentro da sala (o mestre pode soltá-lo onde quiser).
+
+### Verificação
+
+- `pnpm verify` verde duas vezes seguidas (ver o relatório do agente para os números). Unidade novos: `visao.test.ts` (sala vazia, pilar, porta aberta × fechada,
+  janela, canto, colineares, 500 segmentos × 8 fontes em < 16 ms, com alcance de 18 m e sem limite) e `paredes.test.ts` (trajeto, secreta e transições,
+  porta ao alcance e trancada, edição, iluminação por cena, exportação v6 e importação v1–v5). E2E novos: `e2e/tests/paredes.spec.ts` (7 testes).
+- Expectativa antiga alterada: `interface.spec.ts` esperava a visão noturna desligada ao abrir e o painel "Iluminação — em breve"; agora ela abre ligada e a lanterna é uma lista.
+  Nos testes de exportação a versão passou de 5 para 6 e `paredes` entrou na lista de chaves.
+
+### Gancho de teste (só no modo `e2e`)
+
+`window.__tabletop` ganhou: `tokens()[].desenhado`, `portas()`, `paredes()`, `visao()`, `veNoPonto(x, y)`, `veuVisivel()`, `desenhando()`.
+
+### Decisões
+
+- **Véu em RenderTexture, não máscara**: a máscara de stencil do Pixi soma sobreposições (a visão de dois jogadores se cruza e o cruzamento furaria). O véu é desenhado na
+  RenderTexture com buracos em blend `erase` por polígono; jogador: cor do fundo, opaca; mestre (noturna): preto a 55%. Resolução limitada a 3000 px no lado maior.
+- **Token fora da visão**: não aparece (`container.visible = false`) e não é clicável; a camada `mapa` (cenário) só é coberta pelo véu. As fontes (os próprios tokens) sempre aparecem.
+- **Algoritmo**: um raio por ponta, e os dois vizinhos só quando a ponta é alcançada; segmentos ordenados por distância e o raio para cedo. Alcance = polígono de 32 lados.
+- **Visão noturna** sem nenhum jogador na cena fica toda clara (nada a contrastar).
+- **Porta**: o jogador só opera `tipo: "porta"`; a secreta é só do mestre (mesmo aberta). Alcance fixo em 1,5 m (constante) porque `ConfigDaMesa` ainda não existe no estado.
+- **Ferramenta de paredes**: clicar no corpo de uma parede seleciona; clicar perto das pontas começa um desenho (assim dá para continuar a partir de um canto); as pontas só se arrastam na parede selecionada.
+  O painel também escolhe o tipo das novas paredes.
+- **Sem migração SQLite nova**: `entidades` é genérica; banco antigo simplesmente não tem a coleção `paredes` (lida como vazia), e campos novos são opcionais. Nada muda na campanha existente.
+- O mestre "vendo como" um jogador continua com poderes de mestre (só a tela muda).
+
+### Desvios do plano
+
+- `alcanceInteracaoM` é constante (1,5), não configuração da mesa.
+- Os itens "Fontes de luz" e "Configurações de iluminação" estão desabilitados (Lotes 6 e 7), como pedido.
+
+### Frágil / não verificado
+
+- O blend `erase` e a RenderTexture foram vistos só no Chrome (WebGL). Bordas do véu ficam levemente serrilhadas em zoom alto (a textura é limitada).
+- Origem exatamente sobre uma parede (token com o centro na parede) pode vazar visão por ela; tokens ficam no centro das células, então é raro.
+- Quem encosta o token numa parede com Alt (solto) pode parar a poucos milímetros dela; a conferência do trajeto é só por segmento reto, sem raio do token.
+- O mestre desenha tudo no mesmo clique do duplo clique: em tela com muita latência de pointer, o ponto repetido é ignorado por distância (< 5 cm).
+- Visão recalculada a cada quadro enquanto um token de visão anda (poucos polígonos; medido em 5–7 ms para 500 paredes e 8 fontes).
+
+### Roteiro manual (pendente)
+
+1. Lanterna → Paredes e portas; desenhar um corredor (clique, clique, duplo clique); mudar um segmento para porta no painel; Delete apaga.
+2. Como jogador, levar um token até a porta: clicar no ícone abre e fecha; longe avisa; a trancada avisa; o mestre tranca com o clique direito no ícone.
+3. Ver a visão do jogador mudar com a porta; tentar passar pela parede (o token não atravessa); o mestre passa.
+4. Lanterna → Iluminação dinâmica desliga: o jogador vê tudo. Lua (clique): visão noturna; clique direito: ver como um jogador.
+
+### Revisão (antes do commit de fechamento)
+
+- Prints conferidos: paredes por tipo, visão do jogador cortada pelas paredes (com o vazamento da janela), cone
+  pela porta aberta e visão noturna do mestre. No código: a conversão da secreta (`paredeParaJogador`, fechada →
+  parede, aberta → porta, trancar/destrancar nem chega ao jogador) e o filtro de paredes por cena.
+- O agente deixou o servidor do `pnpm dev:e2e` que subiu para os prints rodando (o `taskkill` dele foi negado
+  pelo classificador de permissões); com ele na 8788, o meu `pnpm verify` travou reaproveitando o servidor velho.
+  Interrompi a minha rodada e encerrei os processos só depois de o Vilella autorizar.
+- `pnpm verify` duas vezes seguidas, com as portas livres: verde nas duas, 237 testes de unidade (219 shared, 12
+  server, 6 web) e 58 E2E (~5,5 min).
+- O `pnpm dev` do Vilella não foi tocado (ele mesmo o fechou durante o lote).
+
+### Sugestões para o PROJETO.md
+
+Aplicadas na revisão (4.1, 4.7, 4.13.1 e o Lote 5). Texto original do agente:
+
+- 4.1: `Parede` já bate; acrescentar `Cena.iluminacaoDinamica?` e `Token.alcanceVisaoM?`; `Estado.paredes`.
+- 4.7: o render é um véu em RenderTexture (e não máscaras) pela razão acima; a secreta aberta chega como porta aberta e só o mestre a opera.
+- 4.13.1: a lista da lanterna e o menu do ícone de visão noturna (clique direito: ver como).
+- Lote 6: a névoa/memória pode reaproveitar a RenderTexture do véu (acumular os polígonos).
+
+## Próximo: Lote 6 — Luz, visão no escuro e névoa de guerra
+
+Ver `PROJETO.md`, seção 7. O Lote 6 parte do que o Lote 5 deixou: os polígonos de visão, o véu em RenderTexture e as paredes.
