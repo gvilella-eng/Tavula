@@ -1326,6 +1326,44 @@ para 30 s, ver a inspiração reduzir e apagar tochas, pausar e retomar pelo bot
 
 **Pronto quando:** `pnpm verify` verde.
 
+**Decidido antes de começar (2026-11-06; prevalece sobre os itens acima onde conflitar; "(assumido)"
+entra nas perguntas do fim):**
+- **Parser** (`packages/shared/src/dados.ts`, puro): termos `NdM`, `dM` (= 1dM), `d%` (= d100),
+  constantes, `+` e `−`, `khN`/`klN` (`2d20kh1` = vantagem, `2d20kl1` = desvantagem) e espaços. Limites
+  contra abuso: até 100 dados por termo, até 1000 faces, até 20 termos; acima disso, recusa com motivo.
+  O parser só lê a expressão; quem rola é a sala.
+- **Rolagem na sala** com `crypto.getRandomValues` e rejeição (sem viés de módulo). O resultado guarda
+  cada dado (inclusive os descartados pelo kh/kl), o total e a expressão. A função que rola recebe a
+  fonte de aleatoriedade, para os testes usarem uma semente fixa.
+- **Mensagem do chat** (`Mensagem`): `{ id, seq, emSala (relógio da sala), autorId, como?
+  (personagemId), tipo: 'texto' | 'rolagem' | 'modelo', texto?, rolagens?, visivelPara: 'todos' |
+  { ids } , oculta? }`.
+  - **sussurro** `/w Nome texto`: chega ao autor, aos destinatários e ao mestre (assumido: o mestre vê
+    todos os sussurros);
+  - **rolagem oculta** `/gr 1d20`: só o autor e o mestre veem. O mestre sempre pode; o jogador precisa de
+    `dado.rolarOculto` (padrão desligado, como hoje);
+  - `/r 1d20+5` rola; `[[1d20+5]]` dentro do texto rola inline; `/em texto` é ação ("Brisa olha em
+    volta"); `/?` lista os comandos;
+  - qualquer campo de resultado mandado pelo cliente é descartado pelo schema (teste disso).
+- **Modelos de rolagem** (`chat.modelo`): ataque (acerto + dano; 20 natural é crítico e **dobra os
+  dados** do dano, os modificadores não), teste com CD (mostra sucesso/falha) e teste simples. Vantagem e
+  desvantagem por um seletor no próprio modelo (normal/vantagem/desvantagem). A ficha do Lote 9 usa
+  esses modelos.
+- **"Como:"** no rodapé do chat: o próprio nome ou um personagem que eu edito (o mestre: qualquer um).
+  A mensagem mostra o retrato e o nome do personagem.
+- **Dados rápidos** (barra esquerda): a linha é o dado e a coluna a quantidade, como já está; clicar rola
+  na hora e o resultado vai para o chat, pública (com Shift, oculta, se puder).
+- **Histórico persistido** numa tabela própria no SQLite da sala (não em `entidades`), sem limite de
+  gravação. O snapshot traz só as últimas 200 mensagens que o usuário pode ver; "carregar anteriores"
+  pede mais (`chat.anteriores`), sempre filtrado. O mestre pode limpar o chat (com confirmação).
+  O chat **não entra** na exportação da campanha (assumido: é registro da sessão).
+- **Interface:** aba Chat da barra direita (a presença continua no topo); cartões de rolagem com o
+  total grande, os dados ao passar o mouse (descartados riscados), 20 natural e 1 natural destacados;
+  selo de não lidas no ícone do chat quando a aba está fechada; Enter envia e Shift+Enter quebra a
+  linha; seta para cima repete a última mensagem.
+- **Limites:** texto até 2000 caracteres; até 10 mensagens por segundo por conexão (o resto é recusado
+  com aviso).
+
 ---
 
 ### Lote 9 — Ficha 5e (G)
