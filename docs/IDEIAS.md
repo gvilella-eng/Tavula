@@ -20,6 +20,11 @@ voltarem) e notas sobre a campanha de referência. Quando algo for decidido, sai
 
 ### Mapas e paredes
 
+- **Mapa revelado aos poucos:** hoje a imagem inteira do mapa da cena ativa vai para o cache do jogador
+  (como em qualquer VTT), então quem fuça o navegador vê o desenho de salas que ainda não explorou. Dá
+  para mandar o mapa em tiles só conforme a exploração (o fatiamento do Lote 3 ajuda), mas é bem mais
+  trabalho. Levantado em 2026-11-06, ao explicar o F12 para o Vilella.
+
 Desenhar paredes à mão em mapas de caverna (formas orgânicas) é o custo escondido de cada sessão.
 
 - **Importar `.uvtt` / `.dd2vtt`** (Universal VTT, exportado pelo Dungeondraft e outros editores):

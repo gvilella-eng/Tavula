@@ -450,12 +450,20 @@ quem escolhe o usuário mestre na tela de entrada é mestre.
   - na área iluminada que o token vê, o jogador vê todas as camadas, menos a do mestre;
   - quando ele sai, a área explorada **não some**: fica só a camada do mapa, escurecida. Ele sabe como a
     sala é, mas não sabe se há alguém lá;
-  - essa lembrança **vai sumindo à medida que ele se afasta**, até um alcance que depende do
-    modificador de Inteligência do personagem: 50 ft + 10 ft × mod (−2 = 30 ft, 0 = 50 ft, +2 = 70 ft;
-    15 m + 3 m × mod);
+  - essa lembrança **vai desbotando aos poucos à medida que ele se afasta**, até um alcance que depende
+    do modificador de Inteligência do personagem: 50 ft + 10 ft × mod (−2 = 30 ft, 0 = 50 ft,
+    +2 = 70 ft; 15 m + 3 m × mod; nunca abaixo de 0);
+  - **a lembrança não é permanente**: o que passa do alcance é esquecido. Voltando lá, a sala só
+    reaparece se for iluminada de novo;
+  - até a ficha completa (Lote 9), o modificador de Inteligência é um campo no editor do personagem;
   - as regras são configuráveis (ligar/desligar, valor fixo, parâmetros).
-- **Iluminação dinâmica desligada:** a cena ganha iluminação padrão e todos os jogadores veem tudo, menos
-  a camada do mestre.
+- **Iluminação dinâmica desligada** (por cena): a cena ganha iluminação padrão e todos os jogadores veem
+  tudo, menos a camada do mestre.
+- **A imagem do mapa** da cena ativa fica no cache do jogador, como em qualquer VTT; a proteção contra
+  quem fuça o navegador cobre "quem está onde", não o desenho das salas. Mandar o mapa só conforme a
+  exploração está em `docs/IDEIAS.md`.
+- **Em aberto (decisão do Vilella):** se os tokens fora da visão do jogador deixam de chegar ao navegador
+  dele (proteção contra o F12), calculado na sala. Recomendado.
 - **Por token o mestre define:** alcance de visão, visão no escuro, quem controla e quem enxerga
   através dele. A luz vem dos objetos que o personagem carrega (seção 4.8).
 - **Visão do mestre:** o mestre é o único que vê o mapa inteiro sem precisar de luz. Modos:
@@ -644,9 +652,10 @@ Base do Lote 4b. **Em definição:** o que cada ícone do menu superior abre o V
     - **Iluminação dinâmica** (liga/desliga; padrão ligada; ver 4.7);
     - **Fontes de luz**: abre um painel flutuante, no estilo da ordem de turno, com todas as fontes de
       luz da cena: as fixas (ex.: uma parede flamejante num canto) e as variáveis (tocha, fogueira).
-      - cada variável tem um slider de intensidade, o tempo restante com − e + de 1 minuto de cada lado,
-        e uma lixeira que extingue de vez. Vale até para a tocha de um jogador, que fica consumida, como
-        quando o tempo acaba;
+      - **intensidade** é o alcance da luz (raio da luz plena e da penumbra), de 0 a 100%. Toda fonte
+        tem o slider; a variável tem também o tempo restante com − e + de 1 minuto de cada lado, e uma
+        lixeira que extingue de vez. A lixeira vale até para a tocha de um jogador, que fica consumida,
+        como quando o tempo acaba;
       - no topo, um **slider geral**, um fator sobre todas as intensidades de uma vez;
       - clicar duas vezes no cabeçalho recolhe o painel (só o cabeçalho fica) e baixa a opacidade para
         ~0,7;
