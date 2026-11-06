@@ -446,6 +446,16 @@ quem escolhe o usuário mestre na tela de entrada é mestre.
   iluminado e o que o token dele enxerga, mais a visão no escuro (em tons de cinza, via filtro GLSL).
 - **Névoa explorada:** acumulada por jogador e por cena numa grade de 0,5 m, compactada e gravada na
   sala (~20 KB para 200×200 m). O mestre pode resetar.
+- **Memória do mapa** (definida pelo Vilella em 2026-11-06; detalhes em aberto na 4.13.1):
+  - na área iluminada que o token vê, o jogador vê todas as camadas, menos a do mestre;
+  - quando ele sai, a área explorada **não some**: fica só a camada do mapa, escurecida. Ele sabe como a
+    sala é, mas não sabe se há alguém lá;
+  - essa lembrança **vai sumindo à medida que ele se afasta**, até um alcance que depende do
+    modificador de Inteligência do personagem: 50 ft + 10 ft × mod (−2 = 30 ft, 0 = 50 ft, +2 = 70 ft;
+    15 m + 3 m × mod);
+  - as regras são configuráveis (ligar/desligar, valor fixo, parâmetros).
+- **Iluminação dinâmica desligada:** a cena ganha iluminação padrão e todos os jogadores veem tudo, menos
+  a camada do mestre.
 - **Por token o mestre define:** alcance de visão, visão no escuro, quem controla e quem enxerga
   através dele. A luz vem dos objetos que o personagem carrega (seção 4.8).
 - **Visão do mestre:** o mestre é o único que vê o mapa inteiro sem precisar de luz. Modos:
@@ -630,7 +640,18 @@ Base do Lote 4b. **Em definição:** o que cada ícone do menu superior abre o V
   - visão noturna (só o ícone por enquanto);
   - novo token;
   - eventos (as automações da seção 4.11);
-  - iluminação (lanterna; o Vilella vai explicar);
+  - iluminação (lanterna): abre uma lista logo abaixo com:
+    - **Iluminação dinâmica** (liga/desliga; padrão ligada; ver 4.7);
+    - **Fontes de luz**: abre um painel flutuante, no estilo da ordem de turno, com todas as fontes de
+      luz da cena: as fixas (ex.: uma parede flamejante num canto) e as variáveis (tocha, fogueira).
+      - cada variável tem um slider de intensidade, o tempo restante com − e + de 1 minuto de cada lado,
+        e uma lixeira que extingue de vez. Vale até para a tocha de um jogador, que fica consumida, como
+        quando o tempo acaba;
+      - no topo, um **slider geral**, um fator sobre todas as intensidades de uma vez;
+      - clicar duas vezes no cabeçalho recolhe o painel (só o cabeçalho fica) e baixa a opacidade para
+        ~0,7;
+    - **Configurações de iluminação**: os parâmetros da memória do mapa (ligar/desligar, valor fixo,
+      fórmula pelo modificador de Inteligência) e afins;
   - mostrar/esconder a ordem de turno para todos, inclusive para o mestre.
 - **Barra da esquerda** (todos): selecionar, mão, régua, **dados rápidos** e **pincel**.
   - Dados rápidos: uma grade com os dados (D4, D6, D8, D10, D12, D20, D100) nas linhas e as
