@@ -1057,6 +1057,45 @@ no editor; ligar a ordem de turno.
 - visão do mestre: normal, **visão noturna** (escuro com filtro, união da visão dos jogadores em cor
   normal) e "ver como o jogador X" (seção 4.7).
 
+**Decidido antes de começar (2026-11-06; prevalece sobre os itens acima onde conflitar):**
+- **Tudo só de tela** (4.7): luz, escuro, visão no escuro e memória são calculados no navegador. A sala
+  só guarda as fontes de luz e a configuração.
+- **Fonte de luz** (prévia do `ObjetoDeLuz` da 4.1, que o Lote 7 completa com modelo, tempo e mochila):
+  - `{ id, cenaId, nome, portador: { tipo: 'cena', x, y } | { tipo: 'token', tokenId }, luz: { claraM,
+    penumbraM, cor, tremula }, intensidade: 0..1, acesa }`;
+  - as **fixas** ficam presas na cena, e as **do token** acompanham um token (criatura que brilha);
+  - **intensidade** é o alcance (multiplica os dois raios). Há também um **fator geral** por cena, o
+    slider do topo do painel.
+- **Painel "Fontes de luz"** (item da lanterna; painel flutuante no estilo da ordem de turno, só do
+  mestre):
+  - lista as fontes da cena, com o slider de intensidade e a lixeira de cada uma;
+  - o slider geral fica no topo;
+  - "+ Luz fixa" e um clique no mapa colocam uma luz; o mestre arrasta a luz e a edita (raios, cor,
+    tremular);
+  - clicar duas vezes no cabeçalho recolhe o painel (opacidade ~0,7);
+  - as variáveis (tempo ±1 min, consumir) entram no Lote 7.
+- **Luz ambiente** por cena, de 0 (escuro) a 1 (dia), em "Configurações de iluminação".
+- **O que o jogador vê:** a visão dos tokens que ele controla (Lote 5), cruzada com a luz.
+  - luz plena aparece normal e penumbra aparece mais escura;
+  - **visão no escuro**: dentro do alcance, o escuro aparece em tons de cinza e a penumbra como luz
+    plena (regra do 5e);
+  - fora disso, escuro;
+  - token só é desenhado onde o jogador o enxerga.
+- **Memória do mapa** (4.7): só a camada do mapa, escurecida, onde o jogador já viu.
+  - desbota com a distância até o token mais próximo dele;
+  - alcance = 15 m + 3 m × modificador de Inteligência (padrão configurável), nunca abaixo de 0;
+  - o que passa do alcance é **esquecido**;
+  - fica guardada no navegador (IndexedDB, por usuário e cena) e sobrevive ao refresh. O mestre pode
+    mandar todos esquecerem a cena;
+  - o modificador vem de um campo novo no editor do personagem; token sem personagem usa o padrão.
+- **`ConfigDaMesa`** passa a existir no estado (o Lote 7 a completa) com `iluminacao: { memoriaLigada,
+  memoriaModo: 'inteligencia' | 'fixo', memoriaBaseM, memoriaPorModM, memoriaFixaM, tomDaMemoria }`,
+  editada em "Configurações de iluminação".
+- **Visão noturna do mestre:** passa a considerar a luz. O que algum jogador **vê** aparece normal e o
+  resto mais apagado.
+- O item "Iluminação dinâmica" da lanterna precisa mostrar claramente se está ligado ou desligado (o
+  Vilella desligou sem perceber no teste do Lote 5).
+
 **Verificação automática:**
 - unidade: interseção luz × visão; acúmulo e compactação da névoa;
 - unidade: a máscara da visão noturna do mestre é a união das máscaras dos jogadores;
