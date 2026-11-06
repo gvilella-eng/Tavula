@@ -40,6 +40,9 @@ Desenhar paredes à mão em mapas de caverna (formas orgânicas) é o custo esco
 - **Imagens no servidor** (R2 ou similar): imagens locais são a premissa e o diferencial do projeto.
 - **Regra baseada no relógio do PC do jogador**: o tempo é da sala (princípio 6).
 - **Mecânicas da campanha no código**: a mesa é genérica (princípio 9).
+- **Esconder da rede o que está fora da visão** (proteção contra o F12 por linha de visão): o Vilella
+  decidiu em 2026-11-06 que não vale o custo. Visão e escuridão são só de tela; o filtro na sala fica
+  para o que o mestre esconde de propósito.
 
 ## Campanha de referência ("A Chama Primordial")
 

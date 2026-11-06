@@ -92,8 +92,9 @@ o que o app usa em execução fica no repositório.
    pelo papel do usuário, aplica e avisa os outros. Ninguém altera o estado direto.
 2. **Cada um recebe só o que pode ver.** A sala monta uma visão filtrada por usuário: tokens da camada
    do mestre, tokens ocultos, notas do mestre e portas secretas nunca chegam ao navegador do jogador.
-   Com o F12 aberto, ninguém descobre o goblin escondido. Atenção: até existir o filtro por linha de
-   visão (ver "Depois"), um token visível que só está no escuro ainda chega ao navegador; para esconder
+   Com o F12 aberto, ninguém descobre o goblin escondido. Isso vale para o que o mestre esconde de
+   propósito: token oculto, camada do mestre, outras cenas, pastas fechadas. **Visão e escuridão são só
+   de tela** (decisão do Vilella, 4.7): um token que só está no escuro chega ao navegador; para esconder
    de verdade, marque como oculto.
 3. **Dados rolam no servidor** (`crypto.getRandomValues`). Um resultado enviado pelo cliente é ignorado.
 4. **Imagem é local, dado é da sala.** Arquivos pesados ficam nas pastas dos usuários. Estado e fichas
@@ -462,8 +463,10 @@ quem escolhe o usuário mestre na tela de entrada é mestre.
 - **A imagem do mapa** da cena ativa fica no cache do jogador, como em qualquer VTT; a proteção contra
   quem fuça o navegador cobre "quem está onde", não o desenho das salas. Mandar o mapa só conforme a
   exploração está em `docs/IDEIAS.md`.
-- **Em aberto (decisão do Vilella):** se os tokens fora da visão do jogador deixam de chegar ao navegador
-  dele (proteção contra o F12), calculado na sala. Recomendado.
+- **Decidido (Vilella, 2026-11-06): visão e escuridão são só de tela.** O token fora da visão ou da luz
+  chega ao navegador do jogador e simplesmente não é desenhado. A sala não calcula visão por jogador:
+  ninguém da mesa vai usar as ferramentas de desenvolvedor para caçar token, e não vale o custo de
+  servidor nem de desenvolvimento.
 - **Por token o mestre define:** alcance de visão, visão no escuro, quem controla e quem enxerga
   através dele. A luz vem dos objetos que o personagem carrega (seção 4.8).
 - **Visão do mestre:** o mestre é o único que vê o mapa inteiro sem precisar de luz. Modos:
@@ -1203,9 +1206,8 @@ dela e revisar o rascunho antes de publicar.
 - handouts (imagem ou texto entregue a um jogador, que fica no inventário dele);
 - som ambiente sincronizado (vento da Inspiração, gotejar, combate), também lido da pasta local;
 - dados 3D (só visual; o resultado continua vindo do servidor);
-- filtro por linha de visão no servidor (jogador não recebe nem a posição de tokens fora da visão):
-  entra em `tokenVisivelPara`/`eventoPara`, que já recebem o estado de antes e de depois, e reaproveita
-  `token.sumiu`;
+- ~~filtro por linha de visão no servidor~~: **descartado** pelo Vilella em 2026-11-06 (visão e escuridão
+  são só de tela; ver 4.7);
 - editor de templates para importar PDFs de outras fichas;
 - importação de foto de ficha (OCR local), se um dia valer a pena;
 - deploy na internet (Cloudflare, conta pessoal) e login real — outro plano;
