@@ -313,6 +313,20 @@ export function EditorDoItem({
                   valor={String(p.visao.visaoNoEscuroM)}
                   aoConfirmar={(t) => t !== "" && editar({ visaoNoEscuroM: Number(t) })}
                 />
+                <Campo
+                  testid={`personagem-int-${p.id}`}
+                  rotulo="Modificador de Inteligência (alcance da memória do mapa)"
+                  tipo="number"
+                  min={-5}
+                  max={10}
+                  valor={String(p.modInteligencia ?? 0)}
+                  aoConfirmar={(t) => {
+                    const n = Number(t);
+                    if (t !== "" && Number.isInteger(n) && n >= -5 && n <= 10) {
+                      editar({ modInteligencia: n });
+                    }
+                  }}
+                />
               </details>
             )}
           </div>

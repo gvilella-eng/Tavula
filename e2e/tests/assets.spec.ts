@@ -509,6 +509,10 @@ test("exportar → zerar → importar: o mapa e as imagens voltam só como metad
   const brasao = await metaPorNome(mestre.pagina, "brasao.png");
   await esperarPronto(j1.pagina, manifesto.hash);
   await esperarPronto(j1.pagina, brasao.hash);
+  // o token já tem a imagem no estado da sala (a exportação sai do estado)
+  await expect
+    .poll(() => mestre.frames.some((f) => f.includes("token.editado") && f.includes(brasao.hash)))
+    .toBe(true);
 
   await abrirAba(mestre.pagina, "mestre");
   const exportar = async () => {
@@ -521,7 +525,7 @@ test("exportar → zerar → importar: o mapa e as imagens voltam só como metad
   };
   const antes = await exportar();
   const json = JSON.parse(antes.texto);
-  expect(json.versao).toBe(6);
+  expect(json.versao).toBe(7);
   // só metadados: o manifesto, os tiles (2 x 2) e a imagem do token; nenhum byte de imagem
   expect(json.dados.assets).toHaveLength((manifesto.tiles?.length ?? 0) + 2);
   expect(json.dados.cenas[0].mapa).toEqual({ assetHash: manifesto.hash, pxPorQuadrado: 70 });

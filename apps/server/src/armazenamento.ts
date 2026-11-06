@@ -2,8 +2,10 @@ import {
   type AssetMeta,
   CENA_PADRAO,
   type Cena,
+  configComPadrao,
   type Estado,
   type EventoSala,
+  type FonteDeLuz,
   type Pacote,
   type Parede,
   type Pasta,
@@ -158,6 +160,9 @@ export class Armazenamento {
     | "cenaAtivaId"
     | "tokens"
     | "paredes"
+    | "luzes"
+    | "config"
+    | "memoriaEsquecida"
     | "assets"
     | "personagens"
     | "pastas"
@@ -183,6 +188,13 @@ export class Armazenamento {
       tokens: ler<Token>("tokens"),
       // Lote 5: banco anterior não tem a coleção (nada a migrar: `entidades` é genérica).
       paredes: ler<Parede>("paredes"),
+      // Lote 6: coleção nova e configuração com padrão; banco anterior continua como estava.
+      luzes: ler<FonteDeLuz>("luzes"),
+      config: configComPadrao(JSON.parse(this.lerMeta("config") ?? "{}")),
+      memoriaEsquecida: JSON.parse(this.lerMeta("memoria_esquecida") ?? "{}") as Record<
+        string,
+        number
+      >,
       // Banco anterior ao Lote 4: sem personagens, e continua funcionando.
       personagens: ler<unknown>("personagens").map(personagemDoBanco),
       pastas: ler<Pasta>("pastas").sort((a, b) => a.ordem - b.ordem),
@@ -226,6 +238,9 @@ export class Armazenamento {
     for (const c of estado.cenas) this.gravarEntidade("cenas", c.id, c);
     for (const t of estado.tokens) this.gravarEntidade("tokens", t.id, t);
     for (const p of estado.paredes) this.gravarEntidade("paredes", p.id, p);
+    for (const l of estado.luzes) this.gravarEntidade("luzes", l.id, l);
+    this.gravarMeta("config", JSON.stringify(estado.config));
+    this.gravarMeta("memoria_esquecida", JSON.stringify(estado.memoriaEsquecida ?? {}));
     for (const p of estado.pastas) this.gravarEntidade("pastas", p.id, p);
     for (const p of estado.personagens) this.gravarEntidade("personagens", p.id, p);
     for (const a of estado.assets ?? []) this.gravarEntidade("assets", a.hash, a);
@@ -273,6 +288,19 @@ export class Armazenamento {
         case "parede.apagada":
           this.sql.exec("DELETE FROM entidades WHERE colecao = 'paredes' AND id = ?", ev.dados.id);
           break;
+        case "fonte.criada":
+        case "fonte.editada":
+          this.gravarEntidade("luzes", ev.dados.fonte.id, ev.dados.fonte);
+          break;
+        case "fonte.apagada":
+          this.sql.exec("DELETE FROM entidades WHERE colecao = 'luzes' AND id = ?", ev.dados.id);
+          break;
+        case "config.alterada":
+          this.gravarMeta("config", JSON.stringify(estado.config));
+          break;
+        case "memoria.esquecida":
+          this.gravarMeta("memoria_esquecida", JSON.stringify(estado.memoriaEsquecida ?? {}));
+          break;
         case "cena.gridAlterado":
         case "cena.mapaAlterado": {
           const c = estado.cenas.find((x) => x.id === ev.dados.cenaId);
@@ -312,6 +340,13 @@ export class Armazenamento {
           break;
         case "grupo.movido": {
           this.gravarMeta("cena_ativa", estado.cenaAtivaId);
+          // A luz presa a um token que mudou de cena vai junto.
+          const movidos = new Set(ev.dados.tokens.map((t) => t.id));
+          for (const l of estado.luzes) {
+            if (l.portador.tipo === "token" && movidos.has(l.portador.tokenId)) {
+              this.gravarEntidade("luzes", l.id, l);
+            }
+          }
           for (const { id } of ev.dados.tokens) {
             const t = estado.tokens.find((x) => x.id === id);
             if (t) this.gravarEntidade("tokens", t.id, t);

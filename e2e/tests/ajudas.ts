@@ -1,6 +1,7 @@
 import {
   type Browser,
   type BrowserContext,
+  type BrowserContextOptions,
   test as base,
   expect,
   type Page,
@@ -87,7 +88,11 @@ export async function esperarMapa(pagina: Page): Promise<void> {
 /** Um conjunto de navegadores (um contexto por usuário, como se fossem PCs diferentes). */
 export class Mesa {
   private readonly sessoes: Sessao[] = [];
-  constructor(private readonly browser: Browser) {}
+  /** `contexto`: opções de cada navegador aberto (os prints usam um viewport de 1600×900). */
+  constructor(
+    private readonly browser: Browser,
+    private readonly contexto: BrowserContextOptions = {},
+  ) {}
 
   /**
    * Abre um contexto, escolhe o usuário na tela de entrada e espera a sala conectar. `gancho`
@@ -110,8 +115,10 @@ export class Mesa {
 
   /** Abre um contexto sem entrar. Registra os frames de WebSocket recebidos. */
   async abrir(): Promise<Sessao> {
-    const contexto = await this.browser.newContext();
+    const contexto = await this.browser.newContext(this.contexto);
     const pagina = await contexto.newPage();
+    // Erro de JavaScript na página aparece no relatório (um mapa que trava em silêncio é difícil de achar).
+    pagina.on("pageerror", (e) => console.log("[erro na página]", e.message, e.stack));
     const frames: string[] = [];
     const enviados: string[] = [];
     const binarios: Buffer[] = [];

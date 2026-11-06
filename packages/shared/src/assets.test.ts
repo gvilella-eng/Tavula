@@ -698,7 +698,7 @@ describe("exportação v3", () => {
   it("leva as metas dos assets usados (e dos tiles deles), nunca dos não usados, e volta igual", async () => {
     const { estado, metas } = await cenario();
     const x = criarExportacao(estado, AGORA);
-    expect(x.versao).toBe(6);
+    expect(x.versao).toBe(7);
     const hashes = x.dados.assets.map((a) => a.hash).sort();
     expect(hashes).toEqual(
       [metas.imgJ1, metas.imgOculto, metas.imgMestre, metas.tileA, metas.tileB, metas.manifesto]
@@ -743,7 +743,7 @@ describe("exportação v3", () => {
       },
     };
     const lidaV2 = lerExportacao(v2);
-    expect(lidaV2.ok && lidaV2.exportacao.versao).toBe(6);
+    expect(lidaV2.ok && lidaV2.exportacao.versao).toBe(7);
     expect(lidaV2.ok && lidaV2.exportacao.dados.assets).toEqual([]);
     const { cenas: _c, cenaAtivaId: _i, tokens: _t, ...dadosV1 } = v2.dados;
     const lidaV1 = lerExportacao({ ...v2, versao: 1, dados: dadosV1 });

@@ -64,6 +64,13 @@ export const CenaSchema = z.object({
    * paredes. Sem o campo vale ligada; desligada, veem a cena inteira (menos a camada do mestre).
    */
   iluminacaoDinamica: z.boolean().optional(),
+  /**
+   * Luz ambiente (Lote 6): 0 = escuridão total, 1 = dia. Soma uma luz uniforme na cena. Sem o campo
+   * vale 1, para não escurecer campanhas antigas sem aviso.
+   */
+  luzAmbiente: z.number().min(0).max(1).optional(),
+  /** Fator geral das fontes de luz da cena (o slider do topo do painel): 0 a 1; sem o campo vale 1. */
+  fatorDeLuz: z.number().min(0).max(1).optional(),
 });
 export type Cena = z.infer<typeof CenaSchema>;
 
@@ -91,11 +98,86 @@ export const TokenSchema = z.object({
    * Token de personagem usa `visao.alcanceM` do personagem. Sem o campo, sem limite.
    */
   alcanceVisaoM: z.number().positive().max(1000).optional(),
+  /** Visão no escuro, em metros, de um token SEM personagem (Lote 6). Sem o campo vale 0. */
+  visaoNoEscuroM: z.number().min(0).max(1000).optional(),
 });
 export type Token = z.infer<typeof TokenSchema>;
 
 export const PontoSchema = z.object({ x: z.number(), y: z.number() });
 export type Ponto = z.infer<typeof PontoSchema>;
+
+/** Luz de uma fonte: raio da luz plena e da penumbra (a penumbra começa onde a plena acaba). */
+export const LuzSchema = z.object({
+  claraM: z.number().min(0).max(500),
+  penumbraM: z.number().min(0).max(500),
+  /** Cor da luz, `#rrggbb`. */
+  cor: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+  tremula: z.boolean(),
+});
+export type Luz = z.infer<typeof LuzSchema>;
+
+/** De onde a luz sai: de um ponto da cena (fixa) ou de um token (criatura que brilha). */
+export const PortadorDeLuzSchema = z.discriminatedUnion("tipo", [
+  z.object({ tipo: z.literal("cena"), x: z.number(), y: z.number() }),
+  z.object({ tipo: z.literal("token"), tokenId: z.string().min(1).max(64) }),
+]);
+export type PortadorDeLuz = z.infer<typeof PortadorDeLuzSchema>;
+
+/**
+ * Fonte de luz (prévia do `ObjetoDeLuz` da 4.1; o Lote 7 acrescenta modelo, tempo e mochila).
+ * `intensidade` multiplica os dois raios (0 a 1).
+ */
+export const FonteDeLuzSchema = z.object({
+  id: z.string().min(1).max(64),
+  cenaId: z.string().min(1).max(64),
+  nome: z.string().min(1).max(64),
+  portador: PortadorDeLuzSchema,
+  luz: LuzSchema,
+  intensidade: z.number().min(0).max(1),
+  acesa: z.boolean(),
+});
+export type FonteDeLuz = z.infer<typeof FonteDeLuzSchema>;
+
+/** Parâmetros da iluminação e da memória do mapa (`ConfigDaMesa.iluminacao`). */
+export const ConfigIluminacaoSchema = z.object({
+  memoriaLigada: z.boolean(),
+  /** `inteligencia`: base + por modificador × mod; `fixo`: sempre `memoriaFixaM`. */
+  memoriaModo: z.enum(["inteligencia", "fixo"]),
+  memoriaBaseM: z.number().min(0).max(1000),
+  memoriaPorModM: z.number().min(0).max(100),
+  memoriaFixaM: z.number().min(0).max(1000),
+  /** Cor com que a lembrança aparece (a camada do mapa é escurecida por ela), `#rrggbb`. */
+  tomDaMemoria: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+});
+export type ConfigIluminacao = z.infer<typeof ConfigIluminacaoSchema>;
+
+/** Configuração da mesa, por campanha; só o mestre altera. O Lote 7 acrescenta o resto (4.1). */
+export const ConfigDaMesaSchema = z.object({ iluminacao: ConfigIluminacaoSchema });
+export type ConfigDaMesa = z.infer<typeof ConfigDaMesaSchema>;
+
+export const CONFIG_ILUMINACAO_PADRAO: ConfigIluminacao = {
+  memoriaLigada: true,
+  memoriaModo: "inteligencia",
+  memoriaBaseM: 15,
+  memoriaPorModM: 3,
+  memoriaFixaM: 15,
+  tomDaMemoria: "#6a7791",
+};
+
+export const CONFIG_PADRAO: ConfigDaMesa = { iluminacao: CONFIG_ILUMINACAO_PADRAO };
+
+/** Configuração gravada no banco (ou vinda de arquivo) com o que faltar preenchido pelo padrão. */
+export function configComPadrao(bruta: unknown): ConfigDaMesa {
+  const iluminacao =
+    typeof bruta === "object" && bruta !== null && "iluminacao" in bruta
+      ? (bruta as { iluminacao: unknown }).iluminacao
+      : undefined;
+  const r = ConfigIluminacaoSchema.partial().safeParse(iluminacao ?? {});
+  const dados = r.success
+    ? Object.fromEntries(Object.entries(r.data).filter(([, v]) => v !== undefined))
+    : {};
+  return { iluminacao: { ...CONFIG_ILUMINACAO_PADRAO, ...dados } };
+}
 
 export const TIPOS_DE_PAREDE = ["parede", "porta", "janela", "secreta", "invisivel"] as const;
 export const TipoDeParedeSchema = z.enum(TIPOS_DE_PAREDE);
@@ -161,6 +243,11 @@ export const PersonagemSchema = z.object({
     alcanceM: z.number().positive().max(1000).nullable(),
     visaoNoEscuroM: z.number().min(0).max(1000),
   }),
+  /**
+   * Modificador de Inteligência (Lote 6): decide o alcance da memória do mapa. Sem o campo vale 0.
+   * Até a ficha completa (Lote 9) é um campo do editor do item.
+   */
+  modInteligencia: z.number().int().min(-5).max(10).optional(),
   /** Ficha mínima até o Lote 9. */
   ficha: z.object({
     pvAtual: z.number().int().min(0).max(9999),
@@ -188,6 +275,18 @@ export const EstadoSchema = z.object({
    * (fechada vira `parede`, aberta vira `porta` aberta).
    */
   paredes: z.array(ParedeSchema),
+  /**
+   * Fontes de luz (Lote 6). Na visão de um jogador: só as da cena ativa, sem a de token que ele não vê
+   * (oculto ou da camada do mestre).
+   */
+  luzes: z.array(FonteDeLuzSchema),
+  /** Configuração da mesa (por ora só a iluminação). Todos recebem. */
+  config: ConfigDaMesaSchema,
+  /**
+   * Quando o mestre mandou esquecer a memória de cada cena (o `seq` do evento). O navegador compara
+   * com o que ele já aplicou. Na visão de um jogador: só a cena ativa. Não entra na exportação.
+   */
+  memoriaEsquecida: z.record(z.string(), z.number().int().nonnegative()).optional(),
   /** Na visão de um jogador: só as pastas que ele vê. */
   pastas: z.array(PastaSchema),
   /** Na visão de um jogador: os que ele edita e os das pastas que ele vê. */

@@ -36,6 +36,11 @@ type Props = {
   /** Iluminação dinâmica da cena que o mestre olha (liga/desliga a visão por paredes dos jogadores). */
   iluminacaoDinamica: boolean;
   aoAlternarIluminacao: () => void;
+  /** O painel de fontes de luz e o de configurações estão abertos? */
+  fontesAbertas: boolean;
+  aoAlternarFontes: () => void;
+  configAberta: boolean;
+  aoAlternarConfig: () => void;
   /** A ferramenta de paredes e portas está ativa? */
   paredesAtivas: boolean;
   aoAlternarParedes: () => void;
@@ -56,6 +61,8 @@ function Botao(props: {
   testid: string;
   titulo: string;
   ativo?: boolean;
+  /** Mostra um pontinho de alerta no ícone (algo importante está desligado). */
+  alerta?: boolean;
   gatilho?: boolean;
   aoClicar: () => void;
   /** Clique direito (o menu de contexto do navegador não abre). */
@@ -65,7 +72,7 @@ function Botao(props: {
   return (
     <button
       type="button"
-      className="botao-icone"
+      className={props.alerta ? "botao-icone com-alerta" : "botao-icone"}
       data-testid={props.testid}
       title={props.titulo}
       aria-label={props.titulo}
@@ -89,6 +96,8 @@ type ItemDaLista = {
   icone: ReactNode;
   /** `true`/`false`: item de liga/desliga (mostra o visto quando ligado). */
   marcado?: boolean;
+  /** Mostra o estado por extenso ("Ligada", "Desligada") em destaque, além do visto. */
+  estado?: { ligado: boolean; ligadoRotulo: string; desligadoRotulo: string };
   desabilitado?: boolean;
   dica?: string;
   aoClicar: () => void;
@@ -132,7 +141,16 @@ function ListaDoMenu(props: {
         >
           {i.icone}
           <span>{i.rotulo}</span>
-          {i.marcado && <Check size={14} className="item-menu-visto" />}
+          {i.estado && (
+            <span
+              className="item-menu-estado"
+              data-testid={`${props.testid}-${i.id}-estado`}
+              data-ligado={i.estado.ligado}
+            >
+              {i.estado.ligado ? i.estado.ligadoRotulo : i.estado.desligadoRotulo}
+            </span>
+          )}
+          {i.marcado && !i.estado && <Check size={14} className="item-menu-visto" />}
         </button>
       ))}
     </div>
@@ -216,8 +234,13 @@ export function MenuSuperior(p: Props) {
         <div className="botao-com-lista">
           <Botao
             testid="menu-iluminacao"
-            titulo="Iluminação"
+            titulo={
+              p.iluminacaoDinamica
+                ? "Iluminação"
+                : "Iluminação (a iluminação dinâmica está DESLIGADA nesta cena)"
+            }
             ativo={aberto === "iluminacao" || p.paredesAtivas}
+            alerta={!p.iluminacaoDinamica}
             gatilho
             aoClicar={() => alternar("iluminacao")}
           >
@@ -234,6 +257,11 @@ export function MenuSuperior(p: Props) {
                   rotulo: "Iluminação dinâmica",
                   icone: <Lightbulb size={16} />,
                   marcado: p.iluminacaoDinamica,
+                  estado: {
+                    ligado: p.iluminacaoDinamica,
+                    ligadoRotulo: "Ligada",
+                    desligadoRotulo: "Desligada",
+                  },
                   aoClicar: p.aoAlternarIluminacao,
                 },
                 {
@@ -247,17 +275,15 @@ export function MenuSuperior(p: Props) {
                   id: "fontes",
                   rotulo: "Fontes de luz",
                   icone: <Flame size={16} />,
-                  desabilitado: true,
-                  dica: "Em breve (Lotes 6 e 7)",
-                  aoClicar: () => {},
+                  marcado: p.fontesAbertas,
+                  aoClicar: p.aoAlternarFontes,
                 },
                 {
                   id: "config",
                   rotulo: "Configurações de iluminação",
                   icone: <SlidersHorizontal size={16} />,
-                  desabilitado: true,
-                  dica: "Em breve (Lote 6)",
-                  aoClicar: () => {},
+                  marcado: p.configAberta,
+                  aoClicar: p.aoAlternarConfig,
                 },
               ]}
             />

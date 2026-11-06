@@ -425,7 +425,7 @@ describe("exportação v5 e importação de v1 e v2", () => {
   it("a exportação traz cenas, cena ativa, tokens e assets, em versão 5", () => {
     const e = criarEstado();
     const x = criarExportacao(e, AGORA);
-    expect(x.versao).toBe(6);
+    expect(x.versao).toBe(7);
     expect(x.dados.tokens).toHaveLength(3);
     expect(x.dados.cenas).toEqual(e.cenas);
     const lida = lerExportacao(JSON.parse(JSON.stringify(x)));
@@ -439,7 +439,7 @@ describe("exportação v5 e importação de v1 e v2", () => {
     const lida = lerExportacao(v1);
     expect(lida.ok).toBe(true);
     if (!lida.ok) return;
-    expect(lida.exportacao.versao).toBe(6);
+    expect(lida.exportacao.versao).toBe(7);
     expect(lida.exportacao.dados.assets).toEqual([]);
     expect(lida.exportacao.dados.cenas).toEqual([CENA_PADRAO]);
     expect(lida.exportacao.dados.cenaAtivaId).toBe("cena-1");

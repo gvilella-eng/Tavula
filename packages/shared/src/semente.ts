@@ -2,7 +2,10 @@ import { z } from "zod";
 import { PERMISSOES_PADRAO } from "./capacidades.ts";
 import {
   CenaSchema,
+  CONFIG_PADRAO,
+  ConfigDaMesaSchema,
   type Estado,
+  FonteDeLuzSchema,
   ParedeSchema,
   PastaSchema,
   PermissoesSchema,
@@ -21,6 +24,8 @@ export const SementeSchema = z.object({
   cenaAtivaId: z.string().optional(),
   tokens: z.array(TokenSchema).optional(),
   paredes: z.array(ParedeSchema).optional(),
+  luzes: z.array(FonteDeLuzSchema).optional(),
+  config: ConfigDaMesaSchema.optional(),
   pastas: z.array(PastaSchema).optional(),
   personagens: z.array(PersonagemSchema).optional(),
 });
@@ -43,6 +48,8 @@ export function estadoInicial(bruta: unknown): Estado {
     cenaAtivaId: semente.cenaAtivaId ?? cenas[0]?.id ?? CENA_PADRAO.id,
     tokens: semente.tokens ?? [],
     paredes: semente.paredes ?? [],
+    luzes: semente.luzes ?? [],
+    config: semente.config ?? CONFIG_PADRAO,
     pastas: semente.pastas ?? pastasPadrao(),
     personagens: semente.personagens ?? [],
     ordemDeTurnoVisivel: false,

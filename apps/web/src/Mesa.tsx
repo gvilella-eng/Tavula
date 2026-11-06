@@ -1,4 +1,5 @@
 import {
+  alcanceDaMemoria,
   alcanceDeVisao,
   controlaToken,
   type Exportacao,
@@ -6,9 +7,11 @@ import {
   encaixarNoGrid,
   hashesPreparaveis,
   iluminacaoDinamicaLigada,
+  modInteligenciaDe,
   podeMoverToken,
   type TipoDeParede,
   type Token,
+  visaoNoEscuroDe,
   visaoPara,
 } from "@tabletop/shared";
 import { BookOpen, Crown, MessagesSquare, NotebookText, Settings } from "lucide-react";
@@ -39,6 +42,8 @@ import type {
 } from "./mapa/mapaPixi";
 import { OrdemDeTurno } from "./OrdemDeTurno";
 import { PainelDasParedes } from "./PainelDasParedes";
+import { PainelDeFontesDeLuz } from "./PainelDeFontesDeLuz";
+import { PainelDeIluminacao } from "./PainelDeIluminacao";
 import { PainelDoMestre } from "./PainelDoMestre";
 import { PainelDoToken } from "./PainelDoToken";
 import { gravarEncaixePadrao, lerEncaixePadrao } from "./preferencias";
@@ -104,6 +109,10 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
   const [visaoNoturna, setVisaoNoturna] = useState(true);
   const [paredeSelecionadaId, setParedeSelecionadaId] = useState<string | null>(null);
   const [tipoDaNovaParede, setTipoDaNovaParede] = useState<TipoDeParede>("parede");
+  // Painéis do mestre (menu da lanterna): fontes de luz e configurações de iluminação.
+  const [fontesAbertas, setFontesAbertas] = useState(false);
+  const [configAberta, setConfigAberta] = useState(false);
+  const [luzSelecionadaId, setLuzSelecionadaId] = useState<string | null>(null);
   // "Ver como o jogador X" (só da tela do mestre): `null` = ele mesmo.
   const [verComoId, setVerComoId] = useState<string | null>(null);
   const [avisoLocal, setAvisoLocal] = useState<{ numero: number; texto: string } | null>(null);
@@ -259,7 +268,17 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
   // iluminação dinâmica desligada, ou sem nenhum jogador (visão noturna), fica toda clara.
   const iluminada = cena ? iluminacaoDinamicaLigada(cena) : true;
   const visaoCalculada: ConfigDeVisao = (() => {
-    if (!estado || !eu || !cena || !iluminada) return { modo: "claro", fontes: [] };
+    const semMemoria = { ligada: false, tom: "#56627a", usuarioId: "", esquecimento: 0 };
+    if (!estado || !eu || !cena || !iluminada) {
+      return { modo: "claro", fontes: [], memoria: semMemoria };
+    }
+    const configLuz = estado.config.iluminacao;
+    const memoria = {
+      ligada: configLuz.memoriaLigada,
+      tom: configLuz.tomDaMemoria,
+      usuarioId: (usuarioVisto ?? eu).id,
+      esquecimento: estado.memoriaEsquecida?.[cena.id] ?? 0,
+    };
     const donos = modoMestre
       ? estado.usuarios.filter((u) => u.papel === "jogador")
       : [usuarioVisto ?? eu];
@@ -267,9 +286,14 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
       .filter(
         (t) => t.cenaId === cena.id && donos.some((u) => controlaToken(t, u, estado.personagens)),
       )
-      .map((t) => ({ tokenId: t.id, alcanceM: alcanceDeVisao(t, estado.personagens) }));
-    if (!modoMestre) return { modo: "jogador", fontes };
-    return { modo: visaoNoturna && fontes.length > 0 ? "noturna" : "claro", fontes };
+      .map((t) => ({
+        tokenId: t.id,
+        alcanceM: alcanceDeVisao(t, estado.personagens),
+        visaoNoEscuroM: visaoNoEscuroDe(t, estado.personagens),
+        memoriaM: alcanceDaMemoria(configLuz, modInteligenciaDe(t, estado.personagens)),
+      }));
+    if (!modoMestre) return { modo: "jogador", fontes, memoria };
+    return { modo: visaoNoturna && fontes.length > 0 ? "noturna" : "claro", fontes, memoria };
   })();
   const chaveDaVisao = JSON.stringify(visaoCalculada);
   const visao = useMemo(() => JSON.parse(chaveDaVisao) as ConfigDeVisao, [chaveDaVisao]);
@@ -299,6 +323,25 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
         setParedeSelecionadaId(null);
       },
       alternarPorta: (id) => enviar("porta.alternar", { id }),
+      colocarLuz: (cenaId, x, y) => {
+        const id = `luz-${crypto.randomUUID().slice(0, 8)}`;
+        enviar("fonte.criar", {
+          cenaId,
+          fonte: {
+            id,
+            nome: "Luz fixa",
+            portador: { tipo: "cena", x, y },
+            luz: { claraM: 6, penumbraM: 6, cor: "#ffb347", tremula: true },
+            intensidade: 1,
+            acesa: true,
+          },
+        });
+        setLuzSelecionadaId(id);
+        setFerramenta("selecionar");
+      },
+      moverLuz: (id, x, y) =>
+        enviar("fonte.editar", { id, mudancas: { portador: { tipo: "cena", x, y } } }),
+      selecionarLuz: setLuzSelecionadaId,
       trancarPorta: (id) => {
         const atual = estadoAtual.current?.paredes.find((x) => x.id === id);
         if (!atual) return;
@@ -313,7 +356,12 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
 
   const opcoes = useMemo(
     () => ({
-      ferramenta: ferramenta === "paredes" && !modoMestre ? ("selecionar" as const) : ferramenta,
+      ferramenta:
+        (ferramenta === "paredes" || ferramenta === "luz") && !modoMestre
+          ? ("selecionar" as const)
+          : ferramenta,
+      mostrarLuzes: fontesAbertas,
+      luzSelecionadaId,
       euMestre,
       modoMestre,
       paredeSelecionadaId: paredeSelecionada?.id ?? null,
@@ -337,6 +385,8 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
     }),
     [
       ferramenta,
+      fontesAbertas,
+      luzSelecionadaId,
       euMestre,
       modoMestre,
       paredeSelecionada?.id,
@@ -351,6 +401,13 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
       personagens,
     ],
   );
+
+  function alternarFontes() {
+    const abrindo = !fontesAbertas;
+    setFontesAbertas(abrindo);
+    setLuzSelecionadaId(null);
+    if (!abrindo && ferramenta === "luz") setFerramenta("selecionar");
+  }
 
   function alternarParedes() {
     const entrando = ferramenta !== "paredes";
@@ -542,6 +599,7 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
             cena={cena}
             tokens={estadoVisto?.tokens ?? estado.tokens}
             paredes={estadoVisto?.paredes ?? estado.paredes}
+            luzes={estadoVisto?.luzes ?? estado.luzes}
             opcoes={opcoes}
             retornos={retornos}
             imagens={imagens}
@@ -575,6 +633,10 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
               aoAlternarIluminacao={() =>
                 enviar("cena.configurarIluminacao", { cenaId: cena.id, dinamica: !iluminada })
               }
+              fontesAbertas={fontesAbertas}
+              aoAlternarFontes={alternarFontes}
+              configAberta={configAberta}
+              aoAlternarConfig={() => setConfigAberta(!configAberta)}
               paredesAtivas={ferramenta === "paredes" && modoMestre}
               aoAlternarParedes={alternarParedes}
               jogadores={estado.usuarios.filter((u) => u.papel === "jogador")}
@@ -654,6 +716,27 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
                 setParedeSelecionadaId(null);
               }}
               aoFechar={alternarParedes}
+            />
+          )}
+          {modoMestre && fontesAbertas && (
+            <PainelDeFontesDeLuz
+              cena={cena}
+              fontes={estado.luzes.filter((l) => l.cenaId === cena.id)}
+              tokens={estado.tokens.filter((t) => t.cenaId === cena.id)}
+              selecionadaId={luzSelecionadaId}
+              aoSelecionar={setLuzSelecionadaId}
+              colocando={ferramenta === "luz"}
+              aoColocar={() => setFerramenta(ferramenta === "luz" ? "selecionar" : "luz")}
+              enviar={enviar}
+              aoFechar={alternarFontes}
+            />
+          )}
+          {modoMestre && configAberta && (
+            <PainelDeIluminacao
+              cena={cena}
+              config={estado.config.iluminacao}
+              enviar={enviar}
+              aoFechar={() => setConfigAberta(false)}
             />
           )}
           {modoMestre && ferramenta !== "paredes" && selecionado && (

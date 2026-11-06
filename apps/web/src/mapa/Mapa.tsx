@@ -1,4 +1,4 @@
-import type { Cena, Parede, Token } from "@tabletop/shared";
+import type { Cena, FonteDeLuz, Parede, Token } from "@tabletop/shared";
 import { useEffect, useRef } from "react";
 import { TIPO_DE_ARRASTO_DA_FICHA } from "../arrasto";
 import { type ImagensDoMapa, MapaPixi, type OpcoesDoMapa, type RetornosDoMapa } from "./mapaPixi";
@@ -7,6 +7,7 @@ type Props = {
   cena: Cena;
   tokens: Token[];
   paredes: Parede[];
+  luzes: FonteDeLuz[];
   opcoes: OpcoesDoMapa;
   retornos: RetornosDoMapa;
   /** As imagens locais (mapa e tokens). `versaoDasImagens` muda quando algo novo chega ao cache. */
@@ -23,6 +24,7 @@ export function Mapa({
   cena,
   tokens,
   paredes,
+  luzes,
   opcoes,
   retornos,
   imagens,
@@ -34,19 +36,20 @@ export function Mapa({
   const mapa = useRef<MapaPixi | null>(null);
   const retornosAtuais = useRef(retornos);
   retornosAtuais.current = retornos;
-  const dadosIniciais = useRef({ cena, tokens, paredes, opcoes, imagens });
+  const dadosIniciais = useRef({ cena, tokens, paredes, luzes, opcoes, imagens });
   const aoCriarAtual = useRef(aoCriar);
   aoCriarAtual.current = aoCriar;
 
   useEffect(() => {
     const el = host.current;
     if (!el) return;
-    const { cena, tokens, paredes, opcoes, imagens } = dadosIniciais.current;
+    const { cena, tokens, paredes, luzes, opcoes, imagens } = dadosIniciais.current;
     const m = new MapaPixi(el, () => retornosAtuais.current, opcoes);
     if (imagens) m.definirImagens(imagens);
     m.definirCena(cena);
     m.definirTokens(tokens);
     m.definirParedes(paredes);
+    m.definirLuzes(luzes);
     mapa.current = m;
     m.iniciar().catch((e) => console.error("Falha ao iniciar o mapa", e));
     aoCriarAtual.current(m);
@@ -60,6 +63,7 @@ export function Mapa({
   useEffect(() => mapa.current?.definirCena(cena), [cena]);
   useEffect(() => mapa.current?.definirTokens(tokens), [tokens]);
   useEffect(() => mapa.current?.definirParedes(paredes), [paredes]);
+  useEffect(() => mapa.current?.definirLuzes(luzes), [luzes]);
   useEffect(() => mapa.current?.definirOpcoes(opcoes), [opcoes]);
   // biome-ignore lint/correctness/useExhaustiveDependencies: a versão avisa que o cache de imagens mudou
   useEffect(() => {

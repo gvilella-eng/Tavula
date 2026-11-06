@@ -30,6 +30,22 @@ export type GanchoDoMapa = {
   visao(): { modo: "jogador" | "noturna" | "claro"; poligonos: number };
   veNoPonto(x: number, y: number): boolean;
   veuVisivel(): boolean;
+  /** O que o jogador vê no ponto (luz ∩ visão, ou visão no escuro): nenhuma, cinza, penumbra ou plena. */
+  visaoNoPonto(x: number, y: number): "nenhuma" | "cinza" | "penumbra" | "plena";
+  nivelNoPonto(x: number, y: number): number;
+  /** As luzes que valem agora, com os raios já multiplicados (intensidade × fator geral). */
+  luzes(): { id: string; x: number; y: number; claraM: number; totalM: number }[];
+  memoria(): {
+    carregada: boolean;
+    lembradas: number;
+    pendente: boolean;
+    esquecimento: number;
+    /** O alcance da memória (m) de cada token do jogador. */
+    alcancesM: number[];
+  };
+  lembraNoPonto(x: number, y: number): boolean;
+  opacidadeDaMemoria(x: number, y: number): number;
+  marcasDeLuz(): { id: string; x: number; y: number }[];
 };
 
 export const tokensDe = (p: Page) =>

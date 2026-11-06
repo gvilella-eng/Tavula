@@ -1,6 +1,6 @@
 # Protocolo cliente ↔ sala
 
-## Versão atual: v1 (Lotes 1, 2, 3, 4, 4b e 5)
+## Versão atual: v1 (Lotes 1, 2, 3, 4, 4b, 5 e 6)
 
 Os schemas zod ficam em `packages/shared/src/protocolo.ts` e `estado.ts`; a lógica pura (conferir
 capacidade, aplicar, filtrar por papel) em `nucleo.ts` e `capacidades.ts`. O cliente e a sala validam
@@ -200,8 +200,10 @@ um jogador também não traz os tokens invisíveis (`visaoPara`). O cliente apli
 Estado { seq, usuarios: Usuario[], permissoes: Permissoes, notaMesa, notaMestre?,
          cenas: Cena[] /* jogador: só a ativa */, cenaAtivaId, tokens: Token[],
          pastas: Pasta[] /* jogador: as que vê */, personagens: Personagem[] /* jogador: os que edita ou de pasta que vê */,
+         paredes: Parede[] /* Lote 5 */, luzes: FonteDeLuz[] /* Lote 6; jogador: as da cena ativa que ele pode ver */,
+         config: ConfigDaMesa /* Lote 6; todos */, memoriaEsquecida?: Record<cenaId, seq> /* Lote 6; jogador: só a ativa */,
          ordemDeTurnoVisivel: boolean, assets?: AssetMeta[] /* só na visão do mestre */ }
-Cena  { id, nome, larguraM, alturaM, grid: { quadradoM, visivel },          // padrão: cena-1, 60 x 45 m, quadrado 1,5 m
+Cena  { id, nome, larguraM, alturaM, grid: { quadradoM, visivel }, iluminacaoDinamica?, luzAmbiente?, fatorDeLuz?, // Lotes 5 e 6          // padrão: cena-1, 60 x 45 m, quadrado 1,5 m
         mapa?: { assetHash, pxPorQuadrado },
         chegada?: { x, y } /* onde o grupo chega; padrão: o centro */ }
 Token { id, cenaId, nome, cor, tamanhoQuadrados (1..4), x, y /* centro, em metros */,
@@ -330,14 +332,14 @@ jogador: nunca as exclusivas do mestre; senão a exceção por usuário, se houv
 
 ### Exportação
 
-`{ formato: "tabletop-campanha", versao: 6, exportadoEm, dados: { seq, usuarios, permissoes, notaMesa, notaMestre, cenas, cenaAtivaId, tokens, paredes, pastas, personagens, ordemDeTurnoVisivel, assets } }`. A **v6** (Lote 5) acrescenta `paredes`; `Cena.iluminacaoDinamica` e `Token.alcanceVisaoM` são campos opcionais dentro de cenas e tokens (ausentes nos arquivos antigos: iluminação ligada, visão sem limite). De v1 a v5 continuam aceitas (o resultado é sempre v6, com `paredes: []`); ids de parede únicos e cena existente são conferidos.
+`{ formato: "tabletop-campanha", versao: 7, exportadoEm, dados: { seq, usuarios, permissoes, notaMesa, notaMestre, cenas, cenaAtivaId, tokens, paredes, luzes, config, pastas, personagens, ordemDeTurnoVisivel, assets } }`. A **v7** (Lote 6) acrescenta `luzes` (as fontes de luz) e `config` (`ConfigDaMesa`); `Cena.luzAmbiente`/`fatorDeLuz`, `Token.visaoNoEscuroM` e `Personagem.modInteligencia` são campos opcionais (ausentes nos arquivos antigos: cena em luz de dia, sem visão no escuro, modificador 0) e `memoriaEsquecida` **nunca** entra (é dado da sessão); ids de fonte únicos, em cena existente e, se presas a token, a token da mesma cena são conferidos. De v1 a v6 continuam aceitas (o resultado é sempre v7, com `luzes: []` e a configuração padrão). A **v6** (Lote 5) acrescenta `paredes`; `Cena.iluminacaoDinamica` e `Token.alcanceVisaoM` são campos opcionais dentro de cenas e tokens (ausentes nos arquivos antigos: iluminação ligada, visão sem limite). ids de parede únicos e cena existente são conferidos.
 Sem contadores de uso nem presença. `assets` são **só as metas dos assets usados** (mapas das cenas, imagens
 dos tokens e os tiles deles), **nunca bytes**; `Cena.mapa` e `Token.assetHash` vão nos próprios objetos. A **v5**
 (Lote 4b) acrescenta `pastas` e `ordemDeTurnoVisivel` e troca, nos personagens, `donoId` por `editores` e `pastaId` (mais `retratoHash`). A **v4**
 (Lote 4, personagens com `donoId`) é migrada na importação: o dono vira "quem edita" e o personagem vai para a pasta "Personagens" (ou "NPCs"), só do mestre. Os
 **preparos** (chaves do pré-envio) e os assets `cifrado` **nunca** entram. A **v3** (Lote 3, sem `personagens`), a **v2**
 (Lote 2, sem `assets`) e a **v1** (Lote 1, sem `cenas`, `cenaAtivaId` nem `tokens`) continuam sendo aceitas na
-importação: o resultado é sempre v6 (a v5 só ganha `paredes: []`), com `personagens: []`, `assets: []` e as duas pastas padrão onde faltavam; a v1 vira a cena padrão e nenhum token. Quem importa um mapa precisa
+importação: o resultado é sempre v7 (a v5 só ganha `paredes: []`, e a v6 só `luzes: []` e a configuração padrão), com `personagens: []`, `assets: []` e as duas pastas padrão onde faltavam; a v1 vira a cena padrão e nenhum token. Quem importa um mapa precisa
 de alguém online com os arquivos (o cache dos navegadores serve; se ninguém tiver, o jogo mostra "indisponível").
 Na importação a sala valida com zod e ainda exige: ids de usuário
 únicos, pelo menos um mestre, exceções só para usuários existentes, ids de cena, de token e de personagem únicos, cena ativa
@@ -395,6 +397,59 @@ esconder de verdade, marque como oculto). O navegador calcula o polígono de vis
 mestre e o "ver como o jogador X" são estado só da tela dele (o "ver como" aplica `visaoPara` localmente).
 
 Novos códigos de erro: `parede_inexistente`, `porta_inexistente`, `porta_trancada`, `fora_de_alcance`, `trajeto_bloqueado`.
+
+### Luz, visão no escuro e memória do mapa (Lote 6)
+
+**Tudo só de tela** (PROJETO.md 3.1, princípio 2): luz, escuro, visão no escuro e memória são calculados no
+navegador. A sala só guarda as **fontes de luz**, a **configuração** e a luz ambiente e o fator geral de cada cena;
+um token que só está no escuro chega ao navegador e simplesmente não é desenhado. Para esconder de verdade,
+marque o token como oculto.
+
+```
+FonteDeLuz { id, cenaId, nome, portador: { tipo: "cena", x, y } | { tipo: "token", tokenId },
+             luz: { claraM, penumbraM, cor: "#rrggbb", tremula }, intensidade: 0..1, acesa }
+ConfigDaMesa { iluminacao: { memoriaLigada, memoriaModo: "inteligencia" | "fixo", memoriaBaseM (15),
+                             memoriaPorModM (3), memoriaFixaM (15), tomDaMemoria: "#rrggbb" } }
+```
+
+- **Raio efetivo** (`raiosEfetivos`): os dois raios (luz plena e luz plena + penumbra) × `intensidade` × `Cena.fatorDeLuz`
+  (sem o campo: 1). A luz ambiente da cena (`Cena.luzAmbiente`, 0 a 1; **sem o campo vale 1**, para não escurecer campanha
+  antiga sem aviso) soma uma luz uniforme.
+- **Nível de luz num ponto** (`nivelDeLuz`): ambiente + 0,5 por luz cuja penumbra chega ali + 0,5 por luz cuja luz plena chega (as
+  paredes que bloqueiam a visão bloqueiam a luz), limitado a 1. Classes: `plena` (≥ 0,95), `penumbra` (≥ 0,45), `escuro`.
+- **O que o jogador vê** (`visaoNoPonto`): a interseção da luz com a visão dos tokens que ele controla. Plena aparece normal;
+  penumbra, mais escura; escuro, nada. Dentro da visão no escuro (`Personagem.visao.visaoNoEscuroM`, ou `Token.visaoNoEscuroM` sem
+  personagem; também parada pelas paredes e pelo alcance de visão), o escuro aparece em **cinza** e a penumbra vale como luz plena.
+  Token só é desenhado onde o jogador o vê.
+- **Memória do mapa** (`memoria.ts`): só de tela, em IndexedDB por usuário e cena, grade de 0,5 m. Onde o jogador já viu, fora do que vê agora, aparece
+  só a camada do mapa, escurecida pelo `tomDaMemoria`, com opacidade que cai em linha reta com a distância até o token mais próximo (pelo alcance
+  de cada um). Alcance (`alcanceDaMemoria`): modo `inteligencia` = `memoriaBaseM` + `memoriaPorModM` × `Personagem.modInteligencia` (15 m + 3 m × mod),
+  nunca abaixo de 0; `fixo` = `memoriaFixaM`; `memoriaLigada: false` = sem memória. O que passa do alcance de todos os tokens do jogador é **apagado**.
+
+| `tipo` | `dados` | Capacidade | Efeito |
+|---|---|---|---|
+| `fonte.criar` | `{ cenaId?, fonte: { id, nome, portador, luz, intensidade, acesa } }` | `cena.editar` | cria a fonte (cena omitida: a ativa). O ponto da luz fixa é limitado à cena; fonte presa a token exige o token na mesma cena (`token_inexistente`); `dados_invalidos` se o id existe; `cena_inexistente` |
+| `fonte.editar` | `{ id, mudancas: { nome?, portador?, luz?: { claraM?, penumbraM?, cor?, tremula? }, intensidade?, acesa? } }` | `cena.editar` | muda a fonte (mover a luz fixa = trocar o `portador`); sem mudança real não gera evento; `fonte_inexistente` |
+| `fonte.apagar` | `{ id }` | `cena.editar` | apaga a fonte; `fonte_inexistente` |
+| `cena.configurarIluminacao` | `{ cenaId?, dinamica?, luzAmbiente?, fatorDeLuz? }` | `cena.editar` | só muda o que vier (dinâmica liga/desliga a visão por paredes; `luzAmbiente` e `fatorDeLuz` de 0 a 1); emite `cena.editada` |
+| `config.iluminacao` | `{ mudancas: Partial<ConfigIluminacao> }` | `mesa.configurar` | muda os parâmetros da iluminação e da memória; emite `config.alterada` |
+| `memoria.esquecer` | `{ cenaId? }` | `mesa.configurar` | manda todos os navegadores esquecerem a memória da cena (omitida: a ativa); emite `memoria.esquecida` |
+
+`token.editar` aceita `visaoNoEscuroM` (`null` = 0) e `personagem.editar` aceita `modInteligencia` (inteiro de −5 a 10; sem o campo vale 0).
+`token.apagar` e `personagem.apagar` apagam também as fontes presas ao token; `cena.apagar` apaga as da cena; `cena.duplicar` copia as fixas
+(as presas a token seguem o token copiado); `grupo.moverPara` leva junto a luz presa ao token que muda de cena (`cenaId` da fonte acompanha).
+
+**Eventos** `fonte.criada`, `fonte.editada` (fonte inteira; upsert), `fonte.apagada { id }`, `config.alterada { config }` (todos) e
+`memoria.esquecida { cenaId, versao }`, em que `versao` é o `seq` do evento e fica em `Estado.memoriaEsquecida[cenaId]` (o navegador guarda a última
+versão que aplicou junto da memória e esquece também se estava offline). Quem recebe:
+
+- **mestres**: tudo;
+- **jogador**: só fontes da cena ativa e **sem a de token que ele não vê** (oculto ou da camada do mestre): a luz de um goblin escondido o
+  entregaria (`luzVisivelPara`). A fonte que deixa de ser visível chega como `fonte.apagada`, sem motivo. Esconder (ou mostrar) um token que carrega
+  luz manda **snapshot novo a todos** (o filtro de evento cuida de um evento por vez). `memoria.esquecida` só da cena ativa; o snapshot do jogador só
+  traz `memoriaEsquecida` dela. `config.alterada`: todos.
+
+Novo código de erro: `fonte_inexistente`.
 
 ### Contador de uso
 

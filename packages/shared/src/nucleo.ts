@@ -8,7 +8,17 @@ import {
   validarMeta,
 } from "./assets.ts";
 import { ehCapacidadeDelegavel, pode } from "./capacidades.ts";
-import type { Cena, Estado, Parede, Pasta, Personagem, Token, Usuario } from "./estado.ts";
+import type {
+  Cena,
+  Estado,
+  FonteDeLuz,
+  Parede,
+  Pasta,
+  Personagem,
+  Token,
+  Usuario,
+} from "./estado.ts";
+import { fatorDeLuzDa, luzAmbienteDa, luzVisivelPara } from "./luz.ts";
 import {
   arrumarNoGrid,
   CENA_PADRAO,
@@ -119,6 +129,14 @@ function estadoDaParede(
   return tipo === "porta" || tipo === "secreta" ? { estado: estado ?? "fechada" } : {};
 }
 
+/** Um jogador qualquer: serve para saber se um token é visível aos jogadores (oculto e camada do mestre não são). */
+const JOGADOR_QUALQUER = { id: "-", papel: "jogador" } as const;
+
+/** Fontes de luz presas ao token. */
+function luzesDoToken(estado: Estado, tokenId: string): FonteDeLuz[] {
+  return estado.luzes.filter((l) => l.portador.tipo === "token" && l.portador.tokenId === tokenId);
+}
+
 function usuariosExistem(estado: Estado, ids: string[]): boolean {
   return ids.every((id) => estado.usuarios.some((u) => u.id === id));
 }
@@ -155,12 +173,14 @@ function totalDeMestres(estado: Estado): number {
 /** Só os metadados dos assets que a campanha usa (mapas, imagens de tokens e tiles): nunca bytes. */
 export function criarExportacao(estado: Estado, agora: string): Exportacao {
   const usados = hashesUsados(estado);
+  // A memória esquecida é dado da sessão, não da campanha.
+  const { memoriaEsquecida: _sessao, ...campanha } = estado;
   return {
     formato: "tabletop-campanha",
     versao: VERSAO_EXPORTACAO,
     exportadoEm: agora,
     dados: {
-      ...estado,
+      ...campanha,
       notaMestre: estado.notaMestre ?? "",
       assets: (estado.assets ?? []).filter((a) => usados.has(a.hash)),
     },
@@ -168,7 +188,7 @@ export function criarExportacao(estado: Estado, agora: string): Exportacao {
 }
 
 /**
- * Valida um arquivo de exportação (de v1 a v6; o resultado é sempre v6): formato, ids únicos, pelo
+ * Valida um arquivo de exportação (de v1 a v7; o resultado é sempre v7): formato, ids únicos, pelo
  * menos um mestre, exceções válidas, cena ativa, pastas, personagens e tokens coerentes.
  */
 export function lerExportacao(
@@ -179,8 +199,18 @@ export function lerExportacao(
     const problema = r.error.issues[0];
     return { ok: false, motivo: `${problema?.path.join(".") ?? ""}: ${problema?.message ?? ""}` };
   }
-  const { usuarios, permissoes, cenas, cenaAtivaId, tokens, assets, personagens, pastas, paredes } =
-    r.data.dados;
+  const {
+    usuarios,
+    permissoes,
+    cenas,
+    cenaAtivaId,
+    tokens,
+    assets,
+    personagens,
+    pastas,
+    paredes,
+    luzes,
+  } = r.data.dados;
   const ids = new Set(usuarios.map((u) => u.id));
   if (ids.size !== usuarios.length) return { ok: false, motivo: "ids de usuário repetidos" };
   if (!usuarios.some((u) => u.papel === "mestre"))
@@ -200,6 +230,20 @@ export function lerExportacao(
   for (const p of paredes) {
     if (!idsDeCenas.has(p.cenaId)) {
       return { ok: false, motivo: `parede em cena desconhecida: ${p.id}` };
+    }
+  }
+  if (new Set(luzes.map((l) => l.id)).size !== luzes.length) {
+    return { ok: false, motivo: "ids de fonte de luz repetidos" };
+  }
+  for (const l of luzes) {
+    if (!idsDeCenas.has(l.cenaId)) {
+      return { ok: false, motivo: `fonte de luz em cena desconhecida: ${l.id}` };
+    }
+    if (l.portador.tipo === "token") {
+      const id = l.portador.tokenId;
+      if (!tokens.some((t) => t.id === id && t.cenaId === l.cenaId)) {
+        return { ok: false, motivo: `fonte de luz presa a token inexistente: ${l.id}` };
+      }
     }
   }
   const idsDePersonagens = new Set(personagens.map((p) => p.id));
@@ -313,6 +357,26 @@ export function reduzir(estado: Estado, evento: EventoSala): Estado {
     }
     case "parede.apagada":
       return { ...base, paredes: base.paredes.filter((x) => x.id !== evento.dados.id) };
+    case "fonte.criada":
+    case "fonte.editada": {
+      const { fonte } = evento.dados;
+      const existe = base.luzes.some((x) => x.id === fonte.id);
+      return {
+        ...base,
+        luzes: existe
+          ? base.luzes.map((x) => (x.id === fonte.id ? fonte : x))
+          : [...base.luzes, fonte],
+      };
+    }
+    case "fonte.apagada":
+      return { ...base, luzes: base.luzes.filter((x) => x.id !== evento.dados.id) };
+    case "config.alterada":
+      return { ...base, config: evento.dados.config };
+    case "memoria.esquecida":
+      return {
+        ...base,
+        memoriaEsquecida: { ...base.memoriaEsquecida, [evento.dados.cenaId]: evento.dados.versao },
+      };
     case "cena.gridAlterado": {
       const { cenaId, grid, larguraM, alturaM } = evento.dados;
       const dimensoes = {
@@ -364,6 +428,10 @@ export function reduzir(estado: Estado, evento: EventoSala): Estado {
       return {
         ...base,
         cenaAtivaId: cenaId,
+        // A luz presa a um token que mudou de cena vai junto com ele.
+        luzes: base.luzes.map((l) =>
+          l.portador.tipo === "token" && posicoes.has(l.portador.tokenId) ? { ...l, cenaId } : l,
+        ),
         tokens: base.tokens.map((t) => {
           const p = posicoes.get(t.id);
           return p ? { ...t, cenaId, x: p.x, y: p.y } : t;
@@ -412,6 +480,20 @@ export function reduzir(estado: Estado, evento: EventoSala): Estado {
       return { ...base, permissoes: { ...permissoes, porUsuario } };
     }
   }
+}
+
+/**
+ * O portador da fonte, pronto para gravar: a fixa fica dentro da cena; a presa a um token só vale se o
+ * token existe na mesma cena. `undefined` se o token não serve.
+ */
+function portadorValido(
+  estado: Estado,
+  cena: Cena,
+  portador: FonteDeLuz["portador"],
+): FonteDeLuz["portador"] | undefined {
+  if (portador.tipo === "cena") return { tipo: "cena", ...limitarNaCena(portador, cena) };
+  const id = portador.tokenId;
+  return estado.tokens.some((t) => t.id === id && t.cenaId === cena.id) ? portador : undefined;
 }
 
 /**
@@ -517,10 +599,12 @@ export function processar(
       if (mudancas.controladoPor && !usuariosExistem(estado, mudancas.controladoPor)) {
         return recusa("usuario_inexistente", "Usuário de controle não encontrado.");
       }
-      const { assetHash, alcanceVisaoM, ...demais } = mudancas;
+      const { assetHash, alcanceVisaoM, visaoNoEscuroM, ...demais } = mudancas;
       const token: Token = { ...atual, ...semIndefinidos(demais) };
       if (alcanceVisaoM === null) delete token.alcanceVisaoM;
       else if (alcanceVisaoM !== undefined) token.alcanceVisaoM = alcanceVisaoM;
+      if (visaoNoEscuroM === null) delete token.visaoNoEscuroM;
+      else if (visaoNoEscuroM !== undefined) token.visaoNoEscuroM = visaoNoEscuroM;
       if (assetHash === null) delete token.assetHash;
       else if (assetHash !== undefined) {
         if (!imagemDeTokenExiste(estado, assetHash)) {
@@ -530,12 +614,20 @@ export function processar(
       }
       if (JSON.stringify(token) === JSON.stringify(atual)) return aplicado();
       emitir({ tipo: "token.editado", dados: { token } });
-      return aplicado();
+      // Esconder (ou mostrar) um token que carrega luz muda o que os jogadores recebem da luz dele:
+      // snapshot novo (o filtro de evento só cuida de um evento por vez).
+      const aparenciaMudou =
+        tokenVisivelPara(atual, JOGADOR_QUALQUER, estado.cenaAtivaId) !==
+        tokenVisivelPara(token, JOGADOR_QUALQUER, estado.cenaAtivaId);
+      return aplicado(aparenciaMudou && luzesDoToken(estado, token.id).length > 0 ? "todos" : []);
     }
 
     case "token.apagar": {
       if (!estado.tokens.some((t) => t.id === intencao.dados.id)) {
         return recusa("token_inexistente", "Token não encontrado.");
+      }
+      for (const l of luzesDoToken(estado, intencao.dados.id)) {
+        emitir({ tipo: "fonte.apagada", dados: { id: l.id } });
       }
       emitir({ tipo: "token.apagado", dados: { id: intencao.dados.id } });
       return aplicado();
@@ -766,6 +858,7 @@ export function processar(
           visaoNoEscuroM: m.visaoNoEscuroM ?? atual.visao.visaoNoEscuroM,
         },
         ficha: { pvAtual: m.pvAtual ?? atual.ficha.pvAtual, pvMax: m.pvMax ?? atual.ficha.pvMax },
+        ...(m.modInteligencia === undefined ? {} : { modInteligencia: m.modInteligencia }),
       });
       if (JSON.stringify(personagem) === JSON.stringify(atual)) return aplicado();
       emitir({ tipo: "personagem.alterado", dados: { personagem } });
@@ -846,6 +939,9 @@ export function processar(
       const { id } = intencao.dados;
       if (!personagemDe(estado, id)) return recusa("personagem_inexistente", SEM_PERSONAGEM);
       for (const t of estado.tokens.filter((x) => x.personagemId === id)) {
+        for (const l of luzesDoToken(estado, t.id)) {
+          emitir({ tipo: "fonte.apagada", dados: { id: l.id } });
+        }
         emitir({ tipo: "token.apagado", dados: { id: t.id } });
       }
       emitir({ tipo: "personagem.apagado", dados: { id } });
@@ -947,6 +1043,24 @@ export function processar(
           const parede: Parede = { ...p, id: `${novoId.slice(0, 50)}-p${i + 1}`, cenaId: novoId };
           emitir({ tipo: "parede.criada", dados: { parede } });
         });
+      // As luzes fixas vão para a cena nova; as presas a token seguem o token copiado.
+      const novoDe = new Map(copiados.map((t, i) => [t.id, novos[i]?.id ?? ""]));
+      estado.luzes
+        .filter((l) => l.cenaId === cenaId)
+        .forEach((l, i) => {
+          const portador =
+            l.portador.tipo === "cena"
+              ? l.portador
+              : { tipo: "token" as const, tokenId: novoDe.get(l.portador.tokenId) ?? "" };
+          if (portador.tipo === "token" && portador.tokenId === "") return;
+          const fonte: FonteDeLuz = {
+            ...l,
+            id: `${novoId.slice(0, 50)}-l${i + 1}`,
+            cenaId: novoId,
+            portador,
+          };
+          emitir({ tipo: "fonte.criada", dados: { fonte } });
+        });
       return aplicado();
     }
 
@@ -961,6 +1075,9 @@ export function processar(
       }
       for (const p of estado.paredes.filter((x) => x.cenaId === cenaId)) {
         emitir({ tipo: "parede.apagada", dados: { id: p.id } });
+      }
+      for (const l of estado.luzes.filter((x) => x.cenaId === cenaId)) {
+        emitir({ tipo: "fonte.apagada", dados: { id: l.id } });
       }
       emitir({ tipo: "cena.apagada", dados: { cenaId } });
       return aplicado();
@@ -1069,10 +1186,82 @@ export function processar(
     case "cena.configurarIluminacao": {
       const cena = cenaDoPedido(estado, intencao.dados.cenaId);
       if (!cena) return recusa("cena_inexistente", SEM_CENA);
-      if (iluminacaoDinamicaLigada(cena) === intencao.dados.dinamica) return aplicado();
+      const { dinamica, luzAmbiente, fatorDeLuz } = intencao.dados;
+      const nova: Cena = {
+        ...cena,
+        // Só muda o que de fato muda (sem o campo valem: ligada, dia e fator 1).
+        ...(dinamica === undefined || dinamica === iluminacaoDinamicaLigada(cena)
+          ? {}
+          : { iluminacaoDinamica: dinamica }),
+        ...(luzAmbiente === undefined || luzAmbiente === luzAmbienteDa(cena)
+          ? {}
+          : { luzAmbiente }),
+        ...(fatorDeLuz === undefined || fatorDeLuz === fatorDeLuzDa(cena) ? {} : { fatorDeLuz }),
+      };
+      if (JSON.stringify(nova) === JSON.stringify(cena)) return aplicado();
+      emitir({ tipo: "cena.editada", dados: { cena: nova } });
+      return aplicado();
+    }
+
+    case "fonte.criar": {
+      const cena = cenaDoPedido(estado, intencao.dados.cenaId);
+      if (!cena) return recusa("cena_inexistente", SEM_CENA);
+      const n = intencao.dados.fonte;
+      if (estado.luzes.some((l) => l.id === n.id)) {
+        return recusa("dados_invalidos", "Já existe uma fonte de luz com esse id.");
+      }
+      const portador = portadorValido(estado, cena, n.portador);
+      if (!portador) return recusa("token_inexistente", "O token da luz não está nessa cena.");
+      emitir({ tipo: "fonte.criada", dados: { fonte: { ...n, cenaId: cena.id, portador } } });
+      return aplicado();
+    }
+
+    case "fonte.editar": {
+      const atual = estado.luzes.find((l) => l.id === intencao.dados.id);
+      if (!atual) return recusa("fonte_inexistente", "Fonte de luz não encontrada.");
+      const m = intencao.dados.mudancas;
+      const cena = estado.cenas.find((c) => c.id === atual.cenaId) ?? cenaAtiva(estado);
+      const portador =
+        m.portador === undefined ? atual.portador : portadorValido(estado, cena, m.portador);
+      if (!portador) return recusa("token_inexistente", "O token da luz não está nessa cena.");
+      const fonte: FonteDeLuz = {
+        ...atual,
+        nome: m.nome ?? atual.nome,
+        portador,
+        luz: { ...atual.luz, ...semIndefinidos(m.luz ?? {}) },
+        intensidade: m.intensidade ?? atual.intensidade,
+        acesa: m.acesa ?? atual.acesa,
+      };
+      if (JSON.stringify(fonte) === JSON.stringify(atual)) return aplicado();
+      emitir({ tipo: "fonte.editada", dados: { fonte } });
+      return aplicado();
+    }
+
+    case "fonte.apagar": {
+      if (!estado.luzes.some((l) => l.id === intencao.dados.id)) {
+        return recusa("fonte_inexistente", "Fonte de luz não encontrada.");
+      }
+      emitir({ tipo: "fonte.apagada", dados: { id: intencao.dados.id } });
+      return aplicado();
+    }
+
+    case "config.iluminacao": {
+      const iluminacao = {
+        ...estado.config.iluminacao,
+        ...semIndefinidos(intencao.dados.mudancas),
+      };
+      if (JSON.stringify(iluminacao) === JSON.stringify(estado.config.iluminacao))
+        return aplicado();
+      emitir({ tipo: "config.alterada", dados: { config: { ...estado.config, iluminacao } } });
+      return aplicado();
+    }
+
+    case "memoria.esquecer": {
+      const cena = cenaDoPedido(estado, intencao.dados.cenaId);
+      if (!cena) return recusa("cena_inexistente", SEM_CENA);
       emitir({
-        tipo: "cena.editada",
-        dados: { cena: { ...cena, iluminacaoDinamica: intencao.dados.dinamica } },
+        tipo: "memoria.esquecida",
+        dados: { cenaId: cena.id, versao: proximo.seq + 1 },
       });
       return aplicado();
     }
@@ -1144,7 +1333,7 @@ export function processar(
  */
 export function visaoPara(estado: Estado, usuario: Visao): Estado {
   if (usuario.papel === "mestre") return estado;
-  const { notaMestre: _oculta, assets: _assets, ...resto } = estado;
+  const { notaMestre: _oculta, assets: _assets, memoriaEsquecida: _esquecida, ...resto } = estado;
   const propria = estado.permissoes.porUsuario[usuario.id];
   return {
     ...resto,
@@ -1155,6 +1344,16 @@ export function visaoPara(estado: Estado, usuario: Visao): Estado {
     cenas: [cenaAtiva(estado)],
     tokens: estado.tokens.filter((t) => tokenVisivelPara(t, usuario, estado.cenaAtivaId)),
     paredes: estado.paredes.filter((p) => p.cenaId === estado.cenaAtivaId).map(paredeParaJogador),
+    luzes: estado.luzes.filter((l) =>
+      luzVisivelPara(l, usuario, estado.tokens, estado.cenaAtivaId),
+    ),
+    ...(estado.memoriaEsquecida?.[estado.cenaAtivaId] === undefined
+      ? {}
+      : {
+          memoriaEsquecida: {
+            [estado.cenaAtivaId]: estado.memoriaEsquecida[estado.cenaAtivaId] as number,
+          },
+        }),
     pastas: estado.pastas.filter((p) => pastaVisivelPara(p, usuario)),
     personagens: estado.personagens.filter((p) => personagemVisivelPara(p, usuario, estado.pastas)),
   };
@@ -1191,7 +1390,30 @@ export function eventoPara(
     case "nota.alterada":
     case "papel.alterado":
     case "ordemDeTurno.alterada":
+    case "config.alterada":
       return evento;
+    case "memoria.esquecida":
+      return mestre || evento.dados.cenaId === ativaDepois ? evento : null;
+    case "fonte.criada":
+    case "fonte.editada": {
+      if (mestre) return evento;
+      const e = depois ?? antes;
+      const fonte = evento.dados.fonte;
+      if (e && luzVisivelPara(fonte, usuario, e.tokens, e.cenaAtivaId)) return evento;
+      // Deixou de ser visível (a cena mudou, o token da luz ficou oculto): some, sem motivo.
+      const antiga = antes?.luzes.find((l) => l.id === fonte.id);
+      if (antiga && antes && luzVisivelPara(antiga, usuario, antes.tokens, antes.cenaAtivaId)) {
+        return { ...evento, tipo: "fonte.apagada", dados: { id: fonte.id } };
+      }
+      return null;
+    }
+    case "fonte.apagada": {
+      if (mestre) return evento;
+      const antiga = antes?.luzes.find((l) => l.id === evento.dados.id);
+      return antiga && antes && luzVisivelPara(antiga, usuario, antes.tokens, antes.cenaAtivaId)
+        ? evento
+        : null;
+    }
     case "pasta.alterada": {
       if (mestre) return evento;
       const depoisP = (depois ?? antes)?.pastas.find((p) => p.id === evento.dados.pasta.id);

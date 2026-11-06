@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "playwright test"
+    "test": "playwright test",
+    "prints": "playwright test -c playwright.prints.config.ts"
   },
   "devDependencies": {
     "@playwright/test": "^1.64.1",

@@ -58,7 +58,8 @@
       "grid": {
         "quadradoM": 1.5,
         "visivel": true
-      }
+      },
+      "luzAmbiente": 0.1
     },
     {
       "id": "cena-covil",
@@ -381,6 +382,7 @@
         "alcanceM": 18,
         "visaoNoEscuroM": 0
       },
+      "modInteligencia": 2,
       "ficha": {
         "pvAtual": 9,
         "pvMax": 9
@@ -447,6 +449,44 @@
       "visivel": {
         "tipo": "mestre"
       }
+    }
+  ],
+  "luzes": [
+    {
+      "id": "luz-tocha-sala",
+      "cenaId": "cena-1",
+      "nome": "Tocha da sala",
+      "portador": {
+        "tipo": "cena",
+        "x": 11.25,
+        "y": 30
+      },
+      "luz": {
+        "claraM": 6,
+        "penumbraM": 6,
+        "cor": "#ffb347",
+        "tremula": true
+      },
+      "intensidade": 1,
+      "acesa": true
+    },
+    {
+      "id": "luz-braseiro",
+      "cenaId": "cena-1",
+      "nome": "Braseiro do acampamento",
+      "portador": {
+        "tipo": "cena",
+        "x": 27,
+        "y": 9.75
+      },
+      "luz": {
+        "claraM": 4.5,
+        "penumbraM": 4.5,
+        "cor": "#ff9a4d",
+        "tremula": true
+      },
+      "intensidade": 1,
+      "acesa": true
     }
   ]
 }

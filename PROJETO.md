@@ -161,7 +161,13 @@ interface ConfigDaMesa {            // por campanha; só o mestre altera
   penalidadeAoApagarS: number;      // padrão 0 (a campanha de referência usa 60)
   alcanceInteracaoM: number;        // entregar tocha, usar ponto (padrão 1,5)
   tempoParaJogadores: 'exato' | 'estagio' | 'oculto';   // o mestre sempre vê o exato
+  iluminacao: {                     // lote 6: "Configurações de iluminação"
+    memoriaLigada: boolean; memoriaModo: 'inteligencia' | 'fixo';
+    memoriaBaseM: number /* 15 */; memoriaPorModM: number /* 3 */; memoriaFixaM: number;
+    tomDaMemoria: string;
+  };
 }
+// lote 6: só `iluminacao` existe; o Lote 7 acrescenta o resto
 
 interface Pasta {                   // lote 4b: pastas da aba Fichas, sem subpastas
   id: string; nome: string; ordem: number;
@@ -181,6 +187,7 @@ interface Personagem {              // um item das Fichas (por ora só personage
   // personagem de jogador tem um token só
   visao: { alcanceM: number | null; visaoNoEscuroM: number };
   // a luz vem dos objetos que ele carrega (ObjetoDeLuz), não do personagem
+  modInteligencia?: number;         // lote 6: alcance da memória do mapa; padrão 0; a ficha (lote 9) assume
 }
 
 interface Cena {
@@ -190,7 +197,8 @@ interface Cena {
   mapa?: { assetHash: string; pxPorQuadrado: number };   // lote 3
   chegada?: { x: number; y: number };                    // lote 4: onde o grupo chega (padrão: centro)
   iluminacaoDinamica?: boolean;                          // lote 5: padrão ligada; desligada, o jogador vê tudo
-  luzAmbiente?: number;             // lote 6: 0 = escuridão total, 1 = dia
+  luzAmbiente?: number;             // lote 6: 0 = escuridão total, 1 = dia (sem o campo = 1)
+  fatorDeLuz?: number;              // lote 6: slider geral do painel de fontes (multiplica os raios)
 }
 
 interface Token {
@@ -203,6 +211,7 @@ interface Token {
   controladoPor: string[];          // ids de usuário, além de quem edita o personagem; o mestre move qualquer um
   assetHash?: string;               // lote 3
   alcanceVisaoM?: number;           // lote 5: só para token sem personagem (com personagem vale a visão dele)
+  visaoNoEscuroM?: number;          // lote 6: idem, para a visão no escuro
   personagemId?: string;            // lote 4; controla: o dono do personagem ou quem estiver em controladoPor
 }
 
@@ -217,6 +226,13 @@ interface Luz {
   claraM: number; penumbraM: number;            // tocha 5e: 6 m + 6 m
   cor: string; tremula: boolean;
 }
+
+interface FonteDeLuz {              // lote 6: prévia do ObjetoDeLuz (sem tempo nem mochila)
+  id: string; cenaId: string; nome: string;
+  portador: { tipo: 'cena'; x: number; y: number } | { tipo: 'token'; tokenId: string };
+  luz: Luz; intensidade: number /* 0..1, multiplica os raios */; acesa: boolean;
+}
+// o jogador só recebe as da cena ativa; a presa a token oculto ou da camada do mestre não chega a ele
 
 interface ModeloDeObjeto {          // criado pelo mestre na campanha: "Tocha", "Lanterna", "Fogueira"
   id: string; nome: string;
@@ -446,9 +462,14 @@ quem escolhe o usuário mestre na tela de entrada é mestre.
   varredura angular (algoritmo "2D visibility" da Red Blob Games). Recalcula só quando algo se move.
 - **Render:** camada de escuridão sobre o mapa; cada luz desenha o próprio polígono com raio de luz
   plena e penumbra, em blend aditivo numa RenderTexture. O jogador vê a interseção entre o que está
-  iluminado e o que o token dele enxerga, mais a visão no escuro (em tons de cinza, via filtro GLSL).
-- **Névoa explorada:** acumulada por jogador e por cena numa grade de 0,5 m, compactada e gravada na
-  sala (~20 KB para 200×200 m). O mestre pode resetar.
+  iluminado e o que o token dele enxerga, mais a visão no escuro (em tons de cinza). **Como ficou no
+  Lote 6:** um pipeline de RenderTextures com os blends do Pixi (erase, add, multiply, saturation), sem
+  shader próprio; o cinza usa o blend `saturation` (exige `useBackBuffer`). Os polígonos das luzes ficam
+  em cache e só são refeitos quando algo se move.
+- **Névoa explorada:** ~~gravada na sala~~ trocada no Lote 6 pela **memória do mapa no navegador**
+  (IndexedDB por usuário e cena, grade de 0,5 m), sem custo de servidor. A sala guarda só uma versão de
+  "esquecer" por cena: o mestre manda esquecer e cada navegador limpa ao ver a versão nova, mesmo se
+  estava offline.
 - **Memória do mapa** (definida pelo Vilella em 2026-11-06; detalhes em aberto na 4.13.1):
   - na área iluminada que o token vê, o jogador vê todas as camadas, menos a do mestre;
   - quando ele sai, a área explorada **não some**: fica só a camada do mapa, escurecida. Ele sabe como a
@@ -1106,6 +1127,19 @@ no editor; ligar a ordem de turno.
 penumbra, cinza e névoa; medir fps com 30 luzes e 500 paredes (meta ≥ 50 fps no seu PC).
 
 **Pronto quando:** `pnpm verify` verde e a meta de fps é atingida.
+
+**Como ficou (2026-11-06):**
+- fontes `fonte.criar/editar/apagar` (capacidade `cena.editar`), `config.iluminacao` e
+  `memoria.esquecer` (`mesa.configurar`); exportação v7;
+- "Iluminação dinâmica" mostra Ligada/Desligada em destaque e a lanterna ganha um ponto vermelho quando
+  está desligada; o painel de fontes tem acender/apagar por fonte e o espaço "Com tempo" do Lote 7;
+- 60 fps (teto do navegador) no Chrome headless com 30 luzes e 500 paredes;
+- a luz tem dois degraus (plena e penumbra), sem gradiente; as texturas da luz vão até 1800 px no lado
+  maior (cena muito grande fica com bordas mais suaves);
+- o mestre "vendo como" um jogador usa a memória do jogador **neste** navegador, não a do jogador de
+  verdade;
+- na visão noturna do mestre, a área que um jogador só vê com visão no escuro aparece em cor normal (em
+  aberto: talvez em cinza).
 
 ---
 

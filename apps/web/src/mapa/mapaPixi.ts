@@ -1,24 +1,46 @@
 import {
   type AssetMeta,
   bloqueiaVisao,
+  CacheDeLuz,
+  CELULA_DA_MEMORIA_M,
   type Cena,
+  calcularModelo,
   chegadaDaCena,
+  contarLembradas,
+  corEmCanais,
+  criarGrade,
   criarLimitador,
   encaixarNoGrid,
+  esquecerAlemDoAlcance,
+  esquecerTudo,
+  type FonteDeLuz,
+  type GradeDeMemoria,
+  gradeServe,
+  imagemDaMemoria,
+  lembraDoPonto,
   limitarNaCena,
+  luzAmbienteDa,
   type Medida,
+  type ModeloDeLuz,
+  marcarVisto,
   medirRegua,
   meioDaParede,
+  nivelDeLuz,
+  opacidadeNoPonto,
   type Parede,
-  poligonoDeVisibilidade,
-  pontoNaUniao,
+  resolverLuzes,
   suavizar,
   type TipoDeParede,
   type Token,
   trajetoBloqueado,
+  veNoPonto,
+  visaoNoPonto,
 } from "@tabletop/shared";
-import { Application, Container, Graphics, RenderTexture, Sprite, Text, Texture } from "pixi.js";
+import "pixi.js/advanced-blend-modes";
+import { Application, Container, Graphics, Sprite, Text, Texture } from "pixi.js";
 import type { CamadaDeTrabalho } from "../camadas";
+import { CamadaDeLuz } from "./camadaDeLuz";
+import { ArmazemDeMemoria, chaveDaMemoria, type RegistroDeMemoria } from "./memoriaLocal";
 
 /** Pixels do mundo por metro (zoom 1). O zoom é a escala do `mundo` sobre isso. */
 export const PX_POR_M = 40;
@@ -28,27 +50,43 @@ export const ZOOM_MAX = 4;
 const TAU_MS = 70;
 const ACENTO = 0xe0a030;
 
-export type Ferramenta = "selecionar" | "mao" | "regua" | "paredes";
-
-/** Quem enxerga (o token e o alcance; `null` = sem limite). A posição vem do próprio mapa. */
-export type FonteDeVisao = { tokenId: string; alcanceM: number | null };
+export type Ferramenta = "selecionar" | "mao" | "regua" | "paredes" | "luz";
 
 /**
- * Como a tela mostra a visão (só de tela, nunca vai para a sala):
- * - `jogador`: fora da união da visão das fontes é escuro e os tokens de lá não são desenhados;
- * - `noturna` (mestre): o que as fontes veem fica normal e o resto, apagado;
+ * Quem enxerga: o token, o alcance de visão (`null` = sem limite), a visão no escuro e até onde ele se
+ * lembra do mapa (m). A posição vem do próprio mapa.
+ */
+export type FonteDeVisao = {
+  tokenId: string;
+  alcanceM: number | null;
+  visaoNoEscuroM: number;
+  memoriaM: number;
+};
+
+/**
+ * Como a tela mostra a visão e a luz (só de tela, nunca vai para a sala):
+ * - `jogador`: só aparece o que a luz alcança dentro da visão dos tokens dele (ou da visão no escuro);
+ *   o resto é a memória do mapa ou preto; os tokens de lá não são desenhados;
+ * - `noturna` (mestre): o que algum jogador vê fica normal e o resto, apagado;
  * - `claro`: tudo claro.
  */
 export type ConfigDeVisao = {
   modo: "jogador" | "noturna" | "claro";
   fontes: FonteDeVisao[];
+  /** Memória do mapa (jogador): ligada, o tom, de quem é e o último "esquecer" do mestre. */
+  memoria: { ligada: boolean; tom: string; usuarioId: string; esquecimento: number };
 };
 
 /** Tamanho (em pixels da tela) dos ícones das portas e das alças das pontas. */
 const RAIO_DO_ICONE = 11;
 const RAIO_DA_ALCA = 6;
-/** Resolução máxima (lado maior, em pixels) da textura do véu da visão. */
-const LADO_MAXIMO_DO_VEU = 3000;
+/** Intervalo mínimo (ms) entre duas marcações da memória do mapa (a conta é por célula). */
+const INTERVALO_DA_MEMORIA_MS = 120;
+/** Intervalo (ms) em que a luz que tremula é redesenhada. */
+const INTERVALO_DA_TREMULA_MS = 90;
+/** Quanto a memória espera, parada, antes de gravar no IndexedDB. */
+const ATRASO_DA_GRAVACAO_MS = 500;
+const COR_DA_LUZ = 0xffd27a;
 
 export type OpcoesDoMapa = {
   ferramenta: Ferramenta;
@@ -66,6 +104,9 @@ export type OpcoesDoMapa = {
   /** Tipo das paredes que a ferramenta de paredes desenha. */
   tipoDaNovaParede: TipoDeParede;
   visao: ConfigDeVisao;
+  /** O painel das fontes de luz está aberto: o mestre vê, arrasta e seleciona as luzes no mapa. */
+  mostrarLuzes: boolean;
+  luzSelecionadaId: string | null;
 };
 
 /** O que o mapa precisa saber das imagens locais (o gerente de assets responde). */
@@ -96,6 +137,11 @@ export type RetornosDoMapa = {
   alternarPorta: (id: string) => void;
   /** Clique direito no ícone da porta (só o mestre): tranca ou destranca. */
   trancarPorta: (id: string) => void;
+  /** A ferramenta de luz clicou no mapa: põe uma luz fixa ali. */
+  colocarLuz: (cenaId: string, x: number, y: number) => void;
+  /** O mestre soltou uma luz fixa em outro ponto. */
+  moverLuz: (id: string, x: number, y: number) => void;
+  selecionarLuz: (id: string | null) => void;
 };
 
 type Ponto = { x: number; y: number };
@@ -126,6 +172,7 @@ type Gesto =
     }
   | { tipo: "bandeira"; deslocamento: Ponto }
   | { tipo: "ponta"; id: string; ponta: "a" | "b" }
+  | { tipo: "luz"; id: string; deslocamento: Ponto }
   | { tipo: "regua" };
 
 /** Cor e espessura (px na tela) de cada tipo de parede quando a ferramenta de paredes está ativa. */
@@ -168,19 +215,33 @@ export class MapaPixi {
   private readonly camadaCenario = new Container();
   private readonly camadaTokens = new Container();
   private readonly camadaMestre = new Container();
-  /** Véu da visão (RenderTexture): escuro onde ninguém vê. Acima dos tokens, abaixo das paredes do mestre. */
-  private readonly veu = new Sprite();
-  private readonly veuFonte = new Container();
-  private readonly veuFundo = new Graphics();
-  private readonly veuBuracos = new Graphics();
-  private veuTextura: RenderTexture | null = null;
-  private veuTamanho = { w: 0, h: 0 };
+  /** Luz e escuridão (texturas do tamanho da cena): acima dos tokens, abaixo das paredes do mestre. */
+  private camada!: CamadaDeLuz;
+  /** Os polígonos de visão e de luz da cena como estão agora (`null`: tudo claro). */
+  private modelo: ModeloDeLuz | null = null;
+  private luzes: FonteDeLuz[] = [];
+  private readonly cacheDeLuz = new CacheDeLuz();
+  /** Luz fixa que o mestre está arrastando (a posição ao vivo, antes de a sala confirmar). */
+  private luzArrastada: { id: string; pos: Ponto } | null = null;
+  /** Marcas das luzes (só o mestre, com o painel de fontes aberto). */
+  private readonly marcasDeLuz = new Graphics();
+  // Memória do mapa (só de tela; IndexedDB por usuário e cena).
+  private readonly armazem = new ArmazemDeMemoria();
+  private gradeDaMemoria: GradeDeMemoria | null = null;
+  private gradeCenaId: string | null = null;
+  private gradeCarregando: string | null = null;
+  private esquecimentoAplicado = 0;
+  private memoriaPendente = false;
+  private memoriaSuja = false;
+  private ultimaMarcacao = 0;
+  private ultimaTremula = 0;
+  private gravacao: ReturnType<typeof setTimeout> | null = null;
+  private gravando = 0;
   /** Portas que o jogador vê: abaixo do véu (só aparecem onde ele enxerga). */
   private readonly paredesAbaixo = new Graphics();
   /** Paredes, portas e a ferramenta do mestre: acima do véu. */
   private readonly paredesAcima = new Graphics();
   private paredes: Parede[] = [];
-  private poligonos: Ponto[][] = [];
   private visaoSuja = true;
   private visibilidadeSuja = true;
   private chaveDaVisao = "";
@@ -229,13 +290,16 @@ export class MapaPixi {
       autoDensity: true,
       resolution: window.devicePixelRatio || 1,
       preference: "webgl",
+      // Os modos de mistura avançados (o cinza da visão no escuro) leem o que já foi desenhado.
+      useBackBuffer: true,
       autoStart: false, // o desenho é sob demanda (ver `laco`): várias abas abertas não fritam a CPU
     });
     if (this.destruido) {
-      this.app.destroy(true, { children: true });
+      this.app.destroy({ removeView: true }, { children: true });
       return;
     }
     this.host.append(this.app.canvas);
+    this.camada = new CamadaDeLuz(this.app.renderer);
     this.mundo.addChild(
       this.fundo,
       this.camadaMapa,
@@ -243,16 +307,15 @@ export class MapaPixi {
       this.camadaCenario,
       this.camadaTokens,
       this.camadaMestre,
-      this.veu,
+      this.camada.multiplicar,
+      this.camada.brilho,
+      this.camada.cinza,
       this.paredesAbaixo,
       this.paredesAcima,
+      this.marcasDeLuz,
       this.bandeira,
       this.desenhoDaRegua,
     );
-    this.veuFundo.blendMode = "normal";
-    this.veuBuracos.blendMode = "erase";
-    this.veuFonte.addChild(this.veuFundo, this.veuBuracos);
-    this.veu.visible = false;
     this.desenharBandeira();
     this.app.stage.addChild(this.mundo);
     this.ultimoQuadro = performance.now();
@@ -280,6 +343,9 @@ export class MapaPixi {
     this.atualizarBandeira();
     this.atualizarCursor();
     this.desenharParedes();
+    this.desenharMarcasDeLuz();
+    window.addEventListener("pagehide", this.gravarMemoria);
+    this.carregarMemoria();
   }
 
   destruir(): void {
@@ -304,9 +370,13 @@ export class MapaPixi {
     }
     for (const t of this.texturas.values()) t.destroy(true);
     this.texturas.clear();
-    this.veuTextura?.destroy(true);
-    this.veuTextura = null;
-    this.app.destroy(true, { children: true });
+    window.removeEventListener("pagehide", this.gravarMemoria);
+    if (this.gravacao) clearTimeout(this.gravacao);
+    this.gravarMemoria();
+    this.camada.destruir();
+    // Sem `releaseGlobalResources`: `destroy(true)` esvazia os pools GLOBAIS do Pixi, e no StrictMode (o
+    // primeiro mapa é descartado com o segundo já de pé) isso destruía lotes em uso ("reading 'clear'").
+    this.app.destroy({ removeView: true }, { children: true });
   }
 
   // --- dados vindos do React ------------------------------------------------------------------
@@ -321,6 +391,7 @@ export class MapaPixi {
     this.cena = cena;
     if (!this.pronto) return;
     this.visaoSuja = true;
+    if (outraCena || this.gradeCenaId !== cena.id) this.carregarMemoria();
     this.desenharParedes();
     this.desenharCena();
     this.atualizarMapa();
@@ -435,15 +506,25 @@ export class MapaPixi {
     if (chave !== this.chaveDaVisao) {
       this.chaveDaVisao = chave;
       this.visaoSuja = true;
+      this.aplicarEsquecimento();
     }
     this.atualizarEstilos();
     this.atualizarBandeira();
     this.atualizarCursor();
     this.desenharParedes();
+    this.desenharMarcasDeLuz();
+  }
+
+  /** As fontes de luz da cena (o que a sala mandou para quem está olhando). */
+  definirLuzes(luzes: FonteDeLuz[]): void {
+    this.luzes = luzes;
+    if (!this.pronto) return;
+    this.visaoSuja = true;
+    this.desenharMarcasDeLuz();
   }
 
   private chaveDe_visao(): string {
-    return `${this.opcoes.visao.modo}|${JSON.stringify(this.opcoes.visao.fontes)}`;
+    return JSON.stringify(this.opcoes.visao);
   }
 
   /** Paredes da cena (o que a sala mandou para quem está olhando). */
@@ -601,6 +682,7 @@ export class MapaPixi {
     this.desenharRegua();
     this.escalarBandeira();
     this.desenharParedes();
+    this.desenharMarcasDeLuz();
   }
 
   private readonly aoRedimensionar = () => {
@@ -796,15 +878,35 @@ export class MapaPixi {
   private readonly laco = (agora: number) => {
     const dt = agora - this.ultimoQuadro;
     this.ultimoQuadro = agora;
+    try {
+      this.passo(agora, dt);
+    } catch (e) {
+      // Um erro de desenho não pode parar o laço (o mapa congelaria em silêncio).
+      console.error("Falha ao desenhar o mapa", e);
+    }
+    this.quadro = requestAnimationFrame(this.laco);
+  };
+
+  private passo(agora: number, dt: number): void {
     this.animar(dt);
     if (this.visaoSuja) this.recalcularVisao();
     else if (this.visibilidadeSuja) this.atualizarVisibilidadeDosTokens();
+    if (this.memoriaPendente && agora - this.ultimaMarcacao >= INTERVALO_DA_MEMORIA_MS) {
+      this.processarMemoria(agora);
+    }
+    // A luz que tremula só refaz o brilho (os polígonos continuam os mesmos).
+    if (this.modelo && agora - this.ultimaTremula >= INTERVALO_DA_TREMULA_MS) {
+      this.ultimaTremula = agora;
+      if (this.camada.temTremula()) {
+        this.camada.atualizarBrilho(agora);
+        this.sujo = true;
+      }
+    }
     if (this.sujo) {
       this.sujo = false;
       this.app.render();
     }
-    this.quadro = requestAnimationFrame(this.laco);
-  };
+  }
 
   private animar(dtMs: number): void {
     const arrastando = this.gesto?.tipo === "token" ? this.gesto.id : null;
@@ -819,72 +921,206 @@ export class MapaPixi {
       }
       v.container.position.set(v.x * PX_POR_M, v.y * PX_POR_M);
       this.sujo = true;
-      // Quem enxerga andou: o polígono muda. Quem não enxerga andou: só a visibilidade dele.
-      if (this.opcoes.visao.fontes.some((f) => f.tokenId === v.token.id)) this.visaoSuja = true;
-      else this.visibilidadeSuja = true;
+      // Quem enxerga (ou carrega uma luz) andou: os polígonos mudam. Quem não: só a visibilidade dele.
+      if (
+        this.opcoes.visao.fontes.some((f) => f.tokenId === v.token.id) ||
+        this.luzes.some((l) => l.portador.tipo === "token" && l.portador.tokenId === v.token.id)
+      ) {
+        this.visaoSuja = true;
+        if (this.marcasVisiveis()) this.desenharMarcasDeLuz();
+      } else this.visibilidadeSuja = true;
     }
   }
 
-  // --- visão (só de tela) -----------------------------------------------------------------------
+  // --- visão, luz e memória (só de tela) -----------------------------------------------------------
 
-  /** Os polígonos de visão das fontes (a posição é a mostrada na tela) e o véu escuro. */
+  /** As fontes de luz com a posição que a tela mostra agora (a luz de token acompanha o token na tela). */
+  private luzesDaTela(): FonteDeLuz[] {
+    const a = this.luzArrastada;
+    return a
+      ? this.luzes.map((l) =>
+          l.id === a.id ? { ...l, portador: { tipo: "cena" as const, x: a.pos.x, y: a.pos.y } } : l,
+        )
+      : this.luzes;
+  }
+
+  /** Os polígonos de visão e de luz e as texturas da luz (só roda quando algo que afeta a luz muda). */
   private recalcularVisao(): void {
     this.visaoSuja = false;
     this.sujo = true;
     const cena = this.cena;
-    const { modo, fontes } = this.opcoes.visao;
-    this.poligonos = [];
+    const { modo, fontes, memoria } = this.opcoes.visao;
+    this.modelo = null;
     if (!cena || modo === "claro") {
-      this.veu.visible = false;
+      this.camada.esconder();
       this.atualizarVisibilidadeDosTokens();
       return;
     }
     const segmentos = this.paredes
       .filter((p) => p.cenaId === cena.id && bloqueiaVisao(p))
       .map((p) => ({ a: p.a, b: p.b }));
-    for (const f of fontes) {
+    const olhos = fontes.flatMap((f) => {
       const v = this.visuais.get(f.tokenId);
-      if (!v) continue;
-      this.poligonos.push(poligonoDeVisibilidade({ x: v.x, y: v.y }, segmentos, cena, f.alcanceM));
-    }
-    this.desenharVeu(cena, modo);
+      return v ? [{ x: v.x, y: v.y, alcanceM: f.alcanceM, visaoNoEscuroM: f.visaoNoEscuroM }] : [];
+    });
+    const luzes = resolverLuzes(this.luzesDaTela(), cena, this.tokens, (id) => {
+      const v = this.visuais.get(id);
+      return v ? { x: v.x, y: v.y } : undefined;
+    });
+    this.modelo = calcularModelo({
+      olhos,
+      luzes,
+      segmentos,
+      limites: cena,
+      ambiente: luzAmbienteDa(cena),
+      cache: this.cacheDeLuz,
+    });
+    const comMemoria = modo === "jogador" && memoria.ligada && this.gradeDaMemoria !== null;
+    this.camada.atualizar(
+      {
+        modo,
+        larguraM: cena.larguraM,
+        alturaM: cena.alturaM,
+        modelo: this.modelo,
+        memoria: comMemoria ? this.imagemDaMemoria() : null,
+      },
+      performance.now(),
+    );
+    if (comMemoria) this.memoriaPendente = true;
     this.atualizarVisibilidadeDosTokens();
   }
 
-  /** Desenha o véu na RenderTexture: cor cheia com um buraco (apagado) por polígono de visão. */
-  private desenharVeu(cena: Cena, modo: "jogador" | "noturna"): void {
-    const w = Math.ceil(cena.larguraM * PX_POR_M);
-    const h = Math.ceil(cena.alturaM * PX_POR_M);
-    if (!this.veuTextura || this.veuTamanho.w !== w || this.veuTamanho.h !== h) {
-      this.veuTextura?.destroy(true);
-      this.veuTextura = RenderTexture.create({
-        width: w,
-        height: h,
-        resolution: Math.min(1, LADO_MAXIMO_DO_VEU / Math.max(w, h)),
-        antialias: true,
-      });
-      this.veuTamanho = { w, h };
-      this.veu.texture = this.veuTextura;
-    }
-    this.veu.position.set(0, 0);
-    this.veu.width = w;
-    this.veu.height = h;
-    this.veuFundo
-      .clear()
-      .rect(0, 0, w, h)
-      .fill(modo === "jogador" ? { color: 0x0d1015, alpha: 1 } : { color: 0x000000, alpha: 0.55 });
-    this.veuBuracos.clear();
-    for (const poligono of this.poligonos) {
-      if (poligono.length < 3) continue;
-      this.veuBuracos
-        .poly(poligono.flatMap((q) => [q.x * PX_POR_M, q.y * PX_POR_M]))
-        .fill(0xffffff);
-    }
-    this.app.renderer.render({ container: this.veuFonte, target: this.veuTextura, clear: true });
-    this.veu.visible = true;
+  /** Os tokens do jogador com a posição da tela, para a memória (onde ele está e até onde se lembra). */
+  private fontesDeMemoria() {
+    return this.opcoes.visao.fontes.flatMap((f) => {
+      const v = this.visuais.get(f.tokenId);
+      return v ? [{ x: v.x, y: v.y, alcanceM: f.memoriaM }] : [];
+    });
   }
 
-  /** Para o jogador, token fora da união da visão não é desenhado (as fontes sempre aparecem). */
+  private imagemDaMemoria() {
+    const g = this.gradeDaMemoria;
+    if (!g) return null;
+    return {
+      colunas: g.colunas,
+      linhas: g.linhas,
+      celulaM: g.celulaM,
+      imagem: imagemDaMemoria(
+        g,
+        this.fontesDeMemoria(),
+        corEmCanais(this.opcoes.visao.memoria.tom),
+      ),
+    };
+  }
+
+  /**
+   * Marca na memória o que o jogador vê agora, esquece o que passou do alcance e redesenha a lembrança.
+   * Roda no máximo a cada `INTERVALO_DA_MEMORIA_MS` (a conta é por célula), e uma última vez quando para.
+   */
+  private processarMemoria(agora: number): void {
+    this.memoriaPendente = false;
+    this.ultimaMarcacao = agora;
+    const g = this.gradeDaMemoria;
+    const modelo = this.modelo;
+    const { modo, memoria } = this.opcoes.visao;
+    if (!g || !modelo || modo !== "jogador" || !memoria.ligada) return;
+    let x0 = Number.POSITIVE_INFINITY;
+    let y0 = Number.POSITIVE_INFINITY;
+    let x1 = Number.NEGATIVE_INFINITY;
+    let y1 = Number.NEGATIVE_INFINITY;
+    for (const poligono of modelo.visao) {
+      for (const q of poligono) {
+        x0 = Math.min(x0, q.x);
+        y0 = Math.min(y0, q.y);
+        x1 = Math.max(x1, q.x);
+        y1 = Math.max(y1, q.y);
+      }
+    }
+    const fontes = this.fontesDeMemoria();
+    let mudou = 0;
+    if (Number.isFinite(x0)) {
+      mudou += marcarVisto(g, { x0, y0, x1, y1 }, (c) => veNoPonto(modelo, c));
+    }
+    mudou += esquecerAlemDoAlcance(g, fontes);
+    if (mudou > 0) this.sujarMemoria();
+    this.camada.definirMemoria(this.imagemDaMemoria());
+    this.sujo = true;
+  }
+
+  private chaveDaGrade(): string | null {
+    const cena = this.cena;
+    const usuario = this.opcoes.visao.memoria.usuarioId;
+    return cena && usuario ? chaveDaMemoria(usuario, cena.id) : null;
+  }
+
+  /** Lê a memória da cena do IndexedDB (ou começa uma vazia) e aplica o "esquecer" do mestre, se houver. */
+  private carregarMemoria(): void {
+    const cena = this.cena;
+    const chave = this.chaveDaGrade();
+    if (!cena || !chave || this.gradeCarregando === chave) return;
+    this.gradeCarregando = chave;
+    this.gradeDaMemoria = null;
+    this.gradeCenaId = null;
+    void this.armazem
+      .ler(chave)
+      .catch(() => undefined)
+      .then((r) => {
+        if (this.destruido || this.gradeCarregando !== chave || this.chaveDaGrade() !== chave)
+          return;
+        this.gradeCarregando = null;
+        const atual = this.cena;
+        if (!atual) return;
+        const serve =
+          r !== undefined && gradeServe(r, atual.larguraM, atual.alturaM, CELULA_DA_MEMORIA_M);
+        this.gradeDaMemoria = serve
+          ? { colunas: r.colunas, linhas: r.linhas, celulaM: r.celulaM, dados: r.dados }
+          : criarGrade(atual.larguraM, atual.alturaM, CELULA_DA_MEMORIA_M);
+        this.gradeCenaId = atual.id;
+        this.esquecimentoAplicado = serve ? r.esquecimento : 0;
+        this.aplicarEsquecimento();
+        this.visaoSuja = true;
+      });
+  }
+
+  /** O mestre mandou esquecer a cena depois do que este navegador já aplicou: zera a memória. */
+  private aplicarEsquecimento(): void {
+    const g = this.gradeDaMemoria;
+    const versao = this.opcoes.visao.memoria.esquecimento;
+    if (!g || versao <= this.esquecimentoAplicado) return;
+    esquecerTudo(g);
+    this.esquecimentoAplicado = versao;
+    this.sujarMemoria();
+    this.visaoSuja = true;
+  }
+
+  /** Há algo novo na memória: grava no IndexedDB depois de um instante (sem gravar a cada quadro). */
+  private sujarMemoria(): void {
+    this.memoriaSuja = true;
+    if (this.gravacao) clearTimeout(this.gravacao);
+    this.gravacao = setTimeout(this.gravarMemoria, ATRASO_DA_GRAVACAO_MS);
+  }
+
+  private readonly gravarMemoria = () => {
+    if (this.gravacao) clearTimeout(this.gravacao);
+    this.gravacao = null;
+    const g = this.gradeDaMemoria;
+    const chave = this.chaveDaGrade();
+    if (!this.memoriaSuja || !g || !chave || this.gradeCenaId !== this.cena?.id) return;
+    this.memoriaSuja = false;
+    const registro: RegistroDeMemoria = {
+      colunas: g.colunas,
+      linhas: g.linhas,
+      celulaM: g.celulaM,
+      dados: g.dados.slice(),
+      esquecimento: this.esquecimentoAplicado,
+    };
+    this.gravando++;
+    void this.armazem.gravar(chave, registro).finally(() => {
+      this.gravando--;
+    });
+  };
+
+  /** Token fora do que o jogador enxerga agora não é desenhado (as fontes sempre aparecem). */
   private atualizarVisibilidadeDosTokens(): void {
     this.visibilidadeSuja = false;
     this.sujo = true;
@@ -895,8 +1131,77 @@ export class MapaPixi {
         modo !== "jogador" ||
         v.token.camada === "mapa" ||
         ehFonte ||
-        pontoNaUniao({ x: v.x, y: v.y }, this.poligonos);
+        (this.modelo !== null && veNoPonto(this.modelo, { x: v.x, y: v.y }));
     }
+  }
+
+  // --- fontes de luz: marcas, arrasto e seleção (só o mestre) ---------------------------------------
+
+  /** Onde cada fonte da cena está na tela (as presas a token seguem o token). */
+  private posicoesDasLuzes(): { luz: FonteDeLuz; pos: Ponto }[] {
+    const cena = this.cena;
+    if (!cena) return [];
+    const resultado: { luz: FonteDeLuz; pos: Ponto }[] = [];
+    for (const luz of this.luzesDaTela()) {
+      if (luz.cenaId !== cena.id) continue;
+      if (luz.portador.tipo === "cena") {
+        resultado.push({ luz, pos: { x: luz.portador.x, y: luz.portador.y } });
+      } else {
+        const v = this.visuais.get(luz.portador.tokenId);
+        if (v) resultado.push({ luz, pos: { x: v.x, y: v.y } });
+      }
+    }
+    return resultado;
+  }
+
+  private marcasVisiveis(): boolean {
+    return this.opcoes.mostrarLuzes && this.opcoes.modoMestre;
+  }
+
+  /** Ícone de cada luz (do mesmo tamanho na tela) e, na selecionada, os dois raios em metros. */
+  private desenharMarcasDeLuz(): void {
+    this.sujo = true;
+    const g = this.marcasDeLuz.clear();
+    if (!this.marcasVisiveis()) return;
+    const z = this.vista.zoom;
+    for (const { luz, pos } of this.posicoesDasLuzes()) {
+      const cx = pos.x * PX_POR_M;
+      const cy = pos.y * PX_POR_M;
+      const r = 9 / z;
+      const selecionada = luz.id === this.opcoes.luzSelecionadaId;
+      if (selecionada) {
+        const k = luz.intensidade * (this.cena?.fatorDeLuz ?? 1);
+        const clara = luz.luz.claraM * k * PX_POR_M;
+        const total = (luz.luz.claraM + luz.luz.penumbraM) * k * PX_POR_M;
+        g.circle(cx, cy, total).stroke({ width: 1.5 / z, color: COR_DA_LUZ, alpha: 0.6 });
+        g.circle(cx, cy, clara).stroke({ width: 1.5 / z, color: 0xffffff, alpha: 0.6 });
+      }
+      for (let i = 0; i < 8; i++) {
+        const a = (i / 8) * Math.PI * 2;
+        g.moveTo(cx + Math.cos(a) * r * 1.35, cy + Math.sin(a) * r * 1.35)
+          .lineTo(cx + Math.cos(a) * r * 1.9, cy + Math.sin(a) * r * 1.9)
+          .stroke({ width: 1.6 / z, color: luz.acesa ? COR_DA_LUZ : 0x8a94a3 });
+      }
+      g.circle(cx, cy, r)
+        .fill({ color: luz.acesa ? COR_DA_LUZ : 0x3a414d, alpha: 0.95 })
+        .stroke({ width: (selecionada ? 3 : 2) / z, color: selecionada ? ACENTO : 0x1a1204 });
+    }
+  }
+
+  /** A luz cuja marca está sob o ponto da tela (só a que o mestre pode ver). */
+  private luzEm(p: Ponto): { luz: FonteDeLuz; pos: Ponto } | null {
+    if (!this.marcasVisiveis()) return null;
+    let achada: { luz: FonteDeLuz; pos: Ponto } | null = null;
+    let melhor = 16;
+    for (const item of this.posicoesDasLuzes()) {
+      const t = this.paraTela(item.pos.x, item.pos.y);
+      const d = Math.hypot(p.x - t.x, p.y - t.y);
+      if (d <= melhor) {
+        melhor = d;
+        achada = item;
+      }
+    }
+    return achada;
   }
 
   // --- paredes e portas -------------------------------------------------------------------------
@@ -1016,6 +1321,8 @@ export class MapaPixi {
    */
   private portaVisivel(parede: Parede): boolean {
     if (this.opcoes.visao.modo !== "jogador") return true;
+    const modelo = this.modelo;
+    if (!modelo) return false;
     const meio = meioDaParede(parede);
     const dx = parede.b.x - parede.a.x;
     const dy = parede.b.y - parede.a.y;
@@ -1023,8 +1330,8 @@ export class MapaPixi {
     const nx = (-dy / n) * 0.15;
     const ny = (dx / n) * 0.15;
     return (
-      pontoNaUniao({ x: meio.x + nx, y: meio.y + ny }, this.poligonos) ||
-      pontoNaUniao({ x: meio.x - nx, y: meio.y - ny }, this.poligonos)
+      veNoPonto(modelo, { x: meio.x + nx, y: meio.y + ny }) ||
+      veNoPonto(modelo, { x: meio.x - nx, y: meio.y - ny })
     );
   }
 
@@ -1259,6 +1566,34 @@ export class MapaPixi {
       return;
     }
 
+    if (this.opcoes.ferramenta === "luz") {
+      if (!this.opcoes.modoMestre) return;
+      const m = this.paraMundo(p);
+      const ponto = limitarNaCena(
+        this.encaixaAgora(e.altKey) ? encaixarNoGrid(m, 1, this.quadradoM()) : m,
+        this.cena,
+      );
+      this.retornos().colocarLuz(this.cena.id, ponto.x, ponto.y);
+      return;
+    }
+
+    const marca = this.luzEm(p);
+    if (marca) {
+      this.retornos().selecionarLuz(marca.luz.id);
+      // Só a luz fixa se arrasta; a presa a um token acompanha o token.
+      if (marca.luz.portador.tipo === "cena") {
+        const m = this.paraMundo(p);
+        this.gesto = {
+          tipo: "luz",
+          id: marca.luz.id,
+          deslocamento: { x: marca.pos.x - m.x, y: marca.pos.y - m.y },
+        };
+        this.app.canvas.setPointerCapture(e.pointerId);
+        this.atualizarCursor();
+      }
+      return;
+    }
+
     const porta = this.portaEm(p);
     if (porta) {
       this.retornos().alternarPorta(porta.id);
@@ -1277,6 +1612,7 @@ export class MapaPixi {
     const v = this.tokenEm(p);
     if (!v) {
       this.retornos().selecionar(null);
+      if (this.marcasVisiveis()) this.retornos().selecionarLuz(null);
       return;
     }
     if (this.opcoes.euMestre) this.retornos().selecionar(v.token.id);
@@ -1321,6 +1657,18 @@ export class MapaPixi {
         sel.pos = this.pontoDaParede(this.paraMundo(p), e.altKey);
         this.desenharParedes();
       }
+      return;
+    }
+    if (g.tipo === "luz") {
+      if (!this.cena) return;
+      const m = this.paraMundo(p);
+      const alvo = limitarNaCena(
+        { x: m.x + g.deslocamento.x, y: m.y + g.deslocamento.y },
+        this.cena,
+      );
+      this.luzArrastada = { id: g.id, pos: alvo };
+      this.visaoSuja = true;
+      this.desenharMarcasDeLuz();
       return;
     }
     if (g.tipo === "pan") {
@@ -1389,6 +1737,20 @@ export class MapaPixi {
     if (g.tipo === "bandeira") {
       const b = this.posicaoDaBandeira;
       if (b && this.cena) this.retornos().chegada(this.cena.id, b.x, b.y);
+    }
+    if (g.tipo === "luz") {
+      const arrasto = this.luzArrastada;
+      if (arrasto) this.retornos().moverLuz(arrasto.id, arrasto.pos.x, arrasto.pos.y);
+      // A luz fica onde foi solta até a sala confirmar (o evento chega em seguida).
+      setTimeout(() => {
+        this.luzArrastada = null;
+        if (this.pronto) {
+          this.visaoSuja = true;
+          this.desenharMarcasDeLuz();
+        }
+      }, 400);
+      this.atualizarCursor();
+      return;
     }
     if (g.tipo === "ponta") {
       const arrasto = this.pontaArrastada;
@@ -1464,10 +1826,15 @@ export class MapaPixi {
     if (!this.pronto) return;
     const g = this.gesto;
     let cursor = "default";
-    if (g?.tipo === "pan" || g?.tipo === "bandeira") cursor = "grabbing";
+    if (g?.tipo === "pan" || g?.tipo === "bandeira" || g?.tipo === "luz") cursor = "grabbing";
     else if (this.espaco || this.opcoes.ferramenta === "mao") cursor = "grab";
     else if (sobreBandeira && this.opcoes.ferramenta === "selecionar") cursor = "grab";
-    else if (this.opcoes.ferramenta === "regua" || this.ferramentaDeParedes()) cursor = "crosshair";
+    else if (
+      this.opcoes.ferramenta === "regua" ||
+      this.opcoes.ferramenta === "luz" ||
+      this.ferramentaDeParedes()
+    )
+      cursor = "crosshair";
     else if (g?.tipo === "token") cursor = "grabbing";
     else if (sobre && this.selecionavel(sobre.token)) {
       cursor = this.opcoes.podeMover(sobre.token) ? "grab" : "pointer";
@@ -1505,10 +1872,47 @@ export class MapaPixi {
       /** Quantas paredes a tela tem (o que a sala mandou para quem olha). */
       paredes: () => this.paredes.map((q) => ({ id: q.id, tipo: q.tipo, estado: q.estado })),
       /** A visão: modo, fontes e quantos polígonos; e se um ponto (metros) está dentro da união. */
-      visao: () => ({ modo: this.opcoes.visao.modo, poligonos: this.poligonos.length }),
+      visao: () => ({
+        modo: this.opcoes.visao.modo,
+        poligonos: this.modelo?.visao.length ?? 0,
+      }),
       veNoPonto: (x: number, y: number) =>
-        this.opcoes.visao.modo === "claro" || pontoNaUniao({ x, y }, this.poligonos),
-      veuVisivel: () => this.veu.visible,
+        this.opcoes.visao.modo === "claro" ||
+        (this.modelo !== null && veNoPonto(this.modelo, { x, y })),
+      veuVisivel: () => this.camada.multiplicar.visible,
+      /** O que o jogador vê no ponto: "nenhuma", "cinza", "penumbra" ou "plena" (só no modo jogador). */
+      visaoNoPonto: (x: number, y: number) =>
+        this.modelo ? visaoNoPonto(this.modelo, { x, y }) : "plena",
+      /** Nível de luz (0 a 1) no ponto: ambiente mais as luzes que chegam ali. */
+      nivelNoPonto: (x: number, y: number) => (this.modelo ? nivelDeLuz(this.modelo, { x, y }) : 1),
+      /** As luzes que valem agora (com os raios efetivos: intensidade × fator geral). */
+      luzes: () =>
+        (this.modelo?.luzes ?? []).map(({ luz }) => ({
+          id: luz.id,
+          x: luz.x,
+          y: luz.y,
+          claraM: luz.claraM,
+          totalM: luz.totalM,
+        })),
+      /** A memória do mapa: células lembradas, se há gravação pendente e o que lembra do ponto. */
+      memoria: () => ({
+        carregada: this.gradeDaMemoria !== null,
+        lembradas: this.gradeDaMemoria ? contarLembradas(this.gradeDaMemoria) : 0,
+        pendente: this.memoriaSuja || this.gravando > 0 || this.memoriaPendente,
+        esquecimento: this.esquecimentoAplicado,
+        alcancesM: this.fontesDeMemoria().map((f) => f.alcanceM),
+      }),
+      lembraNoPonto: (x: number, y: number) =>
+        this.gradeDaMemoria !== null && lembraDoPonto(this.gradeDaMemoria, { x, y }),
+      opacidadeDaMemoria: (x: number, y: number) =>
+        this.gradeDaMemoria
+          ? opacidadeNoPonto(this.gradeDaMemoria, this.fontesDeMemoria(), { x, y })
+          : 0,
+      /** Posição de cada marca de luz que o mestre vê (metros). */
+      marcasDeLuz: () =>
+        this.marcasVisiveis()
+          ? this.posicoesDasLuzes().map((i) => ({ id: i.luz.id, ...i.pos }))
+          : [],
       /** Pontos da sequência de paredes em desenho. */
       desenhando: () => this.desenhando?.length ?? 0,
       /** Metros do mundo -> pixels CSS da página (para o `page.mouse`). */

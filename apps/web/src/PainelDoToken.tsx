@@ -117,6 +117,27 @@ export function PainelDoToken({ token, jogadores, enviar, pedirImagem, aoFechar 
       ) : (
         <p className="nota">A visão vem do personagem (editor da ficha).</p>
       )}
+      {token.personagemId === undefined && (
+        <label>
+          Visão no escuro (m; vazio = nenhuma)
+          <input
+            data-testid="token-visao-escuro"
+            inputMode="decimal"
+            key={`escuro-${token.id}-${token.visaoNoEscuroM ?? ""}`}
+            defaultValue={token.visaoNoEscuroM === undefined ? "" : String(token.visaoNoEscuroM)}
+            onBlur={(e) => {
+              const texto = e.target.value.trim().replace(",", ".");
+              const n = Number(texto);
+              if (texto === "") editar({ visaoNoEscuroM: null });
+              else if (Number.isFinite(n) && n >= 0 && n <= 1000) editar({ visaoNoEscuroM: n });
+              else
+                e.target.value =
+                  token.visaoNoEscuroM === undefined ? "" : String(token.visaoNoEscuroM);
+            }}
+            onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+          />
+        </label>
+      )}
       <label className="linha-opcao">
         <input
           type="checkbox"

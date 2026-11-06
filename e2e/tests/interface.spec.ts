@@ -78,7 +78,7 @@ test("a ordem de turno liga e desliga para todos, inclusive o mestre; só o mest
     mestre.pagina.getByTestId("exportar").click(),
   ]);
   const json = JSON.parse(readFileSync(await download.path(), "utf8"));
-  expect(json.versao).toBe(6);
+  expect(json.versao).toBe(7);
   expect(json.dados.ordemDeTurnoVisivel).toBe(true);
   expect(json.dados.pastas.map((p: { id: string }) => p.id)).toEqual([
     "pasta-personagens",
@@ -162,8 +162,8 @@ test("menu superior, camadas, dados rápidos e pincel (interface; o que não tem
   await expect(p.getByTestId("lanterna")).toBeVisible();
   await expect(p.getByTestId("lanterna-iluminacao")).toHaveAttribute("aria-checked", "true");
   await expect(p.getByTestId("lanterna-paredes")).toBeEnabled();
-  await expect(p.getByTestId("lanterna-fontes")).toBeDisabled();
-  await expect(p.getByTestId("lanterna-config")).toBeDisabled();
+  await expect(p.getByTestId("lanterna-fontes")).toBeEnabled(); // Lote 6: painel de fontes de luz
+  await expect(p.getByTestId("lanterna-config")).toBeEnabled(); // Lote 6: configurações de iluminação
   await expect(p.getByTestId("painel-eventos")).toHaveCount(0);
   await p.keyboard.press("Escape");
   await expect(p.getByTestId("lanterna")).toHaveCount(0);

@@ -286,6 +286,8 @@ describe("exportar e importar", () => {
         "assets",
         "cenaAtivaId",
         "cenas",
+        "config",
+        "luzes",
         "notaMesa",
         "notaMestre",
         "ordemDeTurnoVisivel",
@@ -309,7 +311,7 @@ describe("exportar e importar", () => {
       "texto",
       {},
       { ...boa, formato: "outro" },
-      { ...boa, versao: 7 },
+      { ...boa, versao: 8 },
       { ...boa, dados: { ...boa.dados, usuarios: [] } },
       {
         ...boa,

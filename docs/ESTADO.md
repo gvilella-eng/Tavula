@@ -961,6 +961,101 @@ Aplicadas na revisão (4.1, 4.7, 4.13.1 e o Lote 5). Texto original do agente:
 - 4.13.1: a lista da lanterna e o menu do ícone de visão noturna (clique direito: ver como).
 - Lote 6: a névoa/memória pode reaproveitar a RenderTexture do véu (acumular os polígonos).
 
-## Próximo: Lote 6 — Luz, visão no escuro e névoa de guerra
+## Lote 6 — Luz, visão no escuro e memória do mapa (entregue, aguardando o roteiro manual)
 
-Ver `PROJETO.md`, seção 7. O Lote 6 parte do que o Lote 5 deixou: os polígonos de visão, o véu em RenderTexture e as paredes.
+### O que foi entregue
+
+- **`shared`** (puro, testado): `luz.ts` (`raiosEfetivos`, `resolverLuzes`, `luzVisivelPara`, `modInteligenciaDe`, `visaoNoEscuroDe`), `iluminacao.ts` (`calcularModelo`, `CacheDeLuz`,
+  `nivelDeLuz`, `visaoNoPonto`, `veNoPonto`) e `memoria.ts` (`alcanceDaMemoria`, `opacidadeDaMemoria`, `marcarVisto`, `esquecerAlemDoAlcance`, `imagemDaMemoria`).
+  Schemas: `FonteDeLuz`, `ConfigDaMesa` (`iluminacao`), `Estado.luzes/config/memoriaEsquecida`, `Cena.luzAmbiente/fatorDeLuz`, `Token.visaoNoEscuroM`,
+  `Personagem.modInteligencia`; intenções `fonte.criar/editar/apagar`, `config.iluminacao`, `memoria.esquecer` (e `cena.configurarIluminacao` ganhou `luzAmbiente`
+  e `fatorDeLuz`); eventos `fonte.*`, `config.alterada`, `memoria.esquecida`; exportação **v7** (importa v1 a v6).
+- **Sala**: sigilo das fontes (snapshot e eventos; a de token oculto ou da camada do mestre não chega ao jogador; esconder o token que carrega luz manda snapshot novo),
+  coleção `luzes` em `entidades` e `config`/`memoria_esquecida` em `meta` (sem migração: banco antigo lê vazio e com o padrão).
+- **Render** (`apps/web/src/mapa/camadaDeLuz.ts`, só de tela): texturas do tamanho da cena (RenderTexture): "não visto" (véu do Lote 5), luz (ambiente + penumbra + luz plena, em blend aditivo,
+  cada luz com o próprio polígono, as paredes bloqueiam a luz), visão no escuro (meia luz + máscara do cinza) e saída (memória onde não vê, luz onde vê). Entrega três sprites sobre o mapa:
+  `multiplicar` (blend multiply), `brilho` (blend add, 10%) e `cinza` (blend `saturation`, dos modos avançados do Pixi).
+- **Memória do mapa** (`memoriaLocal.ts` + `mapaPixi.ts`): grade de 0,5 m por usuário e cena no IndexedDB (com cópia em memória se o IndexedDB falhar), marcada a cada ≥ 120 ms, esquecida além do alcance,
+  gravada 500 ms depois da última mudança (e no `pagehide`). "Esquecer a memória desta cena" do mestre vira `memoria.esquecida`, e o navegador compara a versão com a que já aplicou.
+- **Interface**: lanterna com "Iluminação dinâmica" mostrando **Ligada/Desligada** em destaque (e um ponto vermelho no ícone da lanterna quando está desligada); **painel flutuante de fontes de luz**
+  (`PainelDeFontesDeLuz.tsx`: slider geral, lista com acender/apagar, intensidade e lixeira, "+ Luz fixa" e clique no mapa, edição de nome, raios, cor e tremular, duplo clique no cabeçalho recolhe
+  e baixa a opacidade a 0,7, espaço reservado "Com tempo" para o Lote 7); as marcas das luzes aparecem no mapa com o painel aberto (arrastar muda o lugar; clicar seleciona);
+  **configurações de iluminação** (`PainelDeIluminacao.tsx`: luz ambiente da cena, memória ligada/modo/valores/tom, "Esquecer a memória desta cena"); campo "Modificador de Inteligência" no editor do item;
+  "Visão no escuro" no painel do token sem personagem.
+- **Semente**: Cena inicial com luz ambiente 0,1, a tocha da sala (11,25; 30; 6 m + 6 m) e o braseiro (27; 9,75; 4,5 m + 4,5 m); Aldric já tinha visão no escuro de 18 m; Brisa ganhou Inteligência +2.
+- **Infra de prints** (reusável nos próximos lotes): `e2e/playwright.prints.config.ts`, script `prints` do `e2e`, pasta `e2e/prints/`.
+
+### Como rodar
+
+- Testes: `pnpm verify`.
+- Prints (sobem e derrubam os próprios servidores 8788/5174; a porta ocupada faz o Playwright reclamar, não reaproveitar):
+  `PRINTS_DIR=<pasta> pnpm --filter @tabletop/e2e prints` (PowerShell: `$env:PRINTS_DIR="<pasta>"; pnpm --filter @tabletop/e2e prints`). Os prints de cada lote ficam em `e2e/prints/lote-N.spec.ts`, 1600×900.
+  O `Mesa` de `e2e/tests/ajudas.ts` aceita as opções do contexto (o viewport).
+
+### Verificação
+
+- `pnpm verify` verde **duas vezes seguidas**: 271 testes de unidade em `shared` (eram 219; novos: `luz.test.ts`, `iluminacao.test.ts`, `memoria.test.ts`), 12 no `server`, 6 no `web`, e **69 E2E** (58 antigos + 11 novos de `e2e/tests/luz.spec.ts`), ~5,1 min cada.
+- Expectativas antigas alteradas: a versão da exportação passou de 6 para 7 (testes de unidade e `assets.spec.ts`/`interface.spec.ts`), a lista de chaves da exportação ganhou `luzes` e `config`, a versão inválida do teste de importação passou de 7 para 8, o item "Fontes de luz" e "Configurações de iluminação" da lanterna agora estão habilitados, e o teste de exportação de `assets.spec.ts` passou a esperar o `token.editado` com a imagem antes de exportar (corrida rara).
+- Desempenho: o teste de unidade com 30 luzes e 500 paredes calcula os polígonos em poucas dezenas de ms (limite do teste: 500 ms). No Chrome headless, arrastando um token com 30 luzes e 500 paredes: **60 fps** (teto do rAF; só referência, `e2e/prints/lote-6.spec.ts`, último teste).
+- Prints (1600×900) em `PRINTS_DIR`: 01 jogador em cena escura com luz fixa, 02 visão no escuro (cinza), 03 memória do mapa, 04 painel de fontes aberto, 05 recolhido, 06 configurações de iluminação, 07 visão noturna do mestre, 08 e 08b lanterna (ligada e desligada), 09 cena de desempenho.
+
+### Gancho de teste (só no modo `e2e`)
+
+`window.__tabletop` ganhou: `visaoNoPonto(x, y)` (`nenhuma`/`cinza`/`penumbra`/`plena`), `nivelNoPonto`, `luzes()` (com os raios já multiplicados), `memoria()` (`carregada`, `lembradas`,
+`pendente`, `esquecimento`, `alcancesM`), `lembraNoPonto`, `opacidadeDaMemoria`, `marcasDeLuz()`. `veNoPonto` e `veuVisivel` agora consideram a luz. Erro de JavaScript na página aparece no
+relatório do Playwright (`[erro na página]`).
+
+### Decisões
+
+- **Pipeline só com modos de mistura**: nenhum shader próprio. Visão = véu "não visto" (erase). Luz = soma aditiva. A memória e a luz se juntam numa textura com alfa (erase) e vão para a tela em *multiply*.
+  O cinza usa o modo `saturation` (exige `import "pixi.js/advanced-blend-modes"` e `useBackBuffer: true`).
+- **Visível** = luz ∩ visão, ou visão no escuro. Ambiente ≥ 0,45 já vale como penumbra em toda a cena; abaixo disso só a luz e a visão no escuro revelam. Visão no escuro soma meia luz (escuro vira "meia luz" em cinza e a penumbra chega a 1).
+- **Brilho de 10%** (blend add) para um chão escuro de mapa sem imagem não parecer apenas "ausência de preto"; em mapa claro quase não se nota.
+- **Tremulação** só refaz o brilho (a cada 90 ms), sem recalcular polígonos. Os polígonos das luzes ficam em cache (`CacheDeLuz`) e só se refazem quando a luz, as paredes ou a cena mudam.
+- **Memória**: o alcance de cada token decide até onde ele se lembra; a opacidade usa o token que mais "alcança" a célula. O que passa do alcance de todos é apagado na hora.
+- **Visão noturna do mestre**: o que algum jogador vê aparece normal (sem cinza nem penumbra) e o resto a 45%. Em aberto no PROJETO.md: a área que um jogador só vê com visão no escuro aparece normal, não cinza.
+- **Luz ambiente sem valor = 1** (não escurece campanha antiga). Fator geral por cena em `Cena.fatorDeLuz`.
+- Corrigido um erro latente do Pixi: `app.destroy(true)` esvazia os pools **globais** (o StrictMode destruía o primeiro mapa com o segundo de pé e quebrava o desenho com "reading 'clear'" de vez em quando). Agora `destroy({ removeView: true })`; e o laço de desenho não para mais por um erro (loga).
+
+### Desvios do plano
+
+- **Névoa explorada gravada na sala** virou **memória do mapa só no navegador** (IndexedDB), como decidido antes do lote; o mestre "esquece" por evento, não "reseta" um dado da sala.
+- Fontes de luz são uma prévia do `ObjetoDeLuz` (sem modelo, tempo nem mochila: Lote 7).
+- A luz ambiente e o fator geral são campos da cena (não da `ConfigDaMesa`).
+
+### Frágil / não verificado
+
+- Blend `saturation` e RenderTextures só foram vistos no Chrome (WebGL) e com devicePixelRatio 1. Com DPR alto as texturas continuam limitadas a 1800 px no lado maior (bordas mais suaves em cenas grandes).
+- Luz tem bordas duras (luz plena e penumbra em degraus); sem gradiente.
+- A memória marca por centro de célula de 0,5 m: quinas finas de parede podem deixar uma célula marcada por engano.
+- A memória só vale para o token do navegador; o mestre "vendo como" um jogador usa a memória do jogador **neste** navegador (do mestre), não a do jogador.
+- Cena que muda de tamanho descarta a memória gravada.
+- Redimensionar a janela com muito zoom refaz as marcas das luzes (barato), mas não as texturas (não dependem da tela).
+
+### Roteiro manual (pendente)
+
+1. Lanterna → Configurações: luz ambiente em 0; só a tocha da sala e o braseiro iluminam. Como jogador 2 (sem visão no escuro), conferir escuro, penumbra e luz plena.
+2. Como jogador 1 (Aldric, visão no escuro de 18 m): o escuro vira cinza, a penumbra vira luz plena.
+3. Entrar na sala, abrir a porta e sair: a sala fica escurecida só com o mapa, desbota e some além de 15 m; refresh mantém; "Esquecer a memória desta cena" limpa.
+4. Lanterna → Fontes de luz: + Luz fixa, arrastar, editar raios e cor, intensidade e fator geral; duplo clique no cabeçalho recolhe.
+5. Lanterna → Iluminação dinâmica: o estado aparece por extenso (Ligada/Desligada).
+6. Medir o fps com 30 luzes e 500 paredes (ver `docs/ESTADO.md` acima: número de referência).
+
+### Revisão (antes do commit de fechamento)
+
+- Código de sigilo das fontes revisado: `visaoPara` filtra pela cena ativa e pela visibilidade do token portador; `eventoPara` converte em `fonte.apagada` a fonte que deixa de
+  ser visível; apagar token, personagem ou cena apaga as luzes presas; duplicar cena copia as fixas e as dos tokens copiados.
+- Prints conferidos (01 a 09). `pnpm verify` verde duas vezes na revisão (271 + 12 + 6 de unidade, 69 E2E, 5,0 min cada); portas 8788/5174 livres no fim; o `pnpm dev`
+  do Vilella não foi tocado.
+- Sugestões aplicadas no PROJETO.md (4.1, 4.7 e "Como ficou" do Lote 6). A cor da visão no escuro na visão noturna do mestre entrou nas perguntas do fim.
+
+### Sugestões para o PROJETO.md (aplicadas)
+
+- 4.1: acrescentar `FonteDeLuz` (prévia do `ObjetoDeLuz`), `ConfigDaMesa.iluminacao`, `Cena.luzAmbiente/fatorDeLuz`, `Token.visaoNoEscuroM`, `Personagem.modInteligencia`.
+- 4.7: o render é um pipeline de texturas com modos de mistura (erase, add, multiply e saturation); a névoa gravada na sala foi trocada pela memória no navegador.
+- 4.13.1 e Lote 6: o item "Iluminação dinâmica" mostra "Ligada/Desligada"; o painel de fontes tem acender/apagar por fonte e o espaço "Com tempo" do Lote 7.
+- 10 (em aberto): na visão noturna do mestre, a área vista só com visão no escuro aparece em cor normal.
+
+## Próximo: Lote 7 — Relógio da sala e objetos de luz
+
+Ver `PROJETO.md`, seção 7. O Lote 7 parte do que o Lote 6 deixou: as fontes de luz (que ganham modelo, tempo e mochila), o espaço "Com tempo" do painel de fontes e a `ConfigDaMesa`.
