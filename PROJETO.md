@@ -1173,6 +1173,85 @@ pelo painel do mestre.
 
 **Pronto quando:** `pnpm verify` verde.
 
+**Decidido antes de começar (2026-11-06; prevalece sobre os itens acima onde conflitar; o que foi
+assumido sem o Vilella está marcado com "(assumido)" e entra nas perguntas do fim):**
+- **Uma coleção só:** a `FonteDeLuz` do Lote 6 vira o `ObjetoDeLuz` da 4.1, na mesma coleção `luzes`.
+  - ganha `modeloId?`, `estado: 'acesa' | 'apagada'` (no lugar de `acesa`), `saldoMs: number | null`
+    (null = não se consome), `acesaDesdeSala?`, `modificadores` e `historico`;
+  - o portador ganha `mao` (personagem + mão), `mochila` (tocha usada guardada) e `ponto`, além de
+    `cena` (fixa) e `token` (criatura que brilha, o "proprio" da 4.1);
+  - **consumida** (tempo acabou ou lixeira do mestre) libera a mão e o objeto sai da coleção; o
+    histórico vai junto (assumido);
+  - exportação **v8**, importando v1 a v7 (`acesa: true/false` vira `estado`).
+- **Relógio da sala** (`packages/shared/src/relogio.ts`, puro): `{ pausada, acumuladoMs, desdeReal? }`.
+  O tempo da sala é `acumuladoMs + (agora − desdeReal)` enquanto não está pausada. `processar` continua
+  recebendo `agora` (real) e calcula o tempo da sala; os testes usam `agora` falso. Pausar a mesa congela
+  tudo (tochas, estágios e, no 7b, ciclos).
+- **Saldo:** acesa, o restante é `saldoMs − (sala − acesaDesdeSala)`; ao apagar, o saldo vira o restante
+  menos `penalidadeAoApagarS`. O agendador da sala (já existe, `apps/server/src/agendador.ts`) guarda
+  o próximo marco de cada objeto aceso (mudança de estágio e fim) em tempo real; pausar cancela tudo e
+  retomar reagenda. Ao vencer, a sala processa uma intenção interna do sistema (não aceita de cliente).
+- **Estágios** (`ConfigDaMesa.estagios`, padrão `{ fraca: 0.5, morrendo: 0.1 }` da duração do modelo):
+  forte, fraca e morrendo. No estágio "morrendo" a luz tremula mais.
+- **O que vai para o navegador:** `acesaDesdeSala` e `saldoMs` **nunca** (nem para o mestre). A sala manda
+  `restanteMs` calculado na hora do envio e `contando` (acesa e mesa rodando); o navegador só anima a
+  contagem entre um envio e outro.
+  - jogador com `tempoParaJogadores` = `exato`: recebe `restanteMs`; `estagio`: só `estagio`; `oculto`:
+    nenhum dos dois. O filtro é na sala (snapshot e eventos);
+  - o mestre recebe sempre `restanteMs`, `estagio` e o histórico.
+- **`ConfigDaMesa` completa** (`maosPorPersonagem` 2, `penalidadeAoApagarS` 0, `alcanceInteracaoM` 1,5,
+  `tempoParaJogadores` 'exato', `estagios`), editada pelo mestre na aba **Configurações** da barra
+  direita, seção "Mesa". Intenção `config.mesa` (`mesa.configurar`).
+- **Modelos de objeto** (nome, luz, duração ou infinita, ocupa mão, tags) na mesma aba, seção "Objetos de
+  luz". Semente: Tocha 5e (6 m + 6 m, 60 min, ocupa mão), Lanterna (9 m + 9 m, 6 h, ocupa mão) e Fogueira
+  (6 m + 6 m, infinita, não ocupa mão). A campanha de referência muda a tocha para 30 min e 9 m + 6 m por
+  configuração, nunca por código.
+- **Mochila mínima:** `Personagem.mochila: Record<modeloId, number>` (só as novas). As usadas são
+  objetos com portador `mochila`. No editor do item, seção "Mochila": "Tocha: 4 novas, 1 usada", com
+  **Acender** (nova ou usada) e, para o mestre, +/− na quantidade. A ficha do Lote 9 absorve.
+- **Mãos:** acender põe o objeto numa mão livre do personagem (até `maosPorPersonagem`; objeto que não
+  ocupa mão não conta). **A tocha apagada continua ocupando a mão** até ser guardada (assumido). A luz
+  sai do token do personagem na cena ativa; sem token lá, o tempo corre e não há luz. Mudar de cena leva
+  a tocha junto.
+- **Alça da tocha:** um ícone pequeno junto ao token, um por mão (esquerda e direita). Arrastar a alça:
+  - solta sobre outro token **dentro do alcance** com mão livre: entrega (`tocha.entregar`), com o saldo;
+  - solta sobre um **suporte** dentro do alcance com espaço: põe a tocha nele;
+  - segurada sobre um **inflamável** dentro do alcance, acesa: um anel enche em `segurarS` (3 s) e o
+    ponto acende; a tocha volta para a mão;
+  - solta em qualquer outro lugar: volta para a mão, sem intenção.
+  - **dois cliques** na alça (ou no ponto aceso) apagam; dois cliques na apagada reacendem com o mesmo
+    saldo. Menu do botão direito na alça: "Guardar na mochila".
+  - quem pode: quem controla o personagem (com a capacidade) e o mestre. Ninguém mais arrasta a tocha
+    alheia.
+- **Alcance** (`dentroDoAlcance`, puro e testado): distância 5e no grid (Chebyshev, entre os quadrados
+  mais próximos ocupados por cada token, ou entre o token e o ponto) ≤ `alcanceInteracaoM`. Com 1,5 m,
+  só adjacentes (inclusive na diagonal). **Entregar exige o alcance** (assumido).
+- **Pontos** (`Ponto` da 4.1, coleção `pontos`): o mestre cria no painel "Fontes de luz", seção
+  "Pontos", com "+ Suporte" e "+ Inflamável" e um clique no mapa (como "+ Luz fixa"); edita nome,
+  capacidade, modelo, `segurarS` e "visível para os jogadores". Intenções `ponto.criar/editar/apagar`
+  (`cena.editar`).
+  - **tirar do suporte:** qualquer jogador com um token dentro do alcance e mão livre, com `ponto.usar`
+    (assumido);
+  - **inflamável:** `ponto.acenderInicio` e `ponto.acenderFim`; a sala confere pelo relógio dela que
+    passaram `segurarS`, o alcance e que a tocha está acesa. Antes disso, recusa. O "início" pendente é
+    transitório (não vai para a exportação nem para os jogadores);
+  - acender um inflamável cria o objeto do modelo dele no ponto e torna o ponto visível;
+  - ponto oculto não chega ao jogador; objeto num ponto oculto só chega aceso.
+- **Painel "Fontes de luz"** (substitui o espaço "Com tempo"): lista também as variáveis (tochas nas
+  mãos, com o nome do personagem, e as dos pontos), com o tempo restante, **−1 min / +1 min**, a lixeira
+  (consumir, inclusive a tocha de um jogador) e o slider de intensidade. Clicar numa fonte abre saldo,
+  histórico e modificadores (raio ×, com ou sem prazo no relógio da sala). Tudo entra no histórico:
+  "−1 min: apagada", "+1 min (mestre)". Intenção `objeto.ajustar` (capacidade do mestre).
+- **Pausar a mesa:** botão de pausa/retomar com o relógio da sala no fim do menu superior do mestre
+  (assumido: o Vilella não definiu onde). Para os jogadores, um selo discreto "Mesa pausada" no topo.
+  Intenções `mesa.pausar` e `mesa.retomar` (`mesa.configurar`).
+- **Capacidades** (já existem em `capacidades.ts`): `tocha.acender` (acender, apagar e reacender a
+  **própria** tocha, guardar), `tocha.entregar` (entregar, pôr no suporte), `ponto.usar` (tirar do
+  suporte, acender inflamável), `luz.apagar` (apagar a luz de um ponto; padrão desligado, como hoje) e
+  `objeto.ajustar` (só do mestre).
+- **Sigilo de sempre:** a mochila e os objetos dela chegam a quem vê o personagem; a tocha na mão, a
+  quem vê o token dele na cena ativa (o filtro do Lote 6).
+
 ---
 
 ### Lote 7b — Automações da mesa (G)
