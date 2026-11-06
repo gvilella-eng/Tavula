@@ -1232,6 +1232,41 @@ dela e revisar o rascunho antes de publicar.
 
 ---
 
+### Lote 13 — Pincel e camada de desenho (M)
+
+**Objetivo:** desenhar no mapa (seção 4.13.1). A interface já existe desde o Lote 4b.
+
+**Entregáveis:**
+- pincel com voltar, selecionar, formas (livre, linha, retângulo, círculo), cores e borracha;
+- todo desenho, de jogador ou mestre, vai para a camada de desenho, qualquer que seja a camada atual. A
+  camada é sempre visível para todos (também no escuro), por cena;
+- borracha e seleção do pincel só atuam nessa camada;
+- "limpar todos os desenhos" do mestre no menu de camadas;
+- desenho gravado na sala e sincronizado ao vivo.
+
+**Assumido até o Vilella decidir:** o jogador apaga e seleciona só os próprios desenhos; o mestre, todos.
+Desenhar é uma capacidade delegável, ligada por padrão.
+
+**Pronto quando:** `pnpm verify` verde.
+
+---
+
+### Lote 14 — Compêndio de magias (M)
+
+**Objetivo:** consultar magias e puxá-las para a ficha e para o chat (seção 4.13.1).
+
+**Entregáveis:**
+- a aba Compêndio lê um JSON de magias da **pasta local** do mestre, fora do repositório (a mesma
+  premissa das imagens; o conteúdo do Livro do Jogador tem direitos autorais; a alternativa livre é o
+  SRD 5.1);
+- busca e filtros (nível, escola, classe);
+- mandar a descrição para o chat e puxar a magia para a ficha (depende dos Lotes 8 e 9);
+- talvez monstros e armas depois.
+
+**Pronto quando:** `pnpm verify` verde.
+
+---
+
 ### Depois (fora dos lotes atuais)
 
 - handouts (imagem ou texto entregue a um jogador, que fica no inventário dele);
