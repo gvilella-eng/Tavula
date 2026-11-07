@@ -6,6 +6,8 @@ import {
   PERMISSOES_PADRAO,
   TODAS_AS_CAPACIDADES,
 } from "./capacidades.ts";
+import { LIMITES_DO_CHAT, MensagemSchema, TEXTO_DO_CHAT_MAX } from "./chat.ts";
+import { LIMITES_DE_DADOS } from "./dados.ts";
 import {
   CenaSchema,
   CONFIG_PADRAO,
@@ -41,6 +43,7 @@ import {
 import { CENA_PADRAO } from "./mapa.ts";
 import { modelosPadrao } from "./objetos.ts";
 import { migrarPersonagem, PersonagemAntigoSchema, pastasPadrao } from "./pastas.ts";
+import { PedidoDeModeloSchema } from "./rolagens.ts";
 
 export const VERSAO_PROTOCOLO = 1;
 /** Versão do arquivo de exportação (de v1 a v7 ainda são aceitas na importação). */
@@ -76,6 +79,8 @@ const DadosV2Schema = EstadoSchema.omit({
   pontos: true,
   relogio: true,
   acendimentos: true,
+  chat: true,
+  retratosDoChat: true,
 }).extend({
   notaMestre: Texto,
   permissoes: PermissoesExportadasSchema,
@@ -550,6 +555,33 @@ export const IntencaoSchema = z.discriminatedUnion("tipo", [
    * qualquer porta (inclusive a secreta e a trancada, que abre).
    */
   intencao("porta.alternar", z.object({ id: IdSchema })),
+  /**
+   * Chat (Lote 8). Só a NOTAÇÃO viaja: qualquer resultado que o cliente mande é descartado pelo schema
+   * (zod ignora o que não está declarado) e a sala rola de novo. `como` é um personagem que quem fala
+   * edita (o mestre: qualquer um).
+   */
+  intencao(
+    "chat.enviar",
+    z.object({
+      texto: z.string().min(1).max(LIMITES_DO_CHAT.caracteres, TEXTO_DO_CHAT_MAX),
+      como: IdSchema.optional(),
+    }),
+  ),
+  /** Rola uma expressão (dados rápidos). `oculta` só vale para o mestre ou com `dado.rolarOculto`. */
+  intencao(
+    "dado.rolar",
+    z.object({
+      expressao: z.string().min(1).max(LIMITES_DE_DADOS.caracteres),
+      oculta: z.boolean().optional(),
+      como: IdSchema.optional(),
+    }),
+  ),
+  /** Modelo de rolagem: ataque (acerto + dano) ou teste (com CD opcional). */
+  intencao("chat.modelo", PedidoDeModeloSchema),
+  /** Pede mensagens mais antigas que `antesDoSeq`; a resposta (`chat.anteriores`) vem só para quem pediu. */
+  intencao("chat.anteriores", z.object({ antesDoSeq: z.number().int().positive() })),
+  /** Só o mestre: apaga o histórico do chat. */
+  intencao("chat.limpar", SemDados),
   intencao("campanha.exportar", SemDados),
   intencao("campanha.importar", z.object({ dados: z.unknown() })),
 ]);
@@ -627,6 +659,12 @@ export const capacidadeDaIntencao: Record<TipoIntencao, Capacidade | null> = {
   "mochila.ajustar": "objeto.ajustar",
   "memoria.esquecer": "mesa.configurar",
   "porta.alternar": "porta.abrir",
+  // Todos falam, rolam e leem o próprio histórico; o oculto (`dado.rolarOculto`) é conferido dentro.
+  "chat.enviar": null,
+  "dado.rolar": null,
+  "chat.modelo": null,
+  "chat.anteriores": null,
+  "chat.limpar": "mesa.configurar",
   "campanha.exportar": "campanha.exportar",
   "campanha.importar": "campanha.importar",
 };
@@ -745,6 +783,10 @@ export const EventoSalaSchema = z.discriminatedUnion("tipo", [
     "memoria.esquecida",
     z.object({ cenaId: IdSchema, versao: z.number().int().positive() }),
   ),
+  /** Uma mensagem do chat, filtrada: quem não pode vê-la nunca a recebe. */
+  eventoDe("chat.mensagem", z.object({ mensagem: MensagemSchema })),
+  /** O mestre limpou o chat: todos esvaziam a conversa. */
+  eventoDe("chat.limpo", SemDados),
   /** Só mestres recebem (as metas dos jogadores chegam por `asset.meta`, sob demanda). */
   eventoDe("asset.registrado", z.object({ meta: AssetMetaSchema })),
 ]);
@@ -774,6 +816,7 @@ export const CODIGOS_DE_ERRO = [
   "maos_cheias",
   "suporte_cheio",
   "segurar_incompleto",
+  "muitas_mensagens",
 ] as const;
 export const CodigoDeErroSchema = z.enum(CODIGOS_DE_ERRO);
 export type CodigoDeErro = z.infer<typeof CodigoDeErroSchema>;
@@ -817,6 +860,14 @@ export const MensagemDaSalaSchema = z.discriminatedUnion("tipo", [
   ),
   /** Ninguém online tem o arquivo; a sala retoma sozinha quando alguém com cópia conectar. */
   mensagemDaSala("asset.indisponivel", z.object({ hash: HashSchema })),
+  /** Resposta de `chat.anteriores`: só para quem pediu, já filtrada para ele. */
+  mensagemDaSala(
+    "chat.anteriores",
+    z.object({
+      mensagens: z.array(MensagemSchema).max(LIMITES_DO_CHAT.porPagina),
+      temMais: z.boolean(),
+    }),
+  ),
   mensagemDaSala("exportacao", z.object({ idPedido: z.string(), exportacao: ExportacaoSchema })),
   /**
    * Pré-envio (Lote 4): baixe estes arquivos cifrados. Sem `cenaId`, sem nome, sem nada sobre o

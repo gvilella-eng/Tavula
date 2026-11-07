@@ -9,6 +9,7 @@ import {
   hashesPreparaveis,
   iluminacaoDinamicaLigada,
   modInteligenciaDe,
+  pode,
   podeEditarPersonagem,
   podeMoverToken,
   type TipoDeParede,
@@ -56,7 +57,15 @@ import { useSala } from "./useSala";
 import { ZoomFlutuante } from "./ZoomFlutuante";
 
 const CORES_DE_TOKEN = ["#3cb44b", "#4363d8", "#f58231", "#911eb4", "#e6194b", "#42d4f4"];
-const DURACAO_DO_AVISO_LOCAL_MS = 3500;
+const CHAVE_COMO = "tabletop:chat:como:";
+
+function lerComo(usuarioId: string): string {
+  try {
+    return localStorage.getItem(CHAVE_COMO + usuarioId) ?? "";
+  } catch {
+    return "";
+  }
+}
 
 function baixarExportacao(exportacao: Exportacao) {
   const blob = new Blob([JSON.stringify(exportacao, null, 2)], { type: "application/json" });
@@ -91,6 +100,7 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
     uso,
     aviso,
     preparos,
+    chatTemMais,
     enviar,
     enviarBinario,
     bufferizado,
@@ -126,7 +136,10 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
   );
   // "Ver como o jogador X" (só da tela do mestre): `null` = ele mesmo.
   const [verComoId, setVerComoId] = useState<string | null>(null);
-  const [avisoLocal, setAvisoLocal] = useState<{ numero: number; texto: string } | null>(null);
+  // Chat: de quem estou falando (vale também para os dados rápidos), a aba à vista e até onde já li.
+  const [comoId, setComoId] = useState("");
+  const [abaVisivel, setAbaVisivel] = useState<string | null>("chat");
+  const [vistoAteSeq, setVistoAteSeq] = useState<number | null>(null);
   const [pedidoDeImagem, setPedidoDeImagem] = useState<PedidoDeImagem | null>(null);
   // A cena que o mestre olha (e edita) sem mover o grupo: estado local da tela dele. `null` = a do grupo.
   const [cenaVistaId, setCenaVistaId] = useState<string | null>(null);
@@ -167,12 +180,32 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
     return () => window.removeEventListener("keydown", aoTeclar);
   }, []);
 
-  // O aviso curto local (dados rápidos) some sozinho.
+  const chatDaMesa = estado?.chat;
+  const ultimoSeqDoChat = chatDaMesa?.[chatDaMesa.length - 1]?.seq ?? 0;
+  // O que já estava no chat ao abrir não conta como "não lida"; depois, vale o que chega com a aba fechada.
   useEffect(() => {
-    if (!avisoLocal) return;
-    const t = setTimeout(() => setAvisoLocal(null), DURACAO_DO_AVISO_LOCAL_MS);
-    return () => clearTimeout(t);
-  }, [avisoLocal]);
+    if (!chatDaMesa) return;
+    if (vistoAteSeq === null || (abaVisivel === "chat" && ultimoSeqDoChat > vistoAteSeq)) {
+      setVistoAteSeq(ultimoSeqDoChat);
+    }
+  }, [chatDaMesa, ultimoSeqDoChat, abaVisivel, vistoAteSeq]);
+  const naoLidas =
+    vistoAteSeq === null
+      ? 0
+      : (chatDaMesa ?? []).filter((m) => m.seq > vistoAteSeq && m.autorId !== euId).length;
+
+  // Lembra o "Como:" deste usuário neste navegador.
+  useEffect(() => {
+    if (euId) setComoId(lerComo(euId));
+  }, [euId]);
+  function mudarComo(id: string) {
+    setComoId(id);
+    try {
+      if (euId) localStorage.setItem(CHAVE_COMO + euId, id);
+    } catch {
+      // sem localStorage: vale só nesta sessão
+    }
+  }
 
   useEffect(() => {
     void fontes.iniciar();
@@ -608,7 +641,26 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
             id: "chat",
             titulo: "Chat",
             icone: <MessagesSquare size={20} />,
-            conteudo: <AbaChat estado={estado} presenca={presenca} euId={eu.id} />,
+            cheia: true,
+            selo: abaVisivel === "chat" ? 0 : naoLidas,
+            conteudo: (
+              <AbaChat
+                estado={estado}
+                presenca={presenca}
+                eu={eu}
+                enviar={enviar}
+                imagens={imagens}
+                versaoDasImagens={versaoDosProntos}
+                comoId={comoId}
+                aoMudarComo={mudarComo}
+                temMais={chatTemMais}
+                pedirAnteriores={() => {
+                  const primeiro = estado.chat?.[0]?.seq;
+                  if (primeiro !== undefined) enviar("chat.anteriores", { antesDoSeq: primeiro });
+                }}
+                visivel={abaVisivel === "chat"}
+              />
+            ),
           },
           {
             id: "fichas",
@@ -781,10 +833,12 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
           <BarraDeFerramentas
             ferramenta={ferramenta}
             aoEscolher={setFerramenta}
-            aoRolar={(q, faces) =>
-              setAvisoLocal({
-                numero: (avisoLocal?.numero ?? 0) + 1,
-                texto: `${q}d${faces} — os dados chegam com o chat`,
+            podeOculta={pode(eu, "dado.rolarOculto", estado.permissoes)}
+            aoRolar={(q, faces, oculta) =>
+              enviar("dado.rolar", {
+                expressao: `${q}d${faces}`,
+                ...(oculta ? { oculta: true } : {}),
+                ...(comoId ? { como: comoId } : {}),
               })
             }
           />
@@ -868,7 +922,11 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
               aoFechar={() => setMenuDaTocha(null)}
             />
           )}
-          <BarraLateral abas={abas} aoMudarAberta={setLateralAberta} />
+          <BarraLateral
+            abas={abas}
+            aoMudarAberta={setLateralAberta}
+            aoMudarVisivel={setAbaVisivel}
+          />
           {pedidoDeImagem && gerente && (
             <SeletorDeImagem
               titulo={pedidoDeImagem.titulo}
@@ -890,11 +948,6 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
         <div className="selo-conexao" role="status">
           {status}
         </div>
-      )}
-      {avisoLocal && (
-        <p className="aviso aviso-dados" role="status" data-testid="aviso-dados">
-          {avisoLocal.texto}
-        </p>
       )}
       {aviso && (
         <p className="aviso" role="alert" data-testid="aviso" data-codigo={aviso.codigo ?? ""}>

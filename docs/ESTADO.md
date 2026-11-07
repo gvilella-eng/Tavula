@@ -1145,6 +1145,76 @@ relatório do Playwright (`[erro na página]`).
 - Lote 7: a intenção do vencimento é `processarSistema` (fora de `IntencaoSchema`); gancho `/teste/avancar-relogio`.
 - Perguntas ao Vilella: alcance para o mestre entregar; tocha apagada na mão; modelo editado atualiza objetos existentes?
 
-## Próximo: Lote 8 — Dados e chat
+## Lote 8 — Dados e chat (entregue, aguardando o roteiro manual)
+
+### O que foi entregue
+
+- **`shared`** (puro, testado): `dados.ts` (parser `lerExpressao`, `rolar`, `dobrarDados`, `d20Natural`, `fonteCrypto` com rejeição, `fonteComSemente` só para testes e ganchos), `rolagens.ts` (modelos: `rolarAtaque`, `rolarTeste`, `expressaoDoD20`, `pedidoDeAtaque`, `pedidoDeTeste`: a ficha do Lote 9 usa), `chat.ts` (`Mensagem`, `interpretarChat`, filtro `mensagemVisivelPara`/`mensagemParaUsuario`/`chatParaUsuario`, `registrarMensagem` = limite por segundo, `AJUDA_DO_CHAT`) e `chatnucleo.ts` (monta a mensagem e rola). `processar` ganhou um 5º parâmetro opcional (a fonte de aleatoriedade; padrão `crypto`).
+- **Protocolo**: intenções `chat.enviar`, `dado.rolar`, `chat.modelo`, `chat.anteriores`, `chat.limpar`; eventos `chat.mensagem` (filtrado) e `chat.limpo`; mensagem da sala `chat.anteriores`; erro `muitas_mensagens`. Detalhe em `docs/protocolo.md`.
+- **Sala**: tabela própria `chat` (migração 6, aditiva), snapshot com as últimas 200 mensagens visíveis (leitura paginada + filtro por usuário), `chat.anteriores` filtrado, limpar, limite de 10 mensagens/s por conexão, gancho `POST /teste/dados?semente=N`. O estado em memória nunca acumula o chat.
+- **Interface**: aba Chat com presença compacta no topo, conversa, cartões de rolagem (total grande, dados ao passar o mouse com os descartados riscados, 20 e 1 naturais em dourado e vermelho), sussurro e oculta com etiqueta, caixa fixa no rodapé com "Como:", Enter envia, Shift+Enter quebra a linha, seta para cima/baixo percorre as últimas enviadas, `/?` só na tela, formulário de **Modelos** (ataque e teste, com seletor normal/vantagem/desvantagem), "Limpar o chat" com confirmação (mestre), "Carregar anteriores", selo de não lidas no ícone do Chat. Dados rápidos rolam de verdade (Shift+clique oculto, se puder); o "Em breve" saiu.
+
+### Como rodar
+
+- `pnpm verify`. Prints: `PRINTS_DIR=<pasta> pnpm --filter @tabletop/e2e prints lote-8`.
+
+### Verificação
+
+- Unidade nova: `dados.test.ts` (parser válido/inválido/limites, `kh`/`kl`, crítico dobra os dados, teste com CD, distribuição do d20 em 100 mil rolagens com faixa por face e qui-quadrado, rejeição sem viés, rolagem reproduzível por semente), `chat.test.ts` (comandos, `/w` por nome com espaço, sigilo de sussurro e `/gr` em snapshot, evento e `chat.anteriores`, `/gr` recusado sem `dado.rolarOculto`, schema descarta resultado do cliente, limite de 2000 e de 10/s, chat fora da exportação), `apps/server/src/armazenamento.test.ts` (histórico, reinício, **banco antigo sem a tabela abre sem quebrar**, importar não apaga o chat; usa `node:sqlite` como adaptador).
+- E2E novo (`e2e/tests/chat.spec.ts`, 11 testes): resultado mandado pelo cliente ignorado (inspeção do frame e do resultado); rolagem oculta do mestre e sussurro entre dois jogadores ausentes em **todo** frame de um terceiro (inclusive após refresh e no `chat.anteriores`); `/gr` recusado sem permissão; dados rápidos → chat de todos e Shift oculto; histórico sobrevive ao refresh e ao reinício da sala, limpar com confirmação; "Como:"; caixa (Enter/Shift+Enter/seta/`/?`/erros/2000); limite de 10/s; modelos; selo de não lidas; 230 mensagens (200 + anteriores).
+- Expectativas antigas alteradas (`e2e/tests/interface.spec.ts`): os dados rápidos já não mostram `aviso-dados` nem "nada vai para a sala": agora enviam `dado.rolar` e aparecem no chat; a caixa do chat deixou de vir desabilitada com o aviso do Lote 8.
+- Prints (1600×900) em `PRINTS_DIR`: 01 conversa e rolagens, 02 vantagem com o dado riscado, 03 20 e 1 naturais, 03b chat da Brisa, 04 ataque com crítico, 05 testes com CD (falha e sucesso) e simples com desvantagem, 06/06b sussurro (quem recebe × terceiro), 07/07b rolagem oculta (mestre × jogador), 08/08b dados rápidos, 09 selo de não lidas.
+
+### Gancho de teste
+
+`POST /teste/dados?semente=N` na sala (só `MODO=teste`; sem `semente` volta ao `crypto`; `/teste/zerar` também). Sementes dos prints: 36 = 20 natural no primeiro d20, 7 = 1 natural, 602 = vantagem com 4 e 17, 1 = d20 médio.
+
+### Decisões
+
+- Só a notação viaja; o schema (zod) descarta qualquer resultado do cliente. A mensagem usa o `seq` do evento e o id `m<seq>`.
+- `como` guarda `{ personagemId, nome, retratoHash? }` dentro da mensagem (quem lê não vê o personagem na ficha). O retrato de mensagem **pública** vira visível a quem lê (`Estado.retratosDoChat`, só da sala); o de sussurro não.
+- O crítico vale pelo d20 que **ficou** (com vantagem, o maior); dobra a quantidade de dados de cada termo do dano (limite de 200), não os modificadores; o dano rola também no erro e na falha crítica.
+- `/r` aceita comentário depois da expressão (o maior começo válido); `[[...]]` também em `/em` e `/w` (até 10).
+- `emSala` na mensagem só vai ao jogador no modo `tempoParaJogadores = exato`.
+- Capacidade `null` em `chat.enviar`, `dado.rolar`, `chat.modelo` e `chat.anteriores` (oculta conferida dentro); `chat.limpar` = `mesa.configurar`.
+- (assumido) o mestre vê todos os sussurros e todas as rolagens ocultas; o chat não entra na exportação nem é apagado pela importação; o selo de não lidas não conta as minhas mensagens nem o histórico presente ao abrir; seta para cima **traz de volta** a última mensagem para editar (não reenvia); `/?` é só da tela; `/w` para si mesmo é permitido; teste com CD acerta com total ≥ CD.
+- (assumido) a presença ficou compacta (uma linha por pessoa, "★" marca quem sou eu).
+
+### Desvios do plano
+
+- `Mensagem.como` é um objeto (`personagemId`, `nome`, `retratoHash?`), não só o id; `Mensagem` ganhou `emReal`, `acao`, `inline`.
+- Nenhuma dependência nova (o teste do servidor usa o `node:sqlite` do Node 24, importado dinamicamente).
+
+### Frágil / não verificado
+
+- Cada snapshot (inclusive os enviados a todos, ao pausar ou levar o grupo) relê o histórico do SQLite por usuário: barato numa mesa, mas conta linhas lidas no deploy futuro (4.5).
+- O chat carregado no navegador é trocado pelo snapshot ao reconectar (as "anteriores" já carregadas somem).
+- Nenhum teste com imagem de retrato real (a regra de `retratosDoChat` é coberta só por unidade).
+- O limite de 10/s fica em memória: a sala hibernada zera a janela (inofensivo).
+- Não testado com o banco real do Vilella (a migração é coberta por teste com o banco "antigo" simulado).
+
+### Roteiro manual (pendente)
+
+1. Rolar um ataque com vantagem pelo formulário de Modelos e ler o cartão (passar o mouse nos dados).
+2. Sussurrar para um jogador (`/w Nome texto`) e conferir no F12 de um terceiro que nada chega.
+3. `/gr 1d20` como mestre e como jogador (sem e com `dado.rolarOculto`).
+4. Falar "Como:" um personagem (com retrato) e conferir nos outros perfis.
+5. Dados rápidos (clique e Shift+clique), refresh e reinício da sala; limpar o chat.
+
+### Revisão (antes do commit de fechamento)
+
+- O agente foi interrompido no meio (a sessão anterior terminou) e retomado; o que já estava no disco foi aproveitado.
+- Sigilo do chat revisado: um filtro só (`mensagemParaUsuario`) para snapshot, evento e `chat.anteriores`; `/gr` vira `visivelPara: { ids: [] }` (autor e mestre);
+  o gancho `/teste/dados` só existe com `MODO=teste` (conferido no `index.ts` e de novo na sala).
+- Prints conferidos (01 a 09). `pnpm verify` verde duas vezes na revisão (377 + 17 + 6 de unidade, 90 E2E, ~6,2 min cada); portas 8788/5174 livres no fim.
+- Sugestões aplicadas no PROJETO.md ("Como ficou" do Lote 8); as perguntas do agente entraram nas perguntas do fim.
+
+### Sugestões para o PROJETO.md (aplicadas)
+
+- Lote 8: `Mensagem.como` é objeto; `dado.rolar` é a intenção dos dados rápidos; erro `muitas_mensagens`; `/teste/dados`; `Estado.retratosDoChat` (interno).
+- 4.13.1: a presença do chat ficou compacta; os Modelos de rolagem moram num botão ao lado do "Como:".
+- Perguntas ao Vilella: o mestre vê todos os sussurros? a seta para cima deve reenviar em vez de trazer de volta? o retrato de quem fala pode ser visto por quem não vê a ficha?
+
+## Próximo: Lote 9 — Ficha 5e
 
 Ver `PROJETO.md`, seção 7.

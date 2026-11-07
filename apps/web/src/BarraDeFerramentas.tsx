@@ -7,8 +7,9 @@ import { SubBarraPincel } from "./SubBarraPincel";
 type Props = {
   ferramenta: Ferramenta;
   aoEscolher: (f: Ferramenta) => void;
-  /** Mostra o resultado (por enquanto só um aviso: os dados chegam com o chat, Lote 8). */
-  aoRolar: (quantidade: number, faces: number) => void;
+  /** Pede a rolagem à sala; o resultado aparece no chat. */
+  aoRolar: (quantidade: number, faces: number, oculta: boolean) => void;
+  podeOculta: boolean;
 };
 
 function Botao(props: {
@@ -90,8 +91,9 @@ export function BarraDeFerramentas(p: Props) {
       </nav>
       {dadosAbertos && (
         <DadosRapidos
-          aoRolar={(q, f) => {
-            p.aoRolar(q, f);
+          podeOculta={p.podeOculta}
+          aoRolar={(q, f, oculta) => {
+            p.aoRolar(q, f, oculta);
             setDadosAbertos(false);
           }}
           aoFechar={() => setDadosAbertos(false)}

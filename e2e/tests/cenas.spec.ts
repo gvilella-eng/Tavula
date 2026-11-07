@@ -632,7 +632,7 @@ test("o grupo na cena nova, a cena criada e os personagens sobrevivem ao reiníc
   await nomeNovo.fill("Lyra");
   await nomeNovo.blur();
   await fecharItem(mestre.pagina);
-  await expect(mestre.pagina.getByText("Lyra")).toBeVisible();
+  await expect(mestre.pagina.getByTestId("aba-painel-fichas").getByText("Lyra")).toBeVisible();
   await levarOGrupo(mestre.pagina, "cena-covil");
   await expect(j1.pagina.getByTestId("cena-nome")).toHaveText("Covil");
   await esperarPosicao(j1.pagina, "tok-jogador-1", 6.75, 15.75);

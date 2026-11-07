@@ -388,7 +388,8 @@ export function hashesPreparaveis(
  */
 export function assetVisivelPara(
   hash: string,
-  estado: Pick<Estado, "assets" | "cenas" | "cenaAtivaId" | "tokens" | "personagens" | "pastas">,
+  estado: Pick<Estado, "assets" | "cenas" | "cenaAtivaId" | "tokens" | "personagens" | "pastas"> &
+    Partial<Pick<Estado, "retratosDoChat">>,
   usuario: Quem,
 ): boolean {
   const meta = metaDe(estado, hash);
@@ -413,6 +414,8 @@ export function assetVisivelPara(
   ) {
     return true;
   }
+  // O retrato de quem falou numa mensagem pública do chat: quem lê a mensagem pode ver a imagem dele.
+  if (estado.retratosDoChat?.includes(hash)) return true;
   const ativa = estado.cenas.find((c) => c.id === estado.cenaAtivaId);
   const mapa = ativa?.mapa?.assetHash;
   if (mapa === undefined) return false;

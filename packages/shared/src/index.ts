@@ -1,7 +1,9 @@
 export * from "./assets.ts";
 export * from "./capacidades.ts";
+export * from "./chat.ts";
 export * from "./cifra.ts";
 export { nomeDaSala, PORTA_SALA, PORTA_SALA_E2E, PORTA_WEB, PORTA_WEB_E2E } from "./constantes.ts";
+export * from "./dados.ts";
 export * from "./estado.ts";
 export * from "./iluminacao.ts";
 export * from "./limitador.ts";
@@ -14,6 +16,7 @@ export * from "./paredes.ts";
 export * from "./pastas.ts";
 export * from "./protocolo.ts";
 export * from "./relogio.ts";
+export * from "./rolagens.ts";
 export * from "./semente.ts";
 export * from "./uso.ts";
 export * from "./visao.ts";

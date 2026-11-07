@@ -4,6 +4,7 @@ import {
   type EventoSala,
   type Exportacao,
   IntencaoSchema,
+  LIMITES_DO_CHAT,
   lerMensagemDaSala,
   type MensagemDaSala,
   type Presenca,
@@ -63,6 +64,8 @@ export function useSala(opcoes: Opcoes) {
   const [uso, setUso] = useState<Uso | null>(null);
   const [aviso, setAviso] = useState<Aviso | null>(null);
   const [preparos, setPreparos] = useState<ProgressoDePreparo[]>([]);
+  // Há mensagens visíveis mais antigas que as carregadas? (o snapshot traz no máximo 200)
+  const [chatTemMais, setChatTemMais] = useState(false);
   const socket = useRef<WebSocket | null>(null);
   const ouvintes = useRef(new Set<(o: Ocorrencia) => void>());
   const opcoesAtuais = useRef(opcoes);
@@ -89,9 +92,11 @@ export function useSala(opcoes: Opcoes) {
         case "snapshot":
           setUsuarioId(m.dados.usuarioId);
           setEstado(m.dados.estado);
+          setChatTemMais((m.dados.estado.chat?.length ?? 0) >= LIMITES_DO_CHAT.noSnapshot);
           break;
         case "evento":
           setEstado((e) => (e ? reduzir(e, m.dados) : e));
+          if (m.dados.tipo === "chat.limpo") setChatTemMais(false);
           emitir({ tipo: "evento", evento: m.dados });
           break;
         case "token.movendo":
@@ -104,6 +109,18 @@ export function useSala(opcoes: Opcoes) {
         case "uso":
           setUso(m.dados);
           break;
+        case "chat.anteriores": {
+          const { mensagens, temMais } = m.dados;
+          setChatTemMais(temMais);
+          setEstado((e) => {
+            if (!e) return e;
+            const atuais = e.chat ?? [];
+            const ids = new Set(atuais.map((x) => x.id));
+            const novas = mensagens.filter((x) => !ids.has(x.id));
+            return { ...e, chat: [...novas, ...atuais].sort((a, b) => a.seq - b.seq) };
+          });
+          break;
+        }
         case "preparo.progresso":
           setPreparos(m.dados.preparos);
           break;
@@ -211,6 +228,7 @@ export function useSala(opcoes: Opcoes) {
     uso,
     aviso,
     preparos,
+    chatTemMais,
     enviar,
     enviarBinario,
     bufferizado,

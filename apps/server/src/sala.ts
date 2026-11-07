@@ -8,16 +8,22 @@ import {
   type EventoSala,
   estadoInicial,
   eventoPara,
+  type FonteDeAleatoriedade,
+  fonteComSemente,
   type Intencao,
   idDoPedido,
+  LIMITES_DO_CHAT,
   lerFrameDePedaco,
   lerIntencao,
+  type Mensagem,
   mensagem,
+  mensagemParaUsuario,
   type Pacote,
   type Presenca,
   processar,
   processarSistema,
   proximoMarcoDoObjeto,
+  registrarMensagem,
   tempoDaSala,
   tokenVisivelPara,
   type Usuario,
@@ -39,6 +45,10 @@ export const CABECALHO_USUARIO = "x-tabletop-usuario";
 const TEMPO_RECONECTANDO_MS = 10_000;
 const INTERVALO_USO_MS = 5_000;
 const MENSAGENS_POR_LOTE_DE_USO = 50;
+/** As intenções que criam uma mensagem no chat: limitadas a 10 por segundo, por conexão. */
+const INTENCOES_DE_CHAT = new Set<string>(["chat.enviar", "dado.rolar", "chat.modelo"]);
+/** Quantas linhas do histórico a sala lê de cada vez ao procurar o que o usuário pode ver. */
+const PAGINA_DO_HISTORICO = 400;
 
 /** O que fica no `serializeAttachment` de cada socket: sobrevive à hibernação. */
 type Identidade = { usuarioId: string; conexaoId: string };
@@ -67,6 +77,10 @@ export class Sala extends DurableObject<Env> {
    * memória: enquanto alguém arrasta, a sala recebe mensagens e não hiberna.
    */
   private readonly arrastes = new Map<WebSocket, Set<string>>();
+  /** Quando cada conexão mandou as últimas mensagens de chat (só memória; a janela é de 1 s). */
+  private readonly taxaDoChat = new Map<WebSocket, number[]>();
+  /** Gancho de teste (`MODO=teste`): dados com semente fixa. Fora dele, sempre `crypto`. */
+  private fonteDeDadosDeTeste: FonteDeAleatoriedade | null = null;
   /** Envio de arquivos entre navegadores (só memória; a sala nunca grava pedaço). */
   private readonly transferencias: Transferencias;
 
@@ -90,7 +104,7 @@ export class Sala extends DurableObject<Env> {
         carregado = estadoInicial(semente);
         this.banco.salvarTudo(carregado);
       }
-      this.estado = carregado;
+      this.estado = { ...carregado, retratosDoChat: this.banco.retratosDoChat() };
       this.iniciarRelogio();
       // Ao acordar: objeto que acabou enquanto a sala dormia sai agora; o resto volta à fila.
       await this.rodarTempo([]);
@@ -166,6 +180,8 @@ export class Sala extends DurableObject<Env> {
       this.banco.apagarTudo();
       await this.ctx.storage.deleteAlarm();
       this.estado = estadoInicial(semente);
+      this.fonteDeDadosDeTeste = null;
+      this.taxaDoChat.clear();
       this.banco.salvarTudo(this.estado);
       this.iniciarRelogio();
       this.uso = { dia: diaUtc(new Date()), mensagens: 0, conexoes: 0 };
@@ -199,6 +215,18 @@ export class Sala extends DurableObject<Env> {
       }
       return json({ ok: true, salaMs: tempoDaSala(this.estado.relogio, Date.now()) });
     }
+    if (pathname === "/teste/dados") {
+      // Gancho de teste: a partir daqui os dados saem de uma sequência com semente fixa (reprodutível).
+      // Sem `semente`, volta ao `crypto`. Só existe com MODO=teste; nunca no `pnpm dev`.
+      const bruta = url.searchParams.get("semente");
+      if (bruta === null) this.fonteDeDadosDeTeste = null;
+      else {
+        const n = Number(bruta);
+        if (!Number.isInteger(n)) return json({ erro: "semente inválida" }, 400);
+        this.fonteDeDadosDeTeste = fonteComSemente(n);
+      }
+      return json({ ok: true });
+    }
     if (pathname === "/teste/reiniciar-sala") {
       // Esquece a memória e derruba os sockets, como um reinício do processo. O estado volta do SQLite.
       this.ctx.abort("reinício pedido pelo teste");
@@ -231,8 +259,29 @@ export class Sala extends DurableObject<Env> {
     }
     const intencao = lida.valor;
 
+    // No máximo 10 mensagens de chat por segundo por conexão; o resto é recusado com aviso.
+    if (INTENCOES_DE_CHAT.has(intencao.tipo)) {
+      const taxa = registrarMensagem(this.taxaDoChat.get(ws) ?? [], Date.now());
+      this.taxaDoChat.set(ws, taxa.historico);
+      if (!taxa.ok) {
+        this.erro(
+          ws,
+          intencao.id,
+          "muitas_mensagens",
+          `Devagar: no máximo ${LIMITES_DO_CHAT.porSegundo} mensagens por segundo.`,
+        );
+        return;
+      }
+    }
+
     const agoraMs = Date.now();
-    const r = processar(this.estado, usuario.id, intencao, new Date(agoraMs).toISOString());
+    const r = processar(
+      this.estado,
+      usuario.id,
+      intencao,
+      new Date(agoraMs).toISOString(),
+      this.fonteDeDadosDeTeste ?? undefined,
+    );
     if (!r.ok) {
       this.erro(ws, intencao.id, r.erro.codigo, r.erro.mensagem);
       // Soltou do outro lado de uma parede: quem viu o arraste ao vivo volta o token para onde ele está.
@@ -249,7 +298,21 @@ export class Sala extends DurableObject<Env> {
     if (intencao.tipo === "campanha.importar") this.banco.salvarTudo(r.estado);
     else if (r.eventos.length > 0) this.banco.salvarEventos(r.estado, r.eventos);
     const antes = this.estado;
-    this.estado = r.estado;
+    // O histórico do chat mora no banco: o estado em memória nunca o acumula.
+    const { chat: _historico, ...semChat } = r.estado;
+    this.estado =
+      intencao.tipo === "campanha.importar"
+        ? { ...semChat, retratosDoChat: this.banco.retratosDoChat() }
+        : semChat;
+    if (intencao.tipo === "chat.anteriores") {
+      const pagina = this.chatVisivelPara(
+        usuario,
+        intencao.dados.antesDoSeq,
+        LIMITES_DO_CHAT.porPagina,
+      );
+      this.enviar(ws, mensagem({ tipo: "chat.anteriores", dados: pagina }));
+      return;
+    }
     this.cuidarDeAsset(ws, usuario, intencao);
     this.cuidarDePreparo(intencao, r.preparo);
     if (r.eventos.length > 0 || intencao.tipo === "campanha.importar") await this.reagendarLuzes();
@@ -299,6 +362,7 @@ export class Sala extends DurableObject<Env> {
 
   private async aoSair(ws: WebSocket): Promise<void> {
     this.desfazerArrastes(ws);
+    this.taxaDoChat.delete(ws);
     const identidade = this.identidadeDe(ws);
     if (!identidade) return;
     this.banco.limparPosse(identidade.conexaoId);
@@ -661,12 +725,45 @@ export class Sala extends DurableObject<Env> {
     this.enviar(ws, mensagem({ tipo: "erro", dados: { idPedido, codigo, mensagem: texto } }));
   }
 
+  /**
+   * As mensagens mais novas (e mais antigas que `antesDoSeq`, se vier) que ESTE usuário pode ver, em
+   * ordem de `seq`. Lê o histórico em páginas e filtra: sussurro e rolagem oculta de outros nunca
+   * entram, nem contam no limite. `temMais`: há mensagens visíveis ainda mais antigas.
+   */
+  private chatVisivelPara(
+    usuario: Usuario,
+    antesDoSeq: number | null,
+    quantas: number,
+  ): { mensagens: Mensagem[]; temMais: boolean } {
+    const achadas: Mensagem[] = [];
+    let corte = antesDoSeq;
+    for (;;) {
+      const pagina = this.banco.chatAntes(corte, PAGINA_DO_HISTORICO);
+      for (const m of pagina) {
+        const visto = mensagemParaUsuario(m, usuario, this.estado.config);
+        if (visto) achadas.push(visto);
+        if (achadas.length > quantas) break;
+      }
+      const ultima = pagina[pagina.length - 1];
+      if (achadas.length > quantas || pagina.length < PAGINA_DO_HISTORICO || !ultima) break;
+      corte = ultima.seq;
+    }
+    return {
+      mensagens: achadas.slice(0, quantas).reverse(),
+      temMais: achadas.length > quantas,
+    };
+  }
+
   private enviarSnapshot(ws: WebSocket, usuario: Usuario): void {
+    const { mensagens } = this.chatVisivelPara(usuario, null, LIMITES_DO_CHAT.noSnapshot);
     this.enviar(
       ws,
       mensagem({
         tipo: "snapshot",
-        dados: { usuarioId: usuario.id, estado: visaoPara(this.estado, usuario, Date.now()) },
+        dados: {
+          usuarioId: usuario.id,
+          estado: visaoPara({ ...this.estado, chat: mensagens }, usuario, Date.now()),
+        },
       }),
     );
     if (usuario.papel === "mestre") this.enviar(ws, this.textoDoUso());

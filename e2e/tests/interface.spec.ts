@@ -185,14 +185,17 @@ test("menu superior, camadas, dados rápidos e pincel (interface; o que não tem
       await expect(q.getByTestId(`dado-${nome}`)).toContainText(nome);
       await expect(q.locator(`[data-testid^="dado-${nome}-"]`)).toHaveCount(5);
     }
+    await expect(q.getByTestId("dados-rapidos")).not.toContainText("Em breve");
     await q.getByTestId("dado-D20-3").click();
-    await expect(q.getByTestId("aviso-dados")).toHaveText("3d20 — os dados chegam com o chat");
     await expect(q.getByTestId("dados-rapidos")).toHaveCount(0);
     await q.getByTestId("ferramenta-dados").click();
     await q.getByTestId("dado-D6").click();
-    await expect(q.getByTestId("aviso-dados")).toHaveText("1d6 — os dados chegam com o chat");
   }
-  expect(mestre.enviados.filter((f) => f.includes(`"tipo":"dado`)).length).toBe(0); // nada vai para a sala
+  // agora a rolagem é de verdade: vai para a sala (só a notação) e volta no chat de todos
+  const rolagens = mestre.enviados.filter((f) => f.includes(`"tipo":"dado.rolar"`));
+  expect(rolagens.length).toBe(2);
+  expect(rolagens[0]).toContain('"expressao":"3d20"');
+  await expect(p.getByTestId("chat-mensagem")).toHaveCount(4);
 
   // pincel: sub-barra com voltar, selecionar, formas, cores e borracha
   await p.getByTestId("ferramenta-pincel").click();
@@ -261,9 +264,9 @@ test("barra da direita: Chat, Fichas, Compêndio, Configurações e Mestre (larg
     "background-color",
     "rgb(60, 180, 75)",
   );
-  await expect(p.getByTestId("chat-texto")).toBeDisabled();
-  await expect(p.getByTestId("chat-como")).toBeDisabled();
-  await expect(p.getByTestId("chat-aviso")).toContainText("Lote 8");
+  await expect(p.getByTestId("chat-texto")).toBeEnabled();
+  await expect(p.getByTestId("chat-como")).toBeEnabled();
+  await expect(p.getByTestId("chat-aviso")).toHaveCount(0);
   await expect(p.getByTestId("chat-mensagens")).toContainText("Nenhuma mensagem");
 
   // Fichas: notas no topo, depois as pastas

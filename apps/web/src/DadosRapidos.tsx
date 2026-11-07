@@ -14,15 +14,18 @@ export const DADOS: { faces: number; nome: string; icone: ReactNode }[] = [
 export const QUANTIDADES = [2, 3, 4, 5, 6];
 
 type Props = {
-  aoRolar: (quantidade: number, faces: number) => void;
+  /** `oculta`: Shift+clique (só se a pessoa pode rolar oculto). */
+  aoRolar: (quantidade: number, faces: number, oculta: boolean) => void;
+  podeOculta: boolean;
   aoFechar: () => void;
 };
 
 /**
  * Grade de dados rápidos: a linha é o dado, a coluna é a quantidade. Clicar no nome rola 1; no
- * número, aquela quantidade. Por ora só avisa: a rolagem de verdade (no servidor) vem com o chat.
+ * número, aquela quantidade. A sala rola e o resultado vai para o chat de todos; com Shift a
+ * rolagem é oculta (só você e o mestre), se você puder.
  */
-export function DadosRapidos({ aoRolar, aoFechar }: Props) {
+export function DadosRapidos({ aoRolar, podeOculta, aoFechar }: Props) {
   return (
     <Popover
       testid="dados-rapidos"
@@ -40,7 +43,7 @@ export function DadosRapidos({ aoRolar, aoFechar }: Props) {
                   className="botao-dado"
                   data-testid={`dado-${d.nome}`}
                   title={`Rolar 1${d.nome.toLowerCase()}`}
-                  onClick={() => aoRolar(1, d.faces)}
+                  onClick={(e) => aoRolar(1, d.faces, e.shiftKey && podeOculta)}
                 >
                   {d.icone} {d.nome}
                 </button>
@@ -52,7 +55,7 @@ export function DadosRapidos({ aoRolar, aoFechar }: Props) {
                     className="botao-dado numero"
                     data-testid={`dado-${d.nome}-${q}`}
                     title={`Rolar ${q}${d.nome.toLowerCase()}`}
-                    onClick={() => aoRolar(q, d.faces)}
+                    onClick={(e) => aoRolar(q, d.faces, e.shiftKey && podeOculta)}
                   >
                     {q}
                   </button>
@@ -62,7 +65,9 @@ export function DadosRapidos({ aoRolar, aoFechar }: Props) {
           ))}
         </tbody>
       </table>
-      <p className="nota">Em breve: o resultado vai para o chat (Lote 8).</p>
+      <p className="nota">
+        O resultado vai para o chat.{podeOculta ? " Shift+clique rola oculto." : ""}
+      </p>
     </Popover>
   );
 }

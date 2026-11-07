@@ -8,6 +8,9 @@ import {
   validarMeta,
 } from "./assets.ts";
 import { ehCapacidadeDelegavel, pode } from "./capacidades.ts";
+import { chatParaUsuario, mensagemParaUsuario } from "./chat.ts";
+import { criarMensagem } from "./chatnucleo.ts";
+import { type FonteDeAleatoriedade, fonteCrypto } from "./dados.ts";
 import type {
   Cena,
   ConfigDaMesa,
@@ -193,7 +196,14 @@ function totalDeMestres(estado: Estado): number {
 export function criarExportacao(estado: Estado, agora: string): Exportacao {
   const usados = hashesUsados(estado);
   // A memória esquecida e os acendimentos pendentes são dado da sessão, não da campanha.
-  const { memoriaEsquecida: _sessao, acendimentos: _pendentes, ...campanha } = estado;
+  // O chat também: é registro da sessão, mora na tabela própria da sala e fica fora da exportação.
+  const {
+    memoriaEsquecida: _sessao,
+    acendimentos: _pendentes,
+    chat: _chat,
+    retratosDoChat: _retratos,
+    ...campanha
+  } = estado;
   return {
     formato: "tabletop-campanha",
     versao: VERSAO_EXPORTACAO,
@@ -536,6 +546,26 @@ export function reduzir(estado: Estado, evento: EventoSala): Estado {
       return { ...base, pastas: base.pastas.filter((x) => x.id !== evento.dados.id) };
     case "ordemDeTurno.alterada":
       return { ...base, ordemDeTurnoVisivel: evento.dados.visivel };
+    case "chat.mensagem": {
+      const { mensagem } = evento.dados;
+      const chat = base.chat ?? [];
+      if (chat.some((m) => m.id === mensagem.id)) return base;
+      // O retrato de quem fala em público vira visível a quem lê (só a sala usa esta lista).
+      const retrato = mensagem.como?.retratoHash;
+      const retratos =
+        retrato !== undefined &&
+        mensagem.visivelPara === "todos" &&
+        !base.retratosDoChat?.includes(retrato)
+          ? [...(base.retratosDoChat ?? []), retrato].slice(-200)
+          : base.retratosDoChat;
+      return {
+        ...base,
+        chat: [...chat, mensagem],
+        ...(retratos ? { retratosDoChat: retratos } : {}),
+      };
+    }
+    case "chat.limpo":
+      return { ...base, chat: [] };
     case "asset.registrado": {
       const { meta } = evento.dados;
       const atuais = base.assets ?? [];
@@ -589,6 +619,8 @@ export function processar(
   usuarioId: string,
   intencao: Intencao,
   agora: string,
+  /** De onde vêm os dados. A sala usa `crypto`; os testes, uma fonte com semente. */
+  aleatorio: FonteDeAleatoriedade = fonteCrypto(),
 ): Resultado {
   const usuario = estado.usuarios.find((u) => u.id === usuarioId);
   if (!usuario) return recusa("usuario_inexistente", "Usuário desconhecido.");
@@ -1603,6 +1635,23 @@ export function processar(
       return aplicado();
     }
 
+    case "chat.enviar":
+    case "dado.rolar":
+    case "chat.modelo": {
+      const r = criarMensagem(estado, usuario, intencao, agoraMs, aleatorio);
+      if (!r.ok) return { ok: false, erro: r.erro };
+      if (r.mensagem) emitir({ tipo: "chat.mensagem", dados: { mensagem: r.mensagem } });
+      return aplicado();
+    }
+
+    // A resposta (as mensagens mais antigas que ele vê) é montada pela sala, que guarda o histórico.
+    case "chat.anteriores":
+      return aplicado();
+
+    case "chat.limpar":
+      emitir({ tipo: "chat.limpo", dados: {} });
+      return aplicado();
+
     case "campanha.exportar":
       return {
         ok: true,
@@ -1708,10 +1757,14 @@ function contextoDeLuz(e: Estado) {
  */
 export function visaoPara(estado: Estado, usuario: Visao, agoraMs?: number): Estado {
   const agora = agoraMs ?? agoraPadrao(estado);
-  const { acendimentos: _pendentes, ...semPendencias } = estado;
+  const { acendimentos: _pendentes, retratosDoChat: _retratos, ...semPendencias } = estado;
+  // O histórico completo mora na sala: aqui só entra o que este usuário pode ver (as últimas 200).
+  const chat =
+    estado.chat === undefined ? {} : { chat: chatParaUsuario(estado.chat, usuario, estado.config) };
   if (usuario.papel === "mestre") {
     return {
       ...semPendencias,
+      ...chat,
       luzes: estado.luzes.map((l) => objetoParaVisao(l, usuario, estado, agora)),
       relogio: relogioParaVisao(estado.relogio, usuario, agora),
     };
@@ -1725,6 +1778,7 @@ export function visaoPara(estado: Estado, usuario: Visao, agoraMs?: number): Est
   const propria = estado.permissoes.porUsuario[usuario.id];
   return {
     ...resto,
+    ...chat,
     relogio: relogioParaVisao(estado.relogio, usuario, agora),
     modelos: modelosParaJogador(estado.modelos, estado.config),
     pontos: estado.pontos.filter((p) => pontoVisivelPara(p, usuario, estado.cenaAtivaId)),
@@ -1781,6 +1835,14 @@ export function eventoPara(
     case "cena.apagada":
     case "grupo.movido":
       return mestre ? evento : null;
+    case "chat.mensagem": {
+      if (mestre) return evento;
+      // Sem a configuração a função falha fechada: o jogador não recebe o relógio da sala.
+      const config = (depois ?? antes)?.config ?? { tempoParaJogadores: "oculto" as const };
+      const visto = mensagemParaUsuario(evento.dados.mensagem, usuario, config);
+      return visto ? { ...evento, dados: { mensagem: visto } } : null;
+    }
+    case "chat.limpo":
     case "nota.alterada":
     case "papel.alterado":
     case "ordemDeTurno.alterada":

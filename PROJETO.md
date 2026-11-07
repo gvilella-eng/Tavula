@@ -1364,6 +1364,21 @@ entra nas perguntas do fim):**
 - **Limites:** texto até 2000 caracteres; até 10 mensagens por segundo por conexão (o resto é recusado
   com aviso).
 
+**Como ficou (2026-11-07):**
+- `Mensagem.como` é um objeto `{ personagemId, nome, retratoHash? }` (copiado na hora, para quem não vê
+  a ficha); a mensagem ganhou `emReal`, `acao` e `inline`; `emSala` só vai ao jogador no modo "exato";
+- os dados rápidos usam a intenção `dado.rolar`; as funções `pedidoDeAtaque`, `pedidoDeTeste`,
+  `rolarAtaque` e `rolarTeste` ficam prontas para a ficha do Lote 9;
+- histórico na tabela `chat` (migração 6, aditiva); `Estado.retratosDoChat` (interno da sala) libera o
+  retrato de quem fala numa mensagem pública; erro novo `muitas_mensagens`;
+- gancho de teste `POST /teste/dados?semente=N`, só com `MODO=teste`;
+- na interface, a presença ficou compacta (com "★" para mim) e os modelos de rolagem abrem num botão
+  ao lado do "Como:";
+- assumido: o mestre vê todos os sussurros e rolagens ocultas; a seta para cima traz a última mensagem
+  de volta para a caixa (não reenvia); `/w` para si mesmo é permitido;
+- frágil: cada snapshot relê o histórico do SQLite por usuário (custo para o deploy futuro, 4.5), e o
+  snapshot de reconexão descarta as mensagens anteriores já carregadas.
+
 ---
 
 ### Lote 9 — Ficha 5e (G)

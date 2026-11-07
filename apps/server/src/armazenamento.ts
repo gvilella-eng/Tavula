@@ -5,6 +5,8 @@ import {
   configComPadrao,
   type Estado,
   type EventoSala,
+  type Mensagem,
+  MensagemSchema,
   type ModeloDeObjeto,
   modelosPadrao,
   type ObjetoDeLuz,
@@ -102,6 +104,16 @@ const MIGRACOES: Migracao[] = [
         JSON.stringify(modelo),
       );
     }
+  },
+  // Lote 8: o histórico do chat numa tabela própria (fora de `entidades`, que a importação apaga e a
+  // exportação lê): aditiva, o banco antigo ganha a tabela vazia. `seq` é o do evento que criou a
+  // mensagem e nunca se repete; `dados` é a mensagem inteira em JSON.
+  (sql) => {
+    sql.exec(`CREATE TABLE IF NOT EXISTS chat (
+      seq INTEGER PRIMARY KEY,
+      id TEXT NOT NULL UNIQUE,
+      dados TEXT NOT NULL
+    )`);
   },
 ];
 
@@ -382,6 +394,12 @@ export class Armazenamento {
         case "ordemDeTurno.alterada":
           this.gravarMeta("ordem_de_turno", ev.dados.visivel ? "1" : "0");
           break;
+        case "chat.mensagem":
+          this.gravarMensagem(ev.dados.mensagem);
+          break;
+        case "chat.limpo":
+          this.limparChat();
+          break;
         case "cena.criada":
         case "cena.editada":
           this.gravarEntidade("cenas", ev.dados.cena.id, ev.dados.cena);
@@ -410,6 +428,57 @@ export class Armazenamento {
       }
     }
     this.gravarMeta("seq", String(estado.seq));
+  }
+
+  // --- chat -----------------------------------------------------------------------------------
+
+  /** Grava a mensagem no histórico (sem limite de gravação: a tabela só cresce, até o mestre limpar). */
+  gravarMensagem(m: Mensagem): void {
+    this.sql.exec(
+      "INSERT OR REPLACE INTO chat (seq, id, dados) VALUES (?, ?, ?)",
+      m.seq,
+      m.id,
+      JSON.stringify(m),
+    );
+  }
+
+  /**
+   * Até `limite` mensagens com `seq` menor que `antesDoSeq` (sem valor: as mais recentes), da mais
+   * nova para a mais antiga e SEM filtro: quem chama filtra pelo que o usuário pode ver.
+   */
+  chatAntes(antesDoSeq: number | null, limite: number): Mensagem[] {
+    const linhas =
+      antesDoSeq === null
+        ? this.sql
+            .exec<{ dados: string }>("SELECT dados FROM chat ORDER BY seq DESC LIMIT ?", limite)
+            .toArray()
+        : this.sql
+            .exec<{ dados: string }>(
+              "SELECT dados FROM chat WHERE seq < ? ORDER BY seq DESC LIMIT ?",
+              antesDoSeq,
+              limite,
+            )
+            .toArray();
+    const mensagens: Mensagem[] = [];
+    for (const l of linhas) {
+      const lida = MensagemSchema.safeParse(JSON.parse(l.dados));
+      if (lida.success) mensagens.push(lida.data);
+    }
+    return mensagens;
+  }
+
+  limparChat(): void {
+    this.sql.exec("DELETE FROM chat");
+  }
+
+  /** Retratos usados em mensagens públicas (a sala libera a imagem a quem lê a mensagem). */
+  retratosDoChat(): string[] {
+    const retratos = new Set<string>();
+    for (const m of this.chatAntes(null, 2000)) {
+      if (m.visivelPara === "todos" && m.como?.retratoHash) retratos.add(m.como.retratoHash);
+      if (retratos.size >= 200) break;
+    }
+    return [...retratos].reverse();
   }
 
   // --- posse de assets ------------------------------------------------------------------------
@@ -502,6 +571,7 @@ export class Armazenamento {
   /** Apaga todo o estado (só para as rotas de teste). */
   apagarTudo(): void {
     this.sql.exec("DELETE FROM preparos");
+    this.sql.exec("DELETE FROM chat");
     this.sql.exec("DELETE FROM posse");
     this.sql.exec("DELETE FROM entidades");
     this.sql.exec("DELETE FROM agenda");

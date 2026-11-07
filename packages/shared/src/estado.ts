@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { AssetMetaSchema, HashSchema } from "./assets.ts";
 import { CAPACIDADES_DELEGAVEIS } from "./capacidades.ts";
+import { MensagemSchema } from "./chat.ts";
 
 export const PAPEIS = ["mestre", "jogador", "assistente"] as const;
 export const PapelSchema = z.enum(PAPEIS);
@@ -502,6 +503,17 @@ export const EstadoSchema = z.object({
   personagens: z.array(PersonagemSchema),
   /** O painel flutuante de ordem de turno aparece para todos? (o conteúdo vem no Lote 11) */
   ordemDeTurnoVisivel: z.boolean(),
+  /**
+   * Chat (Lote 8). O histórico mora numa tabela própria da sala e nunca fica aqui: a sala monta a
+   * visão de cada usuário com as últimas 200 mensagens que ele pode ver. No navegador este campo é a
+   * conversa carregada. Não entra na exportação.
+   */
+  chat: z.array(MensagemSchema).optional(),
+  /**
+   * Retratos usados em mensagens públicas do chat (só a sala usa, para liberar a imagem a quem lê a
+   * mensagem sem ver o personagem). Nunca vai a um jogador nem entra na exportação.
+   */
+  retratosDoChat: z.array(HashSchema).max(200).optional(),
   /** Metadados dos assets registrados. Só existe na sala e na visão do mestre (nunca do jogador). */
   assets: z.array(AssetMetaSchema).optional(),
 });

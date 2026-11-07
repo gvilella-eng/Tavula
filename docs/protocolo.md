@@ -1,6 +1,6 @@
 # Protocolo cliente ↔ sala
 
-## Versão atual: v1 (Lotes 1, 2, 3, 4, 4b, 5, 6 e 7)
+## Versão atual: v1 (Lotes 1, 2, 3, 4, 4b, 5, 6, 7 e 8)
 
 Os schemas zod ficam em `packages/shared/src/protocolo.ts` e `estado.ts`; a lógica pura (conferir
 capacidade, aplicar, filtrar por papel) em `nucleo.ts` e `capacidades.ts`. O cliente e a sala validam
@@ -531,6 +531,65 @@ O agendador guarda um vencimento `luz.marco` por objeto (o próximo marco: virar
 **Códigos de erro novos**: `ponto_inexistente`, `modelo_inexistente`, `maos_cheias`, `suporte_cheio`, `segurar_incompleto`.
 
 **Gancho de teste da sala** (só com `MODO=teste`, como `/teste/zerar`): `POST /teste/avancar-relogio?ms=N` adianta o relógio da sala em `N` ms. Fora do modo de teste responde 404.
+
+### Dados e chat (Lote 8)
+
+**Princípio:** os dados rolam na sala (`crypto.getRandomValues`, com rejeição: sem viés de módulo). O cliente manda só a **notação**; qualquer campo de resultado que ele junte (`total`, `resultado`, `rolagens`, `critico`...) é descartado pelo schema (zod ignora o que não declara) e a sala rola de novo.
+
+#### Intenções
+
+| `tipo` | `dados` | Capacidade | Efeito |
+|---|---|---|---|
+| `chat.enviar` | `{ texto (1 a 2000), como? }` | `null` (todos) | a sala lê o texto (comandos abaixo) e cria a mensagem. `como`: id de um personagem que a pessoa edita (mestre: qualquer um); senão `personagem_inexistente` (não existe **ou** não vê) ou `sem_permissao` (vê, não edita) |
+| `dado.rolar` | `{ expressao, oculta?, como? }` | `null` | rola e manda a mensagem de rolagem (os dados rápidos). `oculta`: só o mestre ou quem tem `dado.rolarOculto` (padrão desligado), senão `sem_permissao` |
+| `chat.modelo` | `{ modelo: "ataque", nome, bonus, dano, danoTipo?, vantagem?, oculta?, como? }` ou `{ modelo: "teste", nome, bonus, cd?, vantagem?, oculta?, como? }` | `null` | ataque (d20 + bônus e o dano; 20 natural **dobra os dados** do dano, não os modificadores) ou teste (com `cd`: sucesso se total ≥ CD; sem `cd`: teste simples). `vantagem`: `normal` (padrão), `vantagem` (`2d20kh1`) ou `desvantagem` (`2d20kl1`). A ficha do Lote 9 manda este pedido (`pedidoDeAtaque`/`pedidoDeTeste` em `rolagens.ts`) |
+| `chat.anteriores` | `{ antesDoSeq }` | `null` | responde `chat.anteriores` (abaixo), só a quem pediu, até 100 mensagens **que ele pode ver**, mais antigas que `antesDoSeq` |
+| `chat.limpar` | `{}` | `mesa.configurar` (só do mestre) | apaga o histórico e manda `chat.limpo` a todos (a confirmação é da interface) |
+
+Erros: `dados_invalidos` (notação recusada, com o motivo em português), `mensagem_invalida` (mais de 2000 caracteres), `muitas_mensagens` (novo código: mais de **10 mensagens de chat por segundo por conexão**; vale para `chat.enviar`, `dado.rolar` e `chat.modelo`; a recusada não conta na janela).
+
+#### Notação (`packages/shared/src/dados.ts`)
+
+`NdM`, `dM` (= 1dM), `d%` (= d100), constantes, `+` e `−`, espaços, `khN`/`klN` (`2d20kh1` = vantagem, `2d20kl1` = desvantagem). Limites: 100 dados por termo, 1000 faces (mínimo 2), 20 termos, constante até 100 000, 200 caracteres; a expressão precisa de pelo menos um dado. Acima disso: recusa com motivo. O resultado (`Rolagem`) guarda cada dado (os descartados marcados), o subtotal de cada termo, o total e a expressão canônica (com o crítico, os dados já dobrados).
+
+#### Comandos do chat (dentro de `chat.enviar`)
+
+| Comando | O que faz | Quem vê |
+|---|---|---|
+| texto | mensagem comum; `[[1d20+5]]` no meio rola na hora (até 10 por mensagem; uma rolagem para cada, na ordem; `inline: true`) | todos |
+| `/r 1d20+5 comentário` | rola; a expressão é o maior começo válido e o resto vira o texto da mensagem | todos |
+| `/gr 1d20` | rolagem oculta (`oculta: true`) | autor e mestre |
+| `/w Nome texto` | sussurro. O nome é o do usuário (com espaço: "Jogador 2"), entre aspas, o id, ou um prefixo único | autor, destinatário e mestre |
+| `/em texto` | ação em terceira pessoa (`acao: true`): "Brisa olha em volta" | todos |
+| `/?` | lista os comandos; **é só da tela** (a interface não envia; se chegar à sala, nada acontece) | — |
+
+#### `Mensagem` (`chat.ts`)
+
+```
+Mensagem { id ("m<seq>"), seq (o do evento), emSala? (relógio da sala, ms), emReal (ms desde 1970, só para HH:MM), autorId,
+           como?: { personagemId, nome, retratoHash? }, tipo: "texto" | "rolagem" | "modelo",
+           texto?, acao?, inline?, rolagens?: Rolagem[], modelo?: ResultadoDeModelo,
+           visivelPara: "todos" | { ids }, oculta? }
+```
+
+`como` carrega o nome e o retrato **dentro da mensagem** (quem lê não vê o personagem na ficha). `emSala` só vai ao jogador no modo `tempoParaJogadores = exato` (a mesma regra do tempo das tochas).
+
+#### Eventos e mensagens da sala
+
+| Mensagem | `dados` | Quem recebe |
+|---|---|---|
+| evento `chat.mensagem` | `{ mensagem }` | **filtrado**: mestre sempre; jogador só se é o autor, destinatário ou a mensagem é `todos` |
+| evento `chat.limpo` | `{}` | todos |
+| `chat.anteriores` | `{ mensagens, temMais }` | só quem pediu, já filtrado |
+
+#### Sigilo e histórico
+
+- O filtro é um só (`mensagemVisivelPara`/`mensagemParaUsuario`) e vale no **snapshot**, no **evento** e no **`chat.anteriores`**. Sussurro e rolagem oculta nunca chegam a quem não pode ver; o jogador não distingue "não existe" de "não é meu".
+- Histórico: tabela própria `chat` do SQLite da sala (migração 6, aditiva: o banco antigo ganha a tabela vazia), **fora de `entidades`** e portanto fora da exportação e intocada pela importação. Sem limite de gravação. O snapshot traz as últimas **200** mensagens visíveis ao usuário (a sala lê o histórico em páginas e filtra até juntar 200); "carregar anteriores" pede mais.
+- O estado em memória da sala nunca acumula o chat. `Estado.chat` só existe na visão enviada e no navegador; `Estado.retratosDoChat` é interno da sala (libera a imagem do retrato de quem fala em público a quem lê) e nunca sai.
+- O chat **não entra** na exportação (v8 continua v8).
+
+**Gancho de teste da sala** (só com `MODO=teste`): `POST /teste/dados?semente=N` faz os dados saírem de uma sequência com semente fixa (sem `semente`, volta ao `crypto`); `/teste/zerar` também a desliga. Fora do modo de teste responde 404.
 
 ### Contador de uso
 
