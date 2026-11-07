@@ -1503,6 +1503,26 @@ confirmar e rolar um ataque da ficha importada. Repetir com o PDF de outro jogad
 **Pronto quando:** `pnpm verify` verde e o PDF de pelo menos mais um jogador importa só com ajustes
 na tela de revisão.
 
+**Decidido antes de começar (2026-11-06; prevalece sobre os itens acima onde conflitar; "(assumido)"
+entra nas perguntas do fim):**
+- **pdf.js** vem do npm (`pdfjs-dist`), empacotado pelo Vite, com o worker local. Nada de CDN.
+- **Separação:** o navegador extrai os pedaços de texto com posição (`{ pagina, str, x, y, largura,
+  altura }`) e o **parser puro** em `packages/shared/src/importarFichaPdf.ts` recebe esses pedaços e
+  devolve `{ ficha, incertos: { caminho, motivo, trecho }[] }`. O teste em `shared` roda o pdf.js em Node
+  (dependência só de desenvolvimento) sobre `fixtures/fichas/darion.pdf` e confere a seção 8.
+- **Campos com "revisão" na seção 8** vêm em `incertos`, nunca com chute. Os recuperáveis ("Cure
+  Wound…" → "Cure Wounds - Curar Ferimentos") vêm preenchidos e também marcados, com o motivo
+  "recuperado".
+- **Ataques importados** ficam como valor fixo, nunca recalculados.
+- **Onde fica:** no item das Fichas, menu "Importar ficha (PDF)"; também "+ Novo a partir de
+  PDF" na aba Fichas. O PDF é lido no navegador e não sai do PC.
+- **Tela de revisão** (janela grande): cada seção da ficha com o valor lido, o trecho do PDF ao lado, os
+  incertos em amarelo e editáveis. "Confirmar" manda a ficha para a sala; "Cancelar" não manda nada.
+  Importar por cima de uma ficha existente pede confirmação e mantém retrato, token e pasta.
+- **Caixas de recurso** (FLECHAS, TOCHAS, LABAREDA PROTETORA, RAD DO AMANHECER) entram como recursos e
+  sempre marcadas para revisão, porque o PDF repete as caixas (assumido).
+- **Magias** com descrição inteira, inclusive anotações da mesa.
+
 ---
 
 ### Lote 11 — Combate: iniciativa e condições (M)
