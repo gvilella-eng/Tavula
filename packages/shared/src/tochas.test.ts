@@ -51,8 +51,15 @@ const personagem = (
   nome,
   tokenPadrao: { cor: "#0f0", tamanhoQuadrados: 1 },
   visao: { alcanceM: null, visaoNoEscuroM: 0 },
-  mochila,
-  ficha: { pvAtual: 10, pvMax: 10 },
+  ficha: {
+    pvAtual: 10,
+    pvMax: 10,
+    itens: Object.entries(mochila).map(([modeloId, quantidade]) => ({
+      nome: modeloId,
+      quantidade,
+      modeloId,
+    })),
+  },
 });
 
 const token = (id: string, personagemId: string, x: number, y: number) => ({
@@ -177,7 +184,7 @@ describe("acender da mochila e as mãos", () => {
       saldoMs: 30 * MIN,
       acesaDesdeSala: 0,
     });
-    expect(e.personagens.find((p) => p.id === "p1")?.mochila?.["modelo-tocha"]).toBe(4);
+    expect(e.personagens.find((p) => p.id === "p1")?.ficha?.itens?.[0]?.quantidade).toBe(4);
   });
   it("a terceira tocha com duas mãos é recusada; guardar libera a mão", () => {
     let e = acender(criarEstado(), "j1", "p1", "o1");
@@ -242,7 +249,7 @@ describe("acender da mochila e as mãos", () => {
     ).estado;
     expect(luz(e, "o1")).toMatchObject({ estado: "acesa", portador: { tipo: "mao" } });
     expect(restanteDoObjeto(luz(e, "o1") as ObjetoDeLuz, 6 * MIN)).toBe(25 * MIN);
-    expect(e.personagens.find((p) => p.id === "p1")?.mochila?.["modelo-tocha"]).toBe(4);
+    expect(e.personagens.find((p) => p.id === "p1")?.ficha?.itens?.[0]?.quantidade).toBe(4);
   });
   it("só o dono (ou o mestre) acende para o personagem", () => {
     const e = criarEstado();
@@ -707,13 +714,13 @@ describe("pontos e modelos", () => {
       "m",
       intencao("mochila.ajustar", { personagemId: "p2", modeloId: "modelo-tocha", delta: 3 }),
     ).estado;
-    expect(e.personagens.find((p) => p.id === "p2")?.mochila?.["modelo-tocha"]).toBe(5);
+    expect(e.personagens.find((p) => p.id === "p2")?.ficha?.itens?.[0]?.quantidade).toBe(5);
     e = ok(
       e,
       "m",
       intencao("mochila.ajustar", { personagemId: "p2", modeloId: "modelo-tocha", delta: -9 }),
     ).estado;
-    expect(e.personagens.find((p) => p.id === "p2")?.mochila?.["modelo-tocha"]).toBe(0);
+    expect(e.personagens.find((p) => p.id === "p2")?.ficha?.itens?.[0]?.quantidade).toBe(0);
   });
 });
 
@@ -931,7 +938,7 @@ describe("exportação v8", () => {
     const lida = lerExportacao(JSON.parse(JSON.stringify(v7)));
     if (!lida.ok) throw new Error(lida.motivo);
     expect(lida.exportacao.versao).toBe(VERSAO_EXPORTACAO);
-    expect(VERSAO_EXPORTACAO).toBe(8);
+    expect(VERSAO_EXPORTACAO).toBe(9);
     const d = lida.exportacao.dados;
     expect(d.luzes[0]).toMatchObject({
       id: "f1",
@@ -973,7 +980,7 @@ describe("exportação v8", () => {
     ).estado;
     const x = ok(e, "m", intencao("campanha.exportar"), em(10)).exportacao;
     if (!x) throw new Error("sem exportação");
-    expect(x.versao).toBe(8);
+    expect(x.versao).toBe(9);
     expect(x.dados.relogio).toEqual({ pausada: true, acumuladoMs: 10 * MIN });
     expect(x.dados.luzes.find((l) => l.id === "o1")?.saldoMs).toBe(30 * MIN);
     expect(JSON.stringify(x)).not.toContain("acendimentos");

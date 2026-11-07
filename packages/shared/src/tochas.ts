@@ -9,6 +9,7 @@ import type {
   Usuario,
 } from "./estado.ts";
 import { SEGURAR_PADRAO_S } from "./estado.ts";
+import { ajustarNovas, novasDoModelo } from "./ficha.ts";
 import { luzVisivelPara, tokenDoPersonagem } from "./luz.ts";
 import { personagemVisivelPara, podeEditarPersonagem, tokenVisivelPara } from "./mapa.ts";
 import { dentroDoAlcance, maoLivre, pontoVisivelPara } from "./objetos.ts";
@@ -242,11 +243,12 @@ export function tocharAcender(
   if (e.luzes.some((l) => l.id === novoId)) {
     return erro("dados_invalidos", "Já existe um objeto de luz com esse id.");
   }
-  const quantidade = p.mochila?.[modelo.id] ?? 0;
-  if (quantidade <= 0) return erro("dados_invalidos", `Sem ${modelo.nome} nova na mochila.`);
+  if (novasDoModelo(p.ficha, modelo.id) <= 0) {
+    return erro("dados_invalidos", `Sem ${modelo.nome} nova na mochila.`);
+  }
   c.emitir({
     tipo: "personagem.alterado",
-    dados: { personagem: { ...p, mochila: { ...p.mochila, [modelo.id]: quantidade - 1 } } },
+    dados: { personagem: { ...p, ficha: ajustarNovas(p.ficha, modelo, -1) } },
   });
   c.emitir({
     tipo: "fonte.criada",
@@ -636,15 +638,10 @@ export function mochilaAjustar(
   const e = c.atual();
   const p = e.personagens.find((x) => x.id === d.personagemId);
   if (!p) return erro("personagem_inexistente", SEM_PERSONAGEM);
-  if (!e.modelos.some((m) => m.id === d.modeloId)) {
-    return erro("modelo_inexistente", "Modelo de objeto não encontrado.");
-  }
-  const atual = p.mochila?.[d.modeloId] ?? 0;
-  const nova = Math.min(99, Math.max(0, atual + d.delta));
-  if (nova === atual) return {};
-  c.emitir({
-    tipo: "personagem.alterado",
-    dados: { personagem: { ...p, mochila: { ...p.mochila, [d.modeloId]: nova } } },
-  });
+  const modelo = e.modelos.find((m) => m.id === d.modeloId);
+  if (!modelo) return erro("modelo_inexistente", "Modelo de objeto não encontrado.");
+  const ficha = ajustarNovas(p.ficha, modelo, d.delta);
+  if (JSON.stringify(ficha) === JSON.stringify(p.ficha)) return {};
+  c.emitir({ tipo: "personagem.alterado", dados: { personagem: { ...p, ficha } } });
   return {};
 }

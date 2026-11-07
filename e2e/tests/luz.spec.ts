@@ -253,7 +253,8 @@ test("a memória segue a configuração: modificador de Inteligência, valor fix
 
   // O mestre muda o modificador pelo editor do item
   await abrirAba(mestre.pagina, "fichas");
-  await mestre.pagina.getByTestId("ficha-abrir-pers-brisa").click();
+  await mestre.pagina.getByTestId("ficha-abrir-pers-brisa").dblclick();
+  await mestre.pagina.getByTestId("ficha-aba-configurar").click();
   await mestre.pagina.getByText("Token padrão e visão").click();
   const campo = mestre.pagina.getByTestId("personagem-int-pers-brisa");
   await campo.fill("-2");
@@ -262,7 +263,7 @@ test("a memória segue a configuração: modificador de Inteligência, valor fix
   await campo.fill("-5");
   await campo.blur();
   await expect.poll(async () => (await memoria(j)).alcancesM).toEqual([0]); // nunca abaixo de 0
-  await mestre.pagina.getByTestId("editor-fechar").click();
+  await mestre.pagina.getByTestId("janela-ficha-fechar").click();
 
   // Valor fixo e memória desligada, pelas configurações de iluminação
   await mestre.pagina.getByTestId("menu-iluminacao").click();

@@ -24,11 +24,9 @@ import { useEffect, useRef, useState } from "react";
 import { Avatar } from "./Avatar";
 import { AbaNotas } from "./abas";
 import { lerItemArrastado, TIPO_DE_ARRASTO_DA_FICHA } from "./arrasto";
-import { EditorDoItem } from "./EditorDoItem";
-import type { PedirImagem } from "./FaixaDeCenas";
+import type { AbaDaFicha } from "./ficha/janelas";
 import type { ImagensDoMapa } from "./mapa/mapaPixi";
 import { Popover } from "./Popover";
-import type { TempoDaTela } from "./tempo";
 import type { Ocorrencia } from "./useSala";
 
 type Enviar = (tipo: string, dados: object) => string | null;
@@ -41,11 +39,8 @@ type Props = {
   ouvir: (fn: (o: Ocorrencia) => void) => () => void;
   imagens: ImagensDoMapa | null;
   versaoDasImagens: number;
-  pedirImagem: PedirImagem;
-  /** A cena que o mestre está vendo (onde "Colocar na cena" põe o token). */
-  cenaVista: { id: string; nome: string };
-  /** O tempo restante das luzes (a mochila mostra o das tochas usadas). */
-  tempo: TempoDaTela;
+  /** Abre a janela da ficha (duplo clique no item; o item recém-criado abre em Configurar). */
+  aoAbrirFicha: (personagemId: string, aba?: AbaDaFicha) => void;
 };
 
 const ITENS_EM_BREVE = ["Artefato", "Tesouro", "Handout"];
@@ -182,7 +177,9 @@ function Item({ p, eu, imagens, versao, aoAbrir }: PropsItem) {
         type="button"
         className="ficha-abrir"
         data-testid={`ficha-abrir-${p.id}`}
-        onClick={aoAbrir}
+        title="Duplo clique abre a ficha"
+        onDoubleClick={aoAbrir}
+        onKeyDown={(e) => e.key === "Enter" && aoAbrir()}
       >
         <Avatar
           imagens={imagens}
@@ -195,9 +192,11 @@ function Item({ p, eu, imagens, versao, aoAbrir }: PropsItem) {
         <span className="ficha-nome" data-testid={`ficha-nome-${p.id}`}>
           {p.nome}
         </span>
-        <span className="ficha-pv" title="Pontos de vida">
-          {p.ficha.pvAtual}/{p.ficha.pvMax}
-        </span>
+        {p.ficha && (
+          <span className="ficha-pv" title="Pontos de vida">
+            {p.ficha.pvAtual}/{p.ficha.pvMax}
+          </span>
+        )}
         {!euMestre && podeEditarPersonagem(p, eu) && <span className="selo">seu</span>}
       </button>
     </li>
@@ -385,30 +384,26 @@ export function AbaFichas({
   ouvir,
   imagens,
   versaoDasImagens,
-  pedirImagem,
-  cenaVista,
-  tempo,
+  aoAbrirFicha,
 }: Props) {
   const euMestre = eu.papel === "mestre";
   const jogadores = estado.usuarios.filter((u) => u.papel === "jogador");
   const [recolhidas, setRecolhidas] = useState<Set<string>>(new Set());
-  const [itemAberto, setItemAberto] = useState<string | null>(null);
   const [novoAberto, setNovoAberto] = useState(false);
   const [paraAbrir, setParaAbrir] = useState<string | null>(null);
 
-  // O item recém-criado abre no editor assim que a sala o devolve.
+  // O item recém-criado abre na janela (aba Configurar) assim que a sala o devolve.
   useEffect(() => {
     if (paraAbrir && estado.personagens.some((p) => p.id === paraAbrir)) {
-      setItemAberto(paraAbrir);
+      aoAbrirFicha(paraAbrir, "configurar");
       setParaAbrir(null);
     }
-  }, [paraAbrir, estado.personagens]);
+  }, [paraAbrir, estado.personagens, aoAbrirFicha]);
 
   const pastas = [...estado.pastas].sort((a, b) => a.ordem - b.ordem);
   const idsDePastas = new Set(pastas.map((p) => p.id));
   // Itens que o jogador edita numa pasta que ele não vê: ficam num grupo sem nome de pasta.
   const avulsos = estado.personagens.filter((p) => !idsDePastas.has(p.pastaId));
-  const aberto = estado.personagens.find((p) => p.id === itemAberto) ?? null;
 
   function alternar(id: string) {
     setRecolhidas((s) => {
@@ -540,7 +535,7 @@ export function AbaFichas({
             versao={versaoDasImagens}
             enviar={enviar}
             aoAlternar={() => alternar(pasta.id)}
-            aoAbrirItem={setItemAberto}
+            aoAbrirItem={(id) => aoAbrirFicha(id)}
             aoSoltar={moverParaPasta}
           />
         ))}
@@ -558,7 +553,7 @@ export function AbaFichas({
                   eu={eu}
                   imagens={imagens}
                   versao={versaoDasImagens}
-                  aoAbrir={() => setItemAberto(p.id)}
+                  aoAbrir={() => aoAbrirFicha(p.id)}
                 />
               ))}
             </ul>
@@ -568,21 +563,6 @@ export function AbaFichas({
           <p className="nota">Nenhuma ficha visível para você ainda.</p>
         )}
       </section>
-
-      {aberto && (
-        <EditorDoItem
-          personagem={aberto}
-          estado={estado}
-          eu={eu}
-          enviar={enviar}
-          imagens={imagens}
-          versaoDasImagens={versaoDasImagens}
-          pedirImagem={pedirImagem}
-          cenaVista={cenaVista}
-          tempo={tempo}
-          aoFechar={() => setItemAberto(null)}
-        />
-      )}
     </div>
   );
 }

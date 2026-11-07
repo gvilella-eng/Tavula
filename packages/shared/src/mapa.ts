@@ -1,5 +1,6 @@
 import { pode } from "./capacidades.ts";
-import type { Cena, Estado, Pasta, Personagem, Token, Usuario } from "./estado.ts";
+import type { Cena, Estado, Pasta, Permissoes, Personagem, Token, Usuario } from "./estado.ts";
+import { modInteligenciaDoPersonagem } from "./ficha.ts";
 
 /** Cena que existe quando a campanha não define nenhuma (semente, banco antigo, exportação v1). */
 export const CENA_PADRAO: Cena = {
@@ -65,6 +66,34 @@ export function personagemVisivelPara(
   if (podeEditarPersonagem(personagem, usuario)) return true;
   const pasta = pastas.find((p) => p.id === personagem.pastaId);
   return pasta !== undefined && pastaVisivelPara(pasta, usuario);
+}
+
+/**
+ * Quem vê a ficha COMPLETA de um personagem: o mestre, quem o edita e, com `ficha.verOutras`, os demais
+ * jogadores que já veem o item (Lote 9).
+ */
+export function fichaVisivelPara(
+  personagem: Pick<Personagem, "editores">,
+  usuario: Quem,
+  permissoes: Permissoes,
+): boolean {
+  if (usuario.papel === "mestre") return true;
+  return podeEditarPersonagem(personagem, usuario) || pode(usuario, "ficha.verOutras", permissoes);
+}
+
+/**
+ * O item como este usuário o recebe: inteiro para quem vê a ficha; para os outros, sem a ficha (nem a
+ * mochila antiga), só com o que o mapa precisa (nome, retrato, token, visão) e o modificador de
+ * Inteligência já calculado (a memória do mapa depende dele).
+ */
+export function personagemParaUsuario(
+  personagem: Personagem,
+  usuario: Quem,
+  permissoes: Permissoes,
+): Personagem {
+  if (fichaVisivelPara(personagem, usuario, permissoes)) return personagem;
+  const { ficha: _ficha, mochila: _mochila, ...resto } = personagem;
+  return { ...resto, modInteligencia: modInteligenciaDoPersonagem(personagem) };
 }
 
 /** Quem controla o token: quem edita o personagem dele ou quem o mestre pôs em `controladoPor`. */

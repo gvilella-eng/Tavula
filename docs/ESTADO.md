@@ -1215,6 +1215,78 @@ relatório do Playwright (`[erro na página]`).
 - 4.13.1: a presença do chat ficou compacta; os Modelos de rolagem moram num botão ao lado do "Como:".
 - Perguntas ao Vilella: o mestre vê todos os sussurros? a seta para cima deve reenviar em vez de trazer de volta? o retrato de quem fala pode ser visto por quem não vê a ficha?
 
-## Próximo: Lote 9 — Ficha 5e
+## Lote 9 — Ficha 5e (entregue, aguardando o roteiro manual)
+
+### O que foi entregue
+
+- **`shared`** (puro, testado): `ficha.ts` (zod `FichaSchema` com só PV obrigatório; derivação `derivar`: modificadores, proficiência pelo nível total, salvaguardas, perícias, percepção passiva, iniciativa, CD e ataque de magia por classe, nível de conjurador e espaços pela tabela de multiclasse do PHB 2014, pacto do Bruxo à parte, dados de vida, deslocamento em metros;
+  `descansoCurto`/`descansoLongo`; `aplicarOperacoes` ({ caminho, valor }, valida a ficha inteira e 256 KB); `operacoesDeDiferenca`; arquivo `tabletop-ficha`; `absorverMochila`, `ajustarNovas`, `novasDoModelo`). `srd/` (classes, perícias, tabelas de espaços e pacto) com `ATRIBUICAO-SRD.md` (CC-BY-4.0); nenhum texto de magia.
+  `mapa.ts`: `fichaVisivelPara` e `personagemParaUsuario` (o filtro de sigilo). `luz.ts`: tocha na mão visível a quem edita; `modInteligenciaDe` lê a ficha com o campo antigo de reserva.
+- **Protocolo**: `ficha.alterar` agora é `{ personagemId, operacoes }`; exportação **v9** (importa v1 a v8; a `mochila` vira `ficha.itens`); `ficha.verOutras` voltou a valer (ver abaixo). Detalhe em `docs/protocolo.md`.
+- **Sala/banco**: o banco do Lote 8 abre como estava; a mochila é absorvida **só na leitura** (a linha antiga continua intacta até o personagem mudar). Nenhuma migração SQL nova.
+- **Interface**: janela flutuante da ficha (`apps/web/src/ficha/`), arrastável pelo cabeçalho e redimensionável pela quina, várias ao mesmo tempo, com abas Principal, Magias, Características, Equipamento, Notas e Configurar (o editor do item). Duplo clique (ou Enter) no item das Fichas abre; item novo abre em Configurar.
+  Todo número rolável é um botão (atributos, salvaguardas, perícias, iniciativa, ataques e dano, ataque de magia, dado de vida, teste contra a morte); seletor Normal/Vantagem/Desvantagem no cabeçalho vale para o próximo d20; a rolagem sai "Como:" o personagem. Descanso curto e longo com confirmação. Exportar (pasta `fichas/` ou download) e importar (arquivo, com confirmação) na aba Configurar.
+
+### Como rodar
+
+- `pnpm verify`. Prints: `PRINTS_DIR=<pasta> pnpm --filter @tabletop/e2e prints lote-9`. Fixture: `fixtures/fichas/darion.json` (formato do arquivo de ficha).
+
+### Verificação
+
+- Unidade nova: `ficha.test.ts` (Darion: modificadores, salvaguardas +11/+8/+2/+2/+2/+0, as 18 perícias, passiva 12, proficiência +4, iniciativa +4, CD 14, ataque +6, espaços 4/3/3/1 para Clérigo 5 + Patrulheiro 5, 30 ft = 9 m; multiclasse com Bruxo; meio e terço conjurador; especialista; descansos; operações; `ficha.alterar` de quem não edita; 256 KB; sigilo com e sem `ficha.verOutras` no snapshot e nos eventos; tocha na mão e quem edita, com as transições no `eventoPara`; migração da mochila; v8 → v9) e um teste do banco antigo em `apps/server/src/armazenamento.test.ts`.
+- E2E novo (`e2e/tests/ficha.spec.ts`, 8 testes): números do Darion na tela e PV do jogador que o mestre vê (uma única `ficha.alterar` para três campos); jogador não edita ficha de outro (nem forçando); ataque e perícia com vantagem no chat de todos; exportar → importar devolve a mesma ficha; frames do jogador sem a ficha (ligando e desligando `ficha.verOutras`); descansos; janelas (várias, arrastar, redimensionar); tocha na mão sem token em cena.
+- Expectativas antigas alteradas: versão da exportação 8 → 9 (unidade, `assets.spec.ts`, `interface.spec.ts`); `{ ...boa, versao: 9 }` virou 10 como caso inválido; `ficha.alterar` com `pvAtual` virou `operacoes` (unidade e E2E); a capacidade `ficha.verOutras` agora manda snapshot a todos (`personagens.test.ts`); nos E2E antigos o editor do item abre por duplo clique na janela (aba Configurar), o PV está na aba Principal, a mochila na aba Equipamento e "Importar ficha" já não está desabilitado (`interface.spec.ts`); o item de uma pasta visível sem `ficha.verOutras` mostra "ficha oculta" em vez dos PV (`fichas.spec.ts`).
+- Prints (1600×900) em `PRINTS_DIR`: 01/01b principal, 02/02b magias com espaços e lista, 03 características, 04 equipamento com a tocha e "Acender", 05 notas, 06 configurar, 07 duas fichas, 08/08a cartões do ataque e da perícia com vantagem, 09 chat do outro jogador, 10/10b descanso longo, 11/11b jogador sem e com `ficha.verOutras`.
+
+### Decisões
+
+- Ficha **esparsa**: só `pvAtual`/`pvMax` obrigatórios; o resto tem padrão na leitura. `Personagem.ficha` é opcional (ausente para quem não a vê).
+- Sigilo num filtro só (`personagemParaUsuario`) para snapshot e eventos; sem a ficha o item leva `modInteligencia` já calculado (a memória do mapa precisa). Mudança que o jogador não enxerga nem chega.
+- Quem edita ou a pasta mudou: a sala reenvia os objetos de luz do personagem (`fonte.editada`) para o filtro decidir se aparecem ou somem.
+- (assumido) Quem não é mestre **não aumenta** a quantidade de item com `modeloId` (só o mestre repõe tochas, como o `mochila.ajustar` do Lote 7); gastar vale.
+- (assumido) Meio-conjurador sozinho usa `ceil(nível/2)` (nível 2+) e terço `ceil(nível/3)` (nível 3+), que reproduz a tabela da classe; multiclasse soma o piso por classe. Guerreiro e Ladino só conjuram pelas subclasses Cavaleiro Místico e Trapaceiro Arcano.
+- (assumido) Acerto do ataque: valor fixo ou fórmula (atributo + proficiência + bônus); sem acerto o ataque só rola o dano (`/r` no chat, com o nome). Descanso longo devolve metade dos dados de vida (mínimo 1), dos maiores primeiro, zera PV temporário e testes contra a morte.
+- (assumido) Fixture: Patrulheiro (Caçador) 5 e Clérigo 5; nomes cortados do PDF ficam com reticências ("Machadinho …"); recursos (Flechas 9, Labareda Protetora 2/longo, Radiação do Amanhecer 1/curto) e 3 tochas (item com `modeloId`) são suposições a conferir na ficha impressa.
+- (assumido) Importar a ficha é por arquivo (seletor do navegador); a pasta `fichas/` só recebe a exportação.
+
+### Desvios do plano
+
+- Os PV e a mochila saíram do editor do item para as abas Principal e Equipamento; o campo `modInteligencia` continua em "Token padrão e visão" só como reserva.
+- Nenhuma dependência nova.
+
+### Frágil / não verificado
+
+- Arrastar e redimensionar testados com mouse sintético; toque (celular) não. A janela não guarda posição entre sessões.
+- Duas pessoas no mesmo campo: vale a última, e o que o navegador já enviou fica por cima por 2,5 s ou até o eco da sala.
+- Escrita em `fichas/` (File System Access) não testada no E2E (sem pasta, o teste cobre o download).
+- Chave numérica em operação (`espacosGastos.1`) cria lista em vez de objeto quando o pai não existe: a interface manda o objeto inteiro nesses casos.
+- Texto de magia e características vem vazio no Darion (o Lote 10 importa do PDF).
+- Não testado com o banco real do Vilella (a leitura é coberta pelo teste com banco antigo simulado).
+
+### Roteiro manual (pendente)
+
+1. Montar à mão a ficha de um personagem do grupo (classes, atributos, proficiências) e conferir os derivados.
+2. Rolar ataques, perícias e salvaguardas pela ficha (com vantagem) e ler os cartões no chat dos outros.
+3. Descanso curto e longo; exportar a ficha, mudar algo e importar de volta.
+4. Ligar e desligar "Ver fichas dos outros" e olhar o F12 de outro jogador.
+5. Acender a tocha pelo Equipamento com o token fora da cena ativa.
+
+### Revisão (antes do commit de fechamento)
+
+- Sigilo revisado: `personagemParaUsuario` tira `ficha` e `mochila` de quem não vê a ficha; a tocha na mão chega a quem edita o personagem (pendência do Lote 7 resolvida).
+  Detalhe pequeno que ficou: os objetos usados na mochila (portador `mochila`) ainda chegam a quem vê o item sem ver a ficha.
+- Prints conferidos, inclusive os que o agente não abriu (01, 02, 04, 06, 07, 11). `pnpm verify` verde duas vezes na revisão (424 + 18 + 6 de unidade, 98 E2E, ~6,9 min cada);
+  portas 8788/5174 livres no fim. A mesa do Vilella rodava ao mesmo tempo em 8787/5173 (cópia do main num worktree), sem interferir.
+- Sugestões aplicadas no PROJETO.md (4.1 e "Como ficou" do Lote 9); as perguntas do agente entraram nas perguntas do fim.
+
+### Sugestões para o PROJETO.md (aplicadas)
+
+- 4.1: `Personagem.ficha?: Ficha` (esparsa) no lugar de `{ pvAtual, pvMax }`; `mochila` só como formato antigo; `ficha.alterar` por operações.
+- 4.9 e 10: `ficha.verOutras` volta a decidir quem vê a FICHA (a pasta decide o item); exportação v9; formato `tabletop-ficha`.
+- Perguntas ao Vilella: jogador pode repor tochas na própria ficha? importar também de dentro de `fichas/`? a janela deve lembrar a posição?
+
+---
+
+## Próximo: Lote 10 — Importação da ficha em PDF
 
 Ver `PROJETO.md`, seção 7.

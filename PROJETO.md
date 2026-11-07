@@ -183,7 +183,8 @@ interface Personagem {              // um item das Fichas (por ora só personage
                                     // editado por"; NPC = ninguém; o mestre edita tudo
   retratoHash?: string;             // retrato (avatar), escolhido no editor do item
   nome: string;
-  ficha: Ficha;                     // até o lote 9: { pvAtual, pvMax }
+  ficha?: Ficha;                    // lote 9: esparsa (só pvAtual e pvMax obrigatórios); ausente para
+                                    // quem não vê a ficha (ficha.verOutras); a antiga `mochila` vira itens
   tokenPadrao: { cor: string; tamanhoQuadrados: number; assetHash?: string };
   // o token colocado guarda a própria cópia de nome, cor, tamanho e imagem do token padrão;
   // personagem de jogador tem um token só
@@ -1455,6 +1456,28 @@ entra nas perguntas do fim):**
   ou baixar o arquivo se não houver pasta. Importar substitui a ficha depois de confirmação.
 - **Fixture:** `fixtures/fichas/darion.json` montado à mão com os valores da seção 8 (ataques como valor
   fixo), usado nos testes e carregável na semente de teste.
+
+**Como ficou (2026-11-07):**
+- `Personagem.ficha?: Ficha` é **esparsa** (só `pvAtual` e `pvMax` obrigatórios) e opcional na visão de
+  quem não vê a ficha; a `mochila` do Lote 7 só existe como formato antigo, absorvida na leitura do banco
+  e na importação (a linha antiga do SQLite não é reescrita); `ficha.alterar` passou a operações
+  `{ caminho, valor }`; exportação v9; arquivo da ficha com o formato `tabletop-ficha`;
+- um filtro só (`personagemParaUsuario`): sem a ficha, o item leva o `modInteligencia` já calculado;
+  ligar ou desligar `ficha.verOutras` manda snapshot a todos; mudar editores ou pasta reenvia os objetos
+  de luz do personagem;
+- a pendência do Lote 7 foi resolvida: a tocha na mão chega a quem edita o personagem mesmo sem token na
+  cena ativa;
+- o PV e os objetos de luz saíram do editor do item para as abas Principal e Equipamento; o editor virou
+  a aba Configurar;
+- assumido: só o mestre aumenta a quantidade de item com `modeloId` (repor tochas); meio-conjurador
+  sozinho usa `ceil(nível/2)` a partir do 2 e terço `ceil(nível/3)` a partir do 3 (multiclasse soma o
+  piso por classe); ataque sem acerto rola só o dano; descanso longo devolve metade dos dados de vida,
+  dos maiores primeiro; importar a ficha é por arquivo escolhido (a pasta `fichas/` só recebe a
+  exportação); no Darion, os recursos e as 3 tochas são suposições a conferir na ficha impressa;
+- frágil: a janela não lembra a posição; a escrita em `fichas/` não tem E2E; duas pessoas no mesmo campo,
+  vale a última; os objetos usados na mochila ainda chegam a quem vê o item sem ver a ficha (detalhe
+  pequeno de sigilo, para um ajuste futuro).
+
 
 ---
 

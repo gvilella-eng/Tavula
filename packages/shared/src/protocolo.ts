@@ -40,14 +40,20 @@ import {
   TokenSchema,
   VisibilidadeSchema,
 } from "./estado.ts";
+import {
+  absorverMochila,
+  FichaSchema,
+  MAXIMO_DE_OPERACOES,
+  OperacaoDeFichaSchema,
+} from "./ficha.ts";
 import { CENA_PADRAO } from "./mapa.ts";
 import { modelosPadrao } from "./objetos.ts";
 import { migrarPersonagem, PersonagemAntigoSchema, pastasPadrao } from "./pastas.ts";
 import { PedidoDeModeloSchema } from "./rolagens.ts";
 
 export const VERSAO_PROTOCOLO = 1;
-/** Versão do arquivo de exportação (de v1 a v7 ainda são aceitas na importação). */
-export const VERSAO_EXPORTACAO = 8 as const;
+/** Versão do arquivo de exportação (de v1 a v8 ainda são aceitas na importação). */
+export const VERSAO_EXPORTACAO = 9 as const;
 
 const CapacidadeSchema = z.enum(TODAS_AS_CAPACIDADES as [Capacidade, ...Capacidade[]]);
 const Texto = z.string().max(TAMANHO_MAXIMO_NOTA);
@@ -154,7 +160,7 @@ const DadosV1Schema = DadosV2Schema.omit({
 const cabecalho = { formato: z.literal("tabletop-campanha"), exportadoEm: z.string() };
 
 /**
- * Aceita de v1 a v8; o resultado é sempre no formato v8. Nas antigas faltam assets, personagens,
+ * Aceita de v1 a v9; o resultado é sempre no formato v9. Nas antigas faltam assets, personagens,
  * pastas, paredes, luzes, configuração, modelos e pontos: entram vazios ou com o padrão (v4: o dono
  * vira "quem edita" numa pasta só do mestre; paredes só existem a partir da v6, luzes e configuração
  * da v7; modelos, pontos e relógio da v8). As luzes da v7 (`acesa`) viram objetos (`estado`).
@@ -169,17 +175,17 @@ export const ExportacaoSchema = z
     z.object({ ...cabecalho, versao: z.literal(6), dados: DadosV6Schema }),
     z.object({ ...cabecalho, versao: z.literal(7), dados: DadosV7Schema }),
     z.object({ ...cabecalho, versao: z.literal(8), dados: DadosV8Schema }),
+    z.object({ ...cabecalho, versao: z.literal(9), dados: DadosV8Schema }),
   ])
   .transform((e) => {
     const d = e.dados;
-    const luzes =
-      e.versao === 8 ? e.dados.luzes : e.versao === 7 ? e.dados.luzes.map(migrarFonteAntiga) : [];
-    const config =
-      e.versao === 8
-        ? e.dados.config
-        : e.versao === 7
-          ? configComPadrao(e.dados.config)
-          : CONFIG_PADRAO;
+    const novo = e.versao === 8 || e.versao === 9;
+    const luzes = novo ? e.dados.luzes : e.versao === 7 ? e.dados.luzes.map(migrarFonteAntiga) : [];
+    const config = novo
+      ? e.dados.config
+      : e.versao === 7
+        ? configComPadrao(e.dados.config)
+        : CONFIG_PADRAO;
     const base = {
       ...d,
       assets: "assets" in d ? d.assets : [],
@@ -188,18 +194,23 @@ export const ExportacaoSchema = z
       paredes: "paredes" in d ? d.paredes : [],
       luzes,
       config,
-      modelos: e.versao === 8 ? e.dados.modelos : modelosPadrao(),
-      pontos: e.versao === 8 ? e.dados.pontos : [],
+      modelos: novo ? e.dados.modelos : modelosPadrao(),
+      pontos: novo ? e.dados.pontos : [],
       // Sem relógio (arquivo antigo) a mesa começa rodando; a sala preenche `desdeReal` ao importar.
-      relogio: e.versao === 8 ? e.dados.relogio : { pausada: false, acumuladoMs: 0 },
+      relogio: novo ? e.dados.relogio : { pausada: false, acumuladoMs: 0 },
     };
     const personagens =
-      e.versao === 5 || e.versao === 6 || e.versao === 7 || e.versao === 8
+      e.versao === 5 || e.versao === 6 || e.versao === 7 || novo
         ? e.dados.personagens
         : e.versao === 4
           ? e.dados.personagens.map(migrarPersonagem)
           : [];
-    return { ...e, versao: VERSAO_EXPORTACAO, dados: { ...base, personagens } };
+    // Lote 9: a mochila do Lote 7 vira itens da ficha (v8 e anteriores; a v9 já não a traz).
+    return {
+      ...e,
+      versao: VERSAO_EXPORTACAO,
+      dados: { ...base, personagens: personagens.map((p) => absorverMochila(p, base.modelos)) },
+    };
   });
 export type Exportacao = z.infer<typeof ExportacaoSchema>;
 
@@ -309,8 +320,8 @@ const MudancasDoPersonagemSchema = z
     alcanceM: PersonagemSchema.shape.visao.shape.alcanceM,
     visaoNoEscuroM: PersonagemSchema.shape.visao.shape.visaoNoEscuroM,
     modInteligencia: PersonagemSchema.shape.modInteligencia.unwrap(),
-    pvAtual: PersonagemSchema.shape.ficha.shape.pvAtual,
-    pvMax: PersonagemSchema.shape.ficha.shape.pvMax,
+    pvAtual: FichaSchema.shape.pvAtual,
+    pvMax: FichaSchema.shape.pvMax,
   })
   .partial();
 
@@ -422,13 +433,16 @@ export const IntencaoSchema = z.discriminatedUnion("tipo", [
       y: z.number().optional(),
     }),
   ),
-  /** Dono do personagem ou mestre; `pvAtual` nunca passa de `pvMax`. */
+  /**
+   * Lote 9: quem edita o personagem ou o mestre. O navegador junta as mudanças por ~400 ms e manda uma
+   * lista de operações `{ caminho, valor }`; a sala aplica, valida a ficha inteira (zod) e recusa acima de
+   * 256 KB. `pvAtual` nunca passa de `pvMax`. Caminho vazio troca a ficha inteira (importar).
+   */
   intencao(
     "ficha.alterar",
     z.object({
       personagemId: IdSchema,
-      pvAtual: PersonagemSchema.shape.ficha.shape.pvAtual.optional(),
-      pvMax: PersonagemSchema.shape.ficha.shape.pvMax.optional(),
+      operacoes: z.array(OperacaoDeFichaSchema).min(1).max(MAXIMO_DE_OPERACOES),
     }),
   ),
   intencao("cena.criar", z.object({ id: IdSchema, nome: CenaSchema.shape.nome })),

@@ -24,6 +24,7 @@ import type {
   Token,
   Usuario,
 } from "./estado.ts";
+import { absorverMochila, aplicarOperacoes, modelosAumentados, novasDoModelo } from "./ficha.ts";
 import { fatorDeLuzDa, luzAmbienteDa, luzVisivelPara } from "./luz.ts";
 import {
   arrumarNoGrid,
@@ -34,6 +35,7 @@ import {
   encaixarNoGrid,
   limitarNaCena,
   pastaVisivelPara,
+  personagemParaUsuario,
   personagemVisivelPara,
   podeEditarPersonagem,
   podeMoverToken,
@@ -122,9 +124,8 @@ const SEM_PERSONAGEM = "Personagem não encontrado.";
 
 /** PV atual nunca passa do máximo. */
 function limitarPv(p: Personagem): Personagem {
-  return p.ficha.pvAtual > p.ficha.pvMax
-    ? { ...p, ficha: { ...p.ficha, pvAtual: p.ficha.pvMax } }
-    : p;
+  const f = p.ficha;
+  return f && f.pvAtual > f.pvMax ? { ...p, ficha: { ...f, pvAtual: f.pvMax } } : p;
 }
 
 function personagemDe(estado: Estado, id: string): Personagem | undefined {
@@ -699,7 +700,8 @@ export function processar(
         dados:
           alvoId === undefined ? { capacidade, valor } : { capacidade, valor, usuarioId: alvoId },
       });
-      return aplicado();
+      // Ver a ficha dos outros muda o que cada jogador recebe dos personagens: snapshot novo.
+      return aplicado(capacidade === "ficha.verOutras" ? "todos" : []);
     }
 
     case "token.criar": {
@@ -920,7 +922,8 @@ export function processar(
     }
 
     case "personagem.criar": {
-      const p = limitarPv(intencao.dados.personagem);
+      // A mochila do Lote 7 (se vier) vira itens da ficha; o personagem novo nunca a carrega.
+      const p = limitarPv(absorverMochila(intencao.dados.personagem, estado.modelos));
       if (personagemDe(estado, p.id)) {
         return recusa("dados_invalidos", "Já existe um personagem com esse id.");
       }
@@ -988,16 +991,37 @@ export function processar(
           alcanceM: m.alcanceM === undefined ? atual.visao.alcanceM : m.alcanceM,
           visaoNoEscuroM: m.visaoNoEscuroM ?? atual.visao.visaoNoEscuroM,
         },
-        ficha: { pvAtual: m.pvAtual ?? atual.ficha.pvAtual, pvMax: m.pvMax ?? atual.ficha.pvMax },
+        ...(atual.ficha
+          ? {
+              ficha: {
+                ...atual.ficha,
+                pvAtual: m.pvAtual ?? atual.ficha.pvAtual,
+                pvMax: m.pvMax ?? atual.ficha.pvMax,
+              },
+            }
+          : {}),
         ...(m.modInteligencia === undefined ? {} : { modInteligencia: m.modInteligencia }),
       });
       if (JSON.stringify(personagem) === JSON.stringify(atual)) return aplicado();
       emitir({ tipo: "personagem.alterado", dados: { personagem } });
+      // Quem edita (ou a pasta) decide quem vê os objetos de luz que ele carrega: reenvia cada um, e o
+      // filtro de cada jogador (antes × depois) decide se o objeto aparece, some ou nada muda.
+      const mudouQuemVe =
+        JSON.stringify(personagem.editores) !== JSON.stringify(atual.editores) ||
+        personagem.pastaId !== atual.pastaId;
+      if (mudouQuemVe) {
+        for (const l of estado.luzes) {
+          const p = l.portador;
+          if ((p.tipo === "mao" || p.tipo === "mochila") && p.personagemId === personagem.id) {
+            emitir({ tipo: "fonte.editada", dados: { fonte: l } });
+          }
+        }
+      }
       return aplicado();
     }
 
     case "ficha.alterar": {
-      const { personagemId, pvAtual, pvMax } = intencao.dados;
+      const { personagemId, operacoes } = intencao.dados;
       const atual = personagemDe(estado, personagemId);
       // Personagem que não vejo responde igual a personagem inexistente (NPC nunca aparece).
       if (!atual || !personagemVisivelPara(atual, usuario, estado.pastas)) {
@@ -1006,10 +1030,13 @@ export function processar(
       if (!podeEditarPersonagem(atual, usuario)) {
         return recusa("sem_permissao", "Você não edita esta ficha.");
       }
-      const personagem = limitarPv({
-        ...atual,
-        ficha: { pvAtual: pvAtual ?? atual.ficha.pvAtual, pvMax: pvMax ?? atual.ficha.pvMax },
-      });
+      const r = aplicarOperacoes(atual.ficha, operacoes);
+      if (!r.ok) return recusa("dados_invalidos", r.motivo);
+      // Só o mestre repõe tochas (e outros itens de modelo): quem edita a própria ficha só gasta.
+      if (usuario.papel !== "mestre" && modelosAumentados(atual.ficha, r.ficha).length > 0) {
+        return recusa("sem_permissao", "Só o mestre repõe tochas e outros objetos de luz.");
+      }
+      const personagem: Personagem = { ...atual, ficha: r.ficha };
       if (JSON.stringify(personagem) === JSON.stringify(atual)) return aplicado();
       emitir({ tipo: "personagem.alterado", dados: { personagem } });
       return aplicado();
@@ -1501,7 +1528,7 @@ export function processar(
       }
       const emUso =
         estado.luzes.some((l) => l.modeloId === id) ||
-        estado.personagens.some((p) => (p.mochila?.[id] ?? 0) > 0) ||
+        estado.personagens.some((p) => novasDoModelo(p.ficha, id) > 0) ||
         estado.pontos.some((p) => p.modeloId === id);
       if (emUso) {
         return recusa("dados_invalidos", "Há objetos, mochilas ou pontos usando este modelo.");
@@ -1800,7 +1827,10 @@ export function visaoPara(estado: Estado, usuario: Visao, agoraMs?: number): Est
           },
         }),
     pastas: estado.pastas.filter((p) => pastaVisivelPara(p, usuario)),
-    personagens: estado.personagens.filter((p) => personagemVisivelPara(p, usuario, estado.pastas)),
+    // A ficha completa só chega a quem edita o personagem ou tem `ficha.verOutras` (Lote 9).
+    personagens: estado.personagens
+      .filter((p) => personagemVisivelPara(p, usuario, estado.pastas))
+      .map((p) => personagemParaUsuario(p, usuario, estado.permissoes)),
   };
 }
 
@@ -1973,10 +2003,20 @@ export function eventoPara(
     }
     case "personagem.alterado": {
       if (mestre) return evento;
-      const pastas = (depois ?? antes)?.pastas;
-      if (!pastas) return null;
-      if (personagemVisivelPara(evento.dados.personagem, usuario, pastas)) return evento;
-      const antigo = antes?.personagens.find((p) => p.id === evento.dados.personagem.id);
+      const ref = depois ?? antes;
+      const pastas = ref?.pastas;
+      if (!pastas || !ref) return null;
+      const nova = evento.dados.personagem;
+      const antigo = antes?.personagens.find((p) => p.id === nova.id);
+      if (personagemVisivelPara(nova, usuario, pastas)) {
+        // A ficha só vai a quem a vê; quem não vê recebe o item sem ela e só se isso mudou.
+        const visto = personagemParaUsuario(nova, usuario, ref.permissoes);
+        if (antes && antigo && personagemVisivelPara(antigo, usuario, antes.pastas)) {
+          const vistoAntes = personagemParaUsuario(antigo, usuario, antes.permissoes);
+          if (JSON.stringify(vistoAntes) === JSON.stringify(visto)) return null;
+        }
+        return visto === nova ? evento : { ...evento, dados: { personagem: visto } };
+      }
       if (antigo && personagemVisivelPara(antigo, usuario, antes?.pastas ?? pastas)) {
         return { ...evento, tipo: "personagem.apagado", dados: { id: antigo.id } };
       }

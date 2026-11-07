@@ -2,6 +2,7 @@ import { z } from "zod";
 import { AssetMetaSchema, HashSchema } from "./assets.ts";
 import { CAPACIDADES_DELEGAVEIS } from "./capacidades.ts";
 import { MensagemSchema } from "./chat.ts";
+import { FichaSchema } from "./ficha.ts";
 
 export const PAPEIS = ["mestre", "jogador", "assistente"] as const;
 export const PapelSchema = z.enum(PAPEIS);
@@ -435,20 +436,21 @@ export const PersonagemSchema = z.object({
     visaoNoEscuroM: z.number().min(0).max(1000),
   }),
   /**
-   * Modificador de Inteligência (Lote 6): decide o alcance da memória do mapa. Sem o campo vale 0.
-   * Até a ficha completa (Lote 9) é um campo do editor do item.
+   * Modificador de Inteligência (Lote 6): decide o alcance da memória do mapa. Sem o campo vale 0. Desde o
+   * Lote 9 o valor vem do atributo da ficha (`modInteligenciaDoPersonagem`); este campo é a reserva de
+   * quem não tem ficha preenchida (e o que um jogador sem `ficha.verOutras` recebe, já calculado).
    */
   modInteligencia: z.number().int().min(-5).max(10).optional(),
   /**
-   * Mochila mínima (Lote 7): quantas unidades NOVAS de cada modelo de objeto ele carrega. As usadas
-   * são objetos de luz com portador `mochila` (ou `mao`). A ficha do Lote 9 absorve.
+   * Mochila do Lote 7 (modelo → quantidade de novas). SÓ LEITURA do formato antigo: ao carregar o banco ou
+   * importar um arquivo ela vira `ficha.itens` com `modeloId` (`absorverMochila`) e some.
    */
   mochila: z.record(IdCurto, z.number().int().min(0).max(99)).optional(),
-  /** Ficha mínima até o Lote 9. */
-  ficha: z.object({
-    pvAtual: z.number().int().min(0).max(9999),
-    pvMax: z.number().int().min(0).max(9999),
-  }),
+  /**
+   * Ficha 5e (Lote 9). Ausente na visão de um jogador que não edita o personagem e não tem
+   * `ficha.verOutras`: o item chega só com o que o mapa e as listas precisam.
+   */
+  ficha: FichaSchema.optional(),
 });
 export type Personagem = z.infer<typeof PersonagemSchema>;
 

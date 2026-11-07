@@ -121,3 +121,42 @@ describe("Armazenamento: histórico do chat", () => {
     expect(banco.retratosDoChat()).toEqual([hash("a")]);
   });
 });
+
+describe("Armazenamento: ficha do Lote 9", () => {
+  it("banco do Lote 8 (personagem com `mochila` e ficha só de PV) abre com os itens e sem reescrever a linha", async () => {
+    const { sql } = await abrirBanco();
+    const banco = new Armazenamento(sql as never);
+    banco.migrar();
+    banco.salvarTudo(estadoInicial(semente));
+    // grava a linha no formato antigo, com a mochila
+    const antigo = {
+      id: "pers-antigo",
+      pastaId: "pasta-personagens",
+      editores: { tipo: "jogadores", ids: ["jogador-1"] },
+      nome: "Antigo",
+      tokenPadrao: { cor: "#123456", tamanhoQuadrados: 1 },
+      visao: { alcanceM: null, visaoNoEscuroM: 0 },
+      modInteligencia: 3,
+      mochila: { "modelo-tocha": 4 },
+      ficha: { pvAtual: 5, pvMax: 9 },
+    };
+    sql.exec(
+      "INSERT INTO entidades (colecao, id, dados) VALUES ('personagens', 'pers-antigo', ?)",
+      JSON.stringify(antigo),
+    );
+    const carregado = new Armazenamento(sql as never).carregar();
+    const p = carregado?.personagens.find((x) => x.id === "pers-antigo");
+    expect(p?.mochila).toBeUndefined();
+    expect(p?.modInteligencia).toBe(3);
+    expect(p?.ficha).toEqual({
+      pvAtual: 5,
+      pvMax: 9,
+      itens: [{ nome: "Tocha 5e", quantidade: 4, modeloId: "modelo-tocha" }],
+    });
+    // a linha do banco continua como estava (leitura aditiva, nada reescrito)
+    const linha = sql
+      .exec("SELECT dados FROM entidades WHERE colecao = 'personagens' AND id = 'pers-antigo'")
+      .toArray()[0] as { dados: string };
+    expect(JSON.parse(linha.dados)).toEqual(antigo);
+  });
+});

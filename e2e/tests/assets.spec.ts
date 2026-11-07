@@ -242,7 +242,8 @@ test("o jogador põe imagem no próprio token: aparece para todos e chega a rece
   expect((await imagensDoMapa(j2.pagina)).tokensComImagem).toEqual([]);
   // quem edita o personagem troca o token dele no editor do item (Fichas)
   await abrirAba(j1.pagina, "fichas");
-  await j1.pagina.getByTestId("ficha-abrir-pers-aldric").click();
+  await j1.pagina.getByTestId("ficha-abrir-pers-aldric").dblclick();
+  await j1.pagina.getByTestId("ficha-aba-configurar").click();
   await j1.pagina.getByTestId("editor-token").click();
   await escolherNoSeletor(j1.pagina, arquivoPng("aldric.png", pngDeRuido(300, 300, 21, 4)));
   const meta = await metaPorNome(j1.pagina, "aldric.png");
@@ -525,7 +526,7 @@ test("exportar → zerar → importar: o mapa e as imagens voltam só como metad
   };
   const antes = await exportar();
   const json = JSON.parse(antes.texto);
-  expect(json.versao).toBe(8);
+  expect(json.versao).toBe(9);
   // só metadados: o manifesto, os tiles (2 x 2) e a imagem do token; nenhum byte de imagem
   expect(json.dados.assets).toHaveLength((manifesto.tiles?.length ?? 0) + 2);
   expect(json.dados.cenas[0].mapa).toEqual({ assetHash: manifesto.hash, pxPorQuadrado: 70 });

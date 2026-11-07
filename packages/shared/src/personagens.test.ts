@@ -205,19 +205,26 @@ describe("personagens no snapshot", () => {
     expect(visaoPara(e, j3).personagens).toEqual([]);
     expect(visaoPara(e, mestre).personagens).toHaveLength(3);
     expect(JSON.stringify(visaoPara(e, j1))).not.toContain("Ogro Secreto");
-    // a capacidade antiga não abre mais nada (a pasta é que decide quem vê)
+    // a pasta decide quem vê o item; a capacidade (Lote 9) só decide quem vê a ficha completa e manda snapshot novo
     const com = aplicar(
       e,
       "m",
       intencao("permissao.alterar", { capacidade: "ficha.verOutras", valor: true }),
     );
-    expect(com.snapshotPara).toEqual([]);
+    expect(com.snapshotPara).toBe("todos");
     expect(visaoPara(com.estado, j1).personagens.map((p) => p.id)).toEqual(["p1"]);
   });
 
   it("eventos de personagem: o dono e o mestre recebem; NPC e alheio não; a visão some com apagado", () => {
     const e = criarEstado();
-    const r = aplicar(e, "j1", intencao("ficha.alterar", { personagemId: "p1", pvAtual: 3 }));
+    const r = aplicar(
+      e,
+      "j1",
+      intencao("ficha.alterar", {
+        personagemId: "p1",
+        operacoes: [{ caminho: "pvAtual", valor: 3 }],
+      }),
+    );
     const ev = r.eventos[0] as EventoSala;
     expect(eventoPara(ev, j1, e, r.estado)).toEqual(ev);
     expect(eventoPara(ev, j2, e, r.estado)).toBeNull();
@@ -547,40 +554,95 @@ describe("ficha.alterar", () => {
   const e = criarEstado();
 
   it("o dono e o mestre alteram; outro jogador não; NPC responde como inexistente", () => {
-    const dono = aplicar(e, "j1", intencao("ficha.alterar", { personagemId: "p1", pvAtual: 4 }));
+    const dono = aplicar(
+      e,
+      "j1",
+      intencao("ficha.alterar", {
+        personagemId: "p1",
+        operacoes: [{ caminho: "pvAtual", valor: 4 }],
+      }),
+    );
     expect(dono.estado.personagens.find((p) => p.id === "p1")?.ficha).toEqual({
       pvAtual: 4,
       pvMax: 12,
     });
     expect(
-      aplicar(e, "m", intencao("ficha.alterar", { personagemId: "p1", pvMax: 20 })).estado
-        .personagens[0]?.ficha,
+      aplicar(
+        e,
+        "m",
+        intencao("ficha.alterar", {
+          personagemId: "p1",
+          operacoes: [{ caminho: "pvMax", valor: 20 }],
+        }),
+      ).estado.personagens[0]?.ficha,
     ).toEqual({ pvAtual: 10, pvMax: 20 });
     // sem poder ver o personagem alheio: inexistente; vendo (pasta de todos): sem permissão
-    expect(codigo(e, "j2", intencao("ficha.alterar", { personagemId: "p1", pvAtual: 1 }))).toBe(
-      "personagem_inexistente",
-    );
+    expect(
+      codigo(
+        e,
+        "j2",
+        intencao("ficha.alterar", {
+          personagemId: "p1",
+          operacoes: [{ caminho: "pvAtual", valor: 1 }],
+        }),
+      ),
+    ).toBe("personagem_inexistente");
     const vendo = aplicar(
       e,
       "m",
       intencao("pasta.editar", { id: "pasta-personagens", visivel: { tipo: "todos" } }),
     ).estado;
-    expect(codigo(vendo, "j2", intencao("ficha.alterar", { personagemId: "p1", pvAtual: 1 }))).toBe(
-      "sem_permissao",
-    );
     expect(
-      codigo(vendo, "j1", intencao("ficha.alterar", { personagemId: "npc", pvAtual: 1 })),
+      codigo(
+        vendo,
+        "j2",
+        intencao("ficha.alterar", {
+          personagemId: "p1",
+          operacoes: [{ caminho: "pvAtual", valor: 1 }],
+        }),
+      ),
+    ).toBe("sem_permissao");
+    expect(
+      codigo(
+        vendo,
+        "j1",
+        intencao("ficha.alterar", {
+          personagemId: "npc",
+          operacoes: [{ caminho: "pvAtual", valor: 1 }],
+        }),
+      ),
     ).toBe("personagem_inexistente");
     expect(
-      codigo(e, "m", intencao("ficha.alterar", { personagemId: "npc", pvAtual: 1 })),
+      codigo(
+        e,
+        "m",
+        intencao("ficha.alterar", {
+          personagemId: "npc",
+          operacoes: [{ caminho: "pvAtual", valor: 1 }],
+        }),
+      ),
     ).toBeNull();
   });
 
   it("PV atual nunca passa do máximo e não muda nada se o valor é o mesmo", () => {
-    const r = aplicar(e, "j1", intencao("ficha.alterar", { personagemId: "p1", pvAtual: 99 }));
-    expect(r.estado.personagens.find((p) => p.id === "p1")?.ficha.pvAtual).toBe(12);
+    const r = aplicar(
+      e,
+      "j1",
+      intencao("ficha.alterar", {
+        personagemId: "p1",
+        operacoes: [{ caminho: "pvAtual", valor: 99 }],
+      }),
+    );
+    expect(r.estado.personagens.find((p) => p.id === "p1")?.ficha?.pvAtual).toBe(12);
     expect(
-      aplicar(e, "j1", intencao("ficha.alterar", { personagemId: "p1", pvAtual: 10 })).eventos,
+      aplicar(
+        e,
+        "j1",
+        intencao("ficha.alterar", {
+          personagemId: "p1",
+          operacoes: [{ caminho: "pvAtual", valor: 10 }],
+        }),
+      ).eventos,
     ).toEqual([]);
   });
 
@@ -588,11 +650,14 @@ describe("ficha.alterar", () => {
     const baixo = aplicar(
       e,
       "j1",
-      intencao("ficha.alterar", { personagemId: "p1", pvAtual: 3 }),
+      intencao("ficha.alterar", {
+        personagemId: "p1",
+        operacoes: [{ caminho: "pvAtual", valor: 3 }],
+      }),
     ).estado;
     const fora = aplicar(baixo, "m", intencao("grupo.moverPara", { cenaId: "c2" })).estado;
-    expect(fora.personagens.find((p) => p.id === "p1")?.ficha.pvAtual).toBe(3);
-    expect(visaoPara(fora, j1).personagens[0]?.ficha.pvAtual).toBe(3);
+    expect(fora.personagens.find((p) => p.id === "p1")?.ficha?.pvAtual).toBe(3);
+    expect(visaoPara(fora, j1).personagens[0]?.ficha?.pvAtual).toBe(3);
   });
 });
 
@@ -764,7 +829,7 @@ describe("exportação v5", () => {
     ).estado;
     const x = criarExportacao(e, AGORA);
     expect(x.versao).toBe(VERSAO_EXPORTACAO);
-    expect(x.versao).toBe(8);
+    expect(x.versao).toBe(9);
     expect(x.dados.personagens).toHaveLength(3);
     expect(x.dados.pastas.map((p) => p.id)).toEqual(["pasta-personagens", "pasta-npcs"]);
     expect(x.dados.cenas[1]?.chegada).toEqual({ x: 6, y: 15 });
@@ -784,7 +849,7 @@ describe("exportação v5", () => {
     };
     const v3 = { ...v4, versao: 3, dados: dadosV3 };
     const l3 = lerExportacao(v3);
-    expect(l3.ok && l3.exportacao.versao).toBe(8);
+    expect(l3.ok && l3.exportacao.versao).toBe(9);
     expect(l3.ok && l3.exportacao.dados.personagens).toEqual([]);
     expect(l3.ok && l3.exportacao.dados.cenas).toHaveLength(2);
     const { assets: _a, ...dadosV2 } = dadosV3;

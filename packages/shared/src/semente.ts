@@ -17,6 +17,7 @@ import {
   TokenSchema,
   UsuarioSchema,
 } from "./estado.ts";
+import { absorverMochila } from "./ficha.ts";
 import { CENA_PADRAO } from "./mapa.ts";
 import { modelosPadrao } from "./objetos.ts";
 import { pastasPadrao } from "./pastas.ts";
@@ -48,6 +49,7 @@ export type Semente = z.infer<typeof SementeSchema>;
 export function estadoInicial(bruta: unknown, agoraMs: number = Date.now()): Estado {
   const semente = SementeSchema.parse(bruta);
   const cenas = semente.cenas ?? [CENA_PADRAO];
+  const modelos = semente.modelos ?? modelosPadrao();
   return {
     seq: 0,
     usuarios: semente.usuarios,
@@ -62,12 +64,12 @@ export function estadoInicial(bruta: unknown, agoraMs: number = Date.now()): Est
     tokens: semente.tokens ?? [],
     paredes: semente.paredes ?? [],
     luzes: semente.luzes ?? [],
-    modelos: semente.modelos ?? modelosPadrao(),
+    modelos,
     pontos: semente.pontos ?? [],
     relogio: relogioInicial(agoraMs),
     config: semente.config ?? CONFIG_PADRAO,
     pastas: semente.pastas ?? pastasPadrao(),
-    personagens: semente.personagens ?? [],
+    personagens: (semente.personagens ?? []).map((p) => absorverMochila(p, modelos)),
     ordemDeTurnoVisivel: false,
     assets: [],
   };

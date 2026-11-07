@@ -77,6 +77,11 @@ export class Fontes {
     return this.memoria;
   }
 
+  /** A pasta local, se autorizada para escrita (nunca a memória dos testes): a ficha exportada vai para `fichas/`. */
+  pastaGravavel(): FonteDeAssets | null {
+    return this.pasta && this.estadoDaPasta === "autorizada" ? this.pasta : null;
+  }
+
   /** Imagens que o usuário pode usar agora: da pasta (se autorizada), soltas e da memória. */
   async listar(): Promise<ArquivoDaFonte[]> {
     const listas: ArquivoDaFonte[][] = [];

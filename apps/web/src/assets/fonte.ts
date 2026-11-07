@@ -20,8 +20,11 @@ export interface FonteDeAssets {
   listar(): Promise<ArquivoDaFonte[]>;
   /** Dá para gravar nela (a cópia `recebidos/<jogador>/` do mestre)? */
   readonly podeGravar: boolean;
-  /** Grava em `pasta/…/nome`. `false` se já existia um arquivo igual (nada foi escrito). */
-  gravar(pasta: string[], nome: string, dados: Blob): Promise<boolean>;
+  /**
+   * Grava em `pasta/…/nome`. `false` se já existia um arquivo igual (nada foi escrito); com
+   * `substituir` grava sempre (a ficha exportada, que muda sem mudar de tamanho).
+   */
+  gravar(pasta: string[], nome: string, dados: Blob, substituir?: boolean): Promise<boolean>;
 }
 
 const EXTENSOES = /\.(png|jpe?g|webp|gif|avif|bmp)$/i;
@@ -185,15 +188,16 @@ export class PastaLocal implements FonteDeAssets {
     return achados.sort((a, b) => a.caminho.localeCompare(b.caminho, "pt-BR"));
   }
 
-  async gravar(pasta: string[], nome: string, dados: Blob): Promise<boolean> {
+  async gravar(pasta: string[], nome: string, dados: Blob, substituir = false): Promise<boolean> {
     let dir: FileSystemDirectoryHandle = this.pasta;
     for (const parte of pasta) dir = await dir.getDirectoryHandle(parte, { create: true });
-    try {
-      const existente = await (await dir.getFileHandle(nome)).getFile();
-      if (existente.size === dados.size) return false;
-    } catch {
-      // não existe: grava
-    }
+    if (!substituir)
+      try {
+        const existente = await (await dir.getFileHandle(nome)).getFile();
+        if (existente.size === dados.size) return false;
+      } catch {
+        // não existe: grava
+      }
     const arquivo = await dir.getFileHandle(nome, { create: true });
     const saida = await arquivo.createWritable();
     await saida.write(dados);

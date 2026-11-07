@@ -78,7 +78,7 @@ test("a ordem de turno liga e desliga para todos, inclusive o mestre; só o mest
     mestre.pagina.getByTestId("exportar").click(),
   ]);
   const json = JSON.parse(readFileSync(await download.path(), "utf8"));
-  expect(json.versao).toBe(8);
+  expect(json.versao).toBe(9);
   expect(json.dados.ordemDeTurnoVisivel).toBe(true);
   expect(json.dados.pastas.map((p: { id: string }) => p.id)).toEqual([
     "pasta-personagens",
@@ -284,12 +284,13 @@ test("barra da direita: Chat, Fichas, Compêndio, Configurações e Mestre (larg
     await expect(p.getByTestId(`ficha-novo-${n}`)).toBeDisabled();
   }
   await p.keyboard.press("Escape");
-  // o editor: "Importar ficha" desabilitado
-  await p.getByTestId("ficha-abrir-pers-ogro").click();
-  await expect(p.getByTestId("editor-importar")).toBeDisabled();
+  // a janela da ficha (duplo clique): na aba Configurar, "Importar ficha" já funciona (Lote 9)
+  await p.getByTestId("ficha-abrir-pers-ogro").dblclick();
+  await p.getByTestId("ficha-aba-configurar").click();
+  await expect(p.getByTestId("editor-importar")).toBeEnabled();
   await expect(p.getByTestId("editor-pasta")).toContainText("NPCs");
   await expect(p.getByTestId("editor-pasta-visivel")).toContainText("só o mestre");
-  await p.getByTestId("editor-fechar").click();
+  await p.getByTestId("janela-ficha-fechar").click();
 
   // Compêndio: busca e mensagem "em breve"; nada é buscado na internet
   await abrirAba(p, "compendio");

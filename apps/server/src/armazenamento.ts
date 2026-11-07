@@ -1,5 +1,6 @@
 import {
   type AssetMeta,
+  absorverMochila,
   CENA_PADRAO,
   type Cena,
   configComPadrao,
@@ -209,6 +210,7 @@ export class Armazenamento {
         )
         .toArray()
         .map((l) => JSON.parse(l.dados) as T);
+    const modelos = ler<ModeloDeObjeto>("modelos");
     const cenas = ler<Cena>("cenas");
     if (cenas.length === 0) cenas.push(CENA_PADRAO);
     const ativa = this.lerMeta("cena_ativa");
@@ -223,7 +225,7 @@ export class Armazenamento {
       paredes: ler<Parede>("paredes"),
       // Lote 6: coleção nova e configuração com padrão; banco anterior continua como estava.
       luzes: ler<unknown>("luzes").map(objetoDoBanco) satisfies ObjetoDeLuz[],
-      modelos: ler<ModeloDeObjeto>("modelos"),
+      modelos,
       pontos: ler<PontoDeLuz>("pontos"),
       relogio: this.lerRelogio(),
       config: configComPadrao(JSON.parse(this.lerMeta("config") ?? "{}")),
@@ -232,7 +234,11 @@ export class Armazenamento {
         number
       >,
       // Banco anterior ao Lote 4: sem personagens, e continua funcionando.
-      personagens: ler<unknown>("personagens").map(personagemDoBanco),
+      // Lote 9: a mochila do Lote 7 vira itens da ficha ao carregar (só leitura: a linha antiga só é
+      // regravada quando o personagem mudar).
+      personagens: ler<unknown>("personagens")
+        .map(personagemDoBanco)
+        .map((p) => absorverMochila(p, modelos)),
       pastas: ler<Pasta>("pastas").sort((a, b) => a.ordem - b.ordem),
       ordemDeTurnoVisivel: this.lerMeta("ordem_de_turno") === "1",
       assets: ler<AssetMeta>("assets"),

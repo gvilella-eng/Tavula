@@ -238,16 +238,18 @@ test("8 e 9: mochila no editor do item e as configurações da mesa e dos modelo
   await ok(p, "tocha.guardar", { id: "tocha-2" });
   const aldric = await entrarNoMapa(grande, "jogador-1");
   await abrirAba(aldric.pagina, "fichas");
-  await aldric.pagina.getByTestId("aba-painel-fichas").getByText("Aldric").first().click();
+  await aldric.pagina.getByTestId("aba-painel-fichas").getByText("Aldric").first().dblclick();
+  await aldric.pagina.getByTestId("ficha-aba-equipamento").click();
   await expect(aldric.pagina.getByTestId("mochila-resumo-modelo-tocha")).toHaveText(
     "2 novas, 2 usadas",
   );
   await foto(aldric.pagina, "08-mochila-no-editor-do-item-jogador");
   await abrirAba(p, "fichas");
-  await p.getByTestId("aba-painel-fichas").getByText("Aldric").first().click();
+  await p.getByTestId("aba-painel-fichas").getByText("Aldric").first().dblclick();
+  await p.getByTestId("ficha-aba-equipamento").click();
   await expect(p.getByTestId("mochila-menos-modelo-tocha")).toBeVisible();
   await foto(p, "08b-mochila-no-editor-do-item-mestre");
-  await p.getByTestId("editor-fechar").click();
+  await p.getByTestId("janela-ficha-fechar").click();
 
   await abrirAba(p, "configuracoes");
   await expect(p.getByTestId("config-mesa")).toBeVisible();

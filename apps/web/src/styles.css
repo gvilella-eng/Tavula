@@ -2055,3 +2055,549 @@ button:disabled:hover {
 .confirmar-limpar p {
   margin: 0 0 6px;
 }
+
+/* --- janela da ficha 5e (Lote 9) ------------------------------------------------------------ */
+
+.janela-ficha {
+  position: fixed;
+  display: flex;
+  flex-direction: column;
+  min-width: 520px;
+  min-height: 360px;
+  max-width: 100vw;
+  max-height: 100vh;
+  overflow: hidden;
+  background: var(--painel);
+  border: 1px solid var(--borda);
+  border-radius: 12px;
+  box-shadow: var(--sombra);
+}
+.janela-ficha-cabecalho {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--painel-2);
+  border-bottom: 1px solid var(--borda);
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+.janela-ficha-cabecalho:active {
+  cursor: grabbing;
+}
+.janela-ficha-titulo {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+.janela-ficha-titulo strong {
+  font-size: 16px;
+}
+.janela-ficha .janela-ficha-titulo .nota {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.janela-ficha-abas {
+  display: flex;
+  gap: 2px;
+  padding: 0 8px;
+  border-bottom: 1px solid var(--borda);
+  background: var(--painel);
+}
+.janela-ficha .janela-ficha-abas button {
+  padding: 7px 12px;
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  color: var(--texto-suave);
+}
+.janela-ficha .janela-ficha-abas button[aria-selected="true"] {
+  color: var(--texto);
+  border-bottom-color: var(--acento);
+}
+.janela-ficha-corpo {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px;
+}
+.janela-ficha-alca {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 18px;
+  height: 18px;
+  cursor: nwse-resize;
+  background: linear-gradient(
+    135deg,
+    transparent 50%,
+    var(--borda) 50%,
+    var(--borda) 60%,
+    transparent 60%,
+    transparent 75%,
+    var(--borda) 75%,
+    var(--borda) 85%,
+    transparent 85%
+  );
+  touch-action: none;
+}
+.fh-vantagem {
+  display: inline-flex;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  gap: 0;
+}
+.janela-ficha .fh-vantagem button {
+  padding: 4px 8px;
+  font-size: 12px;
+  border-radius: 0;
+}
+.janela-ficha .fh-vantagem button:first-child {
+  border-radius: 8px 0 0 8px;
+}
+.janela-ficha .fh-vantagem button:last-child {
+  border-radius: 0 8px 8px 0;
+}
+.janela-ficha .fh-vantagem button[aria-pressed="true"] {
+  background: var(--acento);
+  border-color: var(--acento);
+  color: var(--acento-texto);
+}
+.fh-confirmar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 12px 0;
+  padding: 8px 10px;
+  background: var(--painel-2);
+  border: 1px solid var(--acento);
+  border-radius: 8px;
+}
+.fh-confirmar p {
+  flex: 1 1 300px;
+  margin: 0;
+}
+.fh-aviso {
+  margin: 6px 12px 0;
+}
+
+.fh-principal {
+  display: grid;
+  grid-template-columns: 270px minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+.fh-esquerda,
+.fh-direita {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+.fh-listas {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.fh-atributos {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+.fh-atributo {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  padding: 6px 4px;
+  background: var(--painel-2);
+  border: 1px solid var(--borda);
+  border-radius: 8px;
+}
+.fh-sigla {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--texto-suave);
+}
+.fh-rolavel {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 2.8em;
+  padding: 1px 8px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--acento);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  cursor: pointer;
+}
+.fh-rolavel:hover:not(:disabled) {
+  background: var(--acento);
+  color: var(--acento-texto);
+}
+.fh-rolavel:disabled {
+  color: var(--texto);
+  cursor: default;
+}
+.fh-rolavel.grande {
+  font-size: 22px;
+}
+.fh-rolavel.dano {
+  color: var(--texto);
+  border-color: var(--borda);
+}
+.fh-numero {
+  width: 3.6em;
+  padding: 3px 4px;
+  text-align: center;
+  appearance: textfield;
+}
+.fh-numero::-webkit-outer-spin-button,
+.fh-numero::-webkit-inner-spin-button {
+  appearance: none;
+  margin: 0;
+}
+.fh-numero.grande {
+  width: 4.4em;
+  font-size: 20px;
+  font-weight: 700;
+}
+.fh-numero.mini {
+  width: 2.8em;
+  padding: 1px 2px;
+  font-size: 12px;
+}
+.fh-texto {
+  width: 100%;
+  min-width: 0;
+  padding: 4px 6px;
+}
+.fh-texto.curto {
+  width: 7em;
+}
+.fh-texto[aria-invalid="true"] {
+  border-color: var(--perigo);
+}
+.fh-descricao {
+  min-height: 90px;
+  resize: vertical;
+}
+.fh-notas-texto {
+  min-height: 260px;
+  resize: vertical;
+}
+.fh-lista h4,
+.fh-ataques h4,
+.fh-secao h4,
+.fh-espacos h4,
+.fh-grupo-magias h4 {
+  margin: 0 0 4px;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--texto-suave);
+}
+.fh-lista h4 small,
+.fh-espacos h4 small,
+.fh-grupo-magias h4 small {
+  text-transform: none;
+  letter-spacing: 0;
+}
+.fh-linha {
+  display: grid;
+  grid-template-columns: 16px 3em minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+  padding: 1px 0;
+}
+.fh-nome-linha {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fh-linha .fh-nome-linha small {
+  color: var(--texto-suave);
+}
+.fh-prof {
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  border: 2px solid var(--texto-suave);
+  border-radius: 50%;
+  background: transparent;
+}
+.fh-prof[data-nivel="proficiente"] {
+  background: var(--acento);
+  border-color: var(--acento);
+}
+.fh-prof[data-nivel="especialista"] {
+  background: var(--acento);
+  border-color: var(--acento);
+  box-shadow:
+    0 0 0 2px var(--painel),
+    0 0 0 3px var(--acento);
+}
+.fh-grade-3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.fh-campo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+  color: var(--texto-suave);
+}
+.fh-campo > span:first-child {
+  font-size: 11px;
+}
+.fh-identidade {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.fh-classes {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+.fh-classe {
+  display: grid;
+  grid-template-columns: minmax(8em, 1.2fr) minmax(8em, 1fr) auto auto;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+.fh-resumo {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+.fh-caixa {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 6px 4px;
+  text-align: center;
+  background: var(--painel-2);
+  border: 1px solid var(--borda);
+  border-radius: 8px;
+}
+.fh-caixa.mini {
+  flex-direction: row;
+  gap: 6px;
+  padding: 4px 8px;
+}
+.fh-principal .fh-caixa small {
+  color: var(--texto-suave);
+}
+.fh-rotulo {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--texto-suave);
+  text-transform: uppercase;
+}
+.fh-grande {
+  font-size: 22px;
+  font-weight: 700;
+}
+.fh-duplo {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--texto-suave);
+}
+.fh-pv {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  background: var(--painel-2);
+  border: 1px solid var(--borda);
+  border-radius: 8px;
+}
+.fh-pv-campos {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+.fh-barra {
+  padding-bottom: 6px;
+  font-size: 22px;
+  color: var(--texto-suave);
+}
+.fh-dv,
+.fh-mortes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.fh-dv-tipo {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.fh-marcas {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--texto-suave);
+}
+.fh-ataques {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+}
+.fh-tabela-ataques {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+}
+.fh-ataque {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 4.4em 7em 6em auto;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0;
+  border-bottom: 1px solid var(--borda);
+}
+.fh-tipo {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--texto-suave);
+}
+.fh-ataque-edicao {
+  grid-column: 1 / -1;
+  padding: 2px 0 6px;
+  font-size: 12px;
+  color: var(--texto-suave);
+}
+.fh-ataque-edicao summary {
+  cursor: pointer;
+}
+
+.fh-conjuracao {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.fh-conjuradora {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+  padding: 8px;
+  background: var(--painel-2);
+  border: 1px solid var(--borda);
+  border-radius: 8px;
+}
+.fh-conjuradora strong {
+  align-self: center;
+  min-width: 7em;
+}
+.fh-espacos {
+  margin-bottom: 12px;
+}
+.fh-linha-espaco {
+  display: grid;
+  grid-template-columns: 9em auto auto;
+  justify-content: start;
+  align-items: center;
+  gap: 10px;
+  padding: 2px 0;
+}
+.fh-caixinhas {
+  display: inline-flex;
+  gap: 4px;
+}
+.fh-resumo-espaco {
+  font-variant-numeric: tabular-nums;
+  color: var(--texto-suave);
+}
+.fh-grupo-magias {
+  margin-bottom: 10px;
+}
+.lista-simples .fh-magia {
+  margin: 3px 0;
+}
+.fh-magia-linha {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.fh-nova-magia {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.fh-nova-magia input[type="text"] {
+  flex: 1 1 180px;
+}
+.fh-caracteristica {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 10px;
+  padding: 8px;
+  background: var(--painel-2);
+  border: 1px solid var(--borda);
+  border-radius: 8px;
+}
+.fh-secao {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  margin-top: 10px;
+}
+.fh-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) 4em minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+.fh-recurso {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+.fh-recurso .fh-texto {
+  flex: 1;
+}
+.fh-notas {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.fh-configurar {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.fh-equipamento .mochila {
+  margin: 0;
+}

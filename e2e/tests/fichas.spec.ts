@@ -21,16 +21,18 @@ import {
 // Lote 4b: pastas das Fichas (com sigilo), quem edita, arrastar para o mapa, retrato e token padrão,
 // e a camada mapa.
 
-/** Fichas → clica no item (abre o editor). */
-async function abrirItem(p: Page, personagemId: string) {
+/** Fichas → duplo clique no item (abre a janela da ficha) e vai para a aba (padrão: Configurar). */
+async function abrirItem(p: Page, personagemId: string, aba = "configurar") {
   await abrirAba(p, "fichas");
-  await p.getByTestId(`ficha-abrir-${personagemId}`).click();
-  await expect(p.getByTestId("editor-item")).toBeVisible();
+  await p.getByTestId(`ficha-abrir-${personagemId}`).dblclick();
+  await expect(p.getByTestId("janela-ficha")).toBeVisible();
+  await p.getByTestId(`ficha-aba-${aba}`).click();
+  await expect(p.getByTestId(aba === "configurar" ? "editor-item" : `fh-aba-${aba}`)).toBeVisible();
 }
 
 async function fecharItem(p: Page) {
-  await p.getByTestId("editor-fechar").click();
-  await expect(p.getByTestId("editor-item")).toHaveCount(0);
+  await p.getByTestId("janela-ficha-fechar").click();
+  await expect(p.getByTestId("janela-ficha")).toHaveCount(0);
 }
 
 /** "+ Novo" → NPC ou Personagem; o editor abre; dá o nome, fecha e devolve o id do item. */
@@ -44,7 +46,7 @@ async function novoItem(p: Page, tipo: "personagem" | "npc", nome: string): Prom
   const campo = p.getByTestId(`personagem-nome-${id}`);
   await campo.fill(nome);
   await campo.blur();
-  await expect(editor.getByText(nome).first()).toBeVisible();
+  await expect(p.getByTestId("janela-ficha-nome")).toHaveText(nome);
   await fecharItem(p);
   return id;
 }
@@ -108,7 +110,10 @@ test("frames: o jogador não recebe nome de pasta nem item de pasta só do mestr
   // forçando por fora: o item que ele não vê responde como inexistente
   const forcado = await enviarCru(
     j1.pagina,
-    intencaoCrua("ficha.alterar", { personagemId: dragao, pvAtual: 1 }),
+    intencaoCrua("ficha.alterar", {
+      personagemId: dragao,
+      operacoes: [{ caminho: "pvAtual", valor: 1 }],
+    }),
   );
   expect(forcado?.dados.codigo).toBe("personagem_inexistente");
   const pastaForcada = await enviarCru(
@@ -183,13 +188,16 @@ test("quem edita o personagem move o token e altera o PV; outro jogador não", a
     "true",
   );
   await expect(j2.pagina.getByTestId("ficha-item-pers-aldric")).toBeVisible();
-  await abrirItem(j2.pagina, "pers-aldric");
+  await abrirItem(j2.pagina, "pers-aldric", "principal");
   const campo = j2.pagina.getByTestId("pv-atual-pers-aldric");
   await expect(campo).toHaveValue("12");
   await campo.fill("7");
   await campo.blur();
+  await mestre.pagina.getByTestId("ficha-aba-principal").click();
   await expect(mestre.pagina.getByTestId("pv-atual-pers-aldric")).toHaveValue("7");
+  await mestre.pagina.getByTestId("ficha-aba-configurar").click();
   // quem edita não muda quem edita nem o nome
+  await j2.pagina.getByTestId("ficha-aba-configurar").click();
   await expect(j2.pagina.getByTestId("editor-editor-jogador-3")).toBeDisabled();
   await expect(j2.pagina.getByTestId("personagem-nome-pers-aldric")).toBeDisabled();
   await fecharItem(j2.pagina);
@@ -206,7 +214,10 @@ test("quem edita o personagem move o token e altera o PV; outro jogador não", a
   expect(mover?.dados.codigo).toBe("sem_permissao");
   const pv = await enviarCru(
     j3.pagina,
-    intencaoCrua("ficha.alterar", { personagemId: "pers-aldric", pvAtual: 1 }),
+    intencaoCrua("ficha.alterar", {
+      personagemId: "pers-aldric",
+      operacoes: [{ caminho: "pvAtual", valor: 1 }],
+    }),
   );
   expect(pv?.dados.codigo).toBe("personagem_inexistente");
   const editores = await enviarCru(
@@ -358,7 +369,9 @@ test("retrato e token padrão escolhidos no editor aparecem (na lista, no editor
   ).toBeVisible({ timeout: 30_000 });
   await abrirItem(j2.pagina, arqueiro);
   await expect(j2.pagina.getByTestId("editor-retrato")).toBeDisabled();
-  await expect(j2.pagina.getByTestId(`pv-${arqueiro}`)).toHaveText("PV 10 / 10");
+  // sem `ficha.verOutras`, quem só vê o item não recebe a ficha (nem os PV)
+  await expect(j2.pagina.getByTestId("ficha-oculta")).toBeVisible();
+  await expect(j2.pagina.getByTestId(`pv-atual-${arqueiro}`)).toHaveCount(0);
   await expect(j2.pagina.getByTestId("editor-pasta-visivel")).toContainText("todos os jogadores");
 });
 

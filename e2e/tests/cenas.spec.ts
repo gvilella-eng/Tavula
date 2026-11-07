@@ -93,16 +93,16 @@ async function selecionarToken(p: Page, id: string) {
   await expect(p.getByTestId("painel-token")).toBeVisible();
 }
 
-/** Fichas → clica no item (abre o editor). */
+/** Fichas → duplo clique no item (abre a janela da ficha, na aba Principal). */
 async function abrirItem(p: Page, personagemId: string) {
   await abrirAba(p, "fichas");
-  await p.getByTestId(`ficha-abrir-${personagemId}`).click();
-  await expect(p.getByTestId("editor-item")).toBeVisible();
+  await p.getByTestId(`ficha-abrir-${personagemId}`).dblclick();
+  await expect(p.getByTestId("fh-aba-principal")).toBeVisible();
 }
 
 async function fecharItem(p: Page) {
-  await p.getByTestId("editor-fechar").click();
-  await expect(p.getByTestId("editor-item")).toHaveCount(0);
+  await p.getByTestId("janela-ficha-fechar").click();
+  await expect(p.getByTestId("janela-ficha")).toHaveCount(0);
 }
 
 /** Arrasta a bandeira do ponto de chegada (mouse de verdade); devolve onde estava e onde ficou. */
@@ -239,12 +239,18 @@ test("o PV do personagem se mantém ao trocar de cena e depois de refresh", asyn
   // forçando por fora da interface: o personagem de outro jogador e o NPC respondem como inexistentes
   const alheio = await enviarCru(
     j2.pagina,
-    intencaoCrua("ficha.alterar", { personagemId: "pers-aldric", pvAtual: 1 }),
+    intencaoCrua("ficha.alterar", {
+      personagemId: "pers-aldric",
+      operacoes: [{ caminho: "pvAtual", valor: 1 }],
+    }),
   );
   expect(alheio?.dados.codigo).toBe("personagem_inexistente");
   const npc = await enviarCru(
     j1.pagina,
-    intencaoCrua("ficha.alterar", { personagemId: "pers-ogro", pvAtual: 1 }),
+    intencaoCrua("ficha.alterar", {
+      personagemId: "pers-ogro",
+      operacoes: [{ caminho: "pvAtual", valor: 1 }],
+    }),
   );
   expect(npc?.dados.codigo).toBe("personagem_inexistente");
   const criar = await enviarCru(

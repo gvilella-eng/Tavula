@@ -1,6 +1,7 @@
 import {
   type Estado,
   formatarRestante,
+  novasDoModelo,
   type ObjetoDeLuz,
   type Personagem,
   podeEditarPersonagem,
@@ -28,9 +29,10 @@ function doPersonagem(l: ObjetoDeLuz, personagemId: string): boolean {
 }
 
 /**
- * Mochila mínima do item (Lote 7; a ficha do Lote 9 absorve): para cada modelo de objeto que ocupa a
- * mão, "Tocha: 4 novas, 1 usada", com Acender (nova ou usada) e, para o mestre, + e − na quantidade.
- * Acender põe o objeto numa mão livre do token do personagem.
+ * Objetos de luz da ficha (aba Equipamento): para cada modelo de objeto que ocupa a mão, "Tocha: 4
+ * novas, 1 usada", com Acender (nova ou usada) e, para o mestre, + e − na quantidade. As novas são a
+ * quantidade do item da ficha com esse `modeloId`; as usadas são objetos com portador `mochila` ou
+ * `mao`. Acender põe o objeto numa mão livre do token do personagem.
  */
 export function MochilaDoItem({ personagem: p, estado, eu, enviar, tempo }: Props) {
   const euMestre = eu.papel === "mestre";
@@ -40,7 +42,7 @@ export function MochilaDoItem({ personagem: p, estado, eu, enviar, tempo }: Prop
     (m) =>
       m.ocupaMao &&
       (euMestre ||
-        (p.mochila?.[m.id] ?? 0) > 0 ||
+        novasDoModelo(p.ficha, m.id) > 0 ||
         usadasDoPersonagem.some((l) => l.modeloId === m.id)),
   );
   useTic(usadasDoPersonagem.some((l) => l.contando === true));
@@ -49,11 +51,11 @@ export function MochilaDoItem({ personagem: p, estado, eu, enviar, tempo }: Prop
   return (
     <fieldset className="mochila" data-testid="mochila" disabled={!podeMexer && !euMestre}>
       <legend>
-        <Backpack size={14} /> Mochila
+        <Backpack size={14} /> Objetos de luz
       </legend>
       {modelos.length === 0 && <p className="nota">Nenhum modelo de objeto de luz na campanha.</p>}
       {modelos.map((m) => {
-        const novas = p.mochila?.[m.id] ?? 0;
+        const novas = novasDoModelo(p.ficha, m.id);
         const usadas = usadasDoPersonagem.filter((l) => l.modeloId === m.id);
         return (
           <div key={m.id} className="mochila-modelo" data-testid={`mochila-${m.id}`}>

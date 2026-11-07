@@ -1,6 +1,6 @@
 # Protocolo cliente ↔ sala
 
-## Versão atual: v1 (Lotes 1, 2, 3, 4, 4b, 5, 6, 7 e 8)
+## Versão atual: v1 (Lotes 1, 2, 3, 4, 4b, 5, 6, 7, 8 e 9)
 
 Os schemas zod ficam em `packages/shared/src/protocolo.ts` e `estado.ts`; a lógica pura (conferir
 capacidade, aplicar, filtrar por papel) em `nucleo.ts` e `capacidades.ts`. O cliente e a sala validam
@@ -72,7 +72,7 @@ fica dentro de `0..larguraM` × `0..alturaM`), não recusada.
 | `cena.configurarGrid` | `{ cenaId?, quadradoM?, visivel? }` (quadrado de 0,3 a 10 m) | `cena.editar` | muda o grid da cena (`cenaId`; padrão: a ativa) |
 | `token.mover` | `{ id, x, y }` (metros, centro do token) | `token.moverProprio` | **transitório**: não grava, não gera `seq`, não muda o estado; a sala repassa `token.movendo` (abaixo). Limite do cliente: 20 por segundo por arraste |
 | `token.soltar` | `{ id, x, y }` | `token.moverProprio` | grava e gera o evento `token.movido` (sempre, mesmo sem mudança de posição: quem viu o movimento ao vivo precisa da posição final) |
-| `personagem.criar` | `{ personagem }` (`id` do cliente; `pastaId`; `editores`: `{ tipo: "todos" }` ou `{ tipo: "jogadores", ids }` (NPC: `ids: []`); `retratoHash?`; `tokenPadrao { cor, tamanhoQuadrados, assetHash? }`; `visao { alcanceM \| null, visaoNoEscuroM }`; `ficha { pvAtual, pvMax }`) | `cena.editar` (só do mestre) | cria o personagem. `dados_invalidos` (id repetido), `pasta_inexistente`, `usuario_inexistente` (editor que não é jogador), `asset_inexistente` (imagem) |
+| `personagem.criar` | `{ personagem }` (`id` do cliente; `pastaId`; `editores`: `{ tipo: "todos" }` ou `{ tipo: "jogadores", ids }` (NPC: `ids: []`); `retratoHash?`; `tokenPadrao { cor, tamanhoQuadrados, assetHash? }`; `visao { alcanceM \| null, visaoNoEscuroM }`; `ficha?` (Lote 9: ver "Ficha 5e"; PV mínimos `{ pvAtual, pvMax }`); a `mochila` do Lote 7, se vier, vira `ficha.itens`) | `cena.editar` (só do mestre) | cria o personagem. `dados_invalidos` (id repetido), `pasta_inexistente`, `usuario_inexistente` (editor que não é jogador), `asset_inexistente` (imagem) |
 | `personagem.editar` | `{ id, mudancas: { nome?, editores?, pastaId?, cor?, tamanhoQuadrados?, assetHash?: hash \| null, retratoHash?: hash \| null, alcanceM?, visaoNoEscuroM?, pvAtual?, pvMax? } }` | nenhuma (`null`; a regra é de quem edita) | **mestre**: qualquer mudança. **Quem edita** o personagem (jogador): só `assetHash` (token padrão) e `retratoHash`, e com `asset.subir` (`sem_permissao` no resto). Personagem que a pessoa não vê: `personagem_inexistente`. `pasta_inexistente`, `usuario_inexistente`. Não muda os tokens já postos (cada token tem a própria cópia de nome, cor e imagem). Mudar `pastaId` ou `editores` faz o item aparecer ou sumir para os jogadores afetados (ver sigilo) |
 | `pasta.criar` | `{ pasta: { id, nome, ordem, visivel } }` (`visivel`: `{ tipo: "todos" }`, `{ tipo: "mestre" }` ou `{ tipo: "jogadores", ids }`) | `mesa.configurar` (só do mestre) | cria a pasta (sem subpastas). `dados_invalidos` (id repetido), `usuario_inexistente` |
 | `pasta.editar` | `{ id, nome?, visivel? }` | `mesa.configurar` | renomeia e/ou muda quem vê a pasta (e tudo o que está nela). Mudar `visivel` manda **snapshot novo a todos**. `pasta_inexistente` |
@@ -80,7 +80,7 @@ fica dentro de `0..larguraM` × `0..alturaM`), não recusada.
 | `ordemDeTurno.definir` | `{ visivel: boolean }` | `mesa.configurar` | mostra ou esconde o painel flutuante de ordem de turno **para todos, inclusive o mestre**; o campo `ordemDeTurnoVisivel` do estado entra na exportação. O conteúdo da ordem vem no Lote 11 |
 | `personagem.apagar` | `{ id }` | `cena.editar` | apaga o personagem **e os tokens dele** (eventos `token.apagado` e depois `personagem.apagado`) |
 | `personagem.colocar` | `{ personagemId, cenaId, tokenId, x?, y? }` | `cena.editar` | cria o token a partir do token padrão (camada `tokens`, visível, `personagemId`), na posição dada (a interface manda o ponto onde o item das Fichas foi **solto no mapa**) ou na **chegada** da cena (encaixada no grid). Personagem de jogador (com quem edite) só tem **um** token (`dados_invalidos` se já tem) |
-| `ficha.alterar` | `{ personagemId, pvAtual?, pvMax? }` (inteiros de 0 a 9999) | nenhuma (a regra é de quem edita; `null` em `capacidadeDaIntencao`) | **quem edita** o personagem ou o mestre. `pvAtual` nunca passa de `pvMax` (a sala corta). Personagem que a pessoa não vê: `personagem_inexistente`; visível mas que ela não edita: `sem_permissao` |
+| `ficha.alterar` | `{ personagemId, operacoes: { caminho, valor }[] }` (1 a 200 operações; `caminho` com pontos, número = posição na lista, vazio = a ficha inteira; `valor: null` remove o campo ou o elemento) | nenhuma (a regra é de quem edita; `null` em `capacidadeDaIntencao`) | **quem edita** o personagem ou o mestre. A sala aplica as operações numa cópia, valida a **ficha inteira** (zod) e recusa com `dados_invalidos` se passar de **256 KB** ou ficar inválida (nada é gravado pela metade). `pvAtual` nunca passa de `pvMax`. Quem não é o mestre **não aumenta** a quantidade de item com `modeloId` (`sem_permissao`: só o mestre repõe tochas). Personagem que a pessoa não vê: `personagem_inexistente`; visível mas que ela não edita: `sem_permissao` (mesmo com `ficha.verOutras`). Substitui a forma antiga `{ personagemId, pvAtual?, pvMax? }` |
 | `cena.criar` | `{ id, nome }` | `cena.editar` | nova cena com o tamanho e o grid padrão (60 x 45 m, quadrado 1,5 m). `dados_invalidos` se o id existe |
 | `cena.editar` | `{ cenaId, nome?, chegada?: { x, y } \| null }` | `cena.editar` | renomeia e/ou define a chegada do grupo (limitada à cena; `null` volta ao centro). `cena_inexistente` |
 | `cena.duplicar` | `{ cenaId, novoId }` | `cena.editar` | copia a cena (nome "… (cópia)", mesmo mapa e grid) e os tokens dela, **menos os de personagem de jogador**, com ids novos |
@@ -146,7 +146,8 @@ Códigos de erro: `mensagem_invalida`, `sem_permissao`, `ultimo_mestre`, `usuari
   vê é estado local da tela dele; as intenções de token, grid e mapa dizem de qual cena são).
 - Ao levar o grupo, **todos recebem snapshot novo**; os eventos `grupo.movido` e `cena.*` só vão a mestres.
 - Personagens no snapshot do jogador (desde o Lote 4b): os que ele **edita** e os que estão numa **pasta que ele vê**
-  (ver "Pastas e quem edita"). `ficha.verOutras` continua no tipo, para a importação antiga, mas não decide mais nada.
+  (ver "Pastas e quem edita"). A pasta decide quem vê o ITEM; `ficha.verOutras` (de novo ativa desde o Lote 9) decide quem vê
+  a FICHA completa de um personagem que não edita (ver "Ficha 5e").
   O `token` visível de um NPC carrega o `personagemId` (um id opaco), mas o personagem em si não chega.
 - `assetVisivelPara` olha a cena: só a imagem de token **da cena ativa**, o mapa e os tiles da cena ativa, a
   imagem do token padrão de um personagem que ele vê, e os arquivos `cifrado` (opacos).
@@ -216,7 +217,8 @@ Pasta { id, nome, ordem, visivel: { tipo: "todos" } | { tipo: "mestre" } | { tip
 Personagem { id, pastaId, editores: { tipo: "todos" } | { tipo: "jogadores", ids } /* NPC: ids [] */, nome,
              retratoHash?, tokenPadrao: { cor, tamanhoQuadrados, assetHash? },
              visao: { alcanceM: number | null, visaoNoEscuroM },
-             ficha: { pvAtual, pvMax } /* ficha mínima até o Lote 9 */ }
+             ficha?: Ficha /* Lote 9; ausente na visão de quem não edita e não tem `ficha.verOutras` */,
+             modInteligencia?: number /* reserva (ficha sem atributos); vem calculado para quem não vê a ficha */ }
 AssetMeta { hash /* SHA-256 hex do arquivo processado */, tipo: "mapa" | "token" | "retrato" | "tile" | "cifrado",
             mime, bytes, largura, altura, donoId, nomeOriginal,
             pedacos: string[] /* SHA-256 de cada pedaço de 256 KB */,
@@ -317,7 +319,7 @@ snapshot completo e volta a acompanhar.
 
 Delegáveis (o mestre liga ou desliga o padrão da mesa e abre exceção por usuário):
 `nota.editar` (entidade de teste do Lote 1), `token.moverProprio` (mover um token que controla), `porta.abrir`, `tocha.acender`,
-`tocha.entregar`, `ponto.usar`, `luz.apagar`, `ficha.verOutras` (sem efeito desde o Lote 4b: quem vê a ficha é a pasta; fica no tipo por compatibilidade de importação e não aparece na interface), `dado.rolarOculto`, `asset.subir`.
+`tocha.entregar`, `ponto.usar`, `luz.apagar`, `ficha.verOutras` (Lote 9: ver a ficha completa dos personagens que ela só vê, sem editar; padrão desligado), `dado.rolarOculto`, `asset.subir`.
 
 Só do mestre, nunca delegáveis: `papel.alterar`, `permissao.alterar`, `mesa.configurar`,
 `automacao.editar`, `camadaMestre.ver`, `cena.editar` (tokens, grid, mapa e, desde o Lote 4, criar e apagar personagens, cenas, levar o grupo e preparar cena), `objeto.ajustar`,
@@ -334,7 +336,7 @@ jogador: nunca as exclusivas do mestre; senão a exceção por usuário, se houv
 
 ### Exportação
 
-`{ formato: "tabletop-campanha", versao: 8, exportadoEm, dados: { seq, usuarios, permissoes, notaMesa, notaMestre, cenas, cenaAtivaId, tokens, paredes, luzes, modelos, pontos, relogio, config, pastas, personagens, ordemDeTurnoVisivel, assets } }`. A **v8** (Lote 7) troca as fontes de luz por **objetos de luz** (`estado`, `saldoMs`, `acesaDesdeSala`, modificadores e histórico: são dado da campanha e vão no arquivo), completa a `config` e acrescenta `modelos`, `pontos` e o `relogio` (a campanha restaurada volta com a **mesa pausada**, no tempo em que foi exportada; a v7 e as anteriores importam com o relógio rodando a partir da importação); `Personagem.mochila` é opcional; os `acendimentos` pendentes **nunca** entram. De v1 a v7 continuam aceitas (o resultado é sempre v8; `acesa: boolean` vira `estado`, os modelos da semente entram onde faltam). A **v7** (Lote 6) acrescenta `luzes` (as fontes de luz) e `config` (`ConfigDaMesa`); `Cena.luzAmbiente`/`fatorDeLuz`, `Token.visaoNoEscuroM` e `Personagem.modInteligencia` são campos opcionais (ausentes nos arquivos antigos: cena em luz de dia, sem visão no escuro, modificador 0) e `memoriaEsquecida` **nunca** entra (é dado da sessão); ids de fonte únicos, em cena existente e, se presas a token, a token da mesma cena são conferidos. De v1 a v6 continuam aceitas (o resultado é sempre v7, com `luzes: []` e a configuração padrão). A **v6** (Lote 5) acrescenta `paredes`; `Cena.iluminacaoDinamica` e `Token.alcanceVisaoM` são campos opcionais dentro de cenas e tokens (ausentes nos arquivos antigos: iluminação ligada, visão sem limite). ids de parede únicos e cena existente são conferidos.
+`{ formato: "tabletop-campanha", versao: 9, exportadoEm, dados: { seq, usuarios, permissoes, notaMesa, notaMestre, cenas, cenaAtivaId, tokens, paredes, luzes, modelos, pontos, relogio, config, pastas, personagens, ordemDeTurnoVisivel, assets } }`. A **v9** (Lote 9) traz as fichas 5e dentro de `personagens[].ficha` (a mesma forma da v8, só mais campos opcionais) e **não traz mais** `Personagem.mochila`: na importação (de v8 e anteriores) a mochila vira `ficha.itens` com `modeloId` (a quantidade é o número de objetos novos; os usados continuam objetos de luz com portador `mochila`). A **v8** (Lote 7) troca as fontes de luz por **objetos de luz** (`estado`, `saldoMs`, `acesaDesdeSala`, modificadores e histórico: são dado da campanha e vão no arquivo), completa a `config` e acrescenta `modelos`, `pontos` e o `relogio` (a campanha restaurada volta com a **mesa pausada**, no tempo em que foi exportada; a v7 e as anteriores importam com o relógio rodando a partir da importação); `Personagem.mochila` é opcional; os `acendimentos` pendentes **nunca** entram. De v1 a v8 continuam aceitas (o resultado é sempre v9; `acesa: boolean` vira `estado`, os modelos da semente entram onde faltam). A **v7** (Lote 6) acrescenta `luzes` (as fontes de luz) e `config` (`ConfigDaMesa`); `Cena.luzAmbiente`/`fatorDeLuz`, `Token.visaoNoEscuroM` e `Personagem.modInteligencia` são campos opcionais (ausentes nos arquivos antigos: cena em luz de dia, sem visão no escuro, modificador 0) e `memoriaEsquecida` **nunca** entra (é dado da sessão); ids de fonte únicos, em cena existente e, se presas a token, a token da mesma cena são conferidos. De v1 a v6 continuam aceitas (o resultado é sempre v7, com `luzes: []` e a configuração padrão). A **v6** (Lote 5) acrescenta `paredes`; `Cena.iluminacaoDinamica` e `Token.alcanceVisaoM` são campos opcionais dentro de cenas e tokens (ausentes nos arquivos antigos: iluminação ligada, visão sem limite). ids de parede únicos e cena existente são conferidos.
 Sem contadores de uso nem presença. `assets` são **só as metas dos assets usados** (mapas das cenas, imagens
 dos tokens e os tiles deles), **nunca bytes**; `Cena.mapa` e `Token.assetHash` vão nos próprios objetos. A **v5**
 (Lote 4b) acrescenta `pastas` e `ordemDeTurnoVisivel` e troca, nos personagens, `donoId` por `editores` e `pastaId` (mais `retratoHash`). A **v4**
@@ -590,6 +592,44 @@ Mensagem { id ("m<seq>"), seq (o do evento), emSala? (relógio da sala, ms), emR
 - O chat **não entra** na exportação (v8 continua v8).
 
 **Gancho de teste da sala** (só com `MODO=teste`): `POST /teste/dados?semente=N` faz os dados saírem de uma sequência com semente fixa (sem `semente`, volta ao `crypto`); `/teste/zerar` também a desliga. Fora do modo de teste responde 404.
+
+### Ficha 5e (Lote 9)
+
+`Ficha` (`packages/shared/src/ficha.ts`, zod) guarda só valores base; tudo o mais sai de funções puras (`derivar`). Só `pvAtual` e `pvMax`
+são obrigatórios (a ficha do Lote 4 continua valendo); o resto é opcional e lido com o padrão (atributo 10, sem proficiência, 30 ft):
+
+```ts
+Ficha { raca?, antecedente?, alinhamento?, classes?: { classe, subclasse?, nivel 1..20 }[],
+        atributos?: { for, des, con, int, sab, car: 1..30 },            // cada um opcional
+        salvaguardas?: { [atributo]: { nivel: "nenhuma" | "proficiente" | "especialista", bonus? } },
+        pericias?: { [id de perícia]: { nivel, bonus? } },              // 18 perícias do SRD (acrobacia, adestrarAnimais...)
+        ca?: { valor, nota? }, deslocamentoFt?, iniciativaBonus?,
+        pvAtual, pvMax, pvTemp?, dadosDeVidaUsados?: { d6|d8|d10|d12: n }, mortes?: { sucessos 0..3, falhas 0..3 },
+        ataques?: { nome, acerto?: { tipo: "fixo", valor } | { tipo: "formula", atributo, proficiente, bonus? },
+                    cd?, dano?: "1d8+3", tipo? }[],
+        conjuracao?: { classe, habilidade }[],  espacosGastos?: { "1".."9": n },  pactoGasto?, magias?: { nome, nivel 0..9, preparada, escola?, descricao }[],
+        caracteristicas?: { nome, descricao }[],  itens?: { nome, quantidade, modeloId?, nota? }[],
+        recursos?: { nome, atual, max, recarga: "curto" | "longo" | "nenhuma" }[],  idiomas?: string[],  notas? }
+```
+
+- **Gravação agrupada**: o navegador junta as mudanças por ~400 ms e manda uma `ficha.alterar` com a lista de operações;
+  ele só enfileira o que deixa a ficha válida (campo meio digitado nunca derruba o lote). Duas pessoas no mesmo campo: vale a última a chegar.
+- **Evento**: `personagem.alterado` com o personagem inteiro (como antes), agora **filtrado por usuário**.
+- **Sigilo** (`personagemParaUsuario`, o mesmo filtro no snapshot e nos eventos): a ficha completa só vai ao **mestre**, a quem **edita**
+  o personagem e, com `ficha.verOutras`, aos demais jogadores que veem o item. Sem isso o item chega **sem `ficha`** (nome, retrato, token e visão
+  continuam; `modInteligencia` vem já calculado, porque a memória do mapa depende dele). No evento o filtro compara o que o usuário tinha com o
+  que passaria a ter: mudança que ele não enxerga (ex.: PV de outro personagem) **nem chega**; mudança do item (nome) chega sem a ficha; quem
+  ganha ou perde a edição recebe o personagem com ou sem a ficha. **Ligar ou desligar `ficha.verOutras`** (padrão da mesa ou exceção por
+  usuário) manda **snapshot novo a todos**.
+- **Modificador de Inteligência**: vem do atributo `int` da ficha quando há atributos; sem eles vale o campo antigo `Personagem.modInteligencia`.
+- **A mochila do Lote 7** é `ficha.itens` com `modeloId`: `tocha.acender` (objeto novo), `mochila.ajustar` e as contagens usam a quantidade do item.
+  Os objetos usados continuam na coleção `luzes` (portador `mochila` ou `mao`).
+- **Tocha na mão e quem edita**: o objeto com portador `mao` agora chega também a **quem edita o personagem**, mesmo com o token fora da cena ativa
+  (`luzVisivelPara`). Quando muda quem edita ou a pasta do personagem, a sala reenvia os objetos que ele carrega (`fonte.editada`) e o filtro de
+  cada jogador decide: aparece, some (`fonte.apagada`) ou nada muda.
+- **Arquivo da ficha** (exportar/importar, sem protocolo): `{ formato: "tabletop-ficha", versao: 1, nome?, exportadoEm?, ficha }`. Importar manda
+  `ficha.alterar` com `{ caminho: "", valor: ficha }` (troca tudo).
+- **Rolar da ficha** usa o que já existe: `chat.modelo` (ataque e teste, com `como` o personagem) e, para dano solto, `chat.enviar` com `/r <dano> <nome>`.
 
 ### Contador de uso
 

@@ -272,9 +272,16 @@ describe("mover de pasta e mudar a visibilidade", () => {
   });
 
   it("personagem de pasta que o jogador não vê responde como inexistente", () => {
-    expect(codigo(e, "j1", intencao("ficha.alterar", { personagemId: "diario", pvAtual: 1 }))).toBe(
-      "personagem_inexistente",
-    );
+    expect(
+      codigo(
+        e,
+        "j1",
+        intencao("ficha.alterar", {
+          personagemId: "diario",
+          operacoes: [{ caminho: "pvAtual", valor: 1 }],
+        }),
+      ),
+    ).toBe("personagem_inexistente");
     expect(
       codigo(
         e,
@@ -284,7 +291,14 @@ describe("mover de pasta e mudar a visibilidade", () => {
     ).toBe("personagem_inexistente");
     // vendo mas sem editar: sem permissão
     expect(
-      codigo(e, "j3", intencao("ficha.alterar", { personagemId: "mapa-mundi", pvAtual: 1 })),
+      codigo(
+        e,
+        "j3",
+        intencao("ficha.alterar", {
+          personagemId: "mapa-mundi",
+          operacoes: [{ caminho: "pvAtual", valor: 1 }],
+        }),
+      ),
     ).toBe("sem_permissao");
   });
 });
@@ -302,19 +316,39 @@ describe("controle por quem edita", () => {
       "sem_permissao",
     );
     expect(
-      aplicar(e, "j1", intencao("ficha.alterar", { personagemId: "aldric", pvAtual: 2 })).estado
-        .personagens[0]?.ficha.pvAtual,
+      aplicar(
+        e,
+        "j1",
+        intencao("ficha.alterar", {
+          personagemId: "aldric",
+          operacoes: [{ caminho: "pvAtual", valor: 2 }],
+        }),
+      ).estado.personagens[0]?.ficha?.pvAtual,
     ).toBe(2);
-    expect(codigo(e, "j2", intencao("ficha.alterar", { personagemId: "aldric", pvAtual: 2 }))).toBe(
-      "personagem_inexistente",
-    );
+    expect(
+      codigo(
+        e,
+        "j2",
+        intencao("ficha.alterar", {
+          personagemId: "aldric",
+          operacoes: [{ caminho: "pvAtual", valor: 2 }],
+        }),
+      ),
+    ).toBe("personagem_inexistente");
   });
 
   it("'todos os jogadores' controla o token e edita a ficha de qualquer um; NPC só o mestre", () => {
     for (const j of [j1, j2, j3]) {
       expect(podeMoverToken(tok("t-compartilhado"), j, e)).toBe(true);
       expect(
-        codigo(e, j.id, intencao("ficha.alterar", { personagemId: "compartilhado", pvAtual: 1 })),
+        codigo(
+          e,
+          j.id,
+          intencao("ficha.alterar", {
+            personagemId: "compartilhado",
+            operacoes: [{ caminho: "pvAtual", valor: 1 }],
+          }),
+        ),
       ).toBeNull();
       expect(podeMoverToken(tok("t-ogro"), j, e)).toBe(false);
     }
@@ -513,7 +547,7 @@ describe("migração do donoId e exportações", () => {
     e = aplicar(e, "m", intencao("ordemDeTurno.definir", { visivel: true })).estado;
     const x = criarExportacao(e, AGORA);
     expect(x.versao).toBe(VERSAO_EXPORTACAO);
-    expect(x.versao).toBe(8);
+    expect(x.versao).toBe(9);
     expect(x.dados.pastas).toHaveLength(4);
     expect(x.dados.ordemDeTurnoVisivel).toBe(true);
     const lida = lerExportacao(JSON.parse(JSON.stringify(x)));
@@ -551,7 +585,7 @@ describe("migração do donoId e exportações", () => {
     const l4 = lerExportacao(v4);
     expect(l4.ok).toBe(true);
     if (!l4.ok) return;
-    expect(l4.exportacao.versao).toBe(8);
+    expect(l4.exportacao.versao).toBe(9);
     expect(l4.exportacao.dados.pastas.map((p) => [p.id, p.visivel.tipo])).toEqual([
       [PASTA_PERSONAGENS_ID, "mestre"],
       [PASTA_NPCS_ID, "mestre"],
@@ -574,7 +608,7 @@ describe("migração do donoId e exportações", () => {
     for (const versao of [3, 2]) {
       const dados = versao === 2 ? (({ assets: _a, ...r }) => r)(semTokens) : semTokens;
       const l = lerExportacao({ ...v4, versao, dados });
-      expect(l.ok && l.exportacao.versao).toBe(8);
+      expect(l.ok && l.exportacao.versao).toBe(9);
       expect(l.ok && l.exportacao.dados.personagens).toEqual([]);
       expect(l.ok && l.exportacao.dados.pastas.map((p) => p.id)).toEqual([
         PASTA_PERSONAGENS_ID,

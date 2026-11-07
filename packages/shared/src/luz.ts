@@ -8,7 +8,8 @@ import type {
   Token,
   Usuario,
 } from "./estado.ts";
-import { personagemVisivelPara, tokenVisivelPara } from "./mapa.ts";
+import { modInteligenciaDoPersonagem } from "./ficha.ts";
+import { personagemVisivelPara, podeEditarPersonagem, tokenVisivelPara } from "./mapa.ts";
 
 /** Luz ambiente da cena: sem o campo vale 1 (dia), para não escurecer campanhas antigas. */
 export function luzAmbienteDa(cena: Pick<Cena, "luzAmbiente">): number {
@@ -162,6 +163,10 @@ export function luzVisivelPara(
       return token !== undefined && tokenVisivelPara(token, usuario, ctx.cenaAtivaId);
     }
     case "mao": {
+      // Quem edita o personagem vê a tocha da mão dele mesmo com o token fora da cena ativa (a ficha a
+      // mostra); os outros só a veem pelo token visível na cena ativa.
+      const dono = ctx.personagens.find((x) => x.id === p.personagemId);
+      if (dono && podeEditarPersonagem(dono, usuario)) return true;
       const token = tokenDoPersonagem(ctx.tokens, p.personagemId, ctx.cenaAtivaId);
       return token !== undefined && tokenVisivelPara(token, usuario, ctx.cenaAtivaId);
     }
@@ -182,10 +187,11 @@ export function luzVisivelPara(
 /** Modificador de Inteligência do token: o do personagem; sem personagem, 0. */
 export function modInteligenciaDe(
   token: Pick<Token, "personagemId">,
-  personagens: readonly Pick<Personagem, "id" | "modInteligencia">[],
+  personagens: readonly Pick<Personagem, "id" | "modInteligencia" | "ficha">[],
 ): number {
   if (token.personagemId === undefined) return 0;
-  return personagens.find((p) => p.id === token.personagemId)?.modInteligencia ?? 0;
+  const p = personagens.find((x) => x.id === token.personagemId);
+  return p ? modInteligenciaDoPersonagem(p) : 0;
 }
 
 /** Visão no escuro do token, em metros: a do personagem; sem personagem, a do próprio token (ou 0). */

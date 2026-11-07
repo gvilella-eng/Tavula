@@ -321,7 +321,7 @@ describe("exportar e importar", () => {
       "texto",
       {},
       { ...boa, formato: "outro" },
-      { ...boa, versao: 9 },
+      { ...boa, versao: 10 },
       { ...boa, dados: { ...boa.dados, usuarios: [] } },
       {
         ...boa,

@@ -33,6 +33,8 @@ import { BarraDeFerramentas } from "./BarraDeFerramentas";
 import { BarraLateral } from "./BarraLateral";
 import { type CamadaDeTrabalho, camadaDoNovoToken } from "./camadas";
 import { FaixaDeCenas, type PedirImagem } from "./FaixaDeCenas";
+import { JanelaDaFicha } from "./ficha/JanelaDaFicha";
+import { useJanelasDeFicha } from "./ficha/janelas";
 import { MenuDaTocha } from "./MenuDaTocha";
 import { MenuSuperior } from "./MenuSuperior";
 import { Mapa } from "./mapa/Mapa";
@@ -144,6 +146,14 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
   // A cena que o mestre olha (e edita) sem mover o grupo: estado local da tela dele. `null` = a do grupo.
   const [cenaVistaId, setCenaVistaId] = useState<string | null>(null);
   const mapa = useRef<MapaPixi | null>(null);
+  // As fichas abertas em janelas flutuantes (várias ao mesmo tempo).
+  const {
+    janelas: janelasDeFicha,
+    abrir: abrirFicha,
+    fechar: fecharFicha,
+    atualizar: atualizarFicha,
+    focar: focarFicha,
+  } = useJanelasDeFicha();
 
   // Arquivos locais (PROJETO.md 4.3): fontes (pasta, soltos), processador (worker) e o gerente
   // (cache OPFS, pedidos, envio). O gerente nasce quando sei quem sou.
@@ -675,9 +685,7 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
                 ouvir={ouvir}
                 imagens={imagens}
                 versaoDasImagens={versaoDosProntos}
-                pedirImagem={pedirImagem}
-                cenaVista={cenaVista}
-                tempo={tempo}
+                aoAbrirFicha={abrirFicha}
               />
             ),
           },
@@ -927,6 +935,32 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
             aoMudarAberta={setLateralAberta}
             aoMudarVisivel={setAbaVisivel}
           />
+          {[...janelasDeFicha]
+            .sort((a, b) => a.z - b.z)
+            .map((j, camada) => {
+              const personagem = estado.personagens.find((p) => p.id === j.personagemId);
+              if (!personagem) return null;
+              return (
+                <JanelaDaFicha
+                  key={j.personagemId}
+                  janela={j}
+                  camada={camada}
+                  personagem={personagem}
+                  estado={estado}
+                  eu={eu}
+                  enviar={enviar}
+                  imagens={imagens}
+                  versaoDasImagens={versaoDosProntos}
+                  pedirImagem={pedirImagem}
+                  cenaVista={cenaVista}
+                  tempo={tempo}
+                  fontes={fontes}
+                  aoFechar={() => fecharFicha(j.personagemId)}
+                  aoFocar={() => focarFicha(j.personagemId)}
+                  aoMudar={(mudancas) => atualizarFicha(j.personagemId, mudancas)}
+                />
+              );
+            })}
           {pedidoDeImagem && gerente && (
             <SeletorDeImagem
               titulo={pedidoDeImagem.titulo}
