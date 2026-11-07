@@ -1408,6 +1408,54 @@ entra nas perguntas do fim):**
 
 **Pronto quando:** `pnpm verify` verde.
 
+**Decidido antes de começar (2026-11-06; prevalece sobre os itens acima onde conflitar; "(assumido)"
+entra nas perguntas do fim):**
+- **Modelo** (`packages/shared/src/ficha.ts`, zod + funções puras de derivação): a ficha guarda só os
+  valores base:
+  - identidade (raça, antecedente, alinhamento) e `classes: { classe, subclasse?, nivel }[]`;
+  - atributos (valores);
+  - salvaguardas e perícias com `nenhuma | proficiente | especialista`, mais um bônus extra manual;
+  - CA (número, com nota), deslocamento em ft;
+  - PV atual/máximo/temporário, dados de vida usados por tipo e testes contra morte;
+  - ataques `{ nome, acerto: número fixo | fórmula, dano (expressão), tipo }`;
+  - conjuração por classe (habilidade), espaços gastos por nível, `magias: { nome, nivel, preparada,
+    escola?, descricao }[]`;
+  - características (texto), `itens: { nome, quantidade, modeloId?, nota? }[]`;
+  - recursos `{ nome, atual, max, recarga: 'curto' | 'longo' | 'nenhuma' }`, idiomas e notas.
+- **Derivados por fórmula**, nunca gravados: modificadores, proficiência pelo nível total, salvaguardas,
+  perícias, percepção passiva, iniciativa, CD e ataque de magia, espaços pela tabela de multiclasse (o
+  pacto do Bruxo à parte) e deslocamento em metros.
+- **Dados do SRD 5.1** (`packages/shared/src/srd/`): só o que as contas precisam (classes com dado de
+  vida, salvaguardas, tipo de conjurador e habilidade; perícias com o atributo e o nome em pt-BR;
+  tabela de espaços). Junto, `ATRIBUICAO-SRD.md` com o aviso CC-BY-4.0. Sem texto de magia: isso é do
+  compêndio (Lote 14).
+- **O Lote 7 vira ficha:** a `mochila` do personagem vira `itens` com `modeloId`, e a quantidade do item
+  é o número de novas. As usadas continuam objetos com portador `mochila`, mostrados embaixo do item,
+  com "Acender". O `modInteligencia` do Lote 6 passa a vir do atributo da ficha; personagem sem ficha
+  preenchida usa o campo antigo. A visão no escuro continua no personagem.
+- **Pendência do Lote 7:** a tocha na mão também chega a quem edita o personagem, mesmo com o token
+  fora da cena ativa (hoje só chega se o token estiver lá), para aparecer na ficha.
+- **Interface:** a ficha abre numa **janela flutuante** grande sobre o mapa (arrastável, com
+  redimensionar, várias abertas ao mesmo tempo), no estilo das mesas virtuais em tema escuro. Abas: Principal
+  (atributos, salvaguardas, perícias, CA, iniciativa, deslocamento, PV, dados de vida, morte, ataques),
+  Magias, Características, Equipamento e Notas, e Configurar (o editor do item de hoje: retrato, token,
+  pasta, quem edita). Duplo clique no item das Fichas abre a janela.
+- **Rolar da ficha:** todo número rolável é clicável e usa os modelos do Lote 8 (ataque, teste com ou
+  sem CD). No cabeçalho da ficha, um seletor normal/vantagem/desvantagem vale para o próximo clique. A
+  rolagem sai "Como:" o personagem.
+- **Descansos:** "Descanso curto" (recursos de curto e espaços do pacto) e "Descanso longo" (PV, metade
+  dos dados de vida, espaços e recursos de longo), com confirmação.
+- **Quem vê a ficha:** a pasta decide quem vê o item (nome e retrato). A **ficha completa** de um
+  personagem que o jogador não edita só chega a ele com `ficha.verOutras` (padrão desligado, como hoje);
+  sem ela, a sala manda o item sem a ficha (assumido). O mestre vê tudo.
+- **Gravação agrupada:** o navegador junta as mudanças por ~400 ms e manda `ficha.alterar` com uma lista
+  de operações `{ caminho, valor }`; a sala aplica, valida a ficha inteira com zod e recusa se passar de
+  256 KB. Duas pessoas no mesmo campo: vale a última.
+- **Exportar e importar a ficha** em JSON: na pasta local escolhida em Configurações (subpasta `fichas/`),
+  ou baixar o arquivo se não houver pasta. Importar substitui a ficha depois de confirmação.
+- **Fixture:** `fixtures/fichas/darion.json` montado à mão com os valores da seção 8 (ataques como valor
+  fixo), usado nos testes e carregável na semente de teste.
+
 ---
 
 ### Lote 10 — Importação da ficha em PDF (G)
