@@ -1447,7 +1447,93 @@ relatório do Playwright (`[erro na página]`).
 
 ---
 
-## Próximo: Lote 13 — Pincel e camada de desenho
+## Lote 13 — Pincel e camada de desenho (entregue, aguardando o roteiro manual)
+
+### O que foi entregue
+
+- **`shared`** (puro, testado):
+  - `desenho.ts`: `Desenho` (`id`, `cenaId`, `autorId`, `forma`, `pontos` em metros, `cor`, `espessura`, `preenchido?`), os limites (2000 pontos, 1000 desenhos por cena, espessura 1 a 24, cor `#rrggbb`), a **simplificação do traço livre** (`simplificarTraco`, Douglas–Peucker iterativo, e `prepararTraco`, que arredonda, tira repetidos e aumenta a tolerância até caber em 2000 pontos), a geometria (`caixaDoDesenho`, `desenhoTocadoEm`, `deslocamentoNaCena`, `pontosDeslocados`, `pontosNaCena`), as regras (`desenhoVisivelPara`, `podeMexerNoDesenho`) e o limite de frequência do rascunho (`rascunhoDentroDoLimite`).
+  - `desenhonucleo.ts`: as intenções `desenho.criar`, `mover`, `apagar` (um ou vários), `voltar` (apaga o meu mais recente da cena), `limpar` (mestre) e `rascunho`, no molde do `combatenucleo.ts`, chamadas pelo `processar`. O rascunho sai em `Resultado.rascunho` (nunca vira evento).
+  - `Estado.desenhos`; capacidade delegável nova `desenho.criar` (ligada por padrão; campanhas antigas ganham o padrão ao carregar); eventos `desenho.criado`, `movido`, `apagado` e `limpo`; mensagens da sala `desenho.rascunhando` e `desenho.rascunhoFim`; exportação **v11** (de v1 a v10 continuam importando).
+  - Sigilo em `visaoPara` e `eventoPara`; apagar a cena apaga os desenhos; duplicar a cena os duplica.
+- **Servidor**: migração 8 do SQLite (tabela `desenhos (id, cena_id, dados)` com índice por cena; banco antigo abre sem desenhos); `salvarEventos`/`salvarTudo`/`apagarTudo` cuidam dela. `sala.ts` repassa o rascunho (limite de 30 ms por conexão, só a quem recebe a cena, nunca ao autor) e manda o fim de cada traço aberto quando a conexão cai.
+- **Navegador**:
+  - Camada de desenho no PixiJS (`mapa/camadaDeDesenho.ts`): acima do mapa, dos tokens e do **véu da luz e da memória** (por isso visível no escuro); desenhos gravados, traços em andamento (o meu e os dos outros, com um pouco de transparência) e o destaque da seleção (caixa dourada com quatro alças).
+  - `SubBarraPincel.tsx` funcionando: fechar, **voltar** (desfazer o meu mais recente), selecionar, borracha, formas (livre, linha, retângulo, círculo), **preenchido** (só retângulo e círculo), paleta de **8 cores** + cor livre (seletor do navegador) e **4 espessuras**. A configuração é só da tela de quem desenha (`pincel.ts`).
+  - Selecionar: o jogador seleciona e move só os próprios; o mestre, todos; **Delete** apaga o selecionado. Borracha: apaga o desenho **inteiro** que tocar (some na hora e o pedido sai ao soltar). **Esc** cancela o traço em andamento. Desenhar não muda a camada de trabalho.
+  - Sem `desenho.criar`: o botão do pincel fica apagado (`aria-disabled`) com a explicação ao clicar, e a sub-barra aberta fecha sozinha.
+  - Menu de camadas do mestre: "Limpar desenhos" (desabilitado sem desenhos na cena que ele vê) com **confirmação** ("Apagar os N desenhos desta cena para todos?").
+  - Ao vivo: enquanto desenha, o navegador manda o traço a cada ~80 ms; os outros o veem na hora e ele some quando o desenho gravado chega, quando o autor cancela ou quando a conexão cai.
+
+### Como rodar
+
+- `pnpm verify`. Prints: `$env:PRINTS_DIR="<pasta>"; pnpm --filter @tabletop/e2e prints lote-13` (PowerShell). Para ver: barra da esquerda → pincel (último ícone); menu superior do mestre → Camadas → Desenho → Limpar desenhos.
+
+### Verificação
+
+- Unidade nova `packages/shared/src/desenho.test.ts` (37 testes): Douglas–Peucker (reta com ruído, canto, tolerância 0, 50 mil pontos sem estourar a pilha, `prepararTraco` no limite de 2000 pontos); geometria (toque em linha, traço, pingo, retângulo vazado e preenchido, círculo; deslocamento limitado à cena); limite de frequência; **permissões** (sem `desenho.criar` o jogador não desenha, não move, não apaga, não volta nem faz rascunho; a exceção por usuário devolve o pincel; o assistente não desenha; campanha antiga ganha o padrão); criar (autor posto pela sala, preenchido só em retângulo e círculo, jogador só na cena ativa, mestre em qualquer uma, id repetido, cor/espessura/pontos inválidos, **2000 pontos** e **1000 desenhos por cena**, pontos fora da cena trazidos para dentro); mover e apagar (**o jogador só os próprios, o mestre todos**, um id de fora recusa o pedido, id que sumiu é ignorado); **voltar** (só o meu mais recente da cena; nunca o dos outros); **limpar** só do mestre e só da cena; rascunho que só repassa; **sigilo** (snapshot, eventos de criar/mover/apagar/limpar e rascunho de outra cena não chegam ao jogador; o mestre recebe todos); apagar e duplicar a cena; exportação v11 (ida e volta, importar leva os desenhos, v10 sem desenhos importa, cena/autor desconhecidos, id repetido e desenhos demais recusados).
+- Servidor, `armazenamento.test.ts` (+4): **banco do Lote 11 (versão 7, sem a tabela) abre sem quebrar**, sem desenhos, com a campanha inteira; criar, mover, apagar, limpar e apagar a cena voltam certos do SQLite (e a ordem de criação sobrevive ao mover); importar troca os desenhos e `apagarTudo` os apaga; linha ilegível é ignorada.
+- E2E novo `e2e/tests/desenho.spec.ts` (9 testes): o jogador desenha um traço livre e o mestre vê o **rascunho ao vivo** (com o mouse ainda apertado, sem nada gravado) e depois o desenho (mesmo id); recarregar mantém; linha, retângulo preenchido e círculo de cores diferentes; **borracha** apaga o desenho inteiro e não o do mestre; **voltar** apaga só o meu (e a camada do mestre continua escolhida); o jogador não seleciona nem move o desenho do mestre e a sala recusa (`desenho.mover` e `desenho.apagar` crus: `sem_permissao`), mas move o próprio, e o mestre move e apaga (Delete) o do jogador; Esc cancela (nada gravado, rascunho some; clique sem arrastar não faz retângulo, mas faz pingo no traço livre); quem sai no meio do traço faz o rascunho sumir; **desenho no escuro** (luz ambiente 0, Brisa sem visão no escuro: a camada está acima do véu e o **pixel** do traço é a cor dele, enquanto o do lado é preto); o mestre desliga `desenho.criar` e o jogador perde o pincel na hora; "Limpar desenhos" com cancelar e confirmar apaga para todos e recarregar mantém; **frames**: o desenho de outra cena nunca chega ao jogador, o rascunho de outra cena também, e 60 rascunhos de uma vez chegam bem menos que 60.
+- Prints (1600×900) em `PRINTS_DIR`: 01 sub-barra do pincel (paleta, cor livre e espessura), 02 mapa com os quatro desenhos (jogador e mestre), 03 rascunho ao vivo visto pelo mestre, 04 desenho selecionado, 05 desenhos numa cena escura vistos pelo jogador, 06 confirmação de "Limpar desenhos", 07 jogador sem a capacidade (com a explicação) e o painel do mestre.
+- Expectativas antigas alteradas (só por causa do que o lote mudou): os testes que conferiam `versao` da exportação como 10 agora esperam **11** (`assets`, `ficha`, `fichas`, `luz`, `paredes`, `personagens`, `tochas`, `tokens` e `combate` em `shared`; `assets.spec.ts` e `interface.spec.ts` no E2E); em `nucleo.test.ts` a "versão inválida" passou de 11 para **12** e a lista de chaves da exportação ganhou `desenhos`; em `armazenamento.test.ts` a versão do esquema passou de 7 para **8**; em `interface.spec.ts` o pincel: `pincel-voltar` virou `pincel-fechar` (o voltar agora desfaz), as cores são 8 (eram 6) e o aviso "em breve" saiu.
+
+### Decisões
+
+- (assumido) Todas as intenções do pincel (criar, mover, apagar, voltar e o rascunho) exigem `desenho.criar`; sem ela o jogador perde também o direito de mexer nos próprios desenhos. Só `desenho.limpar` é do mestre (`cena.editar`).
+- (assumido) `desenho.mover` leva um **deslocamento** (`dx`, `dy`), não os pontos novos; a sala o limita para o desenho continuar dentro da cena. Não há movimento ao vivo do arrasto (os outros veem ao soltar).
+- (assumido) `espessura` é em **pixels do mundo** (cresce com o zoom, com piso de 1,5 px na tela), de 1 a 24; a interface oferece 2, 4, 8 e 14. O preenchimento é a própria cor com 40% de opacidade.
+- (assumido) Retângulo e círculo guardam **dois pontos** (cantos opostos; centro e ponto da borda); linha, dois pontos; livre, de 1 a 2000. Um clique sem arrastar faz um pingo no traço livre, e nada nas outras formas.
+- (assumido) Sem encaixe no grid: as formas seguem o mouse livremente.
+- (assumido) `desenho.apagar` é idempotente (id que já sumiu é ignorado) e recusa o pedido inteiro se algum id não for do jogador; `desenho.voltar` sem nada meu não faz nada nem dá erro.
+- (assumido) O mestre desenha na cena que está **vendo** (a faixa de cenas), não só na ativa; o jogador só na ativa. O "voltar" e o "Limpar" do mestre agem nessa mesma cena.
+- (assumido) O jogador não vê o botão de limpar; o mestre "vendo como" um jogador só olha (o pincel fica desligado).
+- (assumido) A camada "Desenho" do menu de camadas continua como no Lote 4b (escolher a camada de trabalho); ela não liga o pincel. Os desenhos aparecem sempre.
+- (assumido) A exportação recusa desenho de autor que não está nos usuários do arquivo (como já faz com token e personagem).
+- (assumido) O rascunho do autor aparece na tela dele como o traço de verdade; para os outros chega com 85% de opacidade. A sala guarda no máximo 16 traços abertos por conexão.
+
+### Desvios do plano
+
+- Nenhum no que o "Decidido antes de começar" pede. Sem dependência nova.
+- O botão "voltar" da sub-barra (a seta do Lote 4b que fechava o pincel) passou a se chamar **fechar**; o **voltar** do PROJETO.md é o novo (desfazer o meu mais recente).
+
+### Frágil / não verificado
+
+- O rascunho é só de tela: nada o protege se a conexão engasgar no meio do traço (o autor termina e o desenho chega inteiro; o outro lado só perde o "ao vivo"). Quem **reconecta** descarta os rascunhos que tinha.
+- Redesenhar é "tudo de uma vez" (um `Graphics` com todos os desenhos): com 1000 desenhos de 2000 pontos numa cena o zoom e o arrasto podem pesar; não medi.
+- Selecionar e mover usam alvo de 8 px; desenhos muito finos e muito próximos podem exigir zoom para escolher o certo (vale o de cima).
+- A borracha apaga ao encostar, mesmo de passagem, e só o que é do usuário; uma recusa da sala (raríssima) faz o desenho reaparecer depois de ~1,5 s.
+- O teste do escuro lê o pixel pela extração do Pixi (`renderer.extract`) no navegador do Playwright; em outra GPU o valor exato pode variar (o teste só confere "claramente vermelho" e "quase preto").
+- A cor livre usa o `<input type="color">` do navegador (sem conta-gotas próprio).
+- Não há desfazer de apagar nem refazer.
+
+### Roteiro manual (pendente)
+
+1. Como jogador, abrir o pincel e desenhar um traço livre, uma linha, um retângulo preenchido e um círculo, em cores e espessuras diferentes; conferir que o mestre vê o traço **enquanto** o jogador arrasta.
+2. Apertar Esc no meio de um traço (nada deve ser gravado) e usar "voltar" várias vezes (só os meus somem).
+3. Selecionar um desenho meu, arrastar, apagar com Delete; tentar fazer o mesmo num desenho do mestre (não deve selecionar).
+4. Apagar com a borracha atravessando vários desenhos de uma vez.
+5. Numa cena escura (luz ambiente 0), desenhar longe das luzes e conferir que o desenho aparece para todos.
+6. Como mestre: desligar "Desenhar no mapa" no painel do Mestre e ver o jogador perder o pincel; religar. "Limpar desenhos" (cancelar e confirmar).
+7. Recarregar a página e conferir que os desenhos continuam; levar o grupo para outra cena (os desenhos da cena nova aparecem, os da antiga não); duplicar uma cena com desenhos; exportar e importar a campanha.
+8. Abrir o `pnpm dev` do Vilella sobre o banco existente e conferir que a migração 8 não quebrou nada.
+
+### Revisão (antes do commit de fechamento)
+
+- O agente entregou com as duas rodadas finais ainda rodando. A rodada 2 dele falhou em 3 E2E: dois de `cenas.spec.ts` (a rodada levou 14 min; ele rodava os prints ao mesmo tempo, nas mesmas portas) e o novo `desenho.spec.ts:428`, que conferia o `desenho.rascunhoFim` na hora, logo depois de fechar o socket. **Ajuste na revisão:** o teste agora espera o aviso (`expect.poll`); o código estava certo.
+- Sigilo e limites do rascunho revisados (só memória, 30 ms por conexão, 16 traços abertos, só a quem recebe a cena, fim quando a conexão cai); prints conferidos.
+- `pnpm verify` verde duas vezes seguidas na revisão (510 + 27 + 6 de unidade, 117 E2E, ~12 min cada); portas 8788/5174 livres no fim.
+- Sugestões aplicadas no PROJETO.md (4.1 e "Como ficou" do Lote 13); as perguntas entraram em `docs/PERGUNTAS.md`.
+
+### Sugestões para o PROJETO.md (aplicadas)
+
+- 4.1: `Desenho` (`id`, `cenaId`, `autorId`, `forma`, `pontos`, `cor`, `espessura`, `preenchido?`) e a coleção `desenhos` no estado; capacidade `desenho.criar` (delegável, ligada por padrão) na lista.
+- 4.2/exportação: versão 11 (desenhos).
+- "Como ficou" do Lote 13 com o que está acima.
+- Perguntas ao Vilella: (a) o jogador sem `desenho.criar` ainda deveria poder apagar os próprios desenhos? (b) as formas deveriam encaixar no grid (com Alt invertendo, como os tokens)? (c) o arrasto de um desenho deveria aparecer ao vivo para os outros? (d) quer refazer o "voltar" ou apagar vários com seleção múltipla? (e) a espessura deveria ser em metros (consistente entre zooms) em vez de pixels do mundo?
+
+---
+
+## Próximo: Lote 14 — Compêndio de magias
 
 Ver `PROJETO.md`, seção 7. (O Lote 12 — MCP — fica para depois.)
 

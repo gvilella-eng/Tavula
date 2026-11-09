@@ -1,6 +1,6 @@
 # Protocolo cliente ↔ sala
 
-## Versão atual: v1 (Lotes 1, 2, 3, 4, 4b, 5, 6, 7, 8, 9, 10 e 11)
+## Versão atual: v1 (Lotes 1, 2, 3, 4, 4b, 5, 6, 7, 8, 9, 10, 11 e 13)
 
 Os schemas zod ficam em `packages/shared/src/protocolo.ts` e `estado.ts`; a lógica pura (conferir
 capacidade, aplicar, filtrar por papel) em `nucleo.ts` e `capacidades.ts`. O cliente e a sala validam
@@ -87,6 +87,7 @@ fica dentro de `0..larguraM` × `0..alturaM`), não recusada.
 | `cena.apagar` | `{ cenaId }` | `cena.editar` | apaga a cena e os tokens dela; **nunca a ativa** (`dados_invalidos`) |
 | `grupo.moverPara` | `{ cenaId }` | `cena.editar` | **uma única mensagem**: os tokens dos personagens de jogador que estão na cena ativa vão para a chegada da cena de destino, lado a lado e sem sobreposição (`arrumarNoGrid`); NPC fica; a cena de destino vira a ativa; **todos recebem snapshot novo**; antes dele cada jogador recebe `preparo.chaves`. Mesma cena: nada muda |
 | `cena.preparar` | `{ cenaId, pacotes: [{ hashCifrado, hashOriginal, chave }] }` (1 a 200; hashes e chave em 64 hex) | `cena.editar` | guarda os pacotes e as chaves (SQLite, tabela `preparos`) e avisa os jogadores com `preparo.disponivel`. A sala só aceita pacote cujo `hashCifrado` é um asset `cifrado` registrado (`asset_inexistente`) e cujo `hashOriginal` é um arquivo que os jogadores veriam naquela cena (mapa e imagem de token visível; `dados_invalidos`). Não gera evento |
+| `desenho.criar`, `desenho.mover`, `desenho.apagar`, `desenho.voltar`, `desenho.limpar`, `desenho.rascunho` | ver "Pincel e desenhos (Lote 13)" | `desenho.criar` (`desenho.limpar`: `cena.editar`) | o pincel |
 | `campanha.exportar` | `{}` | `campanha.exportar` (só do mestre) | a sala responde `exportacao` a quem pediu |
 | `campanha.importar` | `{ dados }`: o arquivo de exportação inteiro | `campanha.importar` (só do mestre) | substitui o estado inteiro e manda snapshot novo a todos |
 
@@ -106,12 +107,14 @@ fica dentro de `0..larguraM` × `0..alturaM`), não recusada.
 | `preparo.disponivel` | `{ hashes }` (arquivos **cifrados**) | **só jogadores**: baixem estes arquivos. Sem `cenaId`, sem nome, sem nada sobre o conteúdo. Mandada ao preparar e a quem conecta com preparo pendente |
 | `preparo.chaves` | `{ pacotes: [{ hashCifrado, hashOriginal, chave }] }` | **só jogadores, só ao levar o grupo**, e só os pacotes cujo `hashOriginal` o jogador **passa a ver** no estado novo. Chega **antes** do snapshot |
 | `preparo.progresso` | `{ preparos: [{ cenaId, hashesOriginais, completos, jogadores }] }` | **só mestres**: quantos jogadores já têm todos os pacotes de cada preparo (lista vazia quando um preparo é descartado) |
+| `desenho.rascunhando` | `{ desenho }` | **transitório** (sem `seq`, não gravado): o traço em andamento de outra pessoa, só a quem recebe a cena do desenho (o mestre; o jogador com a cena ativa), **menos o remetente** |
+| `desenho.rascunhoFim` | `{ id }` | idem: o traço acabou (soltou, cancelou ou a conexão caiu) |
 | *(frame binário)* | pedaço, ver abaixo | só quem espera aquele pedaço (repassado pela sala, sem gravar) |
 | `token.movendo` | `{ id, x, y }` | **transitório** (sem `seq`, não gravado): só quem pode ver o token, **menos o remetente**. Nunca vai a um jogador para token oculto ou da camada do mestre. Se quem arrastava cai antes do `token.soltar`, a sala manda um `token.movendo` com a **posição gravada**, para ninguém ficar com o token num lugar que não existe |
 
 Códigos de erro: `mensagem_invalida`, `sem_permissao`, `ultimo_mestre`, `usuario_inexistente`,
 `capacidade_nao_delegavel`, `importacao_invalida`, `token_inexistente`, `dados_invalidos`,
-`asset_inexistente` (asset que não existe **ou** que a pessoa não pode ver: a resposta é idêntica), `personagem_inexistente` (idem, para personagem que não existe ou que a pessoa não vê), `cena_inexistente`, `pasta_inexistente` (pasta que não existe ou que o jogador não vê; só o mestre mexe em pastas).
+`desenho_inexistente`, `limite_de_desenhos` (Lote 13), `asset_inexistente` (asset que não existe **ou** que a pessoa não pode ver: a resposta é idêntica), `personagem_inexistente` (idem, para personagem que não existe ou que a pessoa não vê), `cena_inexistente`, `pasta_inexistente` (pasta que não existe ou que o jogador não vê; só o mestre mexe em pastas).
 
 ### Eventos (`evento.dados.tipo`)
 
@@ -136,6 +139,10 @@ Códigos de erro: `mensagem_invalida`, `sem_permissao`, `ultimo_mestre`, `usuari
 | `pasta.apagada` | `{ id }` | mestres; jogador que a via |
 | `ordemDeTurno.alterada` | `{ visivel }` | **todos** |
 | `combate.alterado` | `{ combate: Combate \| null }` (o combate inteiro depois da mudança; `null` = acabou) | mestres: inteiro; jogador: **filtrado** (ver "Combate e condições"); não chega se a mudança não altera o que ele vê |
+| `desenho.criado` | `{ desenho }` | mestre: sempre; jogador: só se a cena do desenho é a ativa |
+| `desenho.movido` | `{ id, pontos }` | idem |
+| `desenho.apagado` | `{ id }` | idem (o jogador só recebe se conhecia o desenho, na cena ativa) |
+| `desenho.limpo` | `{ cenaId }` | idem: todos os desenhos da cena saem |
 | `personagem.apagado` | `{ id }` | mestres; jogador que o via |
 | `asset.registrado` | `{ meta }` | **só mestres** (as metas dos jogadores chegam por `asset.meta`, sob demanda) |
 
@@ -322,7 +329,7 @@ snapshot completo e volta a acompanhar.
 
 Delegáveis (o mestre liga ou desliga o padrão da mesa e abre exceção por usuário):
 `nota.editar` (entidade de teste do Lote 1), `token.moverProprio` (mover um token que controla), `porta.abrir`, `tocha.acender`,
-`tocha.entregar`, `ponto.usar`, `luz.apagar`, `ficha.verOutras` (Lote 9: ver a ficha completa dos personagens que ela só vê, sem editar; padrão desligado), `dado.rolarOculto`, `asset.subir`.
+`tocha.entregar`, `ponto.usar`, `luz.apagar`, `ficha.verOutras` (Lote 9: ver a ficha completa dos personagens que ela só vê, sem editar; padrão desligado), `dado.rolarOculto`, `asset.subir`, `desenho.criar` (Lote 13: usar o pincel; **ligada por padrão**; cobre criar, mover, apagar e voltar os próprios desenhos e o rascunho).
 
 Só do mestre, nunca delegáveis: `papel.alterar`, `permissao.alterar`, `mesa.configurar`,
 `automacao.editar`, `camadaMestre.ver`, `cena.editar` (tokens, grid, mapa e, desde o Lote 4, criar e apagar personagens, cenas, levar o grupo e preparar cena), `objeto.ajustar`,
@@ -339,7 +346,7 @@ jogador: nunca as exclusivas do mestre; senão a exceção por usuário, se houv
 
 ### Exportação
 
-`{ formato: "tabletop-campanha", versao: 10, exportadoEm, dados: { seq, usuarios, permissoes, notaMesa, notaMestre, cenas, cenaAtivaId, tokens, paredes, luzes, modelos, pontos, relogio, config, pastas, personagens, ordemDeTurnoVisivel, combate?, assets } }`. A **v10** (Lote 11) acrescenta `combate` (a ordem de turno: entradas, a vez e a rodada; opcional, sem ele não há combate) e, dentro dos tokens, `condicoes`, `exaustao` e `concentracao` (opcionais). Na importação a sala confere que ids de entrada não se repetem, que a vez é de uma entrada que existe e que as entradas de token apontam para tokens do arquivo. De v1 a v9 continuam aceitas (o resultado é sempre v10, sem combate). A **v9** (Lote 9) traz as fichas 5e dentro de `personagens[].ficha` (a mesma forma da v8, só mais campos opcionais) e **não traz mais** `Personagem.mochila`: na importação (de v8 e anteriores) a mochila vira `ficha.itens` com `modeloId` (a quantidade é o número de objetos novos; os usados continuam objetos de luz com portador `mochila`). A **v8** (Lote 7) troca as fontes de luz por **objetos de luz** (`estado`, `saldoMs`, `acesaDesdeSala`, modificadores e histórico: são dado da campanha e vão no arquivo), completa a `config` e acrescenta `modelos`, `pontos` e o `relogio` (a campanha restaurada volta com a **mesa pausada**, no tempo em que foi exportada; a v7 e as anteriores importam com o relógio rodando a partir da importação); `Personagem.mochila` é opcional; os `acendimentos` pendentes **nunca** entram. De v1 a v8 continuam aceitas (o resultado era v9 e hoje é v10; `acesa: boolean` vira `estado`, os modelos da semente entram onde faltam). A **v7** (Lote 6) acrescenta `luzes` (as fontes de luz) e `config` (`ConfigDaMesa`); `Cena.luzAmbiente`/`fatorDeLuz`, `Token.visaoNoEscuroM` e `Personagem.modInteligencia` são campos opcionais (ausentes nos arquivos antigos: cena em luz de dia, sem visão no escuro, modificador 0) e `memoriaEsquecida` **nunca** entra (é dado da sessão); ids de fonte únicos, em cena existente e, se presas a token, a token da mesma cena são conferidos. De v1 a v6 continuam aceitas (o resultado é sempre v7, com `luzes: []` e a configuração padrão). A **v6** (Lote 5) acrescenta `paredes`; `Cena.iluminacaoDinamica` e `Token.alcanceVisaoM` são campos opcionais dentro de cenas e tokens (ausentes nos arquivos antigos: iluminação ligada, visão sem limite). ids de parede únicos e cena existente são conferidos.
+`{ formato: "tabletop-campanha", versao: 11, exportadoEm, dados: { seq, usuarios, permissoes, notaMesa, notaMestre, cenas, cenaAtivaId, tokens, paredes, luzes, modelos, pontos, relogio, config, pastas, personagens, ordemDeTurnoVisivel, combate?, desenhos, assets } }`. A **v11** (Lote 13) acrescenta `desenhos` (os desenhos do pincel, ver "Pincel e desenhos"); de v1 a v10 continuam aceitas (o resultado é sempre v11, com `desenhos: []`). Na importação a sala confere que ids de desenho não se repetem, que a cena e o autor existem no arquivo e que nenhuma cena passa de 1000 desenhos. A **v10** (Lote 11) acrescenta `combate` (a ordem de turno: entradas, a vez e a rodada; opcional, sem ele não há combate) e, dentro dos tokens, `condicoes`, `exaustao` e `concentracao` (opcionais). Na importação a sala confere que ids de entrada não se repetem, que a vez é de uma entrada que existe e que as entradas de token apontam para tokens do arquivo. De v1 a v9 continuam aceitas (o resultado é sempre v10, sem combate). A **v9** (Lote 9) traz as fichas 5e dentro de `personagens[].ficha` (a mesma forma da v8, só mais campos opcionais) e **não traz mais** `Personagem.mochila`: na importação (de v8 e anteriores) a mochila vira `ficha.itens` com `modeloId` (a quantidade é o número de objetos novos; os usados continuam objetos de luz com portador `mochila`). A **v8** (Lote 7) troca as fontes de luz por **objetos de luz** (`estado`, `saldoMs`, `acesaDesdeSala`, modificadores e histórico: são dado da campanha e vão no arquivo), completa a `config` e acrescenta `modelos`, `pontos` e o `relogio` (a campanha restaurada volta com a **mesa pausada**, no tempo em que foi exportada; a v7 e as anteriores importam com o relógio rodando a partir da importação); `Personagem.mochila` é opcional; os `acendimentos` pendentes **nunca** entram. De v1 a v8 continuam aceitas (o resultado era v9 e hoje é v10; `acesa: boolean` vira `estado`, os modelos da semente entram onde faltam). A **v7** (Lote 6) acrescenta `luzes` (as fontes de luz) e `config` (`ConfigDaMesa`); `Cena.luzAmbiente`/`fatorDeLuz`, `Token.visaoNoEscuroM` e `Personagem.modInteligencia` são campos opcionais (ausentes nos arquivos antigos: cena em luz de dia, sem visão no escuro, modificador 0) e `memoriaEsquecida` **nunca** entra (é dado da sessão); ids de fonte únicos, em cena existente e, se presas a token, a token da mesma cena são conferidos. De v1 a v6 continuam aceitas (o resultado é sempre v7, com `luzes: []` e a configuração padrão). A **v6** (Lote 5) acrescenta `paredes`; `Cena.iluminacaoDinamica` e `Token.alcanceVisaoM` são campos opcionais dentro de cenas e tokens (ausentes nos arquivos antigos: iluminação ligada, visão sem limite). ids de parede únicos e cena existente são conferidos.
 Sem contadores de uso nem presença. `assets` são **só as metas dos assets usados** (mapas das cenas, imagens
 dos tokens e os tiles deles), **nunca bytes**; `Cena.mapa` e `Token.assetHash` vão nos próprios objetos. A **v5**
 (Lote 4b) acrescenta `pastas` e `ordemDeTurnoVisivel` e troca, nos personagens, `donoId` por `editores` e `pastaId` (mais `retratoHash`). A **v4**
@@ -665,6 +672,34 @@ A vez é sempre o **id da entrada**, nunca um índice (o índice revelaria quant
 **Persistência**: o combate fica no SQLite, tabela `combate` (uma linha, migração 7; o banco antigo ganha a tabela vazia = sem combate); linha ilegível vira "sem combate". As condições vão dentro da linha do token. A importação troca o combate junto com o resto.
 
 **Capacidade nova**: `combate.gerir` (só do mestre). **Evento novo**: `combate.alterado`. **Intenções novas**: `combate.adicionar`, `combate.tirar`, `combate.editar`, `combate.mover`, `combate.ordenar`, `combate.rolar`, `combate.proximo`, `combate.anterior`, `combate.passar`, `combate.encerrar`, `token.condicoes`.
+
+### Pincel e desenhos (Lote 13)
+
+Sem mudar o número do protocolo. Um **desenho** é `{ id, cenaId, autorId, forma, pontos, cor, espessura, preenchido? }`, coleção `desenhos` do estado (e tabela própria no SQLite):
+
+- `forma`: `livre` (o traço, 1 a 2000 pontos; 1 ponto é um pingo), `linha` (2 pontos: início e fim), `retangulo` (2 cantos opostos) ou `circulo` (o centro e um ponto da borda). Linha, retângulo e círculo com outra quantidade de pontos são recusados pelo schema.
+- `pontos`: metros da cena (arredondados ao centímetro; a sala traz para dentro da cena o que passar da borda). `cor`: `#rrggbb` (a sala grava em minúsculas). `espessura`: 1 a 24, em **pixels do mundo** (zoom 100%; o desenho cresce com o zoom, nunca fica mais fino que 1,5 px na tela). `preenchido`: só vale para retângulo e círculo (nas outras formas a sala descarta).
+- Limites: 2000 pontos por desenho e **1000 desenhos por cena** (`limite_de_desenhos`).
+- O traço livre é **simplificado no navegador** (Douglas–Peucker, tolerância de 5 cm; `simplificarTraco` e `prepararTraco` em `desenho.ts`) antes de enviar.
+
+| `tipo` | `dados` | Capacidade | Efeito |
+|---|---|---|---|
+| `desenho.criar` | `{ desenho: { id, cenaId?, forma, pontos, cor, espessura, preenchido? } }` | `desenho.criar` | cria o desenho; o autor é quem pede (um `autorId` enviado é ignorado). Jogador: só na cena **ativa** (outra cena: `sem_permissao`); mestre: em qualquer cena (`cenaId`, ou a ativa). O `id` é o mesmo do rascunho. `dados_invalidos` (id repetido), `cena_inexistente`, `limite_de_desenhos` |
+| `desenho.mover` | `{ id, dx, dy }` | `desenho.criar` | desloca o desenho inteiro (metros); a sala limita o deslocamento para ele ficar dentro da cena (sem efeito, e sem evento, se não há para onde ir). Jogador: só os próprios; mestre: todos. `desenho_inexistente` (também para o desenho de uma cena que o jogador não recebe), `sem_permissao` |
+| `desenho.apagar` | `{ ids: string[] }` (1 a 50) | `desenho.criar` | apaga um ou vários. Basta **um** que não seja dele para o jogador ter o pedido inteiro recusado (`sem_permissao`); id que não existe mais é ignorado (apagar é idempotente, para duas pessoas apagando o mesmo desenho) |
+| `desenho.voltar` | `{ cenaId? }` | `desenho.criar` | apaga o desenho **mais recente de quem pede** na cena (ativa; o mestre pode dizer a cena). Nunca o dos outros; sem nenhum, não faz nada |
+| `desenho.limpar` | `{ cenaId? }` | `cena.editar` (**só do mestre**) | apaga todos os desenhos da cena (a interface pede confirmação) |
+| `desenho.rascunho` | `{ id, desenho: { cenaId?, forma, pontos, cor, espessura, preenchido? } | null }` | `desenho.criar` | o traço em andamento, **só repassado** (nunca gravado, sem `seq`); `desenho: null` cancela. O navegador manda a cada ~80 ms; a sala descarta em silêncio o que chegar menos de **30 ms** depois do anterior da mesma conexão (`INTERVALO_MINIMO_RASCUNHO_MS`) e guarda no máximo 16 traços abertos por conexão |
+
+**Eventos** (sempre o que mudou): `desenho.criado { desenho }`, `desenho.movido { id, pontos }`, `desenho.apagado { id }` e `desenho.limpo { cenaId }` (todos os da cena). **Mensagens da sala sem `seq`** (como `token.movendo`): `desenho.rascunhando { desenho }` (o `Desenho` completo, com o `autorId` posto pela sala) e `desenho.rascunhoFim { id }`. O rascunho **nunca volta ao autor**. Ele some para os outros quando o `desenho.criado` com o mesmo `id` chega, quando o autor cancela e **quando a conexão dele cai** (a sala manda o fim de cada traço aberto).
+
+**Sigilo** (a mesma regra dos tokens visíveis da cena, `desenhoVisivelPara`): o **mestre recebe todos** os desenhos e rascunhos; o **jogador só os da cena ativa**. Isso vale no snapshot (`visaoPara`), nos eventos (`eventoPara`: o de outra cena nunca chega ao jogador) e no rascunho (a sala só o repassa a quem `desenhoVisivelPara` aceita). Levar o grupo para outra cena manda snapshot a todos, e o jogador passa a receber os desenhos da cena nova. Não há desenho "escondido": desenhar é público para quem recebe a cena.
+
+**Cenas**: apagar a cena apaga os desenhos dela (o `reduzir` de `cena.apagada` os tira; o banco também); duplicar a cena duplica os desenhos (`desenho.criado` com id novo, o mesmo autor), na ordem de criação.
+
+**Persistência**: tabela `desenhos (id, cena_id, dados)` do SQLite (migração 8; o banco antigo ganha a tabela vazia). A ordem de criação (a do `rowid`) vale para o "voltar" e sobrevive a mover (UPDATE). Linha ilegível é ignorada ao carregar. A importação troca os desenhos junto com o resto.
+
+**Capacidade nova**: `desenho.criar` (delegável, ligada por padrão; campanhas antigas ganham o padrão ao carregar, como as anteriores). **Eventos novos**: `desenho.criado`, `desenho.movido`, `desenho.apagado`, `desenho.limpo`. **Mensagens novas**: `desenho.rascunhando`, `desenho.rascunhoFim`. **Intenções novas**: `desenho.criar`, `desenho.mover`, `desenho.apagar`, `desenho.voltar`, `desenho.limpar`, `desenho.rascunho`. **Códigos de erro novos**: `desenho_inexistente`, `limite_de_desenhos`.
 
 ### Contador de uso
 

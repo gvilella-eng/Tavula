@@ -6,6 +6,8 @@ import {
   type Combate,
   CombateSchema,
   configComPadrao,
+  type Desenho,
+  DesenhoSchema,
   type Estado,
   type EventoSala,
   type Mensagem,
@@ -126,6 +128,17 @@ const MIGRACOES: Migracao[] = [
       dados TEXT NOT NULL
     )`);
   },
+  // Lote 13: os desenhos do pincel numa tabela própria (um por linha, `dados` em JSON): aditiva, o banco
+  // antigo ganha a tabela vazia. Fora de `entidades` para a importação regravar com `salvarTudo`
+  // sem misturar e para apagar os de uma cena com um índice.
+  (sql) => {
+    sql.exec(`CREATE TABLE IF NOT EXISTS desenhos (
+      id TEXT PRIMARY KEY,
+      cena_id TEXT NOT NULL,
+      dados TEXT NOT NULL
+    )`);
+    sql.exec("CREATE INDEX IF NOT EXISTS desenhos_cena ON desenhos (cena_id)");
+  },
 ];
 
 /** Um arquivo pré-enviado de uma cena. */
@@ -192,6 +205,7 @@ export class Armazenamento {
       notaMestre: this.lerNota("mestre"),
       ...this.carregarMapa(),
       ...this.carregarCombate(),
+      desenhos: this.carregarDesenhos(),
     };
   }
 
@@ -254,6 +268,42 @@ export class Armazenamento {
       ordemDeTurnoVisivel: this.lerMeta("ordem_de_turno") === "1",
       assets: ler<AssetMeta>("assets"),
     };
+  }
+
+  /** Os desenhos gravados, na ordem de criação; linha ilegível é ignorada (nunca derruba a carga). */
+  private carregarDesenhos(): Desenho[] {
+    const desenhos: Desenho[] = [];
+    const linhas = this.sql
+      .exec<{ dados: string }>("SELECT dados FROM desenhos ORDER BY rowid")
+      .toArray();
+    for (const l of linhas) {
+      try {
+        const r = DesenhoSchema.safeParse(JSON.parse(l.dados));
+        if (r.success) desenhos.push(r.data);
+      } catch {
+        // linha corrompida: o desenho se perde, a campanha continua
+      }
+    }
+    return desenhos;
+  }
+
+  /** UPDATE primeiro para manter o rowid (a ordem de criação, que o "voltar" usa). */
+  private gravarDesenho(d: Desenho): void {
+    const json = JSON.stringify(d);
+    const r = this.sql.exec(
+      "UPDATE desenhos SET dados = ?, cena_id = ? WHERE id = ?",
+      json,
+      d.cenaId,
+      d.id,
+    );
+    if (r.rowsWritten === 0) {
+      this.sql.exec(
+        "INSERT INTO desenhos (id, cena_id, dados) VALUES (?, ?, ?)",
+        d.id,
+        d.cenaId,
+        json,
+      );
+    }
   }
 
   /** O combate gravado; linha ausente ou ilegível = sem combate (nunca quebra a carga). */
@@ -338,6 +388,8 @@ export class Armazenamento {
     this.gravarMeta("cena_ativa", estado.cenaAtivaId);
     this.gravarMeta("ordem_de_turno", estado.ordemDeTurnoVisivel ? "1" : "0");
     this.gravarCombate(estado.combate);
+    this.sql.exec("DELETE FROM desenhos");
+    for (const d of estado.desenhos) this.gravarDesenho(d);
     this.gravarMeta("permissoes", JSON.stringify(estado.permissoes));
     this.gravarMeta("seq", String(estado.seq));
   }
@@ -439,6 +491,20 @@ export class Armazenamento {
         case "combate.alterado":
           this.gravarCombate(estado.combate);
           break;
+        case "desenho.criado":
+          this.gravarDesenho(ev.dados.desenho);
+          break;
+        case "desenho.movido": {
+          const d = estado.desenhos.find((x) => x.id === ev.dados.id);
+          if (d) this.gravarDesenho(d);
+          break;
+        }
+        case "desenho.apagado":
+          this.sql.exec("DELETE FROM desenhos WHERE id = ?", ev.dados.id);
+          break;
+        case "desenho.limpo":
+          this.sql.exec("DELETE FROM desenhos WHERE cena_id = ?", ev.dados.cenaId);
+          break;
         case "chat.mensagem":
           this.gravarMensagem(ev.dados.mensagem);
           break;
@@ -454,6 +520,8 @@ export class Armazenamento {
             "DELETE FROM entidades WHERE colecao = 'cenas' AND id = ?",
             ev.dados.cenaId,
           );
+          // Os desenhos da cena vão com ela.
+          this.sql.exec("DELETE FROM desenhos WHERE cena_id = ?", ev.dados.cenaId);
           break;
         case "grupo.movido": {
           this.gravarMeta("cena_ativa", estado.cenaAtivaId);
@@ -617,6 +685,7 @@ export class Armazenamento {
   apagarTudo(): void {
     this.sql.exec("DELETE FROM preparos");
     this.sql.exec("DELETE FROM combate");
+    this.sql.exec("DELETE FROM desenhos");
     this.sql.exec("DELETE FROM chat");
     this.sql.exec("DELETE FROM posse");
     this.sql.exec("DELETE FROM entidades");

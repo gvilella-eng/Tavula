@@ -142,7 +142,7 @@ interface Usuario   { id: string; nome: string; papel: Papel; cor: string }
 type CapacidadeDelegavel =          // lista completa em docs/protocolo.md
   | 'nota.editar' /* entidade de teste do Lote 1 */ | 'token.moverProprio' | 'porta.abrir'
   | 'tocha.acender' | 'tocha.entregar' | 'ponto.usar' | 'luz.apagar' | 'ficha.verOutras'
-  | 'dado.rolarOculto' | 'asset.subir';
+  | 'dado.rolarOculto' | 'asset.subir' | 'desenho.criar' /* lote 13, ligada por padrão */;
 type CapacidadeDoMestre =           // só do mestre, nunca delegáveis
   | 'papel.alterar' | 'permissao.alterar' | 'mesa.configurar' | 'automacao.editar'
   | 'camadaMestre.ver' | 'objeto.ajustar' | 'campanha.exportar' | 'campanha.importar'
@@ -228,6 +228,13 @@ interface Combate {                 // lote 11: Estado.combate (sem o campo = se
   rodada: number;                   // 0 = não começou
 }
 // o jogador só recebe as entradas que vê, sem Destreza e sem o número das de valor oculto
+
+interface Desenho {                // lote 13: Estado.desenhos; chega a quem recebe a cena
+  id: string; cenaId: string; autorId: string;
+  forma: 'livre' | 'linha' | 'retangulo' | 'circulo';
+  pontos: { x: number; y: number }[];   // metros; retângulo e círculo: dois pontos
+  cor: string; espessura: number /* px do mundo, 1..24 */; preenchido?: boolean;
+}
 
 interface Parede {
   id: string; cenaId: string;
@@ -1689,6 +1696,20 @@ entra nas perguntas do fim):**
   (assumido); o mestre mexe em todos e tem "Limpar todos os desenhos" (da cena) no menu de camadas, com
   confirmação. Apagar a cena apaga os desenhos dela; duplicar a cena duplica os desenhos.
 - Exportação: os desenhos entram (versão nova).
+
+**Como ficou (2026-11-09):**
+- `Estado.desenhos` (tabela `desenhos`, migração 8); exportação v11; capacidade delegável
+  `desenho.criar` (ligada por padrão), exigida por todas as intenções do pincel (sem ela, o jogador
+  também não mexe nos próprios); `desenho.limpar` é do mestre (`cena.editar`);
+- o rascunho (`desenho.rascunho` → `desenho.rascunhando`/`rascunhoFim`) só passa pela memória da sala,
+  com intervalo mínimo de 30 ms por conexão, no máximo 16 traços abertos e fim automático quando a
+  conexão cai; vai a quem recebe a cena, nunca ao autor;
+- retângulo e círculo guardam dois pontos; espessura em pixels do mundo (1 a 24); preenchimento com
+  40% de opacidade; `desenho.mover` leva um deslocamento, sem arrasto ao vivo para os outros;
+- o mestre desenha na cena que está **vendo**; o jogador, só na ativa. O botão de seta da sub-barra
+  virou "fechar", e o "voltar" do plano é o desfazer do meu mais recente;
+- assumido: sem encaixe no grid; sem refazer; apagar é idempotente;
+- frágil: o redesenho de todos os desenhos de uma vez não foi medido com 1000 desenhos de 2000 pontos.
 
 ---
 

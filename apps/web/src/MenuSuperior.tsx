@@ -34,6 +34,9 @@ type Props = {
   visaoNoturna: boolean;
   aoAlternarVisaoNoturna: () => void;
   aoNovoToken: () => void;
+  /** Apaga todos os desenhos da cena que o mestre está vendo (a tela pede a confirmação). */
+  aoLimparDesenhos: () => void;
+  desenhosNaCena: number;
   ordemVisivel: boolean;
   aoAlternarOrdem: () => void;
   /** Iluminação dinâmica da cena que o mestre olha (liga/desliga a visão por paredes dos jogadores). */
@@ -186,7 +189,11 @@ type PainelAberto = "camadas" | "eventos" | "iluminacao" | "verComo" | null;
 /** Menu rápido do mestre: horizontal, centralizado no topo (PROJETO.md 4.13.1). */
 export function MenuSuperior(p: Props) {
   const [aberto, setAberto] = useState<PainelAberto>(null);
-  const alternar = (qual: Exclude<PainelAberto, null>) => setAberto(aberto === qual ? null : qual);
+  const [confirmandoLimpar, setConfirmandoLimpar] = useState(false);
+  const alternar = (qual: Exclude<PainelAberto, null>) => {
+    setConfirmandoLimpar(false);
+    setAberto(aberto === qual ? null : qual);
+  };
 
   return (
     <div className="menu-superior-area">
@@ -343,7 +350,10 @@ export function MenuSuperior(p: Props) {
           testid="popover-camadas"
           titulo="Camada de trabalho"
           className="popover-camadas"
-          aoFechar={() => setAberto(null)}
+          aoFechar={() => {
+            setAberto(null);
+            setConfirmandoLimpar(false);
+          }}
         >
           <ul className="lista-simples">
             {CAMADAS_DE_TRABALHO.map((c) => (
@@ -365,8 +375,13 @@ export function MenuSuperior(p: Props) {
                     type="button"
                     className="botao-camada fraco"
                     data-testid="limpar-desenhos"
-                    disabled
-                    title="Em breve"
+                    disabled={p.desenhosNaCena === 0}
+                    title={
+                      p.desenhosNaCena === 0
+                        ? "Não há desenhos nesta cena"
+                        : "Apagar todos os desenhos desta cena"
+                    }
+                    onClick={() => setConfirmandoLimpar(true)}
                   >
                     <Eraser size={14} /> Limpar desenhos
                   </button>
@@ -374,7 +389,43 @@ export function MenuSuperior(p: Props) {
               </li>
             ))}
           </ul>
-          <p className="nota">A camada vale por cena. Desenho: em breve.</p>
+          {confirmandoLimpar && p.desenhosNaCena > 0 && (
+            <div
+              className="confirmar-limpar"
+              role="alertdialog"
+              data-testid="limpar-desenhos-confirmacao"
+            >
+              <p>
+                Apagar {p.desenhosNaCena === 1 ? "o desenho" : `os ${p.desenhosNaCena} desenhos`}{" "}
+                desta cena para todos? Não dá para desfazer.
+              </p>
+              <div className="acoes-confirmar">
+                <button
+                  type="button"
+                  className="perigo"
+                  data-testid="limpar-desenhos-confirmar"
+                  onClick={() => {
+                    p.aoLimparDesenhos();
+                    setConfirmandoLimpar(false);
+                    setAberto(null);
+                  }}
+                >
+                  Apagar
+                </button>
+                <button
+                  type="button"
+                  data-testid="limpar-desenhos-cancelar"
+                  onClick={() => setConfirmandoLimpar(false)}
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          )}
+          <p className="nota">
+            A camada vale por cena. Os desenhos ficam sempre por cima, visíveis para todos (também
+            no escuro).
+          </p>
         </Popover>
       )}
       {aberto === "eventos" && (

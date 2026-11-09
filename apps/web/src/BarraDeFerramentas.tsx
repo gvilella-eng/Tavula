@@ -2,6 +2,7 @@ import { Brush, Dices, Hand, MousePointer2, Ruler } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { DadosRapidos } from "./DadosRapidos";
 import type { Ferramenta } from "./mapa/mapaPixi";
+import type { ConfigDoPincel } from "./pincel";
 import { SubBarraPincel } from "./SubBarraPincel";
 
 type Props = {
@@ -10,13 +11,22 @@ type Props = {
   /** Pede a rolagem à sala; o resultado aparece no chat. */
   aoRolar: (quantidade: number, faces: number, oculta: boolean) => void;
   podeOculta: boolean;
+  /** Pincel (Lote 13): a configuração, se posso desenhar (`desenho.criar`) e o "voltar" (apaga o meu mais recente). */
+  pincel: ConfigDoPincel;
+  aoMudarPincel: (c: ConfigDoPincel) => void;
+  podeDesenhar: boolean;
+  aoVoltarDesenho: () => void;
 };
+
+const MOTIVO_SEM_PINCEL = "Pincel desligado: o mestre tirou de você a permissão de desenhar.";
 
 function Botao(props: {
   testid: string;
   titulo: string;
   ativo?: boolean;
   gatilho?: boolean;
+  /** Sem permissão: continua visível (com o motivo no clique), mas apagado. */
+  indisponivel?: boolean;
   aoClicar: () => void;
   children: ReactNode;
 }) {
@@ -28,6 +38,7 @@ function Botao(props: {
       title={props.titulo}
       aria-label={props.titulo}
       aria-pressed={props.ativo}
+      aria-disabled={props.indisponivel || undefined}
       data-popover-gatilho={props.gatilho ? "" : undefined}
       onClick={props.aoClicar}
     >
@@ -39,12 +50,18 @@ function Botao(props: {
 /** Barra vertical à esquerda (todos): selecionar, mão, régua, dados rápidos e pincel. */
 export function BarraDeFerramentas(p: Props) {
   const [dadosAbertos, setDadosAbertos] = useState(false);
-  const [pincelAberto, setPincelAberto] = useState(false);
+  const [semPermissao, setSemPermissao] = useState(false);
 
-  if (pincelAberto) {
+  // O pincel é uma ferramenta do mapa: a sub-barra aparece enquanto ele é a ferramenta ativa.
+  if (p.ferramenta === "pincel") {
     return (
       <div className="barra-esquerda-area">
-        <SubBarraPincel aoVoltar={() => setPincelAberto(false)} />
+        <SubBarraPincel
+          config={p.pincel}
+          aoMudar={p.aoMudarPincel}
+          aoFechar={() => p.aoEscolher("selecionar")}
+          aoDesfazer={p.aoVoltarDesenho}
+        />
       </div>
     );
   }
@@ -80,15 +97,25 @@ export function BarraDeFerramentas(p: Props) {
         </Botao>
         <Botao
           testid="ferramenta-pincel"
-          titulo="Pincel (em breve)"
+          titulo={p.podeDesenhar ? "Pincel" : MOTIVO_SEM_PINCEL}
+          indisponivel={!p.podeDesenhar}
           aoClicar={() => {
             setDadosAbertos(false);
-            setPincelAberto(true);
+            if (p.podeDesenhar) p.aoEscolher("pincel");
+            else setSemPermissao(true);
           }}
         >
           <Brush size={20} />
         </Botao>
       </nav>
+      {semPermissao && !p.podeDesenhar && (
+        <div className="dica-da-barra" role="status" data-testid="pincel-sem-permissao">
+          {MOTIVO_SEM_PINCEL}
+          <button type="button" className="fechar-dica" onClick={() => setSemPermissao(false)}>
+            Entendi
+          </button>
+        </div>
+      )}
       {dadosAbertos && (
         <DadosRapidos
           podeOculta={p.podeOculta}

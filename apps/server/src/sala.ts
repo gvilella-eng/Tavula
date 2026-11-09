@@ -3,6 +3,7 @@ import {
   assetVisivelPara,
   type CodigoDeErro,
   calcularUso,
+  desenhoVisivelPara,
   diaUtc,
   type Estado,
   type EventoSala,
@@ -23,6 +24,8 @@ import {
   processar,
   processarSistema,
   proximoMarcoDoObjeto,
+  type RascunhoRepassado,
+  rascunhoDentroDoLimite,
   registrarMensagem,
   tempoDaSala,
   tokenVisivelPara,
@@ -77,6 +80,13 @@ export class Sala extends DurableObject<Env> {
    * memória: enquanto alguém arrasta, a sala recebe mensagens e não hiberna.
    */
   private readonly arrastes = new Map<WebSocket, Set<string>>();
+  /**
+   * Traços em andamento de cada socket (id do desenho → cena): o rascunho só é repassado (nunca
+   * gravado). Quando o socket cai, os outros recebem o fim de cada um. Só memória.
+   */
+  private readonly rascunhos = new Map<WebSocket, Map<string, string>>();
+  /** Quando cada conexão mandou o último rascunho aceito (o limite de frequência). */
+  private readonly ultimoRascunho = new Map<WebSocket, number>();
   /** Quando cada conexão mandou as últimas mensagens de chat (só memória; a janela é de 1 s). */
   private readonly taxaDoChat = new Map<WebSocket, number[]>();
   /** Gancho de teste (`MODO=teste`): dados com semente fixa. Fora dele, sempre `crypto`. */
@@ -274,6 +284,13 @@ export class Sala extends DurableObject<Env> {
       }
     }
 
+    // Rascunho de desenho: o que chega rápido demais é descartado em silêncio (o próximo cobre).
+    if (intencao.tipo === "desenho.rascunho" && intencao.dados.desenho !== null) {
+      const agora = Date.now();
+      if (!rascunhoDentroDoLimite(this.ultimoRascunho.get(ws), agora)) return;
+      this.ultimoRascunho.set(ws, agora);
+    }
+
     const agoraMs = Date.now();
     const r = processar(
       this.estado,
@@ -316,6 +333,14 @@ export class Sala extends DurableObject<Env> {
     this.cuidarDeAsset(ws, usuario, intencao);
     this.cuidarDePreparo(intencao, r.preparo);
     if (r.eventos.length > 0 || intencao.tipo === "campanha.importar") await this.reagendarLuzes();
+
+    // Rascunho: transitório, não grava; só quem recebe a cena o recebe (menos o remetente).
+    if (r.rascunho) {
+      this.repassarRascunho(ws, r.rascunho);
+      return;
+    }
+    if (intencao.tipo === "desenho.criar")
+      this.rascunhos.get(ws)?.delete(intencao.dados.desenho.id);
 
     // Movimento ao vivo: transitório, não grava; só quem pode ver o token recebe (menos o remetente).
     if (r.movendo) {
@@ -362,6 +387,8 @@ export class Sala extends DurableObject<Env> {
 
   private async aoSair(ws: WebSocket): Promise<void> {
     this.desfazerArrastes(ws);
+    this.encerrarRascunhos(ws);
+    this.ultimoRascunho.delete(ws);
     this.taxaDoChat.delete(ws);
     const identidade = this.identidadeDe(ws);
     if (!identidade) return;
@@ -788,6 +815,48 @@ export class Sala extends DurableObject<Env> {
     for (const id of ids) {
       const token = this.estado.tokens.find((t) => t.id === id);
       if (token) this.repassarMovimento(ws, { id, x: token.x, y: token.y });
+    }
+  }
+
+  /** Quem caiu no meio de um traço nunca vai cancelar: os outros apagam o rascunho dele. */
+  private encerrarRascunhos(ws: WebSocket): void {
+    const abertos = this.rascunhos.get(ws);
+    if (!abertos) return;
+    this.rascunhos.delete(ws);
+    for (const id of abertos.keys()) this.repassarRascunho(ws, { fimId: id }, abertos);
+  }
+
+  /**
+   * `desenho.rascunhando` / `desenho.rascunhoFim`: vai a quem recebe a cena do desenho (o mestre, ou o
+   * jogador com a cena ativa), nunca ao remetente. `abertos` só é passado ao encerrar um socket.
+   */
+  private repassarRascunho(
+    remetente: WebSocket,
+    r: RascunhoRepassado,
+    abertos?: Map<string, string>,
+  ): void {
+    const meus = abertos ?? this.rascunhos.get(remetente) ?? new Map<string, string>();
+    let cenaId: string | undefined;
+    let texto: string;
+    if ("desenho" in r) {
+      // Um traço de cada vez por mão: o resto é lixo (cliente bugado) e não ocupa memória.
+      if (!meus.has(r.desenho.id) && meus.size >= 16) return;
+      meus.set(r.desenho.id, r.desenho.cenaId);
+      this.rascunhos.set(remetente, meus);
+      cenaId = r.desenho.cenaId;
+      texto = mensagem({ tipo: "desenho.rascunhando", dados: { desenho: r.desenho } });
+    } else {
+      cenaId = meus.get(r.fimId);
+      if (cenaId === undefined) return;
+      meus.delete(r.fimId);
+      texto = mensagem({ tipo: "desenho.rascunhoFim", dados: { id: r.fimId } });
+    }
+    for (const ws of this.ctx.getWebSockets()) {
+      if (ws === remetente) continue;
+      const usuario = this.usuarioDe(ws);
+      if (usuario && desenhoVisivelPara(cenaId, usuario, this.estado.cenaAtivaId)) {
+        this.enviar(ws, texto);
+      }
     }
   }
 

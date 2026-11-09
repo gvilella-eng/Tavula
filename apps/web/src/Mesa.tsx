@@ -2,6 +2,8 @@ import {
   alcanceDaMemoria,
   alcanceDeVisao,
   controlaToken,
+  type DesenhoEmAndamento,
+  type DesenhoNovo,
   type Exportacao,
   ehPersonagemDeJogador,
   encaixarNoGrid,
@@ -54,6 +56,7 @@ import { PainelDeFontesDeLuz } from "./PainelDeFontesDeLuz";
 import { PainelDeIluminacao } from "./PainelDeIluminacao";
 import { PainelDoMestre } from "./PainelDoMestre";
 import { PainelDoToken } from "./PainelDoToken";
+import { type ConfigDoPincel, PINCEL_PADRAO } from "./pincel";
 import { gravarEncaixePadrao, lerEncaixePadrao } from "./preferencias";
 import { SeletorDeImagem } from "./SeletorDeImagem";
 import { useTempoDaSala } from "./tempo";
@@ -118,6 +121,9 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
   const [ferramenta, setFerramenta] = useState<Ferramenta>("selecionar");
   const [camadaTrabalho, setCamadaTrabalho] = useState<CamadaDeTrabalho>("tokens");
   const [selecionadoId, setSelecionadoId] = useState<string | null>(null);
+  // Pincel (Lote 13): o que ele faz agora e o desenho selecionado (só da tela de quem desenha).
+  const [pincel, setPincel] = useState<ConfigDoPincel>(PINCEL_PADRAO);
+  const [desenhoSelecionadoId, setDesenhoSelecionadoId] = useState<string | null>(null);
   const [encaixe, setEncaixe] = useState(lerEncaixePadrao);
   const [zoom, setZoom] = useState(1);
   const [medicao, setMedicao] = useState<MedicaoNaTela | null>(null);
@@ -297,6 +303,9 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
     () =>
       ouvir((o) => {
         if (o.tipo === "movendo") mapa.current?.movendo(o.id, o.x, o.y);
+        else if (o.tipo === "rascunho") mapa.current?.rascunhoRecebido(o.desenho);
+        else if (o.tipo === "rascunhoFim") mapa.current?.rascunhoEncerrado(o.id);
+        else if (o.tipo === "conectado") mapa.current?.limparRascunhos();
         else if (o.tipo === "erro") mapa.current?.ressincronizar();
       }),
     [ouvir],
@@ -329,6 +338,18 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
   const paredeSelecionada =
     estado?.paredes.find((x) => x.id === paredeSelecionadaId && x.cenaId === cena?.id) ?? null;
   const pronto = status === "conectado" && estado !== null;
+  // O pincel: quem tem `desenho.criar` (o mestre sempre); o mestre "vendo como" um jogador só olha.
+  const podeDesenhar =
+    eu !== null &&
+    permissoes !== undefined &&
+    usuarioVisto === null &&
+    pode(eu, "desenho.criar", permissoes);
+
+  // Sem `desenho.criar` (o mestre desligou) o pincel fecha na hora; fora do pincel não há desenho selecionado.
+  useEffect(() => {
+    if (ferramenta === "pincel" && !podeDesenhar) setFerramenta("selecionar");
+    if (ferramenta !== "pincel") setDesenhoSelecionadoId(null);
+  }, [ferramenta, podeDesenhar]);
 
   // A visão é só de tela. Jogador (ou o mestre "vendo como" um): enxerga o que os tokens que ele
   // controla veem; o mestre com visão noturna: o que algum jogador vê aparece normal. Cena com a
@@ -371,6 +392,12 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
       soltar: (id, x, y) => enviar("token.soltar", { id, x, y }),
       chegada: (cenaId, x, y) => enviar("cena.editar", { cenaId, chegada: { x, y } }),
       selecionar: setSelecionadoId,
+      criarDesenho: (desenho: DesenhoNovo) => enviar("desenho.criar", { desenho }),
+      moverDesenho: (id, dx, dy) => enviar("desenho.mover", { id, dx, dy }),
+      apagarDesenhos: (ids) => enviar("desenho.apagar", { ids }),
+      selecionarDesenho: setDesenhoSelecionadoId,
+      rascunhoDeDesenho: (id: string, desenho: DesenhoEmAndamento | null) =>
+        enviar("desenho.rascunho", { id, desenho }),
       zoom: setZoom,
       medir: setMedicao,
       criarParedes: (cenaId, segmentos, tipo) =>
@@ -497,6 +524,10 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
       selecionadoId,
       // O mestre vê o grupo todo; o jogador só conhece os personagens dele (os outros não chegam).
       tokenDaVezId,
+      pincel,
+      podeDesenhar,
+      usuarioId: euId ?? "",
+      desenhoSelecionadoId,
       ehDoGrupo: (t: Token) => {
         if (euMestre) {
           const p = personagens?.find((x) => x.id === t.personagemId);
@@ -528,6 +559,10 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
       encaixe,
       selecionadoId,
       tokenDaVezId,
+      pincel,
+      podeDesenhar,
+      euId,
+      desenhoSelecionadoId,
       eu,
       permissoes,
       cenaAtivaId,
@@ -768,6 +803,7 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
             paredes={estadoVisto?.paredes ?? estado.paredes}
             luzes={estadoVisto?.luzes ?? estado.luzes}
             pontos={estadoVisto?.pontos ?? estado.pontos}
+            desenhos={estadoVisto?.desenhos ?? estado.desenhos}
             opcoes={opcoes}
             retornos={retornos}
             imagens={imagens}
@@ -793,6 +829,8 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
               visaoNoturna={visaoNoturna}
               aoAlternarVisaoNoturna={() => setVisaoNoturna(!visaoNoturna)}
               aoNovoToken={criarToken}
+              aoLimparDesenhos={() => enviar("desenho.limpar", { cenaId: cena.id })}
+              desenhosNaCena={estado.desenhos.filter((d) => d.cenaId === cena.id).length}
               ordemVisivel={estado.ordemDeTurnoVisivel}
               aoAlternarOrdem={() =>
                 enviar("ordemDeTurno.definir", { visivel: !estado.ordemDeTurnoVisivel })
@@ -865,6 +903,10 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
           <BarraDeFerramentas
             ferramenta={ferramenta}
             aoEscolher={setFerramenta}
+            pincel={pincel}
+            aoMudarPincel={setPincel}
+            podeDesenhar={podeDesenhar}
+            aoVoltarDesenho={() => enviar("desenho.voltar", { cenaId: cena.id })}
             podeOculta={pode(eu, "dado.rolarOculto", estado.permissoes)}
             aoRolar={(q, faces, oculta) =>
               enviar("dado.rolar", {

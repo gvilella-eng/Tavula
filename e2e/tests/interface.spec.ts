@@ -78,7 +78,7 @@ test("a ordem de turno liga e desliga para todos, inclusive o mestre; só o mest
     mestre.pagina.getByTestId("exportar").click(),
   ]);
   const json = JSON.parse(readFileSync(await download.path(), "utf8"));
-  expect(json.versao).toBe(10);
+  expect(json.versao).toBe(11);
   expect(json.dados.ordemDeTurnoVisivel).toBe(true);
   expect(json.dados.pastas.map((p: { id: string }) => p.id)).toEqual([
     "pasta-personagens",
@@ -197,13 +197,14 @@ test("menu superior, camadas, dados rápidos e pincel (interface; o que não tem
   expect(rolagens[0]).toContain('"expressao":"3d20"');
   await expect(p.getByTestId("chat-mensagem")).toHaveCount(4);
 
-  // pincel: sub-barra com voltar, selecionar, formas, cores e borracha
+  // pincel (Lote 13): sub-barra com fechar, voltar (desfazer), selecionar, formas, 8 cores e borracha
   await p.getByTestId("ferramenta-pincel").click();
   const sub = p.getByTestId("sub-barra-pincel");
   await expect(sub).toBeVisible();
   await expect(p.getByTestId("barra-ferramentas")).toHaveCount(0);
   for (const id of [
-    "pincel-voltar",
+    "pincel-fechar",
+    "pincel-desfazer",
     "pincel-selecionar",
     "pincel-forma-livre",
     "pincel-forma-linha",
@@ -213,11 +214,13 @@ test("menu superior, camadas, dados rápidos e pincel (interface; o que não tem
   ]) {
     await expect(sub.getByTestId(id)).toBeVisible();
   }
-  await expect(sub.locator('[data-testid^="pincel-cor-"]')).toHaveCount(6);
-  await expect(sub).toContainText("em breve");
+  await expect(
+    sub.locator('[data-testid^="pincel-cor-"]:not([data-testid="pincel-cor-livre"])'),
+  ).toHaveCount(8);
+  await expect(sub.getByTestId("pincel-cor-livre")).toBeAttached();
   await sub.getByTestId("pincel-forma-retangulo").click();
   await expect(sub.getByTestId("pincel-forma-retangulo")).toHaveAttribute("aria-pressed", "true");
-  await sub.getByTestId("pincel-voltar").click();
+  await sub.getByTestId("pincel-fechar").click();
   await expect(p.getByTestId("barra-ferramentas")).toBeVisible();
 });
 

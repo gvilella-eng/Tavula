@@ -12,6 +12,7 @@ export const CAPACIDADES_DELEGAVEIS = [
   "ficha.verOutras",
   "dado.rolarOculto",
   "asset.subir",
+  "desenho.criar",
 ] as const;
 
 /** Capacidades só do mestre: nunca delegáveis. */
@@ -53,6 +54,7 @@ export const PERMISSOES_PADRAO: Record<CapacidadeDelegavel, boolean> = {
   "ficha.verOutras": false,
   "dado.rolarOculto": false,
   "asset.subir": true,
+  "desenho.criar": true,
 };
 
 /** Rótulos em pt-BR para o painel do mestre. */
@@ -67,6 +69,7 @@ export const ROTULO_DA_CAPACIDADE: Record<CapacidadeDelegavel, string> = {
   "ficha.verOutras": "Ver fichas dos outros",
   "dado.rolarOculto": "Rolar dados ocultos",
   "asset.subir": "Enviar arquivos",
+  "desenho.criar": "Desenhar no mapa",
 };
 
 type ComPapel = Pick<Usuario, "id" | "papel">;

@@ -70,6 +70,7 @@ export function estadoInicial(bruta: unknown, agoraMs: number = Date.now()): Est
     config: semente.config ?? CONFIG_PADRAO,
     pastas: semente.pastas ?? pastasPadrao(),
     personagens: (semente.personagens ?? []).map((p) => absorverMochila(p, modelos)),
+    desenhos: [],
     ordemDeTurnoVisivel: false,
     assets: [],
   };

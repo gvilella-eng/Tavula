@@ -3222,3 +3222,125 @@ button:disabled:hover {
   padding: 0;
   border: 0;
 }
+
+/* --- pincel e desenhos (Lote 13) ----------------------------------------------------------- */
+
+.botao-icone[aria-disabled="true"] {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.cor-livre {
+  grid-column: 1 / -1;
+  position: relative;
+  display: block;
+  width: 72px;
+  height: 22px;
+  border-radius: 11px;
+  border: 2px solid var(--borda);
+  background: conic-gradient(#e6194b, #e0a030, #3cb44b, #42d4f4, #4363d8, #911eb4, #e6194b);
+  overflow: hidden;
+  cursor: pointer;
+}
+.cor-livre[data-ativa="true"] {
+  border-color: var(--acento);
+  outline: 2px solid var(--acento);
+  outline-offset: 1px;
+}
+.cor-livre input {
+  position: absolute;
+  inset: -6px;
+  width: calc(100% + 12px);
+  height: calc(100% + 12px);
+  opacity: 0;
+  cursor: pointer;
+}
+.espessuras-pincel {
+  grid-column: 1 / -1;
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(2, 34px);
+  gap: 4px;
+  justify-content: center;
+}
+.botao-espessura {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 28px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid var(--borda);
+  border-radius: 8px;
+}
+.botao-espessura[aria-pressed="true"] {
+  background: var(--acento);
+  border-color: var(--acento);
+}
+.ponto-espessura {
+  display: block;
+  border-radius: 50%;
+  background: var(--texto);
+}
+.botao-espessura[aria-pressed="true"] .ponto-espessura {
+  background: var(--acento-texto);
+}
+.dica-da-barra {
+  position: absolute;
+  left: calc(100% + 10px);
+  bottom: 0;
+  width: 220px;
+  padding: 10px 12px;
+  font-size: 13px;
+  background: var(--painel);
+  border: 1px solid var(--borda);
+  border-radius: var(--raio);
+  box-shadow: var(--sombra);
+}
+.dica-da-barra .fechar-dica {
+  display: block;
+  margin-top: 8px;
+}
+.confirmar-limpar {
+  margin-top: 8px;
+  padding: 10px;
+  background: var(--painel-2);
+  border: 1px solid var(--perigo);
+  border-radius: var(--raio);
+}
+.confirmar-limpar p {
+  margin: 0 0 8px;
+  font-size: 13px;
+}
+.acoes-confirmar {
+  display: flex;
+  gap: 8px;
+}
+/* A sub-barra em duas colunas (cabe em telas baixas); por último, para ganhar dos estilos base. */
+.sub-barra-pincel {
+  display: grid;
+  grid-template-columns: repeat(2, 34px);
+  gap: 4px;
+  justify-items: center;
+  max-height: calc(100vh - 24px);
+  overflow-y: auto;
+}
+.sub-barra-pincel hr,
+.sub-barra-pincel fieldset {
+  grid-column: 1 / -1;
+}
+.barra-ferramentas.sub-barra-pincel .botao-icone {
+  width: 34px;
+  height: 34px;
+}
+.sub-barra-pincel .cores-pincel {
+  grid-template-columns: repeat(2, 22px);
+  gap: 5px;
+  justify-content: center;
+}
+.sub-barra-pincel .cor-pincel {
+  width: 22px;
+  height: 22px;
+}

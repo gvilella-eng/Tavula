@@ -478,8 +478,8 @@ describe("exportação v6", () => {
       intencao("cena.configurarIluminacao", { cenaId: "c2", dinamica: false }),
     ).estado;
     const x = criarExportacao(e, AGORA);
-    expect(x.versao).toBe(10);
-    expect(VERSAO_EXPORTACAO).toBe(10);
+    expect(x.versao).toBe(11);
+    expect(VERSAO_EXPORTACAO).toBe(11);
     expect(x.dados.paredes).toHaveLength(2);
     const volta = lerExportacao(JSON.parse(JSON.stringify(x)));
     expect(volta.ok).toBe(true);
@@ -516,7 +516,7 @@ describe("exportação v6", () => {
       });
       expect(lida.ok, `v${versao}`).toBe(true);
       if (!lida.ok) continue;
-      expect(lida.exportacao.versao).toBe(10);
+      expect(lida.exportacao.versao).toBe(11);
       expect(lida.exportacao.dados.paredes).toEqual([]);
     }
   });

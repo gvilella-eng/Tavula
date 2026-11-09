@@ -11,6 +11,13 @@ import { CombateSchema, IniciativaSchema, LIMITES_DO_COMBATE } from "./combate.t
 import { CondicaoSchema } from "./condicoes.ts";
 import { LIMITES_DE_DADOS } from "./dados.ts";
 import {
+  DesenhoBaseSchema,
+  DesenhoEmAndamentoSchema,
+  DesenhoNovoSchema,
+  DesenhoSchema,
+  LIMITES_DO_DESENHO,
+} from "./desenho.ts";
+import {
   CenaSchema,
   CONFIG_PADRAO,
   ConfigDaMesaSchema,
@@ -54,8 +61,8 @@ import { migrarPersonagem, PersonagemAntigoSchema, pastasPadrao } from "./pastas
 import { PedidoDeModeloSchema } from "./rolagens.ts";
 
 export const VERSAO_PROTOCOLO = 1;
-/** Versão do arquivo de exportação (de v1 a v9 ainda são aceitas na importação). */
-export const VERSAO_EXPORTACAO = 10 as const;
+/** Versão do arquivo de exportação (de v1 a v10 ainda são aceitas na importação). */
+export const VERSAO_EXPORTACAO = 11 as const;
 
 const CapacidadeSchema = z.enum(TODAS_AS_CAPACIDADES as [Capacidade, ...Capacidade[]]);
 const Texto = z.string().max(TAMANHO_MAXIMO_NOTA);
@@ -89,6 +96,7 @@ const DadosV2Schema = EstadoSchema.omit({
   acendimentos: true,
   chat: true,
   retratosDoChat: true,
+  desenhos: true,
 }).extend({
   notaMestre: Texto,
   permissoes: PermissoesExportadasSchema,
@@ -155,7 +163,14 @@ const DadosV8Schema = DadosV6Schema.extend({
  * e a concentração são campos opcionais do token: arquivos antigos os trazem ausentes.
  */
 const DadosV10Schema = DadosV8Schema.extend({ combate: CombateSchema.optional() });
-export type DadosExportados = z.infer<typeof DadosV10Schema>;
+/**
+ * v11 (Lote 13): acrescenta os desenhos do pincel (por cena). Arquivos antigos os trazem ausentes:
+ * entram sem nenhum desenho.
+ */
+const DadosV11Schema = DadosV10Schema.extend({
+  desenhos: z.array(DesenhoSchema).max(LIMITES_DO_DESENHO.porCena * 200),
+});
+export type DadosExportados = z.infer<typeof DadosV11Schema>;
 
 /** v1 (Lote 1): sem cenas nem tokens. Vira a cena padrão e nenhum token. */
 const DadosV1Schema = DadosV2Schema.omit({
@@ -167,7 +182,7 @@ const DadosV1Schema = DadosV2Schema.omit({
 const cabecalho = { formato: z.literal("tabletop-campanha"), exportadoEm: z.string() };
 
 /**
- * Aceita de v1 a v10; o resultado é sempre no formato v10. Nas antigas faltam assets, personagens,
+ * Aceita de v1 a v11; o resultado é sempre no formato v11. Nas antigas faltam assets, personagens,
  * pastas, paredes, luzes, configuração, modelos e pontos: entram vazios ou com o padrão (v4: o dono
  * vira "quem edita" numa pasta só do mestre; paredes só existem a partir da v6, luzes e configuração
  * da v7; modelos, pontos e relógio da v8). As luzes da v7 (`acesa`) viram objetos (`estado`).
@@ -184,10 +199,11 @@ export const ExportacaoSchema = z
     z.object({ ...cabecalho, versao: z.literal(8), dados: DadosV8Schema }),
     z.object({ ...cabecalho, versao: z.literal(9), dados: DadosV8Schema }),
     z.object({ ...cabecalho, versao: z.literal(10), dados: DadosV10Schema }),
+    z.object({ ...cabecalho, versao: z.literal(11), dados: DadosV11Schema }),
   ])
   .transform((e) => {
     const d = e.dados;
-    const novo = e.versao === 8 || e.versao === 9 || e.versao === 10;
+    const novo = e.versao === 8 || e.versao === 9 || e.versao === 10 || e.versao === 11;
     const luzes = novo ? e.dados.luzes : e.versao === 7 ? e.dados.luzes.map(migrarFonteAntiga) : [];
     const config = novo
       ? e.dados.config
@@ -206,6 +222,8 @@ export const ExportacaoSchema = z
       pontos: novo ? e.dados.pontos : [],
       // Sem relógio (arquivo antigo) a mesa começa rodando; a sala preenche `desdeReal` ao importar.
       relogio: novo ? e.dados.relogio : { pausada: false, acumuladoMs: 0 },
+      // Lote 13: só a v11 traz desenhos.
+      desenhos: e.versao === 11 ? e.dados.desenhos : [],
     };
     const personagens =
       e.versao === 5 || e.versao === 6 || e.versao === 7 || novo
@@ -668,6 +686,31 @@ export const IntencaoSchema = z.discriminatedUnion("tipo", [
       concentracao: z.string().trim().min(1).max(64).nullable().optional(),
     }),
   ),
+  /**
+   * Pincel (Lote 13). Todas (menos `limpar`) pedem `desenho.criar`; o jogador desenha na cena ativa e só
+   * mexe nos próprios desenhos; o mestre, em qualquer cena e em todos. `criar` leva o id que o rascunho
+   * já usava. `mover` desloca o desenho inteiro (a sala o mantém dentro da cena). `voltar` apaga o
+   * desenho mais recente de quem pede, na cena. `limpar` (mestre) apaga todos os desenhos da cena.
+   */
+  intencao("desenho.criar", z.object({ desenho: DesenhoNovoSchema })),
+  intencao(
+    "desenho.mover",
+    z.object({ id: IdSchema, dx: z.number().finite(), dy: z.number().finite() }),
+  ),
+  intencao(
+    "desenho.apagar",
+    z.object({ ids: z.array(IdSchema).min(1).max(LIMITES_DO_DESENHO.apagarPorVez) }),
+  ),
+  intencao("desenho.voltar", z.object({ cenaId: IdSchema.optional() })),
+  intencao("desenho.limpar", z.object({ cenaId: IdSchema.optional() })),
+  /**
+   * Traço em andamento: só repassado a quem recebe a cena (não é gravado; a sala descarta os que vêm
+   * rápido demais). `desenho: null` cancela (o rascunho some para os outros).
+   */
+  intencao(
+    "desenho.rascunho",
+    z.object({ id: IdSchema, desenho: DesenhoEmAndamentoSchema.nullable() }),
+  ),
   intencao("campanha.exportar", SemDados),
   intencao("campanha.importar", z.object({ dados: z.unknown() })),
 ]);
@@ -764,6 +807,12 @@ export const capacidadeDaIntencao: Record<TipoIntencao, Capacidade | null> = {
   "combate.encerrar": "combate.gerir",
   // Mestre ou quem edita o personagem do token: `processar` confere.
   "token.condicoes": null,
+  "desenho.criar": "desenho.criar",
+  "desenho.mover": "desenho.criar",
+  "desenho.apagar": "desenho.criar",
+  "desenho.voltar": "desenho.criar",
+  "desenho.limpar": "cena.editar",
+  "desenho.rascunho": "desenho.criar",
   "campanha.exportar": "campanha.exportar",
   "campanha.importar": "campanha.importar",
 };
@@ -836,6 +885,14 @@ export const EventoSalaSchema = z.discriminatedUnion("tipo", [
    * jogador já vem filtrado: só as entradas que ele vê, sem Destreza e com "?" no lugar do valor oculto.
    */
   eventoDe("combate.alterado", z.object({ combate: CombateSchema.nullable() })),
+  /**
+   * Desenhos do pincel (Lote 13). O jogador só recebe os da cena ativa. `desenho.movido` traz os pontos
+   * novos; `desenho.limpo` apaga todos os da cena.
+   */
+  eventoDe("desenho.criado", z.object({ desenho: DesenhoSchema })),
+  eventoDe("desenho.movido", z.object({ id: IdSchema, pontos: DesenhoBaseSchema.shape.pontos })),
+  eventoDe("desenho.apagado", z.object({ id: IdSchema })),
+  eventoDe("desenho.limpo", z.object({ cenaId: IdSchema })),
   /** Os tokens dele já saíram em `token.apagado`; este tira o personagem (também de quem deixou de vê-lo). */
   eventoDe("personagem.apagado", z.object({ id: IdSchema })),
   /** Só mestres recebem os eventos de cena, exceto `cena.editada` da cena ativa. */
@@ -921,6 +978,8 @@ export const CODIGOS_DE_ERRO = [
   "suporte_cheio",
   "segurar_incompleto",
   "muitas_mensagens",
+  "desenho_inexistente",
+  "limite_de_desenhos",
 ] as const;
 export const CodigoDeErroSchema = z.enum(CODIGOS_DE_ERRO);
 export type CodigoDeErro = z.infer<typeof CodigoDeErroSchema>;
@@ -955,6 +1014,10 @@ export const MensagemDaSalaSchema = z.discriminatedUnion("tipo", [
       mensagem: z.string(),
     }),
   ),
+  /** Traço em andamento de outra pessoa (transitório: sem `seq`, não é gravado; nunca vai ao autor). */
+  mensagemDaSala("desenho.rascunhando", z.object({ desenho: DesenhoSchema })),
+  /** O autor soltou, cancelou ou saiu: o rascunho some. */
+  mensagemDaSala("desenho.rascunhoFim", z.object({ id: IdSchema })),
   /** Meta de um asset que o cliente pediu e pode ver (sob demanda; nunca em broadcast). */
   mensagemDaSala("asset.meta", z.object({ meta: AssetMetaSchema })),
   /** Pedido da sala ao provedor: mande estes pedaços (frames binários) de `hash`. */

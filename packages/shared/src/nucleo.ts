@@ -28,6 +28,18 @@ import {
   tokenTemEntrada,
 } from "./combatenucleo.ts";
 import { type FonteDeAleatoriedade, fonteCrypto } from "./dados.ts";
+import { desenhoVisivelPara, LIMITES_DO_DESENHO } from "./desenho.ts";
+import {
+  type ContextoDeDesenho,
+  desenhoApagar,
+  desenhoCriar,
+  desenhoLimpar,
+  desenhoMover,
+  desenhoRascunho,
+  desenhoVoltar,
+  type RascunhoRepassado,
+  type SaidaDeDesenho,
+} from "./desenhonucleo.ts";
 import type {
   Cena,
   ConfigDaMesa,
@@ -111,6 +123,8 @@ export type Resultado =
       exportacao?: Exportacao;
       /** Preenchido por `token.mover` (transitório): a sala repassa a quem pode ver o token. */
       movendo?: { id: string; x: number; y: number };
+      /** Preenchido por `desenho.rascunho` (transitório): a sala repassa a quem recebe a cena. */
+      rascunho?: RascunhoRepassado;
       /** Preenchido por `cena.preparar`: a sala guarda os pacotes (chaves só dela e do mestre). */
       preparo?: { cenaId: string; pacotes: Pacote[] };
       /** Preenchido por `grupo.moverPara`: a sala entrega as chaves do preparo antes do snapshot. */
@@ -237,7 +251,7 @@ export function criarExportacao(estado: Estado, agora: string): Exportacao {
 }
 
 /**
- * Valida um arquivo de exportação (de v1 a v10; o resultado é sempre v10): formato, ids únicos, pelo
+ * Valida um arquivo de exportação (de v1 a v11; o resultado é sempre v11): formato, ids únicos, pelo
  * menos um mestre, exceções válidas, cena ativa, pastas, personagens e tokens coerentes.
  */
 export function lerExportacao(
@@ -262,6 +276,7 @@ export function lerExportacao(
     pontos,
     modelos,
     combate,
+    desenhos,
   } = r.data.dados;
   const ids = new Set(usuarios.map((u) => u.id));
   if (ids.size !== usuarios.length) return { ok: false, motivo: "ids de usuário repetidos" };
@@ -352,6 +367,23 @@ export function lerExportacao(
     }
     if (t.controladoPor.some((id) => !ids.has(id))) {
       return { ok: false, motivo: `token controlado por usuário desconhecido: ${t.id}` };
+    }
+  }
+  if (new Set(desenhos.map((d) => d.id)).size !== desenhos.length) {
+    return { ok: false, motivo: "ids de desenho repetidos" };
+  }
+  const contagemPorCena = new Map<string, number>();
+  for (const d of desenhos) {
+    if (!idsDeCenas.has(d.cenaId)) {
+      return { ok: false, motivo: `desenho em cena desconhecida: ${d.id}` };
+    }
+    if (!ids.has(d.autorId)) {
+      return { ok: false, motivo: `desenho de usuário desconhecido: ${d.id}` };
+    }
+    const total = (contagemPorCena.get(d.cenaId) ?? 0) + 1;
+    contagemPorCena.set(d.cenaId, total);
+    if (total > LIMITES_DO_DESENHO.porCena) {
+      return { ok: false, motivo: `desenhos demais na cena ${d.cenaId}` };
     }
   }
   if (combate) {
@@ -548,7 +580,25 @@ export function reduzir(estado: Estado, evento: EventoSala): Estado {
       return { ...base, cenas: base.cenas.map((c) => (c.id === cena.id ? cena : c)) };
     }
     case "cena.apagada":
-      return { ...base, cenas: base.cenas.filter((c) => c.id !== evento.dados.cenaId) };
+      return {
+        ...base,
+        cenas: base.cenas.filter((c) => c.id !== evento.dados.cenaId),
+        // Os desenhos da cena vão com ela.
+        desenhos: base.desenhos.filter((d) => d.cenaId !== evento.dados.cenaId),
+      };
+    case "desenho.criado": {
+      const { desenho } = evento.dados;
+      if (base.desenhos.some((d) => d.id === desenho.id)) return base;
+      return { ...base, desenhos: [...base.desenhos, desenho] };
+    }
+    case "desenho.movido": {
+      const { id, pontos } = evento.dados;
+      return { ...base, desenhos: base.desenhos.map((d) => (d.id === id ? { ...d, pontos } : d)) };
+    }
+    case "desenho.apagado":
+      return { ...base, desenhos: base.desenhos.filter((d) => d.id !== evento.dados.id) };
+    case "desenho.limpo":
+      return { ...base, desenhos: base.desenhos.filter((d) => d.cenaId !== evento.dados.cenaId) };
     case "grupo.movido": {
       const { cenaId, tokens } = evento.dados;
       const posicoes = new Map(tokens.map((t) => [t.id, t]));
@@ -715,6 +765,11 @@ export function processar(
     const combate = semEntradasDosTokens(proximo, tokenIds);
     if (combate) emitir({ tipo: "combate.alterado", dados: { combate } });
   };
+  const contextoDeDesenho: ContextoDeDesenho = { usuario, atual: () => proximo, emitir };
+  const doDesenho = (saida: SaidaDeDesenho): Resultado =>
+    "erro" in saida
+      ? { ok: false, erro: saida.erro }
+      : { ...aplicado(), ...(saida.rascunho ? { rascunho: saida.rascunho } : {}) };
   const daTocha = (
     saida: { erro: ErroDaSala } | { snapshotPara?: "todos" | string[] },
   ): Resultado =>
@@ -1263,6 +1318,14 @@ export function processar(
         dados: { cena: { ...origem, id: novoId, nome: `${origem.nome} (cópia)`.slice(0, 64) } },
       });
       for (const token of novos) emitir({ tipo: "token.criado", dados: { token } });
+      estado.desenhos
+        .filter((d) => d.cenaId === cenaId)
+        .forEach((d, i) => {
+          emitir({
+            tipo: "desenho.criado",
+            dados: { desenho: { ...d, id: `${novoId.slice(0, 50)}-d${i + 1}`, cenaId: novoId } },
+          });
+        });
       estado.paredes
         .filter((p) => p.cenaId === cenaId)
         .forEach((p, i) => {
@@ -1765,6 +1828,19 @@ export function processar(
     case "token.condicoes":
       return doCombate(tokenCondicoes(contextoDeCombate, intencao.dados));
 
+    case "desenho.criar":
+      return doDesenho(desenhoCriar(contextoDeDesenho, intencao.dados));
+    case "desenho.mover":
+      return doDesenho(desenhoMover(contextoDeDesenho, intencao.dados));
+    case "desenho.apagar":
+      return doDesenho(desenhoApagar(contextoDeDesenho, intencao.dados));
+    case "desenho.voltar":
+      return doDesenho(desenhoVoltar(contextoDeDesenho, intencao.dados));
+    case "desenho.limpar":
+      return doDesenho(desenhoLimpar(contextoDeDesenho, intencao.dados));
+    case "desenho.rascunho":
+      return doDesenho(desenhoRascunho(contextoDeDesenho, intencao.dados));
+
     case "campanha.exportar":
       return {
         ok: true,
@@ -1905,6 +1981,9 @@ export function visaoPara(estado: Estado, usuario: Visao, agoraMs?: number): Est
     cenas: [cenaAtiva(estado)],
     tokens: estado.tokens.filter((t) => tokenVisivelPara(t, usuario, estado.cenaAtivaId)),
     paredes: estado.paredes.filter((p) => p.cenaId === estado.cenaAtivaId).map(paredeParaJogador),
+    desenhos: estado.desenhos.filter((d) =>
+      desenhoVisivelPara(d.cenaId, usuario, estado.cenaAtivaId),
+    ),
     luzes: estado.luzes
       .filter((l) => luzVisivelPara(l, usuario, contextoDeLuz(estado)))
       .map((l) => objetoParaVisao(l, usuario, estado, agora)),
@@ -2101,6 +2180,24 @@ export function eventoPara(
       const antiga = antes?.paredes.find((p) => p.id === evento.dados.id);
       return antiga && antiga.cenaId === ativaAntes ? evento : null;
     }
+    case "desenho.criado":
+      return mestre || desenhoVisivelPara(evento.dados.desenho.cenaId, usuario, ativaDepois)
+        ? evento
+        : null;
+    case "desenho.movido": {
+      if (mestre) return evento;
+      const d = (depois ?? antes)?.desenhos.find((x) => x.id === evento.dados.id);
+      return d && desenhoVisivelPara(d.cenaId, usuario, ativaDepois) ? evento : null;
+    }
+    case "desenho.apagado": {
+      if (mestre) return evento;
+      const d = antes?.desenhos.find((x) => x.id === evento.dados.id);
+      return d && desenhoVisivelPara(d.cenaId, usuario, ativaAntes) ? evento : null;
+    }
+    case "desenho.limpo":
+      return mestre || desenhoVisivelPara(evento.dados.cenaId, usuario, ativaDepois)
+        ? evento
+        : null;
     case "personagem.alterado": {
       if (mestre) return evento;
       const ref = depois ?? antes;

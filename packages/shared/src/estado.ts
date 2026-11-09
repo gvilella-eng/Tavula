@@ -4,6 +4,7 @@ import { CAPACIDADES_DELEGAVEIS } from "./capacidades.ts";
 import { MensagemSchema } from "./chat.ts";
 import { CombateSchema } from "./combate.ts";
 import { CondicaoSchema } from "./condicoes.ts";
+import { DesenhoSchema } from "./desenho.ts";
 import { FichaSchema } from "./ficha.ts";
 
 export const PAPEIS = ["mestre", "jogador", "assistente"] as const;
@@ -32,8 +33,8 @@ export const TAMANHO_MAXIMO_NOTA = 20_000;
 
 /**
  * Camadas de objetos do mapa, de baixo para cima: `mapa` (cenário: o jogador vê, não seleciona nem
- * move), `tokens` e `mestre` (só o mestre vê). A camada de desenho do pincel ainda só existe na
- * interface.
+ * move), `tokens` e `mestre` (só o mestre vê). Os desenhos do pincel (Lote 13) não são uma camada de
+ * token: moram na coleção `desenhos`, por cima de tudo.
  */
 export const CAMADAS = ["mapa", "tokens", "mestre"] as const;
 export const CamadaSchema = z.enum(CAMADAS);
@@ -493,6 +494,10 @@ export const EstadoSchema = z.object({
    * visíveis.
    */
   pontos: z.array(PontoDeLuzSchema),
+  /**
+   * Desenhos do pincel (Lote 13). Na visão de um jogador: só os da cena ativa (o mestre recebe todos).
+   */
+  desenhos: z.array(DesenhoSchema),
   /** Relógio da sala (ver `RelogioSalaSchema`). */
   relogio: RelogioSalaSchema,
   /**

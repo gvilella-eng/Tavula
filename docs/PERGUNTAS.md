@@ -56,6 +56,11 @@ Juntadas durante os Lotes 6 a 10 (2026-11-06/07) para fazer ao Vilella no fim. O
 
 ## Lote 13
 - Borracha apaga o desenho inteiro (assumido).
+- O jogador sem `desenho.criar` ainda pode apagar os próprios desenhos? (assumido: não)
+- As formas devem encaixar no grid? (assumido: não)
+- O arrasto de um desenho deve aparecer ao vivo para os outros? (assumido: não, só ao soltar)
+- Quer refazer, desfazer o apagar ou seleção múltipla de desenhos?
+- Espessura em metros (acompanha o mapa) em vez de pixels do mundo?
 
 ## Lote 14
 - Compêndio distribuído como asset (o mestre tem o JSON, os jogadores recebem pelo caminho das imagens).

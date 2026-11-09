@@ -1,5 +1,6 @@
 import {
   type CodigoDeErro,
+  type Desenho,
   type Estado,
   type EventoSala,
   type Exportacao,
@@ -26,6 +27,9 @@ export type StatusConexao = "conectando" | "conectado" | "reconectando";
 export type Ocorrencia =
   | { tipo: "evento"; evento: EventoSala }
   | { tipo: "movendo"; id: string; x: number; y: number }
+  /** Traço em andamento de outra pessoa (Lote 13) e o fim dele (soltou, cancelou ou saiu). */
+  | { tipo: "rascunho"; desenho: Desenho }
+  | { tipo: "rascunhoFim"; id: string }
   | { tipo: "conectado" }
   /** Vaivém de arquivos: `asset.meta`, `asset.enviar`, `asset.indisponivel` e o pré-envio (`preparo.*`). */
   | { tipo: "asset"; mensagem: MensagemDaSala }
@@ -102,6 +106,12 @@ export function useSala(opcoes: Opcoes) {
         case "token.movendo":
           // Transitório: não mexe no estado (nem re-renderiza); o mapa interpola até a posição.
           emitir({ tipo: "movendo", ...m.dados });
+          break;
+        case "desenho.rascunhando":
+          emitir({ tipo: "rascunho", desenho: m.dados.desenho });
+          break;
+        case "desenho.rascunhoFim":
+          emitir({ tipo: "rascunhoFim", id: m.dados.id });
           break;
         case "presenca":
           setPresenca(m.dados.usuarios);

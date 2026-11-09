@@ -1,6 +1,9 @@
 import type { Camada } from "@tabletop/shared";
 
-/** A camada de desenho do pincel só existe na interface por enquanto (ainda não há desenho). */
+/**
+ * A camada de trabalho do menu do mestre. "desenho" só escolhe a entrada do menu (e onde mora o "Limpar
+ * desenhos"): os desenhos do pincel (Lote 13) não são tokens, aparecem sempre e não dependem dela.
+ */
 export type CamadaDeTrabalho = Camada | "desenho";
 
 export const CAMADAS_DE_TRABALHO: readonly CamadaDeTrabalho[] = [

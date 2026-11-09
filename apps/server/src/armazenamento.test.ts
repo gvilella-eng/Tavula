@@ -1,4 +1,10 @@
-import { type Combate, type EventoSala, estadoInicial, type Mensagem } from "@tabletop/shared";
+import {
+  type Combate,
+  type Desenho,
+  type EventoSala,
+  estadoInicial,
+  type Mensagem,
+} from "@tabletop/shared";
 import { describe, expect, it } from "vitest";
 import semente from "../../../fixtures/campanha.seed.json";
 import { Armazenamento } from "./armazenamento";
@@ -82,8 +88,8 @@ describe("Armazenamento: histórico do chat", () => {
 
     const reaberto = new Armazenamento(sql as never);
     reaberto.migrar();
-    // o Lote 11 acrescentou a migração do combate: a versão do esquema final é 7
-    expect(reaberto.lerMeta("versao_esquema")).toBe("7");
+    // o Lote 13 acrescentou a migração dos desenhos: a versão do esquema final é 8
+    expect(reaberto.lerMeta("versao_esquema")).toBe("8");
     expect(reaberto.chatAntes(null, 10)).toEqual([]);
     // a campanha antiga continua inteira
     const carregado = reaberto.carregar();
@@ -190,14 +196,14 @@ describe("Armazenamento: combate do Lote 11", () => {
 
     const reaberto = new Armazenamento(sql as never);
     reaberto.migrar();
-    expect(reaberto.lerMeta("versao_esquema")).toBe("7");
+    expect(reaberto.lerMeta("versao_esquema")).toBe("8");
     const carregado = reaberto.carregar();
     expect(carregado?.combate).toBeUndefined();
     expect(carregado?.personagens.map((p) => p.nome)).toContain("Aldric");
     expect(carregado?.tokens.length).toBeGreaterThan(3);
     // migrar de novo não faz nada
     reaberto.migrar();
-    expect(reaberto.lerMeta("versao_esquema")).toBe("7");
+    expect(reaberto.lerMeta("versao_esquema")).toBe("8");
   });
 
   it("grava o combate pelos eventos, regrava a cada mudança e apaga ao encerrar", async () => {
@@ -278,5 +284,124 @@ describe("Armazenamento: combate do Lote 11", () => {
       ],
     );
     expect(banco.carregar()?.tokens.find((t) => t.id === novo.id)).toEqual(novo);
+  });
+});
+
+describe("Armazenamento: desenhos do Lote 13", () => {
+  const desenho = (id: string, extra: Partial<Desenho> = {}): Desenho => ({
+    id,
+    cenaId: "cena-1",
+    autorId: "jogador-1",
+    forma: "livre",
+    pontos: [
+      { x: 1, y: 1 },
+      { x: 2, y: 2 },
+    ],
+    cor: "#e6194b",
+    espessura: 4,
+    ...extra,
+  });
+  const evento = (tipo: EventoSala["tipo"], dados: object, seq: number): EventoSala =>
+    ({ seq, origem: { usuarioId: "mestre", idPedido: "p" }, tipo, dados }) as EventoSala;
+
+  it("banco do Lote 11 (versão 7, sem a tabela) abre sem quebrar, sem desenhos, e a campanha continua inteira", async () => {
+    const { sql } = await abrirBanco();
+    const original = new Armazenamento(sql as never);
+    original.migrar();
+    original.salvarTudo(estadoInicial(semente));
+    sql.exec("DROP TABLE desenhos");
+    original.gravarMeta("versao_esquema", "7");
+
+    const reaberto = new Armazenamento(sql as never);
+    reaberto.migrar();
+    expect(reaberto.lerMeta("versao_esquema")).toBe("8");
+    const carregado = reaberto.carregar();
+    expect(carregado?.desenhos).toEqual([]);
+    expect(carregado?.personagens.map((p) => p.nome)).toContain("Aldric");
+    expect(carregado?.tokens.length).toBeGreaterThan(3);
+    // migrar de novo não faz nada, e o desenho já grava
+    reaberto.migrar();
+    expect(reaberto.lerMeta("versao_esquema")).toBe("8");
+    const base = estadoInicial(semente);
+    const d = desenho("d1");
+    reaberto.salvarEventos({ ...base, seq: 1, desenhos: [d] }, [
+      evento("desenho.criado", { desenho: d }, 1),
+    ]);
+    expect(reaberto.carregar()?.desenhos).toEqual([d]);
+  });
+
+  it("grava, move, apaga e limpa pelos eventos, e a ordem de criação sobrevive ao mover", async () => {
+    const { sql } = await abrirBanco();
+    const banco = new Armazenamento(sql as never);
+    banco.migrar();
+    const base = estadoInicial(semente);
+    banco.salvarTudo(base);
+    const a = desenho("a");
+    const b = desenho("b", { forma: "circulo", preenchido: true });
+    const c = desenho("c", { cenaId: "cena-2" });
+    banco.salvarEventos({ ...base, seq: 3, desenhos: [a, b, c] }, [
+      evento("desenho.criado", { desenho: a }, 1),
+      evento("desenho.criado", { desenho: b }, 2),
+      evento("desenho.criado", { desenho: c }, 3),
+    ]);
+    // reinício: outro Armazenamento sobre o mesmo banco
+    const outro = new Armazenamento(sql as never);
+    outro.migrar();
+    expect(outro.carregar()?.desenhos).toEqual([a, b, c]);
+
+    const movido = {
+      ...a,
+      pontos: [
+        { x: 5, y: 5 },
+        { x: 6, y: 6 },
+      ],
+    };
+    banco.salvarEventos({ ...base, seq: 4, desenhos: [movido, b, c] }, [
+      evento("desenho.movido", { id: "a", pontos: movido.pontos }, 4),
+    ]);
+    expect(outro.carregar()?.desenhos).toEqual([movido, b, c]);
+
+    banco.salvarEventos({ ...base, seq: 5, desenhos: [movido, c] }, [
+      evento("desenho.apagado", { id: "b" }, 5),
+    ]);
+    expect(outro.carregar()?.desenhos.map((d) => d.id)).toEqual(["a", "c"]);
+
+    banco.salvarEventos({ ...base, seq: 6, desenhos: [c] }, [
+      evento("desenho.limpo", { cenaId: "cena-1" }, 6),
+    ]);
+    expect(outro.carregar()?.desenhos.map((d) => d.id)).toEqual(["c"]);
+
+    // apagar a cena leva os desenhos dela
+    banco.salvarEventos({ ...base, seq: 7, desenhos: [] }, [
+      evento("cena.apagada", { cenaId: "cena-2" }, 7),
+    ]);
+    expect(outro.carregar()?.desenhos).toEqual([]);
+  });
+
+  it("importar (salvarTudo) troca os desenhos; apagarTudo apaga", async () => {
+    const { sql } = await abrirBanco();
+    const banco = new Armazenamento(sql as never);
+    banco.migrar();
+    const base = estadoInicial(semente);
+    banco.salvarTudo({ ...base, desenhos: [desenho("a"), desenho("b")] });
+    expect(banco.carregar()?.desenhos.map((d) => d.id)).toEqual(["a", "b"]);
+    banco.salvarTudo({ ...base, desenhos: [desenho("z")] });
+    expect(banco.carregar()?.desenhos.map((d) => d.id)).toEqual(["z"]);
+    banco.salvarTudo({ ...base, desenhos: [desenho("z")] });
+    banco.apagarTudo();
+    expect(sql.exec("SELECT dados FROM desenhos").toArray()).toEqual([]);
+  });
+
+  it("linha de desenho ilegível não derruba a sala: é ignorada", async () => {
+    const { sql } = await abrirBanco();
+    const banco = new Armazenamento(sql as never);
+    banco.migrar();
+    banco.salvarTudo({ ...estadoInicial(semente), desenhos: [desenho("a")] });
+    sql.exec("INSERT INTO desenhos (id, cena_id, dados) VALUES ('x', 'cena-1', ?)", "{ não é json");
+    sql.exec(
+      "INSERT INTO desenhos (id, cena_id, dados) VALUES ('y', 'cena-1', ?)",
+      JSON.stringify({ id: "y", forma: "quadrado" }),
+    );
+    expect(banco.carregar()?.desenhos.map((d) => d.id)).toEqual(["a"]);
   });
 });

@@ -1,5 +1,6 @@
 import {
   type AssetMeta,
+  arredondarPonto,
   bloqueiaVisao,
   CacheDeLuz,
   CELULA_DA_MEMORIA_M,
@@ -10,7 +11,12 @@ import {
   corEmCanais,
   criarGrade,
   criarLimitador,
+  type Desenho,
+  type DesenhoEmAndamento,
+  type DesenhoNovo,
   dentroDoAlcance,
+  desenhoTocadoEm,
+  deslocamentoNaCena,
   encaixarNoGrid,
   esquecerAlemDoAlcance,
   esquecerTudo,
@@ -33,6 +39,7 @@ import {
   opacidadeNoPonto,
   type Parede,
   type PontoDeLuz,
+  prepararTraco,
   resolverLuzes,
   SEGURAR_PADRAO_S,
   suavizar,
@@ -43,8 +50,10 @@ import {
   visaoNoPonto,
 } from "@tabletop/shared";
 import "pixi.js/advanced-blend-modes";
-import { Application, Container, Graphics, Sprite, Text, Texture } from "pixi.js";
+import { Application, Container, Graphics, Rectangle, Sprite, Text, Texture } from "pixi.js";
 import type { CamadaDeTrabalho } from "../camadas";
+import type { ConfigDoPincel } from "../pincel";
+import { CamadaDeDesenho, type DesenhoNaTela } from "./camadaDeDesenho";
 import { CamadaDeLuz } from "./camadaDeLuz";
 import { ArmazemDeMemoria, chaveDaMemoria, type RegistroDeMemoria } from "./memoriaLocal";
 
@@ -58,7 +67,7 @@ const ACENTO = 0xe0a030;
 /** Anel do token da vez (ordem de turno): verde, bem diferente do dourado da seleção. */
 const COR_DA_VEZ = 0x4cd97b;
 
-export type Ferramenta = "selecionar" | "mao" | "regua" | "paredes" | "luz" | "ponto";
+export type Ferramenta = "selecionar" | "mao" | "regua" | "paredes" | "luz" | "ponto" | "pincel";
 
 /** A alça de uma tocha sendo arrastada: onde está (metros) e, sobre um inflamável, a contagem. */
 type AlcaArrastada = {
@@ -147,6 +156,11 @@ export type OpcoesDoMapa = {
   podeMexerNaTocha: (luz: FonteDeLuz) => boolean;
   /** Token da entrada que está na vez (anel destacado, para todos que veem o token). */
   tokenDaVezId: string | null;
+  /** O pincel (Lote 13): o que ele faz agora, quem sou eu, se posso desenhar e o desenho selecionado. */
+  pincel: ConfigDoPincel;
+  podeDesenhar: boolean;
+  usuarioId: string;
+  desenhoSelecionadoId: string | null;
 };
 
 /** O que o mapa precisa saber das imagens locais (o gerente de assets responde). */
@@ -200,6 +214,13 @@ export type RetornosDoMapa = {
   menuDoToken: (tokenId: string, x: number, y: number) => void;
   /** O ponteiro está sobre um marcador de condição (ou saiu dele: `null`): a dica, na posição da página. */
   dica: (dica: DicaDoMapa | null) => void;
+  /** Pincel: soltou o traço (grava), arrastou um desenho, apagou (borracha ou Delete), selecionou. */
+  criarDesenho: (desenho: DesenhoNovo) => void;
+  moverDesenho: (id: string, dx: number, dy: number) => void;
+  apagarDesenhos: (ids: string[]) => void;
+  selecionarDesenho: (id: string | null) => void;
+  /** O traço em andamento (a cada ~80 ms); `null`: cancelou. */
+  rascunhoDeDesenho: (id: string, desenho: DesenhoEmAndamento | null) => void;
 };
 
 /** A dica de um marcador de condição, exaustão ou concentração. */
@@ -246,7 +267,16 @@ type Gesto =
   | { tipo: "luz"; id: string; deslocamento: Ponto }
   | { tipo: "ponto"; id: string; deslocamento: Ponto }
   | { tipo: "alca"; luzId: string }
-  | { tipo: "regua" };
+  | { tipo: "regua" }
+  | {
+      tipo: "traco";
+      id: string;
+      /** Livre: o traço inteiro; as outras formas: só o início e o ponto de agora. */
+      pontos: Ponto[];
+      limitador: ReturnType<typeof criarLimitador<undefined>>;
+    }
+  | { tipo: "desenhoMover"; id: string; inicio: Ponto }
+  | { tipo: "borracha" };
 
 /** Cor e espessura (px na tela) de cada tipo de parede quando a ferramenta de paredes está ativa. */
 const ESTILO_DA_PAREDE: Record<TipoDeParede, { cor: number; largura: number }> = {
@@ -334,6 +364,20 @@ export class MapaPixi {
   private cursorDaParede: Ponto | null = null;
   private pontaArrastada: { id: string; ponta: "a" | "b"; pos: Ponto } | null = null;
   private readonly desenhoDaRegua = new Graphics();
+  /** Desenhos do pincel (Lote 13): acima do véu da luz e da memória do mapa (visíveis no escuro). */
+  private readonly desenhoLayer = new CamadaDeDesenho();
+  private desenhos: Desenho[] = [];
+  /** Traços em andamento de outras pessoas, por id do desenho. */
+  private readonly rascunhosAlheios = new Map<string, Desenho>();
+  /** Meu desenho já enviado e ainda não confirmado pela sala (some quando o evento chega). */
+  private readonly pendentes = new Map<string, Desenho>();
+  /** Desenhos que a borracha já tocou: somem na hora, antes de a sala confirmar. */
+  private readonly apagadosLocais = new Set<string>();
+  /** O desenho arrastado (deslocamento ao vivo, antes de a sala confirmar). */
+  private desenhoMovido: { id: string; dx: number; dy: number; chave: string } | null = null;
+  private zoomDosDesenhos = 0;
+  /** Ids que a borracha tocou neste arrasto (o pedido sai ao soltar). */
+  private readonly apagadosPelaBorracha = new Set<string>();
   /** Bandeira do ponto de chegada do grupo (só o mestre a vê e arrasta). */
   private readonly bandeira = new Container();
   private posicaoDaBandeira: Ponto | null = null;
@@ -396,6 +440,7 @@ export class MapaPixi {
       this.camada.cinza,
       this.paredesAbaixo,
       this.paredesAcima,
+      this.desenhoLayer.container,
       this.marcasDeLuz,
       this.desenhoDosPontos,
       this.camadaDeAlcas,
@@ -431,6 +476,7 @@ export class MapaPixi {
     this.atualizarCursor();
     this.desenharParedes();
     this.desenharMarcasDeLuz();
+    this.redesenharDesenhos();
     window.addEventListener("pagehide", this.gravarMemoria);
     this.carregarMemoria();
   }
@@ -451,7 +497,8 @@ export class MapaPixi {
     c.removeEventListener("dblclick", this.aoDuploClique);
     window.removeEventListener("keydown", this.aoTeclaBaixo);
     window.removeEventListener("keyup", this.aoTeclaCima);
-    if (this.gesto?.tipo === "token") this.gesto.limitador.cancelar();
+    if (this.gesto?.tipo === "token" || this.gesto?.tipo === "traco")
+      this.gesto.limitador.cancelar();
     this.gesto = null;
     if (import.meta.env.MODE === "e2e") {
       (window as unknown as { __tabletop?: unknown }).__tabletop = undefined;
@@ -483,6 +530,8 @@ export class MapaPixi {
     this.desenharParedes();
     this.desenharCena();
     this.atualizarMapa();
+    if (outraCena) this.cancelarTraco();
+    this.redesenharDesenhos();
     if (gridMudou || outraCena) this.recriarVisuais();
     // Outra cena ou mapa novo (tamanho novo): volta a abrir em 100%, no grupo ou no centro da cena.
     if (!this.jaCentralizou || tamanhoMudou || outraCena) {
@@ -585,6 +634,8 @@ export class MapaPixi {
     const trocouFerramenta = opcoes.ferramenta !== this.opcoes.ferramenta;
     this.opcoes = opcoes;
     if (!this.pronto) return;
+    if (trocouFerramenta || !opcoes.podeDesenhar) this.cancelarTraco();
+    this.redesenharDesenhos();
     if (trocouFerramenta) {
       this.limparRegua();
       this.desenhando = null;
@@ -780,6 +831,7 @@ export class MapaPixi {
     this.escalarBandeira();
     this.desenharParedes();
     this.desenharMarcasDeLuz();
+    if (this.zoomDosDesenhos !== this.vista.zoom) this.redesenharDesenhos();
   }
 
   private readonly aoRedimensionar = () => {
@@ -2153,6 +2205,11 @@ export class MapaPixi {
     }
     if (e.button !== 0 || !this.cena) return;
 
+    if (this.opcoes.ferramenta === "pincel") {
+      this.apertarComPincel(p, e);
+      return;
+    }
+
     if (this.ferramentaDeParedes()) {
       const porta = this.desenhando ? null : this.portaEm(p);
       if (porta) this.retornos().selecionarParede(porta.id);
@@ -2317,6 +2374,10 @@ export class MapaPixi {
       this.atualizarDica(e, this.marcaEm(p));
       return;
     }
+    if (g.tipo === "traco" || g.tipo === "desenhoMover" || g.tipo === "borracha") {
+      this.moverComPincel(g, this.paraMundo(p));
+      return;
+    }
     if (g.tipo === "alca") {
       if (this.alcaArrastada) {
         this.alcaArrastada.pos = this.paraMundo(p);
@@ -2425,6 +2486,11 @@ export class MapaPixi {
     if (this.app.canvas.hasPointerCapture(e.pointerId)) {
       this.app.canvas.releasePointerCapture(e.pointerId);
     }
+    if (g.tipo === "traco" || g.tipo === "desenhoMover" || g.tipo === "borracha") {
+      this.soltarComPincel(g);
+      this.atualizarCursor();
+      return;
+    }
     if (g.tipo === "bandeira") {
       const b = this.posicaoDaBandeira;
       if (b && this.cena) this.retornos().chegada(this.cena.id, b.x, b.y);
@@ -2516,6 +2582,21 @@ export class MapaPixi {
       e.preventDefault();
       this.atualizarCursor();
     }
+    if (e.key === "Escape" && this.gesto?.tipo === "traco") {
+      // Esc cancela o traço em andamento: nada é gravado e o rascunho some para os outros.
+      this.cancelarTraco();
+      return;
+    }
+    if (
+      (e.key === "Delete" || e.key === "Backspace") &&
+      this.opcoes.ferramenta === "pincel" &&
+      this.opcoes.pincel.modo === "selecionar" &&
+      this.opcoes.desenhoSelecionadoId !== null
+    ) {
+      e.preventDefault();
+      this.apagarSelecionado();
+      return;
+    }
     if (e.key === "Escape") {
       this.limparRegua();
       if (this.desenhando) this.encerrarDesenho();
@@ -2553,13 +2634,19 @@ export class MapaPixi {
       g?.tipo === "bandeira" ||
       g?.tipo === "luz" ||
       g?.tipo === "ponto" ||
+      g?.tipo === "desenhoMover" ||
       g?.tipo === "alca"
     )
       cursor = "grabbing";
     else if (sobreAlca && this.opcoes.ferramenta === "selecionar") cursor = "grab";
     else if (this.espaco || this.opcoes.ferramenta === "mao") cursor = "grab";
     else if (sobreBandeira && this.opcoes.ferramenta === "selecionar") cursor = "grab";
-    else if (
+    else if (this.opcoes.ferramenta === "pincel") {
+      cursor =
+        this.opcoes.podeDesenhar && this.opcoes.pincel.modo !== "selecionar"
+          ? "crosshair"
+          : "default";
+    } else if (
       this.opcoes.ferramenta === "regua" ||
       this.opcoes.ferramenta === "luz" ||
       this.opcoes.ferramenta === "ponto" ||
@@ -2571,6 +2658,296 @@ export class MapaPixi {
       cursor = this.opcoes.podeMover(sobre.token) ? "grab" : "pointer";
     }
     this.app.canvas.style.cursor = cursor;
+  }
+
+  // --- pincel e camada de desenho (Lote 13) ---------------------------------------------------
+
+  /** Os desenhos que a sala mandou para quem está olhando (de qualquer cena; a tela filtra pela dela). */
+  definirDesenhos(desenhos: Desenho[]): void {
+    const antes = this.desenhos;
+    this.desenhos = desenhos;
+    for (const d of desenhos) {
+      this.pendentes.delete(d.id);
+      this.rascunhosAlheios.delete(d.id); // o traço foi gravado: o rascunho dele acabou
+    }
+    // O que a sala já apagou não precisa mais ficar escondido.
+    for (const id of [...this.apagadosLocais]) {
+      if (!desenhos.some((d) => d.id === id)) this.apagadosLocais.delete(id);
+    }
+    // O desenho arrastado volta a vir da sala assim que ela confirma a posição nova.
+    const mov = this.desenhoMovido;
+    if (mov) {
+      const novo = desenhos.find((d) => d.id === mov.id);
+      const velho = antes.find((d) => d.id === mov.id);
+      if (!novo || (velho && JSON.stringify(novo.pontos) !== mov.chave)) this.desenhoMovido = null;
+    }
+    this.redesenharDesenhos();
+  }
+
+  /** Traço em andamento de outra pessoa (`desenho.rascunhando`). */
+  rascunhoRecebido(desenho: Desenho): void {
+    this.rascunhosAlheios.set(desenho.id, desenho);
+    this.redesenharDesenhos();
+  }
+
+  /** O autor soltou, cancelou ou saiu: o rascunho some. */
+  rascunhoEncerrado(id: string): void {
+    if (this.rascunhosAlheios.delete(id)) this.redesenharDesenhos();
+  }
+
+  limparRascunhos(): void {
+    if (this.rascunhosAlheios.size === 0) return;
+    this.rascunhosAlheios.clear();
+    this.redesenharDesenhos();
+  }
+
+  private desenhosDaCena(): Desenho[] {
+    const cenaId = this.cena?.id;
+    return this.desenhos.filter((d) => d.cenaId === cenaId && !this.apagadosLocais.has(d.id));
+  }
+
+  private redesenharDesenhos(): void {
+    if (!this.pronto) return;
+    this.sujo = true;
+    const cenaId = this.cena?.id;
+    const zoom = this.vista.zoom;
+    this.zoomDosDesenhos = zoom;
+    const mov = this.desenhoMovido;
+    const gravados: DesenhoNaTela[] = this.desenhosDaCena().map((desenho) =>
+      mov?.id === desenho.id ? { desenho, dx: mov.dx, dy: mov.dy } : { desenho },
+    );
+    for (const [id, desenho] of this.pendentes) {
+      if (desenho.cenaId === cenaId && !this.desenhos.some((d) => d.id === id)) {
+        gravados.push({ desenho });
+      }
+    }
+    this.desenhoLayer.desenharGravados(gravados, zoom);
+    const andamento: DesenhoNaTela[] = [...this.rascunhosAlheios.values()]
+      .filter((d) => d.cenaId === cenaId)
+      .map((desenho) => ({ desenho, alpha: 0.85 }));
+    const g = this.gesto;
+    if (g?.tipo === "traco" && cenaId !== undefined) {
+      andamento.push({ desenho: this.desenhoDoTraco(g, cenaId) });
+    }
+    this.desenhoLayer.desenharEmAndamento(andamento, zoom);
+    const selecionadoId =
+      this.opcoes.ferramenta === "pincel" ? this.opcoes.desenhoSelecionadoId : null;
+    this.desenhoLayer.desenharSelecao(
+      gravados.find((i) => i.desenho.id === selecionadoId) ?? null,
+      zoom,
+    );
+  }
+
+  /** O desenho que o traço em andamento descreve agora. */
+  private desenhoDoTraco(g: Extract<Gesto, { tipo: "traco" }>, cenaId: string): Desenho {
+    const { forma, cor, espessura, preenchido } = this.opcoes.pincel;
+    const primeiro = g.pontos[0] ?? { x: 0, y: 0 };
+    const ultimo = g.pontos[g.pontos.length - 1] ?? primeiro;
+    return {
+      id: g.id,
+      cenaId,
+      autorId: this.opcoes.usuarioId,
+      forma,
+      pontos: forma === "livre" ? g.pontos : [primeiro, ultimo],
+      cor,
+      espessura,
+      ...((forma === "retangulo" || forma === "circulo") && preenchido ? { preenchido: true } : {}),
+    };
+  }
+
+  /** Posso mexer neste desenho (mover, apagar, selecionar)? O mestre em todos; o jogador nos dele. */
+  private desenhoMeu(d: Desenho): boolean {
+    return this.opcoes.euMestre || d.autorId === this.opcoes.usuarioId;
+  }
+
+  /** O desenho de cima sob o ponto (metros) entre os que posso mexer; `null` se não há. */
+  private desenhoEm(m: Ponto): Desenho | null {
+    const alvoMinimo = 8 / (this.vista.zoom * PX_POR_M);
+    const lista = this.desenhosDaCena();
+    for (let i = lista.length - 1; i >= 0; i--) {
+      const d = lista[i] as Desenho;
+      if (!this.desenhoMeu(d)) continue;
+      const margem = d.espessura / PX_POR_M / 2 + alvoMinimo;
+      if (desenhoTocadoEm(d, m, margem)) return d;
+    }
+    return null;
+  }
+
+  private apertarComPincel(p: Ponto, e: PointerEvent): void {
+    const cena = this.cena;
+    if (!cena || !this.opcoes.podeDesenhar) return;
+    const m = this.paraMundo(p);
+    const modo = this.opcoes.pincel.modo;
+    if (modo === "formas") {
+      const id = `des-${crypto.randomUUID().slice(0, 8)}`;
+      const inicio = limitarNaCena(m, cena);
+      const limitador = criarLimitador<undefined>(
+        () => this.enviarRascunho(),
+        {
+          agora: () => performance.now(),
+          agendar: (fn, ms) => setTimeout(fn, ms),
+          cancelar: (h) => clearTimeout(h as ReturnType<typeof setTimeout>),
+        },
+        80, // ~80 ms entre rascunhos; o soltar sai por fora (grava) e o pendente é descartado
+      );
+      this.gesto = { tipo: "traco", id, pontos: [inicio], limitador };
+      this.app.canvas.setPointerCapture(e.pointerId);
+      this.redesenharDesenhos();
+      limitador.enviar(undefined);
+      return;
+    }
+    if (modo === "selecionar") {
+      const alvo = this.desenhoEm(m);
+      this.retornos().selecionarDesenho(alvo?.id ?? null);
+      if (!alvo) return;
+      this.gesto = { tipo: "desenhoMover", id: alvo.id, inicio: m };
+      this.app.canvas.setPointerCapture(e.pointerId);
+      return;
+    }
+    this.gesto = { tipo: "borracha" };
+    this.app.canvas.setPointerCapture(e.pointerId);
+    this.apagarPorBorracha(m);
+  }
+
+  private moverComPincel(
+    g: Extract<Gesto, { tipo: "traco" | "desenhoMover" | "borracha" }>,
+    m: Ponto,
+  ): void {
+    const cena = this.cena;
+    if (!cena) return;
+    if (g.tipo === "borracha") {
+      this.apagarPorBorracha(m);
+      return;
+    }
+    if (g.tipo === "desenhoMover") {
+      const d = this.desenhos.find((x) => x.id === g.id);
+      if (!d) return;
+      const { dx, dy } = deslocamentoNaCena(d, cena, m.x - g.inicio.x, m.y - g.inicio.y);
+      this.desenhoMovido = { id: d.id, dx, dy, chave: JSON.stringify(d.pontos) };
+      this.redesenharDesenhos();
+      return;
+    }
+    const alvo = limitarNaCena(m, cena);
+    if (this.opcoes.pincel.forma === "livre") {
+      const ultimo = g.pontos[g.pontos.length - 1];
+      // Um pingo de 3 cm (≈1 px) ou menos não vira ponto: o traço fica leve.
+      if (ultimo && Math.hypot(alvo.x - ultimo.x, alvo.y - ultimo.y) < 0.03) return;
+      g.pontos.push(alvo);
+      if (g.pontos.length > 4000) g.pontos = prepararTraco(g.pontos);
+    } else {
+      g.pontos = [g.pontos[0] ?? alvo, alvo];
+    }
+    this.redesenharDesenhos();
+    g.limitador.enviar(undefined);
+  }
+
+  /** Manda o traço em andamento para os outros (só repassado; nunca gravado). */
+  private enviarRascunho(): void {
+    const g = this.gesto;
+    const cena = this.cena;
+    if (g?.tipo !== "traco" || !cena) return;
+    const d = this.desenhoDoTraco(g, cena.id);
+    this.retornos().rascunhoDeDesenho(g.id, {
+      cenaId: cena.id,
+      forma: d.forma,
+      pontos: d.forma === "livre" ? prepararTraco(d.pontos) : d.pontos.map(arredondarPonto),
+      cor: d.cor,
+      espessura: d.espessura,
+      ...(d.preenchido ? { preenchido: true } : {}),
+    });
+  }
+
+  /** A borracha apaga o desenho inteiro que tocar: ele some na hora e o pedido sai ao soltar. */
+  private apagarPorBorracha(m: Ponto): void {
+    const alvo = this.desenhoEm(m);
+    if (!alvo) return;
+    this.apagadosLocais.add(alvo.id);
+    this.apagadosPelaBorracha.add(alvo.id);
+    this.redesenharDesenhos();
+  }
+
+  private soltarComPincel(
+    g: Extract<Gesto, { tipo: "traco" | "desenhoMover" | "borracha" }>,
+  ): void {
+    const cena = this.cena;
+    if (g.tipo === "borracha") {
+      const ids = [...this.apagadosPelaBorracha];
+      this.apagadosPelaBorracha.clear();
+      if (ids.length > 0) this.retornos().apagarDesenhos(ids);
+      // Se a sala recusar, o desenho volta a aparecer.
+      setTimeout(() => {
+        for (const id of ids) this.apagadosLocais.delete(id);
+        this.redesenhaSePronto();
+      }, 1500);
+      return;
+    }
+    if (g.tipo === "desenhoMover") {
+      const mov = this.desenhoMovido;
+      if (mov && (mov.dx !== 0 || mov.dy !== 0)) {
+        this.retornos().moverDesenho(mov.id, mov.dx, mov.dy);
+        // Fica onde foi solto até a sala confirmar; se ela recusar, volta ao lugar.
+        setTimeout(() => {
+          this.desenhoMovido = null;
+          this.redesenhaSePronto();
+        }, 900);
+      } else {
+        this.desenhoMovido = null;
+      }
+      this.redesenharDesenhos();
+      return;
+    }
+    // Traço: a sala grava com o mesmo id do rascunho.
+    g.limitador.cancelar();
+    if (!cena) return;
+    const d = this.desenhoDoTraco(g, cena.id);
+    const pontos = d.forma === "livre" ? prepararTraco(d.pontos) : d.pontos.map(arredondarPonto);
+    const [a, b] = pontos;
+    if (d.forma !== "livre" && a && b && Math.hypot(b.x - a.x, b.y - a.y) < 0.05) {
+      // Um clique sem arrastar não faz linha, retângulo nem círculo.
+      this.retornos().rascunhoDeDesenho(g.id, null);
+      this.redesenharDesenhos();
+      return;
+    }
+    const final: Desenho = { ...d, pontos };
+    this.pendentes.set(final.id, final);
+    setTimeout(() => {
+      this.pendentes.delete(final.id);
+      this.redesenhaSePronto();
+    }, 2000);
+    this.retornos().criarDesenho({
+      id: final.id,
+      cenaId: cena.id,
+      forma: final.forma,
+      pontos,
+      cor: final.cor,
+      espessura: final.espessura,
+      ...(final.preenchido ? { preenchido: true } : {}),
+    });
+    this.redesenharDesenhos();
+  }
+
+  private redesenhaSePronto(): void {
+    if (this.pronto) this.redesenharDesenhos();
+  }
+
+  /** Esc, troca de ferramenta ou de cena: o traço em andamento é descartado e o rascunho some. */
+  private cancelarTraco(): void {
+    const g = this.gesto;
+    if (g?.tipo !== "traco") return;
+    g.limitador.cancelar();
+    this.gesto = null;
+    this.retornos().rascunhoDeDesenho(g.id, null);
+    this.redesenharDesenhos();
+    this.atualizarCursor();
+  }
+
+  /** Delete: apaga o desenho selecionado (se for meu, ou se eu for o mestre). */
+  private apagarSelecionado(): void {
+    const id = this.opcoes.desenhoSelecionadoId;
+    const d = id === null ? undefined : this.desenhos.find((x) => x.id === id);
+    if (!d || !this.desenhoMeu(d)) return;
+    this.retornos().apagarDesenhos([d.id]);
+    this.retornos().selecionarDesenho(null);
   }
 
   // --- gancho de teste (só no modo e2e) -------------------------------------------------------
@@ -2696,6 +3073,58 @@ export class MapaPixi {
       centrarEm: (x: number, y: number) => this.centrarEm(x, y),
       quadradoM: () => this.quadradoM(),
       ferramenta: () => this.opcoes.ferramenta,
+      /** Os desenhos que a tela mostra (da cena vista) e o selecionado. */
+      desenhos: () =>
+        this.desenhosDaCena().map((d) => ({
+          id: d.id,
+          forma: d.forma,
+          autorId: d.autorId,
+          cor: d.cor,
+          pontos: d.pontos.length,
+          ponto0: d.pontos[0] ?? null,
+          preenchido: d.preenchido === true,
+        })),
+      desenhoSelecionado: () => this.opcoes.desenhoSelecionadoId,
+      /** Os traços em andamento de outras pessoas que a tela mostra. */
+      rascunhos: () =>
+        [...this.rascunhosAlheios.values()]
+          .filter((d) => d.cenaId === this.cena?.id)
+          .map((d) => ({ id: d.id, autorId: d.autorId, forma: d.forma, pontos: d.pontos.length })),
+      /** Um ponto sobre o traço do desenho (posição na página), para clicar nele. */
+      desenhoNaPagina: (id: string) => {
+        const d = this.desenhos.find((x) => x.id === id);
+        const [a, b] = d?.pontos ?? [];
+        if (!d || !a) return null;
+        let m: Ponto = a;
+        if (d.forma === "livre") m = d.pontos[Math.floor(d.pontos.length / 2)] ?? a;
+        else if (d.forma === "linha" && b) m = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+        else if (d.forma === "retangulo" && b) m = { x: (a.x + b.x) / 2, y: a.y };
+        else if (d.forma === "circulo" && b)
+          m = { x: a.x + Math.hypot(b.x - a.x, b.y - a.y), y: a.y };
+        const r = this.app.canvas.getBoundingClientRect();
+        const t = this.paraTela(m.x, m.y);
+        return { x: r.left + t.x, y: r.top + t.y };
+      },
+      /** A camada de desenho está acima do véu da luz e da memória (visível no escuro)? */
+      camadaDeDesenho: () => {
+        const filhos = this.mundo.children;
+        const i = filhos.indexOf(this.desenhoLayer.container);
+        return {
+          acimaDoVeu:
+            i > filhos.indexOf(this.camada.cinza) && i > filhos.indexOf(this.camada.multiplicar),
+          visivel: this.desenhoLayer.container.visible,
+        };
+      },
+      /** A cor (RGBA) que a tela mostra num ponto do mapa, com véu e tudo (renderiza de novo). */
+      pixelNoMapa: (xM: number, yM: number) => {
+        const t = this.paraTela(xM, yM);
+        this.app.render();
+        const r = this.app.renderer.extract.pixels({
+          target: this.app.stage,
+          frame: new Rectangle(Math.round(t.x), Math.round(t.y), 1, 1),
+        });
+        return [...r.pixels];
+      },
       /** O que o fundo e os tokens mostram de imagem local (para conferir sem olhar o canvas). */
       imagens: () => ({
         tiles: [...this.spritesDoMapa].map(([hash, s]) => ({
