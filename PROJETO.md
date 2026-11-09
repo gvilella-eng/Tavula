@@ -1667,6 +1667,28 @@ dela e revisar o rascunho antes de publicar.
 **Assumido até o Vilella decidir:** o jogador apaga e seleciona só os próprios desenhos; o mestre, todos.
 Desenhar é uma capacidade delegável, ligada por padrão.
 
+**Decidido antes de começar (2026-11-09; prevalece sobre os itens acima onde conflitar; "(assumido)"
+entra nas perguntas do fim):**
+- **Desenho** (`Desenho`, coleção `desenhos`, tabela nova): `{ id, cenaId, autorId, forma: 'livre' |
+  'linha' | 'retangulo' | 'circulo', pontos (em metros), cor, espessura, preenchido? }`. Traço livre
+  simplificado no navegador (Douglas–Peucker) antes de enviar; até 2000 pontos por desenho e até 1000
+  desenhos por cena (assumido).
+- **Ao vivo:** enquanto desenha, o navegador manda o traço em andamento a cada ~80 ms
+  (`desenho.rascunho`, só repassado a quem recebe a cena, não gravado, com limite de frequência); ao
+  soltar, `desenho.criar` grava. O rascunho de quem saiu ou cancelou some.
+- **Camada de desenho** sempre por cima do mapa e dos tokens, **visível também no escuro** (fora do
+  véu e da memória do mapa). Para o mestre, aparece no menu de camadas; os jogadores só veem os
+  desenhos. Os desenhos chegam a quem recebe a cena, pela mesma regra dos tokens visíveis da cena.
+- **Pincel** (sub-barra que já existe): voltar (apaga o meu desenho mais recente da cena), selecionar
+  (mover e apagar os meus; o mestre, todos), formas, cores (paleta de 8 + cor livre), espessura,
+  preenchido (retângulo e círculo) e borracha (apaga o desenho inteiro que tocar, não pedaços)
+  (assumido). Desenhar não muda a camada atual de quem desenha.
+- **Capacidade delegável nova** `desenho.criar`, ligada por padrão; apagar e mover só os próprios
+  (assumido); o mestre mexe em todos e tem "Limpar todos os desenhos" (da cena) no menu de camadas, com
+  confirmação. Apagar a cena apaga os desenhos dela; duplicar a cena duplica os desenhos.
+- Exportação: os desenhos entram (versão nova).
+
+
 **Pronto quando:** `pnpm verify` verde.
 
 ---
