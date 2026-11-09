@@ -1562,6 +1562,45 @@ entra nas perguntas do fim):**
 **Pronto quando:** `pnpm verify` verde e um combate de teste com 3 jogadores e 4 NPCs roda do início
 ao fim.
 
+**Decidido antes de começar (2026-11-09; prevalece sobre os itens acima onde conflitar; "(assumido)"
+entra nas perguntas do fim):**
+- **Conteúdo da ordem de turno** (o painel e o mostrar/esconder já existem desde o Lote 4b):
+  `Combate = { entradas: { id, tokenId?, nome, iniciativa?, destreza?, valorOculto?, oculta? }[],
+  atualId?, rodada }`. A vez é guardada pelo **id** da entrada, nunca pelo índice (o índice vazaria
+  quantas entradas ocultas existem).
+  - o mestre adiciona tokens (botão direito no token → "Entrar na iniciativa", ou "Adicionar
+    selecionados") e entradas soltas ("Covil, 20"); tira entradas; apagar o token tira a entrada dele;
+  - "Rolar para todos" rola a iniciativa de quem ainda não tem valor, com o bônus da ficha (ou 0) pelo
+    modelo do Lote 8, e o resultado vai para o chat. **A rolagem de NPC vai oculta** (como o `/gr`; só o
+    mestre vê) e a de personagem de jogador vai pública (assumido). O jogador rola a do próprio
+    personagem (quem edita o personagem do token);
+  - ordena da maior para a menor; **empate:** maior Destreza; empate de novo, o personagem de jogador
+    antes do NPC e depois pelo nome (assumido). Rolar ou editar um valor reordena; o mestre também
+    arrasta à mão, e o botão "Ordenar" volta à ordem pelos valores;
+  - "Próximo turno" e "Anterior" (o primeiro "Próximo" começa na rodada 1); virar a lista soma a rodada.
+    **O jogador da vez pode passar o próprio turno** (assumido);
+  - "Encerrar combate" limpa a lista e a rodada (com confirmação).
+- **Capacidades:** `combate.gerir` nova, só do mestre (adicionar, tirar, ordenar, editar, avançar,
+  encerrar, rolar para todos). Rolar a própria iniciativa e passar o próprio turno: quem edita o
+  personagem do token (conferido no `processar`, como o `ficha.alterar`).
+- **Sigilo** (filtro na sala, como os demais): a entrada cujo token o jogador não recebe (oculto, na
+  camada do mestre) não chega a ele, nem a solta marcada `oculta`. `valorOculto` mostra o nome com "?"
+  no lugar do número. Se a vez é de uma entrada que o jogador não vê, nada fica em destaque para ele
+  (assumido). A rodada chega a todos.
+- **Token da vez:** um anel destacado no mapa para todos que veem o token; a lista mostra a vez em
+  destaque e acompanha a rolagem.
+- **Condições do 5e 2014** (as 14: Agarrado, Amedrontado, Atordoado, Caído, Cego, Contido, Enfeitiçado,
+  Envenenado, Incapacitado, Inconsciente, Invisível, Paralisado, Petrificado, Surdo; e Exaustão de 1 a 6)
+  ficam **no token** (assumido; cada goblin tem as suas), com ícones pequenos na borda do token, uma
+  dica com o resumo da regra (texto nosso, em pt-BR) e a lista na ficha (a ficha mostra as do token do
+  personagem na cena ativa). Botão direito no token → Condições. Quem pode: o mestre e quem edita o
+  personagem do token. Quem vê o token vê as condições. Nenhuma regra é aplicada sozinha (sem
+  desvantagem automática; fica para o 7b).
+- **Concentração:** marca no token (com o nome da magia), mostrada no token e na ficha. Sem teste de
+  Constituição automático por enquanto (vira ideia para o 7b).
+- **Exportação:** a ordem de turno e as condições entram (versão nova da exportação) (assumido).
+
+
 ---
 
 ### Lote 12 — MCP (M)
