@@ -40,6 +40,9 @@ Juntadas durante os Lotes 6 a 10 (2026-11-06/07) para fazer ao Vilella no fim. O
 
 ## Lote 10
 - Caixas de recurso do PDF sempre para revisão (assumido). Precisa de um 2º PDF de outro jogador para o "pronto quando".
+- Guardar na ficha os espaços de magia e os dados de vida lidos do PDF, em vez de só conferir com a tabela das classes?
+- Todas as magias entram como preparadas (o PDF não diz quais estão): ok?
+- O PDF do Darion traz Tochas 9 e Flechas 7 (máx. 20, "Total 9"); a ficha montada à mão no Lote 9 tinha 3 tochas e 9 flechas. Qual vale?
 
 ## Lote 11
 - Empate de iniciativa: Destreza, depois PJ antes de NPC, depois nome (assumido).

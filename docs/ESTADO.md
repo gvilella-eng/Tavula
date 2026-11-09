@@ -1287,6 +1287,79 @@ relatório do Playwright (`[erro na página]`).
 
 ---
 
-## Próximo: Lote 10 — Importação da ficha em PDF
+## Lote 10 — Importação da ficha em PDF (entregue, aguardando o roteiro manual)
+
+### O que foi entregue
+
+- **`shared`** (puro, testado): `importarFichaPdf.ts` — `importarFichaDoPdf(pedacos)` recebe os pedaços de texto com posição (`{ pagina, str, x, y, largura, altura }`) e devolve `{ reconhecido, nome?, ficha, incertos: { caminho, motivo, trecho }[], trechos }`
+  (`trechos` é o texto cru do PDF por seção, para a tela de revisão). `pedacosDoTextoDoPdf` converte os itens do `getTextContent()` do pdf.js. Nada de coordenada absoluta: cada valor é procurado em relação a um rótulo (acima, abaixo, na mesma linha), medido na **escala** do documento
+  (altura mais comum do texto da 1ª página contra a do PDF de referência), por isso A4 e Carta dão a mesma ficha. Âncoras em PT e EN.
+  - **Colunas** das páginas de magia e de características: picos de `x` do começo das linhas, bem separados; o fluxo lê página, coluna, de cima para baixo. Cada magia é um bloco (título, escola e nível, campos, descrição) achado pela linha "Tempo de Conjuração:"/"Casting Time:", e a descrição entra **inteira** (campos + texto, com as anotações da mesa, como o "UPDATE" de Convocar Familiar).
+  - **Proficiência pela conta**: valor − modificador = bônus de proficiência (o do próprio PDF) → proficiente; 2× → especialista (só perícia); 0 → nenhuma; outro valor → `incertos`, e o valor lido se mantém como bônus extra (nada de chute).
+  - **Nomes cortados**: o que termina em "…" só é completado quando **uma** magia da lista do próprio PDF começa com o trecho ("Cure Wound…" → "Cure Wounds - Curar Ferimentos", "Chill Touch (…" → "Chill Touch (Mago)"), marcado com o motivo "recuperado". Os demais ficam como vieram, em `incertos`, com as sugestões do equipamento no motivo ("Armadura de c…" → "Armadura de couro").
+  - **Ataques** como valor fixo ("DC14" vira `cd`, "-" fica sem acerto); **recursos** (caixas "Total") sempre em `incertos`; CA, iniciativa e deslocamento vêm da linha de três números acima do PV máximo (o PDF não imprime esses rótulos).
+- **Navegador**: `pdfjs-dist` 6.5.438 do npm; o worker é empacotado pelo Vite (`pdf.worker.min.mjs?url`, arquivo local, nada de CDN). `ficha/extrairPdf.ts` lê o texto com posição; `ficha/useImportadorDePdf.tsx` cuida do fluxo; `ficha/RevisaoDoPdf.tsx` é a tela de revisão.
+- **Interface**: na aba Fichas, "⋯" no item (para quem edita) → "Importar ficha (PDF)", e o botão "Novo a partir de PDF" (mestre); na aba Configurar da ficha, "Importar ficha (PDF)".
+  A **tela de revisão** é uma janela grande (modal) com cada seção (cabeçalho, atributos e salvaguardas, perícias, números gerais, ataques, magias, características, equipamento, recursos, notas), o valor lido à esquerda e o trecho do PDF à direita. Os incertos ficam em amarelo, com o motivo; os que têm campo
+  (nome e tipo do ataque, PV atuais e temporários, recursos, proficiência de perícia ou salvaguarda, subclasse, idiomas) são editáveis. "Confirmar importação" manda a ficha; importar por cima pede mais uma confirmação ("Substituir a ficha"; retrato, token e pasta ficam); "Cancelar" (ou Esc) descarta tudo.
+- **Protocolo**: nada mudou. Importar por cima é um `ficha.alterar` com caminho vazio (a ficha inteira); "Novo a partir de PDF" é um `personagem.criar` com a ficha. O PDF nunca é enviado, só o JSON. Sem migração: o banco da campanha do Vilella não foi tocado.
+
+### Como rodar
+
+- `pnpm verify`. Prints: `PRINTS_DIR=<pasta> pnpm --filter @tabletop/e2e prints lote-10`. PDF de referência: `fixtures/fichas/darion.pdf`.
+
+### Verificação
+
+- Unidade nova `importarFichaPdf.test.ts` (22 testes): o pdf.js (build `legacy`, em Node) lê o PDF do Darion e confere a seção 8 — cabeçalho, atributos, salvaguardas, gerais (proficiência +4, CA 20, iniciativa +4, 30 ft = 9 m, PV 97, passiva 12), as 18 perícias com a proficiência deduzida, conjuração (Sabedoria, CD 14, +6, espaços 4/3/3/1), as listas de magias por nível (6/10/6/2), os 20 ataques na ordem, as 13 características, o equipamento;
+  os nomes cortados (3 machadinhos, "Armadura de c…", "Sun Blade - un…") e o dano cortado em `incertos` sem chute; "Cure Wound…" e "Chill Touch (…" recuperados e marcados; recursos todos incertos; PV atuais e temporários, idiomas e o "10" sem rótulo em `incertos`; descrição de Convocar Familiar inteira, com o "UPDATE".
+  Sintéticos: rótulos em inglês, A4 × Carta (escala 0,92 e deslocamento) com a mesma ficha, perícia que não fecha a conta (vai para revisão), PDF que não é uma ficha 5e.
+- E2E novo (`e2e/tests/importarPdf.spec.ts`, 5 testes): importar o PDF pelo menu do item (revisão com incertos em amarelo, corrige um machadinho, confirma, o mestre vê a ficha atualizada); Cancelar (e "Voltar") não manda nenhum frame `ficha.*`/`personagem.*`; nenhum frame do WebSocket leva o PDF (sem `%PDF`, sem binário) e o jogador editor também importa; "Novo a partir de PDF"; arquivo que não é PDF.
+- Prints (1600×900) em `PRINTS_DIR`: 01 menu do item, 02/02b–d revisão (topo, atributos, perícias, gerais), 03/03b ataques com os incertos, 04/04b magia com a descrição e características, 05 recursos, 06 confirmação de importar por cima, 07/07b ficha importada (Principal e ataques), 08/08b Magias, 09 Configurar, 10 aba Fichas.
+- Expectativas antigas alteradas: nenhuma.
+
+### Decisões
+
+- (assumido) O pdf.js já lê num Web Worker dele; não criei outro worker para a extração (a parte nossa é leve e roda depois, no parser puro).
+- (assumido) `preparada` não existe no PDF (as bolinhas são desenho): todas as magias entram preparadas, com um aviso amarelo na seção de magias.
+- (assumido) Os espaços de magia do PDF só **conferem** com a tabela das classes (divergência vira incerto); a ficha não os guarda. Os dados de vida (o "10" solto) idem: a ficha calcula pelas classes.
+- (assumido) A subclasse vem do texto da classe ("Hunter Ranger 5" → Patrulheiro, subclasse "Hunter", marcada para conferir); termos em inglês do PDF (Necrotic, Healing...) ficam como estão.
+- (assumido) Moedas e os quatro campos de personalidade (traços, ideais, vínculos, defeitos) entram em `notas`; nome de característica em CAIXA ALTA vira "Título com Iniciais Maiúsculas".
+- (assumido) Caixa de recurso: `atual` = o número grande, `max` = o "(MAX n)" do rótulo, ou o "Total", ou o atual; recarga "nunca"; caixas repetidas com o mesmo nome são descartadas (o aviso diz quantas vezes apareceu).
+- (assumido) `@types/node` entrou como dependência de desenvolvimento do `shared` (já estava no repositório, nos E2E) só para o teste ler o PDF com `node:fs`; na revisão, os tipos do Node ficaram só nesse arquivo de teste (`/// <reference types="node" />`), para o código do `shared` (que roda no navegador e no Worker) não enxergar APIs do Node.
+
+### Desvios do plano
+
+- Nenhum no que o "Decidido antes de começar" pede. Dependência nova: `pdfjs-dist` 6.5.438 (`apps/web`; no `packages/shared` só de desenvolvimento).
+
+### Frágil / não verificado
+
+- Só um PDF de verdade foi testado (o do Darion); o roteiro pede o de outro jogador. Os rótulos em PT da página de conjuração (o PDF os imprime em inglês) e os rótulos em EN foram **supostos**, não vistos num PDF real.
+- A leitura depende de os rótulos da ficha impressa não mudarem e de o texto ser real (PDF escaneado não funciona).
+- CA, iniciativa e deslocamento vêm de "três números numa linha acima do PV máximo"; uma ficha com a linha diferente cai em `incertos`.
+- Parágrafos das descrições: a linha curta que termina em ponto fecha o parágrafo; o resto vira um bloco só.
+- A tela de revisão edita só os campos listados acima; o resto se corrige depois, na própria ficha.
+
+### Roteiro manual (pendente)
+
+1. Importar o PDF do Darion pela interface, corrigir os três machadinhos na revisão, confirmar e rolar um ataque da ficha importada.
+2. Repetir com o PDF de outro jogador do grupo (anotar o que não saiu certo).
+3. Importar por cima de uma ficha existente e conferir que retrato, token e pasta ficam; cancelar e conferir que nada mudou.
+
+### Revisão (antes do commit de fechamento)
+
+- O agente parou no meio do `verify` quando a sessão de 2026-11-07 foi encerrada; o código estava completo. Retomado em 2026-11-09: prints conferidos (revisão, ataques, recursos, ficha importada), código revisado.
+- Ajuste na revisão: os tipos do Node saíram do `tsconfig` do `shared` e ficaram só no teste do PDF.
+- `pnpm verify` verde duas vezes na revisão (446 + 18 + 6 de unidade, 103 E2E, ~9 min cada); portas 8788/5174 livres no fim.
+- Sugestões aplicadas no PROJETO.md (4.10 e "Como ficou" do Lote 10); a pergunta do agente e duas novas (magias todas preparadas; tochas e flechas do Darion no PDF × na ficha do Lote 9) entraram em `docs/PERGUNTAS.md`.
+
+### Sugestões para o PROJETO.md (aplicadas)
+
+- 4.10: acrescentar que o PDF imprime CA, iniciativa e deslocamento sem rótulo (três números acima do PV máximo) e que "preparada" e os espaços gastos não saem do PDF.
+- "Como ficou" do Lote 10 com o que está acima (o texto do "Decidido" já bate).
+- Pergunta ao Vilella: guardar os espaços e os dados de vida do PDF na ficha, em vez de só conferir?
+
+---
+
+## Próximo: Lote 11 — Combate: iniciativa e condições
 
 Ver `PROJETO.md`, seção 7.

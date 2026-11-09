@@ -595,7 +595,9 @@ Problemas conhecidos no PDF de referência:
 - ataques trazem só o total ("Sun Blade +13, 1d8+9"), sem a origem do bônus;
 - caixas de recurso repetidas ("FLECHAS (MAX 20)" aparece várias vezes);
 - campos vazios (PV atuais, PV temporários, outras proficiências e idiomas);
-- texto em português misturado com inglês (magias em inglês).
+- texto em português misturado com inglês (magias em inglês);
+- CA, iniciativa e deslocamento saem **sem rótulo** (três números numa linha acima do PV máximo);
+  "preparada", os espaços gastos e os dados de vida não saem do PDF (as bolinhas e caixas são desenho).
 
 ### 4.11 Automações da mesa
 
@@ -1522,6 +1524,23 @@ entra nas perguntas do fim):**
 - **Caixas de recurso** (FLECHAS, TOCHAS, LABAREDA PROTETORA, RAD DO AMANHECER) entram como recursos e
   sempre marcadas para revisão, porque o PDF repete as caixas (assumido).
 - **Magias** com descrição inteira, inclusive anotações da mesa.
+
+**Como ficou (2026-11-09):**
+- `pdfjs-dist` 6.5.438 do npm (no `shared`, só de desenvolvimento, para o teste ler o PDF em Node); o
+  worker é empacotado pelo Vite e o pdf.js é carregado só quando alguém importa;
+- o parser (`importarFichaDoPdf`) devolve também `reconhecido`, `nome` e os `trechos` crus por seção,
+  para a tela de revisão; mede a **escala** do documento pela altura mais comum do texto, por isso A4 e
+  Carta dão a mesma ficha;
+- o PDF imprime CA, iniciativa e deslocamento **sem rótulo** (três números numa linha acima do PV
+  máximo); "preparada", os espaços gastos e os dados de vida não saem do PDF: as magias entram todas
+  preparadas (com aviso), e os espaços e o "10" solto só **conferem** com a tabela das classes
+  (divergência vira incerto);
+- sem mudança no protocolo: importar por cima é um `ficha.alterar` com caminho vazio, "Novo a partir de
+  PDF" é um `personagem.criar` com a ficha; sem migração;
+- assumido: a subclasse vem do texto da classe ("Hunter Ranger 5"); moedas e personalidade vão para as
+  notas; caixas de recurso repetidas com o mesmo nome viram uma só;
+- frágil: só o PDF do Darion foi testado (falta o de outro jogador para o "pronto quando"); os rótulos em
+  PT da página de conjuração e os em EN foram supostos; PDF escaneado não funciona.
 
 ---
 

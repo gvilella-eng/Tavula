@@ -33,6 +33,7 @@ import {
 import { AbaCaracteristicas, AbaEquipamento, AbaNotas } from "./OutrasAbas";
 import { criarRolador } from "./rolador";
 import { useFichaEditavel } from "./useFicha";
+import { useImportadorDePdf } from "./useImportadorDePdf";
 
 type Enviar = (tipo: string, dados: object) => string | null;
 
@@ -96,6 +97,7 @@ export function JanelaDaFicha({
   const [vantagem, setVantagem] = useState<Vantagem>("normal");
   const [descanso, setDescanso] = useState<"curto" | "longo" | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
+  const importadorDePdf = useImportadorDePdf({ estado, enviar });
   const aba: AbaDaFicha = temFicha ? janela.aba : "configurar";
   // Trocar de aba volta ao topo (cada aba é uma página).
   const corpo = useRef<HTMLDivElement>(null);
@@ -371,9 +373,11 @@ export function JanelaDaFicha({
               enviarAgora();
               return null;
             }}
+            importarPdf={() => importadorDePdf.escolher(p)}
           />
         )}
       </div>
+      {importadorDePdf.elementos}
       {/* biome-ignore lint/a11y/useSemanticElements: a alça de redimensionar é só um ponto de arrasto */}
       <div
         className="janela-ficha-alca"

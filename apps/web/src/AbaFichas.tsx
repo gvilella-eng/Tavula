@@ -12,9 +12,11 @@ import {
   ChevronDown,
   ChevronRight,
   Eye,
+  FileText,
   FolderPlus,
   GripVertical,
   Lock,
+  MoreHorizontal,
   Pencil,
   Plus,
   Trash2,
@@ -25,6 +27,7 @@ import { Avatar } from "./Avatar";
 import { AbaNotas } from "./abas";
 import { lerItemArrastado, TIPO_DE_ARRASTO_DA_FICHA } from "./arrasto";
 import type { AbaDaFicha } from "./ficha/janelas";
+import { useImportadorDePdf } from "./ficha/useImportadorDePdf";
 import type { ImagensDoMapa } from "./mapa/mapaPixi";
 import { Popover } from "./Popover";
 import type { Ocorrencia } from "./useSala";
@@ -137,11 +140,14 @@ type PropsItem = {
   imagens: ImagensDoMapa | null;
   versao: number;
   aoAbrir: () => void;
+  /** Importa a ficha de um PDF de ficha por cima deste item (só para quem edita). */
+  aoImportarPdf: () => void;
 };
 
-function Item({ p, eu, imagens, versao, aoAbrir }: PropsItem) {
+function Item({ p, eu, imagens, versao, aoAbrir, aoImportarPdf }: PropsItem) {
   const euMestre = eu.papel === "mestre";
   const linha = useRef<HTMLLIElement>(null);
+  const [menu, setMenu] = useState(false);
   return (
     <li
       ref={linha}
@@ -199,6 +205,41 @@ function Item({ p, eu, imagens, versao, aoAbrir }: PropsItem) {
         )}
         {!euMestre && podeEditarPersonagem(p, eu) && <span className="selo">seu</span>}
       </button>
+      {podeEditarPersonagem(p, eu) && (
+        <span className="ficha-item-menu">
+          <button
+            type="button"
+            className="botao-icone pequeno"
+            data-popover-gatilho=""
+            data-testid={`ficha-menu-${p.id}`}
+            aria-expanded={menu}
+            title="Mais ações deste item"
+            aria-label={`Mais ações de ${p.nome}`}
+            onClick={() => setMenu(!menu)}
+          >
+            <MoreHorizontal size={16} />
+          </button>
+          {menu && (
+            <Popover
+              testid={`ficha-menu-itens-${p.id}`}
+              className="popover-item"
+              aoFechar={() => setMenu(false)}
+            >
+              <button
+                type="button"
+                className="item-menu"
+                data-testid={`ficha-menu-importar-pdf-${p.id}`}
+                onClick={() => {
+                  setMenu(false);
+                  aoImportarPdf();
+                }}
+              >
+                <FileText size={14} /> Importar ficha (PDF)
+              </button>
+            </Popover>
+          )}
+        </span>
+      )}
     </li>
   );
 }
@@ -215,6 +256,7 @@ type PropsPasta = {
   aoAlternar: () => void;
   aoAbrirItem: (id: string) => void;
   aoSoltar: (itemId: string, pastaId: string) => void;
+  aoImportarPdf: (p: Personagem) => void;
 };
 
 function SecaoDaPasta({
@@ -229,6 +271,7 @@ function SecaoDaPasta({
   aoAlternar,
   aoAbrirItem,
   aoSoltar,
+  aoImportarPdf,
 }: PropsPasta) {
   const euMestre = eu.papel === "mestre";
   const [editando, setEditando] = useState(false);
@@ -362,6 +405,7 @@ function SecaoDaPasta({
               imagens={imagens}
               versao={versao}
               aoAbrir={() => aoAbrirItem(p.id)}
+              aoImportarPdf={() => aoImportarPdf(p)}
             />
           ))}
           {itens.length === 0 && <li className="nota">Pasta vazia.</li>}
@@ -391,6 +435,11 @@ export function AbaFichas({
   const [recolhidas, setRecolhidas] = useState<Set<string>>(new Set());
   const [novoAberto, setNovoAberto] = useState(false);
   const [paraAbrir, setParaAbrir] = useState<string | null>(null);
+  const importadorDePdf = useImportadorDePdf({
+    estado,
+    enviar,
+    aoCriar: (id) => aoAbrirFicha(id, "principal"),
+  });
 
   // O item recém-criado abre na janela (aba Configurar) assim que a sala o devolve.
   useEffect(() => {
@@ -459,6 +508,7 @@ export function AbaFichas({
 
   return (
     <div className="aba-fichas" data-testid="aba-fichas-conteudo">
+      {importadorDePdf.elementos}
       <section className="fichas-notas" data-testid="fichas-notas">
         <h3>Notas</h3>
         <AbaNotas estado={estado} eu={eu} pronto={pronto} enviar={enviar} ouvir={ouvir} />
@@ -516,6 +566,14 @@ export function AbaFichas({
                   </Popover>
                 )}
               </span>
+              <button
+                type="button"
+                data-testid="ficha-novo-pdf"
+                title="Cria um personagem a partir do PDF impresso da ficha (lido no seu navegador)"
+                onClick={() => importadorDePdf.escolher(null)}
+              >
+                <Plus size={14} /> Novo a partir de PDF
+              </button>
               <button type="button" data-testid="ficha-nova-pasta" onClick={criarPasta}>
                 <FolderPlus size={14} /> Pasta
               </button>
@@ -537,6 +595,7 @@ export function AbaFichas({
             aoAlternar={() => alternar(pasta.id)}
             aoAbrirItem={(id) => aoAbrirFicha(id)}
             aoSoltar={moverParaPasta}
+            aoImportarPdf={importadorDePdf.escolher}
           />
         ))}
         {avulsos.length > 0 && (
@@ -554,6 +613,7 @@ export function AbaFichas({
                   imagens={imagens}
                   versao={versaoDasImagens}
                   aoAbrir={() => aoAbrirFicha(p.id)}
+                  aoImportarPdf={() => importadorDePdf.escolher(p)}
                 />
               ))}
             </ul>
