@@ -547,7 +547,7 @@ describe("migração do donoId e exportações", () => {
     e = aplicar(e, "m", intencao("ordemDeTurno.definir", { visivel: true })).estado;
     const x = criarExportacao(e, AGORA);
     expect(x.versao).toBe(VERSAO_EXPORTACAO);
-    expect(x.versao).toBe(9);
+    expect(x.versao).toBe(10);
     expect(x.dados.pastas).toHaveLength(4);
     expect(x.dados.ordemDeTurnoVisivel).toBe(true);
     const lida = lerExportacao(JSON.parse(JSON.stringify(x)));
@@ -585,7 +585,7 @@ describe("migração do donoId e exportações", () => {
     const l4 = lerExportacao(v4);
     expect(l4.ok).toBe(true);
     if (!l4.ok) return;
-    expect(l4.exportacao.versao).toBe(9);
+    expect(l4.exportacao.versao).toBe(10);
     expect(l4.exportacao.dados.pastas.map((p) => [p.id, p.visivel.tipo])).toEqual([
       [PASTA_PERSONAGENS_ID, "mestre"],
       [PASTA_NPCS_ID, "mestre"],
@@ -608,7 +608,7 @@ describe("migração do donoId e exportações", () => {
     for (const versao of [3, 2]) {
       const dados = versao === 2 ? (({ assets: _a, ...r }) => r)(semTokens) : semTokens;
       const l = lerExportacao({ ...v4, versao, dados });
-      expect(l.ok && l.exportacao.versao).toBe(9);
+      expect(l.ok && l.exportacao.versao).toBe(10);
       expect(l.ok && l.exportacao.dados.personagens).toEqual([]);
       expect(l.ok && l.exportacao.dados.pastas.map((p) => p.id)).toEqual([
         PASTA_PERSONAGENS_ID,

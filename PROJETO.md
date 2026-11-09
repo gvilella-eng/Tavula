@@ -146,7 +146,7 @@ type CapacidadeDelegavel =          // lista completa em docs/protocolo.md
 type CapacidadeDoMestre =           // só do mestre, nunca delegáveis
   | 'papel.alterar' | 'permissao.alterar' | 'mesa.configurar' | 'automacao.editar'
   | 'camadaMestre.ver' | 'objeto.ajustar' | 'campanha.exportar' | 'campanha.importar'
-  | 'cena.editar';
+  | 'cena.editar' | 'combate.gerir' /* lote 11 */;
 type Capacidade = CapacidadeDelegavel | CapacidadeDoMestre;
 
 interface Permissoes {
@@ -216,7 +216,18 @@ interface Token {
   alcanceVisaoM?: number;           // lote 5: só para token sem personagem (com personagem vale a visão dele)
   visaoNoEscuroM?: number;          // lote 6: idem, para a visão no escuro
   personagemId?: string;            // lote 4; controla: o dono do personagem ou quem estiver em controladoPor
+  condicoes?: Condicao[];           // lote 11: as 14 do 5e 2014; quem vê o token vê as condições
+  exaustao?: number;                // lote 11: 1..6
+  concentracao?: string;            // lote 11: nome da magia
 }
+
+interface Combate {                 // lote 11: Estado.combate (sem o campo = sem combate)
+  entradas: { id: string; tokenId?: string; nome: string; iniciativa?: number; destreza?: number;
+              jogador?: boolean; valorOculto?: boolean; oculta?: boolean }[];
+  atualId?: string;                 // a vez pelo id, nunca pelo índice
+  rodada: number;                   // 0 = não começou
+}
+// o jogador só recebe as entradas que vê, sem Destreza e sem o número das de valor oculto
 
 interface Parede {
   id: string; cenaId: string;
@@ -1600,6 +1611,22 @@ entra nas perguntas do fim):**
   Constituição automático por enquanto (vira ideia para o 7b).
 - **Exportação:** a ordem de turno e as condições entram (versão nova da exportação) (assumido).
 
+**Como ficou (2026-11-09):**
+- `Estado.combate?` (tabela `combate`, migração 7) e, no token, `condicoes?`, `exaustao?` e
+  `concentracao?`; a entrada guarda também `jogador` (para o desempate); evento único
+  `combate.alterado` com o combate inteiro, filtrado por usuário (a mudança que o jogador não percebe
+  nem chega a ele); exportação v10;
+- **quem age pela entrada** (rolar a própria, passar o próprio turno, marcar condições): o mestre ou quem
+  **controla o token** — edita o personagem ou está em `controladoPor` (o familiar entregue a um
+  jogador). Ajustado na revisão; o desenho dizia só "quem edita o personagem";
+- o menu de botão direito do token é novo (antes só existia o da alça da tocha): "Entrar na
+  iniciativa" e "Condições…"; marcadores de duas letras na borda do token, com a regra na dica;
+- assumido: o nome da entrada é copiado do token; o jogador rola a própria uma vez (o mestre refaz);
+  rolagem de entrada com valor oculto ou escondida vai oculta mesmo sendo de PJ; tirar a entrada da vez
+  passa o turno; "Adicionar selecionados" usa a seleção única da mesa, e "O grupo" adiciona os PJs da
+  cena;
+- frágil: o arrasto da lista não tem E2E; a dica das condições só abre com o mouse; o painel (364 px)
+  cobre parte do mapa em telas de 1280 px.
 
 ---
 

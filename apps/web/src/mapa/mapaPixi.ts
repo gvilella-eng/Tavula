@@ -18,6 +18,8 @@ import {
   formatarRestante,
   type GradeDeMemoria,
   gradeServe,
+  type IconeDeCondicao,
+  iconesDoToken,
   imagemDaMemoria,
   lembraDoPonto,
   limitarNaCena,
@@ -53,6 +55,8 @@ export const ZOOM_MAX = 4;
 /** Constante de tempo da interpolação dos tokens movidos por outros (os envios chegam a cada 50 ms). */
 const TAU_MS = 70;
 const ACENTO = 0xe0a030;
+/** Anel do token da vez (ordem de turno): verde, bem diferente do dourado da seleção. */
+const COR_DA_VEZ = 0x4cd97b;
 
 export type Ferramenta = "selecionar" | "mao" | "regua" | "paredes" | "luz" | "ponto";
 
@@ -141,6 +145,8 @@ export type OpcoesDoMapa = {
   restanteDe: (luzId: string) => number | undefined;
   /** Pode arrastar, apagar e guardar esta tocha (dono do personagem ou mestre)? */
   podeMexerNaTocha: (luz: FonteDeLuz) => boolean;
+  /** Token da entrada que está na vez (anel destacado, para todos que veem o token). */
+  tokenDaVezId: string | null;
 };
 
 /** O que o mapa precisa saber das imagens locais (o gerente de assets responde). */
@@ -190,7 +196,14 @@ export type RetornosDoMapa = {
   acenderPontoFim: (pontoId: string, luzId: string) => void;
   /** Clique direito numa alça: o menu da tocha, na posição da página. */
   menuDaTocha: (luzId: string, x: number, y: number) => void;
+  /** Clique direito num token (ferramenta de seleção): o menu do token, na posição da página. */
+  menuDoToken: (tokenId: string, x: number, y: number) => void;
+  /** O ponteiro está sobre um marcador de condição (ou saiu dele: `null`): a dica, na posição da página. */
+  dica: (dica: DicaDoMapa | null) => void;
 };
+
+/** A dica de um marcador de condição, exaustão ou concentração. */
+export type DicaDoMapa = { titulo: string; texto: string; x: number; y: number };
 
 type Ponto = { x: number; y: number };
 
@@ -199,6 +212,10 @@ type Visual = {
   chave: string;
   container: Container;
   anel: Graphics;
+  /** Anel da vez (ordem de turno). */
+  anelVez: Graphics;
+  /** Marcadores de condição desenhados na borda (posição em px do mundo, relativa ao centro). */
+  marcas: MarcaVisual[];
   /** A imagem do token já apareceu (senão vale o círculo gerado). */
   temImagem: boolean;
   x: number;
@@ -206,6 +223,12 @@ type Visual = {
   alvoX: number;
   alvoY: number;
 };
+
+type MarcaVisual = { ox: number; oy: number; r: number; titulo: string; texto: string };
+
+/** Até quantos marcadores cabem na borda; o resto vira um "+N". */
+const MARCAS_VISIVEIS = 6;
+const RAIO_DA_MARCA = 9;
 
 type Gesto =
   | { tipo: "pan"; inicio: Ponto; vistaInicial: Ponto }
@@ -264,6 +287,7 @@ export class MapaPixi {
   /** Objetos de cenário (camada `mapa`): acima da imagem do mapa e abaixo dos tokens. */
   private readonly camadaCenario = new Container();
   private readonly camadaTokens = new Container();
+  private dicaAberta = false;
   private readonly camadaMestre = new Container();
   /** Luz e escuridão (texturas do tamanho da cena): acima dos tokens, abaixo das paredes do mestre. */
   private camada!: CamadaDeLuz;
@@ -386,6 +410,7 @@ export class MapaPixi {
     const c = this.app.canvas;
     c.addEventListener("pointerdown", this.aoApertar);
     c.addEventListener("pointermove", this.aoMover);
+    c.addEventListener("pointerleave", this.aoSairDoMapa);
     c.addEventListener("pointerup", this.aoSoltar);
     c.addEventListener("pointercancel", this.aoSoltar);
     c.addEventListener("wheel", this.aoRolar, { passive: false });
@@ -418,6 +443,7 @@ export class MapaPixi {
     const c = this.app.canvas;
     c.removeEventListener("pointerdown", this.aoApertar);
     c.removeEventListener("pointermove", this.aoMover);
+    c.removeEventListener("pointerleave", this.aoSairDoMapa);
     c.removeEventListener("pointerup", this.aoSoltar);
     c.removeEventListener("pointercancel", this.aoSoltar);
     c.removeEventListener("wheel", this.aoRolar);
@@ -784,7 +810,8 @@ export class MapaPixi {
 
   private chaveDe(t: Token): string {
     const imagem = t.assetHash && this.texturas.has(t.assetHash) ? t.assetHash : "";
-    return `${t.nome}|${t.cor}|${t.tamanhoQuadrados}|${t.oculto}|${t.camada}|${imagem}`;
+    const marcas = `${(t.condicoes ?? []).join(",")}|${t.exaustao ?? ""}|${t.concentracao ?? ""}`;
+    return `${t.nome}|${t.cor}|${t.tamanhoQuadrados}|${t.oculto}|${t.camada}|${imagem}|${marcas}`;
   }
 
   private criarVisual(token: Token, x: number, y: number): Visual {
@@ -828,10 +855,18 @@ export class MapaPixi {
       },
     });
     rotulo.anchor.set(0.5, 0);
-    rotulo.position.set(0, raio + 4);
+    const icones = iconesDoToken(token);
+    rotulo.position.set(0, raio + 4 + (icones.length > 0 ? RAIO_DA_MARCA : 0));
     const anel = new Graphics().circle(0, 0, raio + 5).stroke({ width: 3, color: ACENTO });
     anel.visible = false;
-    container.addChild(anel, corpo, imagem, iniciais, rotulo);
+    const anelVez = new Graphics()
+      .circle(0, 0, raio + 12)
+      .stroke({ width: 7, color: COR_DA_VEZ, alpha: 0.3 })
+      .circle(0, 0, raio + 8)
+      .stroke({ width: 4, color: COR_DA_VEZ });
+    anelVez.visible = false;
+    container.addChild(anelVez, anel, corpo, imagem, iniciais, rotulo);
+    const marcas = this.desenharMarcas(container, icones, raio);
     if (token.oculto) container.addChild(this.desenharOlhoCortado(raio));
     container.position.set(x * PX_POR_M, y * PX_POR_M);
     this.camadaDe(token).addChild(container);
@@ -840,12 +875,90 @@ export class MapaPixi {
       chave: this.chaveDe(token),
       container,
       anel,
+      anelVez,
+      marcas,
       temImagem: textura !== undefined,
       x,
       y,
       alvoX: x,
       alvoY: y,
     };
+  }
+
+  /**
+   * Marcadores de condição, exaustão e concentração na borda de baixo do token (pequenos discos com
+   * duas letras). Passando de `MARCAS_VISIVEIS`, o último vira "+N" (a dica lista o resto).
+   */
+  private desenharMarcas(
+    container: Container,
+    icones: IconeDeCondicao[],
+    raio: number,
+  ): MarcaVisual[] {
+    if (icones.length === 0) return [];
+    const mostrados: { sigla: string; cor: string; titulo: string; texto: string }[] = [];
+    const comoMarca = (i: IconeDeCondicao) => ({
+      sigla: i.sigla,
+      cor: i.cor,
+      titulo: i.titulo,
+      texto: i.resumo,
+    });
+    if (icones.length <= MARCAS_VISIVEIS) {
+      for (const i of icones) mostrados.push(comoMarca(i));
+    } else {
+      for (const i of icones.slice(0, MARCAS_VISIVEIS - 1)) mostrados.push(comoMarca(i));
+      const resto = icones.slice(MARCAS_VISIVEIS - 1);
+      mostrados.push({
+        sigla: `+${resto.length}`,
+        cor: "#555f6e",
+        titulo: `Mais ${resto.length}`,
+        texto: resto.map((i) => i.titulo).join(", "),
+      });
+    }
+    // Os marcadores ficam no arco de baixo da borda (sem cobrir as iniciais): no máximo 150 graus.
+    const passoBase = (2 * Math.asin(Math.min(1, (RAIO_DA_MARCA + 1) / raio)) * 180) / Math.PI + 2;
+    const passo =
+      mostrados.length > 1 ? Math.min(Math.max(30, passoBase), 150 / (mostrados.length - 1)) : 0;
+    const raioDaMarca = raio + 3;
+    const marcas: MarcaVisual[] = [];
+    mostrados.forEach((m, i) => {
+      const graus = 90 - (i - (mostrados.length - 1) / 2) * passo;
+      const rad = (graus * Math.PI) / 180;
+      const ox = Math.cos(rad) * raioDaMarca;
+      const oy = Math.sin(rad) * raioDaMarca;
+      const g = new Graphics()
+        .circle(ox, oy, RAIO_DA_MARCA)
+        .fill(m.cor)
+        .stroke({ width: 1.5, color: 0xffffff, alpha: 0.9 });
+      const t = new Text({
+        text: m.sigla,
+        style: {
+          fill: 0xffffff,
+          fontSize: 10,
+          fontWeight: "700",
+          fontFamily: "system-ui, sans-serif",
+          stroke: { color: 0x000000, width: 2 },
+        },
+      });
+      t.anchor.set(0.5);
+      t.position.set(ox, oy);
+      container.addChild(g, t);
+      marcas.push({ ox, oy, r: RAIO_DA_MARCA, titulo: m.titulo, texto: m.texto });
+    });
+    return marcas;
+  }
+
+  /** O marcador de condição sob o ponteiro (ponto da tela). */
+  private marcaEm(p: Ponto): MarcaVisual | null {
+    const m = this.paraMundo(p);
+    for (const v of this.visuais.values()) {
+      if (!v.container.visible) continue;
+      for (const marca of v.marcas) {
+        const cx = v.x + marca.ox / PX_POR_M;
+        const cy = v.y + marca.oy / PX_POR_M;
+        if (Math.hypot(m.x - cx, m.y - cy) <= (marca.r + 2) / PX_POR_M) return marca;
+      }
+    }
+    return null;
   }
 
   /** Ícone de olho cortado (token oculto, só o mestre vê) no canto do token. */
@@ -942,6 +1055,7 @@ export class MapaPixi {
       else if (this.opcoes.euMestre && trabalho === "mapa" && t.camada !== "mapa") alpha = 0.6;
       v.container.alpha = alpha;
       v.anel.visible = this.opcoes.selecionadoId === t.id;
+      v.anelVez.visible = this.opcoes.tokenDaVezId === t.id;
     }
   }
 
@@ -2028,7 +2142,13 @@ export class MapaPixi {
       }
       // Clique direito no ícone da porta (mestre): tranca ou destranca.
       const porta = this.opcoes.modoMestre ? this.portaEm(p) : null;
-      if (porta) this.retornos().trancarPorta(porta.id);
+      if (porta) {
+        this.retornos().trancarPorta(porta.id);
+        return;
+      }
+      // Clique direito num token: o menu do token (condições e, para o mestre, a iniciativa).
+      const sob = this.opcoes.ferramenta === "selecionar" ? this.tokenEm(p) : null;
+      if (sob) this.retornos().menuDoToken(sob.token.id, e.clientX, e.clientY);
       return;
     }
     if (e.button !== 0 || !this.cena) return;
@@ -2165,6 +2285,26 @@ export class MapaPixi {
     return this.encaixaAgora(alt) ? encaixarNoGrid(m, 1, this.quadradoM()) : m;
   }
 
+  /** Avisa a tela da dica sob o ponteiro (e que ela acompanha o movimento). */
+  private atualizarDica(e: PointerEvent, marca: MarcaVisual | null): void {
+    if (marca === null) {
+      if (this.dicaAberta) {
+        this.dicaAberta = false;
+        this.retornos().dica(null);
+      }
+      return;
+    }
+    this.dicaAberta = true;
+    this.retornos().dica({ titulo: marca.titulo, texto: marca.texto, x: e.clientX, y: e.clientY });
+  }
+
+  private readonly aoSairDoMapa = () => {
+    if (this.dicaAberta) {
+      this.dicaAberta = false;
+      this.retornos().dica(null);
+    }
+  };
+
   private readonly aoMover = (e: PointerEvent) => {
     const g = this.gesto;
     const p = this.posicaoNaTela(e);
@@ -2174,6 +2314,7 @@ export class MapaPixi {
         this.desenharParedes();
       }
       this.atualizarCursor(this.tokenEm(p), this.sobreABandeira(p), this.alcaEm(p) !== null);
+      this.atualizarDica(e, this.marcaEm(p));
       return;
     }
     if (g.tipo === "alca") {
@@ -2449,7 +2590,20 @@ export class MapaPixi {
           camada: v.token.camada,
           /** Está sendo desenhado (o jogador não desenha o que está fora da visão). */
           desenhado: v.container.visible,
+          /** O anel da vez (ordem de turno) está aceso. */
+          emVez: v.anelVez.visible,
+          /** Os marcadores de condição desenhados na borda. */
+          marcas: v.marcas.map((m) => m.titulo),
         })),
+      /** Onde está o marcador `indice` do token (posição na página), para passar o mouse. */
+      marcaNaPagina: (id: string, indice: number) => {
+        const v = this.visuais.get(id);
+        const m = v?.marcas[indice];
+        if (!v || !m) return null;
+        const r = this.app.canvas.getBoundingClientRect();
+        const t = this.paraTela(v.x + m.ox / PX_POR_M, v.y + m.oy / PX_POR_M);
+        return { x: r.left + t.x, y: r.top + t.y };
+      },
       /** As portas que a tela mostra (ícone), com o meio em metros. */
       portas: () =>
         this.paredes

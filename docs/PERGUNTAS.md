@@ -48,6 +48,11 @@ Juntadas durante os Lotes 6 a 10 (2026-11-06/07) para fazer ao Vilella no fim. O
 - Empate de iniciativa: Destreza, depois PJ antes de NPC, depois nome (assumido).
 - O jogador da vez passa o próprio turno (assumido).
 - Condições no token, não no personagem (assumido).
+- "Adicionar selecionados" deveria aceitar vários tokens de uma vez? (a seleção múltipla no mapa ainda não existe)
+- O jogador pode refazer a própria iniciativa, ou só o mestre? (assumido: só o mestre)
+- A dica das condições deveria abrir também por clique (tela de toque)?
+- O nome da entrada na ordem de turno deve seguir a renomeação do token? (assumido: não)
+- Ideias para o 7b: teste de concentração com a CD sugerida; condições que aplicam vantagem ou desvantagem nas rolagens.
 
 ## Lote 13
 - Borracha apaga o desenho inteiro (assumido).

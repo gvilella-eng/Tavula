@@ -6,11 +6,13 @@ import {
   type Ficha,
   type FichaDerivada,
   formatarBonus,
+  iconesDoToken,
   NIVEIS_DE_PROFICIENCIA,
   type NivelDeProficiencia,
   type OperacaoDeFicha,
   ROTULO_DO_ATRIBUTO,
   SIGLA_DO_ATRIBUTO,
+  type Token,
 } from "@tabletop/shared";
 import { Dices, Plus, Trash2 } from "lucide-react";
 import { CampoNumero, CampoTexto } from "./campos";
@@ -23,6 +25,8 @@ export type PropsDaAba = {
   alterar: (operacoes: OperacaoDeFicha[]) => boolean;
   editar: boolean;
   rolador: Rolador;
+  /** O token do personagem na cena ativa (as condições e a concentração moram nele); sem token, `undefined`. */
+  token?: Token | undefined;
 };
 
 /** Uma operação só: `caminho` recebe `valor` (`null` remove). */
@@ -624,6 +628,47 @@ function Ataques({ ficha, alterar, editar, rolador }: PropsDaAba) {
   );
 }
 
+/** Condições, exaustão e concentração do token do personagem na cena ativa (só leitura; o menu do token as muda). */
+function Condicoes({ token }: PropsDaAba) {
+  const icones = token ? iconesDoToken(token) : [];
+  return (
+    <section className="fh-condicoes" data-testid="fh-condicoes" aria-label="Condições">
+      <h4>Condições</h4>
+      {!token ? (
+        <p className="nota" data-testid="fh-condicoes-sem-token">
+          Sem token na cena atual.
+        </p>
+      ) : icones.length === 0 ? (
+        <p className="nota" data-testid="fh-condicoes-nenhuma">
+          Nenhuma condição.
+        </p>
+      ) : (
+        <ul className="fh-condicoes-lista">
+          {icones.map((i) => (
+            <li
+              key={i.chave}
+              className="fh-condicao"
+              data-testid={`fh-condicao-${i.chave}`}
+              title={i.resumo}
+            >
+              <span className="fh-condicao-sigla" style={{ background: i.cor }} aria-hidden>
+                {i.sigla}
+              </span>
+              <span className="fh-condicao-texto">{i.titulo}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {token && (
+        <p className="nota">
+          Passe o mouse para ler a regra. Para mudar: botão direito no token do mapa,{" "}
+          <em>Condições</em>.
+        </p>
+      )}
+    </section>
+  );
+}
+
 /** Aba Principal: atributos, salvaguardas e perícias à esquerda; o resto à direita. */
 export function AbaPrincipal(props: PropsDaAba) {
   return (
@@ -639,6 +684,7 @@ export function AbaPrincipal(props: PropsDaAba) {
         <Identidade {...props} />
         <Resumo {...props} />
         <PontosDeVida {...props} />
+        <Condicoes {...props} />
         <Ataques {...props} />
       </div>
     </div>

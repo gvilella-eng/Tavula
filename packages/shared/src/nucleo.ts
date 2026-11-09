@@ -10,6 +10,23 @@ import {
 import { ehCapacidadeDelegavel, pode } from "./capacidades.ts";
 import { chatParaUsuario, mensagemParaUsuario } from "./chat.ts";
 import { criarMensagem } from "./chatnucleo.ts";
+import { combateParaUsuario } from "./combate.ts";
+import {
+  type ContextoDeCombate,
+  combateAdicionar,
+  combateAnterior,
+  combateEditar,
+  combateEncerrar,
+  combateMover,
+  combateOrdenar,
+  combatePassar,
+  combateProximo,
+  combateRolar,
+  combateTirar,
+  semEntradasDosTokens,
+  tokenCondicoes,
+  tokenTemEntrada,
+} from "./combatenucleo.ts";
 import { type FonteDeAleatoriedade, fonteCrypto } from "./dados.ts";
 import type {
   Cena,
@@ -220,7 +237,7 @@ export function criarExportacao(estado: Estado, agora: string): Exportacao {
 }
 
 /**
- * Valida um arquivo de exportação (de v1 a v8; o resultado é sempre v8): formato, ids únicos, pelo
+ * Valida um arquivo de exportação (de v1 a v10; o resultado é sempre v10): formato, ids únicos, pelo
  * menos um mestre, exceções válidas, cena ativa, pastas, personagens e tokens coerentes.
  */
 export function lerExportacao(
@@ -244,6 +261,7 @@ export function lerExportacao(
     luzes,
     pontos,
     modelos,
+    combate,
   } = r.data.dados;
   const ids = new Set(usuarios.map((u) => u.id));
   if (ids.size !== usuarios.length) return { ok: false, motivo: "ids de usuário repetidos" };
@@ -334,6 +352,20 @@ export function lerExportacao(
     }
     if (t.controladoPor.some((id) => !ids.has(id))) {
       return { ok: false, motivo: `token controlado por usuário desconhecido: ${t.id}` };
+    }
+  }
+  if (combate) {
+    const idsDeEntradas = new Set(combate.entradas.map((e) => e.id));
+    if (idsDeEntradas.size !== combate.entradas.length) {
+      return { ok: false, motivo: "ids de entrada de combate repetidos" };
+    }
+    if (combate.atualId !== undefined && !idsDeEntradas.has(combate.atualId)) {
+      return { ok: false, motivo: "a vez é de uma entrada inexistente" };
+    }
+    for (const e of combate.entradas) {
+      if (e.tokenId !== undefined && !tokens.some((t) => t.id === e.tokenId)) {
+        return { ok: false, motivo: `entrada de combate de token desconhecido: ${e.id}` };
+      }
     }
   }
   const porHash = new Map(assets.map((a) => [a.hash, a]));
@@ -547,6 +579,12 @@ export function reduzir(estado: Estado, evento: EventoSala): Estado {
       return { ...base, pastas: base.pastas.filter((x) => x.id !== evento.dados.id) };
     case "ordemDeTurno.alterada":
       return { ...base, ordemDeTurnoVisivel: evento.dados.visivel };
+    case "combate.alterado": {
+      const { combate: _antigo, ...semCombate } = base;
+      return evento.dados.combate === null
+        ? semCombate
+        : { ...semCombate, combate: evento.dados.combate };
+    }
     case "chat.mensagem": {
       const { mensagem } = evento.dados;
       const chat = base.chat ?? [];
@@ -661,6 +699,22 @@ export function processar(
       proximo = { ...proximo, acendimentos };
     },
   };
+  const contextoDeCombate: ContextoDeCombate = {
+    usuario,
+    agoraMs,
+    aleatorio,
+    atual: () => proximo,
+    emitir,
+  };
+  const doCombate = (
+    saida: { erro: ErroDaSala } | { snapshotPara?: "todos" | string[] },
+  ): Resultado =>
+    "erro" in saida ? { ok: false, erro: saida.erro } : aplicado(saida.snapshotPara ?? []);
+  /** Tokens que saíram: as entradas deles saem da ordem de turno. */
+  const limparCombate = (tokenIds: ReadonlySet<string>) => {
+    const combate = semEntradasDosTokens(proximo, tokenIds);
+    if (combate) emitir({ tipo: "combate.alterado", dados: { combate } });
+  };
   const daTocha = (
     saida: { erro: ErroDaSala } | { snapshotPara?: "todos" | string[] },
   ): Resultado =>
@@ -752,7 +806,11 @@ export function processar(
       const aparenciaMudou =
         tokenVisivelPara(atual, JOGADOR_QUALQUER, estado.cenaAtivaId) !==
         tokenVisivelPara(token, JOGADOR_QUALQUER, estado.cenaAtivaId);
-      return aplicado(aparenciaMudou && luzesDoToken(estado, token.id).length > 0 ? "todos" : []);
+      // O mesmo vale para a entrada do token na ordem de turno (o jogador deixa de ver, ou passa a ver).
+      const muda =
+        aparenciaMudou &&
+        (luzesDoToken(estado, token.id).length > 0 || tokenTemEntrada(estado, token.id));
+      return aplicado(muda ? "todos" : []);
     }
 
     case "token.apagar": {
@@ -763,6 +821,7 @@ export function processar(
         emitir({ tipo: "fonte.apagada", dados: { id: l.id } });
       }
       emitir({ tipo: "token.apagado", dados: { id: intencao.dados.id } });
+      limparCombate(new Set([intencao.dados.id]));
       return aplicado();
     }
 
@@ -1096,12 +1155,14 @@ export function processar(
     case "personagem.apagar": {
       const { id } = intencao.dados;
       if (!personagemDe(estado, id)) return recusa("personagem_inexistente", SEM_PERSONAGEM);
-      for (const t of estado.tokens.filter((x) => x.personagemId === id)) {
+      const tokensDele = estado.tokens.filter((x) => x.personagemId === id);
+      for (const t of tokensDele) {
         for (const l of luzesDoToken(estado, t.id)) {
           emitir({ tipo: "fonte.apagada", dados: { id: l.id } });
         }
         emitir({ tipo: "token.apagado", dados: { id: t.id } });
       }
+      limparCombate(new Set(tokensDele.map((t) => t.id)));
       // O que ele carrega (mão e mochila) some junto.
       for (const l of estado.luzes) {
         const p = l.portador;
@@ -1248,9 +1309,11 @@ export function processar(
       if (cenaId === estado.cenaAtivaId) {
         return recusa("dados_invalidos", "A cena onde está o grupo não pode ser apagada.");
       }
-      for (const t of estado.tokens.filter((x) => x.cenaId === cenaId)) {
+      const tokensDaCena = estado.tokens.filter((x) => x.cenaId === cenaId);
+      for (const t of tokensDaCena) {
         emitir({ tipo: "token.apagado", dados: { id: t.id } });
       }
+      limparCombate(new Set(tokensDaCena.map((t) => t.id)));
       for (const p of estado.paredes.filter((x) => x.cenaId === cenaId)) {
         emitir({ tipo: "parede.apagada", dados: { id: p.id } });
       }
@@ -1679,6 +1742,29 @@ export function processar(
       emitir({ tipo: "chat.limpo", dados: {} });
       return aplicado();
 
+    case "combate.adicionar":
+      return doCombate(combateAdicionar(contextoDeCombate, intencao.dados));
+    case "combate.tirar":
+      return doCombate(combateTirar(contextoDeCombate, intencao.dados));
+    case "combate.editar":
+      return doCombate(combateEditar(contextoDeCombate, intencao.dados));
+    case "combate.mover":
+      return doCombate(combateMover(contextoDeCombate, intencao.dados));
+    case "combate.ordenar":
+      return doCombate(combateOrdenar(contextoDeCombate));
+    case "combate.rolar":
+      return doCombate(combateRolar(contextoDeCombate, intencao.dados));
+    case "combate.proximo":
+      return doCombate(combateProximo(contextoDeCombate));
+    case "combate.anterior":
+      return doCombate(combateAnterior(contextoDeCombate));
+    case "combate.passar":
+      return doCombate(combatePassar(contextoDeCombate));
+    case "combate.encerrar":
+      return doCombate(combateEncerrar(contextoDeCombate));
+    case "token.condicoes":
+      return doCombate(tokenCondicoes(contextoDeCombate, intencao.dados));
+
     case "campanha.exportar":
       return {
         ok: true,
@@ -1803,9 +1889,12 @@ export function visaoPara(estado: Estado, usuario: Visao, agoraMs?: number): Est
     ...resto
   } = semPendencias;
   const propria = estado.permissoes.porUsuario[usuario.id];
+  const { combate: _combate, ...semCombate } = resto;
   return {
-    ...resto,
+    ...semCombate,
     ...chat,
+    // A ordem de turno só com as entradas que ele vê; a Destreza e o valor oculto nunca viajam.
+    ...(estado.combate ? { combate: combateParaUsuario(estado.combate, usuario, estado) } : {}),
     relogio: relogioParaVisao(estado.relogio, usuario, agora),
     modelos: modelosParaJogador(estado.modelos, estado.config),
     pontos: estado.pontos.filter((p) => pontoVisivelPara(p, usuario, estado.cenaAtivaId)),
@@ -1878,6 +1967,17 @@ export function eventoPara(
     case "ordemDeTurno.alterada":
     case "config.alterada":
       return evento;
+    case "combate.alterado": {
+      if (mestre) return evento;
+      const ref = depois ?? antes;
+      if (!ref) return null;
+      const novo = evento.dados.combate;
+      const visto = novo === null ? null : combateParaUsuario(novo, usuario, ref);
+      // Mudança que o jogador não percebe (valor de entrada oculta, entrada escondida) nem chega a ele.
+      const vistoAntes = antes?.combate ? combateParaUsuario(antes.combate, usuario, antes) : null;
+      if (JSON.stringify(vistoAntes) === JSON.stringify(visto)) return null;
+      return { ...evento, dados: { combate: visto } };
+    }
     case "memoria.esquecida":
       return mestre || evento.dados.cenaId === ativaDepois ? evento : null;
     case "fonte.criada":

@@ -2,6 +2,8 @@ import { z } from "zod";
 import { AssetMetaSchema, HashSchema } from "./assets.ts";
 import { CAPACIDADES_DELEGAVEIS } from "./capacidades.ts";
 import { MensagemSchema } from "./chat.ts";
+import { CombateSchema } from "./combate.ts";
+import { CondicaoSchema } from "./condicoes.ts";
 import { FichaSchema } from "./ficha.ts";
 
 export const PAPEIS = ["mestre", "jogador", "assistente"] as const;
@@ -102,6 +104,12 @@ export const TokenSchema = z.object({
   alcanceVisaoM: z.number().positive().max(1000).optional(),
   /** Visão no escuro, em metros, de um token SEM personagem (Lote 6). Sem o campo vale 0. */
   visaoNoEscuroM: z.number().min(0).max(1000).optional(),
+  /** Condições do 5e (Lote 11): marcas no token, sem regra automática. Sem o campo, nenhuma. */
+  condicoes: z.array(CondicaoSchema).max(14).optional(),
+  /** Nível de exaustão, de 1 a 6 (sem o campo, nenhum). */
+  exaustao: z.number().int().min(1).max(6).optional(),
+  /** Concentração: o nome da magia mantida (sem o campo, não concentra). */
+  concentracao: z.string().trim().min(1).max(64).optional(),
 });
 export type Token = z.infer<typeof TokenSchema>;
 
@@ -503,8 +511,13 @@ export const EstadoSchema = z.object({
   pastas: z.array(PastaSchema),
   /** Na visão de um jogador: os que ele edita e os das pastas que ele vê. */
   personagens: z.array(PersonagemSchema),
-  /** O painel flutuante de ordem de turno aparece para todos? (o conteúdo vem no Lote 11) */
+  /** O painel flutuante de ordem de turno aparece para todos? */
   ordemDeTurnoVisivel: z.boolean(),
+  /**
+   * Combate (Lote 11): a ordem de turno. Sem o campo não há combate. Na visão de um jogador só vêm as
+   * entradas que ele vê (ver `combateParaUsuario`).
+   */
+  combate: CombateSchema.optional(),
   /**
    * Chat (Lote 8). O histórico mora numa tabela própria da sala e nunca fica aqui: a sala monta a
    * visão de cada usuário com as últimas 200 mensagens que ele pode ver. No navegador este campo é a

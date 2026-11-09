@@ -1360,6 +1360,94 @@ relatório do Playwright (`[erro na página]`).
 
 ---
 
-## Próximo: Lote 11 — Combate: iniciativa e condições
+## Lote 11 — Combate: iniciativa e condições (entregue, aguardando o roteiro manual)
 
-Ver `PROJETO.md`, seção 7.
+### O que foi entregue
+
+- **`shared`** (puro, testado):
+  - `combate.ts`: `Combate` (`entradas`, `atualId`, `rodada`) e `EntradaDeCombate` com schemas zod; `ordenarEntradas` (maior para menor; empate por Destreza, depois PJ antes de NPC, depois o nome; sem valor no fim), `proximoTurno`, `turnoAnterior`, `tirarEntrada`, `moverEntrada` e o filtro de sigilo `combateParaUsuario` / `entradaVisivelPara`.
+  - `combatenucleo.ts`: as intenções (`combate.adicionar`, `tirar`, `editar`, `mover`, `ordenar`, `rolar`, `proximo`, `anterior`, `passar`, `encerrar` e `token.condicoes`), no mesmo molde do `tochas.ts`, chamadas pelo `processar`.
+  - `condicoes.ts`: as 14 condições do 5e 2014 (id, nome, resumo da regra em pt-BR), os níveis de exaustão (1 a 6), o resumo da concentração e `iconesDoToken` (os marcadores que o mapa e a ficha mostram).
+  - `Estado.combate?` e, no token, `condicoes?`, `exaustao?` e `concentracao?`; capacidade nova `combate.gerir` (só do mestre); evento `combate.alterado`; exportação **v10** (com a ordem de turno; de v1 a v9 continuam importando).
+  - Sigilo em `visaoPara` e `eventoPara`; apagar token, personagem ou cena tira as entradas dele; esconder ou mostrar um token que está na ordem manda snapshot novo a todos.
+- **Servidor**: migração 7 do SQLite (tabela `combate`, uma linha; banco antigo abre sem combate); `salvarEventos`/`salvarTudo`/`apagarTudo` cuidam dela.
+- **Navegador**:
+  - `OrdemDeTurno.tsx` (o painel do Lote 4b, agora completo): rodada à vista; lista com a vez em destaque (verde); mestre: Adicionar selecionados, "O grupo", entrada solta (nome, valor, escondida), editar valor, arrastar, os botões "?" (valor oculto) e olho cortado (entrada escondida), Ordenar, Anterior, Próximo turno, Rolar para todos, Tirar, Encerrar com confirmação; jogador: "Rolar" na própria entrada e "Passar o meu turno" na vez dele.
+  - `MenuDoToken.tsx`: botão direito no token (menu novo; antes só existia o da tocha): mestre vê "Entrar na iniciativa"/"Sair da iniciativa" e "Condições…"; quem controla o token cai direto nas condições. Lista das 14, Exaustão 0 a 6 e Concentração (nome da magia).
+  - Mapa (PixiJS): **anel verde da vez** no token (para todos que o veem), **marcadores pequenos na borda de baixo** do token (duas letras e cor por condição; até 6, o resto vira "+N") e **dica** ao passar o mouse (nome e resumo da regra); o rótulo do token desce um pouco quando há marcadores.
+  - Aba Principal da ficha: seção **Condições** com as do token do personagem na cena ativa (só leitura; a regra aparece ao passar o mouse).
+  - Chat: a rolagem de iniciativa aparece como "Iniciativa" (com o nome da entrada quando não há personagem).
+
+### Como rodar
+
+- `pnpm verify`. Prints: `$env:PRINTS_DIR="<pasta>"; pnpm --filter @tabletop/e2e prints lote-11` (PowerShell). Para ver: menu superior do mestre → ícone da lista (Ordem de turno); clicar num token com o botão direito.
+
+### Verificação
+
+- Unidade nova `packages/shared/src/combate.test.ts` (26 testes): ordenação com empates (Destreza, PJ antes de NPC, nome, sem Destreza, sem valor); turnos puros (rodada 1, virar, voltar, tirar a vez); **um combate inteiro no `processar` com 3 PJs e 4 NPCs** (adicionar, rolar para todos, ordenar, editar valor, avançar as 7 entradas, virar a rodada, voltar, tirar a entrada da vez, apagar o token da vez, encerrar); entrada solta, mover à mão, rolar de novo; permissões (jogador não gerencia nem com exceção; rola só a própria e só uma vez; passa só o próprio turno; condições só do mestre ou de quem edita o personagem do token, token oculto responde como inexistente); sigilo (token oculto, camada do mestre e solta oculta fora da visão e dos eventos; `valorOculto` sem número; Destreza nunca viaja; vez invisível; mudança invisível não gera evento; a rolagem de NPC é oculta e a de PJ pública; esconder token manda snapshot; apagar personagem tira a entrada) e a exportação v10 (ida e volta, v9 sem combate, combate incoerente recusado).
+- Servidor, `armazenamento.test.ts` (+5): banco do Lote 10 (versão 6, sem a tabela) abre sem quebrar e a campanha continua inteira; o combate é gravado pelos eventos, regravado e apagado; importar troca o combate e `apagarTudo` o apaga; linha ilegível não derruba a sala; condições e concentração voltam do banco dentro do token.
+- E2E novo `e2e/tests/combate.spec.ts` (5 testes): o mestre avança o turno e o jogador vê a vez mudar (lista e anel; rodada 2, voltar, tirar a vez, encerrar com confirmação); **frames**: a iniciativa oculta não chega ao jogador (nenhum frame do WebSocket dele leva o nome nem o valor das entradas ocultas, nem depois de recarregar a página; o Ogro chega com `valorOculto` e sem número; as rolagens dos NPCs não chegam); o jogador rola a própria iniciativa (pública no chat) e passa o próprio turno e não consegue rolar nem passar o de outro nem avançar o turno; condição e concentração aplicadas pelo jogador no próprio token aparecem para o mestre e para os outros jogadores, e na ficha; a dica do marcador e "Entrar na iniciativa" pelo menu do token.
+- Prints (1600×900) em `PRINTS_DIR`: 01/02 rolagens de iniciativa no chat (mestre e jogador), 03/04 ordem de turno na rodada 2 (mestre e jogador), 05 a 07 anel da vez (jogador, mestre, Ogro), 08/09 menu do token e de condições, 10 token com 3 condições, Exaustão 2 e concentração, 11/12 dicas, 13 aba Principal da ficha.
+- Expectativas antigas alteradas (só por causa do que o lote mudou): os testes que conferiam `versao` da exportação como 9 agora esperam **10** (`assets`, `ficha`, `fichas`, `luz`, `paredes`, `personagens`, `tochas` e `tokens`); em `nucleo.test.ts` a "versão inválida" passou de 10 para **11**; em `armazenamento.test.ts` a versão do esquema passou de 6 para **7**.
+
+### Decisões
+
+- (assumido) A entrada de token copia o **nome** do token ao entrar (não acompanha uma renomeação depois) e a **Destreza** é o valor do atributo da ficha, só se o atributo foi preenchido (copiada ao entrar e refeita ao rolar); sem Destreza conta como a menor no desempate.
+- (assumido) A entrada guarda também `jogador` (o token é de personagem de jogador), para o desempate "PJ antes de NPC"; é um campo a mais em relação ao desenho do PROJETO.md.
+- (assumido) Adicionar entradas reordena a lista pelos valores (quem não tem valor vai para o fim); o arrasto à mão dura até o próximo valor rolado ou editado, ou até "Ordenar".
+- (assumido) O jogador rola a própria iniciativa **uma vez** (entrada sem valor); para refazer, o mestre tira o valor ou o edita. O mestre pode rolar de novo qualquer entrada (`combate.rolar` com `ids`).
+- (assumido) A rolagem de entrada com valor oculto ou escondida vai oculta mesmo sendo de PJ; entrada solta rola com bônus 0 e oculta.
+- (assumido) Tirar a entrada da vez passa o turno para a seguinte (e, se era a última, vira a rodada).
+- (assumido) A rodada do combate que ainda não começou é 0 ("Não começou"); o primeiro Próximo abre a 1; Anterior não volta antes da rodada 1.
+- (assumido) A mesa só tem **uma** seleção de token: "Adicionar selecionados" adiciona o token selecionado; acrescentei "O grupo" (os tokens dos personagens de jogador da cena do grupo) por ser o caso mais comum.
+- (assumido) Token de outra cena pode entrar na ordem (o mestre decide); o jogador só recebe as entradas de tokens da cena ativa.
+- (assumido) Marcadores no mapa: duas letras e uma cor por condição (Ag, Am, At, Ca, Ce, Ct, En, Ev, Ic, In, Iv, Pa, Pe, Su; E1 a E6 para a exaustão; Cn para a concentração); a regra aparece em dica ao passar o mouse (sem toque na tela).
+- (assumido) O "mestre vendo como o jogador X" vê o painel da ordem como o jogador vê (só leitura) e o menu do token fica desligado.
+- (assumido) A concentração carrega o resumo da regra (CD 10 ou metade do dano) só como texto; nenhum teste é feito sozinho. Nenhuma condição aplica vantagem ou desvantagem.
+- Sob a visão no escuro do jogador (tons de cinza) o anel da vez também aparece cinza; em luz normal é verde.
+
+### Desvios do plano
+
+- Nenhum no que o "Decidido antes de começar" pede. Sem dependência nova.
+- O botão do menu do token é um menu novo (o PROJETO.md fala em "o menu de botão direito do token", mas até aqui só existia o da alça da tocha).
+
+### Frágil / não verificado
+
+- O arrasto da lista usa o drag and drop do HTML5; a regra (`combate.mover`) tem teste de unidade, mas o arrasto com o mouse não tem E2E.
+- A dica das condições só aparece com o mouse; em tela de toque não há como lê-la (a lista na ficha mostra a regra no `title`).
+- O painel da ordem tem 364 px e, em janela de 1280 px, cobre o centro do mapa (o mestre pode escondê-lo no menu superior).
+- O `combate.alterado` leva o combate inteiro a cada mudança (até 200 entradas); para a mesa de 8 pessoas é pequeno, mas cresce com a lista.
+- A ordenação por nome usa `Intl.Collator("pt-BR")`; foi testada no Node e roda no V8 do Worker, mas não olhei o `wrangler dev` do Vilella com uma lista grande.
+- Não há automação de regra (desvantagem, falha automática, teste de concentração): o 7b.
+
+### Roteiro manual (pendente)
+
+1. Montar um combate com 3 jogadores e 4 NPCs na mesa real: "O grupo" e "Adicionar selecionados" para os monstros, "Rolar para todos" e conferir que as rolagens dos NPCs só aparecem para o mestre.
+2. Esconder o valor de um monstro ("?") e esconder outro token do mapa; olhar a tela de um jogador (ou "ver como") e conferir que o oculto não aparece.
+3. Avançar vários turnos, virar a rodada, voltar, arrastar uma entrada, "Ordenar", tirar a entrada da vez e encerrar (com a confirmação).
+4. Como jogador: rolar a própria iniciativa e passar o próprio turno; tentar passar o de outro (não deve aparecer botão).
+5. Botão direito num token: marcar 3 condições, Exaustão e concentração; olhar as dicas, a aba Principal da ficha e a tela do mestre.
+6. Exportar a campanha com o combate em andamento e importar de volta.
+
+### Revisão (antes do commit de fechamento)
+
+- Revisão (2026-11-09): sigilo conferido (`combateParaUsuario`, `eventoPara` que não manda mudança invisível, rolagem de NPC oculta); prints conferidos.
+- **Ajuste na revisão:** quem age pela entrada (rolar a própria, passar o próprio turno, marcar condições e concentração) passou de "quem edita o personagem do token" para **quem controla o token** (`controlaToken`: edita o personagem ou está em `controladoPor`), para o familiar ou o companheiro entregue a um jogador; o mesmo vale para abrir o menu do token e os botões do painel. Teste de unidade novo em `combate.test.ts`; `docs/protocolo.md` atualizado.
+- `pnpm verify` verde duas vezes depois do ajuste (473 + 23 + 6 de unidade, 108 E2E, ~9,5 min cada); portas 8788/5174 livres no fim. Sugestões aplicadas no PROJETO.md (4.1 e "Como ficou" do Lote 11); as perguntas do agente entraram em `docs/PERGUNTAS.md`.
+- O texto abaixo é do agente: `pnpm verify` verde **duas vezes seguidas**: 472 (shared) + 23 (servidor) + 6 (web) testes de unidade e **108 E2E**, ~9,3 min cada; portas 8788/5174 livres no fim. Nenhum processo meu ficou de pé.
+- Na primeira rodada falharam dois E2E antigos (`assets.spec.ts` e `interface.spec.ts`) só porque conferiam `versao` da exportação como 9: agora esperam 10.
+
+### Sugestões para o PROJETO.md (aplicadas)
+
+- 4.1: `Estado.combate?: Combate`; `EntradaDeCombate` ganha `jogador?`; `Token` ganha `condicoes?`, `exaustao?` e `concentracao?`; capacidade `combate.gerir` (só do mestre) na lista.
+- 4.2/exportação: versão 10 (ordem de turno e condições).
+- "Como ficou" do Lote 11 com o que está acima (o texto do "Decidido" já bate).
+- Perguntas ao Vilella: (a) "Adicionar selecionados" deveria aceitar vários tokens de uma vez (seleção múltipla no mapa ainda não existe)? (b) o jogador pode refazer a própria iniciativa, ou só o mestre? (c) a dica das condições deveria também abrir por clique, para tela de toque? (d) o nome da entrada deve seguir a renomeação do token?
+- Ideias para o 7b: teste de concentração com a CD sugerida; condições que aplicam vantagem ou desvantagem nas rolagens da ficha.
+
+---
+
+## Próximo: Lote 13 — Pincel e camada de desenho
+
+Ver `PROJETO.md`, seção 7. (O Lote 12 — MCP — fica para depois.)
+

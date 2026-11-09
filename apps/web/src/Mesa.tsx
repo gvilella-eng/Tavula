@@ -36,10 +36,12 @@ import { FaixaDeCenas, type PedirImagem } from "./FaixaDeCenas";
 import { JanelaDaFicha } from "./ficha/JanelaDaFicha";
 import { useJanelasDeFicha } from "./ficha/janelas";
 import { MenuDaTocha } from "./MenuDaTocha";
+import { MenuDoToken } from "./MenuDoToken";
 import { MenuSuperior } from "./MenuSuperior";
 import { Mapa } from "./mapa/Mapa";
 import type {
   ConfigDeVisao,
+  DicaDoMapa,
   Ferramenta,
   ImagensDoMapa,
   MapaPixi,
@@ -136,6 +138,11 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
   const [menuDaTocha, setMenuDaTocha] = useState<{ luzId: string; x: number; y: number } | null>(
     null,
   );
+  // O menu do botão direito no token (posição na página) e a dica do marcador de condição sob o mouse.
+  const [menuDoToken, setMenuDoToken] = useState<{ tokenId: string; x: number; y: number } | null>(
+    null,
+  );
+  const [dicaDoMapa, setDicaDoMapa] = useState<DicaDoMapa | null>(null);
   // "Ver como o jogador X" (só da tela do mestre): `null` = ele mesmo.
   const [verComoId, setVerComoId] = useState<string | null>(null);
   // Chat: de quem estou falando (vale também para os dados rápidos), a aba à vista e até onde já li.
@@ -313,6 +320,10 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
     () => (estado && usuarioVisto ? visaoPara(estado, usuarioVisto) : estado),
     [estado, usuarioVisto],
   );
+  // O anel da vez: a entrada da vez que quem olha recebe (o filtro da sala já tirou as que ele não vê).
+  const combateVisto = estadoVisto?.combate;
+  const tokenDaVezId =
+    combateVisto?.entradas.find((e) => e.id === combateVisto.atualId)?.tokenId ?? null;
   const selecionado =
     estado?.tokens.find((t) => t.id === selecionadoId && t.cenaId === cena?.id) ?? null;
   const paredeSelecionada =
@@ -424,6 +435,17 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
         enviar("ponto.acenderInicio", { pontoId, objetoId }),
       acenderPontoFim: (pontoId, objetoId) => enviar("ponto.acenderFim", { pontoId, objetoId }),
       menuDaTocha: (luzId, x, y) => setMenuDaTocha({ luzId, x, y }),
+      menuDoToken: (tokenId, x, y) => {
+        // O mestre sempre; o jogador só no token que ele controla (a sala confere de novo).
+        const e = estadoAtual.current;
+        const eu = euAtual.current;
+        const t = e?.tokens.find((k) => k.id === tokenId);
+        if (!e || !eu || !t) return;
+        if (eu.papel === "mestre" || controlaToken(t, eu, e.personagens)) {
+          setMenuDoToken({ tokenId, x, y });
+        }
+      },
+      dica: setDicaDoMapa,
       moverLuz: (id, x, y) =>
         enviar("fonte.editar", { id, mudancas: { portador: { tipo: "cena", x, y } } }),
       selecionarLuz: setLuzSelecionadaId,
@@ -474,6 +496,7 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
       encaixe,
       selecionadoId,
       // O mestre vê o grupo todo; o jogador só conhece os personagens dele (os outros não chegam).
+      tokenDaVezId,
       ehDoGrupo: (t: Token) => {
         if (euMestre) {
           const p = personagens?.find((x) => x.id === t.personagemId);
@@ -504,6 +527,7 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
       camadaTrabalho,
       encaixe,
       selecionadoId,
+      tokenDaVezId,
       eu,
       permissoes,
       cenaAtivaId,
@@ -865,7 +889,15 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
               {medicao.medida.rotulo}
             </div>
           )}
-          {estado.ordemDeTurnoVisivel && <OrdemDeTurno />}
+          {estado.ordemDeTurnoVisivel && (
+            <OrdemDeTurno
+              estado={estadoVisto ?? estado}
+              eu={eu}
+              enviar={enviar}
+              selecionadoId={selecionadoId}
+              somenteLeitura={usuarioVisto !== null}
+            />
+          )}
           {modoMestre && ferramenta === "paredes" && (
             <PainelDasParedes
               tipoNovo={tipoDaNovaParede}
@@ -918,6 +950,31 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
               pedirImagem={pedirImagem}
               aoFechar={() => setSelecionadoId(null)}
             />
+          )}
+          {menuDoToken && usuarioVisto === null && (
+            <MenuDoToken
+              estado={estado}
+              tokenId={menuDoToken.tokenId}
+              x={menuDoToken.x}
+              y={menuDoToken.y}
+              euMestre={euMestre}
+              enviar={enviar}
+              aoFechar={() => setMenuDoToken(null)}
+            />
+          )}
+          {dicaDoMapa && (
+            <div
+              className="dica-condicao"
+              role="tooltip"
+              data-testid="dica-condicao"
+              style={{
+                left: Math.min(dicaDoMapa.x + 14, window.innerWidth - 300),
+                top: Math.min(dicaDoMapa.y + 16, window.innerHeight - 150),
+              }}
+            >
+              <strong>{dicaDoMapa.titulo}</strong>
+              <p>{dicaDoMapa.texto}</p>
+            </div>
           )}
           {menuDaTocha && (
             <MenuDaTocha

@@ -1,4 +1,4 @@
-import { estadoInicial, type Mensagem } from "@tabletop/shared";
+import { type Combate, type EventoSala, estadoInicial, type Mensagem } from "@tabletop/shared";
 import { describe, expect, it } from "vitest";
 import semente from "../../../fixtures/campanha.seed.json";
 import { Armazenamento } from "./armazenamento";
@@ -82,7 +82,8 @@ describe("Armazenamento: histórico do chat", () => {
 
     const reaberto = new Armazenamento(sql as never);
     reaberto.migrar();
-    expect(reaberto.lerMeta("versao_esquema")).toBe("6");
+    // o Lote 11 acrescentou a migração do combate: a versão do esquema final é 7
+    expect(reaberto.lerMeta("versao_esquema")).toBe("7");
     expect(reaberto.chatAntes(null, 10)).toEqual([]);
     // a campanha antiga continua inteira
     const carregado = reaberto.carregar();
@@ -158,5 +159,124 @@ describe("Armazenamento: ficha do Lote 9", () => {
       .exec("SELECT dados FROM entidades WHERE colecao = 'personagens' AND id = 'pers-antigo'")
       .toArray()[0] as { dados: string };
     expect(JSON.parse(linha.dados)).toEqual(antigo);
+  });
+});
+
+describe("Armazenamento: combate do Lote 11", () => {
+  const combate: Combate = {
+    entradas: [
+      {
+        id: "e1",
+        tokenId: "tok-jogador-1",
+        nome: "Aldric",
+        iniciativa: 18,
+        destreza: 14,
+        jogador: true,
+      },
+      { id: "e2", nome: "Covil", iniciativa: 20, oculta: true },
+      { id: "e3", tokenId: "tok-ogro", nome: "Ogro", valorOculto: true },
+    ],
+    atualId: "e2",
+    rodada: 2,
+  };
+
+  it("banco do Lote 10 (versão 6, sem a tabela) abre sem quebrar, sem combate, e a campanha continua inteira", async () => {
+    const { sql } = await abrirBanco();
+    const original = new Armazenamento(sql as never);
+    original.migrar();
+    original.salvarTudo(estadoInicial(semente));
+    sql.exec("DROP TABLE combate");
+    original.gravarMeta("versao_esquema", "6");
+
+    const reaberto = new Armazenamento(sql as never);
+    reaberto.migrar();
+    expect(reaberto.lerMeta("versao_esquema")).toBe("7");
+    const carregado = reaberto.carregar();
+    expect(carregado?.combate).toBeUndefined();
+    expect(carregado?.personagens.map((p) => p.nome)).toContain("Aldric");
+    expect(carregado?.tokens.length).toBeGreaterThan(3);
+    // migrar de novo não faz nada
+    reaberto.migrar();
+    expect(reaberto.lerMeta("versao_esquema")).toBe("7");
+  });
+
+  it("grava o combate pelos eventos, regrava a cada mudança e apaga ao encerrar", async () => {
+    const { sql } = await abrirBanco();
+    const banco = new Armazenamento(sql as never);
+    banco.migrar();
+    const base = estadoInicial(semente);
+    banco.salvarTudo(base);
+    const evento = (c: Combate | null, seq: number): EventoSala => ({
+      seq,
+      origem: { usuarioId: "mestre", idPedido: "p" },
+      tipo: "combate.alterado",
+      dados: { combate: c },
+    });
+    banco.salvarEventos({ ...base, seq: 1, combate }, [evento(combate, 1)]);
+    // reinício: outro Armazenamento sobre o mesmo banco
+    const outro = new Armazenamento(sql as never);
+    outro.migrar();
+    expect(outro.carregar()?.combate).toEqual(combate);
+
+    const proximo = { ...combate, atualId: "e1" };
+    banco.salvarEventos({ ...base, seq: 2, combate: proximo }, [evento(proximo, 2)]);
+    expect(outro.carregar()?.combate?.atualId).toBe("e1");
+
+    banco.salvarEventos({ ...base, seq: 3 }, [evento(null, 3)]);
+    expect(outro.carregar()?.combate).toBeUndefined();
+  });
+
+  it("importar (salvarTudo) troca o combate; sem combate na campanha importada, o antigo some; apagarTudo também", async () => {
+    const { sql } = await abrirBanco();
+    const banco = new Armazenamento(sql as never);
+    banco.migrar();
+    const base = estadoInicial(semente);
+    banco.salvarTudo({ ...base, combate });
+    expect(banco.carregar()?.combate).toEqual(combate);
+    banco.salvarTudo(base);
+    expect(banco.carregar()?.combate).toBeUndefined();
+    banco.salvarTudo({ ...base, combate });
+    banco.apagarTudo();
+    banco.migrar();
+    expect(banco.carregar()).toBeNull();
+    const linhas = sql.exec("SELECT dados FROM combate").toArray();
+    expect(linhas).toEqual([]);
+  });
+
+  it("linha de combate ilegível não derruba a sala: vira sem combate", async () => {
+    const { sql } = await abrirBanco();
+    const banco = new Armazenamento(sql as never);
+    banco.migrar();
+    banco.salvarTudo(estadoInicial(semente));
+    sql.exec("INSERT OR REPLACE INTO combate (id, dados) VALUES (1, ?)", "{ não é json");
+    expect(banco.carregar()?.combate).toBeUndefined();
+    sql.exec(
+      "INSERT OR REPLACE INTO combate (id, dados) VALUES (1, ?)",
+      JSON.stringify({ rodada: "x" }),
+    );
+    expect(banco.carregar()?.combate).toBeUndefined();
+  });
+
+  it("as condições e a concentração moram no token e voltam do banco", async () => {
+    const { sql } = await abrirBanco();
+    const banco = new Armazenamento(sql as never);
+    banco.migrar();
+    const base = estadoInicial(semente);
+    const token = base.tokens.find((t) => t.id === "tok-jogador-1");
+    if (!token) throw new Error("sem token");
+    const novo = { ...token, condicoes: ["caido" as const], exaustao: 2, concentracao: "Bênção" };
+    banco.salvarTudo(base);
+    banco.salvarEventos(
+      { ...base, seq: 1, tokens: base.tokens.map((t) => (t.id === novo.id ? novo : t)) },
+      [
+        {
+          seq: 1,
+          origem: { usuarioId: "mestre", idPedido: "p" },
+          tipo: "token.editado",
+          dados: { token: novo },
+        },
+      ],
+    );
+    expect(banco.carregar()?.tokens.find((t) => t.id === novo.id)).toEqual(novo);
   });
 });

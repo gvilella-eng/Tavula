@@ -3,6 +3,8 @@ import {
   absorverMochila,
   CENA_PADRAO,
   type Cena,
+  type Combate,
+  CombateSchema,
   configComPadrao,
   type Estado,
   type EventoSala,
@@ -116,6 +118,14 @@ const MIGRACOES: Migracao[] = [
       dados TEXT NOT NULL
     )`);
   },
+  // Lote 11: a ordem de turno (o combate) numa tabela própria de uma linha só: aditiva, o banco antigo
+  // ganha a tabela vazia (= sem combate). As condições e a concentração moram dentro do token.
+  (sql) => {
+    sql.exec(`CREATE TABLE IF NOT EXISTS combate (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      dados TEXT NOT NULL
+    )`);
+  },
 ];
 
 /** Um arquivo pré-enviado de uma cena. */
@@ -181,6 +191,7 @@ export class Armazenamento {
       notaMesa: this.lerNota("mesa"),
       notaMestre: this.lerNota("mestre"),
       ...this.carregarMapa(),
+      ...this.carregarCombate(),
     };
   }
 
@@ -245,6 +256,30 @@ export class Armazenamento {
     };
   }
 
+  /** O combate gravado; linha ausente ou ilegível = sem combate (nunca quebra a carga). */
+  private carregarCombate(): { combate?: Combate } {
+    const linha = this.sql
+      .exec<{ dados: string }>("SELECT dados FROM combate WHERE id = 1")
+      .toArray()[0];
+    if (!linha) return {};
+    try {
+      const r = CombateSchema.safeParse(JSON.parse(linha.dados));
+      return r.success ? { combate: r.data } : {};
+    } catch {
+      return {};
+    }
+  }
+
+  private gravarCombate(combate: Combate | undefined): void {
+    if (combate === undefined) this.sql.exec("DELETE FROM combate");
+    else {
+      this.sql.exec(
+        "INSERT OR REPLACE INTO combate (id, dados) VALUES (1, ?)",
+        JSON.stringify(combate),
+      );
+    }
+  }
+
   /** O relógio da sala; sem ele (banco antigo) a mesa está rodando e a sala preenche `desdeReal`. */
   private lerRelogio(): RelogioSala {
     const bruto = this.lerMeta("relogio");
@@ -302,6 +337,7 @@ export class Armazenamento {
     for (const a of estado.assets ?? []) this.gravarEntidade("assets", a.hash, a);
     this.gravarMeta("cena_ativa", estado.cenaAtivaId);
     this.gravarMeta("ordem_de_turno", estado.ordemDeTurnoVisivel ? "1" : "0");
+    this.gravarCombate(estado.combate);
     this.gravarMeta("permissoes", JSON.stringify(estado.permissoes));
     this.gravarMeta("seq", String(estado.seq));
   }
@@ -399,6 +435,9 @@ export class Armazenamento {
           break;
         case "ordemDeTurno.alterada":
           this.gravarMeta("ordem_de_turno", ev.dados.visivel ? "1" : "0");
+          break;
+        case "combate.alterado":
+          this.gravarCombate(estado.combate);
           break;
         case "chat.mensagem":
           this.gravarMensagem(ev.dados.mensagem);
@@ -577,6 +616,7 @@ export class Armazenamento {
   /** Apaga todo o estado (só para as rotas de teste). */
   apagarTudo(): void {
     this.sql.exec("DELETE FROM preparos");
+    this.sql.exec("DELETE FROM combate");
     this.sql.exec("DELETE FROM chat");
     this.sql.exec("DELETE FROM posse");
     this.sql.exec("DELETE FROM entidades");

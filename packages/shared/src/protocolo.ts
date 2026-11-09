@@ -7,6 +7,8 @@ import {
   TODAS_AS_CAPACIDADES,
 } from "./capacidades.ts";
 import { LIMITES_DO_CHAT, MensagemSchema, TEXTO_DO_CHAT_MAX } from "./chat.ts";
+import { CombateSchema, IniciativaSchema, LIMITES_DO_COMBATE } from "./combate.ts";
+import { CondicaoSchema } from "./condicoes.ts";
 import { LIMITES_DE_DADOS } from "./dados.ts";
 import {
   CenaSchema,
@@ -52,8 +54,8 @@ import { migrarPersonagem, PersonagemAntigoSchema, pastasPadrao } from "./pastas
 import { PedidoDeModeloSchema } from "./rolagens.ts";
 
 export const VERSAO_PROTOCOLO = 1;
-/** Versão do arquivo de exportação (de v1 a v8 ainda são aceitas na importação). */
-export const VERSAO_EXPORTACAO = 9 as const;
+/** Versão do arquivo de exportação (de v1 a v9 ainda são aceitas na importação). */
+export const VERSAO_EXPORTACAO = 10 as const;
 
 const CapacidadeSchema = z.enum(TODAS_AS_CAPACIDADES as [Capacidade, ...Capacidade[]]);
 const Texto = z.string().max(TAMANHO_MAXIMO_NOTA);
@@ -148,7 +150,12 @@ const DadosV8Schema = DadosV6Schema.extend({
   pontos: z.array(PontoDeLuzSchema).max(2000),
   relogio: RelogioSalaSchema,
 });
-export type DadosExportados = z.infer<typeof DadosV8Schema>;
+/**
+ * v10 (Lote 11): acrescenta a ordem de turno (`combate`, opcional: sem ela não há combate). As condições
+ * e a concentração são campos opcionais do token: arquivos antigos os trazem ausentes.
+ */
+const DadosV10Schema = DadosV8Schema.extend({ combate: CombateSchema.optional() });
+export type DadosExportados = z.infer<typeof DadosV10Schema>;
 
 /** v1 (Lote 1): sem cenas nem tokens. Vira a cena padrão e nenhum token. */
 const DadosV1Schema = DadosV2Schema.omit({
@@ -160,7 +167,7 @@ const DadosV1Schema = DadosV2Schema.omit({
 const cabecalho = { formato: z.literal("tabletop-campanha"), exportadoEm: z.string() };
 
 /**
- * Aceita de v1 a v9; o resultado é sempre no formato v9. Nas antigas faltam assets, personagens,
+ * Aceita de v1 a v10; o resultado é sempre no formato v10. Nas antigas faltam assets, personagens,
  * pastas, paredes, luzes, configuração, modelos e pontos: entram vazios ou com o padrão (v4: o dono
  * vira "quem edita" numa pasta só do mestre; paredes só existem a partir da v6, luzes e configuração
  * da v7; modelos, pontos e relógio da v8). As luzes da v7 (`acesa`) viram objetos (`estado`).
@@ -176,10 +183,11 @@ export const ExportacaoSchema = z
     z.object({ ...cabecalho, versao: z.literal(7), dados: DadosV7Schema }),
     z.object({ ...cabecalho, versao: z.literal(8), dados: DadosV8Schema }),
     z.object({ ...cabecalho, versao: z.literal(9), dados: DadosV8Schema }),
+    z.object({ ...cabecalho, versao: z.literal(10), dados: DadosV10Schema }),
   ])
   .transform((e) => {
     const d = e.dados;
-    const novo = e.versao === 8 || e.versao === 9;
+    const novo = e.versao === 8 || e.versao === 9 || e.versao === 10;
     const luzes = novo ? e.dados.luzes : e.versao === 7 ? e.dados.luzes.map(migrarFonteAntiga) : [];
     const config = novo
       ? e.dados.config
@@ -322,6 +330,29 @@ const MudancasDoPersonagemSchema = z
     modInteligencia: PersonagemSchema.shape.modInteligencia.unwrap(),
     pvAtual: FichaSchema.shape.pvAtual,
     pvMax: FichaSchema.shape.pvMax,
+  })
+  .partial();
+
+/** Entrada nova da ordem de turno: de um token (o nome e a Destreza vêm dele) ou solta (precisa de nome). */
+const EntradaNovaSchema = z
+  .object({
+    id: IdSchema,
+    tokenId: IdSchema.optional(),
+    nome: z.string().trim().min(1).max(64).optional(),
+    iniciativa: IniciativaSchema.optional(),
+    valorOculto: z.boolean().optional(),
+    oculta: z.boolean().optional(),
+  })
+  .refine((e) => e.tokenId !== undefined || e.nome !== undefined, {
+    message: "entrada solta precisa de nome",
+  });
+const MudancasDaEntradaSchema = z
+  .object({
+    nome: z.string().trim().min(1).max(64),
+    /** `null`: tira o valor (a entrada volta a esperar a rolagem). */
+    iniciativa: IniciativaSchema.nullable(),
+    valorOculto: z.boolean(),
+    oculta: z.boolean(),
   })
   .partial();
 
@@ -596,6 +627,47 @@ export const IntencaoSchema = z.discriminatedUnion("tipo", [
   intencao("chat.anteriores", z.object({ antesDoSeq: z.number().int().positive() })),
   /** Só o mestre: apaga o histórico do chat. */
   intencao("chat.limpar", SemDados),
+  /**
+   * Combate (Lote 11). Tudo do mestre (`combate.gerir`), menos `combate.rolar` (o mestre rola para
+   * todos ou para algumas entradas; o jogador, só a do personagem que ele edita) e `combate.passar`
+   * (quem edita o personagem da vez). A vez é sempre o id da entrada.
+   */
+  intencao(
+    "combate.adicionar",
+    z.object({ entradas: z.array(EntradaNovaSchema).min(1).max(LIMITES_DO_COMBATE.entradas) }),
+  ),
+  intencao("combate.tirar", z.object({ id: IdSchema })),
+  intencao("combate.editar", z.object({ id: IdSchema, mudancas: MudancasDaEntradaSchema })),
+  /** Arrasto à mão: a entrada vai para a posição `indice` da lista. */
+  intencao("combate.mover", z.object({ id: IdSchema, indice: z.number().int().min(0).max(1000) })),
+  /** Volta a lista à ordem pelos valores. */
+  intencao("combate.ordenar", SemDados),
+  /**
+   * Rola a iniciativa. Mestre sem `ids`: de todos que ainda não têm valor; com `ids`: dessas entradas
+   * (de novo, se já tinham). Jogador: `ids` obrigatório, só entradas dos tokens que ele controla e
+   * que ainda não têm valor. As de NPC vão ocultas para o chat.
+   */
+  intencao("combate.rolar", z.object({ ids: z.array(IdSchema).min(1).max(200).optional() })),
+  intencao("combate.proximo", SemDados),
+  intencao("combate.anterior", SemDados),
+  /** Passa o turno da entrada da vez (quem edita o personagem dela; o mestre também pode). */
+  intencao("combate.passar", SemDados),
+  /** Limpa a lista e a rodada. */
+  intencao("combate.encerrar", SemDados),
+  /**
+   * Condições, exaustão e concentração de um token (Lote 11): o mestre ou quem edita o personagem do
+   * token. Só muda o que vier: `condicoes` troca a lista inteira, `exaustao` 0 tira, `concentracao`
+   * `null` tira.
+   */
+  intencao(
+    "token.condicoes",
+    z.object({
+      id: IdSchema,
+      condicoes: z.array(CondicaoSchema).max(14).optional(),
+      exaustao: z.number().int().min(0).max(6).optional(),
+      concentracao: z.string().trim().min(1).max(64).nullable().optional(),
+    }),
+  ),
   intencao("campanha.exportar", SemDados),
   intencao("campanha.importar", z.object({ dados: z.unknown() })),
 ]);
@@ -679,6 +751,19 @@ export const capacidadeDaIntencao: Record<TipoIntencao, Capacidade | null> = {
   "chat.modelo": null,
   "chat.anteriores": null,
   "chat.limpar": "mesa.configurar",
+  // Mestre: rola para todos ou para algumas entradas; jogador: a própria. `processar` confere.
+  "combate.rolar": null,
+  "combate.passar": null,
+  "combate.adicionar": "combate.gerir",
+  "combate.tirar": "combate.gerir",
+  "combate.editar": "combate.gerir",
+  "combate.mover": "combate.gerir",
+  "combate.ordenar": "combate.gerir",
+  "combate.proximo": "combate.gerir",
+  "combate.anterior": "combate.gerir",
+  "combate.encerrar": "combate.gerir",
+  // Mestre ou quem edita o personagem do token: `processar` confere.
+  "token.condicoes": null,
   "campanha.exportar": "campanha.exportar",
   "campanha.importar": "campanha.importar",
 };
@@ -746,6 +831,11 @@ export const EventoSalaSchema = z.discriminatedUnion("tipo", [
   /** Só o filtro cria o "some" de pasta que o jogador deixou de ver; o mestre também a recebe ao apagar. */
   eventoDe("pasta.apagada", z.object({ id: IdSchema })),
   eventoDe("ordemDeTurno.alterada", z.object({ visivel: z.boolean() })),
+  /**
+   * O combate inteiro depois da mudança (o cliente troca o dele; `null`: o combate acabou). Para o
+   * jogador já vem filtrado: só as entradas que ele vê, sem Destreza e com "?" no lugar do valor oculto.
+   */
+  eventoDe("combate.alterado", z.object({ combate: CombateSchema.nullable() })),
   /** Os tokens dele já saíram em `token.apagado`; este tira o personagem (também de quem deixou de vê-lo). */
   eventoDe("personagem.apagado", z.object({ id: IdSchema })),
   /** Só mestres recebem os eventos de cena, exceto `cena.editada` da cena ativa. */

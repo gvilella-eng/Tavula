@@ -75,7 +75,7 @@ function ResultadoDoModelo({ mensagem }: { mensagem: Mensagem }) {
       data-sucesso={m.sucesso === undefined ? undefined : String(m.sucesso)}
     >
       <div className="modelo-titulo">
-        <strong>Teste: {m.nome}</strong>
+        <strong>{m.nome === "Iniciativa" ? "Iniciativa" : `Teste: ${m.nome}`}</strong>
         {m.vantagem !== "normal" && (
           <span className="etiqueta-vantagem">{ROTULO_DA_VANTAGEM[m.vantagem]}</span>
         )}
@@ -138,7 +138,12 @@ export function MensagemDoChat({ mensagem, usuarios, euId, imagens, versaoDasIma
 
   let corpo: ReactNode;
   if (mensagem.tipo === "modelo") {
-    corpo = <ResultadoDoModelo mensagem={mensagem} />;
+    corpo = (
+      <>
+        {mensagem.texto && <p className="texto-chat">{mensagem.texto}</p>}
+        <ResultadoDoModelo mensagem={mensagem} />
+      </>
+    );
   } else if (mensagem.tipo === "rolagem" && mensagem.inline) {
     corpo = (
       <p className={`texto-chat ${mensagem.acao ? "acao-chat" : ""}`}>

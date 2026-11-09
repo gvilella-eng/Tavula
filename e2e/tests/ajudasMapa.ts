@@ -15,10 +15,16 @@ export type TokenVisto = {
   camada: string;
   /** Está sendo desenhado (o jogador não desenha o que está fora da visão). */
   desenhado: boolean;
+  /** O anel da vez (ordem de turno) está aceso. */
+  emVez: boolean;
+  /** Os marcadores de condição desenhados na borda (título de cada um). */
+  marcas: string[];
 };
 
 export type GanchoDoMapa = {
   tokens(): TokenVisto[];
+  /** Onde está o marcador de condição `indice` do token (posição na página). */
+  marcaNaPagina(id: string, indice: number): { x: number; y: number } | null;
   paraTela(x: number, y: number): { x: number; y: number };
   zoom(): number;
   definirZoom(z: number): void;

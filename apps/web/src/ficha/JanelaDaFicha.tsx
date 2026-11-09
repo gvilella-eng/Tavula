@@ -120,6 +120,8 @@ export function JanelaDaFicha({
     alterar,
     editar: editar && temFicha,
     rolador,
+    // As condições moram no token: o do personagem na cena ativa (o que quem olha recebe).
+    token: estado.tokens.find((t) => t.personagemId === p.id && t.cenaId === estado.cenaAtivaId),
   };
 
   function confirmarDescanso() {
