@@ -1727,6 +1727,30 @@ entra nas perguntas do fim):**
 
 **Pronto quando:** `pnpm verify` verde.
 
+**Decidido antes de começar (2026-11-09; prevalece sobre os itens acima onde conflitar; "(assumido)"
+entra nas perguntas do fim):**
+- **Formato** (`packages/shared/src/compendio.ts`, zod): `{ formato: 'tabletop-compendio', versao: 1,
+  magias: { nome, nomeOriginal?, nivel, escola, tempo, alcance, componentes, duracao, concentracao,
+  ritual, classes[], descricao, emNiveisSuperiores? }[] }`, com limites de tamanho por campo e no total.
+  Um conversor de outros formatos fica para depois.
+- **Premissa das imagens:** o mestre põe `compendio/magias.json` na pasta local dele. O arquivo nunca
+  fica no servidor: o navegador do mestre valida o JSON, registra o arquivo como asset (tipo novo
+  `compendio`, por hash) e define o compêndio da mesa (`Estado.compendio?: { hash, nomeOriginal,
+  magias: number }`, intenção do mestre); os jogadores o recebem pelo mesmo caminho das imagens
+  (pedaços, cache local) e todos podem consultar (assumido). Sem pasta ou sem arquivo, a aba mostra
+  como montar o JSON; arquivo inválido mostra o erro (com o campo) e não é distribuído; "Recarregar"
+  relê o arquivo da pasta.
+- **Repositório:** nenhum texto de magia com direitos autorais no repo. Um exemplo com 3 magias do SRD
+  5.1 (CC-BY-4.0, com a atribuição) em `fixtures/compendio/exemplo-srd.json` para testes.
+- **Aba Compêndio** (o ícone já existe na barra lateral): busca por nome e nome original (sem acento e
+  sem caixa), filtros de nível, escola, classe, concentração e ritual; a magia abre um cartão com a
+  descrição completa.
+- **Ações:** "Mandar para o chat" (mensagem nova do tipo `magia`, com a magia dentro e limites de
+  tamanho; "Como:" o personagem; a descrição recolhível) e "Adicionar à ficha" (escolhe o personagem
+  que eu edito; entra na lista de magias com nível, escola e a descrição montada com os campos; se já
+  existe uma com o mesmo nome, avisa e não duplica) (assumido).
+- Monstros e armas ficam para depois.
+
 ---
 
 ### Depois (fora dos lotes atuais)
