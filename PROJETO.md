@@ -1667,6 +1667,8 @@ dela e revisar o rascunho antes de publicar.
 **Assumido até o Vilella decidir:** o jogador apaga e seleciona só os próprios desenhos; o mestre, todos.
 Desenhar é uma capacidade delegável, ligada por padrão.
 
+**Pronto quando:** `pnpm verify` verde.
+
 **Decidido antes de começar (2026-11-09; prevalece sobre os itens acima onde conflitar; "(assumido)"
 entra nas perguntas do fim):**
 - **Desenho** (`Desenho`, coleção `desenhos`, tabela nova): `{ id, cenaId, autorId, forma: 'livre' |
@@ -1687,9 +1689,6 @@ entra nas perguntas do fim):**
   (assumido); o mestre mexe em todos e tem "Limpar todos os desenhos" (da cena) no menu de camadas, com
   confirmação. Apagar a cena apaga os desenhos dela; duplicar a cena duplica os desenhos.
 - Exportação: os desenhos entram (versão nova).
-
-
-**Pronto quando:** `pnpm verify` verde.
 
 ---
 
