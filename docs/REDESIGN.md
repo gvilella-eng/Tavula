@@ -8,6 +8,9 @@ Protótipos (página privada no claude.ai): https://claude.ai/artifact/VuLaqV3CF
 
 ## Decidido (2026-11-10)
 
+- **Nome: Távola** (escolhido pelo Vilella entre Lume e Távola). Símbolo: uma mesa redonda vista de cima,
+  com os lugares em volta e uma chama no centro (o "lume" fica no símbolo). Em código, pastas e endereços
+  sem acento: `tavola`. Entra no logo, no título da aba e na tela de entrada.
 - **Identidade: Grimório** (direção A): tons escuros quentes e latão/amarelo. É a identidade principal do
   projeto e o tema padrão.
 - **Mais contraste** entre as barras fixas e o mapa: as barras (couro) bem mais claras e quentes que o fundo
@@ -30,9 +33,6 @@ Protótipos (página privada no claude.ai): https://claude.ai/artifact/VuLaqV3CF
 
 ## Em aberto
 
-- **Nome do projeto.** Sugestões: Lume (favorito do Vilella até agora), Penumbra, Archote, Távola, Brasa,
-  Candeia, Limiar, Fanal, Lucerna, Candela, Fagulha. O nome entra no logo, no título da aba e na tela de
-  entrada.
 - Levantamento de usabilidade (prints de todas as telas em `scratchpad/prints-auditoria`, gerados por
   `e2e/prints/auditoria.spec.ts`) e o plano de lotes do redesign.
 - Itens de interface que vieram dos lotes: a janela da ficha lembrar a posição (resolvido pelas janelas

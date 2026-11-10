@@ -1832,11 +1832,11 @@ Regras para o agente que implementa:
 - A duração da tocha é do modelo de objeto de cada campanha (a "5e padrão" usa 1 h).
 
 **Em aberto:**
-- **Nome do projeto** (entra no redesign e branding).
 - Assumido até decidir: tocha apagada continua ocupando a mão; qualquer jogador no alcance tira uma
   tocha de um suporte; entregar exige alcance (padrão 1,5 m) para os jogadores.
 
 **Decidido em 2026-11-10:**
+- **Nome do projeto: Távola** (`tavola` em código e pastas); detalhes do redesign em `docs/REDESIGN.md`.
 - A névoa continua **só automática** (visão dos tokens, luz e memória do mapa); revelar à mão fica em
   `docs/IDEIAS.md`.
 - Na visão do mestre, a área que um jogador vê só com visão no escuro aparece em **cor normal** (o cinza

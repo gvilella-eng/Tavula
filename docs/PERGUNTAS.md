@@ -16,7 +16,7 @@ Juntadas durante os Lotes 6 a 14 (2026-11-06 a 10) para fazer ao Vilella no fim.
 - Visibilidade do item = pela pasta + editores? (assumido)
 - Compêndio: JSON local (direitos do Livro do Jogador; SRD é a alternativa livre)?
 - Tocha: apagada ocupa mão? qualquer jogador no alcance tira do suporte? entregar exige 1,5 m? (assumido)
-- Nome do projeto.
+- ~~Nome do projeto~~: **Távola** (2026-11-10).
 - Névoa manual (o mestre revela áreas) × só automática?
 - Ícone de eventos (7b) e o desenho das automações; MCP (12).
 - Lista de ajustes de interface que ele quer fazer.
