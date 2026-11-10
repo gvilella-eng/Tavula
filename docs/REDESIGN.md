@@ -15,7 +15,12 @@ Protótipos (página privada no claude.ai): https://claude.ai/artifact/VuLaqV3CF
 - **Fontes:** Space Grotesk (títulos, logo, números grandes) + Inter (interface). Empacotadas no app
   (pacotes `@fontsource` pelo pnpm), **nunca** carregadas da internet em execução. Alternativas na mesma
   pegada, se precisar: Sora, Bricolage Grotesque, Manrope.
-- **Barras fixas** (topo, ferramentas à esquerda, painel à direita); o mapa ocupa o meio.
+- **Barras fixas** (topo, ferramentas à esquerda, painel à direita); o mapa ocupa o meio. Topo com **48 px**
+  de altura e barra de ferramentas com **52 px** de largura.
+- **Painel lateral direito** é uma coluna à parte, **de cima a baixo** (o topo termina onde ele começa), com
+  fundo próprio (leve degradê no alto), filete na cor de destaque do tema na borda esquerda e sombra sobre o
+  mapa. **Largura ajustável por cada usuário** arrastando a borda esquerda: mínimo de 300 px (o suficiente
+  para nada quebrar) e máximo de 1/4 da largura da tela; guardada no navegador de cada um.
 - **Janelas flutuantes** (ordem de turno, ficha, painéis de luz etc.): arrastáveis para qualquer lugar pelo
   cabeçalho, com a posição **de cada usuário** (x e y por pessoa, guardados no navegador dele, nunca na
   sala); **dois cliques no cabeçalho minimizam** (vira só a barra do título) e dois cliques restauram.
