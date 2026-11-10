@@ -691,7 +691,7 @@ describe("combate: exportação (v10 em diante)", () => {
       concentracao: "Bênção",
     }).estado;
     const exportacao = criarExportacao(estado, AGORA);
-    expect(exportacao.versao).toBe(11);
+    expect(exportacao.versao).toBe(12);
     const lida = lerExportacao(JSON.parse(JSON.stringify(exportacao)));
     if (!lida.ok) throw new Error(lida.motivo);
     expect(lida.exportacao.dados.combate).toEqual(estado.combate);
@@ -713,7 +713,7 @@ describe("combate: exportação (v10 em diante)", () => {
     v10.dados.combate = undefined;
     const lida = lerExportacao(v10);
     if (!lida.ok) throw new Error(lida.motivo);
-    expect(lida.exportacao.versao).toBe(11);
+    expect(lida.exportacao.versao).toBe(12);
     expect(lida.exportacao.dados.combate).toBeUndefined();
   });
 

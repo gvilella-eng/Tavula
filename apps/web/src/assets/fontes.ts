@@ -1,3 +1,4 @@
+import { CAMINHO_DO_COMPENDIO } from "@tabletop/shared";
 import {
   type ArquivoDaFonte,
   ArquivosSoltos,
@@ -80,6 +81,31 @@ export class Fontes {
   /** A pasta local, se autorizada para escrita (nunca a memória dos testes): a ficha exportada vai para `fichas/`. */
   pastaGravavel(): FonteDeAssets | null {
     return this.pasta && this.estadoDaPasta === "autorizada" ? this.pasta : null;
+  }
+
+  /** Um arquivo do compêndio escolhido à mão (para quem não tem seletor de pasta); vale até recarregar a página. */
+  private compendioSolto: File | null = null;
+
+  /** O arquivo `compendio/magias.json` do mestre: da pasta (se autorizada), da memória dos testes ou escolhido à mão. */
+  async abrirCompendio(): Promise<File | null> {
+    const caminho = CAMINHO_DO_COMPENDIO;
+    if (this.pasta && this.estadoDaPasta === "autorizada") {
+      const f = await this.pasta.abrirPorCaminho(caminho);
+      if (f) return f;
+    }
+    const daMemoria = await this.memoria?.abrirPorCaminho(caminho);
+    if (daMemoria) return daMemoria;
+    return this.compendioSolto;
+  }
+
+  escolherCompendioSolto(arquivo: File): void {
+    this.compendioSolto = arquivo;
+    this.mudou();
+  }
+
+  /** Avisa quem observa as fontes que algo mudou (o gancho de teste usa ao pôr um arquivo na pasta). */
+  notificar(): void {
+    this.mudou();
   }
 
   /** Imagens que o usuário pode usar agora: da pasta (se autorizada), soltas e da memória. */

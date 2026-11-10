@@ -49,7 +49,12 @@ const TEMPO_RECONECTANDO_MS = 10_000;
 const INTERVALO_USO_MS = 5_000;
 const MENSAGENS_POR_LOTE_DE_USO = 50;
 /** As intenções que criam uma mensagem no chat: limitadas a 10 por segundo, por conexão. */
-const INTENCOES_DE_CHAT = new Set<string>(["chat.enviar", "dado.rolar", "chat.modelo"]);
+const INTENCOES_DE_CHAT = new Set<string>([
+  "chat.enviar",
+  "dado.rolar",
+  "chat.modelo",
+  "chat.magia",
+]);
 /** Quantas linhas do histórico a sala lê de cada vez ao procurar o que o usuário pode ver. */
 const PAGINA_DO_HISTORICO = 400;
 

@@ -64,6 +64,11 @@ Juntadas durante os Lotes 6 a 10 (2026-11-06/07) para fazer ao Vilella no fim. O
 
 ## Lote 14
 - Compêndio distribuído como asset (o mestre tem o JSON, os jogadores recebem pelo caminho das imagens).
+- Quem manda no compêndio quando há dois mestres? Compêndio pessoal do jogador?
+- Avisar quando a classe do personagem não conjura a magia adicionada?
+- Mostrar as classes e o nome original na lista do compêndio?
+- Conversor de outros formatos; monstros e armas no mesmo arquivo ou em outro?
+- Conferir a tradução das 3 magias do exemplo do SRD.
 
 ## Lote 8 (do agente)
 - Seta para cima deve reenviar ou só trazer a mensagem de volta? (assumido: só trazer)

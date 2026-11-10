@@ -78,7 +78,7 @@ test("a ordem de turno liga e desliga para todos, inclusive o mestre; só o mest
     mestre.pagina.getByTestId("exportar").click(),
   ]);
   const json = JSON.parse(readFileSync(await download.path(), "utf8"));
-  expect(json.versao).toBe(11);
+  expect(json.versao).toBe(12);
   expect(json.dados.ordemDeTurnoVisivel).toBe(true);
   expect(json.dados.pastas.map((p: { id: string }) => p.id)).toEqual([
     "pasta-personagens",
@@ -295,12 +295,11 @@ test("barra da direita: Chat, Fichas, Compêndio, Configurações e Mestre (larg
   await expect(p.getByTestId("editor-pasta-visivel")).toContainText("só o mestre");
   await p.getByTestId("janela-ficha-fechar").click();
 
-  // Compêndio: busca e mensagem "em breve"; nada é buscado na internet
+  // Compêndio (Lote 14): sem arquivo na pasta, o mestre vê como montar o JSON; nada é buscado na internet
   await abrirAba(p, "compendio");
-  await expect(p.getByTestId("compendio-busca")).toBeVisible();
-  await expect(p.getByTestId("compendio-aviso")).toContainText("JSON");
-  await p.getByTestId("compendio-busca").fill("bola de fogo");
-  await expect(p.getByTestId("compendio-aviso")).toContainText("Nenhuma magia");
+  await expect(p.getByTestId("compendio-como-montar")).toBeVisible();
+  await expect(p.getByTestId("compendio-exemplo")).toContainText("tabletop-compendio");
+  await expect(p.getByTestId("compendio-recarregar")).toBeVisible();
 
   // Configurações: usuário, preferências, pasta local e transferências
   await abrirAba(p, "configuracoes");

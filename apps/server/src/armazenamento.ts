@@ -5,6 +5,8 @@ import {
   type Cena,
   type Combate,
   CombateSchema,
+  type CompendioDaMesa,
+  CompendioDaMesaSchema,
   configComPadrao,
   type Desenho,
   DesenhoSchema,
@@ -205,6 +207,7 @@ export class Armazenamento {
       notaMestre: this.lerNota("mestre"),
       ...this.carregarMapa(),
       ...this.carregarCombate(),
+      ...this.carregarCompendio(),
       desenhos: this.carregarDesenhos(),
     };
   }
@@ -330,6 +333,26 @@ export class Armazenamento {
     }
   }
 
+  /**
+   * O compêndio da mesa (Lote 14): só a referência ao asset, na tabela `meta` (sem migração: o banco antigo
+   * simplesmente não tem a chave = sem compêndio). Nunca o texto das magias. Valor ilegível = sem compêndio.
+   */
+  private carregarCompendio(): { compendio?: CompendioDaMesa } {
+    const bruto = this.lerMeta("compendio");
+    if (bruto === null) return {};
+    try {
+      const r = CompendioDaMesaSchema.safeParse(JSON.parse(bruto));
+      return r.success ? { compendio: r.data } : {};
+    } catch {
+      return {};
+    }
+  }
+
+  private gravarCompendio(compendio: CompendioDaMesa | undefined): void {
+    if (compendio === undefined) this.sql.exec("DELETE FROM meta WHERE chave = 'compendio'");
+    else this.gravarMeta("compendio", JSON.stringify(compendio));
+  }
+
   /** O relógio da sala; sem ele (banco antigo) a mesa está rodando e a sala preenche `desdeReal`. */
   private lerRelogio(): RelogioSala {
     const bruto = this.lerMeta("relogio");
@@ -388,6 +411,7 @@ export class Armazenamento {
     this.gravarMeta("cena_ativa", estado.cenaAtivaId);
     this.gravarMeta("ordem_de_turno", estado.ordemDeTurnoVisivel ? "1" : "0");
     this.gravarCombate(estado.combate);
+    this.gravarCompendio(estado.compendio);
     this.sql.exec("DELETE FROM desenhos");
     for (const d of estado.desenhos) this.gravarDesenho(d);
     this.gravarMeta("permissoes", JSON.stringify(estado.permissoes));
@@ -490,6 +514,9 @@ export class Armazenamento {
           break;
         case "combate.alterado":
           this.gravarCombate(estado.combate);
+          break;
+        case "compendio.alterado":
+          this.gravarCompendio(estado.compendio);
           break;
         case "desenho.criado":
           this.gravarDesenho(ev.dados.desenho);

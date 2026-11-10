@@ -175,6 +175,10 @@ test("o jogador não mexe no desenho do mestre (a interface não deixa e a sala 
     { x: 10, y: 9 },
   ]);
   await expect.poll(() => quantos(mestre.pagina)).toBe(2);
+  // a confirmação da sala pode chegar ao autor um pouco depois de chegar ao mestre
+  await expect
+    .poll(async () => (await desenhosDe(p)).some((d) => d.autorId === "jogador-1"))
+    .toBe(true);
   const meu = (await desenhosDe(p)).find((d) => d.autorId === "jogador-1");
   if (!meu) throw new Error("sem desenho do jogador");
 

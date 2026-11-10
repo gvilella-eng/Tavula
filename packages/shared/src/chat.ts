@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { HashSchema } from "./assets.ts";
+import { MagiaDoCompendioSchema } from "./compendio.ts";
 import { lerExpressao, RolagemSchema } from "./dados.ts";
 import type { ConfigDaMesa, Usuario } from "./estado.ts";
 import { ResultadoDeModeloSchema } from "./rolagens.ts";
@@ -49,7 +50,7 @@ export const MensagemSchema = z.object({
   emReal: z.number().nonnegative(),
   autorId: Id,
   como: ComoSchema.optional(),
-  tipo: z.enum(["texto", "rolagem", "modelo"]),
+  tipo: z.enum(["texto", "rolagem", "modelo", "magia"]),
   texto: z.string().max(LIMITES_DO_CHAT.caracteres).optional(),
   /** `/em`: ação em terceira pessoa ("Brisa olha em volta"). */
   acao: z.boolean().optional(),
@@ -57,6 +58,8 @@ export const MensagemSchema = z.object({
   inline: z.boolean().optional(),
   rolagens: z.array(RolagemSchema).max(LIMITES_DO_CHAT.inline).optional(),
   modelo: ResultadoDeModeloSchema.optional(),
+  /** Mensagem `magia` (Lote 14): a magia do compêndio, inteira, com os limites do formato. */
+  magia: MagiaDoCompendioSchema.optional(),
   visivelPara: VisibilidadeDaMensagemSchema,
   /** Rolagem oculta (`/gr`): só o autor e o mestre. */
   oculta: z.boolean().optional(),

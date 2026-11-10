@@ -4,6 +4,7 @@ export * from "./chat.ts";
 export * from "./cifra.ts";
 export * from "./combate.ts";
 export * from "./combatenucleo.ts";
+export * from "./compendio.ts";
 export * from "./condicoes.ts";
 export { nomeDaSala, PORTA_SALA, PORTA_SALA_E2E, PORTA_WEB, PORTA_WEB_E2E } from "./constantes.ts";
 export * from "./dados.ts";

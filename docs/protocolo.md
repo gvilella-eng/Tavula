@@ -1,6 +1,6 @@
 # Protocolo cliente ↔ sala
 
-## Versão atual: v1 (Lotes 1, 2, 3, 4, 4b, 5, 6, 7, 8, 9, 10, 11 e 13)
+## Versão atual: v1 (Lotes 1, 2, 3, 4, 4b, 5, 6, 7, 8, 9, 10, 11, 13 e 14)
 
 Os schemas zod ficam em `packages/shared/src/protocolo.ts` e `estado.ts`; a lógica pura (conferir
 capacidade, aplicar, filtrar por papel) em `nucleo.ts` e `capacidades.ts`. O cliente e a sala validam
@@ -88,6 +88,7 @@ fica dentro de `0..larguraM` × `0..alturaM`), não recusada.
 | `grupo.moverPara` | `{ cenaId }` | `cena.editar` | **uma única mensagem**: os tokens dos personagens de jogador que estão na cena ativa vão para a chegada da cena de destino, lado a lado e sem sobreposição (`arrumarNoGrid`); NPC fica; a cena de destino vira a ativa; **todos recebem snapshot novo**; antes dele cada jogador recebe `preparo.chaves`. Mesma cena: nada muda |
 | `cena.preparar` | `{ cenaId, pacotes: [{ hashCifrado, hashOriginal, chave }] }` (1 a 200; hashes e chave em 64 hex) | `cena.editar` | guarda os pacotes e as chaves (SQLite, tabela `preparos`) e avisa os jogadores com `preparo.disponivel`. A sala só aceita pacote cujo `hashCifrado` é um asset `cifrado` registrado (`asset_inexistente`) e cujo `hashOriginal` é um arquivo que os jogadores veriam naquela cena (mapa e imagem de token visível; `dados_invalidos`). Não gera evento |
 | `desenho.criar`, `desenho.mover`, `desenho.apagar`, `desenho.voltar`, `desenho.limpar`, `desenho.rascunho` | ver "Pincel e desenhos (Lote 13)" | `desenho.criar` (`desenho.limpar`: `cena.editar`) | o pincel |
+| `compendio.definir`, `chat.magia` | ver "Compêndio de magias (Lote 14)" | `mesa.configurar` (só do mestre) e nenhuma | o compêndio da mesa e a magia no chat |
 | `campanha.exportar` | `{}` | `campanha.exportar` (só do mestre) | a sala responde `exportacao` a quem pediu |
 | `campanha.importar` | `{ dados }`: o arquivo de exportação inteiro | `campanha.importar` (só do mestre) | substitui o estado inteiro e manda snapshot novo a todos |
 
@@ -145,6 +146,7 @@ Códigos de erro: `mensagem_invalida`, `sem_permissao`, `ultimo_mestre`, `usuari
 | `desenho.limpo` | `{ cenaId }` | idem: todos os desenhos da cena saem |
 | `personagem.apagado` | `{ id }` | mestres; jogador que o via |
 | `asset.registrado` | `{ meta }` | **só mestres** (as metas dos jogadores chegam por `asset.meta`, sob demanda) |
+| `compendio.alterado` | `{ compendio: { hash, nomeOriginal, magias } \| null }` | todos (é só a referência ao asset; ver "Compêndio de magias (Lote 14)") |
 
 #### Sigilo de cena e de personagem (Lote 4)
 
@@ -214,6 +216,7 @@ Estado { seq, usuarios: Usuario[], permissoes: Permissoes, notaMesa, notaMestre?
          pontos: PontoDeLuz[] /* Lote 7; jogador: os visíveis da cena ativa */, relogio: RelogioSala /* Lote 7; jogador: só "pausada" */,
          config: ConfigDaMesa /* Lotes 6 e 7; todos */, memoriaEsquecida?: Record<cenaId, seq> /* Lote 6; jogador: só a ativa */,
          ordemDeTurnoVisivel: boolean, combate?: Combate /* Lote 11; jogador: só as entradas que ele vê */,
+         compendio?: { hash, nomeOriginal, magias: number } /* Lote 14; todos: só a referência ao asset */,
          assets?: AssetMeta[] /* só na visão do mestre */ }
 Cena  { id, nome, larguraM, alturaM, grid: { quadradoM, visivel }, iluminacaoDinamica?, luzAmbiente?, fatorDeLuz?, // Lotes 5 e 6          // padrão: cena-1, 60 x 45 m, quadrado 1,5 m
         mapa?: { assetHash, pxPorQuadrado },
@@ -229,7 +232,7 @@ Personagem { id, pastaId, editores: { tipo: "todos" } | { tipo: "jogadores", ids
              visao: { alcanceM: number | null, visaoNoEscuroM },
              ficha?: Ficha /* Lote 9; ausente na visão de quem não edita e não tem `ficha.verOutras` */,
              modInteligencia?: number /* reserva (ficha sem atributos); vem calculado para quem não vê a ficha */ }
-AssetMeta { hash /* SHA-256 hex do arquivo processado */, tipo: "mapa" | "token" | "retrato" | "tile" | "cifrado",
+AssetMeta { hash /* SHA-256 hex do arquivo processado */, tipo: "mapa" | "token" | "retrato" | "tile" | "cifrado" | "compendio",
             mime, bytes, largura, altura, donoId, nomeOriginal,
             pedacos: string[] /* SHA-256 de cada pedaço de 256 KB */,
             tiles?: { hash, x, y, largura, altura }[] /* só no manifesto de mapa fatiado */ }
@@ -346,7 +349,7 @@ jogador: nunca as exclusivas do mestre; senão a exceção por usuário, se houv
 
 ### Exportação
 
-`{ formato: "tabletop-campanha", versao: 11, exportadoEm, dados: { seq, usuarios, permissoes, notaMesa, notaMestre, cenas, cenaAtivaId, tokens, paredes, luzes, modelos, pontos, relogio, config, pastas, personagens, ordemDeTurnoVisivel, combate?, desenhos, assets } }`. A **v11** (Lote 13) acrescenta `desenhos` (os desenhos do pincel, ver "Pincel e desenhos"); de v1 a v10 continuam aceitas (o resultado é sempre v11, com `desenhos: []`). Na importação a sala confere que ids de desenho não se repetem, que a cena e o autor existem no arquivo e que nenhuma cena passa de 1000 desenhos. A **v10** (Lote 11) acrescenta `combate` (a ordem de turno: entradas, a vez e a rodada; opcional, sem ele não há combate) e, dentro dos tokens, `condicoes`, `exaustao` e `concentracao` (opcionais). Na importação a sala confere que ids de entrada não se repetem, que a vez é de uma entrada que existe e que as entradas de token apontam para tokens do arquivo. De v1 a v9 continuam aceitas (o resultado é sempre v10, sem combate). A **v9** (Lote 9) traz as fichas 5e dentro de `personagens[].ficha` (a mesma forma da v8, só mais campos opcionais) e **não traz mais** `Personagem.mochila`: na importação (de v8 e anteriores) a mochila vira `ficha.itens` com `modeloId` (a quantidade é o número de objetos novos; os usados continuam objetos de luz com portador `mochila`). A **v8** (Lote 7) troca as fontes de luz por **objetos de luz** (`estado`, `saldoMs`, `acesaDesdeSala`, modificadores e histórico: são dado da campanha e vão no arquivo), completa a `config` e acrescenta `modelos`, `pontos` e o `relogio` (a campanha restaurada volta com a **mesa pausada**, no tempo em que foi exportada; a v7 e as anteriores importam com o relógio rodando a partir da importação); `Personagem.mochila` é opcional; os `acendimentos` pendentes **nunca** entram. De v1 a v8 continuam aceitas (o resultado era v9 e hoje é v10; `acesa: boolean` vira `estado`, os modelos da semente entram onde faltam). A **v7** (Lote 6) acrescenta `luzes` (as fontes de luz) e `config` (`ConfigDaMesa`); `Cena.luzAmbiente`/`fatorDeLuz`, `Token.visaoNoEscuroM` e `Personagem.modInteligencia` são campos opcionais (ausentes nos arquivos antigos: cena em luz de dia, sem visão no escuro, modificador 0) e `memoriaEsquecida` **nunca** entra (é dado da sessão); ids de fonte únicos, em cena existente e, se presas a token, a token da mesma cena são conferidos. De v1 a v6 continuam aceitas (o resultado é sempre v7, com `luzes: []` e a configuração padrão). A **v6** (Lote 5) acrescenta `paredes`; `Cena.iluminacaoDinamica` e `Token.alcanceVisaoM` são campos opcionais dentro de cenas e tokens (ausentes nos arquivos antigos: iluminação ligada, visão sem limite). ids de parede únicos e cena existente são conferidos.
+`{ formato: "tabletop-campanha", versao: 12, exportadoEm, dados: { seq, usuarios, permissoes, notaMesa, notaMestre, cenas, cenaAtivaId, tokens, paredes, luzes, modelos, pontos, relogio, config, pastas, personagens, ordemDeTurnoVisivel, combate?, desenhos, compendio?, assets } }`. A **v12** (Lote 14) acrescenta `compendio` (opcional: só a referência `{ hash, nomeOriginal, magias }` ao asset do compêndio; a meta desse asset vai em `assets`, o arquivo de magias **nunca**); de v1 a v11 continuam aceitas (o resultado é sempre v12, sem compêndio) e o campo só vale na v12. Na importação a sala confere que o asset do compêndio tem meta do tipo `compendio` no arquivo (`compêndio sem meta`). A **v11** (Lote 13) acrescenta `desenhos` (os desenhos do pincel, ver "Pincel e desenhos"); de v1 a v10 continuam aceitas (o resultado era v11 e hoje é v12, com `desenhos: []`). Na importação a sala confere que ids de desenho não se repetem, que a cena e o autor existem no arquivo e que nenhuma cena passa de 1000 desenhos. A **v10** (Lote 11) acrescenta `combate` (a ordem de turno: entradas, a vez e a rodada; opcional, sem ele não há combate) e, dentro dos tokens, `condicoes`, `exaustao` e `concentracao` (opcionais). Na importação a sala confere que ids de entrada não se repetem, que a vez é de uma entrada que existe e que as entradas de token apontam para tokens do arquivo. De v1 a v9 continuam aceitas (o resultado é sempre v10, sem combate). A **v9** (Lote 9) traz as fichas 5e dentro de `personagens[].ficha` (a mesma forma da v8, só mais campos opcionais) e **não traz mais** `Personagem.mochila`: na importação (de v8 e anteriores) a mochila vira `ficha.itens` com `modeloId` (a quantidade é o número de objetos novos; os usados continuam objetos de luz com portador `mochila`). A **v8** (Lote 7) troca as fontes de luz por **objetos de luz** (`estado`, `saldoMs`, `acesaDesdeSala`, modificadores e histórico: são dado da campanha e vão no arquivo), completa a `config` e acrescenta `modelos`, `pontos` e o `relogio` (a campanha restaurada volta com a **mesa pausada**, no tempo em que foi exportada; a v7 e as anteriores importam com o relógio rodando a partir da importação); `Personagem.mochila` é opcional; os `acendimentos` pendentes **nunca** entram. De v1 a v8 continuam aceitas (o resultado era v9 e hoje é v10; `acesa: boolean` vira `estado`, os modelos da semente entram onde faltam). A **v7** (Lote 6) acrescenta `luzes` (as fontes de luz) e `config` (`ConfigDaMesa`); `Cena.luzAmbiente`/`fatorDeLuz`, `Token.visaoNoEscuroM` e `Personagem.modInteligencia` são campos opcionais (ausentes nos arquivos antigos: cena em luz de dia, sem visão no escuro, modificador 0) e `memoriaEsquecida` **nunca** entra (é dado da sessão); ids de fonte únicos, em cena existente e, se presas a token, a token da mesma cena são conferidos. De v1 a v6 continuam aceitas (o resultado é sempre v7, com `luzes: []` e a configuração padrão). A **v6** (Lote 5) acrescenta `paredes`; `Cena.iluminacaoDinamica` e `Token.alcanceVisaoM` são campos opcionais dentro de cenas e tokens (ausentes nos arquivos antigos: iluminação ligada, visão sem limite). ids de parede únicos e cena existente são conferidos.
 Sem contadores de uso nem presença. `assets` são **só as metas dos assets usados** (mapas das cenas, imagens
 dos tokens e os tiles deles), **nunca bytes**; `Cena.mapa` e `Token.assetHash` vão nos próprios objetos. A **v5**
 (Lote 4b) acrescenta `pastas` e `ordemDeTurnoVisivel` e troca, nos personagens, `donoId` por `editores` e `pastaId` (mais `retratoHash`). A **v4**
@@ -558,7 +561,7 @@ O agendador guarda um vencimento `luz.marco` por objeto (o próximo marco: virar
 | `chat.anteriores` | `{ antesDoSeq }` | `null` | responde `chat.anteriores` (abaixo), só a quem pediu, até 100 mensagens **que ele pode ver**, mais antigas que `antesDoSeq` |
 | `chat.limpar` | `{}` | `mesa.configurar` (só do mestre) | apaga o histórico e manda `chat.limpo` a todos (a confirmação é da interface) |
 
-Erros: `dados_invalidos` (notação recusada, com o motivo em português), `mensagem_invalida` (mais de 2000 caracteres), `muitas_mensagens` (novo código: mais de **10 mensagens de chat por segundo por conexão**; vale para `chat.enviar`, `dado.rolar` e `chat.modelo`; a recusada não conta na janela).
+Erros: `dados_invalidos` (notação recusada, com o motivo em português), `mensagem_invalida` (mais de 2000 caracteres), `muitas_mensagens` (novo código: mais de **10 mensagens de chat por segundo por conexão**; vale para `chat.enviar`, `dado.rolar`, `chat.modelo` e `chat.magia`; a recusada não conta na janela).
 
 #### Notação (`packages/shared/src/dados.ts`)
 
@@ -579,8 +582,8 @@ Erros: `dados_invalidos` (notação recusada, com o motivo em português), `mens
 
 ```
 Mensagem { id ("m<seq>"), seq (o do evento), emSala? (relógio da sala, ms), emReal (ms desde 1970, só para HH:MM), autorId,
-           como?: { personagemId, nome, retratoHash? }, tipo: "texto" | "rolagem" | "modelo",
-           texto?, acao?, inline?, rolagens?: Rolagem[], modelo?: ResultadoDeModelo,
+           como?: { personagemId, nome, retratoHash? }, tipo: "texto" | "rolagem" | "modelo" | "magia",
+           texto?, acao?, inline?, rolagens?: Rolagem[], modelo?: ResultadoDeModelo, magia?: MagiaDoCompendio /* Lote 14 */,
            visivelPara: "todos" | { ids }, oculta? }
 ```
 
@@ -700,6 +703,33 @@ Sem mudar o número do protocolo. Um **desenho** é `{ id, cenaId, autorId, form
 **Persistência**: tabela `desenhos (id, cena_id, dados)` do SQLite (migração 8; o banco antigo ganha a tabela vazia). A ordem de criação (a do `rowid`) vale para o "voltar" e sobrevive a mover (UPDATE). Linha ilegível é ignorada ao carregar. A importação troca os desenhos junto com o resto.
 
 **Capacidade nova**: `desenho.criar` (delegável, ligada por padrão; campanhas antigas ganham o padrão ao carregar, como as anteriores). **Eventos novos**: `desenho.criado`, `desenho.movido`, `desenho.apagado`, `desenho.limpo`. **Mensagens novas**: `desenho.rascunhando`, `desenho.rascunhoFim`. **Intenções novas**: `desenho.criar`, `desenho.mover`, `desenho.apagar`, `desenho.voltar`, `desenho.limpar`, `desenho.rascunho`. **Códigos de erro novos**: `desenho_inexistente`, `limite_de_desenhos`.
+
+### Compêndio de magias (Lote 14)
+
+O compêndio é um arquivo JSON da **pasta local do mestre** (`compendio/magias.json`), fora do repositório e **nunca gravado no servidor**: a sala só guarda a meta do asset e a referência `Estado.compendio`. O texto das magias só trafega nos **pedaços binários** do asset (o mesmo caminho das imagens: `asset.pedir`, `asset.enviar`, frames de 256 KB, cache OPFS), e nenhum frame de texto o leva (nem a meta: nome do arquivo, `bytes`, hashes dos pedaços, `largura` e `altura` 1).
+
+**Formato** (`packages/shared/src/compendio.ts`, zod):
+
+```
+{ formato: "tabletop-compendio", versao: 1, creditos?: string /* atribuição da licença, só mostrada */,
+  magias: { nome, nomeOriginal?, nivel: 0..9 /* 0 = truque */, escola, tempo, alcance, componentes, duracao,
+            concentracao: boolean, ritual: boolean, classes: string[], descricao, emNiveisSuperiores? }[] }
+```
+
+Limites: arquivo **8 MB** (`LIMITES_DE_ASSET.bytesDoCompendio`), **2000 magias**, nome 80, escola 32, tempo/alcance/duração 100, componentes 300, 20 classes de até 40, descrição 12 000, "em níveis superiores" 4 000, créditos 2 000 caracteres; todo texto é aparado e não pode ficar vazio; **nome repetido** (sem acento nem caixa) é recusado. `lerCompendio(texto)` devolve o motivo **em português, com o campo** ("magia 2, campo nivel: precisa ser no máximo 9"). Campos desconhecidos são ignorados. Exemplo com 3 magias do SRD 5.1 (CC-BY-4.0) em `fixtures/compendio/exemplo-srd.json` (atribuição em `fixtures/compendio/ATRIBUICAO.md` e no campo `creditos`).
+
+**Asset `compendio`**: `asset.registrar` com `tipo: "compendio"` (`mime: application/json`, `largura` e `altura` 1, até 8 MB) é **só do mestre** (`sem_permissao`). Visibilidade (`assetVisivelPara`): o mestre vê tudo; **todo jogador vê (e baixa) o asset cujo hash é `Estado.compendio.hash`** e só ele: um asset `compendio` que não é o da mesa (o arquivo antigo, depois de trocar o compêndio) segue a regra comum (só o dono) e o jogador que o pede recebe `asset_inexistente`. A exportação leva a meta do compêndio da mesa (`hashesUsados`).
+
+| Intenção | `dados` | Capacidade | Efeito |
+|---|---|---|---|
+| `compendio.definir` | `{ compendio: { hash, nomeOriginal, magias } \| null }` | `mesa.configurar` (**só do mestre**) | define o compêndio da mesa (o `hash` precisa ser de um asset `compendio` já registrado: `asset_inexistente`) ou, com `null`, tira. Repetir o mesmo valor não gera evento. Emite `compendio.alterado` |
+| `chat.magia` | `{ magia: MagiaDoCompendio, como? }` | nenhuma | publica uma mensagem `tipo: "magia"` **pública** (`visivelPara: "todos"`) com a magia dentro. `como`: personagem que quem fala edita (o mestre: qualquer um; `personagem_inexistente`/`sem_permissao` como em `chat.enviar`). Magia fora dos limites: `mensagem_invalida`. Passa pelo **mesmo limite de 10 mensagens por segundo por conexão** (`muitas_mensagens`) |
+
+**Evento novo**: `compendio.alterado { compendio | null }`, para **todos** (`Estado.compendio` também vai no snapshot de todos). **Persistência**: chave `compendio` da tabela `meta` do SQLite (a referência em JSON; **sem migração nova**: o banco do Lote 13 simplesmente não tem a chave = sem compêndio; valor ilegível também vira "sem compêndio"); `salvarTudo` (importar) a regrava e `apagarTudo` a apaga. **Mensagem `magia`**: filtrada como as outras (`mensagemVisivelPara`; hoje sempre `todos`); o histórico do chat guarda a magia inteira e o chat segue **fora da exportação**.
+
+**Fluxo no navegador**: o mestre lê `compendio/magias.json` da pasta (ou do arquivo escolhido à mão), valida com `lerCompendio` e, se válido e diferente do que a mesa tem, guarda os bytes no cache, manda `asset.registrar` (só a meta) + `asset.tenho` + `compendio.definir`. Arquivo inválido: o erro aparece só ao mestre e **nada é enviado**. Os jogadores veem `Estado.compendio`, pedem o asset (`asset.pedir`) e leem o JSON do cache. "Recarregar" repete a leitura.
+
+**Intenções novas**: `compendio.definir`, `chat.magia`. **Evento novo**: `compendio.alterado`. **Tipo de asset novo**: `compendio`. **Tipo de mensagem novo**: `magia`. Sem capacidade nem código de erro novos.
 
 ### Contador de uso
 

@@ -104,6 +104,8 @@ type GanchoDosAssets = {
   verificarCache(): Promise<{ hash: string; ok: boolean; bytes: number }[]>;
   inicioDe(hash: string, n?: number): Promise<string | null>;
   gravados(): Promise<{ caminho: string; bytes: number; sha256: string }[]>;
+  /** Põe um arquivo de texto na "pasta" do mestre (Lote 14: o `compendio/magias.json`). */
+  adicionarNaPasta(caminho: string, texto: string): void;
 };
 
 type ImagensVistas = {

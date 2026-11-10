@@ -37,6 +37,11 @@ export function instalarGanchoDeAssets(gerente: GerenteDeAssets, fontes: Fontes)
       const arquivo = await gerente.blobDe(hash);
       return arquivo ? bytesParaHex(new Uint8Array(await arquivo.slice(0, n).arrayBuffer())) : null;
     },
+    /** Põe um arquivo de texto na "pasta" do mestre (a `Memoria`): é assim que os testes criam o `compendio/magias.json`. */
+    adicionarNaPasta: (caminho: string, texto: string) => {
+      fontes.memoria?.adicionarTexto(caminho, texto);
+      fontes.notificar();
+    },
     /** O que foi "gravado na pasta" (a `Memoria` do modo e2e): caminho, tamanho e SHA-256. */
     gravados: async () => {
       const lista = fontes.memoria?.gravados() ?? [];

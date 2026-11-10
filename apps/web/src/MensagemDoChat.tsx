@@ -2,6 +2,7 @@ import { type Mensagem, ROTULO_DA_VANTAGEM, type Usuario } from "@tabletop/share
 import { EyeOff, Lock } from "lucide-react";
 import type { ReactNode } from "react";
 import { Avatar } from "./Avatar";
+import { CartaoDaMagiaNoChat } from "./CartaoDaMagia";
 import { CartaoDeRolagem } from "./CartaoDeRolagem";
 import type { ImagensDoMapa } from "./mapa/mapaPixi";
 
@@ -137,7 +138,9 @@ export function MensagemDoChat({ mensagem, usuarios, euId, imagens, versaoDasIma
     .join(" ");
 
   let corpo: ReactNode;
-  if (mensagem.tipo === "modelo") {
+  if (mensagem.tipo === "magia" && mensagem.magia) {
+    corpo = <CartaoDaMagiaNoChat magia={mensagem.magia} />;
+  } else if (mensagem.tipo === "modelo") {
     corpo = (
       <>
         {mensagem.texto && <p className="texto-chat">{mensagem.texto}</p>}

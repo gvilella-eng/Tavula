@@ -9,7 +9,7 @@ import { rolarAtaque, rolarTeste } from "./rolagens.ts";
 
 export type IntencaoDeChat = Extract<
   Intencao,
-  { tipo: "chat.enviar" | "dado.rolar" | "chat.modelo" }
+  { tipo: "chat.enviar" | "dado.rolar" | "chat.modelo" | "chat.magia" }
 >;
 
 export type ResultadoDaMensagem =
@@ -74,6 +74,14 @@ export function criarMensagem(
       if (!lida.ok) throw new Error(`expressão inválida: ${e}`);
       return rolar(lida.expressao, aleatorio);
     });
+
+  // Mensagem `magia` (Lote 14): sempre pública; a sala só confere o personagem de quem fala.
+  if (intencao.tipo === "chat.magia") {
+    return {
+      ok: true,
+      mensagem: { ...base, tipo: "magia", magia: intencao.dados.magia, visivelPara: "todos" },
+    };
+  }
 
   if (intencao.tipo === "dado.rolar") {
     const { expressao, oculta: pedidaOculta } = intencao.dados;

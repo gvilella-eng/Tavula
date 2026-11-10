@@ -20,6 +20,8 @@ export interface FonteDeAssets {
   listar(): Promise<ArquivoDaFonte[]>;
   /** Dá para gravar nela (a cópia `recebidos/<jogador>/` do mestre)? */
   readonly podeGravar: boolean;
+  /** Um arquivo pelo caminho (`["compendio", "magias.json"]`), sem varrer a pasta; `null` se não existe. */
+  abrirPorCaminho(caminho: readonly string[]): Promise<File | null>;
   /**
    * Grava em `pasta/…/nome`. `false` se já existia um arquivo igual (nada foi escrito); com
    * `substituir` grava sempre (a ficha exportada, que muda sem mudar de tamanho).
@@ -58,6 +60,10 @@ export class ArquivosSoltos implements FonteDeAssets {
     }));
   }
 
+  async abrirPorCaminho(): Promise<File | null> {
+    return null;
+  }
+
   async gravar(): Promise<boolean> {
     throw new Error("Arquivos soltos não aceitam gravação.");
   }
@@ -71,9 +77,23 @@ export class Memoria implements FonteDeAssets {
   readonly podeGravar = true;
   private readonly arquivos = new Map<string, { bytes: Uint8Array; mime: string }>();
   private readonly gravadosEm = new Map<string, Uint8Array>();
+  /** Arquivos que não são imagem (o `compendio/magias.json` dos testes), pelo caminho completo. */
+  private readonly outros = new Map<string, string>();
 
   adicionar(nome: string, bytes: Uint8Array, mime = "image/png"): void {
     this.arquivos.set(nome, { bytes, mime });
+  }
+
+  /** Põe um arquivo de texto na "pasta" (só os testes e2e o fazem). */
+  adicionarTexto(caminho: string, texto: string): void {
+    this.outros.set(caminho, texto);
+  }
+
+  async abrirPorCaminho(caminho: readonly string[]): Promise<File | null> {
+    const chave = caminho.join("/");
+    const texto = this.outros.get(chave);
+    if (texto === undefined) return null;
+    return new File([texto], caminho[caminho.length - 1] ?? chave, { type: "application/json" });
   }
 
   async listar(): Promise<ArquivoDaFonte[]> {
@@ -186,6 +206,17 @@ export class PastaLocal implements FonteDeAssets {
     };
     await varrer(this.pasta, []);
     return achados.sort((a, b) => a.caminho.localeCompare(b.caminho, "pt-BR"));
+  }
+
+  async abrirPorCaminho(caminho: readonly string[]): Promise<File | null> {
+    try {
+      let dir: FileSystemDirectoryHandle = this.pasta;
+      for (const parte of caminho.slice(0, -1)) dir = await dir.getDirectoryHandle(parte);
+      const nome = caminho[caminho.length - 1] ?? "";
+      return await (await dir.getFileHandle(nome)).getFile();
+    } catch {
+      return null; // a pasta ou o arquivo não existem (ou a permissão acabou)
+    }
   }
 
   async gravar(pasta: string[], nome: string, dados: Blob, substituir = false): Promise<boolean> {

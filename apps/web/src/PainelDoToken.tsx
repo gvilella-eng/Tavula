@@ -33,7 +33,12 @@ export function PainelDoToken({ token, jogadores, enviar, pedirImagem, aoFechar 
   }
 
   return (
-    <section className="painel-token" data-testid="painel-token" aria-label="Token selecionado">
+    <section
+      className="painel-token"
+      data-testid="painel-token"
+      data-token-id={token.id}
+      aria-label="Token selecionado"
+    >
       <header>
         <strong>Token</strong>
         <button

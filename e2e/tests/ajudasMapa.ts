@@ -125,10 +125,18 @@ export async function arrastarToken(p: Page, id: string, dxM: number, dyM: numbe
 }
 
 /** Clica no token (mouse de verdade) para selecioná-lo; abre o painel do token do mestre. */
+/**
+ * Seleciona o token com um clique de verdade e confere que foi ESTE o selecionado: logo depois de trocar o
+ * mapa da cena, a vista ainda pode se ajustar e o clique cair no token vizinho (tenta de novo).
+ */
 export async function selecionarToken(p: Page, id: string) {
-  const alvo = await centrarNoToken(p, id);
-  await p.mouse.click(alvo.x, alvo.y);
-  await expect(p.getByTestId("painel-token")).toBeVisible();
+  await expect(async () => {
+    const alvo = await centrarNoToken(p, id);
+    await p.mouse.click(alvo.x, alvo.y);
+    await expect(p.getByTestId("painel-token")).toHaveAttribute("data-token-id", id, {
+      timeout: 1_500,
+    });
+  }).toPass({ timeout: 15_000 });
 }
 
 /** Ponto da página onde está o ponto do mundo (metros), com o mapa já posicionado. */

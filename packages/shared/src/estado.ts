@@ -3,6 +3,7 @@ import { AssetMetaSchema, HashSchema } from "./assets.ts";
 import { CAPACIDADES_DELEGAVEIS } from "./capacidades.ts";
 import { MensagemSchema } from "./chat.ts";
 import { CombateSchema } from "./combate.ts";
+import { CompendioDaMesaSchema } from "./compendio.ts";
 import { CondicaoSchema } from "./condicoes.ts";
 import { DesenhoSchema } from "./desenho.ts";
 import { FichaSchema } from "./ficha.ts";
@@ -534,6 +535,11 @@ export const EstadoSchema = z.object({
    * mensagem sem ver o personagem). Nunca vai a um jogador nem entra na exportação.
    */
   retratosDoChat: z.array(HashSchema).max(200).optional(),
+  /**
+   * Compêndio de magias da mesa (Lote 14): só a referência ao asset `compendio` (hash, nome do arquivo e
+   * quantas magias). Todos recebem; o texto das magias nunca passa pelo estado nem fica no servidor.
+   */
+  compendio: CompendioDaMesaSchema.optional(),
   /** Metadados dos assets registrados. Só existe na sala e na visão do mestre (nunca do jogador). */
   assets: z.array(AssetMetaSchema).optional(),
 });

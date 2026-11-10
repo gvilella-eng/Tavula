@@ -8,6 +8,7 @@ import {
 } from "./capacidades.ts";
 import { LIMITES_DO_CHAT, MensagemSchema, TEXTO_DO_CHAT_MAX } from "./chat.ts";
 import { CombateSchema, IniciativaSchema, LIMITES_DO_COMBATE } from "./combate.ts";
+import { CompendioDaMesaSchema, MagiaDoCompendioSchema } from "./compendio.ts";
 import { CondicaoSchema } from "./condicoes.ts";
 import { LIMITES_DE_DADOS } from "./dados.ts";
 import {
@@ -61,8 +62,8 @@ import { migrarPersonagem, PersonagemAntigoSchema, pastasPadrao } from "./pastas
 import { PedidoDeModeloSchema } from "./rolagens.ts";
 
 export const VERSAO_PROTOCOLO = 1;
-/** Versão do arquivo de exportação (de v1 a v10 ainda são aceitas na importação). */
-export const VERSAO_EXPORTACAO = 11 as const;
+/** Versão do arquivo de exportação (de v1 a v11 ainda são aceitas na importação). */
+export const VERSAO_EXPORTACAO = 12 as const;
 
 const CapacidadeSchema = z.enum(TODAS_AS_CAPACIDADES as [Capacidade, ...Capacidade[]]);
 const Texto = z.string().max(TAMANHO_MAXIMO_NOTA);
@@ -97,6 +98,7 @@ const DadosV2Schema = EstadoSchema.omit({
   chat: true,
   retratosDoChat: true,
   desenhos: true,
+  compendio: true,
 }).extend({
   notaMestre: Texto,
   permissoes: PermissoesExportadasSchema,
@@ -170,7 +172,12 @@ const DadosV10Schema = DadosV8Schema.extend({ combate: CombateSchema.optional() 
 const DadosV11Schema = DadosV10Schema.extend({
   desenhos: z.array(DesenhoSchema).max(LIMITES_DO_DESENHO.porCena * 200),
 });
-export type DadosExportados = z.infer<typeof DadosV11Schema>;
+/**
+ * v12 (Lote 14): acrescenta o compêndio da mesa (`compendio`, opcional: só a referência ao asset; o
+ * arquivo de magias fica na pasta do mestre). Arquivos antigos o trazem ausente: entram sem compêndio.
+ */
+const DadosV12Schema = DadosV11Schema.extend({ compendio: CompendioDaMesaSchema.optional() });
+export type DadosExportados = z.infer<typeof DadosV12Schema>;
 
 /** v1 (Lote 1): sem cenas nem tokens. Vira a cena padrão e nenhum token. */
 const DadosV1Schema = DadosV2Schema.omit({
@@ -182,7 +189,7 @@ const DadosV1Schema = DadosV2Schema.omit({
 const cabecalho = { formato: z.literal("tabletop-campanha"), exportadoEm: z.string() };
 
 /**
- * Aceita de v1 a v11; o resultado é sempre no formato v11. Nas antigas faltam assets, personagens,
+ * Aceita de v1 a v12; o resultado é sempre no formato v12. Nas antigas faltam assets, personagens,
  * pastas, paredes, luzes, configuração, modelos e pontos: entram vazios ou com o padrão (v4: o dono
  * vira "quem edita" numa pasta só do mestre; paredes só existem a partir da v6, luzes e configuração
  * da v7; modelos, pontos e relógio da v8). As luzes da v7 (`acesa`) viram objetos (`estado`).
@@ -200,10 +207,12 @@ export const ExportacaoSchema = z
     z.object({ ...cabecalho, versao: z.literal(9), dados: DadosV8Schema }),
     z.object({ ...cabecalho, versao: z.literal(10), dados: DadosV10Schema }),
     z.object({ ...cabecalho, versao: z.literal(11), dados: DadosV11Schema }),
+    z.object({ ...cabecalho, versao: z.literal(12), dados: DadosV12Schema }),
   ])
   .transform((e) => {
     const d = e.dados;
-    const novo = e.versao === 8 || e.versao === 9 || e.versao === 10 || e.versao === 11;
+    const novo =
+      e.versao === 8 || e.versao === 9 || e.versao === 10 || e.versao === 11 || e.versao === 12;
     const luzes = novo ? e.dados.luzes : e.versao === 7 ? e.dados.luzes.map(migrarFonteAntiga) : [];
     const config = novo
       ? e.dados.config
@@ -222,8 +231,10 @@ export const ExportacaoSchema = z
       pontos: novo ? e.dados.pontos : [],
       // Sem relógio (arquivo antigo) a mesa começa rodando; a sala preenche `desdeReal` ao importar.
       relogio: novo ? e.dados.relogio : { pausada: false, acumuladoMs: 0 },
-      // Lote 13: só a v11 traz desenhos.
-      desenhos: e.versao === 11 ? e.dados.desenhos : [],
+      // Lote 13: só a v11 e a v12 trazem desenhos.
+      desenhos: e.versao === 11 || e.versao === 12 ? e.dados.desenhos : [],
+      // Lote 14: só a v12 traz o compêndio (ausente = sem compêndio).
+      ...(e.versao === 12 && e.dados.compendio ? { compendio: e.dados.compendio } : {}),
     };
     const personagens =
       e.versao === 5 || e.versao === 6 || e.versao === 7 || novo
@@ -623,6 +634,11 @@ export const IntencaoSchema = z.discriminatedUnion("tipo", [
    * (zod ignora o que não está declarado) e a sala rola de novo. `como` é um personagem que quem fala
    * edita (o mestre: qualquer um).
    */
+  /**
+   * Magia do compêndio no chat (Lote 14): a magia vai inteira (com os limites do formato) e a sala a
+   * publica como mensagem `magia`. `como` é um personagem que quem fala edita.
+   */
+  intencao("chat.magia", z.object({ magia: MagiaDoCompendioSchema, como: IdSchema.optional() })),
   intencao(
     "chat.enviar",
     z.object({
@@ -711,6 +727,11 @@ export const IntencaoSchema = z.discriminatedUnion("tipo", [
     "desenho.rascunho",
     z.object({ id: IdSchema, desenho: DesenhoEmAndamentoSchema.nullable() }),
   ),
+  /**
+   * Só o mestre: define o compêndio da mesa (o asset `compendio` já registrado por ele) ou, com `null`,
+   * tira. O arquivo nunca vai ao servidor; só a referência.
+   */
+  intencao("compendio.definir", z.object({ compendio: CompendioDaMesaSchema.nullable() })),
   intencao("campanha.exportar", SemDados),
   intencao("campanha.importar", z.object({ dados: z.unknown() })),
 ]);
@@ -792,6 +813,7 @@ export const capacidadeDaIntencao: Record<TipoIntencao, Capacidade | null> = {
   "chat.enviar": null,
   "dado.rolar": null,
   "chat.modelo": null,
+  "chat.magia": null,
   "chat.anteriores": null,
   "chat.limpar": "mesa.configurar",
   // Mestre: rola para todos ou para algumas entradas; jogador: a própria. `processar` confere.
@@ -813,6 +835,7 @@ export const capacidadeDaIntencao: Record<TipoIntencao, Capacidade | null> = {
   "desenho.voltar": "desenho.criar",
   "desenho.limpar": "cena.editar",
   "desenho.rascunho": "desenho.criar",
+  "compendio.definir": "mesa.configurar",
   "campanha.exportar": "campanha.exportar",
   "campanha.importar": "campanha.importar",
 };
@@ -944,6 +967,8 @@ export const EventoSalaSchema = z.discriminatedUnion("tipo", [
     "memoria.esquecida",
     z.object({ cenaId: IdSchema, versao: z.number().int().positive() }),
   ),
+  /** O compêndio da mesa mudou (`null`: sem compêndio). Todos recebem; é só a referência ao asset. */
+  eventoDe("compendio.alterado", z.object({ compendio: CompendioDaMesaSchema.nullable() })),
   /** Uma mensagem do chat, filtrada: quem não pode vê-la nunca a recebe. */
   eventoDe("chat.mensagem", z.object({ mensagem: MensagemSchema })),
   /** O mestre limpou o chat: todos esvaziam a conversa. */

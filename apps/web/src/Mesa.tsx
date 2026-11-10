@@ -752,7 +752,18 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
             id: "compendio",
             titulo: "Compêndio",
             icone: <BookOpen size={20} />,
-            conteudo: <AbaCompendio />,
+            conteudo: (
+              <AbaCompendio
+                estado={estado}
+                eu={eu}
+                conectado={status === "conectado"}
+                gerente={gerente}
+                fontes={fontes}
+                enviar={enviar}
+                comoId={comoId}
+                aoMudarComo={mudarComo}
+              />
+            ),
           },
           {
             id: "configuracoes",

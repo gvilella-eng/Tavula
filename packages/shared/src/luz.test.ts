@@ -389,8 +389,8 @@ describe("exportação v7", () => {
     e = aplicar(e, "m", intencao("config.iluminacao", { mudancas: { memoriaBaseM: 20 } })).estado;
     e = aplicar(e, "m", intencao("memoria.esquecer")).estado;
     const x = criarExportacao(e, AGORA);
-    expect(x.versao).toBe(11);
-    expect(VERSAO_EXPORTACAO).toBe(11);
+    expect(x.versao).toBe(12);
+    expect(VERSAO_EXPORTACAO).toBe(12);
     expect(x.dados.luzes).toEqual(e.luzes);
     expect(x.dados.config.iluminacao.memoriaBaseM).toBe(20);
     // a memória esquecida é da sessão, não da campanha
@@ -407,7 +407,7 @@ describe("exportação v7", () => {
     const { luzes: _l, config: _c, ...semLuz } = v7.dados;
     const v6 = { ...v7, versao: 6, dados: semLuz };
     const l6 = lerExportacao(v6);
-    expect(l6.ok && l6.exportacao.versao).toBe(11);
+    expect(l6.ok && l6.exportacao.versao).toBe(12);
     expect(l6.ok && l6.exportacao.dados.luzes).toEqual([]);
     expect(l6.ok && l6.exportacao.dados.config).toEqual(CONFIG_PADRAO);
     const v5 = { ...v6, versao: 5 };
@@ -417,7 +417,7 @@ describe("exportação v7", () => {
     const { cenas: _c1, cenaAtivaId: _a, tokens: _t, ...v1dados } = semParedes;
     const { assets: _as, personagens: _pe, pastas: _pa, ordemDeTurnoVisivel: _o, ...v1 } = v1dados;
     const l1 = lerExportacao({ ...v7, versao: 1, dados: v1 });
-    expect(l1.ok && l1.exportacao.versao).toBe(11);
+    expect(l1.ok && l1.exportacao.versao).toBe(12);
     expect(l1.ok && l1.exportacao.dados.config).toEqual(CONFIG_PADRAO);
     // v2, v3, v4
     for (const versao of [2, 3, 4]) {

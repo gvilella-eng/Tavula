@@ -236,6 +236,9 @@ interface Desenho {                // lote 13: Estado.desenhos; chega a quem rec
   cor: string; espessura: number /* px do mundo, 1..24 */; preenchido?: boolean;
 }
 
+// lote 14: Estado.compendio?: { hash, nomeOriginal, magias } aponta para o asset 'compendio' da mesa
+// (o arquivo nunca fica na sala); o chat ganhou a mensagem 'magia' (pública, com a magia dentro)
+
 interface Parede {
   id: string; cenaId: string;
   a: { x: number; y: number }; b: { x: number; y: number };
@@ -303,8 +306,10 @@ interface Modificador {
 
 interface Asset {                               // metadados; os bytes nunca passam pela sala parados
   hash: string;                                 // SHA-256 do arquivo processado (manifesto: dos tiles)
-  tipo: 'mapa' | 'token' | 'retrato' | 'tile' | 'cifrado';  // cifrado: pré-envio do lote 4 (opaco,
-                                                // sem nome real); 'handout' e 'audio' nos lotes que os usarem
+  tipo: 'mapa' | 'token' | 'retrato' | 'tile' | 'cifrado' | 'compendio';  // cifrado: pré-envio do lote 4
+                                                // (opaco, sem nome real); compendio: o magias.json do mestre
+                                                // (lote 14; todos baixam o da mesa, Estado.compendio);
+                                                // 'handout' e 'audio' nos lotes que os usarem
   mime: string; bytes: number;                  // manifesto de mapa fatiado: bytes 0, sem pedaços
   largura: number; altura: number;
   donoId: string; nomeOriginal: string;         // dono = quem registrou primeiro
@@ -1750,6 +1755,21 @@ entra nas perguntas do fim):**
   que eu edito; entra na lista de magias com nível, escola e a descrição montada com os campos; se já
   existe uma com o mesmo nome, avisa e não duplica) (assumido).
 - Monstros e armas ficam para depois.
+
+**Como ficou (2026-11-09):**
+- asset novo `compendio` (só o mestre registra; até 8 MB e 2000 magias); `Estado.compendio` na tabela
+  `meta`, sem migração; `compendio.definir` (`mesa.configurar`) só aponta para um asset `compendio` já
+  registrado; exportação v12 (a meta vai, o arquivo não);
+- o navegador do mestre lê `compendio/magias.json` sozinho ao conectar e quando a pasta muda, e só
+  registra se o hash mudou; "Recarregar" relê; "Escolher o arquivo…" para navegadores sem o seletor de
+  pasta; arquivo com nome de magia repetido é recusado;
+- `chat.magia` é uma intenção própria, sempre pública, com a magia inteira dentro (a sala valida os
+  limites, não confere o compêndio); "Adicionar à ficha" entra preparada, sem conferir classe nem
+  espaço;
+- o exemplo do SRD (Bola de Fogo, Mísseis Mágicos, Detectar Magia) foi traduzido de memória: conferir
+  antes de usar fora dos testes;
+- frágil: com dois mestres e arquivos diferentes, o último a conectar redefine o compêndio; a lista não
+  é virtualizada; a leitura da pasta de verdade só passa pelo roteiro manual.
 
 ---
 

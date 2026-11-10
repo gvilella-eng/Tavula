@@ -3,6 +3,8 @@ import {
   arquivoConfere,
   cifrar,
   decifrarEConferir,
+  dividirEmPedacos,
+  hashesDosPedacos,
   LIMITES_DE_ASSET,
   lerFrameDePedaco,
   limiteDeTextura,
@@ -12,6 +14,7 @@ import {
   montarFrameDePedaco,
   type Pacote,
   pedacoConfere,
+  sha256Hex,
   TAMANHO_PEDACO,
   totalDePedacos,
 } from "@tabletop/shared";
@@ -639,6 +642,54 @@ export class GerenteDeAssets {
     return principal;
   }
 
+  /**
+   * Compêndio de magias (Lote 14), só no mestre: guarda o `magias.json` já validado no cache, registra
+   * como asset `compendio` (só a meta vai para a sala; os bytes saem por pedaços, quando alguém pedir) e
+   * avisa que tenho. Devolve o hash. O mesmo arquivo registrado de novo dá o mesmo hash.
+   */
+  async registrarCompendio(bytes: Uint8Array, nomeOriginal: string): Promise<string> {
+    const canal = this.d.canal();
+    if (!canal?.conectado()) throw new Error("Sem conexão com a sala.");
+    const hash = await sha256Hex(bytes);
+    const meta: MetaNova = {
+      hash,
+      tipo: "compendio",
+      mime: "application/json",
+      bytes: bytes.length,
+      largura: 1,
+      altura: 1,
+      nomeOriginal: nomeOriginal.slice(0, 200) || "magias.json",
+      pedacos: await hashesDosPedacos(dividirEmPedacos(bytes)),
+    };
+    if (!this.completos.has(hash)) {
+      await this.d.cache.gravarArquivo(hash, bytes as BufferSource);
+      this.completos.add(hash);
+    }
+    await this.guardarMeta({ ...meta, donoId: this.d.meuId });
+    this.persistir();
+    if (canal.enviar("asset.registrar", { metas: [meta] }) === null) {
+      throw new Error("Sem conexão com a sala.");
+    }
+    canal.enviar("asset.tenho", { hash });
+    this.mudou();
+    return hash;
+  }
+
+  /** O texto de um arquivo que já está no cache (o compêndio); `null` se ainda não chegou. */
+  async textoDe(hash: string): Promise<string | null> {
+    if (!this.completos.has(hash)) return null;
+    const arquivo = await this.d.cache.lerArquivo(hash);
+    return arquivo ? arquivo.text() : null;
+  }
+
+  /** O estado da transferência deste asset (para a aba mostrar "recebendo" ou "indisponível"). */
+  statusDe(hash: string): StatusDeAsset | undefined {
+    const s = this.status.get(hash);
+    if (!s) return undefined;
+    const { ultimoPedaco: _u, ultimaPergunta: _p, ...resto } = s;
+    return resto;
+  }
+
   private async guardarMeta(meta: AssetMeta): Promise<void> {
     this.metas.set(meta.hash, meta);
     await this.d.cache.gravarMeta(meta);
@@ -656,6 +707,8 @@ export class GerenteDeAssets {
   /** No mestre: grava em `recebidos/<jogador>/` da pasta o que um jogador subiu (se há pasta com escrita). */
   async copiarSePreciso(meta: AssetMeta): Promise<void> {
     if (!this.d.euMestre() || meta.donoId === this.d.meuId || meta.tiles) return;
+    // O compêndio de magias (texto) não é imagem de jogador: não vai para recebidos/.
+    if (meta.tipo === "compendio") return;
     if (this.copiados.has(meta.hash) || !this.completos.has(meta.hash)) return;
     const destino = this.d.destinoDeCopia();
     if (!destino?.podeGravar) return;

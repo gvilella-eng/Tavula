@@ -1533,7 +1533,93 @@ relatório do Playwright (`[erro na página]`).
 
 ---
 
-## Próximo: Lote 14 — Compêndio de magias
+## Lote 14 — Compêndio de magias (entregue, aguardando o roteiro manual)
 
-Ver `PROJETO.md`, seção 7. (O Lote 12 — MCP — fica para depois.)
+### O que foi entregue
 
+- **`shared`** (puro, testado):
+  - `compendio.ts`: o **formato** `tabletop-compendio` v1 (zod, com limite por campo e no total: 8 MB, 2000 magias, descrição 12 000 caracteres etc.), `lerCompendio(texto)` (JSON, formato, limites, nome repetido; o motivo vem **em português e com o campo**: "magia 2, campo nivel: precisa ser no máximo 9"), `buscarMagias` (sem acento e sem caixa, por nome e nome original, todas as palavras; mais os filtros de nível, escola, classe, concentração e ritual, em ordem alfabética), `opcoesDeFiltro`, e a magia para a ficha (`magiaParaFicha`, `descricaoParaFicha`, `fichaTemMagia`).
+  - Tipo de asset novo `compendio` (`assets.ts`): só o mestre registra; `assetVisivelPara` deixa **todo jogador** baixar o asset cujo hash é `Estado.compendio.hash` e **só ele** (um `compendio` antigo segue a regra comum); `hashesUsados` inclui o compêndio (a meta vai na exportação, o arquivo não).
+  - `Estado.compendio?: { hash, nomeOriginal, magias }`, intenção `compendio.definir` (só do mestre, `mesa.configurar`) e evento `compendio.alterado` (todos).
+  - Mensagem de chat `tipo: "magia"` (com `magia` dentro) e intenção `chat.magia` (`como` só de personagem que eu edito), sempre pública e passando pelo limite de 10 mensagens por segundo do Lote 8.
+  - Exportação **v12** (`compendio?`), de v1 a v11 continuam importando.
+- **Servidor**: o compêndio da mesa mora na tabela `meta` (chave `compendio`; **sem migração nova**: o banco do Lote 13 abre sem a chave = sem compêndio); `salvarTudo`, `salvarEventos` e `apagarTudo` cuidam dele. `chat.magia` entra no limite de mensagens por segundo. Nada do texto das magias é gravado nem repassado fora dos pedaços do asset.
+- **Navegador**:
+  - `useCompendio.ts`: todos pedem o asset do compêndio da mesa e leem as magias do cache; o **mestre** lê `compendio/magias.json` da pasta local (File System Access; nos testes, a `Memoria`) ou de um arquivo escolhido à mão, valida e, se é válido e diferente do que a mesa tem, guarda no cache, registra o asset (só a meta vai à sala) e define o compêndio. Arquivo inválido: erro só para o mestre, **nada é distribuído**.
+  - `AbaCompendio.tsx` (o ícone que já existia): busca, filtros (nível, escola, classe, concentração, ritual), contagem, lista e o **cartão** com todos os campos, classes, descrição inteira e "Em níveis superiores"; "Recarregar" (mestre); créditos recolhidos no fim; estados: sem compêndio (mestre: como montar o JSON, com um exemplo curto e "Escolher o arquivo…"; jogador: aviso), recebendo, indisponível (mestre offline), erro do arquivo.
+  - Ações no cartão: **Mandar para o chat** ("Como:" é o mesmo seletor do chat) e **Adicionar à ficha** (escolhe entre os personagens que eu edito; entra por `ficha.alterar` com nível, escola, `preparada` e a descrição montada: tempo, alcance, componentes, duração, "Concentração · Ritual", texto e "Em níveis superiores"; nome repetido avisa e não duplica).
+  - `CartaoDaMagia.tsx` e `MensagemDoChat.tsx`: o cartão da magia no chat (nome, nível, escola, marcas, tempo/alcance/duração e a descrição **recolhida** até abrir).
+- **Exemplo do SRD**: `fixtures/compendio/exemplo-srd.json` (Bola de Fogo, Mísseis Mágicos e Detectar Magia, que é ritual e concentração) com os créditos no próprio JSON e em `fixtures/compendio/ATRIBUICAO.md`. Nenhum outro texto de magia no repositório.
+
+### Como rodar
+
+- `pnpm verify` (verde duas vezes seguidas: 31 + 6 + 548 de unidade, 127 E2E, ~12 min cada). Prints: `$env:PRINTS_DIR="<pasta>"; pnpm --filter @tabletop/e2e prints lote-14` (PowerShell).
+- Para usar de verdade: pasta local (Configurações) → crie `compendio/magias.json` nela → aba Compêndio. Para ver rápido: copie `fixtures/compendio/exemplo-srd.json` para `<sua pasta>/compendio/magias.json` (ou use "Escolher o arquivo…").
+
+### Verificação
+
+- Unidade nova `packages/shared/src/compendio.test.ts` (38 testes): o schema aceita o exemplo e recusa campo fora do limite (nível, descrição, nome, classes, créditos, formato, versão, campo ausente, tipo errado), com o motivo em português; magias demais e arquivo grande demais; JSON quebrado e nome repetido; busca sem acento e sem caixa, por nome original e com várias palavras; **cada filtro** e a combinação; a magia na ficha (descrição montada, a ficha a aceita, o pior caso cabe em 20 mil caracteres, nome repetido); `assetVisivelPara` (compêndio da mesa: jogador baixa; `compendio` que não é o da mesa: não; assistente nunca); só o mestre registra o asset e define o compêndio (jogador recusado); `compendio.definir` recusa hash que não é asset `compendio` e não gera evento ao repetir; snapshot e evento para todos, sem texto de magia; mensagem `magia` (pública, "Como:" só de personagem que eu edito, o mestre qualquer um, limites, campo a mais descartado, filtro igual ao das outras); exportação v12 (ida e volta, importar leva o compêndio, sem compêndio não leva o campo, meta ausente recusa, **a v11 importa** e o campo só vale na v12).
+- Servidor, `armazenamento.test.ts` (+4): **banco do Lote 13 abre sem quebrar**, sem compêndio, com a campanha inteira; o compêndio volta do SQLite (e só a referência é gravada); importar troca e `apagarTudo` apaga; valor ilegível vira "sem compêndio".
+- E2E novo `e2e/tests/compendio.spec.ts` (10 testes): estado vazio (mestre e jogador); o mestre põe o `magias.json` na pasta, o jogador busca "bola" e "misseis" (sem acento) e acha, o hash do cache dele bate, e **nenhum frame de texto** (do mestre nem da sala) leva o texto do compêndio: só os pedaços binários (conferido que eles o levam) e a meta não tem conteúdo; filtros de nível, escola, classe, concentração e ritual; o cartão completo; o jogador manda a magia ao chat **como Aldric** e o mestre e outro jogador veem o cartão recolhido e abrem; `chat.magia` com `como` de personagem que ele não edita é recusado, só o mestre define o compêndio e registra o asset, magia fora do limite é `mensagem_invalida` e a rajada de 15 recebe 5 `muitas_mensagens`; o jogador adiciona à ficha (aba Magias, com a descrição) e adicionar de novo avisa e não duplica; **JSON inválido** mostra o erro com o campo ao mestre e nada é registrado, definido nem enviado (e corrigido + Recarregar distribui); trocar o arquivo atualiza a mesa e o antigo deixa de ser baixável pelo jogador (`asset_inexistente`); quem entra depois recebe o compêndio e, ao recarregar a página, não baixa de novo.
+- Prints (1600×900, recortes da barra lateral) em `PRINTS_DIR`: 01 sem compêndio (mestre e jogador), 02 lista (jogador e mestre), 03 busca e filtros (e o de concentração), 04 cartão aberto, 05 depois de mandar ao chat, 06 chat recolhido e aberto, 07 escolha do personagem em "Adicionar à ficha" (e o aviso de adicionada e de repetida), 08 a magia na aba Magias da ficha, 09 erro do JSON inválido (sem compêndio e com um já na mesa).
+- Expectativas antigas alteradas (só por causa do que o lote mudou): os testes que conferiam `versao` da exportação como 11 agora esperam **12** (`assets`, `ficha`, `fichas`, `luz`, `paredes`, `personagens`, `tochas`, `tokens`, `combate` e `desenho` em `shared`; `assets.spec.ts` e `interface.spec.ts` no E2E); em `nucleo.test.ts` a "versão inválida" (futura) passou de 12 para **13**; em `interface.spec.ts` o Compêndio sem arquivo agora mostra "como montar o JSON" (antes era o aviso "em breve" e a busca "Nenhuma magia carregada"). A versão do esquema do SQLite **não mudou** (continua 8).
+
+### Decisões
+
+- (assumido) O mestre **lê o arquivo sozinho**: ao conectar, ao a pasta ficar autorizada ou ganhar um arquivo, e no botão "Recarregar". Só registra e redefine se o conteúdo (o hash) mudou.
+- (assumido) Quem consulta é **todo mundo**, inclusive sem `asset.subir` (o compêndio não é "enviar arquivo"); só o mestre define e recarrega.
+- (assumido) A referência do compêndio mora na tabela `meta` (JSON), sem tabela nova nem migração: é um valor só.
+- (assumido) O asset `compendio` tem `largura`/`altura` 1, `mime` `application/json` e `nomeOriginal` o nome do arquivo escolhido (normalmente `magias.json`). A sala não confere se `magias` bate com o arquivo (ela nunca o lê).
+- (assumido) `compendio.definir` usa a capacidade `mesa.configurar`; não criei capacidade nova.
+- (assumido) O arquivo com **nome de magia repetido** (sem acento nem caixa) é recusado, porque a lista e o "já tem na ficha" se apoiam no nome.
+- (assumido) Campos desconhecidos no JSON são ignorados (zod); os textos são aparados e não podem ficar vazios, com exceção dos opcionais (`nomeOriginal`, `emNiveisSuperiores`, `creditos`, que, se vierem, também não podem ser vazios).
+- (assumido) `chat.magia` é uma **intenção própria** (não um anexo de `chat.enviar`) e leva a magia inteira: a sala valida os limites, mas não confere se ela existe no compêndio (o texto do chat já é livre). A mensagem é sempre pública.
+- (assumido) "Mandar para o chat" usa o **mesmo "Como:" do chat** (um seletor, dois lugares). Quem não edita nenhum personagem fala como ele mesmo e não vê "Adicionar à ficha".
+- (assumido) "Adicionar à ficha" entra com `preparada: true`, a escola da magia e a descrição montada; **não** confere classe nem se há espaço de magia daquele nível. A checagem de nome repetido é do navegador (usa a ficha que ele já recebeu); a sala não a repete.
+- (assumido) Escola e classe do filtro vêm do próprio arquivo (sem lista fixa de escolas); a comparação é sem acento e sem caixa. O truque aparece como "Truque" (a ficha continua agrupando em "Truques").
+- (assumido) Os créditos do arquivo aparecem recolhidos no fim da lista (a licença do SRD pede a atribuição).
+- (assumido) Para quem não tem o seletor de pasta (Firefox, Safari) existe "Escolher o arquivo…" na aba vazia: vale até recarregar a página.
+- (assumido) O texto das 3 magias do exemplo foi **traduzido por mim, de memória do SRD 5.1** (nada foi baixado); distâncias também em metros (45 m, 36 m, 9 m, 6 m) além dos pés.
+
+### Desvios do plano
+
+- Nenhum no que o "Decidido antes de começar" pede. Sem dependência nova.
+
+### Frágil / não verificado
+
+- **Dois mestres com arquivos diferentes**: cada navegador de mestre lê a própria pasta ao conectar; o último a conectar com um arquivo diferente redefine o compêndio da mesa. Com um mestre só (o caso de uso) não aparece.
+- Sem o mestre online (e sem cópia no cache de ninguém), um jogador que **nunca** baixou o compêndio vê "ninguém com o arquivo está online" até o mestre conectar (é o mesmo comportamento das imagens).
+- A lista não é virtualizada: com as 2000 magias do limite são 2000 botões na tela (não medi; um compêndio real de ~500 magias deve ser tranquilo).
+- A leitura da pasta usa o File System Access (Chrome e Edge); em outros navegadores só o arquivo escolhido à mão. O teste usa a `Memoria` do modo `e2e`, não a pasta de verdade: **a leitura por `getDirectoryHandle`/`getFileHandle` só foi exercitada pelo roteiro manual** (abaixo).
+- Quem está com a janela da ficha aberta e adiciona uma magia pelo compêndio concorre com a edição dela (a ficha junta as mudanças por ~400 ms e a sala aplica por posição); na prática o usuário não faz as duas coisas ao mesmo tempo.
+- O cartão no chat confia no que o cliente mandou (a sala só valida limites): quem quiser pode "publicar" uma magia inventada. É texto de chat; não há regra automática sobre ela.
+- A tradução do exemplo do SRD merece uma conferência contra o texto oficial em português/inglês antes de qualquer uso fora do teste.
+
+### Roteiro manual (pendente)
+
+1. Escolher a pasta local, criar `compendio/magias.json` com o exemplo do SRD e abrir a aba Compêndio (como mestre): a lista aparece sozinha, com "Recarregar" e os créditos.
+2. Em outro navegador/aba como jogador: a lista chega sozinha; buscar "bola", "misseis", "magic"; usar os filtros (nível 1, concentração, ritual, escola, classe).
+3. Abrir "Bola de Fogo": campos, descrição, "Em níveis superiores". Escolher "Como: Aldric" e "Mandar para o chat": o mestre vê o cartão recolhido e abre.
+4. "Adicionar à ficha" como jogador (só os personagens dele) e como mestre (todos); abrir a aba Magias da ficha e ver a descrição; repetir (deve avisar e não duplicar).
+5. Estragar o JSON (nível 12, vírgula faltando) e "Recarregar": o erro aparece com o campo; os jogadores continuam com o compêndio anterior. Corrigir e recarregar de novo.
+6. Trocar a pasta/arquivo por um compêndio maior (de verdade, seu) e ver se a lista e a busca ficam rápidas.
+7. Abrir o `pnpm dev` do Vilella sobre o banco existente: nada deve quebrar (não há migração nova; sem compêndio a aba mostra como montar).
+8. Exportar e importar a campanha com o compêndio definido (volta a referência; o arquivo continua na pasta do mestre).
+
+### Revisão (antes do commit de fechamento)
+
+- Sigilo e limites revisados: só o mestre registra asset `compendio`; o jogador baixa só o compêndio da mesa; `compendio.definir` só aponta para asset `compendio` registrado; campos com limite; nenhum texto vira HTML. Atribuição do SRD conferida. Prints conferidos.
+- A sessão caiu no meio da primeira bateria da revisão. Na seguinte, uma rodada falhou em `combate.spec.ts:184` (Lote 11): o teste dependia do d20 do Aldric passar de 3. **Ajuste na revisão:** o mestre fixa o valor do Aldric depois de conferir a rolagem; o código estava certo. Na rodada seguinte, `desenho.spec.ts:156` (Lote 13) leu a lista do jogador logo depois de o mestre ver os 2 desenhos, antes de a confirmação chegar ao autor: **o teste agora espera também do lado do jogador**. Na seguinte, `assets.spec.ts:492` pôs a imagem no token da Brisa: o clique de `selecionarToken` caiu no vizinho enquanto a vista ainda se ajustava ao mapa novo. **O painel do token ganhou `data-token-id` e `selecionarToken` confere que selecionou o token pedido (tenta de novo)**, o que protege os 20 usos do ajudante.
+- `pnpm verify` verde duas vezes seguidas depois do ajuste (548 + 31 + 6 de unidade, 127 E2E); portas 8788/5174 livres no fim.
+- Sugestões aplicadas no PROJETO.md (4.1 e "Como ficou" do Lote 14); as perguntas entraram em `docs/PERGUNTAS.md`.
+
+### Sugestões para o PROJETO.md (aplicadas)
+
+- 4.13.1 e Lote 14 "Como ficou": o que está acima (formato, asset `compendio`, `Estado.compendio`, mensagem `magia`, "Adicionar à ficha").
+- 4.1: `Estado.compendio` e o asset `compendio` na lista de tipos de asset; mensagem de chat `magia`.
+- 4.2/exportação: versão 12 (compêndio).
+- Perguntas ao Vilella: (a) dois mestres: quem manda no compêndio (hoje, o último que conecta com arquivo diferente)? (b) o jogador deveria poder trazer o próprio arquivo (compêndio pessoal) além do da mesa? (c) "Adicionar à ficha" deveria ler a classe do personagem para avisar "essa classe não conjura esta magia"? (d) quer a linha de classes e o nome original também na lista, não só no cartão? (e) vale um conversor de outros formatos (planilha ou JSON de ferramentas conhecidas) ou o mestre monta o JSON à mão? (f) monstros e armas no mesmo arquivo (`versao: 2`) ou em outro?
+
+---
+
+## Próximo: Redesign e branding (a combinar com o Vilella); depois 7b e 12

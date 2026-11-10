@@ -251,7 +251,7 @@ export function criarExportacao(estado: Estado, agora: string): Exportacao {
 }
 
 /**
- * Valida um arquivo de exportação (de v1 a v11; o resultado é sempre v11): formato, ids únicos, pelo
+ * Valida um arquivo de exportação (de v1 a v12; o resultado é sempre v12): formato, ids únicos, pelo
  * menos um mestre, exceções válidas, cena ativa, pastas, personagens e tokens coerentes.
  */
 export function lerExportacao(
@@ -277,6 +277,7 @@ export function lerExportacao(
     modelos,
     combate,
     desenhos,
+    compendio,
   } = r.data.dados;
   const ids = new Set(usuarios.map((u) => u.id));
   if (ids.size !== usuarios.length) return { ok: false, motivo: "ids de usuário repetidos" };
@@ -402,6 +403,9 @@ export function lerExportacao(
   }
   const porHash = new Map(assets.map((a) => [a.hash, a]));
   if (porHash.size !== assets.length) return { ok: false, motivo: "hashes de asset repetidos" };
+  if (compendio && porHash.get(compendio.hash)?.tipo !== "compendio") {
+    return { ok: false, motivo: "compêndio sem meta" };
+  }
   for (const a of assets) {
     const problema = validarMeta(a);
     if (problema) return { ok: false, motivo: `asset ${a.hash.slice(0, 8)}: ${problema}` };
@@ -655,6 +659,12 @@ export function reduzir(estado: Estado, evento: EventoSala): Estado {
     }
     case "chat.limpo":
       return { ...base, chat: [] };
+    case "compendio.alterado": {
+      const { compendio: _antigo, ...semCompendio } = base;
+      return evento.dados.compendio === null
+        ? semCompendio
+        : { ...semCompendio, compendio: evento.dados.compendio };
+    }
     case "asset.registrado": {
       const { meta } = evento.dados;
       const atuais = base.assets ?? [];
@@ -966,9 +976,12 @@ export function processar(
         if (problema) return recusa("dados_invalidos", `Arquivo recusado: ${problema}.`);
         if (
           usuario.papel !== "mestre" &&
-          (m.tipo === "mapa" || m.tipo === "tile" || m.tipo === "cifrado")
+          (m.tipo === "mapa" || m.tipo === "tile" || m.tipo === "cifrado" || m.tipo === "compendio")
         ) {
-          return recusa("sem_permissao", "Só o mestre registra mapas e arquivos cifrados.");
+          return recusa(
+            "sem_permissao",
+            "Só o mestre registra mapas, arquivos cifrados e o compêndio.",
+          );
         }
         if (m.tiles) {
           let bytes = 0;
@@ -1790,7 +1803,8 @@ export function processar(
 
     case "chat.enviar":
     case "dado.rolar":
-    case "chat.modelo": {
+    case "chat.modelo":
+    case "chat.magia": {
       const r = criarMensagem(estado, usuario, intencao, agoraMs, aleatorio);
       if (!r.ok) return { ok: false, erro: r.erro };
       if (r.mensagem) emitir({ tipo: "chat.mensagem", dados: { mensagem: r.mensagem } });
@@ -1840,6 +1854,22 @@ export function processar(
       return doDesenho(desenhoLimpar(contextoDeDesenho, intencao.dados));
     case "desenho.rascunho":
       return doDesenho(desenhoRascunho(contextoDeDesenho, intencao.dados));
+
+    case "compendio.definir": {
+      const { compendio } = intencao.dados;
+      if (compendio === null) {
+        if (estado.compendio === undefined) return aplicado();
+        emitir({ tipo: "compendio.alterado", dados: { compendio: null } });
+        return aplicado();
+      }
+      // O arquivo é do mestre e nunca está aqui: só vale apontar para um asset `compendio` já registrado.
+      if (metaDoAsset(estado, compendio.hash)?.tipo !== "compendio") {
+        return recusa("asset_inexistente", "O arquivo do compêndio não foi registrado.");
+      }
+      if (JSON.stringify(estado.compendio) === JSON.stringify(compendio)) return aplicado();
+      emitir({ tipo: "compendio.alterado", dados: { compendio } });
+      return aplicado();
+    }
 
     case "campanha.exportar":
       return {
@@ -2041,6 +2071,7 @@ export function eventoPara(
       return visto ? { ...evento, dados: { mensagem: visto } } : null;
     }
     case "chat.limpo":
+    case "compendio.alterado":
     case "nota.alterada":
     case "papel.alterado":
     case "ordemDeTurno.alterada":

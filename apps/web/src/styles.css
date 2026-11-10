@@ -3344,3 +3344,245 @@ button:disabled:hover {
   width: 22px;
   height: 22px;
 }
+
+/* --- compêndio de magias (Lote 14) ----------------------------------------------------------- */
+
+.filtros-do-compendio {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-top: 8px;
+}
+.filtros-do-compendio select {
+  min-width: 0;
+}
+.filtros-do-compendio select:nth-of-type(3) {
+  grid-column: 1 / -1;
+}
+.filtros-do-compendio .linha-opcao {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+.barra-do-compendio {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 8px 0 4px;
+}
+.contagem-do-compendio {
+  margin: 0;
+  flex: 1;
+}
+.barra-do-compendio button.link {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  color: var(--acento);
+  text-decoration: underline;
+}
+.lista-de-magias {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.item-de-magia {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  text-align: left;
+}
+.item-de-magia .nome-da-magia {
+  font-weight: 600;
+}
+.nivel-e-escola {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 12px;
+  color: var(--texto-suave);
+}
+.marcas-da-magia {
+  display: inline-flex;
+  gap: 4px;
+}
+.etiqueta-magia {
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--painel-2);
+  border: 1px solid var(--acento);
+  color: var(--acento);
+  font-size: 11px;
+}
+.cartao-magia {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.cartao-magia .voltar {
+  align-self: flex-start;
+}
+.cartao-magia header h3 {
+  margin: 0;
+  font-size: 18px;
+  color: var(--texto);
+}
+.nome-original {
+  font-size: 12px;
+  color: var(--texto-suave);
+}
+.campos-da-magia {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 8px;
+  background: var(--painel-2);
+  border: 1px solid var(--borda);
+  border-radius: var(--raio);
+}
+.campos-da-magia div {
+  display: grid;
+  grid-template-columns: 9.5em minmax(0, 1fr);
+  gap: 8px;
+}
+.campos-da-magia dt {
+  color: var(--texto-suave);
+  font-size: 12px;
+}
+.campos-da-magia dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.classes-da-magia,
+.texto-da-magia {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.45;
+}
+.acoes-da-magia {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--borda);
+}
+.linha-de-acao {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.linha-de-acao select {
+  flex: 1;
+  min-width: 0;
+}
+.rotulo-de-acao {
+  min-width: 4.5em;
+  color: var(--texto-suave);
+  font-size: 12px;
+}
+.aviso-da-magia {
+  margin: 0;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: var(--painel-2);
+  border: 1px solid #5fd068;
+  color: #5fd068;
+}
+.aviso-da-magia.erro {
+  border-color: var(--perigo);
+  color: var(--perigo);
+}
+.erro-do-arquivo {
+  margin: 8px 0;
+  padding: 8px;
+  border-radius: 6px;
+  background: var(--painel-2);
+  border: 1px solid var(--perigo);
+  color: var(--perigo);
+  overflow-wrap: anywhere;
+}
+.exemplo-json {
+  margin: 6px 0;
+  padding: 8px;
+  overflow-x: auto;
+  background: var(--fundo);
+  border: 1px solid var(--borda);
+  border-radius: 6px;
+  font-size: 11px;
+  line-height: 1.35;
+}
+.passos {
+  margin: 6px 0;
+  padding-left: 20px;
+}
+.passos li {
+  margin-bottom: 4px;
+}
+.botao-arquivo {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: var(--painel-2);
+  border: 1px solid var(--borda);
+  border-radius: 8px;
+  cursor: pointer;
+}
+.creditos-do-compendio {
+  margin-top: 12px;
+  font-size: 12px;
+  color: var(--texto-suave);
+}
+.cartao-magia-chat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 2px;
+  padding: 8px;
+  background: var(--painel-2);
+  border: 1px solid var(--borda);
+  border-left: 3px solid var(--acento);
+  border-radius: var(--raio);
+}
+.cartao-magia-chat header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+}
+.cartao-magia-chat .resumo-da-magia {
+  margin: 0;
+  font-size: 12px;
+  color: var(--texto-suave);
+}
+.cartao-magia-chat .alternar-descricao {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  padding: 2px 8px;
+  font-size: 12px;
+}
+.descricao-da-magia {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+}
+.descricao-da-magia .campos-da-magia div {
+  grid-template-columns: 6.5em minmax(0, 1fr);
+}

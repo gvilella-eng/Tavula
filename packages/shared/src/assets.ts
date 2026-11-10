@@ -30,6 +30,8 @@ export const LIMITES_DE_ASSET = {
   metasPorRegistro: 65,
   /** Teto do inventário que o cliente manda ao conectar. */
   inventario: 5000,
+  /** O `magias.json` do compêndio (Lote 14): texto, nunca imagem. */
+  bytesDoCompendio: 8 * 1024 * 1024,
 } as const;
 
 export const PX_POR_QUADRADO_PADRAO = 70;
@@ -44,8 +46,10 @@ export const ACRESCIMO_DA_CIFRA = 12 + 16;
 /**
  * `cifrado`: arquivo opaco do pré-envio de uma cena (Lote 4). Sem nome nem dimensões reais; todo
  * jogador pode baixá-lo, mas só abre com a chave que a sala entrega ao levar o grupo.
+ * `compendio` (Lote 14): o `magias.json` do mestre (texto, sem dimensões reais: 1 x 1). Só o compêndio
+ * que a mesa definiu (`Estado.compendio`) é baixável por todos; os demais seguem a regra comum.
  */
-export const TIPOS_DE_ASSET = ["mapa", "token", "retrato", "tile", "cifrado"] as const;
+export const TIPOS_DE_ASSET = ["mapa", "token", "retrato", "tile", "cifrado", "compendio"] as const;
 export const TipoDeAssetSchema = z.enum(TIPOS_DE_ASSET);
 export type TipoDeAsset = z.infer<typeof TipoDeAssetSchema>;
 
@@ -123,6 +127,9 @@ export function validarMeta(meta: MetaNova | AssetMeta): string | null {
     return "tile grande demais";
   }
   if (meta.bytes <= 0) return "arquivo vazio";
+  if (meta.tipo === "compendio" && meta.bytes > LIMITES_DE_ASSET.bytesDoCompendio) {
+    return "compêndio grande demais";
+  }
   const limite =
     LIMITES_DE_ASSET.bytesPorArquivo + (meta.tipo === "cifrado" ? ACRESCIMO_DA_CIFRA : 0);
   if (meta.bytes > limite) return "arquivo grande demais";
@@ -337,7 +344,8 @@ function metaDe(estado: Pick<Estado, "assets">, hash: string): AssetMeta | undef
 
 /** Todo hash que algo da campanha usa: mapas das cenas, imagens dos tokens e os tiles deles. */
 export function hashesUsados(
-  estado: Pick<Estado, "assets" | "cenas" | "tokens" | "personagens">,
+  estado: Pick<Estado, "assets" | "cenas" | "tokens" | "personagens"> &
+    Partial<Pick<Estado, "compendio">>,
 ): Set<string> {
   const usados = new Set<string>();
   const usar = (hash: string | undefined) => {
@@ -351,6 +359,8 @@ export function hashesUsados(
     usar(p.tokenPadrao.assetHash);
     usar(p.retratoHash);
   }
+  // O compêndio da mesa (Lote 14): a meta vai na exportação (o arquivo, não).
+  usar(estado.compendio?.hash);
   return usados;
 }
 
@@ -382,14 +392,15 @@ export function hashesPreparaveis(
 /**
  * O usuário pode ver este asset? O mestre vê tudo o que existe. O jogador só vê o que é dele, a
  * imagem de um token visível para ele (da cena ativa), a imagem do token padrão e o retrato de um
- * personagem que ele vê, o mapa da cena ativa e os tiles desse mapa; e os arquivos `cifrado` (opacos: sem a
- * chave não dizem nada). Quem pergunta por um asset que não vê recebe a mesma resposta de quem
+ * personagem que ele vê, o mapa da cena ativa e os tiles desse mapa; os arquivos `cifrado` (opacos: sem a
+ * chave não dizem nada) e o compêndio que a mesa definiu (`Estado.compendio`: todos consultam). Um asset
+ * `compendio` que NÃO é o da mesa (um arquivo antigo do mestre) segue a regra comum: só o dono o vê. Quem pergunta por um asset que não vê recebe a mesma resposta de quem
  * pergunta por um que não existe.
  */
 export function assetVisivelPara(
   hash: string,
   estado: Pick<Estado, "assets" | "cenas" | "cenaAtivaId" | "tokens" | "personagens" | "pastas"> &
-    Partial<Pick<Estado, "retratosDoChat">>,
+    Partial<Pick<Estado, "retratosDoChat" | "compendio">>,
   usuario: Quem,
 ): boolean {
   const meta = metaDe(estado, hash);
@@ -397,6 +408,7 @@ export function assetVisivelPara(
   if (usuario.papel === "mestre") return true;
   if (usuario.papel !== "jogador") return false;
   if (meta.tipo === "cifrado") return true;
+  if (meta.tipo === "compendio" && estado.compendio?.hash === hash) return true;
   if (meta.donoId === usuario.id) return true;
   if (
     estado.tokens.some(

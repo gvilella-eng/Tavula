@@ -223,7 +223,9 @@ test("o jogador rola a própria iniciativa e passa o próprio turno; não passa 
   const denovo = await enviarCru(j1.pagina, intencaoCrua("combate.rolar", { ids: [aldric] }));
   expect(denovo?.tipo).toBe("erro");
 
-  // o mestre põe os demais lá embaixo: o Aldric abre a rodada
+  // o mestre põe os demais lá embaixo: o Aldric abre a rodada (o valor rolado é um d20 de verdade e
+  // pode sair baixo; fixá-lo em 20 deixa a ordem certa sem depender do dado)
+  await definirValor(mestre.pagina, "Aldric", 20);
   await definirValor(mestre.pagina, "Brisa", 1);
   await definirValor(mestre.pagina, "Cael", 2);
   await definirValor(mestre.pagina, "Ogro", 3);

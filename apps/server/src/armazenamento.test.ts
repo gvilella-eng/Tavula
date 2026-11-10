@@ -405,3 +405,74 @@ describe("Armazenamento: desenhos do Lote 13", () => {
     expect(banco.carregar()?.desenhos.map((d) => d.id)).toEqual(["a"]);
   });
 });
+
+describe("Armazenamento: compêndio do Lote 14", () => {
+  const REF = { hash: "c".repeat(64), nomeOriginal: "magias.json", magias: 3 };
+  const evento = (compendio: typeof REF | null, seq: number): EventoSala => ({
+    seq,
+    origem: { usuarioId: "mestre", idPedido: "p" },
+    tipo: "compendio.alterado",
+    dados: { compendio },
+  });
+
+  it("banco do Lote 13 (versão 8) abre sem quebrar, sem compêndio, e a campanha continua inteira", async () => {
+    const { sql } = await abrirBanco();
+    const original = new Armazenamento(sql as never);
+    original.migrar();
+    original.salvarTudo(estadoInicial(semente));
+    // o banco do Lote 13 nunca teve a chave `compendio` (e não há migração nova: a referência mora na meta)
+    sql.exec("DELETE FROM meta WHERE chave = 'compendio'");
+    const reaberto = new Armazenamento(sql as never);
+    reaberto.migrar();
+    expect(reaberto.lerMeta("versao_esquema")).toBe("8");
+    const carregado = reaberto.carregar();
+    expect(carregado?.compendio).toBeUndefined();
+    expect(carregado?.personagens.map((p) => p.nome)).toContain("Aldric");
+    expect(carregado?.tokens.length).toBeGreaterThan(3);
+  });
+
+  it("o compêndio volta do SQLite (só a referência, nunca o texto) e some ao tirar", async () => {
+    const { sql } = await abrirBanco();
+    const banco = new Armazenamento(sql as never);
+    banco.migrar();
+    const base = estadoInicial(semente);
+    banco.salvarTudo(base);
+    banco.salvarEventos({ ...base, seq: 1, compendio: REF }, [evento(REF, 1)]);
+    expect(banco.carregar()?.compendio).toEqual(REF);
+    // reabrir o banco (reinício da sala)
+    const reaberto = new Armazenamento(sql as never);
+    reaberto.migrar();
+    expect(reaberto.carregar()?.compendio).toEqual(REF);
+    const guardado = JSON.stringify(
+      sql.exec("SELECT valor FROM meta WHERE chave = 'compendio'").toArray(),
+    );
+    expect(guardado).not.toContain("descricao");
+    reaberto.salvarEventos({ ...base, seq: 2 }, [evento(null, 2)]);
+    expect(reaberto.carregar()?.compendio).toBeUndefined();
+  });
+
+  it("importar (salvarTudo) troca o compêndio; sem compêndio na campanha importada ele some; apagarTudo também", async () => {
+    const { sql } = await abrirBanco();
+    const banco = new Armazenamento(sql as never);
+    banco.migrar();
+    const base = estadoInicial(semente);
+    banco.salvarTudo({ ...base, compendio: REF });
+    expect(banco.carregar()?.compendio).toEqual(REF);
+    banco.salvarTudo(base);
+    expect(banco.carregar()?.compendio).toBeUndefined();
+    banco.salvarTudo({ ...base, compendio: REF });
+    banco.apagarTudo();
+    expect(sql.exec("SELECT valor FROM meta WHERE chave = 'compendio'").toArray()).toEqual([]);
+  });
+
+  it("valor ilegível não derruba a sala: vira sem compêndio", async () => {
+    const { sql } = await abrirBanco();
+    const banco = new Armazenamento(sql as never);
+    banco.migrar();
+    banco.salvarTudo(estadoInicial(semente));
+    banco.gravarMeta("compendio", "{ não é json");
+    expect(banco.carregar()?.compendio).toBeUndefined();
+    banco.gravarMeta("compendio", JSON.stringify({ hash: "curto" }));
+    expect(banco.carregar()?.compendio).toBeUndefined();
+  });
+});
