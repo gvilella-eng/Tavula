@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { iniciais } from "./Avatar";
 import {
   comRetentativa,
   entrar,
@@ -7,7 +8,13 @@ import {
   type UsuarioDaEntrada,
   usuarioDaSessao,
 } from "./api";
+import { Logo } from "./Logo";
 import { Mesa } from "./Mesa";
+
+/** (assumido) A tela de entrada ainda não sabe os papéis (a sala não os manda antes de entrar): o selo vale para o usuário semeado "mestre". */
+function ehMestre(u: UsuarioDaEntrada): boolean {
+  return u.id === "mestre";
+}
 
 function TelaDeEntrada({ aoEntrar }: { aoEntrar: (u: UsuarioDaEntrada) => void }) {
   const [usuarios, setUsuarios] = useState<UsuarioDaEntrada[] | null>(null);
@@ -31,20 +38,26 @@ function TelaDeEntrada({ aoEntrar }: { aoEntrar: (u: UsuarioDaEntrada) => void }
   }
 
   return (
-    <main className="pagina">
-      <h1>Tabletop</h1>
-      <p>Quem é você?</p>
+    <main className="entrada" data-testid="tela-de-entrada">
+      <h1 className="entrada-logo">
+        <Logo tamanho={56} />
+      </h1>
+      <p className="entrada-frase">Quem senta à mesa hoje?</p>
       {falha && <p role="alert">{falha}</p>}
-      <ul className="lista-simples" data-testid="lista-usuarios">
+      <ul className="entrada-usuarios" data-testid="lista-usuarios">
         {usuarios?.map((u) => (
           <li key={u.id}>
             <button
               type="button"
+              className="cartao-de-usuario"
               data-testid={`entrar-${u.id}`}
               onClick={() => escolher(u)}
-              style={{ borderLeft: `8px solid ${u.cor}` }}
             >
-              {u.nome}
+              <span className="avatar-entrada" style={{ background: u.cor }} aria-hidden="true">
+                {iniciais(u.nome)}
+              </span>
+              <span className="cartao-de-usuario-nome">{u.nome}</span>
+              {ehMestre(u) && <span className="selo-mestre">Mestre</span>}
             </button>
           </li>
         ))}

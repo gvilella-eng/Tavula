@@ -1,13 +1,39 @@
+import "@fontsource-variable/inter";
+import "@fontsource-variable/space-grotesk";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
 import "./styles.css";
+import { aplicarTema, lerTema } from "./tema/temas";
+
+// O tema vale desde antes da primeira renderização (preferência deste navegador).
+aplicarTema(lerTema());
 
 const raiz = document.getElementById("raiz");
 if (!raiz) throw new Error("Elemento #raiz não encontrado");
 
-createRoot(raiz).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-);
+/**
+ * Espera as duas fontes (empacotadas, locais) antes de desenhar a interface: sem isso o texto troca de
+ * fonte no meio do uso e a tela "pula" (botões mudam de lugar entre o olhar e o clique). Com teto de 1,5 s
+ * para nunca travar a abertura.
+ */
+async function fontesProntas(): Promise<void> {
+  try {
+    const carregar = Promise.all([
+      document.fonts.load('400 14px "Inter Variable"'),
+      document.fonts.load('700 14px "Inter Variable"'),
+      document.fonts.load('700 14px "Space Grotesk Variable"'),
+    ]);
+    await Promise.race([carregar, new Promise((r) => setTimeout(r, 1500))]);
+  } catch {
+    // segue com a fonte de reserva
+  }
+}
+
+void fontesProntas().then(() => {
+  createRoot(raiz).render(
+    <StrictMode>
+      <App />
+    </StrictMode>,
+  );
+});

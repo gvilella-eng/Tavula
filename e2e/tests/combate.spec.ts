@@ -320,9 +320,19 @@ test("condição e concentração que o jogador aplica no próprio token aparece
   // o mestre tira tudo e o jogador vê
   await menuDoToken(mestre.pagina, "tok-jogador-1");
   await mestre.pagina.getByTestId("menu-token-condicoes").click();
-  await mestre.pagina.getByTestId("condicao-caido").click();
-  await mestre.pagina.getByTestId("condicao-cego").click();
-  await mestre.pagina.getByTestId("condicao-envenenado").click();
+  // um clique por vez, esperando o marcador soltar: o menu parte do que a sala já mandou, e clicar na
+  // frente disso (antes de a rodada de eventos chegar) refazia o marcador (instável)
+  for (const c of ["caido", "cego", "envenenado"]) {
+    await expect(mestre.pagina.getByTestId(`condicao-${c}`)).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    await mestre.pagina.getByTestId(`condicao-${c}`).click();
+    await expect(mestre.pagina.getByTestId(`condicao-${c}`)).toHaveAttribute(
+      "aria-checked",
+      "false",
+    );
+  }
   await mestre.pagina.getByTestId("exaustao-0").click();
   await mestre.pagina.getByTestId("concentracao-tirar").click();
   await expect.poll(async () => (await tokenDe(j1.pagina, "tok-jogador-1")).marcas).toEqual([]);

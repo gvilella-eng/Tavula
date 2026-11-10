@@ -6,6 +6,7 @@ import type { Fontes } from "./assets/fontes";
 import type { GerenteDeAssets, StatusDeAsset } from "./assets/gerente";
 import { CampoNota } from "./CampoNota";
 import { SecaoMesa, SecaoObjetosDeLuz } from "./PainelDaMesa";
+import { SeletorDeTema } from "./SeletorDeTema";
 import type { Ocorrencia } from "./useSala";
 
 type Enviar = (tipo: string, dados: object) => string | null;
@@ -193,6 +194,7 @@ export function AbaConfiguracoes({
         Trocar usuário
       </button>
       <h3>Preferências deste navegador</h3>
+      <SeletorDeTema />
       <label className="linha-opcao">
         <input
           type="checkbox"

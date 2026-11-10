@@ -84,8 +84,8 @@ Base: 108 prints de todas as telas (mestre e jogador, 1600×900 e 1280×720), ge
 
 ## Plano de lotes do redesign (proposta)
 
-Cada lote termina como os anteriores: `pnpm verify` verde duas vezes, prints nos **3 temas**, revisão e
-commit. Nada muda nas regras do jogo nem no protocolo, salvo onde dito.
+Cada lote termina como os anteriores: `pnpm verify` verde numa rodada (com `--repeat-each=3` nos E2E novos;
+esquema de 2026-11-10), prints nos **3 temas**, revisão e commit. Nada muda nas regras do jogo nem no protocolo, salvo onde dito.
 
 - **R1. Fundação visual e marca.** Tokens de cor em variáveis CSS com os 3 temas (Grimório, Escuro neutro,
   Claro) e troca por usuário; fontes empacotadas (Space Grotesk + Inter via `@fontsource`); todas as cores
@@ -107,13 +107,66 @@ commit. Nada muda nas regras do jogo nem no protocolo, salvo onde dito.
 - **R5. Interações e fluxos.** Esc solta a seleção; criar token pede nome e lugar (ou arrasta da ficha);
   tocha com dica e ações no menu do token; condições com menos cliques; régua que pode ficar na tela; avisos
   perto do clique; ordem de turno compacta, com o valor confirmado no Enter; ficha abre com um clique;
-  estados vazios que orientam (jogador sem token, compêndio com "usar o exemplo do SRD"). Resolve 7, 9–15,
-  18, 19.
+  estados vazios que orientam (jogador sem token, compêndio com "usar o exemplo do SRD"). Resolve 7, 8 (parte),
+  9–15, 18, 19.
 - **R6. Polimento.** Tela pequena (1280×720), foco e contraste, atalhos de teclado nas dicas, transições
   discretas, revisão final de todos os prints nos 3 temas. Resolve 22 e o que sobrar.
 
+## R1 — como ficou (2026-11-10)
+
+Fundação visual e marca. Nada mudou na disposição da tela, nas regras nem no protocolo (nenhum frame novo; a
+sala não foi tocada).
+
+**O que foi feito**
+- **Temas de cor** (só cores): Grimório (padrão), Escuro neutro e Claro, em `apps/web/src/tema/temas.ts`, a
+  **única fonte** dos tokens (as mesmas chaves nos 3 temas). `aplicarTema` grava as variáveis CSS e
+  `data-tema` no `documentElement`; roda em `main.tsx` antes da primeira renderização. Para não piscar o
+  tema errado, o `index.html` define `data-tema` por um script curto e já pinta o fundo da página (3 cores
+  duplicadas de propósito; um teste de unidade confere que são iguais às do `temas.ts`).
+- **Preferência do navegador**: chave `tabletop:pref:tema` no localStorage (com try/catch), nunca na sala.
+  Seletor com amostras na aba Configurações, em "Preferências deste navegador" (`SeletorDeTema.tsx`).
+- **Cores fixas trocadas por tokens** no `styles.css` (de ~45 cores escritas à mão sobraram só as de
+  conteúdo: texto branco sobre a cor do usuário no avatar, o contorno do ponto da ordem de turno, a sigla das
+  condições e a roda de cores do pincel). `--painel-2` virou `--cabecalho`; `--fundo` agora é só o fundo da
+  página; campos e áreas rebaixadas usam `--campo`; as três barras fixas (menu superior, ferramentas e painel
+  lateral) usam `--barra` e `--borda-barra` (o "couro" mais claro que o fundo da mesa); o verde, o amarelo e o
+  roxo de estado ganharam tokens (`--sucesso`, `--aviso`, `--oculta`). Texto em destaque (antes
+  `color: var(--acento)`) passou a `--acento-forte`, que garante contraste nos 3 temas. O mapa (PixiJS) e as
+  cores de conteúdo (usuário, token, pincel, condições) **não** mudam com o tema.
+- **Contraste AA** (4,5:1) conferido por teste de unidade nos pares de texto e fundo de cada tema.
+- **Fontes empacotadas**: `@fontsource-variable/space-grotesk` (títulos, logo, número grande da rolagem) e
+  `@fontsource-variable/inter` (interface), importadas em `main.tsx`. Nenhuma requisição a outro host (um
+  E2E vigia todas as requisições do navegador).
+- **Marca Távola**: `Logo.tsx` (símbolo SVG `viewBox 24`, traço em `--acento`, mais grosso nos tamanhos
+  pequenos, e o nome em Space Grotesk 700), favicon em `apps/web/public/favicon.svg`, título da aba "Távola"
+  e, com a mesa aberta, "Távola · nome da cena do grupo". O nome visível "Tabletop" saiu da interface (só
+  havia a tela de entrada e o `<title>`); identificadores técnicos ficaram como estão.
+- **Tela de entrada nova**: logo grande, "Quem senta à mesa hoje?", cartões com avatar (iniciais na cor do
+  usuário), nome e selo "Mestre", sem a borda colorida lateral; segue o tema do navegador.
+
+**Decisões (assumido)**
+- (assumido) O selo "Mestre" vale para o usuário de id `mestre`: `/api/usuarios` não manda o papel e o lote
+  não mexe na sala. Se o mestre passar o papel a outra pessoa, o selo continua no mesmo cartão.
+- (assumido) `color-scheme` do `<html>` acompanha o tema (claro ou escuro).
+- (assumido) `perigoFundo`, `avisoFundo` e `sobreposicao` são tokens por tema; o véu sobre o mapa (`--veu`)
+  também muda com o tema porque carrega texto do tema.
+- (assumido) O fundo da mesa (`--fundo-mesa`) só aparece antes do canvas subir; o PixiJS pinta o seu próprio
+  fundo, igual em qualquer tema.
+- (assumido) No Claro, `--acento` (#E2AE4F) é só preenchimento; texto e ícone em destaque usam
+  `--acento-forte` (#8A5D10).
+- (assumido) O perigo do Claro ficou #A83A15 (o #B9461F do protótipo dava 4,46:1 sobre o fundo da página,
+  abaixo de AA). Tokens que o protótipo não trazia (sucesso, aviso, roxo, véus, sombra) foram criados por mim.
+
+**O que ficou para depois**
+- A disposição das barras, o painel direito e as janelas (R2 em diante).
+- O papel do usuário na tela de entrada (a sala precisaria devolvê-lo em `/api/usuarios`).
+- Um passe fino de contraste no avatar (texto branco sobre cores claras de usuário, como o amarelo do
+  mestre) e nos rótulos desenhados dentro do mapa: são conteúdo, ficam para o R6.
+
 ## Em aberto
 
-- Aprovação do plano acima (ordem e escopo dos lotes).
+- R1 feito (2026-11-10). O Vilella vai fazer pessoalmente os ajustes finos de UX/UI e a reorganização dos
+  itens; falta combinar se R2–R6 seguem como planejados, mudam de escopo ou ficam com ele. Ponto de partida:
+  `docs/PASSAGEM.md`.
 - Itens de interface que vieram dos lotes e entram no R5/R6: a dica das condições abrir por clique, alças de
   tocha sobrepostas ao ícone de ponto, seleção múltipla no mapa.

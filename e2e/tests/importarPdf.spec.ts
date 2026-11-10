@@ -58,7 +58,7 @@ test("importar o PDF do Darion pelo menu do item: revisão com incertos em amare
   await expect(p.getByTestId("revisao-total-incertos")).toContainText("campos para revisar");
   const celula = revisao.locator("td", { has: p.getByTestId("revisao-campo-ataques.1.nome") });
   await expect(celula).toHaveAttribute("data-incerto", "true");
-  await expect(celula).toHaveCSS("background-color", /rgba\(255, 208, 70, 0\.1/);
+  await expect(celula).toHaveCSS("background-color", /rgba\(245, 197, 66, 0\.1/);
   await expect(p.getByTestId("revisao-campo-ataques.1.nome")).toHaveValue("Machadinho …");
   // O nome recuperado vem preenchido e marcado.
   await expect(p.getByTestId("revisao-campo-ataques.6.nome")).toHaveValue(

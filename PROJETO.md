@@ -1,6 +1,7 @@
-# Tabletop — visão e plano de implementação
+# Távola — visão e plano de implementação
 
-> Nome provisório. Documento-base do projeto: explica a ideia, as decisões de arquitetura e divide a
+> Nome decidido em 2026-11-10 (antes "Tabletop"; os identificadores técnicos `@tabletop/*`, `tabletop-*` e as
+> chaves do navegador ficam como estão, para não quebrar campanhas exportadas). Documento-base do projeto: explica a ideia, as decisões de arquitetura e divide a
 > implementação em **lotes entregáveis e verificáveis**, todos rodando **só na máquina local**
 > (`localhost`). Deploy na internet está fora deste plano.
 

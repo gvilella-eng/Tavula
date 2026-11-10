@@ -11,7 +11,7 @@ type Props = {
   className?: string;
 };
 
-function iniciais(nome: string): string {
+export function iniciais(nome: string): string {
   const palavras = nome.trim().split(/\s+/).filter(Boolean);
   if (palavras.length >= 2)
     return `${palavras[0]?.[0] ?? ""}${palavras[1]?.[0] ?? ""}`.toUpperCase();

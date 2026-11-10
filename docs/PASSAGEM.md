@@ -1,0 +1,424 @@
+# Passagem para o Vilella
+
+Mapa de partida para os ajustes finos de UX/UI, a revisão das "atenções" e a reorganização da interface.
+Tudo o que está em aberto, num lugar só, com ponteiro para a fonte. Nada aqui é novo: se o item não tem
+ponteiro, não entrou. Onde a fonte é ambígua ou os docs se contradizem, o item diz isso.
+
+Ponteiros: `REDESIGN` = `docs/REDESIGN.md`, `PERGUNTAS` = `docs/PERGUNTAS.md`, `ESTADO` = `docs/ESTADO.md`,
+`PROJETO` = `PROJETO.md` (na raiz), `IDEIAS` = `docs/IDEIAS.md`. Número depois dos dois-pontos é a linha.
+
+Estado dos docs em 2026-11-10: o Redesign R1 está entregue; R2 em diante não começou
+(`ESTADO:1683`).
+
+## 1. Como subir a mesa para olhar
+
+- `pnpm dev` na raiz sobe a sala (wrangler, `127.0.0.1:8787`) e a web (Vite, `127.0.0.1:5173`). Abra
+  `http://127.0.0.1:5173`. Fica rodando no terminal enquanto se joga (`PROJETO:787-790`, `ESTADO:23-40`).
+- O banco da campanha fica em `apps/server/.wrangler/state` (fora do git). **Apagar essa pasta zera a
+  campanha** (`ESTADO:34`, `PROJETO:799`). O PROJETO escreve só `.wrangler/state`; o ESTADO dá o caminho
+  completo.
+- `pnpm verify` (typecheck, lint, unidade e E2E) usa portas próprias: sala `8788`, web `5174`, estado em
+  `e2e/.estado-sala`, nunca a campanha real (`PROJETO:793-795`, `ESTADO:129-136`). `pnpm dev:e2e` sobe esses
+  servidores à mão.
+- Se uma porta estiver ocupada, o `pnpm dev` falha em vez de trocar de porta (`ESTADO:41-42`).
+- Vários jogadores na mesma máquina: perfis diferentes do Chrome. Janela anônima da mesma sessão não vale
+  (`PROJETO:796-798`).
+- Não existe `README` na raiz; o que vale é o `PROJETO.md` (seção 6) e o "Como rodar" de cada lote no
+  `ESTADO.md`.
+
+## 2. Onde mexer na aparência
+
+Tudo em `apps/web/src/`.
+
+- `tema/temas.ts`: as cores dos 3 temas (Grimório, Escuro neutro, Claro). É a **única fonte** dos tokens.
+  `tema/temas.test.ts` confere que os 3 temas têm as mesmas chaves e reprova par de texto e fundo abaixo de
+  4,5:1 (AA) (`REDESIGN:121-136`). O `index.html` repete 3 cores de fundo de propósito (anti-piscada); o mesmo
+  teste confere que são iguais às do `temas.ts`.
+- `styles.css`: todo o resto do visual, usando as variáveis CSS dos tokens. Sobraram cores fixas só de
+  conteúdo (texto branco no avatar, contorno do ponto da ordem de turno, sigla das condições, roda de cores
+  do pincel) (`REDESIGN:128-135`).
+- `SeletorDeTema.tsx`: o seletor com amostras (aba Configurações, "Preferências deste navegador").
+- `Logo.tsx`: símbolo SVG da mesa redonda com a chama, mais o nome em Space Grotesk. `../public/favicon.svg`:
+  o favicon. Título da aba em `index.html`/`App.tsx`.
+- `main.tsx`: importa as fontes (`@fontsource-variable/space-grotesk` e `inter`) e aplica o tema antes da
+  primeira renderização.
+- Componentes principais da tela:
+  - `Mesa.tsx`: a mesa inteira; o mapa ocupa a tela e as ferramentas flutuam em volta (comentário na linha 100).
+  - `mapa/Mapa.tsx`, `mapa/mapaPixi.ts`, `mapa/camadaDeLuz.ts`, `mapa/camadaDeDesenho.ts`: o mapa em PixiJS.
+    **Não muda com o tema** (`REDESIGN:134-135`).
+  - `MenuSuperior.tsx`: menus que abrem logo abaixo dos ícones do topo.
+  - `BarraDeFerramentas.tsx`: barra vertical à esquerda (selecionar, mão, régua, dados rápidos, pincel).
+  - `BarraLateral.tsx`: painel direito recolhível, com abas por ícone.
+  - `abas.tsx`: conteúdo de várias abas (notas da mesa e do mestre, pasta local de imagens/Biblioteca,
+    status dos arquivos).
+  - `AbaChat.tsx`, `AbaFichas.tsx`, `AbaCompendio.tsx`: as abas de chat (com os modelos de rolagem), fichas
+    (notas e pastas) e compêndio de magias.
+  - `PainelDoMestre.tsx`, `PainelDaMesa.tsx`, `PainelDeIluminacao.tsx`: configurações do mestre, regras da
+    mesa (mãos, penalidade, estágios, modelos de luz) e iluminação.
+  - `PainelDoToken.tsx`: painel compacto do mestre para o token selecionado (canto inferior esquerdo).
+  - `OrdemDeTurno.tsx`: painel flutuante da ordem de turno.
+  - `FaixaDeCenas.tsx`: faixa de cenas, com prévia do mapa e menu de contexto.
+  - `ConfigurarCena.tsx`: nome, mapa, pixels por quadrado e grid da cena.
+  - `PainelDasParedes.tsx`, `PainelDeFontesDeLuz.tsx`: paredes e portas; fontes de luz.
+  - `MenuDoToken.tsx`, `MenuDaTocha.tsx`: menus de botão direito no token (iniciativa, condições) e na alça da
+    tocha.
+  - `SubBarraPincel.tsx`, `DadosRapidos.tsx`, `ZoomFlutuante.tsx`: sub-barra do pincel, grade de dados
+    rápidos e controle de zoom na borda direita do mapa.
+  - `ficha/JanelaDaFicha.tsx` e as demais em `ficha/`: a janela da ficha 5e e a revisão da importação de PDF.
+  - `Avatar.tsx`, `MensagemDoChat.tsx`, `CartaoDeRolagem.tsx`, `CartaoDaMagia.tsx`: avatar com iniciais e
+    cartões do chat.
+
+## 3. Levantamento de usabilidade (22 itens)
+
+Fonte: `REDESIGN:34-83`. Prioridade: A = atrapalha o jogo ou esconde função; B = confunde ou dá trabalho; C =
+acabamento. Lote = o do plano (`REDESIGN:85-113`) que resolve o item. Só R1 foi entregue.
+
+| # | Resumo | Classe | Lote |
+|---|---|---|---|
+| 1 | Sem estrutura fixa: menu, ferramentas e painéis flutuam sobre o mapa; em 1280×720 ordem de turno e ficha tomam quase a tela | A | R2 |
+| 2 | Ícones do menu superior sem nome e alguns enganam (copo = Iluminação, lua com clique direito escondido, raio "em breve") | A | R4 |
+| 3 | Abas do painel direito só com ícone; o nome só aparece depois de abrir | B | R2 |
+| 4 | Coisas no lugar errado: Notas em Fichas; Configurações mistura pessoal, regras e tocha; aba Mestre mistura papéis, grid, capacidades e "uso de hoje" | A | R4 |
+| 5 | Paredes escondidas (copo, Paredes e portas, tipo, cliques); nada mostra o modo ligado | A | R4 |
+| 6 | Modelos de tocha só aparecem rolando Configurações | B | R4 |
+| 7 | "+" cria "Novo token" no meio da vista sem perguntar nome nem lugar | B | R5 |
+| 8 | Esc não solta a seleção; painel do token cobre o mapa | B | R3 (painel) e R5 (Esc) |
+| 9 | Tocha só por gestos sem explicação; alça e tempo pequenos | A | R5 |
+| 10 | Condições: muitos cliques; marcadores pequenos; regra só no mouse | B | R5 |
+| 11 | Régua some ao soltar | C | R5 |
+| 12 | Aviso (toast) no rodapé, longe do clique, some rápido | B | R5 |
+| 13 | Jogador sem token na cena vê tela preta sem explicação | A | R5 |
+| 14 | Ordem de turno do mestre: cinco linhas de controles; número reordena enquanto digita; "Rolar para todos" cinza sem motivo | B | R3 (janela) e R5 (controles) |
+| 15 | Abrir a ficha exige dois cliques, sem dica | B | R5 |
+| 16 | Janela da ficha grande e fixa; em tela pequena cobre quase tudo | B | R3 |
+| 17 | Lista de presença ocupa 1/4 do painel do chat | B | R2 |
+| 18 | Compêndio: o mestre lê ajuda de JSON; falta "usar o exemplo" | B | R5 |
+| 19 | Importar PDF com dois caminhos de nomes diferentes; revisão longa (19 campos amarelos) | C | R5 |
+| 20 | Tela de entrada sem marca nem personalidade | B | R1 (entregue) |
+| 21 | Pausa pouco visível: botão e relógio iguais pausado e rodando | B | R2 |
+| 22 | Nenhum atalho de teclado nas dicas | C | R6 |
+
+Classes: A = 6 (1, 2, 4, 5, 9, 13), B = 13, C = 3 (11, 19, 22).
+
+## 4. Perguntas e suposições esperando o "ok" dele
+
+**Total: 46 abertos em `PERGUNTAS`** (47 numerados; o 21 já está resolvido) (a seção "Respondidas em 2026-11-10" não entra, nem o item riscado do
+nome). Mais **37 suposições "(assumido)"** que só aparecem no `ESTADO`/`REDESIGN` (parte B). Os que o texto
+marca "(assumido)" valem até ele dizer o contrário.
+
+### A. Em `PERGUNTAS.md` (48)
+
+Já vinham de antes
+1. Camada mapa = imagem do mapa + objetos de cenário? (assumido) (`PERGUNTAS:13`)
+2. Pincel: jogador apaga e seleciona só os próprios desenhos? Desenhar é delegável e ligado por padrão? (assumido) (`PERGUNTAS:14`)
+3. Dados rápidos: coluna = quantidade? (assumido) (`PERGUNTAS:15`)
+4. Visibilidade do item = pela pasta + editores? (assumido) (`PERGUNTAS:16`)
+5. Compêndio: JSON local (direitos do Livro do Jogador; SRD é a alternativa livre)? (`PERGUNTAS:17`)
+6. Tocha: apagada ocupa mão? Qualquer jogador no alcance tira do suporte? Entregar exige 1,5 m? (assumido) (`PERGUNTAS:18`). O mestre já entrega de longe (`PERGUNTAS:7`); a pergunta vale para o jogador.
+7. Ícone de eventos (7b), desenho das automações e MCP (12) (`PERGUNTAS:21`). Adiados, ver seção 7.
+8. "Lista de ajustes de interface que ele quer fazer" (`PERGUNTAS:23`). É o trabalho que ele está assumindo agora.
+
+Lote 7
+9. Onde fica o botão de pausar e o relógio da sala (assumido: fim do menu superior do mestre) (`PERGUNTAS:30`). O R2 muda isso (pausa e relógio no topo, `REDESIGN:96`).
+10. Estágios: forte > 50%, fraca ≤ 50%, morrendo ≤ 10% da duração (assumido; configurável) (`PERGUNTAS:31`)
+11. Consumida some da mão e da coleção (assumido) (`PERGUNTAS:32`)
+12. Semente: Tocha 5e 60 min 6+6 m; Lanterna 6 h 9+9 m; Fogueira infinita (`PERGUNTAS:33`)
+13. `luz.apagar` (padrão desligado) = apagar luz de ponto; a própria tocha usa `tocha.acender` (`PERGUNTAS:34`)
+14. Editar um modelo (ex.: Tocha) muda as tochas já acesas? (assumido: não) (`PERGUNTAS:36`)
+15. Apagar com penalidade maior que o saldo consome a tocha (assumido) (`PERGUNTAS:37`)
+
+Lote 8
+16. O mestre vê todos os sussurros? (assumido: sim) (`PERGUNTAS:41`)
+17. Chat fora da exportação da campanha? (assumido) (`PERGUNTAS:42`)
+18. Seta para cima reenvia ou só traz a mensagem de volta? (assumido: só traz) (`PERGUNTAS:81`)
+19. Retrato de quem fala pode ser visto por quem não vê a ficha? (assumido: sim, em mensagem pública) (`PERGUNTAS:82`)
+
+Lote 9
+20. Ficha completa de outro personagem só com `ficha.verOutras` (padrão desligado)? (assumido) (`PERGUNTAS:45`). **Inconsistência real**: a capacidade sumiu da tela do mestre (`PainelDoMestre.tsx:24`, "quem vê a ficha agora é a pasta"), mas ainda libera a ficha completa no código (`packages/shared/src/mapa.ts:81`). Decidir se sai de vez ou volta à tela.
+21. ~~Ficha numa janela flutuante~~: já existe (`ficha/JanelaDaFicha.tsx`); arrastar e lembrar a posição por usuário vem no R3 (`PERGUNTAS:46`). Não conta no total.
+22. O jogador pode repor tochas na própria ficha? (assumido: só o mestre aumenta) (`PERGUNTAS:86`)
+23. A importação da ficha deve ler também de dentro de `fichas/`? (assumido: arquivo escolhido) (`PERGUNTAS:87`)
+24. A janela da ficha deve lembrar a posição? (`PERGUNTAS:88`). O R3 prevê posição por usuário.
+25. Darion: conferir na ficha original Labareda Protetora 2/longo e Radiação do Amanhecer 1/curto (`PERGUNTAS:89`). Tochas e flechas já seguem o PDF.
+
+Lote 10
+26. Caixas de recurso do PDF sempre para revisão (assumido). Precisa de um 2º PDF de outro jogador (`PERGUNTAS:49`)
+27. Guardar na ficha os espaços de magia e os dados de vida lidos do PDF, em vez de só conferir com a tabela das classes? (`PERGUNTAS:50`)
+28. Todas as magias entram como preparadas (o PDF não diz quais estão): ok? (`PERGUNTAS:51`)
+
+Lote 11
+29. Empate de iniciativa: Destreza, depois PJ antes de NPC, depois nome (assumido) (`PERGUNTAS:55`)
+30. O jogador da vez passa o próprio turno (assumido) (`PERGUNTAS:56`)
+31. Condições no token, não no personagem (assumido) (`PERGUNTAS:57`)
+32. "Adicionar selecionados" deveria aceitar vários tokens? (a seleção múltipla no mapa não existe) (`PERGUNTAS:58`)
+33. O jogador pode refazer a própria iniciativa, ou só o mestre? (assumido: só o mestre) (`PERGUNTAS:59`)
+34. A dica das condições deveria abrir também por clique (tela de toque)? (`PERGUNTAS:60`). Também em `REDESIGN:171`.
+35. O nome da entrada na ordem de turno deve seguir a renomeação do token? (assumido: não) (`PERGUNTAS:61`)
+
+Lote 13
+36. Borracha apaga o desenho inteiro (assumido) (`PERGUNTAS:65`)
+37. O jogador sem `desenho.criar` ainda pode apagar os próprios desenhos? (assumido: não) (`PERGUNTAS:66`)
+38. As formas devem encaixar no grid? (assumido: não) (`PERGUNTAS:67`)
+39. O arrasto de um desenho deve aparecer ao vivo para os outros? (assumido: não, só ao soltar) (`PERGUNTAS:68`)
+40. Quer refazer, desfazer o apagar ou seleção múltipla de desenhos? (`PERGUNTAS:69`)
+41. Espessura em metros (acompanha o mapa) em vez de pixels do mundo? (`PERGUNTAS:70`)
+
+Lote 14
+42. Compêndio distribuído como asset (o mestre tem o JSON, os jogadores recebem pelo caminho das imagens) (`PERGUNTAS:73`)
+43. Quem manda no compêndio quando há dois mestres? Compêndio pessoal do jogador? (`PERGUNTAS:74`)
+44. Avisar quando a classe do personagem não conjura a magia adicionada? (`PERGUNTAS:75`)
+45. Mostrar as classes e o nome original na lista do compêndio? (`PERGUNTAS:76`)
+46. Conversor de outros formatos; monstros e armas no mesmo arquivo ou em outro? (`PERGUNTAS:77`)
+47. Conferir a tradução das 3 magias do exemplo do SRD (`PERGUNTAS:78`)
+
+Fora da contagem, no mesmo arquivo: "A lista de presença ocupa muito espaço com 8 pessoas" (`PERGUNTAS:83`) é
+o item 17 do levantamento (R2); "Sobreposição de alças e ícones de ponto" (`PERGUNTAS:38`) está na seção 5
+(Lote 7); "Ideias para o 7b" (`PERGUNTAS:62`) está na seção 7.
+
+### B. Suposições "(assumido)" só no ESTADO/REDESIGN (37)
+
+Não aparecem em `PERGUNTAS`. Resumidas; o texto completo está no ponteiro.
+
+Lote 7 (`ESTADO:1094-1105`)
+48. Modelo em uso não se apaga (`ESTADO:1104`)
+
+Lote 8 (`ESTADO:1174-1183`)
+49. O selo de não lidas não conta minhas mensagens nem o histórico presente ao abrir; `/?` só da tela (`ESTADO:1182`)
+50. `/w` para si mesmo é permitido; teste com CD acerta com total ≥ CD (`ESTADO:1182`)
+
+Lote 9 (`ESTADO:1243-1252`)
+51. Meio-conjurador usa `ceil(nível/2)`, terço `ceil(nível/3)`; multiclasse soma o piso por classe; Guerreiro e Ladino só pelas subclasses (`ESTADO:1249`)
+52. Acerto do ataque: valor fixo ou fórmula; sem acerto só rola o dano; descanso longo devolve metade dos dados de vida (`ESTADO:1250`)
+53. Fixture do Darion: Patrulheiro (Caçador) 5 e Clérigo 5 (`ESTADO:1251`)
+
+Lote 10 (`ESTADO:1322-1330`)
+54. A subclasse vem do texto da classe ("Hunter Ranger 5" vira Patrulheiro, subclasse "Hunter"); termos em inglês ficam como estão (`ESTADO:1327`)
+55. Moedas e os quatro campos de personalidade entram em `notas`; nome de característica em CAIXA ALTA vira título (`ESTADO:1328`)
+56. Caixa de recurso: `atual` = número grande, `max` = "(MAX n)" ou "Total"; recarga "nunca"; repetidas descartadas (`ESTADO:1329`)
+
+Lote 11 (`ESTADO:1395-1408`)
+57. A entrada copia a Destreza da ficha (se preenchida); sem Destreza conta como a menor no desempate (`ESTADO:1397`)
+58. A entrada guarda `jogador` (campo a mais em relação ao PROJETO) (`ESTADO:1398`)
+59. Adicionar entradas reordena a lista; o arrasto à mão dura até o próximo valor rolado ou "Ordenar" (`ESTADO:1399`)
+60. Rolagem de entrada com valor oculto ou escondida vai oculta, mesmo de PJ; entrada solta rola com bônus 0 e oculta (`ESTADO:1401`)
+61. Tirar a entrada da vez passa o turno para a seguinte (`ESTADO:1402`)
+62. Rodada 0 = "Não começou"; Anterior não volta antes da rodada 1 (`ESTADO:1403`)
+63. Só uma seleção de token na mesa; acrescentado "O grupo" (`ESTADO:1404`)
+64. Token de outra cena pode entrar na ordem; o jogador recebe só entradas da cena ativa (`ESTADO:1405`)
+65. Marcadores no mapa: duas letras e uma cor por condição; regra só em dica com o mouse (`ESTADO:1406`)
+66. O mestre "vendo como" um jogador vê a ordem em só leitura e o menu do token fica desligado (`ESTADO:1407`)
+67. Concentração mostra só o texto da regra; nenhum teste automático (`ESTADO:1408`)
+
+Lote 13 (`ESTADO:1482-1494`)
+68. O mestre desenha na cena que está vendo, não só na ativa (`ESTADO:1490`)
+69. A camada "Desenho" do menu de camadas só escolhe a camada de trabalho; os desenhos aparecem sempre (`ESTADO:1492`)
+70. O rascunho do autor aparece normal para ele e a 85% para os outros; a sala guarda até 16 traços abertos por conexão (`ESTADO:1494`)
+
+Lote 14 (`ESTADO:1569-1584`)
+71. O mestre lê o arquivo sozinho (ao conectar, pasta autorizada, "Recarregar") (`ESTADO:1571`)
+72. Todos consultam o compêndio, mesmo sem `asset.subir`; só o mestre define (`ESTADO:1572`)
+73. `compendio.definir` usa a capacidade `mesa.configurar` (`ESTADO:1575`)
+74. Arquivo com nome de magia repetido (sem acento nem caixa) é recusado (`ESTADO:1576`)
+75. `chat.magia` é intenção própria, sempre pública, e a sala não confere se a magia existe no compêndio (`ESTADO:1578`)
+76. "Mandar para o chat" usa o mesmo "Como:" do chat; quem não edita personagem fala como ele mesmo (`ESTADO:1579`)
+77. Os créditos do arquivo aparecem recolhidos no fim da lista (`ESTADO:1582`)
+78. Sem o seletor de pasta (Firefox, Safari) há "Escolher o arquivo…", que vale até recarregar (`ESTADO:1583`)
+
+Redesign R1 (`REDESIGN:147-158`, `ESTADO:1650-1657`)
+79. O selo "Mestre" vale para o usuário de id `mestre` (`REDESIGN:148`)
+80. `color-scheme` do `<html>` acompanha o tema (`REDESIGN:150`)
+81. `perigoFundo`, `avisoFundo`, `sobreposicao` e `--veu` são tokens por tema (`REDESIGN:151`)
+82. `--fundo-mesa` só aparece antes de o canvas subir (`REDESIGN:153`)
+83. No Claro, `--acento` (#E2AE4F) é só preenchimento; texto usa `--acento-forte` (#8A5D10) (`REDESIGN:155`)
+84. Perigo do Claro em #A83A15 (o do protótipo dava 4,46:1); tokens que o protótipo não trazia (sucesso, aviso, roxo, véus, sombra) foram criados pelo agente (`REDESIGN:157`)
+
+Os itens 49 a 85 são 37. Deixei de fora as suposições puramente técnicas (por exemplo, onde mora o compêndio
+na tabela `meta`, o worker do pdf.js, tipos do Node no teste, idempotência de `desenho.apagar`).
+
+## 5. Pontos frágeis por lote
+
+Fonte: subseções "Frágil / não verificado" ou "Pontos frágeis" do `ESTADO` (Lote 3 em diante). Onde o mesmo
+ponto aparece em mais de um lote, vai numa linha só, com os dois lugares.
+
+Vários lotes
+- Só Chrome/Edge foi testado: Firefox e Safari (WebP, OPFS, DnD), WebGL, pasta local. (`ESTADO:525-527`, `ESTADO:852`, `ESTADO:932`, `ESTADO:1030`, `ESTADO:1595`, `ESTADO:1668`)
+- `PastaLocal` (File System Access) sem teste automático; coberta só pelo roteiro manual. (`ESTADO:521`, `ESTADO:725`, `ESTADO:1263`, `ESTADO:1595`)
+- Hibernação real da sala não testada (L3: posse ao acordar; L4: preparos pendentes). (`ESTADO:531`, `ESTADO:719`)
+- Visual das abas conferido só por teste, sem polimento (L3 Biblioteca; L4 abas novas). (`ESTADO:541`, `ESTADO:726`)
+- Mesma cena duplicada obriga a refazer o preparo e baixa o mapa duas vezes. (`ESTADO:715`, `ESTADO:854`)
+- Toque (celular) não testado: arrastar alça da tocha (L7) e arrastar e redimensionar a janela da ficha (L9). (`ESTADO:1117`, `ESTADO:1261`)
+- Banco real do Vilella nunca aberto com as migrações novas (leitura coberta só por teste com banco simulado) (L7, L8, L9). (`ESTADO:1122`, `ESTADO:1196`, `ESTADO:1266`)
+- Arrasto HTML5 (drag and drop): L4b só no Chrome; L11 sem E2E do arrasto da lista. (`ESTADO:852`, `ESTADO:1418`)
+- Custo real de uso (inventário no SQLite, frames) nunca medido numa mesa de 3 h (L3; custo de linhas também em L8). (`ESTADO:537-538`)
+
+Lote 3
+- GPU real: tile > 8192 px nunca exercitado; possível linha fina entre tiles. (`ESTADO:528-530`)
+- Importar a campanha em outra instalação: os arquivos só existem nos navegadores; sem ninguém online o mapa fica "indisponível". (`ESTADO:533-536`)
+- `navigator.storage.persist()` é só um pedido; sem cota o OPFS falha e o asset dá erro. (`ESTADO:539-540`)
+
+Lote 4
+- Arquivos grandes: cifrar e decifrar leem o arquivo inteiro em memória; não medido com tile de 30 MB nem mapa de 200 MB. (`ESTADO:710-711`)
+- Cifrado que chega depois da ida fica sem uso; não há limpeza dos antigos e eles contam para o teto de 2000 assets. (`ESTADO:712-714`)
+- O preparo revela quantos arquivos cifrados há e o tamanho aproximado; o token de NPC visível leva um `personagemId` opaco. (`ESTADO:717-718`)
+- `armazenamento.ts` sem teste de unidade; progresso do preparo faz uma consulta por `asset.tenho`, não medida. (`ESTADO:722-724`)
+
+Lote 4b
+- A prévia da cena usa o cache; mapas enormes geram a prévia na primeira abertura da faixa. (`ESTADO:853`)
+- A bandeira de chegada só é arrastável com a ferramenta Selecionar. (`ESTADO:855`)
+
+Lote 5
+- Blend `erase` e RenderTexture só vistos no Chrome; bordas do véu serrilhadas em zoom alto. (`ESTADO:932`) (junto de L6, ver "Vários lotes")
+- Token com o centro sobre a parede pode vazar visão. (`ESTADO:933`)
+- Quem encosta o token na parede com Alt pode parar a poucos milímetros; trajeto conferido só por segmento reto, sem raio do token. (`ESTADO:934`)
+- Latência no duplo clique de desenhar parede: o ponto repetido é ignorado por distância (< 5 cm). (`ESTADO:935`)
+- Visão recalculada a cada quadro enquanto um token de visão anda (medido 5–7 ms para 500 paredes e 8 fontes). (`ESTADO:936`)
+
+Lote 6
+- Blend `saturation` e RenderTextures só no Chrome com devicePixelRatio 1; com DPR alto as texturas ficam em 1800 px. (`ESTADO:1030`)
+- Luz com bordas duras (degraus), sem gradiente. (`ESTADO:1031`)
+- A memória marca por centro de célula de 0,5 m: quinas finas de parede podem marcar célula por engano. (`ESTADO:1032`)
+- A memória só vale para o token do navegador; o mestre "vendo como" usa a memória dele, não a do jogador. (`ESTADO:1033`)
+- Cena que muda de tamanho descarta a memória gravada. (`ESTADO:1034`)
+- Redimensionar a janela com muito zoom refaz as marcas das luzes (barato), não as texturas. (`ESTADO:1035`)
+
+Lote 7
+- Contagem do inflamável usa o relógio do navegador (3 s + 60 ms), a sala confere com 300 ms de tolerância; rede lenta pode recusar. (`ESTADO:1118`)
+- O anel e as alças se sobrepõem quando um ponto com objeto fica a menos de 1 quadrado da mão do token (ajuste de interface; também em `PERGUNTAS:38`, `REDESIGN:172`). (`ESTADO:1119`)
+- Com a sala fora do ar por muito tempo o relógio dela continua: ao voltar, tochas podem ter acabado. (`ESTADO:1120`)
+- O mestre "vendo como" um jogador recebe o tempo que o mestre recebe; a visão filtrada é só de tela. (`ESTADO:1121`)
+- `ponto.acenderInicio` não devolve evento no E2E (transitória); quem testa só envia. (`ESTADO:1123`)
+
+Lote 8
+- Cada snapshot relê o histórico do SQLite por usuário: barato numa mesa, conta linhas lidas no deploy futuro. (`ESTADO:1192`)
+- O chat carregado no navegador é trocado pelo snapshot ao reconectar; as "anteriores" já carregadas somem. (`ESTADO:1193`)
+- Nenhum teste com imagem de retrato real; a regra de `retratosDoChat` é coberta só por unidade. (`ESTADO:1194`)
+- O limite de 10/s fica em memória: a sala hibernada zera a janela (inofensivo). (`ESTADO:1195`)
+- A lista de presença no topo do chat ocupa muito espaço com 8 pessoas (ajuste de interface). (`PERGUNTAS:83`, levantamento 17)
+
+Lote 9
+- A janela da ficha não guarda posição entre sessões (também em `PERGUNTAS:88`). (`ESTADO:1261`)
+- Duas pessoas no mesmo campo: vale a última; o já enviado fica por cima por 2,5 s ou até o eco. (`ESTADO:1262`)
+- Escrita em `fichas/` (File System Access) não testada no E2E; sem pasta, o teste cobre o download. (`ESTADO:1263`)
+- Chave numérica em operação (`espacosGastos.1`) cria lista em vez de objeto quando o pai não existe. (`ESTADO:1264`)
+- Texto de magia e características vem vazio no Darion (o Lote 10 importa do PDF). (`ESTADO:1265`)
+
+Lote 10
+- Só um PDF de verdade testado (o do Darion); falta o de outro jogador. (`ESTADO:1338`)
+- Os rótulos em PT da página de conjuração e os rótulos em EN foram supostos, não vistos num PDF real. (`ESTADO:1338`)
+- A leitura depende de os rótulos da ficha impressa não mudarem e de o texto ser real (PDF escaneado não funciona). (`ESTADO:1339`)
+- CA, iniciativa e deslocamento vêm de "três números numa linha"; linha diferente cai em `incertos`. (`ESTADO:1340`)
+- Parágrafos das descrições: a linha curta que termina em ponto fecha o parágrafo. (`ESTADO:1341`)
+- A tela de revisão edita só alguns campos; o resto se corrige depois, na ficha. (`ESTADO:1342`)
+
+Lote 11
+- A dica das condições só aparece com o mouse; em toque não há como lê-la (também em `PERGUNTAS:60`, `REDESIGN:171`). (`ESTADO:1419`)
+- O painel da ordem tem 364 px e, em 1280 px, cobre o centro do mapa (levantamento 1 e 14). (`ESTADO:1420`)
+- `combate.alterado` leva o combate inteiro a cada mudança (até 200 entradas). (`ESTADO:1421`)
+- Ordenação por nome com `Intl.Collator("pt-BR")` testada no Node, não no `wrangler dev` do Vilella com lista grande. (`ESTADO:1422`)
+- Sem automação de regra (desvantagem, falha automática, teste de concentração): fica para o 7b. (`ESTADO:1423`)
+
+Lote 13
+- O rascunho é só de tela; quem reconecta descarta os rascunhos que tinha. (`ESTADO:1503`)
+- Redesenhar é "tudo de uma vez": 1000 desenhos de 2000 pontos podem pesar no zoom e no arrasto; não medido. (`ESTADO:1504`)
+- Selecionar e mover usam alvo de 8 px; desenhos finos e próximos podem exigir zoom. (`ESTADO:1505`)
+- A borracha apaga ao encostar, só o que é do usuário; recusa rara da sala faz o desenho reaparecer após ~1,5 s. (`ESTADO:1506`)
+- O teste do escuro lê pixel pelo `renderer.extract`; em outra GPU o valor pode variar. (`ESTADO:1507`)
+- A cor livre usa o `<input type="color">` do navegador, sem conta-gotas próprio. (`ESTADO:1508`)
+- Não há desfazer de apagar nem refazer (também em `PERGUNTAS:69`). (`ESTADO:1509`)
+
+Lote 14
+- Dois mestres com arquivos diferentes: o último a conectar redefine o compêndio (também em `PERGUNTAS:74`). (`ESTADO:1592`)
+- Sem o mestre online e sem cópia no cache, quem nunca baixou vê "ninguém com o arquivo está online". (`ESTADO:1593`)
+- A lista não é virtualizada: com 2000 magias são 2000 botões; não medido. (`ESTADO:1594`)
+- Quem está com a ficha aberta e adiciona magia pelo compêndio concorre com a edição dela. (`ESTADO:1596`)
+- O cartão no chat confia no que o cliente mandou: dá para "publicar" uma magia inventada. (`ESTADO:1597`)
+- A tradução das 3 magias do exemplo do SRD precisa ser conferida (também em `PERGUNTAS:78`). (`ESTADO:1598`)
+
+Redesign R1
+- Selo "Mestre" preso ao id `mestre` (também em `REDESIGN:163`). (`ESTADO:1665`)
+- Texto branco sobre cores de usuário claras (amarelo do mestre) no avatar: contraste baixo; fica para o R6. (`ESTADO:1666`, `REDESIGN:163-164`)
+- Os rótulos desenhados dentro do mapa não seguem o tema; também ficam para o R6. (`ESTADO:1667`, `REDESIGN:164`)
+
+Itens de interface que `REDESIGN:171-172` manda para o R5/R6 e que já estão acima: a dica das condições abrir
+por clique (Lote 11), alças de tocha sobrepostas ao ícone de ponto (Lote 7). O terceiro, **seleção múltipla no
+mapa**, não existe ainda; aparece em `PERGUNTAS:58` e `PERGUNTAS:69`.
+
+## 6. Roteiros manuais pendentes
+
+Só onde está cada um; os passos estão no `ESTADO`. Nenhum foi dado como feito, exceto o parcial do Lote 3 e o
+dos Lotes 1 e 2 (fora do escopo deste mapa).
+
+- Lote 3, **parcial** ("Roteiro manual (parcial)"): `ESTADO:543`. Feito em 2026-11-05: mapa e token da pasta local
+  apareceram. Faltam 6 passos e dois ajustes de interface vistos no print dele (o contador "0 arquivos prontos"
+  e a barra lateral cortando texto, `ESTADO:546-551`).
+- Lote 4, pendente: `ESTADO:728`.
+- Lote 4b: sem roteiro escrito (foi interface para ver); o `ESTADO` só tem "Frágil" (`ESTADO:850`).
+- Lote 5, pendente: `ESTADO:938`.
+- Lote 6, pendente: `ESTADO:1037`.
+- Lote 7, pendente: `ESTADO:1125`.
+- Lote 8, pendente: `ESTADO:1198`.
+- Lote 9, pendente: `ESTADO:1268`.
+- Lote 10, pendente: `ESTADO:1344`.
+- Lote 11, pendente: `ESTADO:1425`.
+- Lote 13, pendente: `ESTADO:1511`.
+- Lote 14, pendente: `ESTADO:1600`.
+- Redesign R1, pendente: `ESTADO:1670`.
+
+Total: 12 roteiros com seção própria (1 parcial e 11 pendentes).
+
+## 7. Adiados
+
+A pedido dele (`PROJETO:816-819`: "Ordem decidida pelo Vilella (2026-11-06)"; `PERGUNTAS:21`):
+
+- **Lote 7b, automações da mesa** (`PROJETO:1308`): ciclos, eventos e reações do mestre, zonas, editor de
+  automações e campanhas-exemplo carregáveis. O ícone "Eventos" do menu sai até lá (`REDESIGN:105`). Ideias
+  já guardadas para ele: teste de concentração com a CD sugerida e condições que aplicam vantagem ou
+  desvantagem nas rolagens (`PERGUNTAS:62`, `ESTADO:1448`).
+- **Lote 12, MCP** (`PROJETO:1647`): `apps/mcp` ligando na sala local, rascunho invisível aos jogadores, publicação
+  pelo mestre e desfazer em lote.
+
+O que o plano R2 a R6 ainda prevê (`REDESIGN:85-113`, "proposta"; `REDESIGN:168`: falta combinar se seguem como
+planejados, mudam de escopo ou ficam com ele):
+
+- **R2, estrutura fixa**: topo de 48 px, ferramentas de 52 px, painel direito em coluna com abas nomeadas e
+  largura ajustável (300 px a 1/4 da tela), zoom fixo no canto, presença em avatares no topo, pausa e relógio
+  claros, "centralizar" só na área visível. Resolve 1, 3, 17, 21.
+- **R3, janelas flutuantes**: componente único (arrastar, posição e tamanho por usuário, dois cliques
+  minimizam, sempre na tela, a última clicada por cima) para ordem de turno, ficha, token, paredes, fontes de
+  luz, iluminação e dados rápidos. Resolve 8 (parte), 14 (parte), 16.
+- **R4, organização do mestre**: menu superior agrupado e com nomes; Paredes vira ferramenta da barra
+  esquerda; "Eventos" sai até o 7b; Configurações separadas em Preferências e Mesa; Notas viram aba; grid vai
+  para a cena; "uso de hoje" vai para diagnóstico. Resolve 2, 4, 5, 6.
+- **R5, interações e fluxos**: Esc solta a seleção; criar token pede nome e lugar; tocha com dica e menu;
+  condições com menos cliques; régua que fica; avisos perto do clique; ordem de turno compacta com Enter; ficha
+  com um clique; estados vazios que orientam. Resolve 7, 8 (parte), 9–15, 18, 19.
+- **R6, polimento**: tela pequena (1280×720), foco e contraste (inclui o avatar e os rótulos do mapa),
+  atalhos nas dicas, transições discretas, revisão final dos prints nos 3 temas. Resolve 22 e o que sobrar.
+
+Cada lote termina com `pnpm verify` verde numa rodada (mais `--repeat-each=3` nos E2E novos), prints nos 3 temas,
+revisão e commit (`REDESIGN:87-88`).
+
+## 8. Ideias (não são pendências)
+
+`docs/IDEIAS.md` guarda o que ainda não virou plano ("Em avaliação": ordem e escopo dos lotes, deploy mínimo
+cedo, névoa manual, mapa revelado aos poucos em tiles, handouts e som), o que foi **descartado** ("não propor
+de novo") e notas da campanha de referência "A Chama Primordial". Quando algo é decidido, sai de lá e vai para
+o `PROJETO.md`.
+
+## Contradições entre os docs (corrigidas em 2026-11-10)
+
+Achadas ao montar esta passagem e já acertadas nos docs de origem:
+
+- Perguntas respondidas em 2026-11-10 que ainda apareciam abertas em outros blocos do `PERGUNTAS` (névoa
+  manual, visão noturna do mestre, alcance do mestre para a tocha, números do Darion): riscadas.
+- Darion no `ESTADO` do Lote 9 e no `PERGUNTAS:89`: anotado que tochas e flechas seguem o PDF; sobram
+  Labareda Protetora e Radiação do Amanhecer para conferir.
+- Alcance do mestre no `ESTADO` do Lote 7: anotado que mudou (o mestre entrega de longe).
+- Lista "Só interface" do Lote 4b no `ESTADO`: marcada como histórica; sem função hoje só "Eventos" (7b) e os
+  itens Artefato, Tesouro e Handout ("em breve").
+- Roteiro do 4b: o `PERGUNTAS` não o lista mais (não há roteiro escrito).
+- Plano do redesign: o item 8 entra no R5 (Esc) além do R3 (painel); o verify passou a uma rodada.
+- Título do `PROJETO.md`: Távola (identificadores técnicos seguem `tabletop`).
+- "Em aberto" do `REDESIGN`: R1 feito; R2–R6 a combinar.
+
+Continua em aberto, por ser decisão e não erro de doc: `ficha.verOutras` (seção 4, item 21).

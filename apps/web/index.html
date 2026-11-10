@@ -3,7 +3,27 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Tabletop</title>
+    <title>Távola</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Sem piscar o tema errado: antes de qualquer JS, o fundo da página já é o do tema escolhido.
+         Os valores de `background` abaixo são os `fundo` de apps/web/src/tema/temas.ts (um teste confere). -->
+    <style>
+      html { background: #0E0B09; }
+      html[data-tema="grimorio"] { background: #0E0B09; }
+      html[data-tema="escuro"] { background: #0F1115; }
+      html[data-tema="claro"] { background: #EFEBE4; }
+    </style>
+    <script>
+      let tema = null;
+      try {
+        tema = localStorage.getItem("tabletop:pref:tema");
+      } catch {
+        tema = null;
+      }
+      if (tema === "grimorio" || tema === "escuro" || tema === "claro") {
+        document.documentElement.setAttribute("data-tema", tema);
+      }
+    </script>
   </head>
   <body>
     <div id="raiz"></div>

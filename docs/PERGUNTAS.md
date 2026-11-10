@@ -17,13 +17,13 @@ Juntadas durante os Lotes 6 a 14 (2026-11-06 a 10) para fazer ao Vilella no fim.
 - Compêndio: JSON local (direitos do Livro do Jogador; SRD é a alternativa livre)?
 - Tocha: apagada ocupa mão? qualquer jogador no alcance tira do suporte? entregar exige 1,5 m? (assumido)
 - ~~Nome do projeto~~: **Távola** (2026-11-10).
-- Névoa manual (o mestre revela áreas) × só automática?
+- ~~Névoa manual × só automática~~: só automática por ora (2026-11-10).
 - Ícone de eventos (7b) e o desenho das automações; MCP (12).
 - Lista de ajustes de interface que ele quer fazer.
-- Roteiros manuais pendentes: Lotes 3, 4, 4b, 5, 6 (+ os novos).
+- Roteiros manuais pendentes: Lote 3 (parcial), Lotes 4 a 11, 13, 14 e R1 (o 4b não tem roteiro escrito; foi interface para ver). Lista em `docs/PASSAGEM.md`.
 
 ## Lote 6
-- Visão noturna do mestre: a área que um jogador só vê com visão no escuro aparece em cor normal (como está) ou em cinza?
+- ~~Visão noturna do mestre~~: cor normal, como está (2026-11-10).
 
 ## Lote 7
 - Onde fica o botão de pausar a mesa e o relógio da sala (assumido: fim do menu superior do mestre).
@@ -31,7 +31,7 @@ Juntadas durante os Lotes 6 a 14 (2026-11-06 a 10) para fazer ao Vilella no fim.
 - Consumida some da mão e da coleção (assumido).
 - Semente: Tocha 5e 60 min 6+6 m; Lanterna 6 h 9+9 m; Fogueira infinita.
 - luz.apagar (padrão desligado) = apagar luz de ponto; a própria tocha usa tocha.acender.
-- O mestre também precisa estar ao alcance para entregar a tocha? (o agente assumiu que sim; eu acho que o mestre deveria poder sempre)
+- ~~O mestre também precisa estar ao alcance para entregar a tocha?~~ Não: o mestre entrega de longe (2026-11-10, feito).
 - Editar um modelo (ex.: Tocha) muda as tochas já acesas? (assumido: não)
 - Apagar com penalidade maior que o saldo consome a tocha (assumido).
 - Sobreposição de alças e ícones de ponto quando o ponto fica colado ao token (ajuste de interface).
@@ -41,14 +41,14 @@ Juntadas durante os Lotes 6 a 14 (2026-11-06 a 10) para fazer ao Vilella no fim.
 - Chat fora da exportação da campanha? (assumido)
 
 ## Lote 9
-- Ficha completa de outro personagem só com ficha.verOutras (padrão desligado)? (assumido)
-- Ficha numa janela flutuante sobre o mapa (como nas mesas virtuais).
+- Ficha completa de outro personagem só com ficha.verOutras (padrão desligado)? (assumido) Atenção: a capacidade sumiu da tela do mestre (`PainelDoMestre.tsx:24`, "quem vê a ficha agora é a pasta"), mas ainda vale no código (`packages/shared/src/mapa.ts:81`).
+- Ficha numa janela flutuante sobre o mapa (como nas mesas virtuais): feita no Lote 9 (`JanelaDaFicha.tsx`); arrastar e lembrar a posição por usuário vem no R3.
 
 ## Lote 10
 - Caixas de recurso do PDF sempre para revisão (assumido). Precisa de um 2º PDF de outro jogador para o "pronto quando".
 - Guardar na ficha os espaços de magia e os dados de vida lidos do PDF, em vez de só conferir com a tabela das classes?
 - Todas as magias entram como preparadas (o PDF não diz quais estão): ok?
-- O PDF do Darion traz Tochas 9 e Flechas 7 (máx. 20, "Total 9"); a ficha montada à mão no Lote 9 tinha 3 tochas e 9 flechas. Qual vale?
+- ~~O PDF do Darion traz Tochas 9 e Flechas 7; a ficha do Lote 9 tinha 3 e 9. Qual vale?~~ O PDF (2026-11-10, feito no `darion.json`).
 
 ## Lote 11
 - Empate de iniciativa: Destreza, depois PJ antes de NPC, depois nome (assumido).
@@ -85,7 +85,7 @@ Juntadas durante os Lotes 6 a 14 (2026-11-06 a 10) para fazer ao Vilella no fim.
 - O jogador pode repor tochas na própria ficha? (assumido: só o mestre aumenta)
 - A importação da ficha deve ler também de dentro de `fichas/`? (assumido: arquivo escolhido)
 - A janela da ficha deve lembrar a posição?
-- Darion: conferir na ficha impressa os recursos (Flechas 9, Labareda Protetora 2/longo, Radiação do Amanhecer 1/curto) e as 3 tochas.
+- Darion: conferir na ficha impressa Labareda Protetora 2/longo e Radiação do Amanhecer 1/curto (tochas e flechas já seguem o PDF desde 2026-11-10).
 
 ---
 

@@ -701,6 +701,15 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
     gravarEncaixePadrao(v);
   }
 
+  // Título da aba: "Távola" e, com a mesa aberta, o nome da cena do grupo.
+  const nomeDaCenaDoGrupo = cenaDoGrupo?.nome;
+  useEffect(() => {
+    document.title = nomeDaCenaDoGrupo ? `Távola · ${nomeDaCenaDoGrupo}` : "Távola";
+    return () => {
+      document.title = "Távola";
+    };
+  }, [nomeDaCenaDoGrupo]);
+
   const cenaVista = { id: cena?.id ?? estado?.cenaAtivaId ?? "", nome: cena?.nome ?? "" };
 
   const abas =

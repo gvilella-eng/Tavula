@@ -841,6 +841,8 @@ Monta a interface v2 (`PROJETO.md` 4.13.1) para o Vilella visualizar e seguir de
 
 ### Só interface (sem função ainda)
 
+(Lista da época do Lote 4b; os Lotes 6 a 14 deram função a quase tudo. Seguem só interface: "Eventos", do 7b, e os itens Artefato, Tesouro e Handout, marcados "em breve" em `AbaFichas.tsx`.)
+
 Pincel e camada de desenho (e "Limpar desenhos"), dados rápidos (só avisa), chat (lista vazia, caixa e "Como:"
 desabilitados), compêndio (busca sem dados), eventos, iluminação, visão noturna, painel de ordem de turno (vazio; só o
 liga/desliga é real), "Importar ficha", e os itens Artefato, Tesouro e Handout.
@@ -1097,7 +1099,7 @@ relatório do Playwright (`[erro na página]`).
 - **Pausa e config que muda o que o jogador vê mandam snapshot a todos** (`mesa.pausar/retomar`, `tempoParaJogadores`, estágios, visibilidade de ponto).
 - **O relógio do jogador não leva o tempo da sala** (`acumuladoMs: 0`), e os modelos dele vêm sem a duração fora do modo `exato`.
 - **Exportar** guarda saldo e histórico (dado da campanha) e restaura a mesa **pausada**; `acendimentos` nunca entram.
-- (assumido) entregar exige o alcance também para o mestre; apagar ou reacender objeto de ponto exige alcance para o jogador (`luz.apagar` apaga, `ponto.usar` reacende); tirar do suporte: qualquer jogador com token ao alcance e mão livre.
+- (assumido; **mudou em 2026-11-10**: o mestre entrega, põe e tira de longe, só o jogador precisa do alcance) entregar exige o alcance também para o mestre; apagar ou reacender objeto de ponto exige alcance para o jogador (`luz.apagar` apaga, `ponto.usar` reacende); tirar do suporte: qualquer jogador com token ao alcance e mão livre.
 - (assumido) a tocha apagada continua ocupando a mão; apagar com a penalidade maior que o que sobra consome a tocha.
 - (assumido) ponto com objeto e posição mudada manda snapshot novo; modelo em uso não se apaga; `modelo.editar` não altera objetos já criados (cada objeto copia a luz e a duração).
 - Decimais do histórico em pt-BR ("Raio ×0,5").
@@ -1246,7 +1248,7 @@ relatório do Playwright (`[erro na página]`).
 - (assumido) Quem não é mestre **não aumenta** a quantidade de item com `modeloId` (só o mestre repõe tochas, como o `mochila.ajustar` do Lote 7); gastar vale.
 - (assumido) Meio-conjurador sozinho usa `ceil(nível/2)` (nível 2+) e terço `ceil(nível/3)` (nível 3+), que reproduz a tabela da classe; multiclasse soma o piso por classe. Guerreiro e Ladino só conjuram pelas subclasses Cavaleiro Místico e Trapaceiro Arcano.
 - (assumido) Acerto do ataque: valor fixo ou fórmula (atributo + proficiência + bônus); sem acerto o ataque só rola o dano (`/r` no chat, com o nome). Descanso longo devolve metade dos dados de vida (mínimo 1), dos maiores primeiro, zera PV temporário e testes contra a morte.
-- (assumido) Fixture: Patrulheiro (Caçador) 5 e Clérigo 5; nomes cortados do PDF ficam com reticências ("Machadinho …"); recursos (Flechas 9, Labareda Protetora 2/longo, Radiação do Amanhecer 1/curto) e 3 tochas (item com `modeloId`) são suposições a conferir na ficha impressa.
+- (assumido) Fixture: Patrulheiro (Caçador) 5 e Clérigo 5; nomes cortados do PDF ficam com reticências ("Machadinho …"); recursos (Flechas 9, Labareda Protetora 2/longo, Radiação do Amanhecer 1/curto) e 3 tochas (item com `modeloId`) são suposições a conferir na ficha impressa. **2026-11-10**: tochas e flechas passaram aos números do PDF (9 tochas; 7 flechas de máximo 20).
 - (assumido) Importar a ficha é por arquivo (seletor do navegador); a pasta `fichas/` só recebe a exportação.
 
 ### Desvios do plano
@@ -1622,4 +1624,60 @@ relatório do Playwright (`[erro na página]`).
 
 ---
 
-## Próximo: Redesign e branding (a combinar com o Vilella); depois 7b e 12
+## Redesign R1 — Fundação visual e marca (entregue, aguardando o roteiro manual)
+
+### O que foi entregue
+
+- **Temas de cor** (`apps/web/src/tema/temas.ts`, fonte única): Grimório (padrão), Escuro neutro e Claro; `aplicarTema` põe os tokens como variáveis CSS no `documentElement`, no boot (`main.tsx`), e o `index.html` já pinta o fundo e marca `data-tema` antes do JS (sem piscar). Preferência **do navegador** (`tabletop:pref:tema`), nunca da sala. Seletor com amostras em Configurações → "Preferências deste navegador" (`SeletorDeTema.tsx`).
+- **`styles.css` sem cores fixas** (exceto as de conteúdo): tokens novos `--fundo-mesa`, `--barra`, `--borda-barra`, `--cabecalho` (era `--painel-2`), `--campo`, `--acento-suave`, `--acento-forte`, `--perigo-texto`, `--perigo-fundo`, `--sucesso*`, `--aviso*`, `--oculta`, `--sobreposicao`, `--veu`, `--ponto-off`, `--texto-desabilitado`, `--sombra`.
+- **Fontes empacotadas**: `@fontsource-variable/space-grotesk` e `@fontsource-variable/inter`.
+- **Marca Távola**: `Logo.tsx`, `public/favicon.svg`, título "Távola" (com a cena: "Távola · nome da cena"), tela de entrada nova (cartões com avatar e selo "Mestre").
+
+### Como rodar
+
+- `pnpm verify` (uma vez). Os E2E novos: `pnpm --filter @tabletop/e2e test --repeat-each=3 tests/tema.spec.ts tests/importarPdf.spec.ts`. Prints: `$env:PRINTS_DIR="<pasta>"; pnpm --filter @tabletop/e2e prints r1`.
+
+### Verificação
+
+- Unidade nova `apps/web/src/tema/temas.test.ts`: os 3 temas têm exatamente as mesmas chaves; contraste AA (4,5:1) de cada par de texto e fundo relevante nos 3 temas (texto e texto suave sobre barra, painel, cabeçalho, campo e fundo; destaque, perigo, sucesso, aviso e roxo sobre os fundos em que aparecem; texto sobre cada preenchimento); o fundo pintado pelo `index.html` é igual ao do tema.
+- E2E novo `e2e/tests/tema.spec.ts` (4 testes): entrada com logo, frase, 8 usuários, selo só no mestre, iniciais e título "Távola"; título "Távola · cena" na mesa; trocar o tema muda as cores, sobrevive ao recarregar e **nenhum frame** (enviado nem recebido) acompanha a troca; o tema é por navegador (outro usuário continua no dele); nenhuma requisição fora de 127.0.0.1 e as duas fontes empacotadas carregam.
+- E2E antigo alterado: `importarPdf.spec.ts` conferia a cor do campo amarelo "incerto" como `rgba(255, 208, 70, 0.1…)`; agora `rgba(245, 197, 66, 0.1…)` (o token novo). Nenhum E2E dependia do texto "Tabletop"; `interface.spec.ts` confere o avatar na cor do usuário, que não muda.
+- `pnpm verify` verde numa rodada: 13 (web) + 31 (servidor) + 549 (shared) de unidade e 132 E2E, sem instável. Repetição 3x: `tema`, `importarPdf` e `combate` (45 execuções) e `assets`, `interface`, `tema`, `importarPdf` (81) verdes.
+- Efeitos da fonte Inter (mais larga que a `system-ui`): o painel do token passou de 420 px (limite de `interface.spec.ts`), então o `gap` e o padding dele diminuíram (`gap: 4px`, `padding: 6px 10px`; 410 px). A interface só é desenhada depois de as duas fontes carregarem (teto de 1,5 s, em `main.tsx`), para o texto não trocar de fonte no meio de um clique.
+- Instável achado no caminho e corrigido (já existia: 2 falhas em 12 no código sem o lote): `combate.spec.ts` "condição e concentração que o jogador aplica..." clicava nas condições do mestre sem esperar o menu refletir o estado da sala; agora espera `aria-checked` antes e depois de cada clique.
+- Prints (1600×900, 3 temas) em `PRINTS_DIR`: `<tema>-00-entrada`, `01-mesa-mestre`, `02-mesa-jogador`, `03-ficha-aberta`, `04-ordem-de-turno-recorte`, `05-compendio-cartao`, `06-chat-recorte` (rolagem e magia), `07-preferencias-mestre` e `-jogador`.
+
+### Decisões
+
+- (assumido) O selo "Mestre" vale para o usuário de id `mestre` (a entrada não sabe os papéis).
+- (assumido) `--painel-2` foi renomeado para `--cabecalho`; `--fundo` é só o fundo da página; áreas rebaixadas e campos usam `--campo`.
+- (assumido) O perigo do Claro ficou #A83A15 (o do protótipo não passava AA sobre o fundo da página).
+- (assumido) O mapa (PixiJS) não muda com o tema; o véu sobre o mapa (`--veu`) muda porque carrega texto do tema.
+- (assumido) Os valores de fundo duplicados no `index.html` são conferidos por teste.
+- (assumido) A montagem dos prints foi copiada de `auditoria.spec.ts` para `r1.spec.ts` (os specs de print não exportam nada).
+
+### Desvios do plano
+
+- Nenhum. Dependências novas: as duas de fonte. Nada mudou na sala, no protocolo nem na exportação.
+
+### Frágil / não verificado
+
+- Selo "Mestre" preso ao id `mestre`.
+- Texto branco sobre cores de usuário claras (amarelo do mestre) no avatar: contraste baixo, é conteúdo; fica para o R6.
+- Os rótulos desenhados dentro do mapa não seguem o tema (são do mapa).
+- Só o Chrome foi testado.
+
+### Roteiro manual (pendente)
+
+1. Abrir a mesa: tela de entrada nova (logo, frase, cartões, selo Mestre) e a aba "Távola".
+2. Configurações → Tema de cor: trocar nos 3 temas e olhar chat, fichas, compêndio, ordem de turno, janela da ficha e menus.
+3. Recarregar e conferir que o tema continua; abrir em outro navegador e ver que o tema é independente.
+4. Com a rede cortada, as fontes continuam as mesmas (Space Grotesk nos títulos).
+
+### Revisão (antes do commit de fechamento)
+
+- Prints dos 3 temas conferidos um a um.
+
+---
+
+## Próximo: Redesign R2 — Estrutura fixa (topo de 48 px, ferramentas de 52 px, painel direito em coluna ajustável, zoom fixo, presença no topo, pausa e relógio claros); depois R3 a R6, 7b e 12
