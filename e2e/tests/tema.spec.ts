@@ -4,12 +4,12 @@ import { abrirAba, expect, test, USUARIOS } from "./ajudas";
 // rede para fora (as fontes são empacotadas).
 
 const FUNDO = {
-  grimorio: "rgb(14, 11, 9)",
+  grimorio: "rgb(12, 12, 12)",
   escuro: "rgb(15, 17, 21)",
   claro: "rgb(239, 235, 228)",
 };
 const PAINEL = {
-  grimorio: "rgb(53, 41, 32)",
+  grimorio: "rgb(37, 37, 37)",
   escuro: "rgb(40, 44, 51)",
   claro: "rgb(255, 255, 255)",
 };
@@ -61,8 +61,11 @@ test("trocar o tema muda as cores, sobrevive ao recarregar e não manda nada par
       return estavel;
     })
     .toBe(true);
+  // A sala também manda, por conta própria, a presença (quem expirou de um teste anterior) e o uso do dia:
+  // nada disso tem a ver com o tema, então só contam os outros frames recebidos.
+  const proprios = (f: string) => !/"tipo":"(presenca|uso)"/.test(f);
   const enviados = m.enviados.length;
-  const recebidos = m.frames.length;
+  const recebidos = m.frames.filter(proprios).length;
   for (const id of ["claro", "escuro", "claro"] as const) {
     await p.getByTestId(`tema-${id}`).click();
     await expect(p.locator("html")).toHaveAttribute("data-tema", id);
@@ -71,13 +74,13 @@ test("trocar o tema muda as cores, sobrevive ao recarregar e não manda nada par
       getComputedStyle(document.documentElement).getPropertyValue("--painel").trim(),
     );
     expect(painel.toUpperCase()).toBe(
-      { claro: "#FFFFFF", escuro: "#282C33", grimorio: "#352920" }[id],
+      { claro: "#FFFFFF", escuro: "#282C33", grimorio: "#252525" }[id],
     );
     expect(PAINEL[id]).toBeTruthy();
   }
   await p.waitForTimeout(500);
   expect(m.enviados.length).toBe(enviados);
-  expect(m.frames.length).toBe(recebidos);
+  expect(m.frames.filter(proprios).length).toBe(recebidos);
 
   // guardado no navegador e aplicado de novo ao recarregar, sem passar pelo tema padrão
   expect(await p.evaluate(() => localStorage.getItem("tabletop:pref:tema"))).toBe("claro");

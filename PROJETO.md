@@ -1842,6 +1842,8 @@ Regras para o agente que implementa:
 
 **Decidido em 2026-11-10:**
 - **Nome do projeto: Távola** (`tavola` em código e pastas); detalhes do redesign em `docs/REDESIGN.md`.
+- **A mesa pausa sozinha quando não sobra nenhum mestre conectado** (o mestre saiu, ou saíram todos), para
+  as tochas não queimarem entre as sessões. Retomar continua sendo do mestre. Lote pequeno logo depois do R2.
 - A névoa continua **só automática** (visão dos tokens, luz e memória do mapa); revelar à mão fica em
   `docs/IDEIAS.md`.
 - Na visão do mestre, a área que um jogador vê só com visão no escuro aparece em **cor normal** (o cinza

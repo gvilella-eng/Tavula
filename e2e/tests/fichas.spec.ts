@@ -13,6 +13,7 @@ import {
   arrastarToken,
   entrarNoMapa,
   esperarPosicao,
+  noElementoDoMapa,
   pontoNaPagina,
   tokenDe,
   tokensDe,
@@ -261,9 +262,9 @@ test("arrastar um item das Fichas para o mapa cria o token na cena que o mestre 
 
   // solta o Lobo num ponto do mapa (a cena do grupo)
   const alvo = await pontoNaPagina(mestre.pagina, 18.75, 14.25);
-  await mestre.pagina
-    .getByTestId(`ficha-alca-${lobo}`)
-    .dragTo(mestre.pagina.getByTestId("mapa"), { targetPosition: { x: alvo.x, y: alvo.y } });
+  await mestre.pagina.getByTestId(`ficha-alca-${lobo}`).dragTo(mestre.pagina.getByTestId("mapa"), {
+    targetPosition: await noElementoDoMapa(mestre.pagina, alvo),
+  });
   const encaixe = (v: number) => (Math.floor(v / 1.5) + 0.5) * 1.5;
   await expect
     .poll(async () => (await tokensDe(mestre.pagina)).find((t) => t.nome === "Lobo Cinzento"))
@@ -280,9 +281,9 @@ test("arrastar um item das Fichas para o mapa cria o token na cena que o mestre 
   await expect(mestre.pagina.getByTestId("cena-nome")).toHaveText("Covil");
   const antes = j1.frames.length;
   const alvo2 = await pontoNaPagina(mestre.pagina, 14.25, 14.25);
-  await mestre.pagina
-    .getByTestId(`ficha-alca-${urso}`)
-    .dragTo(mestre.pagina.getByTestId("mapa"), { targetPosition: { x: alvo2.x, y: alvo2.y } });
+  await mestre.pagina.getByTestId(`ficha-alca-${urso}`).dragTo(mestre.pagina.getByTestId("mapa"), {
+    targetPosition: await noElementoDoMapa(mestre.pagina, alvo2),
+  });
   await expect
     .poll(async () => (await tokensDe(mestre.pagina)).find((t) => t.nome === "Urso Pardo"))
     .toMatchObject({ x: encaixe(14.25), y: encaixe(14.25) });

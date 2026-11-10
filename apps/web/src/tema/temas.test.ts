@@ -28,6 +28,11 @@ const PARES: Par[] = [
     ["acentoForte", f],
     ["perigo", f],
   ]),
+  ...(["painelTopo", "painelMeio", "painelFim"] as const).flatMap((f): Par[] => [
+    ["texto", f],
+    ["textoSuave", f],
+    ["acentoForte", f],
+  ]),
   ["acentoTexto", "acento"],
   ["perigoTexto", "perigo"],
   ["sucesso", "painel"],

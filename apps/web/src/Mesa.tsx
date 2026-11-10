@@ -20,11 +20,19 @@ import {
   visaoPara,
 } from "@tabletop/shared";
 import { BookOpen, Crown, MessagesSquare, NotebookText, Settings } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import {
+  type CSSProperties,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { AbaChat } from "./AbaChat";
 import { AbaCompendio } from "./AbaCompendio";
 import { AbaFichas } from "./AbaFichas";
 import { AbaConfiguracoes } from "./abas";
+import { caixaDaArea } from "./area";
 import { lerItemArrastado } from "./arrasto";
 import { CacheOpfs } from "./assets/cache";
 import { Fontes } from "./assets/fontes";
@@ -34,9 +42,11 @@ import { Processador } from "./assets/processador";
 import { BarraDeFerramentas } from "./BarraDeFerramentas";
 import { BarraLateral } from "./BarraLateral";
 import { type CamadaDeTrabalho, camadaDoNovoToken } from "./camadas";
+import { EstadoDaMesa } from "./EstadoDaMesa";
 import { FaixaDeCenas, type PedirImagem } from "./FaixaDeCenas";
 import { JanelaDaFicha } from "./ficha/JanelaDaFicha";
 import { useJanelasDeFicha } from "./ficha/janelas";
+import { useLarguraDoPainel } from "./larguraDoPainel";
 import { MenuDaTocha } from "./MenuDaTocha";
 import { MenuDoToken } from "./MenuDoToken";
 import { MenuSuperior } from "./MenuSuperior";
@@ -56,9 +66,11 @@ import { PainelDeFontesDeLuz } from "./PainelDeFontesDeLuz";
 import { PainelDeIluminacao } from "./PainelDeIluminacao";
 import { PainelDoMestre } from "./PainelDoMestre";
 import { PainelDoToken } from "./PainelDoToken";
+import { PresencaNoTopo } from "./PresencaNoTopo";
 import { type ConfigDoPincel, PINCEL_PADRAO } from "./pincel";
 import { gravarEncaixePadrao, lerEncaixePadrao } from "./preferencias";
 import { SeletorDeImagem } from "./SeletorDeImagem";
+import { Topo } from "./Topo";
 import { useTempoDaSala } from "./tempo";
 import { useSala } from "./useSala";
 import { ZoomFlutuante } from "./ZoomFlutuante";
@@ -97,7 +109,10 @@ type PedidoDeImagem = {
   aoUsar: (hash: string) => void;
 };
 
-/** A mesa: o mapa ocupa a tela e as ferramentas flutuam em volta (PROJETO.md 4.13 e 4.13.1). */
+/**
+ * A mesa: quatro regiões fixas (topo, ferramentas, painel direito e, no meio, a área do mapa). Tudo o
+ * que abre sobre o mapa fica dentro da área dele, sem cobrir as barras (REDESIGN.md, R2).
+ */
 export function Mesa({ aoSair, aoPerderSessao }: Props) {
   const {
     status,
@@ -128,6 +143,11 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
   const [zoom, setZoom] = useState(1);
   const [medicao, setMedicao] = useState<MedicaoNaTela | null>(null);
   const [lateralAberta, setLateralAberta] = useState(true);
+  const {
+    largura: larguraDoPainel,
+    limites: limitesDoPainel,
+    definir: ajustarPainel,
+  } = useLarguraDoPainel();
   const [faixaAberta, setFaixaAberta] = useState(false);
   // Visão noturna do mestre: ligada por padrão; só da tela dele (nunca vai para a sala).
   const [visaoNoturna, setVisaoNoturna] = useState(true);
@@ -724,7 +744,6 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
             conteudo: (
               <AbaChat
                 estado={estado}
-                presenca={presenca}
                 eu={eu}
                 enviar={enviar}
                 imagens={imagens}
@@ -809,7 +828,11 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
       : [];
 
   return (
-    <div className="mesa" data-lateral={lateralAberta ? "aberta" : "fechada"}>
+    <div
+      className="mesa"
+      data-lateral={lateralAberta ? "aberta" : "fechada"}
+      style={{ "--largura-painel": `${larguraDoPainel}px` } as CSSProperties}
+    >
       {/* Sempre no DOM (para leitores de tela e testes); o selo visível só aparece sem conexão. */}
       <span className="so-leitor" data-testid="status-conexao">
         {status}
@@ -817,109 +840,55 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
 
       {estado && eu && cena ? (
         <>
-          <Mapa
-            cena={cena}
-            tokens={estadoVisto?.tokens ?? estado.tokens}
-            paredes={estadoVisto?.paredes ?? estado.paredes}
-            luzes={estadoVisto?.luzes ?? estado.luzes}
-            pontos={estadoVisto?.pontos ?? estado.pontos}
-            desenhos={estadoVisto?.desenhos ?? estado.desenhos}
-            opcoes={opcoes}
-            retornos={retornos}
-            imagens={imagens}
-            versaoDasImagens={versaoDosProntos}
-            aoSoltarItem={soltarItemNoMapa}
-            aoCriar={(m) => {
-              mapa.current = m;
-            }}
-          />
-          {/* A etiqueta sobre o mapa saiu: quem sou eu e onde estamos ficam só para leitores de tela. */}
-          <div className="so-leitor" data-testid="etiqueta-mesa">
-            <span data-testid="cena-nome">{cena.nome}</span>
-            {euMestre && cenaDoGrupo && <span data-testid="grupo-em">{cenaDoGrupo.nome}</span>}
-            <strong data-testid="eu-nome">{eu.nome}</strong>
-            <span data-testid="eu-papel">{eu.papel}</span>
-          </div>
-          {euMestre && (
-            <MenuSuperior
-              faixaAberta={faixaAberta}
-              aoAlternarFaixa={() => setFaixaAberta(!faixaAberta)}
-              camadaTrabalho={camadaTrabalho}
-              aoEscolherCamada={escolherCamada}
-              visaoNoturna={visaoNoturna}
-              aoAlternarVisaoNoturna={() => setVisaoNoturna(!visaoNoturna)}
-              aoNovoToken={criarToken}
-              aoLimparDesenhos={() => enviar("desenho.limpar", { cenaId: cena.id })}
-              desenhosNaCena={estado.desenhos.filter((d) => d.cenaId === cena.id).length}
-              ordemVisivel={estado.ordemDeTurnoVisivel}
-              aoAlternarOrdem={() =>
-                enviar("ordemDeTurno.definir", { visivel: !estado.ordemDeTurnoVisivel })
-              }
-              iluminacaoDinamica={iluminada}
-              aoAlternarIluminacao={() =>
-                enviar("cena.configurarIluminacao", { cenaId: cena.id, dinamica: !iluminada })
-              }
-              fontesAbertas={fontesAbertas}
-              aoAlternarFontes={alternarFontes}
-              configAberta={configAberta}
-              aoAlternarConfig={() => setConfigAberta(!configAberta)}
-              paredesAtivas={ferramenta === "paredes" && modoMestre}
-              aoAlternarParedes={alternarParedes}
+          <Topo
+            cena={cenaDoGrupo?.nome ?? cena.nome}
+            menus={
+              euMestre ? (
+                <MenuSuperior
+                  faixaAberta={faixaAberta}
+                  aoAlternarFaixa={() => setFaixaAberta(!faixaAberta)}
+                  camadaTrabalho={camadaTrabalho}
+                  aoEscolherCamada={escolherCamada}
+                  visaoNoturna={visaoNoturna}
+                  aoAlternarVisaoNoturna={() => setVisaoNoturna(!visaoNoturna)}
+                  aoNovoToken={criarToken}
+                  aoLimparDesenhos={() => enviar("desenho.limpar", { cenaId: cena.id })}
+                  desenhosNaCena={estado.desenhos.filter((d) => d.cenaId === cena.id).length}
+                  ordemVisivel={estado.ordemDeTurnoVisivel}
+                  aoAlternarOrdem={() =>
+                    enviar("ordemDeTurno.definir", { visivel: !estado.ordemDeTurnoVisivel })
+                  }
+                  iluminacaoDinamica={iluminada}
+                  aoAlternarIluminacao={() =>
+                    enviar("cena.configurarIluminacao", { cenaId: cena.id, dinamica: !iluminada })
+                  }
+                  fontesAbertas={fontesAbertas}
+                  aoAlternarFontes={alternarFontes}
+                  configAberta={configAberta}
+                  aoAlternarConfig={() => setConfigAberta(!configAberta)}
+                  paredesAtivas={ferramenta === "paredes" && modoMestre}
+                  aoAlternarParedes={alternarParedes}
+                  jogadores={estado.usuarios.filter((u) => u.papel === "jogador")}
+                  verComoId={usuarioVisto?.id ?? null}
+                  aoVerComo={(id) => {
+                    setVerComoId(id);
+                    setSelecionadoId(null);
+                    if (id !== null && ferramenta === "paredes") setFerramenta("selecionar");
+                  }}
+                />
+              ) : undefined
+            }
+          >
+            <PresencaNoTopo usuarios={estado.usuarios} presenca={presenca} euId={eu.id} />
+            <EstadoDaMesa
               pausada={estado.relogio.pausada}
+              euMestre={euMestre}
               aoAlternarPausa={() =>
                 enviar(estado.relogio.pausada ? "mesa.retomar" : "mesa.pausar", {})
               }
               salaMs={tempo.salaMs}
-              jogadores={estado.usuarios.filter((u) => u.papel === "jogador")}
-              verComoId={usuarioVisto?.id ?? null}
-              aoVerComo={(id) => {
-                setVerComoId(id);
-                setSelecionadoId(null);
-                if (id !== null && ferramenta === "paredes") setFerramenta("selecionar");
-              }}
             />
-          )}
-          {estado.relogio.pausada && (
-            <div
-              className="selo-pausa"
-              data-testid="selo-pausa"
-              data-mestre={euMestre}
-              role="status"
-            >
-              Mesa pausada
-            </div>
-          )}
-          {usuarioVisto && (
-            <div className="selo-ver-como" data-testid="ver-como-selo">
-              <span>
-                Vendo como <strong>{usuarioVisto.nome}</strong>
-              </span>
-              <button
-                type="button"
-                data-testid="ver-como-voltar"
-                onClick={() => setVerComoId(null)}
-              >
-                Voltar a mim
-              </button>
-            </div>
-          )}
-          {euMestre && faixaAberta && (
-            <FaixaDeCenas
-              estado={estado}
-              cenaVistaId={cena.id}
-              preparos={preparos}
-              imagens={imagens}
-              versaoDasImagens={versaoDosProntos}
-              enviar={enviar}
-              aoIrPara={(id) => setCenaVistaId(id === estado.cenaAtivaId ? null : id)}
-              aoLevarGrupo={(id) => {
-                enviar("grupo.moverPara", { cenaId: id });
-                setCenaVistaId(null);
-              }}
-              aoPreparar={prepararCena}
-              pedirImagem={pedirImagem}
-            />
-          )}
+          </Topo>
           <BarraDeFerramentas
             ferramenta={ferramenta}
             aoEscolher={setFerramenta}
@@ -936,150 +905,210 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
               })
             }
           />
-          <ZoomFlutuante
-            zoom={zoom}
-            aoDefinir={(z) => mapa.current?.definirZoom(z)}
-            aoPasso={(f) => mapa.current?.zoomPorPassos(f)}
-            aoCentralizar={() => mapa.current?.centralizar()}
-          />
-          {medicao && (
-            <div
-              className="regua-rotulo"
-              data-testid="regua-rotulo"
-              style={{ left: medicao.x + 14, top: medicao.y + 14 }}
-            >
-              {medicao.medida.rotulo}
-            </div>
-          )}
-          {estado.ordemDeTurnoVisivel && (
-            <OrdemDeTurno
-              estado={estadoVisto ?? estado}
-              eu={eu}
-              enviar={enviar}
-              selecionadoId={selecionadoId}
-              somenteLeitura={usuarioVisto !== null}
-            />
-          )}
-          {modoMestre && ferramenta === "paredes" && (
-            <PainelDasParedes
-              tipoNovo={tipoDaNovaParede}
-              aoEscolherTipoNovo={setTipoDaNovaParede}
-              selecionada={paredeSelecionada}
-              enviar={enviar}
-              aoApagar={(id) => {
-                enviar("parede.apagar", { id });
-                setParedeSelecionadaId(null);
-              }}
-              aoFechar={alternarParedes}
-            />
-          )}
-          {modoMestre && fontesAbertas && (
-            <PainelDeFontesDeLuz
+          <div className="area-mapa" data-area-do-mapa="" data-testid="area-do-mapa">
+            <Mapa
               cena={cena}
-              estado={estado}
-              tempo={tempo}
-              selecionadaId={luzSelecionadaId}
-              aoSelecionar={setLuzSelecionadaId}
-              colocando={ferramenta === "luz"}
-              aoColocar={() => setFerramenta(ferramenta === "luz" ? "selecionar" : "luz")}
-              pontoSelecionadoId={pontoSelecionadoId}
-              aoSelecionarPonto={setPontoSelecionadoId}
-              colocandoPonto={ferramenta === "ponto" ? tipoDoNovoPonto : null}
-              aoColocarPonto={(tipo) => {
-                if (ferramenta === "ponto" && tipoDoNovoPonto === tipo) setFerramenta("selecionar");
-                else {
-                  setTipoDoNovoPonto(tipo);
-                  setFerramenta("ponto");
-                }
+              tokens={estadoVisto?.tokens ?? estado.tokens}
+              paredes={estadoVisto?.paredes ?? estado.paredes}
+              luzes={estadoVisto?.luzes ?? estado.luzes}
+              pontos={estadoVisto?.pontos ?? estado.pontos}
+              desenhos={estadoVisto?.desenhos ?? estado.desenhos}
+              opcoes={opcoes}
+              retornos={retornos}
+              imagens={imagens}
+              versaoDasImagens={versaoDosProntos}
+              aoSoltarItem={soltarItemNoMapa}
+              aoCriar={(m) => {
+                mapa.current = m;
               }}
-              enviar={enviar}
-              aoFechar={alternarFontes}
             />
-          )}
-          {modoMestre && configAberta && (
-            <PainelDeIluminacao
-              cena={cena}
-              config={estado.config.iluminacao}
-              enviar={enviar}
-              aoFechar={() => setConfigAberta(false)}
-            />
-          )}
-          {modoMestre && ferramenta !== "paredes" && selecionado && (
-            <PainelDoToken
-              token={selecionado}
-              jogadores={estado.usuarios.filter((u) => u.papel === "jogador")}
-              enviar={enviar}
-              pedirImagem={pedirImagem}
-              aoFechar={() => setSelecionadoId(null)}
-            />
-          )}
-          {menuDoToken && usuarioVisto === null && (
-            <MenuDoToken
-              estado={estado}
-              tokenId={menuDoToken.tokenId}
-              x={menuDoToken.x}
-              y={menuDoToken.y}
-              euMestre={euMestre}
-              enviar={enviar}
-              aoFechar={() => setMenuDoToken(null)}
-            />
-          )}
-          {dicaDoMapa && (
-            <div
-              className="dica-condicao"
-              role="tooltip"
-              data-testid="dica-condicao"
-              style={{
-                left: Math.min(dicaDoMapa.x + 14, window.innerWidth - 300),
-                top: Math.min(dicaDoMapa.y + 16, window.innerHeight - 150),
-              }}
-            >
-              <strong>{dicaDoMapa.titulo}</strong>
-              <p>{dicaDoMapa.texto}</p>
+            {/* A etiqueta sobre o mapa saiu: quem sou eu e onde estamos ficam só para leitores de tela. */}
+            <div className="so-leitor" data-testid="etiqueta-mesa">
+              <span data-testid="cena-nome">{cena.nome}</span>
+              {euMestre && cenaDoGrupo && <span data-testid="grupo-em">{cenaDoGrupo.nome}</span>}
+              <strong data-testid="eu-nome">{eu.nome}</strong>
+              <span data-testid="eu-papel">{eu.papel}</span>
             </div>
-          )}
-          {menuDaTocha && (
-            <MenuDaTocha
-              estado={estado}
-              luzId={menuDaTocha.luzId}
-              x={menuDaTocha.x}
-              y={menuDaTocha.y}
-              personagemId={meuPersonagemId()}
-              enviar={enviar}
-              aoFechar={() => setMenuDaTocha(null)}
+            {usuarioVisto && (
+              <div className="selo-ver-como" data-testid="ver-como-selo">
+                <span>
+                  Vendo como <strong>{usuarioVisto.nome}</strong>
+                </span>
+                <button
+                  type="button"
+                  data-testid="ver-como-voltar"
+                  onClick={() => setVerComoId(null)}
+                >
+                  Voltar a mim
+                </button>
+              </div>
+            )}
+            {euMestre && faixaAberta && (
+              <FaixaDeCenas
+                estado={estado}
+                cenaVistaId={cena.id}
+                preparos={preparos}
+                imagens={imagens}
+                versaoDasImagens={versaoDosProntos}
+                enviar={enviar}
+                aoIrPara={(id) => setCenaVistaId(id === estado.cenaAtivaId ? null : id)}
+                aoLevarGrupo={(id) => {
+                  enviar("grupo.moverPara", { cenaId: id });
+                  setCenaVistaId(null);
+                }}
+                aoPreparar={prepararCena}
+                pedirImagem={pedirImagem}
+              />
+            )}
+            <ZoomFlutuante
+              zoom={zoom}
+              aoDefinir={(z) => mapa.current?.definirZoom(z)}
+              aoPasso={(f) => mapa.current?.zoomPorPassos(f)}
+              aoCentralizar={() => mapa.current?.centralizar()}
             />
-          )}
+            {medicao && (
+              <div
+                className="regua-rotulo"
+                data-testid="regua-rotulo"
+                style={{ left: medicao.x + 14, top: medicao.y + 14 }}
+              >
+                {medicao.medida.rotulo}
+              </div>
+            )}
+            {estado.ordemDeTurnoVisivel && (
+              <OrdemDeTurno
+                estado={estadoVisto ?? estado}
+                eu={eu}
+                enviar={enviar}
+                selecionadoId={selecionadoId}
+                somenteLeitura={usuarioVisto !== null}
+              />
+            )}
+            {modoMestre && ferramenta === "paredes" && (
+              <PainelDasParedes
+                tipoNovo={tipoDaNovaParede}
+                aoEscolherTipoNovo={setTipoDaNovaParede}
+                selecionada={paredeSelecionada}
+                enviar={enviar}
+                aoApagar={(id) => {
+                  enviar("parede.apagar", { id });
+                  setParedeSelecionadaId(null);
+                }}
+                aoFechar={alternarParedes}
+              />
+            )}
+            {modoMestre && fontesAbertas && (
+              <PainelDeFontesDeLuz
+                cena={cena}
+                estado={estado}
+                tempo={tempo}
+                selecionadaId={luzSelecionadaId}
+                aoSelecionar={setLuzSelecionadaId}
+                colocando={ferramenta === "luz"}
+                aoColocar={() => setFerramenta(ferramenta === "luz" ? "selecionar" : "luz")}
+                pontoSelecionadoId={pontoSelecionadoId}
+                aoSelecionarPonto={setPontoSelecionadoId}
+                colocandoPonto={ferramenta === "ponto" ? tipoDoNovoPonto : null}
+                aoColocarPonto={(tipo) => {
+                  if (ferramenta === "ponto" && tipoDoNovoPonto === tipo)
+                    setFerramenta("selecionar");
+                  else {
+                    setTipoDoNovoPonto(tipo);
+                    setFerramenta("ponto");
+                  }
+                }}
+                enviar={enviar}
+                aoFechar={alternarFontes}
+              />
+            )}
+            {modoMestre && configAberta && (
+              <PainelDeIluminacao
+                cena={cena}
+                config={estado.config.iluminacao}
+                enviar={enviar}
+                aoFechar={() => setConfigAberta(false)}
+              />
+            )}
+            {modoMestre && ferramenta !== "paredes" && selecionado && (
+              <PainelDoToken
+                token={selecionado}
+                jogadores={estado.usuarios.filter((u) => u.papel === "jogador")}
+                enviar={enviar}
+                pedirImagem={pedirImagem}
+                aoFechar={() => setSelecionadoId(null)}
+              />
+            )}
+            {menuDoToken && usuarioVisto === null && (
+              <MenuDoToken
+                estado={estado}
+                tokenId={menuDoToken.tokenId}
+                x={menuDoToken.x}
+                y={menuDoToken.y}
+                euMestre={euMestre}
+                enviar={enviar}
+                aoFechar={() => setMenuDoToken(null)}
+              />
+            )}
+            {dicaDoMapa && (
+              <div
+                className="dica-condicao"
+                role="tooltip"
+                data-testid="dica-condicao"
+                style={{
+                  left: Math.min(dicaDoMapa.x + 14, caixaDaArea().direita - 300),
+                  top: Math.min(dicaDoMapa.y + 16, caixaDaArea().base - 150),
+                }}
+              >
+                <strong>{dicaDoMapa.titulo}</strong>
+                <p>{dicaDoMapa.texto}</p>
+              </div>
+            )}
+            {menuDaTocha && (
+              <MenuDaTocha
+                estado={estado}
+                luzId={menuDaTocha.luzId}
+                x={menuDaTocha.x}
+                y={menuDaTocha.y}
+                personagemId={meuPersonagemId()}
+                enviar={enviar}
+                aoFechar={() => setMenuDaTocha(null)}
+              />
+            )}
+            {[...janelasDeFicha]
+              .sort((a, b) => a.z - b.z)
+              .map((j, camada) => {
+                const personagem = estado.personagens.find((p) => p.id === j.personagemId);
+                if (!personagem) return null;
+                return (
+                  <JanelaDaFicha
+                    key={j.personagemId}
+                    janela={j}
+                    camada={camada}
+                    personagem={personagem}
+                    estado={estado}
+                    eu={eu}
+                    enviar={enviar}
+                    imagens={imagens}
+                    versaoDasImagens={versaoDosProntos}
+                    pedirImagem={pedirImagem}
+                    cenaVista={cenaVista}
+                    tempo={tempo}
+                    fontes={fontes}
+                    aoFechar={() => fecharFicha(j.personagemId)}
+                    aoFocar={() => focarFicha(j.personagemId)}
+                    aoMudar={(mudancas) => atualizarFicha(j.personagemId, mudancas)}
+                  />
+                );
+              })}
+          </div>
           <BarraLateral
             abas={abas}
             aoMudarAberta={setLateralAberta}
             aoMudarVisivel={setAbaVisivel}
+            largura={larguraDoPainel}
+            limites={limitesDoPainel}
+            aoAjustar={ajustarPainel}
           />
-          {[...janelasDeFicha]
-            .sort((a, b) => a.z - b.z)
-            .map((j, camada) => {
-              const personagem = estado.personagens.find((p) => p.id === j.personagemId);
-              if (!personagem) return null;
-              return (
-                <JanelaDaFicha
-                  key={j.personagemId}
-                  janela={j}
-                  camada={camada}
-                  personagem={personagem}
-                  estado={estado}
-                  eu={eu}
-                  enviar={enviar}
-                  imagens={imagens}
-                  versaoDasImagens={versaoDosProntos}
-                  pedirImagem={pedirImagem}
-                  cenaVista={cenaVista}
-                  tempo={tempo}
-                  fontes={fontes}
-                  aoFechar={() => fecharFicha(j.personagemId)}
-                  aoFocar={() => focarFicha(j.personagemId)}
-                  aoMudar={(mudancas) => atualizarFicha(j.personagemId, mudancas)}
-                />
-              );
-            })}
           {pedidoDeImagem && gerente && (
             <SeletorDeImagem
               titulo={pedidoDeImagem.titulo}

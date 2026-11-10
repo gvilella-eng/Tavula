@@ -1,6 +1,7 @@
 import type { Estado } from "@tabletop/shared";
 import { Backpack, Flame, FlameKindling, HandGrab } from "lucide-react";
 import { useRef } from "react";
+import { dentroDaArea } from "./area";
 import { useFecharFora } from "./Popover";
 
 type Props = {
@@ -29,8 +30,7 @@ export function MenuDaTocha({ estado, luzId, x, y, personagemId, enviar, aoFecha
   const suporte = noPonto
     ? estado.pontos.find((p) => p.id === noPonto && p.tipo === "suporte")
     : undefined;
-  const esquerda = Math.min(x, window.innerWidth - 220);
-  const topo = Math.min(y, window.innerHeight - 140);
+  const { left: esquerda, top: topo } = dentroDaArea(x, y, 212, 132);
 
   const item = (
     id: string,

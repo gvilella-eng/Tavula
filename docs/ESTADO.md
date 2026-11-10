@@ -1680,4 +1680,68 @@ relatório do Playwright (`[erro na página]`).
 
 ---
 
-## Próximo: Redesign R2 — Estrutura fixa (topo de 48 px, ferramentas de 52 px, painel direito em coluna ajustável, zoom fixo, presença no topo, pausa e relógio claros); depois R3 a R6, 7b e 12
+## Redesign R2 — Estrutura fixa (entregue, aguardando o roteiro manual)
+
+### O que foi entregue
+
+- **Quatro regiões fixas** em `.mesa` (CSS grid): topo de 48 px (`Topo.tsx`, até onde começa o painel), barra de ferramentas de 52 px (`BarraDeFerramentas.tsx`), painel direito de cima a baixo (`BarraLateral.tsx`) e a área do mapa (`.area-mapa`) no meio. O canvas do PixiJS tem o tamanho da área (`ResizeObserver` no `MapaPixi`: janela, painel ajustado, painel recolhido).
+- **Topo**: símbolo e nome Távola, nome da cena do grupo, os menus do mestre **como estavam**, presença em avatares (`PresencaNoTopo.tsx`, com "+N" acima de 6 pessoas) e o estado da mesa (`EstadoDaMesa.tsx`), num controle só: mestre rodando = botão ⏸ com o relógio da sala dentro; mestre pausado = pílula de aviso "▶ relógio" que retoma; jogador = só o ícone ⏸ na pílula amarela (sem clique, com dica). Sem a palavra "Pausada" na tela (fica no `aria-label`). A faixa "Mesa pausada" do meio do mapa saiu. O relógio é o tempo da sala e só o mestre o vê.
+- **Painel direito**: fundo `--barra` com degradê e sombra (sem filete); **largura ajustável** pela alça da borda esquerda (mouse e teclado; 300 px a 1/4 da janela; `tabletop:pref:larguraDoPainel`; reajusta com a janela); **abas com ícone e nome**; recolhido vira uma trilha de 52 px.
+- **Zoom** no canto inferior direito da área (horizontal). **Centralizar** (mapa e token) usa a área visível. Tudo o que abre sobre o mapa (ordem de turno, painel do token, faixa de cenas, paredes, iluminação, fontes de luz, dados, sub-barra do pincel, janela da ficha, menus e dicas) abre dentro da área (`area.ts`).
+- A lista de presença saiu da aba Chat. Resolve os itens 1, 3, 17 e 21 do levantamento.
+
+### Como rodar
+
+- `pnpm verify` (uma vez). O E2E novo: `pnpm --filter @tabletop/e2e test --repeat-each=3 tests/estrutura.spec.ts`. Prints: `$env:PRINTS_DIR="<pasta>"; pnpm --filter @tabletop/e2e prints r2`.
+
+### Verificação
+
+- Unidade nova `apps/web/src/preferencias.test.ts`: os limites da largura do painel (300 px; 1/4 da janela; 300 quando 1/4 é menos).
+- E2E novo `e2e/tests/estrutura.spec.ts` (11 testes): as quatro regiões (topo de 48 px que termina no painel, barra de 52 px, painel de cima a baixo, canvas igual à área); o canvas acompanha janela, painel ajustado e recolhido; arrastar a alça até o mínimo e o máximo (largura respeitada, guardada, mantida ao recarregar, independente em outro navegador, **nenhum frame enviado**); ajuste à janela; teclado na alça; abas com nome em 300 px (mestre e jogador, texto sem corte); presença no topo (entra, fica online; sai, fica offline; "+N"); pausa visível no topo para o jogador (e o botão e o relógio do mestre); zoom no canto da área nas quatro larguras (largo, estreito, recolhido); "centralizar" no token e no mapa com o painel estreito e largo; em 1280×720 tudo o que abre sobre o mapa fica dentro da área.
+- E2E antigos alterados (a disposição mudou de propósito; nenhuma asserção de comportamento foi afrouxada): `interface.spec.ts` (o menu do mestre deixou de ser "centralizado na janela": agora fica dentro do topo; com o pincel ativo a barra de 52 px continua à vista e a sub-barra abre ao lado dela, não no lugar dela), `desenho.spec.ts` (idem: o botão do pincel fica apertado, em vez de sumir), `fichas.spec.ts` (o alvo do `dragTo` é relativo à caixa do mapa, que já não começa no canto da janela: ajudante novo `noElementoDoMapa` em `ajudasMapa.ts`). O `ficha.spec.ts` não mudou: a janela da ficha agora abre com 120 px de folga na largura e 72 na altura dentro da área (antes 120 e 100 na janela), para o teste de arrastar e redimensionar continuar valendo.
+- `pnpm verify` verde numa rodada: 15 (web) + 31 (servidor) + 549 (shared) de unidade e 144 E2E, sem instável. Repetição 3x (`--repeat-each=3`) de `estrutura` (12 testes), `tema`, `compendio`, `interface`, `desenho`, `ficha` e `fichas`: 162 execuções verdes. Na primeira rodada do verify apareceu um instável em `tema.spec.ts` (um frame de presença/uso, vindo de um teste anterior, contado como se fosse do tema) e, na terceira, um em `compendio.spec.ts` (um uuid aleatório continha "8d6"); os dois já existiam e foram corrigidos na causa (`tema.spec.ts` só conta os frames que não são de presença nem de uso; `compendio.spec.ts` tira ids e hashes hexadecimais antes de procurar o texto das magias).
+- Ajustes pedidos pelo Vilella depois de ver a tela, já aplicados: a pausa num controle só (sem a palavra "Pausada", sem a faixa no mapa), painel sem o filete amarelo, cabeçalhos das janelas em `--barra` e corpo em `--painel`, painel recolhido só com os ícones (o conteúdo da aba ficava desenhado espremido: o `display:flex` do chat vencia o `hidden`; sem botão de abrir na trilha, clicar numa aba abre) e a paleta Carvão no Grimório. O E2E `recolhido, o painel mostra só os ícones das abas...` cobre o painel recolhido.
+- Prints (3 temas, 1600×900 e 1280×720) em `PRINTS_DIR`: `<tema>-<largura>-01-mesa-mestre`, `02-mesa-jogador`, `03-painel-minimo`, `04-painel-maximo` (e `04b`, Configurações), `05-painel-recolhido`, `06-pausada-jogador` (e `06b`, mestre), `07-ordem-de-turno` (e `07b`, com o painel do token), `08-ficha-aberta`, `09-faixa-de-cenas`, `10-sub-barra-do-pincel`, `11-dados-rapidos`, `12-presenca-lista`.
+
+### Decisões
+
+- (assumido) Paleta Carvão no Grimório (escolha do Vilella): ver `REDESIGN.md`, "Decidido". Tokens novos do degradê do painel (`painelTopo`, `painelMeio`, `painelFim`).
+- (assumido) Cabeçalho das janelas e popups em `--barra` e corpo em `--painel` (pedido do Vilella).
+- (assumido) Painel recolhido = trilha de 52 px só com os ícones das abas (mantém o selo de não lidas).
+- (assumido) Largura padrão 360 px (ajustada ao 1/4 da janela). A escolha da pessoa fica intacta: o painel se ajusta quando a janela encolhe e volta ao escolhido quando ela cresce.
+- (assumido) Presença: com mais de 6 pessoas, aparecem 5 (os online primeiro) e o "+N" abre a lista dos outros.
+- (assumido) O jogador vê no topo só o ícone de pausa na pílula amarela; o relógio da sala continua só do mestre. A faixa "Mesa pausada" do meio do mapa saiu (a pílula basta).
+- (assumido) Zoom na horizontal; "Vendo como" embaixo, no centro da área; sub-barra do pincel ao lado da barra; aviso e selo de conexão centrados na área.
+- (assumido) O botão de recolher o painel mora no canto do título da aba aberta (ou no alto da trilha, recolhido).
+- (assumido) A janela da ficha agora é `position: absolute` dentro da área (coordenadas dela), então a área a corta; em R3 vira a janela comum.
+
+### Desvios do plano
+
+- Nenhum. Nada mudou na sala, no protocolo nem na exportação; nenhuma dependência nova.
+
+### Frágil / não verificado
+
+- Ao mudar o tamanho da área (painel, janela) a vista do mapa fica ancorada no canto superior esquerdo: o que estava no centro pode sair do centro. "Centralizar" resolve.
+- A lista do "+N" abre por clique e fecha com Esc ou clicando fora; não há teste de foco por teclado nela.
+- A pílula do mestre muda de largura entre rodando e pausada (e o relógio cresce com as horas), então os avatares ao lado dela se deslocam alguns pixels.
+- Com 5 abas na largura mínima, o texto de "Configurações" ocupa quase toda a linha; uma aba a mais quebraria para uma segunda linha (a fila das abas quebra, não corta).
+- Só o Chrome foi testado.
+
+### Roteiro manual (pendente)
+
+1. Abrir a mesa como mestre: topo com a marca, a cena, os menus e os avatares; barra de 52 px à esquerda; painel à direita de cima a baixo; o mapa no meio. Nada fica por cima das barras.
+2. Arrastar a borda esquerda do painel: não passa de 300 px nem de 1/4 da tela; recarregar mantém; em outro navegador, a largura é independente. Tocar na alça com Tab e usar as setas.
+3. Ver as abas com nome (Chat, Fichas, Compêndio, Configurações, Mestre) na largura mínima. Recolher e abrir o painel.
+4. Pausar a mesa: no topo, o mestre vê a pílula "▶ relógio" (clique retoma) e o jogador o ícone ⏸ na pílula amarela; nada de faixa no mapa. Retomar.
+5. Entrar e sair com outro usuário: o avatar acende e apaga; com mais de 6 pessoas, o "+N" abre a lista.
+6. Abrir ordem de turno, painel do token, cenas, luz, paredes, dados, pincel e a ficha: tudo dentro da área do mapa; em 1280×720 também. Arrastar a janela da ficha para perto das barras.
+7. Zoom no canto inferior direito; "Centralizar o mapa" e o centro do token com o painel estreito e largo.
+8. Os 3 temas nas duas larguras de janela.
+
+### Revisão (antes do commit de fechamento)
+
+- Prints dos 3 temas e dos 2 tamanhos (90 imagens) conferidos: topo, barras, painel largo e estreito, recolhido, pausa, ordem de turno, ficha, faixa de cenas, pincel, dados e presença; nada cortado nem sobreposto às barras. (Falta a revisão dele.)
+
+---
+
+## Próximo: Redesign R3 — Janelas flutuantes (arrastar pelo cabeçalho, posição e tamanho por usuário, dois cliques minimizam, sempre dentro da tela); depois R4 a R6, 7b e 12

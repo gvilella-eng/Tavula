@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from "react";
+import { tamanhoDaArea } from "../area";
 
 export const ABAS_DA_FICHA = [
   ["principal", "Principal"],
@@ -24,11 +25,12 @@ export type JanelaDeFicha = {
 export const LARGURA_MINIMA = 520;
 export const ALTURA_MINIMA = 360;
 
-/** Tamanho inicial: grande, mas sempre cabendo na tela. */
+/** Tamanho inicial: grande, mas sempre cabendo na área do mapa (as janelas abrem dentro dela). */
 function tamanhoInicial() {
+  const area = tamanhoDaArea();
   return {
-    largura: Math.max(LARGURA_MINIMA, Math.min(860, window.innerWidth - 120)),
-    altura: Math.max(ALTURA_MINIMA, Math.min(640, window.innerHeight - 100)),
+    largura: Math.max(LARGURA_MINIMA, Math.min(860, area.largura - 120)),
+    altura: Math.max(ALTURA_MINIMA, Math.min(640, area.altura - 72)),
   };
 }
 
@@ -51,12 +53,13 @@ export function useJanelasDeFicha() {
       }
       const n = atuais.length;
       const t = tamanhoInicial();
+      const area = tamanhoDaArea();
       return [
         ...atuais,
         {
           personagemId,
-          x: Math.max(8, Math.min(90 + n * 36, window.innerWidth - t.largura - 8)),
-          y: Math.max(8, Math.min(60 + n * 36, window.innerHeight - t.altura - 8)),
+          x: Math.max(8, Math.min(24 + n * 36, area.largura - t.largura - 8)),
+          y: Math.max(8, Math.min(24 + n * 36, area.altura - t.altura - 8)),
           ...t,
           z,
           aba: aba ?? "principal",

@@ -154,3 +154,13 @@ export function pontoNaPagina(p: Page, x: number, y: number) {
 /** Mensagens de texto de um tipo (só as que a interface enviou, ou a sala mandou). */
 export const doTipo = (frames: string[], tipo: string) =>
   frames.filter((f) => f.includes(`"tipo":"${tipo}"`));
+
+/**
+ * Um ponto da página (ex.: de `pontoNaPagina`) como posição dentro do elemento do mapa: o alvo do
+ * `dragTo` é relativo à caixa dele, que (desde o R2) não começa mais no canto da janela.
+ */
+export async function noElementoDoMapa(p: Page, ponto: { x: number; y: number }) {
+  const caixa = await p.getByTestId("mapa").boundingBox();
+  if (!caixa) throw new Error("o mapa não está visível");
+  return { x: ponto.x - caixa.x, y: ponto.y - caixa.y };
+}

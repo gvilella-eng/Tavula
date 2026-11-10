@@ -11,8 +11,11 @@ export const CHAVE_TEMA = "tabletop:pref:tema";
 export const CHAVES_DE_TOKEN = [
   "fundoMesa", // em volta do mapa
   "fundo", // fundo da página
-  "barra", // barras fixas (couro)
+  "barra", // barras fixas (carvão no Grimório)
   "bordaBarra",
+  "painelTopo", // degradê do painel direito: no alto
+  "painelMeio", // aos 160 px
+  "painelFim", // embaixo
   "painel", // painéis e cartões
   "borda",
   "cabecalho", // cabeçalho de janela e botões sobre o painel
@@ -47,36 +50,39 @@ export type Tema = Record<ChaveDeToken, string>;
 
 export const TEMAS: Record<IdDoTema, Tema> = {
   grimorio: {
-    fundoMesa: "#0B0806",
-    fundo: "#0E0B09",
-    barra: "#2B211A",
-    bordaBarra: "#4A3A2B",
-    painel: "#352920",
-    borda: "#57442F",
-    cabecalho: "#3E3025",
-    campo: "#1A130E",
-    texto: "#F3E9D8",
-    textoSuave: "#BCA98F",
-    textoDesabilitado: "#8A785F",
+    fundoMesa: "#080808",
+    fundo: "#0C0C0C",
+    barra: "#1B1B1B",
+    bordaBarra: "#313131",
+    painelTopo: "#202020",
+    painelMeio: "#181818",
+    painelFim: "#151515",
+    painel: "#252525",
+    borda: "#3C3C3C",
+    cabecalho: "#2A2A2A",
+    campo: "#121212",
+    texto: "#EDEDED",
+    textoSuave: "#A8A8A8",
+    textoDesabilitado: "#7A7A7A",
     acento: "#E2AE4F",
     acentoTexto: "#1E150B",
     acentoSuave: "rgba(226, 174, 79, 0.18)",
     acentoForte: "#F0C46E",
     perigo: "#EE8A55",
     perigoTexto: "#1E0F08",
-    perigoFundo: "#4A2418",
+    perigoFundo: "#4A2323",
     sucesso: "#7BCB8B",
     sucessoTexto: "#0E2418",
     sucessoSuave: "rgba(123, 203, 139, 0.16)",
     aviso: "#F5C542",
     avisoTexto: "#2A2100",
-    avisoFundo: "#4A3A12",
+    avisoFundo: "#3A3622",
     avisoSuave: "rgba(245, 197, 66, 0.16)",
     avisoBorda: "#D9A521",
     oculta: "#C7B5F5",
-    sobreposicao: "rgba(8, 5, 3, 0.62)",
-    veu: "rgba(14, 11, 9, 0.88)",
-    pontoOff: "#8A785F",
+    sobreposicao: "rgba(0, 0, 0, 0.62)",
+    veu: "rgba(12, 12, 12, 0.88)",
+    pontoOff: "#6F6F6F",
     sombra: "0 6px 24px rgba(0, 0, 0, 0.5)",
   },
   escuro: {
@@ -84,6 +90,9 @@ export const TEMAS: Record<IdDoTema, Tema> = {
     fundo: "#0F1115",
     barra: "#1F2228",
     bordaBarra: "#323640",
+    painelTopo: "#262A32",
+    painelMeio: "#1B1E23",
+    painelFim: "#181B20",
     painel: "#282C33",
     borda: "#3B404A",
     cabecalho: "#2F343C",
@@ -117,6 +126,9 @@ export const TEMAS: Record<IdDoTema, Tema> = {
     fundo: "#EFEBE4",
     barra: "#FBF9F5",
     bordaBarra: "#DCD4C6",
+    painelTopo: "#FBF9F5",
+    painelMeio: "#F7F4EE",
+    painelFim: "#F5F1EA",
     painel: "#FFFFFF",
     borda: "#DCD4C6",
     cabecalho: "#F3EEE6",

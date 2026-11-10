@@ -15,6 +15,7 @@ import {
 import { BedDouble, Coffee, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Avatar } from "../Avatar";
+import { tamanhoDaArea } from "../area";
 import type { Fontes } from "../assets/fontes";
 import { EditorDoItem } from "../EditorDoItem";
 import type { PedirImagem } from "../FaixaDeCenas";
@@ -157,20 +158,22 @@ export function JanelaDaFicha({
     if (!g) return;
     const dx = e.clientX - g.x;
     const dy = e.clientY - g.y;
+    // A janela vive dentro da área do mapa: as medidas são as dela, não as da janela do navegador.
+    const area = tamanhoDaArea();
     if (g.tipo === "mover") {
       aoMudar({
-        x: Math.min(Math.max(g.j.x + dx, 80 - g.j.largura), window.innerWidth - 80),
-        y: Math.min(Math.max(g.j.y + dy, 0), window.innerHeight - 40),
+        x: Math.min(Math.max(g.j.x + dx, 80 - g.j.largura), area.largura - 80),
+        y: Math.min(Math.max(g.j.y + dy, 0), area.altura - 40),
       });
     } else {
       aoMudar({
         largura: Math.min(
           Math.max(g.j.largura + dx, LARGURA_MINIMA),
-          Math.max(LARGURA_MINIMA, window.innerWidth - g.j.x),
+          Math.max(LARGURA_MINIMA, area.largura - g.j.x),
         ),
         altura: Math.min(
           Math.max(g.j.altura + dy, ALTURA_MINIMA),
-          Math.max(ALTURA_MINIMA, window.innerHeight - g.j.y),
+          Math.max(ALTURA_MINIMA, area.altura - g.j.y),
         ),
       });
     }

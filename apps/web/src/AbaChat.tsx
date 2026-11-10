@@ -4,7 +4,6 @@ import {
   interpretarChat,
   LIMITES_DO_CHAT,
   type Mensagem,
-  type Presenca,
   pode,
   podeEditarPersonagem,
   ROTULO_DA_VANTAGEM,
@@ -21,7 +20,6 @@ type Enviar = (tipo: string, dados: object) => string | null;
 
 type Props = {
   estado: Estado;
-  presenca: Record<string, Presenca>;
   eu: Usuario;
   enviar: Enviar;
   imagens: ImagensDoMapa | null;
@@ -36,18 +34,7 @@ type Props = {
   visivel: boolean;
 };
 
-const ROTULO_DA_PRESENCA: Record<Presenca, string> = {
-  online: "online",
-  reconectando: "reconectando",
-  offline: "offline",
-};
 const HISTORICO_DE_ENVIOS = 30;
-
-function iniciais(nome: string): string {
-  const palavras = nome.trim().split(/\s+/).filter(Boolean);
-  const duas = palavras.length >= 2 ? `${palavras[0]?.[0] ?? ""}${palavras[1]?.[0] ?? ""}` : nome;
-  return duas.slice(0, 2).toUpperCase();
-}
 
 type ModeloAberto = "ataque" | "teste";
 
@@ -205,13 +192,12 @@ function ModelosDeRolagem({
 }
 
 /**
- * Aba Chat. No topo, a presença de todos. No meio, a conversa (texto, rolagens, modelos, sussurros).
+ * Aba Chat. No alto, a conversa (texto, rolagens, modelos, sussurros).
  * No rodapé, a caixa fixa com o "Como:" (eu mesmo ou um personagem que eu edito; o mestre, qualquer
  * um). Enter envia, Shift+Enter quebra a linha, a seta para cima traz de volta a última mensagem.
  */
 export function AbaChat({
   estado,
-  presenca,
   eu,
   enviar,
   imagens,
@@ -222,7 +208,6 @@ export function AbaChat({
   pedirAnteriores,
   visivel,
 }: Props) {
-  const quemEsta = (id: string): Presenca => presenca[id] ?? "offline";
   const chat: Mensagem[] = estado.chat ?? [];
   const [texto, setTexto] = useState("");
   const [erro, setErro] = useState<string | null>(null);
@@ -322,30 +307,6 @@ export function AbaChat({
 
   return (
     <div className="aba-chat" data-testid="aba-chat-conteudo">
-      <ul className="presenca" data-testid="presenca" aria-label="Quem está na mesa">
-        {estado.usuarios.map((u) => (
-          <li
-            key={u.id}
-            className="presenca-item"
-            data-testid={`presenca-${u.id}`}
-            data-estado={quemEsta(u.id)}
-            title={`${u.nome} (${u.papel})${u.id === eu.id ? " — você" : ""}`}
-          >
-            <span className="avatar" style={{ background: u.cor }}>
-              {iniciais(u.nome)}
-              <span className="ponto-estado" aria-hidden="true" />
-            </span>
-            <span className="presenca-nome">
-              {u.nome}
-              {u.id === eu.id ? " ★" : ""}
-            </span>
-            <span data-testid={`presenca-estado-${u.id}`} className="estado-presenca">
-              {ROTULO_DA_PRESENCA[quemEsta(u.id)]}
-            </span>
-          </li>
-        ))}
-      </ul>
-
       <div className="mensagens-chat" data-testid="chat-mensagens" aria-live="polite" ref={lista}>
         {temMais && (
           <button

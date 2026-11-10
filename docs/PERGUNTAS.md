@@ -20,13 +20,13 @@ Juntadas durante os Lotes 6 a 14 (2026-11-06 a 10) para fazer ao Vilella no fim.
 - ~~Névoa manual × só automática~~: só automática por ora (2026-11-10).
 - Ícone de eventos (7b) e o desenho das automações; MCP (12).
 - Lista de ajustes de interface que ele quer fazer.
-- Roteiros manuais pendentes: Lote 3 (parcial), Lotes 4 a 11, 13, 14 e R1 (o 4b não tem roteiro escrito; foi interface para ver). Lista em `docs/PASSAGEM.md`.
+- Roteiros manuais pendentes: Lote 3 (parcial), Lotes 4 a 11, 13, 14, R1 e R2 (o 4b não tem roteiro escrito; foi interface para ver). Lista em `docs/PASSAGEM.md`.
 
 ## Lote 6
 - ~~Visão noturna do mestre~~: cor normal, como está (2026-11-10).
 
 ## Lote 7
-- Onde fica o botão de pausar a mesa e o relógio da sala (assumido: fim do menu superior do mestre).
+- ~~Onde fica o botão de pausar a mesa e o relógio da sala~~ Respondida pelo redesign R2 (2026-11-10): no topo da mesa, à direita. Um controle só: o mestre vê o botão ⏸ com o relógio da sala dentro e, pausada, a pílula de aviso "▶ relógio" que retoma; o jogador vê só o ícone ⏸ na pílula amarela (sem a palavra "Pausada"). A faixa do meio do mapa saiu. O relógio é o tempo da sala e só o mestre o vê.
 - Estágios: forte > 50%, fraca ≤ 50%, morrendo ≤ 10% da duração (assumido; configurável).
 - Consumida some da mão e da coleção (assumido).
 - Semente: Tocha 5e 60 min 6+6 m; Lanterna 6 h 9+9 m; Fogueira infinita.

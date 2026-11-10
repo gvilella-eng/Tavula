@@ -2,7 +2,9 @@
 :root {
   /* As cores (--fundo, --painel, --texto, --acento etc.) vêm de tema/temas.ts, aplicadas no boot. */
   --raio: 10px;
-  --largura-lateral: 360px;
+  --altura-topo: 48px;
+  --largura-barra: 52px;
+  /* O painel recolhido vira uma trilha só de ícones. */
   --largura-abas: 52px;
   --fonte-interface: "Inter Variable", system-ui, sans-serif;
   --fonte-titulo: "Space Grotesk Variable", "Inter Variable", system-ui, sans-serif;
@@ -221,13 +223,33 @@ textarea {
   border-radius: 3px;
 }
 
-/* --- mesa --------------------------------------------------------------------------------- */
+/* --- mesa: quatro regiões fixas ----------------------------------------------------------- */
 
+/* Topo (48 px, até onde começa o painel), ferramentas (52 px), painel direito (de cima a baixo) e, no
+   meio, a área do mapa. Nada fica por cima das barras. */
 .mesa {
   position: fixed;
   inset: 0;
+  display: grid;
+  grid-template-columns: var(--largura-barra) minmax(0, 1fr) var(--largura-painel-ativa);
+  grid-template-rows: var(--altura-topo) minmax(0, 1fr);
+  grid-template-areas:
+    "topo topo painel"
+    "ferr mapa painel";
+  --largura-painel-ativa: var(--largura-painel, 360px);
+}
+.mesa[data-lateral="fechada"] {
+  --largura-painel-ativa: var(--largura-abas);
 }
 
+.area-mapa {
+  grid-area: mapa;
+  position: relative;
+  overflow: hidden;
+  background: var(--fundo-mesa);
+  /* Onde começam os painéis que abrem sobre o mapa . */
+  --respiro-topo: 12px;
+}
 .mapa {
   position: absolute;
   inset: 0;
@@ -240,6 +262,8 @@ textarea {
 }
 
 .carregando {
+  grid-column: 1 / -1;
+  grid-row: 1 / -1;
   margin: 24px;
 }
 
@@ -254,8 +278,13 @@ textarea {
 
 .selo-conexao {
   position: absolute;
-  top: 12px;
-  left: 50%;
+  z-index: 60;
+  top: calc(var(--altura-topo) + 12px);
+  left: calc(
+    var(--largura-barra) +
+    (100% - var(--largura-barra) - var(--largura-painel-ativa)) /
+    2
+  );
   transform: translateX(-50%);
   padding: 6px 14px;
   background: var(--acento);
@@ -266,11 +295,16 @@ textarea {
 
 .aviso {
   position: absolute;
+  z-index: 60;
   bottom: 16px;
-  left: 50%;
+  left: calc(
+    var(--largura-barra) +
+    (100% - var(--largura-barra) - var(--largura-painel-ativa)) /
+    2
+  );
   transform: translateX(-50%);
   margin: 0;
-  max-width: 60vw;
+  max-width: calc(100% - var(--largura-barra) - var(--largura-painel-ativa) - 32px);
   padding: 8px 14px;
   background: var(--cabecalho);
   border: 1px solid var(--acento);
@@ -281,21 +315,20 @@ textarea {
 /* --- barra de ferramentas ----------------------------------------------------------------- */
 
 .barra-esquerda-area {
+  grid-area: ferr;
   z-index: 30;
-  position: absolute;
-  left: 12px;
-  top: 50%;
-  transform: translateY(-50%);
+  position: relative;
+  display: flex;
+  justify-content: center;
+  padding: 8px 0;
+  background: var(--barra);
+  border-right: 1px solid var(--borda-barra);
 }
 .barra-ferramentas {
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: 6px;
-  padding: 6px;
-  background: var(--barra);
-  border: 1px solid var(--borda-barra);
-  border-radius: var(--raio);
-  box-shadow: var(--sombra);
 }
 .barra-ferramentas hr {
   width: 100%;
@@ -330,34 +363,32 @@ textarea {
   height: 28px;
 }
 
-/* --- zoom flutuante ----------------------------------------------------------------------- */
+/* --- zoom (canto inferior direito da área do mapa) -------------------------------------------- */
 
 .zoom-flutuante {
   position: absolute;
-  top: 50%;
-  right: calc(var(--largura-lateral) + var(--largura-abas) + 36px);
-  transform: translateY(-50%);
+  z-index: 22;
+  right: 12px;
+  bottom: 12px;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
   gap: 4px;
-  padding: 6px;
+  padding: 4px 6px;
   background: var(--painel);
   border: 1px solid var(--borda);
   border-radius: var(--raio);
   box-shadow: var(--sombra);
 }
-.mesa[data-lateral="fechada"] .zoom-flutuante {
-  right: calc(var(--largura-abas) + 36px);
-}
 .trilho-zoom {
-  writing-mode: vertical-lr;
-  direction: rtl;
-  height: 120px;
+  width: 110px;
   accent-color: var(--acento-forte);
 }
 .zoom-nivel {
+  min-width: 40px;
+  text-align: center;
   font-size: 12px;
+  font-variant-numeric: tabular-nums;
   color: var(--texto-suave);
 }
 
@@ -378,11 +409,11 @@ textarea {
 
 .painel-token {
   position: absolute;
-  left: 76px;
+  left: 12px;
   bottom: 12px;
   z-index: 15;
   width: 236px;
-  max-height: calc(100% - 96px);
+  max-height: calc(100% - var(--respiro-topo) - 12px);
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -398,6 +429,11 @@ textarea {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  /* O cabeçalho das janelas usa a cor das barras fixas; o corpo usa --painel. */
+  margin: -6px -10px 2px;
+  padding: 4px 10px;
+  background: var(--barra);
+  border-radius: var(--raio) var(--raio) 0 0;
 }
 .painel-token label {
   display: flex;
@@ -418,37 +454,129 @@ textarea {
   flex-direction: row;
 }
 
-/* --- barra lateral ------------------------------------------------------------------------ */
+/* --- painel direito ------------------------------------------------------------------------ */
 
 .lateral {
-  z-index: 25;
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  bottom: 12px;
-  display: flex;
-  flex-direction: row-reverse;
-  background: var(--barra);
-  border: 1px solid var(--borda-barra);
-  border-radius: var(--raio);
-  box-shadow: var(--sombra);
-  overflow: hidden;
-}
-.abas {
+  grid-area: painel;
+  z-index: 28;
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 6px;
-  width: var(--largura-abas);
-  flex: 0 0 var(--largura-abas);
-  border-left: 1px solid var(--borda-barra);
+  min-width: 0;
+  background: linear-gradient(
+    180deg,
+    var(--painel-topo) 0,
+    var(--painel-meio) 160px,
+    var(--painel-fim) 100%
+  );
+  box-shadow: var(--sombra);
+}
+.alca-painel {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -8px;
+  width: 12px;
+  z-index: 5;
+  cursor: ew-resize;
+  touch-action: none;
+}
+.alca-painel::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 4px;
+  width: 4px;
+  height: 44px;
+  transform: translateY(-50%);
+  border-radius: 2px;
+  background: var(--borda);
+  opacity: 0;
+}
+.alca-painel:hover::after,
+.alca-painel:focus-visible::after,
+.lateral[data-arrastando] .alca-painel::after {
+  opacity: 1;
+  background: var(--acento);
+}
+.lateral[data-arrastando] {
+  user-select: none;
+}
+.abas {
+  flex: 0 0 auto;
+  padding: 8px 8px 0;
+  border-bottom: 1px solid var(--borda-barra);
+}
+.abas-lista {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+.aba-lateral {
+  position: relative;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 6px 4px 7px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.15;
+  white-space: nowrap;
+  color: var(--texto-suave);
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 6px 6px 0 0;
+}
+.aba-lateral:hover {
+  color: var(--texto);
+  background: var(--cabecalho);
+}
+.aba-lateral[aria-selected="true"] {
+  color: var(--acento-forte);
+  background: var(--acento-suave);
+  border-bottom-color: var(--acento);
+}
+.aba-icone {
+  display: grid;
+  place-items: center;
+}
+.lateral-recolher {
+  width: 32px;
+  height: 32px;
+}
+.lateral-conteudo > .lateral-recolher {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
 }
 .lateral[data-aberta="false"] .abas {
-  border-left: 0;
+  padding: 6px;
+  border-bottom: 0;
+}
+.lateral[data-aberta="false"] .abas-lista {
+  flex-direction: column;
+  gap: 6px;
+}
+.lateral[data-aberta="false"] .aba-lateral {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 8px;
+}
+.lateral[data-aberta="false"] .aba-nome {
+  display: none;
 }
 .lateral-conteudo {
-  flex: 0 0 var(--largura-lateral);
-  width: var(--largura-lateral);
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
   overflow-wrap: anywhere;
@@ -457,6 +585,13 @@ textarea {
 .lateral-conteudo[hidden],
 .painel-aba[hidden] {
   display: none;
+}
+/* Recolhido, só os ícones das abas: o conteúdo some (o display:flex do chat não pode vencer o hidden). */
+.lateral[data-aberta="false"] .lateral-conteudo {
+  display: none;
+}
+.painel-aba > h2 {
+  padding-right: 40px;
 }
 .linha-jogador {
   display: flex;
@@ -500,12 +635,6 @@ textarea {
 .painel-mestre td {
   padding: 4px 6px;
   text-align: left;
-}
-
-@media (max-width: 760px) {
-  :root {
-    --largura-lateral: 260px;
-  }
 }
 
 /* --- biblioteca (arquivos locais) ----------------------------------------------------------- */
@@ -681,24 +810,62 @@ button:disabled:hover {
   color: var(--texto);
 }
 
-/* --- menu superior do mestre ---------------------------------------------------------------- */
+/* --- topo fixo (48 px) -------------------------------------------------------------------- */
 
-.menu-superior-area {
-  position: absolute;
-  top: 12px;
-  left: 50%;
-  transform: translateX(-50%);
+.topo {
+  grid-area: topo;
   z-index: 30;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 0 12px;
+  background: var(--barra);
+  border-bottom: 1px solid var(--borda-barra);
+}
+.topo-marca {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 0 1 auto;
+  min-width: 0;
+}
+.topo-marca .logo {
+  flex: 0 0 auto;
+}
+.topo-cena {
+  min-width: 0;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding-left: 10px;
+  border-left: 1px solid var(--borda-barra);
+  font-size: 13px;
+  color: var(--texto-suave);
+}
+.topo-menus {
+  display: flex;
+  flex: 1 1 auto;
+  justify-content: center;
+  min-width: 0;
+}
+.topo-direita {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
+  flex: 0 0 auto;
+}
+.menu-superior-area {
+  position: relative;
 }
 .barra-horizontal {
   display: flex;
   flex-direction: row;
-  gap: 6px;
-  padding: 6px;
-  background: var(--barra);
-  border: 1px solid var(--borda-barra);
-  border-radius: var(--raio);
-  box-shadow: var(--sombra);
+  align-items: center;
+  gap: 2px;
 }
 
 /* --- popovers ------------------------------------------------------------------------------- */
@@ -716,8 +883,12 @@ button:disabled:hover {
   box-shadow: var(--sombra);
 }
 .popover-titulo {
+  margin: -10px -12px 2px;
+  padding: 7px 12px;
   font-size: 13px;
   color: var(--texto-suave);
+  background: var(--barra);
+  border-radius: var(--raio) var(--raio) 0 0;
 }
 .popover-camadas,
 .popover-menu {
@@ -783,6 +954,15 @@ button:disabled:hover {
 
 .sub-barra-pincel {
   align-items: center;
+  position: absolute;
+  top: 8px;
+  left: calc(100% + 8px);
+  z-index: 31;
+  padding: 6px;
+  background: var(--barra);
+  border: 1px solid var(--borda-barra);
+  border-radius: var(--raio);
+  box-shadow: var(--sombra);
 }
 .cores-pincel {
   border: 0;
@@ -817,18 +997,15 @@ button:disabled:hover {
 .faixa-cenas {
   position: absolute;
   z-index: 20;
-  top: 74px;
-  left: 76px;
-  right: calc(12px + var(--largura-lateral) + var(--largura-abas) + 12px);
+  top: var(--respiro-topo);
+  left: 12px;
+  right: 12px;
   height: 164px;
   padding: 10px;
   background: var(--painel);
   border: 1px solid var(--borda);
   border-radius: var(--raio);
   box-shadow: var(--sombra);
-}
-.mesa[data-lateral="fechada"] .faixa-cenas {
-  right: calc(12px + var(--largura-abas) + 12px);
 }
 .faixa-lista {
   display: flex;
@@ -982,7 +1159,7 @@ button:disabled:hover {
   margin: 0;
   padding: 6px;
   list-style: none;
-  background: var(--campo);
+  background: var(--painel);
   border: 1px solid var(--borda);
   border-radius: 12px;
   box-shadow: var(--sombra);
@@ -1067,29 +1244,25 @@ button:disabled:hover {
 
 /* --- chat e presença ------------------------------------------------------------------------ */
 
-.presenca {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
+.presenca-topo {
+  position: relative;
+  display: flex;
+  align-items: center;
   gap: 6px;
-  padding: 0;
-  margin: 0 0 10px;
-  list-style: none;
 }
-.presenca-item {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  column-gap: 6px;
+.presenca-avatares {
+  display: flex;
   align-items: center;
   margin: 0;
-  padding: 4px 6px;
-  background: var(--cabecalho);
-  border-radius: 8px;
+  padding: 0;
+  list-style: none;
 }
-.presenca-nome {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 13px;
+.presenca-avatares .presenca-item {
+  position: relative;
+  margin: 0 0 0 -6px;
+}
+.presenca-avatares .presenca-item:first-child {
+  margin-left: 0;
 }
 .avatar {
   position: relative;
@@ -1104,21 +1277,19 @@ button:disabled:hover {
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
 }
 .presenca-item .avatar {
-  width: 24px;
-  height: 24px;
-  font-size: 10px;
-}
-.presenca-item .estado-presenca {
+  width: 30px;
+  height: 30px;
   font-size: 11px;
+  border: 2px solid var(--barra);
 }
 .ponto-estado {
   position: absolute;
-  right: -2px;
-  bottom: -2px;
+  right: -3px;
+  bottom: -3px;
   width: 11px;
   height: 11px;
   border-radius: 50%;
-  border: 2px solid var(--cabecalho);
+  border: 2px solid var(--barra);
   background: var(--ponto-off);
 }
 .presenca-item[data-estado="online"] .ponto-estado {
@@ -1129,6 +1300,51 @@ button:disabled:hover {
 }
 .presenca-item[data-estado="offline"] .avatar {
   opacity: 0.45;
+}
+.presenca-lista .presenca-item .avatar,
+.presenca-lista .presenca-item .ponto-estado {
+  border-color: var(--campo);
+}
+.presenca-mais {
+  min-width: 30px;
+  height: 30px;
+  padding: 0 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--texto-suave);
+  border-radius: 999px;
+}
+.presenca-lista {
+  position: absolute;
+  z-index: 60;
+  top: calc(100% + 8px);
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 200px;
+  margin: 0;
+  padding: 8px;
+  list-style: none;
+  background: var(--campo);
+  border: 1px solid var(--borda);
+  border-radius: 12px;
+  box-shadow: var(--sombra);
+}
+.presenca-lista[hidden] {
+  display: none;
+}
+.presenca-linha {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  column-gap: 8px;
+  align-items: center;
+}
+.presenca-nome {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
 }
 .aba-chat {
   display: flex;
@@ -1430,11 +1646,13 @@ button:disabled:hover {
 .ordem-de-turno {
   position: absolute;
   z-index: 18;
-  top: 74px;
-  right: calc(12px + var(--largura-lateral) + var(--largura-abas) + 12px);
+  top: var(--respiro-topo);
+  right: 12px;
   width: 364px;
+  max-width: calc(100% - 24px);
   min-height: 90px;
-  max-height: calc(100vh - 150px);
+  /* Deixa livre o canto do zoom, embaixo. */
+  max-height: calc(100% - var(--respiro-topo) - 68px);
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -1445,13 +1663,14 @@ button:disabled:hover {
   border-radius: var(--raio);
   box-shadow: var(--sombra);
 }
-.mesa[data-lateral="fechada"] .ordem-de-turno {
-  right: calc(12px + var(--largura-abas) + 12px);
-}
 .ordem-de-turno header {
   display: flex;
   align-items: center;
   gap: 6px;
+  margin: -10px -12px 0;
+  padding: 8px 12px;
+  background: var(--barra);
+  border-radius: var(--raio) var(--raio) 0 0;
 }
 
 /* --- painel do token e avisos --------------------------------------------------------------- */
@@ -1509,8 +1728,9 @@ button:disabled:hover {
 }
 .selo-ver-como {
   position: absolute;
-  top: 12px;
-  left: 76px;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
   z-index: 28;
   display: flex;
   align-items: center;
@@ -1555,13 +1775,13 @@ button:disabled:hover {
 .painel-config-luz {
   position: absolute;
   z-index: 19;
-  top: 74px;
-  left: 76px;
+  top: var(--respiro-topo);
+  left: 12px;
   display: flex;
   flex-direction: column;
   gap: 6px;
   width: 292px;
-  max-height: calc(100% - 96px);
+  max-height: calc(100% - var(--respiro-topo) - 12px);
   overflow-y: auto;
   padding: 8px 10px;
   font-size: 13px;
@@ -1576,6 +1796,10 @@ button:disabled:hover {
   align-items: center;
   gap: 6px;
   user-select: none;
+  margin: -8px -10px 0;
+  padding: 6px 10px;
+  background: var(--barra);
+  border-radius: var(--raio) var(--raio) 0 0;
 }
 .painel-fontes header .botao-icone,
 .painel-config-luz header .botao-icone {
@@ -1711,34 +1935,53 @@ button:disabled:hover {
   font-variant-numeric: tabular-nums;
   color: var(--texto);
 }
-.relogio-sala[data-pausada="true"] {
-  color: var(--acento-forte);
+.estado-mesa {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
-.selo-pausa {
-  position: absolute;
-  top: 12px;
-  left: 50%;
-  z-index: 29;
-  transform: translateX(-50%);
-  padding: 5px 14px;
-  font-size: 13px;
-  font-weight: 600;
+.estado-mesa-selo-icone {
+  display: inline-flex;
+}
+.estado-mesa-selo {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  font-size: 12px;
+  font-weight: 700;
   letter-spacing: 0.02em;
-  color: var(--acento-forte);
-  background: var(--painel);
-  border: 1px solid var(--acento);
+  color: var(--aviso);
+  background: var(--aviso-fundo);
+  border: 1px solid var(--aviso-borda);
   border-radius: 999px;
-  box-shadow: var(--sombra);
-  opacity: 0.94;
-  pointer-events: none;
 }
-.selo-pausa[data-mestre="true"] {
-  top: 70px;
+.estado-mesa-botao {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  color: var(--texto);
+}
+.estado-mesa-botao.pausada {
+  font-weight: 700;
+  color: var(--aviso);
+  background: var(--aviso-fundo);
+  border-color: var(--aviso-borda);
+}
+.estado-mesa-botao .relogio-sala {
+  min-width: 0;
+  padding: 0;
+  color: inherit;
 }
 
 .menu-titulo {
-  padding: 4px 10px 6px;
-  margin: 0;
+  padding: 6px 10px;
+  margin: -6px -6px 4px;
+  background: var(--barra);
+  border-radius: 12px 12px 0 0;
 }
 
 .luz-fixas,
@@ -2180,13 +2423,13 @@ button:disabled:hover {
 /* --- janela da ficha 5e (Lote 9) ------------------------------------------------------------ */
 
 .janela-ficha {
-  position: fixed;
+  position: absolute;
   display: flex;
   flex-direction: column;
   min-width: 520px;
   min-height: 360px;
-  max-width: 100vw;
-  max-height: 100vh;
+  max-width: 100%;
+  max-height: 100%;
   overflow: hidden;
   background: var(--painel);
   border: 1px solid var(--borda);
@@ -2198,7 +2441,7 @@ button:disabled:hover {
   align-items: center;
   gap: 8px;
   padding: 8px 10px;
-  background: var(--cabecalho);
+  background: var(--barra);
   border-bottom: 1px solid var(--borda);
   cursor: grab;
   user-select: none;
@@ -3398,7 +3641,8 @@ button:disabled:hover {
 .dica-da-barra {
   position: absolute;
   left: calc(100% + 10px);
-  bottom: 0;
+  bottom: 12px;
+  z-index: 31;
   width: 220px;
   padding: 10px 12px;
   font-size: 13px;
@@ -3432,7 +3676,7 @@ button:disabled:hover {
   grid-template-columns: repeat(2, 34px);
   gap: 4px;
   justify-items: center;
-  max-height: calc(100vh - 24px);
+  max-height: calc(100vh - var(--altura-topo) - 16px);
   overflow-y: auto;
 }
 .sub-barra-pincel hr,

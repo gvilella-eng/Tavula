@@ -47,24 +47,13 @@ function Botao(props: {
   );
 }
 
-/** Barra vertical à esquerda (todos): selecionar, mão, régua, dados rápidos e pincel. */
+/**
+ * Barra fixa à esquerda (52 px, todos): selecionar, mão, régua, dados rápidos e pincel. As sub-barras
+ * (o pincel) e a grade de dados abrem ao lado dela, sobre o mapa.
+ */
 export function BarraDeFerramentas(p: Props) {
   const [dadosAbertos, setDadosAbertos] = useState(false);
   const [semPermissao, setSemPermissao] = useState(false);
-
-  // O pincel é uma ferramenta do mapa: a sub-barra aparece enquanto ele é a ferramenta ativa.
-  if (p.ferramenta === "pincel") {
-    return (
-      <div className="barra-esquerda-area">
-        <SubBarraPincel
-          config={p.pincel}
-          aoMudar={p.aoMudarPincel}
-          aoFechar={() => p.aoEscolher("selecionar")}
-          aoDesfazer={p.aoVoltarDesenho}
-        />
-      </div>
-    );
-  }
 
   const ferramentas: { id: Ferramenta; titulo: string; icone: ReactNode }[] = [
     { id: "selecionar", titulo: "Selecionar e mover (V)", icone: <MousePointer2 size={20} /> },
@@ -72,7 +61,7 @@ export function BarraDeFerramentas(p: Props) {
     { id: "regua", titulo: "Régua (R)", icone: <Ruler size={20} /> },
   ];
   return (
-    <div className="barra-esquerda-area">
+    <div className="barra-esquerda-area" data-testid="barra-esquerda">
       <nav className="barra-ferramentas" aria-label="Ferramentas" data-testid="barra-ferramentas">
         {ferramentas.map((f) => (
           <Botao
@@ -98,16 +87,25 @@ export function BarraDeFerramentas(p: Props) {
         <Botao
           testid="ferramenta-pincel"
           titulo={p.podeDesenhar ? "Pincel" : MOTIVO_SEM_PINCEL}
+          ativo={p.ferramenta === "pincel"}
           indisponivel={!p.podeDesenhar}
           aoClicar={() => {
             setDadosAbertos(false);
-            if (p.podeDesenhar) p.aoEscolher("pincel");
+            if (p.podeDesenhar) p.aoEscolher(p.ferramenta === "pincel" ? "selecionar" : "pincel");
             else setSemPermissao(true);
           }}
         >
           <Brush size={20} />
         </Botao>
       </nav>
+      {p.ferramenta === "pincel" && (
+        <SubBarraPincel
+          config={p.pincel}
+          aoMudar={p.aoMudarPincel}
+          aoFechar={() => p.aoEscolher("selecionar")}
+          aoDesfazer={p.aoVoltarDesenho}
+        />
+      )}
       {semPermissao && !p.podeDesenhar && (
         <div className="dica-da-barra" role="status" data-testid="pincel-sem-permissao">
           {MOTIVO_SEM_PINCEL}

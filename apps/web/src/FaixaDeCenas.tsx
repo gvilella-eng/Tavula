@@ -1,6 +1,7 @@
 import type { Cena, Estado } from "@tabletop/shared";
 import { Copy, Eye, Flag, PackageCheck, Plus, Settings2, Trash2, UsersRound } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
+import { dentroDaArea } from "./area";
 import { ConfigurarCena } from "./ConfigurarCena";
 import type { ImagensDoMapa } from "./mapa/mapaPixi";
 import { useFecharFora } from "./Popover";
@@ -420,7 +421,7 @@ export function FaixaDeCenas({
             versaoDasImagens={versaoDasImagens}
             aoClicar={() => aoIrPara(c.id)}
             aoRenomear={(nome) => enviar("cena.editar", { cenaId: c.id, nome })}
-            aoMenu={(x, y) => setMenu({ cenaId: c.id, x: Math.min(x, window.innerWidth - 200), y })}
+            aoMenu={(x, y) => setMenu({ cenaId: c.id, x: dentroDaArea(x, y, 192, 0).left, y })}
           />
         ))}
         <li className="cena-card nova">

@@ -12,7 +12,7 @@ const PASSOS = 1000;
 const LOG_MIN = Math.log(ZOOM_MIN);
 const LOG_MAX = Math.log(ZOOM_MAX);
 
-/** Controle de zoom na borda direita do mapa: +, −, trilho, nível atual e centralizar. */
+/** Controle de zoom no canto inferior direito da área do mapa: −, trilho, +, nível atual e centralizar. */
 export function ZoomFlutuante({ zoom, aoDefinir, aoPasso, aoCentralizar }: Props) {
   const posicao = Math.round(((Math.log(zoom) - LOG_MIN) / (LOG_MAX - LOG_MIN)) * PASSOS);
   return (
@@ -20,12 +20,12 @@ export function ZoomFlutuante({ zoom, aoDefinir, aoPasso, aoCentralizar }: Props
       <button
         type="button"
         className="botao-icone"
-        data-testid="zoom-mais"
-        title="Aproximar"
-        aria-label="Aproximar"
-        onClick={() => aoPasso(1.25)}
+        data-testid="zoom-menos"
+        title="Afastar"
+        aria-label="Afastar"
+        onClick={() => aoPasso(0.8)}
       >
-        <Plus size={18} />
+        <Minus size={18} />
       </button>
       <input
         type="range"
@@ -42,12 +42,12 @@ export function ZoomFlutuante({ zoom, aoDefinir, aoPasso, aoCentralizar }: Props
       <button
         type="button"
         className="botao-icone"
-        data-testid="zoom-menos"
-        title="Afastar"
-        aria-label="Afastar"
-        onClick={() => aoPasso(0.8)}
+        data-testid="zoom-mais"
+        title="Aproximar"
+        aria-label="Aproximar"
+        onClick={() => aoPasso(1.25)}
       >
-        <Minus size={18} />
+        <Plus size={18} />
       </button>
       <span className="zoom-nivel" data-testid="zoom-nivel">
         {Math.round(zoom * 100)}%

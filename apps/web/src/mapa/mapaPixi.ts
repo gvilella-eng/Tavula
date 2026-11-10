@@ -398,6 +398,7 @@ export class MapaPixi {
   private jaCentralizou = false;
   private sujo = true;
   private quadro = 0;
+  private observador: ResizeObserver | null = null;
   private ultimoQuadro = 0;
 
   constructor(
@@ -464,6 +465,9 @@ export class MapaPixi {
     window.addEventListener("keydown", this.aoTeclaBaixo);
     window.addEventListener("keyup", this.aoTeclaCima);
     this.app.renderer.on("resize", this.aoRedimensionar);
+    // O Pixi só reage ao resize da janela; a área do mapa muda também ao ajustar ou recolher o painel.
+    this.observador = new ResizeObserver(() => this.app.queueResize());
+    this.observador.observe(this.host);
 
     this.pronto = true;
     this.chaveDaVisao = this.chaveDe_visao();
@@ -497,6 +501,8 @@ export class MapaPixi {
     c.removeEventListener("dblclick", this.aoDuploClique);
     window.removeEventListener("keydown", this.aoTeclaBaixo);
     window.removeEventListener("keyup", this.aoTeclaCima);
+    this.observador?.disconnect();
+    this.observador = null;
     if (this.gesto?.tipo === "token" || this.gesto?.tipo === "traco")
       this.gesto.limitador.cancelar();
     this.gesto = null;

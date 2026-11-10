@@ -104,10 +104,13 @@ test("menu superior, camadas, dados rápidos e pincel (interface; o que não tem
   await expect(p.locator(".etiqueta")).toHaveCount(0);
   await expect(p.locator(".selo-conexao")).toHaveCount(0);
 
-  // menu do mestre: horizontal, centralizado no topo
+  // menu do mestre: horizontal, dentro do topo fixo (R2: deixou de ficar centralizado sobre o mapa)
   const menu = await p.getByTestId("menu-superior").boundingBox();
-  const largura = (await p.viewportSize())?.width ?? 0;
-  expect(menu && Math.abs(menu.x + menu.width / 2 - largura / 2) < 3).toBe(true);
+  const topo = await p.getByTestId("topo").boundingBox();
+  expect(menu && topo && menu.x >= topo.x && menu.x + menu.width <= topo.x + topo.width).toBe(true);
+  expect(menu && topo && menu.y >= topo.y && menu.y + menu.height <= topo.y + topo.height).toBe(
+    true,
+  );
   expect(menu && menu.width > menu.height * 4).toBe(true);
   for (const id of [
     "menu-cenas",
@@ -201,7 +204,11 @@ test("menu superior, camadas, dados rápidos e pincel (interface; o que não tem
   await p.getByTestId("ferramenta-pincel").click();
   const sub = p.getByTestId("sub-barra-pincel");
   await expect(sub).toBeVisible();
-  await expect(p.getByTestId("barra-ferramentas")).toHaveCount(0);
+  // R2: a barra de 52 px continua à vista; a sub-barra abre ao lado dela, sobre o mapa
+  await expect(p.getByTestId("barra-ferramentas")).toBeVisible();
+  const barraFixa = await p.getByTestId("barra-esquerda").boundingBox();
+  const subBox = await sub.boundingBox();
+  expect(barraFixa && subBox && subBox.x >= barraFixa.x + barraFixa.width - 1).toBe(true);
   for (const id of [
     "pincel-fechar",
     "pincel-desfazer",

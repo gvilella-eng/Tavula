@@ -228,8 +228,8 @@ test("o fim do tempo apaga a tocha sozinha e libera a mão; pausar congela e ret
 
   // pausa: o relógio e as tochas congelam
   await mestre.pagina.getByTestId("menu-pausa").click();
-  await expect(p.getByTestId("selo-pausa")).toBeVisible();
-  await expect(mestre.pagina.getByTestId("selo-pausa")).toBeVisible();
+  await expect(p.getByTestId("estado-mesa-selo")).toBeVisible();
+  await expect(mestre.pagina.getByTestId("estado-mesa-selo")).toBeVisible();
   await p.waitForTimeout(600);
   const congelado = ((await alcas(p))[0] as Alca).rotulo;
   const relogioMestre = await mestre.pagina.getByTestId("relogio-sala").textContent();
@@ -240,7 +240,7 @@ test("o fim do tempo apaga a tocha sozinha e libera a mão; pausar congela e ret
 
   // retomar: volta a contar de onde parou
   await mestre.pagina.getByTestId("menu-pausa").click();
-  await expect(p.getByTestId("selo-pausa")).toHaveCount(0);
+  await expect(p.getByTestId("estado-mesa-selo")).toHaveCount(0);
   await expect
     .poll(async () => ((await alcas(p))[0] as Alca).rotulo, { timeout: 8000 })
     .not.toBe(congelado);

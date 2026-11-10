@@ -89,7 +89,8 @@ test("o mestre aponta a pasta; o jogador busca 'bola' e 'misseis' (sem acento) e
   // nenhum frame de TEXTO (nem do mestre para a sala, nem da sala para o jogador) leva o texto do
   // compêndio: só os pedaços binários do asset, e a meta não carrega conteúdo.
   for (const lista of [mestre.enviados, mestre.frames, j1.enviados, j1.frames]) {
-    const tudo = lista.join("\n");
+    // ids (uuid) e hashes são hexadecimais aleatórios e às vezes contêm "8d6" por acaso: fora da conta
+    const tudo = lista.join("\n").replace(/[0-9a-f-]{16,}/gi, "#");
     for (const trecho of TRECHOS_DO_TEXTO) expect(tudo).not.toContain(trecho);
   }
   const metaFrame = mestre.enviados.find((f) => f.includes('"tipo":"compendio"'));

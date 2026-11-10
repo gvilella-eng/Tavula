@@ -13,6 +13,10 @@ Protótipos (página privada no claude.ai): https://claude.ai/artifact/VuLaqV3CF
   sem acento: `tavola`. Entra no logo, no título da aba e na tela de entrada.
 - **Identidade: Grimório** (direção A): tons escuros quentes e latão/amarelo. É a identidade principal do
   projeto e o tema padrão.
+- **Carvão (2026-11-10):** as barras e janelas do Grimório trocaram o couro marrom pelo **carvão** (preto e cinza
+  puros: barra `#1B1B1B`, corpo das janelas `#252525`, fundo `#0C0C0C`); o latão continua como destaque. O nome
+  segue "Grimório"; Escuro neutro e Claro não mudaram. O protótipo com as 9 opções está no mesmo artifact
+  (opção 9).
 - **Mais contraste** entre as barras fixas e o mapa: as barras (couro) bem mais claras e quentes que o fundo
   da mesa (carvão); carvão e couro não podem parecer a mesma cor.
 - **Fontes:** Space Grotesk (títulos, logo, números grandes) + Inter (interface). Empacotadas no app
@@ -163,10 +167,86 @@ sala não foi tocada).
 - Um passe fino de contraste no avatar (texto branco sobre cores claras de usuário, como o amarelo do
   mestre) e nos rótulos desenhados dentro do mapa: são conteúdo, ficam para o R6.
 
+## R2 — como ficou (2026-11-10)
+
+Estrutura fixa. Nada mudou nas regras, na sala, no protocolo nem na exportação (nenhum frame novo; a
+largura do painel é preferência do navegador).
+
+**O que foi feito**
+- **Quatro regiões fixas** na Mesa (CSS grid em `.mesa`): **topo de 48 px** (do canto esquerdo até onde o
+  painel começa), **barra de ferramentas de 52 px** (abaixo do topo, até o fim da tela), **painel direito de
+  cima a baixo** e, no meio, a **área do mapa** (`.area-mapa`, `data-area-do-mapa`), que ocupa só o que
+  sobra. O canvas do PixiJS tem o tamanho da área: o `MapaPixi` ganhou um `ResizeObserver` no elemento (o
+  Pixi só reage ao resize da janela; ajustar ou recolher o painel também muda a área).
+- **Topo** (`Topo.tsx`): símbolo e nome Távola pequenos (`Logo.tsx`) e o nome da cena do grupo à esquerda; os
+  menus do mestre (`MenuSuperior`, **como estavam**, sem reagrupar) no meio; presença e estado da mesa à
+  direita.
+- **Presença no topo** (item 17, `PresencaNoTopo.tsx`): avatares com dica de nome, papel e estado; offline
+  esmaecido. A lista saiu do chat, que ficou com todo o espaço. Os `data-testid` `presenca`, `presenca-<id>`
+  e `presenca-estado-<id>` foram mantidos.
+- **Pausa e relógio claros** (item 21, `EstadoDaMesa.tsx`): um **controle só** no topo, à direita. **Mestre,
+  rodando:** um botão com ⏸ e o relógio da sala dentro dele (dica "Pausar a mesa (congela o tempo das tochas)").
+  **Mestre, pausada:** uma pílula na cor de aviso "▶ 20:04:12", em que o clique retoma (dica
+  "Retomar a mesa (o tempo volta a correr)"). **Jogador:** só o ícone ⏸ na pílula amarela, sem clique, com a dica
+  "O mestre pausou a mesa: o tempo das tochas está parado". **Sem a palavra "Pausada" na tela** (o ícone e o
+  amarelo bastam; o nome "Mesa pausada" fica no `aria-label`). A faixa "Mesa pausada" do meio do mapa **saiu**.
+  **O relógio é o tempo da sala** (o tempo de jogo que as tochas consomem; para na pausa) e **só o mestre o
+  vê**: a sala manda 0 ao jogador. Ficam os `data-testid` `menu-pausa`, `relogio-sala`, `estado-mesa` e
+  `estado-mesa-selo`.
+- **Barra de ferramentas** (52 px): as mesmas ferramentas, o mesmo comportamento. A **sub-barra do pincel**
+  e a **grade de dados** abrem ao lado da barra, sobre o mapa. O botão do pincel agora fica na barra
+  (apertado enquanto o pincel está ativo; apertar de novo volta a selecionar).
+- **Painel direito** (`BarraLateral.tsx`): fundo `--barra` com leve degradê no alto (`--acento-suave`)
+  e sombra sobre o mapa. **Sem o filete amarelo na borda esquerda** (o Vilella tirou; o degradê e a sombra ficaram). **Largura ajustável** pela alça da borda esquerda
+  (`role="separator"`, `aria-label="Ajustar a largura do painel"`): arrasto com o mouse e teclado (setas
+  alargam e estreitam 16 px, com Shift 64, Home vai ao mínimo e End ao máximo). Mínimo 300 px, máximo 1/4 da
+  janela (se 1/4 for menos que 300, 300). Guardada por navegador em `tabletop:pref:larguraDoPainel` e
+  reajustada quando a janela muda. **Abas com ícone e nome** (item 3), em fila com quebra de linha se faltar
+  espaço; legíveis em 300 px. Recolher continua: o painel vira uma trilha de 52 px só de ícones e o mapa ganha
+  o resto.
+- **Zoom** (`ZoomFlutuante.tsx`) no canto inferior direito da área do mapa, na horizontal (menos, trilho, mais,
+  nível e centralizar); nunca embaixo do painel.
+- **"Centralizar"** (mapa e token) já usava as medidas do elemento do mapa: com o canvas do tamanho da área,
+  considera só a área visível, com o painel em qualquer largura (E2E confere).
+- **Tudo o que abre sobre o mapa** ficou dentro da área: ordem de turno, painel do token, faixa de cenas,
+  paredes, iluminação, fontes de luz, a janela da ficha (agora `position: absolute` dentro da área; as
+  coordenadas dela são da área), os menus do botão direito e as dicas (`area.ts` prende ao retângulo da área).
+  Os painéis que abriam em `top: 74px; left: 76px` agora usam `--respiro-topo` (12 px).
+
+**Decisões (assumido)**
+- (assumido) Painel **recolhido** = trilha de 52 px com os ícones das abas (sem os nomes) e o botão de abrir;
+  assim as abas continuam a um clique e o selo de não lidas do chat continua visível.
+- (assumido) Largura padrão do painel: 360 px, ajustada ao máximo da janela (320 px em 1280). A **escolha** da
+  pessoa fica guardada intacta: se a janela encolhe, o painel se ajusta, e ao crescer volta ao que ela escolheu.
+- (assumido) Presença com mais de 6 pessoas: aparecem os 5 que estão online primeiro (os offline só se sobrar
+  vaga), na ordem da sala, mais um botão "+N" que abre a lista dos outros. O estado de cada um continua
+  no DOM para leitores de tela.
+- (assumido) O jogador vê no topo só o ícone de pausa na pílula amarela; o relógio da sala continua só do mestre (a sala manda 0
+  ao jogador).
+- (assumido) O degradê do painel direito virou três tokens por tema (`painelTopo`, `painelMeio`, `painelFim`; no Grimório `#202020` → `#181818` aos 160 px → `#151515`, os mesmos coeficientes de antes sobre a barra nova) e entrou no teste de contraste.
+- (assumido) `perigoFundo` `#4A2323` e `avisoFundo` `#3A3622` no Grimório (sem o tom marrom, com contraste AA).
+- (assumido) Janelas e popups (ordem de turno, painel do token, paredes, luz, dados, menus com cabeçalho e a janela da ficha): cabeçalho na cor da barra fixa (`--barra`) e corpo em `--painel`, um pouco mais claro (pedido do Vilella; tudo por tokens, porque a paleta vai mudar).
+- (assumido) A faixa "Mesa pausada" do meio do mapa saiu: a pílula no topo basta (pedido do Vilella depois de ver a tela, que achou os 4 sinais redundantes).
+- (assumido) Zoom na horizontal, em vez de vertical, para não brigar com a ordem de turno (também no alto
+  à direita da área).
+- (assumido) O "ver como" ("Vendo como X") foi para o centro, embaixo da área do mapa, para não cruzar com a
+  faixa de cenas.
+- (assumido) A sub-barra do pincel abre ao lado da barra (que continua à vista), e não no lugar dela.
+- (assumido) O botão de recolher o painel fica no canto direito do título da aba aberta (ou no alto da trilha,
+  recolhido).
+- (assumido) O `aviso` (toast) e o selo de conexão ficam centrados na área do mapa.
+
+**O que ficou para depois**
+- Arrastar as janelas e a posição por usuário (R3). Hoje a ficha abre e arrasta dentro da área e é cortada pelas
+  bordas dela; o resto abre em lugar fixo.
+- Agrupar e dar nomes aos menus do topo (R4).
+- Telas menores que 1280×720, foco, contraste fino e atalhos nas dicas (R6).
+- Ao mudar o tamanho da área, a vista do mapa não é recentralizada (continua ancorada no canto superior esquerdo).
+
 ## Em aberto
 
-- R1 feito (2026-11-10). O Vilella vai fazer pessoalmente os ajustes finos de UX/UI e a reorganização dos
-  itens; falta combinar se R2–R6 seguem como planejados, mudam de escopo ou ficam com ele. Ponto de partida:
+- R1 e R2 feitos (2026-11-10). **Plano aprovado (2026-11-10):** R2 a R6 seguem como planejados, um depois do
+  outro; depois do R6 o Vilella faz os ajustes finos de UX/UI e a reorganização dos itens, a partir de
   `docs/PASSAGEM.md`.
 - Itens de interface que vieram dos lotes e entram no R5/R6: a dica das condições abrir por clique, alças de
   tocha sobrepostas ao ícone de ponto, seleção múltipla no mapa.

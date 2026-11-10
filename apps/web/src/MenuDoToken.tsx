@@ -9,6 +9,7 @@ import {
 } from "@tabletop/shared";
 import { Check, HeartPulse, ListPlus, ListX, Sparkles } from "lucide-react";
 import { useRef, useState } from "react";
+import { dentroDaArea } from "./area";
 import { useFecharFora } from "./Popover";
 
 type Props = {
@@ -37,8 +38,7 @@ export function MenuDoToken({ estado, tokenId, x, y, euMestre, enviar, aoFechar 
   if (!token) return null;
   const naOrdem = estado.combate?.entradas.find((e) => e.tokenId === tokenId);
   const ativas = new Set<Condicao>(token.condicoes ?? []);
-  const esquerda = Math.max(8, Math.min(x, window.innerWidth - 300));
-  const topo = Math.max(8, Math.min(y, window.innerHeight - (vista === "condicoes" ? 560 : 150)));
+  const { left: esquerda, top: topo } = dentroDaArea(x, y, 292, vista === "condicoes" ? 552 : 142);
 
   function alternar(c: Condicao) {
     const novas = new Set(ativas);
