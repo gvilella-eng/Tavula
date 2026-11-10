@@ -381,7 +381,11 @@ export function tocharEntregar(
   if (!tokenDe || tokenDe.cenaId !== alvo.cenaId) {
     return erro("fora_de_alcance", "Vocês não estão na mesma cena.");
   }
-  if (!dentroDoAlcance(tokenDe, alvo, e.config.alcanceInteracaoM, quadradoDaCena(e, alvo.cenaId))) {
+  // O mestre entrega de longe (2026-11-10, decisão do Vilella); o alcance vale para os jogadores.
+  if (
+    !ehMestre(c) &&
+    !dentroDoAlcance(tokenDe, alvo, e.config.alcanceInteracaoM, quadradoDaCena(e, alvo.cenaId))
+  ) {
     return erro("fora_de_alcance", "Está longe demais para entregar.");
   }
   const mao = maoLivre(e.luzes, para.id, e.config.maosPorPersonagem);
@@ -414,7 +418,11 @@ export function tocharPosar(
   if (!token || token.cenaId !== ponto.cenaId) {
     return erro("fora_de_alcance", "O personagem não está na cena do suporte.");
   }
-  if (!dentroDoAlcance(token, ponto, e.config.alcanceInteracaoM, quadradoDaCena(e, ponto.cenaId))) {
+  // O mestre põe e tira do suporte de longe; o alcance vale para os jogadores.
+  if (
+    !ehMestre(c) &&
+    !dentroDoAlcance(token, ponto, e.config.alcanceInteracaoM, quadradoDaCena(e, ponto.cenaId))
+  ) {
     return erro("fora_de_alcance", "Está longe demais do suporte.");
   }
   const ocupados = e.luzes.filter(
@@ -452,7 +460,11 @@ export function pontoPegar(
   if (!token || token.cenaId !== ponto.cenaId) {
     return erro("fora_de_alcance", "O personagem não está na cena do suporte.");
   }
-  if (!dentroDoAlcance(token, ponto, e.config.alcanceInteracaoM, quadradoDaCena(e, ponto.cenaId))) {
+  // O mestre põe e tira do suporte de longe; o alcance vale para os jogadores.
+  if (
+    !ehMestre(c) &&
+    !dentroDoAlcance(token, ponto, e.config.alcanceInteracaoM, quadradoDaCena(e, ponto.cenaId))
+  ) {
     return erro("fora_de_alcance", "Está longe demais do suporte.");
   }
   const mao = maoLivre(e.luzes, p.id, e.config.maosPorPersonagem);

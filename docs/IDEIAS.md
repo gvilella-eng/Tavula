@@ -20,6 +20,8 @@ voltarem) e notas sobre a campanha de referência. Quando algo for decidido, sai
 
 ### Mapas e paredes
 
+- **Névoa manual** (o mestre pinta áreas reveladas ou escondidas por cena, como nas mesas virtuais), além da
+  automática. O Vilella preferiu só a automática por ora (2026-11-10).
 - **Mapa revelado aos poucos:** hoje a imagem inteira do mapa da cena ativa vai para o cache do jogador
   (como em qualquer VTT), então quem fuça o navegador vê o desenho de salas que ainda não explorou. Dá
   para mandar o mapa em tiles só conforme a exploração (o fatiamento do Lote 3 ajuda), mas é bem mais

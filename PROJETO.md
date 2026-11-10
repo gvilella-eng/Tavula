@@ -561,7 +561,8 @@ quem escolhe o usuário mestre na tela de entrada é mestre.
 **Entregar e pôr em pontos.**
 - O portador (dono do personagem) ou o mestre arrasta a alça até outro token **dentro do alcance**
   (`alcanceInteracaoM`) que tenha mão livre: a tocha muda de mão com o saldo que tinha. Ninguém mais
-  consegue arrastar a tocha alheia.
+  consegue arrastar a tocha alheia. **O mestre entrega, põe no suporte e tira do suporte de longe**
+  (decidido em 2026-11-10); o alcance vale para os jogadores. A mesma cena continua exigida.
 - **Suporte**: ponto do mapa onde se solta a tocha, que passa a iluminar dali. Tirar de volta exige
   `ponto.usar` e alcance.
 - **Inflamável**: segurar a tocha acesa sobre o ponto por `segurarS` (padrão 3 s) acende o ponto, que
@@ -1831,9 +1832,14 @@ Regras para o agente que implementa:
 - A duração da tocha é do modelo de objeto de cada campanha (a "5e padrão" usa 1 h).
 
 **Em aberto:**
-- **Nome do projeto.**
-- **Quanto da névoa o mestre revela à mão** versus só pela visão dos tokens.
+- **Nome do projeto** (entra no redesign e branding).
 - Assumido até decidir: tocha apagada continua ocupando a mão; qualquer jogador no alcance tira uma
-  tocha de um suporte; entregar exige alcance (padrão 1,5 m).
-- Na visão noturna do mestre, como mostrar a área que um jogador vê só com visão no escuro (cor normal
-  ou cinza).
+  tocha de um suporte; entregar exige alcance (padrão 1,5 m) para os jogadores.
+
+**Decidido em 2026-11-10:**
+- A névoa continua **só automática** (visão dos tokens, luz e memória do mapa); revelar à mão fica em
+  `docs/IDEIAS.md`.
+- Na visão do mestre, a área que um jogador vê só com visão no escuro aparece em **cor normal** (o cinza
+  é só da tela do jogador).
+- O mestre entrega e põe tochas em suportes de longe.
+- Darion: valem os números do PDF (9 tochas; 7 flechas de máximo 20).

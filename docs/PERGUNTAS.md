@@ -1,7 +1,13 @@
 # Perguntas em aberto e rascunhos dos próximos lotes
 
-Juntadas durante os Lotes 6 a 10 (2026-11-06/07) para fazer ao Vilella no fim. Os rascunhos dos Lotes 11, 13 e 14 viram o "Decidido antes de começar" de cada lote no PROJETO.md quando o lote começar.
+Juntadas durante os Lotes 6 a 14 (2026-11-06 a 10) para fazer ao Vilella no fim. Os rascunhos dos Lotes 11, 13 e 14 viram o "Decidido antes de começar" de cada lote no PROJETO.md quando o lote começar.
 
+
+## Respondidas em 2026-11-10
+- O mestre entrega, põe e tira tochas de suportes **de longe**; o alcance vale para os jogadores (feito).
+- Névoa: **só automática** por ora; a manual foi para `docs/IDEIAS.md`.
+- Darion: valem os números do **PDF** (9 tochas; 7 flechas de máximo 20) (feito no `darion.json`).
+- Visão do mestre: a área de visão no escuro do jogador aparece em **cor normal** para o mestre (como já estava).
 
 ## Já vinham de antes
 - Camada mapa = imagem do mapa + objetos de cenário? (assumido)

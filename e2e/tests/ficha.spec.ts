@@ -393,9 +393,10 @@ test("a tocha na mão chega a quem edita o personagem mesmo sem o token na cena 
   await criarDarion(mestre.pagina); // sem token em cena nenhuma
 
   const janela = await abrirFicha(j1.pagina, DARION_ID, "equipamento");
-  await expect(janela.getByTestId("mochila-resumo-modelo-tocha")).toHaveText("3 novas, 0 usadas");
+  // o Darion tem 9 tochas (como no PDF da ficha)
+  await expect(janela.getByTestId("mochila-resumo-modelo-tocha")).toHaveText("9 novas, 0 usadas");
   await janela.getByTestId("mochila-acender-modelo-tocha").click();
-  await expect(janela.getByTestId("mochila-resumo-modelo-tocha")).toHaveText("2 novas, 1 usada");
+  await expect(janela.getByTestId("mochila-resumo-modelo-tocha")).toHaveText("8 novas, 1 usada");
   await expect(janela.locator('[data-testid^="mochila-usada-"]')).toContainText("na mão, acesa");
   // guardar devolve para a mochila (como usada); apagar/reacender seguem pela ficha
   await janela.locator('[data-testid^="mochila-guardar-"]').click();

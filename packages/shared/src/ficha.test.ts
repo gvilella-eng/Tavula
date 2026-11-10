@@ -144,7 +144,8 @@ describe("derivados do Darion", () => {
     const nivel = (n: number) => darion.magias?.filter((m) => m.nivel === n).length;
     expect([nivel(0), nivel(1), nivel(2), nivel(3)]).toEqual([6, 10, 6, 2]);
     expect(darion.caracteristicas).toHaveLength(13);
-    expect(darion.itens?.find((i) => i.modeloId === "modelo-tocha")?.quantidade).toBe(3);
+    // 9 tochas e 7 flechas, como no PDF da ficha (decidido em 2026-11-10)
+    expect(darion.itens?.find((i) => i.modeloId === "modelo-tocha")?.quantidade).toBe(9);
   });
 });
 
@@ -476,7 +477,7 @@ describe("ficha.alterar", () => {
   it("jogador não repõe tochas (aumentar a quantidade de item de modelo); gastar pode", () => {
     const mais = intencao("ficha.alterar", {
       personagemId: "p1",
-      operacoes: [{ caminho: "itens.12.quantidade", valor: 9 }],
+      operacoes: [{ caminho: "itens.12.quantidade", valor: 12 }],
     });
     expect(codigo(e, "j1", mais)).toBe("sem_permissao");
     expect(codigo(e, "m", mais)).toBeNull();
@@ -674,7 +675,7 @@ describe("tocha na mão e quem edita (token fora da cena ativa)", () => {
     const luz = acender.estado.luzes.find((l) => l.id === "tocha-a");
     expect(luz?.portador).toEqual({ tipo: "mao", personagemId: "p1", mao: 0 });
     const itens = acender.estado.personagens.find((p) => p.id === "p1")?.ficha?.itens;
-    expect(itens?.find((i) => i.modeloId === "modelo-tocha")?.quantidade).toBe(2);
+    expect(itens?.find((i) => i.modeloId === "modelo-tocha")?.quantidade).toBe(8);
   });
 
   it("luzVisivelPara: o editor vê a tocha da mão; o outro jogador não; o mestre vê", () => {

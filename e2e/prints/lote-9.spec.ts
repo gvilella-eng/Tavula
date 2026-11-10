@@ -87,7 +87,7 @@ test("1 a 6: a ficha do Darion em cada aba", async ({ grande }) => {
 
   await janela.getByTestId("ficha-aba-equipamento").click();
   await janela.getByTestId("mochila-acender-modelo-tocha").click();
-  await expect(janela.getByTestId("mochila-resumo-modelo-tocha")).toHaveText("2 novas, 1 usada");
+  await expect(janela.getByTestId("mochila-resumo-modelo-tocha")).toHaveText("8 novas, 1 usada");
   await foto(p, "04-equipamento-com-a-tocha-e-acender");
 
   await janela.getByTestId("ficha-aba-notas").click();

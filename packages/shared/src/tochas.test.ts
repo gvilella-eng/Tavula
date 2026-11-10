@@ -407,6 +407,33 @@ describe("entregar, suporte e inflamável", () => {
     const largo = acender(criarEstado({ alcanceInteracaoM: 12 }), "j1", "p1", "o1");
     expect(recusa(largo, "j1", intencao("tocha.entregar", { id: "o1", tokenId: "t3" }))).toBeNull();
   });
+  it("o mestre entrega, põe no suporte e tira do suporte de longe (o alcance é só dos jogadores)", () => {
+    let e = acender(criarEstado(), "j1", "p1", "o1");
+    // t3 está fora do alcance de t1: o jogador não entrega, o mestre sim
+    expect(recusa(e, "j1", intencao("tocha.entregar", { id: "o1", tokenId: "t3" }))).toBe(
+      "fora_de_alcance",
+    );
+    e = ok(e, "m", intencao("tocha.entregar", { id: "o1", tokenId: "t3" })).estado;
+    expect(luz(e, "o1")?.portador).toMatchObject({ tipo: "mao", personagemId: "p3" });
+    e = ok(
+      e,
+      "m",
+      intencao("ponto.criar", {
+        ponto: {
+          id: "longe",
+          nome: "Suporte longe",
+          x: 25,
+          y: 25,
+          tipo: "suporte",
+          visivelParaJogadores: true,
+        },
+      }),
+    ).estado;
+    e = ok(e, "m", intencao("tocha.posar", { id: "o1", pontoId: "longe" })).estado;
+    expect(luz(e, "o1")?.portador).toEqual({ tipo: "ponto", pontoId: "longe" });
+    e = ok(e, "m", intencao("ponto.pegar", { id: "o1", personagemId: "p1" })).estado;
+    expect(luz(e, "o1")?.portador).toMatchObject({ tipo: "mao", personagemId: "p1" });
+  });
   it("sem mão livre no destino, recusa", () => {
     let e = acender(criarEstado({ maosPorPersonagem: 1 }), "j1", "p1", "o1");
     e = ok(
