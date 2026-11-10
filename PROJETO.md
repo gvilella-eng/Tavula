@@ -1802,6 +1802,10 @@ Regras para o agente que implementa:
 1. **Um lote por vez.** Antes de começar, ler este documento e `docs/ESTADO.md` (e `docs/IDEIAS.md`
    quando o lote tocar no assunto).
 2. **Só avança com tudo verde:** `pnpm verify` passando e o roteiro manual feito pelo Vilella.
+   O `verify` roda **uma vez** (desde 2026-11-10; antes eram duas rodadas seguidas). O Playwright repete
+   uma vez o teste que falhar e reprova o que só passar na repetição (instável: corrigir, nunca aceitar).
+   Os E2E novos ou alterados no lote rodam também 3 vezes seguidas:
+   `pnpm --filter @tabletop/e2e test --repeat-each=3 <arquivos>`.
 3. Ao terminar um lote, atualizar `docs/ESTADO.md` (o que foi feito, decisões tomadas, desvios deste
    plano e o porquê) e `docs/protocolo.md` se o protocolo mudou.
 4. **Nada vem da internet em tempo de execução:** não usar CDN, fontes remotas, analytics ou APIs de
