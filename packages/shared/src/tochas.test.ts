@@ -16,6 +16,7 @@ import {
   type ObjetoDeLuz,
   type Papel,
   pausarRelogio,
+  pausarSeSemMestre,
   processar,
   processarSistema,
   proximoMarcoDoObjeto,
@@ -1030,5 +1031,47 @@ describe("exportação v8", () => {
       (t: { personagemId: string }) => t.personagemId !== "p1",
     );
     expect(lerExportacao(ruim).ok).toBe(false);
+  });
+});
+
+describe("pausa automática: não sobrou mestre conectado", () => {
+  it("pausa quando o último mestre sai, no tempo da sala da hora da saída", () => {
+    const e = acender(criarEstado(), "j1", "p1", "o1");
+    const r = pausarSeSemMestre(e, em(7), 0);
+    if (!r.ok) throw new Error("falhou");
+    expect(r.eventos.map((v) => v.tipo)).toEqual(["mesa.pausada"]);
+    expect(r.eventos[0]).toMatchObject({
+      dados: { salaMs: 7 * MIN },
+      origem: { usuarioId: "sistema" },
+      seq: e.seq + 1,
+    });
+    expect(r.estado.relogio).toEqual({ pausada: true, acumuladoMs: 7 * MIN });
+    expect(r.snapshotPara).toBe("todos");
+    // congelado: muito depois, o tempo da sala continua o da saída
+    expect(tempoDaSala(r.estado.relogio, T0 + 500 * MIN)).toBe(7 * MIN);
+  });
+  it("não pausa enquanto outro mestre continua conectado", () => {
+    const r = pausarSeSemMestre(criarEstado(), em(7), 1);
+    if (!r.ok) throw new Error("falhou");
+    expect(r.eventos).toEqual([]);
+    expect(r.estado.relogio.pausada).toBe(false);
+  });
+  it("não mexe se a mesa já está pausada (o tempo parado não muda)", () => {
+    const pausada = ok(criarEstado(), "m", intencao("mesa.pausar"), em(3)).estado;
+    const r = pausarSeSemMestre(pausada, em(40), 0);
+    if (!r.ok) throw new Error("falhou");
+    expect(r.eventos).toEqual([]);
+    expect(r.estado).toBe(pausada);
+    expect(r.estado.relogio).toEqual({ pausada: true, acumuladoMs: 3 * MIN });
+  });
+  it("o jogador vê a pausa (sem o tempo) e retomar continua sendo do mestre", () => {
+    const e = criarEstado();
+    const r = pausarSeSemMestre(e, em(7), 0);
+    if (!r.ok) throw new Error("falhou");
+    const ev = r.eventos[0] as EventoSala;
+    expect(eventoPara(ev, J1, e, r.estado)).toMatchObject({ dados: { salaMs: 0 } });
+    expect(recusa(r.estado, "j1", intencao("mesa.retomar"), em(8))).not.toBeNull();
+    const volta = ok(r.estado, "m", intencao("mesa.retomar"), em(8));
+    expect(volta.estado.relogio).toMatchObject({ pausada: false, acumuladoMs: 7 * MIN });
   });
 });

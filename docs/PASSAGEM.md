@@ -7,8 +7,8 @@ ponteiro, não entrou. Onde a fonte é ambígua ou os docs se contradizem, o ite
 Ponteiros: `REDESIGN` = `docs/REDESIGN.md`, `PERGUNTAS` = `docs/PERGUNTAS.md`, `ESTADO` = `docs/ESTADO.md`,
 `PROJETO` = `PROJETO.md` (na raiz), `IDEIAS` = `docs/IDEIAS.md`. Número depois dos dois-pontos é a linha.
 
-Estado dos docs em 2026-11-10: os Redesigns R1 e R2 estão entregues; R3 em diante não começou
-(`ESTADO:1746`).
+Estado dos docs em 2026-11-10: os Redesigns R1, R2 e R2b (pausa automática e 11 temas) estão entregues; R3 em
+diante não começou (fim do `ESTADO`, "Próximo").
 
 ## 1. Como subir a mesa para olhar
 
@@ -30,14 +30,15 @@ Estado dos docs em 2026-11-10: os Redesigns R1 e R2 estão entregues; R3 em dian
 
 Tudo em `apps/web/src/`.
 
-- `tema/temas.ts`: as cores dos 3 temas (Grimório, Escuro neutro, Claro). É a **única fonte** dos tokens.
-  `tema/temas.test.ts` confere que os 3 temas têm as mesmas chaves e reprova par de texto e fundo abaixo de
-  4,5:1 (AA) (`REDESIGN:125-140`). O `index.html` repete 3 cores de fundo de propósito (anti-piscada); o mesmo
-  teste confere que são iguais às do `temas.ts`.
+- `tema/temas.ts`: as cores dos **11 temas** (Grimório, Taverna, Forja, Licantropo, Paladino, Druida, Leviatã,
+  Vampiro, Arcana, Edgerunner = id `escuro`, Pergaminho = id `claro`; `REDESIGN`, "R2b"). É a **única fonte** dos
+  tokens. `tema/temas.test.ts` confere que os 11 têm as mesmas chaves, o degradê do painel nos coeficientes e
+  reprova par de texto e fundo abaixo de 4,5:1 (AA) (`REDESIGN:125-140`). O `index.html` repete as 11 cores de
+  fundo de propósito (anti-piscada); o mesmo teste confere que são iguais às do `temas.ts`.
 - `styles.css`: todo o resto do visual, usando as variáveis CSS dos tokens. Sobraram cores fixas só de
   conteúdo (texto branco no avatar, contorno do ponto da ordem de turno, sigla das condições, roda de cores
   do pincel) (`REDESIGN:132-139`).
-- `SeletorDeTema.tsx`: o seletor com amostras (aba Configurações, "Preferências deste navegador").
+- `SeletorDeTema.tsx`: o seletor de bolinhas (aba Configurações, "Preferências deste navegador"; grupo de rádio, setas).
 - `Logo.tsx`: símbolo SVG da mesa redonda com a chama, mais o nome em Space Grotesk. `../public/favicon.svg`:
   o favicon. Título da aba em `index.html`/`App.tsx`.
 - `main.tsx`: importa as fontes (`@fontsource-variable/space-grotesk` e `inter`) e aplica o tema antes da
@@ -243,6 +244,12 @@ Redesign R2 (`REDESIGN:216-238`, `ESTADO:1705-1716`)
 90. O botão de recolher o painel fica no canto do título da aba aberta (`REDESIGN:235`)
 91. Aviso (toast) e selo de conexão centrados na área do mapa (`REDESIGN:237`)
 
+Redesign R2b (`REDESIGN`, "R2b — como ficou")
+92. A pausa automática espera 5 s depois que o último mestre sai (recarregar a página não pausa); o tempo congelado é o da saída
+93. Ao acordar sem mestre conectado e com a mesa rodando, a sala pausa na hora (o tempo fora do ar conta como rodando)
+94. Só a saída de conexão de mestre dispara a pausa; o jogador não vê diferença entre pausa manual e automática
+95. Nos 8 temas escuros novos o destaque e os tokens de estado são os do Grimório; o resto foi derivado no tom de cada paleta; degradê do painel por coeficiente sobre a barra
+
 Os itens 49 a 85 são 37; o R2 acrescenta os itens 86 a 92. Deixei de fora as suposições puramente técnicas (por exemplo, onde mora o compêndio
 na tabela `meta`, o worker do pdf.js, tipos do Node no teste, idempotência de `desenho.apagar`).
 
@@ -350,6 +357,11 @@ Redesign R1
 - Texto branco sobre cores de usuário claras (amarelo do mestre) no avatar: contraste baixo; fica para o R6. (`ESTADO:1666`, `REDESIGN:167-168`)
 - Os rótulos desenhados dentro do mapa não seguem o tema; também ficam para o R6. (`ESTADO:1667`, `REDESIGN:168`)
 
+Redesign R2b
+- O mestre que perde a rede por mais de 5 s pausa a mesa para todos. (`ESTADO`, "R2b", Frágil)
+- Os E2E de pausa automática esperam 6,5 s reais (lentos); não há teste de unidade do Durable Object, só do shared e o E2E. (`ESTADO`, "R2b", Frágil)
+- `/teste/zerar` ignora o fechamento atrasado de sockets anteriores (`anterioresAoZerar` em `sala.ts`), para a pausa automática não pausar a mesa zerada do teste seguinte.
+
 Redesign R2
 - Ao mudar o tamanho da área (painel, janela) a vista do mapa fica ancorada no canto superior esquerdo; "Centralizar" resolve. (`ESTADO:1723`, `REDESIGN:244`)
 - A pílula do mestre muda de largura entre rodando e pausada, deslocando os avatares ao lado. (`ESTADO:1725`)
@@ -381,8 +393,9 @@ dos Lotes 1 e 2 (fora do escopo deste mapa).
 - Lote 14, pendente: `ESTADO:1600`.
 - Redesign R1, pendente: `ESTADO:1670`.
 - Redesign R2, pendente: `ESTADO:1729`.
+- Redesign R2b, pendente: o "Roteiro manual" da seção "Redesign R2b" no `ESTADO`.
 
-Total: 13 roteiros com seção própria (1 parcial e 12 pendentes).
+Total: 14 roteiros com seção própria (1 parcial e 13 pendentes).
 
 ## 7. Adiados
 

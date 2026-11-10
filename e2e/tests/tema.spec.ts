@@ -133,3 +133,154 @@ test("nenhuma requisição sai para fora de 127.0.0.1 e as fontes são as empaco
   expect(carregadas.join(" ")).toContain("Inter Variable");
   expect(externas).toEqual([]);
 });
+
+// Redesign R2b: 11 temas, escolhidos por bolinhas.
+
+const IDS = [
+  "grimorio",
+  "taverna",
+  "forja",
+  "licantropo",
+  "paladino",
+  "druida",
+  "leviata",
+  "vampiro",
+  "arcana",
+  "escuro",
+  "claro",
+] as const;
+const NOMES = [
+  "Grimório",
+  "Taverna",
+  "Forja",
+  "Licantropo",
+  "Paladino",
+  "Druida",
+  "Leviatã",
+  "Vampiro",
+  "Arcana",
+  "Edgerunner",
+  "Pergaminho",
+];
+const FUNDO_NOVOS: Record<string, string> = {
+  taverna: "rgb(14, 11, 9)",
+  forja: "rgb(14, 14, 13)",
+  paladino: "rgb(10, 14, 26)",
+  vampiro: "rgb(18, 11, 13)",
+};
+
+test("o seletor é um grupo de rádio com 11 bolinhas, nome embaixo e selo no escolhido", async ({
+  mesa,
+}) => {
+  const m = await mesa.entrar("mestre");
+  const p = m.pagina;
+  await abrirAba(p, "configuracoes");
+  const seletor = p.getByTestId("seletor-de-tema");
+  await expect(seletor).toHaveAttribute("role", "radiogroup");
+  await expect(seletor).toHaveAttribute("aria-label", "Tema de cor");
+  await expect(seletor.getByRole("radio")).toHaveCount(11);
+  await expect(seletor.locator(".nome-do-tema")).toHaveText(NOMES);
+  for (const [i, id] of IDS.entries()) {
+    await expect(p.getByTestId(`tema-${id}`)).toHaveAccessibleName(NOMES[i] as string);
+  }
+  // o padrão é o Grimório, com o selo de check só nele
+  await expect(p.getByTestId("tema-grimorio")).toBeChecked();
+  await expect(seletor.locator(".bolinha-selo")).toHaveCount(1);
+  await expect(p.getByTestId("tema-selo-grimorio")).toBeVisible();
+  // a bolinha: cima na barra, embaixo o destaque e o corpo das janelas
+  const barra = await p.evaluate(() =>
+    getComputedStyle(document.documentElement).getPropertyValue("--barra").trim().toUpperCase(),
+  );
+  expect(barra).toBe("#1B1B1B");
+  await expect(seletor.locator(".opcao-de-tema").first().locator(".bolinha-barra")).toHaveCSS(
+    "background-color",
+    "rgb(27, 27, 27)",
+  );
+  // o nome também está na dica
+  await expect(seletor.locator(".opcao-de-tema").nth(1)).toHaveAttribute("title", "Tema Taverna");
+});
+
+test("teclado: as setas andam pelos temas e escolhem", async ({ mesa }) => {
+  const m = await mesa.entrar("mestre");
+  const p = m.pagina;
+  await abrirAba(p, "configuracoes");
+  await p.getByTestId("tema-grimorio").focus();
+  await p.keyboard.press("ArrowRight");
+  await expect(p.getByTestId("tema-taverna")).toBeChecked();
+  await expect(p.locator("html")).toHaveAttribute("data-tema", "taverna");
+  await p.keyboard.press("ArrowRight");
+  await expect(p.getByTestId("tema-forja")).toBeChecked();
+  await p.keyboard.press("ArrowLeft");
+  await expect(p.getByTestId("tema-taverna")).toBeChecked();
+});
+
+test("escolher temas novos pelo seletor muda as cores e sobrevive ao recarregar", async ({
+  mesa,
+}) => {
+  const m = await mesa.entrar("mestre");
+  const p = m.pagina;
+  await abrirAba(p, "configuracoes");
+  for (const id of ["taverna", "forja", "paladino", "vampiro"] as const) {
+    await p.getByTestId(`tema-${id}`).click();
+    await expect(p.locator("html")).toHaveAttribute("data-tema", id);
+    await expect(p.locator("body")).toHaveCSS("background-color", FUNDO_NOVOS[id] as string);
+    await expect(p.getByTestId(`tema-selo-${id}`)).toBeVisible();
+    await expect(p.getByTestId("seletor-de-tema").locator(".bolinha-selo")).toHaveCount(1);
+  }
+  expect(await p.evaluate(() => localStorage.getItem("tabletop:pref:tema"))).toBe("vampiro");
+  await p.reload();
+  await expect(p.getByTestId("eu-nome")).toBeVisible();
+  await expect(p.locator("html")).toHaveAttribute("data-tema", "vampiro");
+  await expect(p.locator("body")).toHaveCSS("background-color", FUNDO_NOVOS.vampiro as string);
+  await abrirAba(p, "configuracoes");
+  await expect(p.getByTestId("tema-vampiro")).toBeChecked();
+});
+
+test("quem tinha escuro ou claro guardado continua nele", async ({ mesa }) => {
+  for (const [id, fundo] of [
+    ["escuro", FUNDO.escuro],
+    ["claro", FUNDO.claro],
+  ] as const) {
+    const s = await mesa.abrir();
+    await s.pagina.addInitScript((v) => localStorage.setItem("tabletop:pref:tema", v), id);
+    await s.pagina.goto("/");
+    await expect(s.pagina.locator("html")).toHaveAttribute("data-tema", id);
+    await expect(s.pagina.locator("body")).toHaveCSS("background-color", fundo);
+    await s.pagina.getByTestId("entrar-mestre").click();
+    await expect(s.pagina.getByTestId("eu-nome")).toBeVisible();
+    await abrirAba(s.pagina, "configuracoes");
+    await expect(s.pagina.getByTestId(`tema-${id}`)).toBeChecked();
+    // os nomes novos aparecem, o id continua o mesmo
+    await expect(s.pagina.getByTestId(`tema-${id}`)).toHaveAccessibleName(
+      id === "escuro" ? "Edgerunner" : "Pergaminho",
+    );
+  }
+});
+
+test("um valor guardado que não é tema é ignorado (cai no Grimório)", async ({ mesa }) => {
+  const s = await mesa.abrir();
+  await s.pagina.addInitScript(() => localStorage.setItem("tabletop:pref:tema", "inexistente"));
+  await s.pagina.goto("/");
+  await expect(s.pagina.locator("html")).toHaveAttribute("data-tema", "grimorio");
+});
+
+test("o seletor cabe no painel de 300 px sem rolar de lado", async ({ mesa }) => {
+  const m = await mesa.entrar("mestre");
+  const p = m.pagina;
+  await p.setViewportSize({ width: 1280, height: 720 });
+  await abrirAba(p, "configuracoes");
+  const alca = p.getByTestId("alca-do-painel");
+  await alca.focus();
+  await p.keyboard.press("Home");
+  const seletor = p.getByTestId("seletor-de-tema");
+  await expect(seletor).toBeVisible();
+  const sobra = await seletor.evaluate((el) => {
+    const painel = el.closest("[data-testid='barra-lateral']") ?? document.body;
+    return {
+      caixa: el.getBoundingClientRect().right <= painel.getBoundingClientRect().right + 0.5,
+      scroll: painel.scrollWidth <= painel.clientWidth + 1,
+    };
+  });
+  expect(sobra).toEqual({ caixa: true, scroll: true });
+  await expect(seletor.getByRole("radio")).toHaveCount(11);
+});

@@ -21,6 +21,7 @@ import {
   mensagemParaUsuario,
   type Pacote,
   type Presenca,
+  pausarSeSemMestre,
   processar,
   processarSistema,
   proximoMarcoDoObjeto,
@@ -46,6 +47,12 @@ export function pedeWebSocket(request: Request): boolean {
 export const CABECALHO_USUARIO = "x-tabletop-usuario";
 
 const TEMPO_RECONECTANDO_MS = 10_000;
+/**
+ * Quanto a sala espera, depois que o último mestre sai, antes de pausar a mesa: recarregar a página (ou o
+ * React em desenvolvimento, que abre a conexão duas vezes) fecha uma conexão um instante antes de abrir a
+ * outra. A pausa vale no tempo da sala da hora da saída, não da espera.
+ */
+const ESPERA_DA_PAUSA_MS = 5_000;
 const INTERVALO_USO_MS = 5_000;
 const MENSAGENS_POR_LOTE_DE_USO = 50;
 /** As intenções que criam uma mensagem no chat: limitadas a 10 por segundo, por conexão. */
@@ -96,6 +103,11 @@ export class Sala extends DurableObject<Env> {
   private readonly taxaDoChat = new Map<WebSocket, number[]>();
   /** Gancho de teste (`MODO=teste`): dados com semente fixa. Fora dele, sempre `crypto`. */
   private fonteDeDadosDeTeste: FonteDeAleatoriedade | null = null;
+  /**
+   * Gancho de teste (`/teste/zerar`): os sockets que já existiam quando a sala foi zerada. O fechamento
+   * atrasado de um deles (de um teste anterior) não pausa a mesa nova.
+   */
+  private readonly anterioresAoZerar = new WeakSet<WebSocket>();
   /** Envio de arquivos entre navegadores (só memória; a sala nunca grava pedaço). */
   private readonly transferencias: Transferencias;
 
@@ -123,6 +135,8 @@ export class Sala extends DurableObject<Env> {
       this.iniciarRelogio();
       // Ao acordar: objeto que acabou enquanto a sala dormia sai agora; o resto volta à fila.
       await this.rodarTempo([]);
+      // Sem nenhum mestre conectado ao acordar (processo reiniciado): a mesa não corre sozinha.
+      await this.pausarSeSemMestre();
       this.uso = this.banco.lerUso() ?? { dia: diaUtc(new Date()), mensagens: 0, conexoes: 0 };
       // Ao acordar: conexão que não existe mais não tem cópia de nada.
       this.banco.limparPosseOrfa(this.conexoesAbertas().map((c) => c.conexaoId));
@@ -175,6 +189,7 @@ export class Sala extends DurableObject<Env> {
     servidor.serializeAttachment(identidade);
 
     this.agenda.cancelar("presenca.expirar", usuario.id);
+    if (usuario.papel === "mestre") this.agenda.cancelar("mestre.ausente", "");
     this.rolarDia();
     this.uso.conexoes++;
     this.banco.gravarUso(this.uso);
@@ -204,6 +219,7 @@ export class Sala extends DurableObject<Env> {
       this.mensagensDesdeEnvioDoUso = 0;
       this.transferencias.limpar();
       this.banco.descartarTodosOsPreparos();
+      for (const ws of this.ctx.getWebSockets()) this.anterioresAoZerar.add(ws);
       for (const ws of this.ctx.getWebSockets()) {
         const usuario = this.usuarioDe(ws);
         if (usuario) this.enviarSnapshot(ws, usuario);
@@ -408,6 +424,45 @@ export class Sala extends DurableObject<Env> {
       );
     }
     this.difundirPresenca(ws);
+    // Era o último mestre: a mesa pausa sozinha (retomar é do mestre, quando voltar).
+    if (
+      this.usuarioDe(ws)?.papel === "mestre" &&
+      !this.anterioresAoZerar.has(ws) &&
+      !this.estado.relogio.pausada &&
+      this.mestresConectados(ws) === 0
+    ) {
+      const saiuEm = Date.now();
+      await this.agenda.agendar("mestre.ausente", "", saiuEm + ESPERA_DA_PAUSA_MS, { saiuEm });
+    }
+  }
+
+  /** Quantos mestres seguem conectados (sem contar `ignorar`, o socket que está saindo). */
+  private mestresConectados(ignorar?: WebSocket): number {
+    return this.ctx
+      .getWebSockets()
+      .filter(
+        (s) =>
+          s !== ignorar && s.readyState === WebSocket.OPEN && this.usuarioDe(s)?.papel === "mestre",
+      ).length;
+  }
+
+  /**
+   * Mesa rodando e nenhum mestre conectado: pausa no tempo da sala de `emMs` (a hora da saída; ao acordar,
+   * agora), com o mesmo evento da pausa manual, para quem está conectado ver na hora. A conta é feita pelos sockets que sobraram, não por
+   * um contador em memória: a sala pode hibernar.
+   */
+  private async pausarSeSemMestre(emMs = Date.now()): Promise<void> {
+    const r = pausarSeSemMestre(
+      this.estado,
+      new Date(emMs).toISOString(),
+      this.mestresConectados(),
+    );
+    if (!r.ok || r.eventos.length === 0) return;
+    this.banco.salvarEventos(r.estado, r.eventos);
+    const antes = this.estado;
+    this.estado = r.estado;
+    await this.reagendarLuzes();
+    this.distribuir(r.eventos, r.snapshotPara, antes);
   }
 
   // --- Alarme (agendador único) ---------------------------------------------------------------
@@ -418,7 +473,10 @@ export class Sala extends DurableObject<Env> {
     for (const v of vencidos) {
       if (v.tipo === "presenca.expirar") this.difundirPresenca();
       else if (v.tipo === "uso.enviar") this.enviarUso();
-      else if (v.tipo === "luz.marco") marcos.push(v.chave);
+      else if (v.tipo === "mestre.ausente") {
+        const saiuEm = (v.dados as { saiuEm?: number }).saiuEm;
+        await this.pausarSeSemMestre(typeof saiuEm === "number" ? saiuEm : Date.now());
+      } else if (v.tipo === "luz.marco") marcos.push(v.chave);
     }
     if (marcos.length > 0) await this.rodarTempo(marcos);
     await this.agenda.reprogramar();

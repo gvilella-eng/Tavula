@@ -1953,6 +1953,29 @@ export function processarSistema(
   return resultado();
 }
 
+/**
+ * Intenção INTERNA da sala (como `processarSistema`, nenhum cliente a alcança): não sobrou nenhum
+ * mestre conectado, então a mesa pausa sozinha, no tempo da sala da hora da saída (`mesa.pausada`, o
+ * mesmo evento da pausa manual). Quem chama conta os mestres pelos sockets que sobraram. Com mestre
+ * conectado ou com a mesa já pausada, não mexe em nada. Retomar continua sendo só do mestre.
+ */
+export function pausarSeSemMestre(
+  estado: Estado,
+  agora: string,
+  mestresConectados: number,
+): Resultado {
+  if (mestresConectados > 0 || estado.relogio.pausada) {
+    return { ok: true, estado, eventos: [], snapshotPara: [] };
+  }
+  const evento = {
+    tipo: "mesa.pausada",
+    dados: { salaMs: tempoDaSala(estado.relogio, Date.parse(agora)) },
+    seq: estado.seq + 1,
+    origem: ORIGEM_DO_SISTEMA,
+  } as EventoSala;
+  return { ok: true, estado: reduzir(estado, evento), eventos: [evento], snapshotPara: "todos" };
+}
+
 /** Sem o instante real (testes): o tempo da sala é o acumulado, sem correr. */
 function agoraPadrao(estado: Pick<Estado, "relogio">): number {
   return estado.relogio.desdeReal ?? 0;

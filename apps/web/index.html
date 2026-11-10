@@ -10,6 +10,14 @@
     <style>
       html { background: #0C0C0C; }
       html[data-tema="grimorio"] { background: #0C0C0C; }
+      html[data-tema="taverna"] { background: #0E0B09; }
+      html[data-tema="forja"] { background: #0E0E0D; }
+      html[data-tema="licantropo"] { background: #0D1013; }
+      html[data-tema="paladino"] { background: #0A0E1A; }
+      html[data-tema="druida"] { background: #0B110E; }
+      html[data-tema="leviata"] { background: #091315; }
+      html[data-tema="vampiro"] { background: #120B0D; }
+      html[data-tema="arcana"] { background: #0F0C14; }
       html[data-tema="escuro"] { background: #0F1115; }
       html[data-tema="claro"] { background: #EFEBE4; }
     </style>
@@ -20,7 +28,7 @@
       } catch {
         tema = null;
       }
-      if (tema === "grimorio" || tema === "escuro" || tema === "claro") {
+      if (["grimorio","taverna","forja","licantropo","paladino","druida","leviata","vampiro","arcana","escuro","claro"].indexOf(tema) !== -1) {
         document.documentElement.setAttribute("data-tema", tema);
       }
     </script>

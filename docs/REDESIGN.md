@@ -34,6 +34,12 @@ Protótipos (página privada no claude.ai): https://claude.ai/artifact/VuLaqV3CF
 - **Temas de cor**, escolhidos por cada usuário (preferência local): **Grimório** (padrão), **Escuro
   neutro** (cinzas frios e azul discreto, um escuro "comum") e **Claro**. Os temas mudam **só as cores**:
   disposição e fontes são as mesmas. O mapa da cena não muda com o tema.
+- **Os 3 temas viraram 11 (2026-11-10, pedido do Vilella):** todas as paletas do protótipo, com nomes de RPG e
+  um seletor de bolinhas como o de temas do Chrome. Grimório (padrão, carvão), Taverna (o marrom antigo),
+  Forja (grafite), Licantropo (ardósia), Paladino (azul-noite), Druida (floresta), Leviatã (petróleo),
+  Vampiro (vinho), Arcana (ameixa), Edgerunner (o escuro neutro) e Pergaminho (o claro). Os ids `grimorio`,
+  `escuro` e `claro` continuam (quem já escolheu um deles fica nele). Detalhes em "R2b — como ficou".
+- **A mesa pausa sozinha quando o último mestre sai** (2026-11-10): ver `PROJETO.md` e "R2b — como ficou".
 
 ## Levantamento de usabilidade (2026-11-10)
 
@@ -242,6 +248,53 @@ largura do painel é preferência do navegador).
 - Agrupar e dar nomes aos menus do topo (R4).
 - Telas menores que 1280×720, foco, contraste fino e atalhos nas dicas (R6).
 - Ao mudar o tamanho da área, a vista do mapa não é recentralizada (continua ancorada no canto superior esquerdo).
+
+## R2b — como ficou (2026-11-10)
+
+Dois pedaços independentes: a pausa automática (muda a sala, autorizado) e os 11 temas de cor.
+
+**O que foi feito**
+- **A mesa pausa sozinha quando o último mestre sai.** Lógica pura `pausarSeSemMestre` no shared; o Durable
+  Object a chama pelo vencimento `mestre.ausente` do agendador, 5 s depois que o último socket de mestre
+  cai, se nenhum mestre voltou. O evento é o mesmo da pausa manual (`mesa.pausada`), com o tempo da sala **da
+  hora da saída**. Mestre a mais saindo com outro conectado, jogador saindo e mesa já pausada: nada. Retomar
+  é do mestre. Ao acordar sem mestre conectado (processo reiniciado) e com a mesa rodando, pausa na hora.
+  Protocolo atualizado (`docs/protocolo.md`, "Pausa automática").
+- **11 temas de cor** (antes 3), com ids e nomes: `grimorio` Grimório (padrão, carvão), `taverna` Taverna
+  (o marrom antigo do Grimório), `forja` Forja (grafite), `licantropo` Licantropo (ardósia), `paladino`
+  Paladino (azul-noite), `druida` Druida (floresta), `leviata` Leviatã (petróleo), `vampiro` Vampiro
+  (vinho), `arcana` Arcana (ameixa), `escuro` **Edgerunner** (o escuro neutro de acento azul) e `claro`
+  **Pergaminho**. Os ids antigos ficam: quem tinha `escuro` ou `claro` guardado continua nele; só os nomes
+  mostrados mudaram. Os temas continuam mudando **só as cores**.
+- **Seletor de bolinhas** (Configurações, "Preferências deste navegador", "Tema de cor"): grade de bolinhas
+  como os temas do Chrome. Cada uma tem a metade de cima na cor da barra, o destaque embaixo à esquerda e o
+  corpo das janelas embaixo à direita; o escolhido leva um selo de check; o nome aparece embaixo e na dica.
+  É um `role="radiogroup"` de botões de rádio nativos (as setas andam pelos temas). A grade se reparte em
+  colunas e cabe nos 300 px do painel sem rolar de lado. `data-testid` `seletor-de-tema` e `tema-<id>` mantidos.
+- `index.html`: o fundo anterior ao JS vale para os 11 (o teste de unidade confere todos).
+
+**Decisões (assumido)**
+- (assumido) A pausa automática espera **5 s** depois da saída antes de pausar (constante `ESPERA_DA_PAUSA_MS`).
+  Sem a espera, recarregar a página, ou o React em desenvolvimento, que abre a conexão duas vezes, pausava a
+  mesa a cada entrada do mestre. O tempo da sala congelado é o da saída, não o da espera.
+- (assumido) Só a saída de uma conexão **de mestre** dispara a pausa (jogador saindo nunca pausa).
+- (assumido) Ao acordar sem mestre conectado e com a mesa rodando, pausa na hora. O tempo que a sala ficou
+  fora do ar conta como tempo de mesa rodando (não há como saber quando o último mestre saiu).
+- (assumido) Não há opção para desligar a pausa automática (assumido no brief).
+- (assumido) A tela do jogador não distingue pausa manual de automática: a dica do selo diz o mesmo.
+- (assumido) Nos 8 temas escuros novos (Taverna a Arcana) o destaque é o latão do Grimório (`#E2AE4F`,
+  `acentoForte` `#F0C46E` etc.) e os tokens de estado (sucesso, aviso, perigo, roxo de oculta) são os do
+  Grimório. Derivados no tom de cada paleta: `cabecalho` (painel +5 por canal), `textoDesabilitado` e
+  `pontoOff` (mistura do texto suave com o fundo), `perigoFundo` e `avisoFundo` (mistura do painel com
+  vermelho e com amarelo escuro), véus (cor do fundo e do fundo da mesa). O degradê do painel é a barra de
+  cada tema × 1,2 no alto, × 0,88 aos 160 px e × 0,79 embaixo (o teste confere). Taverna usa os valores do
+  R1 (`5884c09`) mais o degradê.
+- (assumido) A ordem dos temas no seletor é a da tabela do brief (Grimório primeiro; Edgerunner e Pergaminho
+  no fim).
+
+**O que ficou para depois**
+- Um aviso de "pausou porque o mestre saiu" para os jogadores (hoje o selo de pausa é o mesmo da manual).
+- O mapa (PixiJS) continua igual em qualquer tema, como antes.
 
 ## Em aberto
 

@@ -447,7 +447,7 @@ Se o arquivo for movido ou renomeado, o app reescaneia a pasta e encontra pelo h
   só um cache do SQLite, e quem é cada socket (usuário, papel) fica no `serializeAttachment` dele.
 - Gravações: token só ao soltar; ficha agrupada (no máximo 1 gravação por segundo por ficha); névoa a
   cada poucos segundos por jogador.
-- Se o mestre fechar o navegador, a mesa continua. Opção de pausar automaticamente quando o mestre sai.
+- Se o mestre fechar o navegador, a mesa continua. A mesa pausa sozinha quando o último mestre sai (feito no R2b, 2026-11-10; sem opção para desligar).
 - **Exportar/importar a campanha** (mestre): um JSON com todo o estado da sala (cenas, paredes, fichas,
   objetos, automações, névoa, chat), sem imagens. Serve de backup na pasta `backup/` do mestre e para
   levar a campanha de uma instalação para outra. O formato é versionado (hoje v4: personagens, cenas e as metas dos assets, nunca bytes nem as

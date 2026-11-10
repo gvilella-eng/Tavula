@@ -1,6 +1,13 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { CHAVES_DE_TOKEN, IDS_DOS_TEMAS, nomeDaVariavel, TEMAS, type Tema } from "./temas";
+import {
+  CHAVES_DE_TOKEN,
+  IDS_DOS_TEMAS,
+  NOMES_DOS_TEMAS,
+  nomeDaVariavel,
+  TEMAS,
+  type Tema,
+} from "./temas";
 
 function luminancia(hex: string): number {
   const n = Number.parseInt(hex.slice(1), 16);
@@ -51,10 +58,51 @@ const PARES: Par[] = [
 ];
 
 describe("temas de cor", () => {
-  it("os 3 temas têm exatamente as mesmas chaves, e todas as chaves de token", () => {
+  it("os 11 temas têm exatamente as mesmas chaves, e todas as chaves de token", () => {
     const esperado = [...CHAVES_DE_TOKEN].sort();
     for (const id of IDS_DOS_TEMAS) expect(Object.keys(TEMAS[id]).sort()).toEqual(esperado);
-    expect(IDS_DOS_TEMAS).toEqual(["grimorio", "escuro", "claro"]);
+    expect(IDS_DOS_TEMAS).toEqual([
+      "grimorio",
+      "taverna",
+      "forja",
+      "licantropo",
+      "paladino",
+      "druida",
+      "leviata",
+      "vampiro",
+      "arcana",
+      "escuro",
+      "claro",
+    ]);
+  });
+
+  it("cada tema tem nome, e os ids antigos continuam com os nomes novos", () => {
+    for (const id of IDS_DOS_TEMAS) expect(NOMES_DOS_TEMAS[id].length).toBeGreaterThan(0);
+    expect(new Set(Object.values(NOMES_DOS_TEMAS)).size).toBe(IDS_DOS_TEMAS.length);
+    expect(NOMES_DOS_TEMAS.grimorio).toBe("Grimório");
+    expect(NOMES_DOS_TEMAS.escuro).toBe("Edgerunner");
+    expect(NOMES_DOS_TEMAS.claro).toBe("Pergaminho");
+  });
+
+  it("o degradê do painel segue os coeficientes aprovados sobre a barra de cada tema", () => {
+    const canal = (h: string, i: number) => Number.parseInt(h.slice(1 + 2 * i, 3 + 2 * i), 16);
+    const quase = (a: string, b: string) =>
+      [0, 1, 2].every((i) => Math.abs(canal(a, i) - canal(b, i)) <= 2);
+    const escalar = (h: string, k: number) =>
+      `#${[0, 1, 2]
+        .map((i) =>
+          Math.min(255, Math.round(canal(h, i) * k))
+            .toString(16)
+            .padStart(2, "0"),
+        )
+        .join("")}`;
+    // O Claro tem o seu próprio degradê (claro, não escuro): só os temas escuros seguem a conta.
+    for (const id of IDS_DOS_TEMAS.filter((i) => i !== "claro")) {
+      const t = TEMAS[id];
+      expect(quase(t.painelTopo, escalar(t.barra, 1.2)), `${id} topo`).toBe(true);
+      expect(quase(t.painelMeio, escalar(t.barra, 0.88)), `${id} meio`).toBe(true);
+      expect(quase(t.painelFim, escalar(t.barra, 0.79)), `${id} fim`).toBe(true);
+    }
   });
 
   for (const id of IDS_DOS_TEMAS) {
@@ -67,7 +115,7 @@ describe("temas de cor", () => {
     });
   }
 
-  it("as barras se distinguem do fundo da mesa (couro x carvão)", () => {
+  it("as barras se distinguem do fundo da mesa", () => {
     for (const id of IDS_DOS_TEMAS) {
       expect(TEMAS[id].barra).not.toBe(TEMAS[id].fundoMesa);
       expect(TEMAS[id].fundo).not.toBe(TEMAS[id].fundoMesa);

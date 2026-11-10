@@ -1744,4 +1744,60 @@ relatório do Playwright (`[erro na página]`).
 
 ---
 
+## Redesign R2b — pausa automática e 11 temas de cor (entregue, aguardando o roteiro manual)
+
+### O que foi entregue
+
+- **A mesa pausa sozinha quando não sobra mestre conectado.** `pausarSeSemMestre` (shared, `nucleo.ts`, junto de `processarSistema`): sem mestre conectado e mesa rodando, emite `mesa.pausada` com o tempo da sala da hora da saída (origem `sistema`) e pede snapshot a todos; com mestre conectado ou mesa já pausada, não faz nada. A sala (`sala.ts`): quando a última conexão de um mestre cai, agenda o vencimento `mestre.ausente` (5 s, `ESPERA_DA_PAUSA_MS`) com o instante da saída; um mestre que conecta antes cancela; ao vencer, conta de novo os mestres pelos sockets abertos (`getWebSockets()` e o attachment, nada em memória) e pausa no tempo da saída. Ao acordar sem mestre e com a mesa rodando, pausa na hora. Retomar é só do mestre. Protocolo atualizado (`docs/protocolo.md`, "Pausa automática (R2b)"); nenhum campo novo.
+- **11 temas de cor** (`apps/web/src/tema/temas.ts`): Grimório, Taverna, Forja, Licantropo, Paladino, Druida, Leviatã, Vampiro, Arcana, Edgerunner (`escuro`) e Pergaminho (`claro`). Ids antigos mantidos; o padrão continua o Grimório em carvão. `index.html` com o fundo anterior ao JS dos 11.
+- **Seletor de bolinhas** (`SeletorDeTema.tsx`, estilos em `styles.css`): `role="radiogroup"` de botões de rádio nativos (setas), bolinha com barra em cima, destaque e corpo das janelas embaixo, selo de check no escolhido, nome embaixo e na dica; cabe no painel de 300 px.
+
+### Como rodar
+
+- `pnpm verify` (uma vez). E2E novos: `pnpm --filter @tabletop/e2e test --repeat-each=3 tests/pausaAutomatica.spec.ts tests/tema.spec.ts`. Prints: `$env:PRINTS_DIR="<pasta>"; pnpm --filter @tabletop/e2e prints r2b`.
+
+### Verificação
+
+- Unidade (shared, `tochas.test.ts`): pausa quando o último mestre sai (tempo da sala congelado no instante da saída, depois nada o move); não pausa com outro mestre; não mexe se já pausada; o jogador vê a pausa com `salaMs: 0` e só o mestre retoma. Unidade (web, `temas.test.ts`): os 11 temas com as mesmas chaves, AA em todos os pares, nomes, degradê do painel nos coeficientes aprovados, fundo do `index.html` dos 11.
+- E2E novo `pausaAutomatica.spec.ts` (4 testes): o jogador vê a mesa pausar quando o mestre fecha a página e o mestre, ao voltar, encontra pausada e retoma; duas abas do mestre (uma saindo não pausa, a última pausa); jogador saindo não pausa; mesa já pausada pelo mestre continua no mesmo tempo. E2E novos em `tema.spec.ts` (6 testes): seletor com 11 bolinhas, nomes, selo e dica; setas do teclado; escolher temas novos e recarregar; `escuro` e `claro` guardados continuam; valor guardado inválido cai no Grimório; cabe no painel de 300 px.
+- `pnpm verify` verde numa rodada: 31 (servidor) + 25 (web) + 553 (shared) de unidade e 154 E2E (144 + 4 de `pausaAutomatica` + 6 novos de `tema`), sem instável. Repetição 3x de `pausaAutomatica` e `tema`: 12 + 33 execuções verdes, sem nenhuma repetição. Nenhum E2E antigo foi alterado. Durante o desenvolvimento a pausa sem espera pausava a mesa a cada entrada do mestre (o React em desenvolvimento abre a conexão duas vezes): daí a espera de 5 s.
+- Prints (1600×900) em `scratchpadprints-r2b`: o seletor aberto (`01` a `04`, com recortes) e, em cada um dos 11 temas, a aba Configurações, a mesa do mestre com a ordem de turno e a ficha aberta (`tema-NN-<id>-a/b/c`).
+
+### Decisões
+
+- (assumido) Espera de 5 s antes de pausar (recarregar a página, ou o React em desenvolvimento, fecha uma conexão um instante antes de abrir a outra); o tempo congelado é o da saída. Ver `REDESIGN.md`, "R2b — como ficou".
+- (assumido) Só saída de conexão de mestre dispara a pausa; jogador saindo nunca.
+- (assumido) Ao acordar sem mestre conectado e com a mesa rodando, pausa na hora.
+- (assumido) Tokens derivados dos 8 temas escuros novos e degradê do painel por coeficiente: ver `REDESIGN.md`.
+- (assumido) `/teste/zerar` marca os sockets que já existiam (`anterioresAoZerar`): o fechamento atrasado de um deles, de um teste anterior, não pausa a mesa zerada.
+
+### Desvios do plano
+
+- Nenhum além do que o brief já autorizava (a pausa muda a sala). Nenhuma dependência nova.
+
+### Frágil / não verificado
+
+- O tempo em que a sala ficou fora do ar (processo reiniciado) conta como mesa rodando até ela acordar e pausar: não há como saber quando o último mestre saiu.
+- O mestre que perde a rede por mais de 5 s pausa a mesa para todos (e precisa retomar ao voltar). Era o pretendido ("saiu"), mas vale ver na prática.
+- Os jogadores veem só o selo de pausa de sempre: não sabem se foi o mestre ou a sala.
+- O teste de "não pausa" espera 6,5 s reais (a espera da sala mais folga): os E2E de pausa automática são lentos.
+- A espera usa o relógio real e o agendador da sala; um teste de unidade do Durable Object não existe (o servidor não tem esse padrão): a cobertura é a unidade do shared e o E2E.
+- Só o Chrome foi testado.
+
+### Roteiro manual (pendente)
+
+1. Como mestre, com um jogador conectado e uma tocha acesa: fechar a aba do mestre. Em até uns 5 s a mesa do jogador mostra o selo de pausa e a tocha para de queimar.
+2. Voltar como mestre: a mesa está pausada (pílula "▶ relógio"); retomar com o clique; a tocha volta a queimar de onde parou.
+3. Recarregar a página do mestre (F5): a mesa **não** pausa.
+4. Abrir o mestre em duas abas e fechar uma: não pausa. Fechar a outra: pausa.
+5. Configurações, "Tema de cor": passar por todas as bolinhas (mouse e setas); o selo acompanha; recarregar mantém; trocar de usuário no mesmo navegador mantém o tema do navegador.
+6. Quem estava no Escuro ou no Claro continua neles, agora chamados Edgerunner e Pergaminho.
+7. Painel na largura mínima (300 px): as bolinhas cabem sem rolar de lado.
+
+### Revisão (antes do commit de fechamento)
+
+- Os 37 prints (seletor e 11 temas × configurações, ordem de turno e ficha) conferidos: bolinhas legíveis e sem rolagem lateral no painel de 300 px, texto legível e janelas distinguíveis do mapa em todos os temas, nada cortado nem sobreposto. (Falta a revisão do Vilella.)
+
+---
+
 ## Próximo: Redesign R3 — Janelas flutuantes (arrastar pelo cabeçalho, posição e tamanho por usuário, dois cliques minimizam, sempre dentro da tela); depois R4 a R6, 7b e 12
