@@ -4,7 +4,7 @@ import type { Locator, Page } from "@playwright/test";
 import { abrirAba, expect, type Sessao, test } from "./ajudas";
 import { assets } from "./ajudasAssets";
 import { definirValor, ligarOrdem, linha, nomesNaOrdem } from "./ajudasCombate";
-import { DARION_ID, mandar } from "./ajudasFicha";
+import { abrirFicha, clicarImportarPdf, DARION_ID, mandar } from "./ajudasFicha";
 import { entrarNoMapa, noElementoDoMapa, pontoNaPagina, tokensDe } from "./ajudasMapa";
 
 // Redesign R5b (combate adaptado ao V2: ordem de turno simples): combate, ficha com um clique, compêndio com "Usar o exemplo" e
@@ -149,7 +149,7 @@ test("ordem de turno: todo botão desabilitado diz por quê (dica no mouse e no 
 
 // --- ficha com um clique -----------------------------------------------------------------------
 
-test("fichas: um clique no item abre a ficha; dois cliques abrem uma só; Enter abre; o menu do item e o arrastar não abrem", async ({
+test("fichas: um clique no item abre a ficha; dois cliques abrem uma só; Enter abre; o botão direito e o arrastar não abrem", async ({
   mesa,
 }) => {
   test.setTimeout(120_000);
@@ -167,6 +167,7 @@ test("fichas: um clique no item abre a ficha; dois cliques abrem uma só; Enter 
   await expect(dicaItem).toBeVisible();
   await expect(dicaItem).toContainText("Abrir a ficha");
   await expect(dicaItem).toContainText("Arraste para o mapa");
+  await expect(dicaItem).toContainText("Botão direito");
   await p.mouse.move(700, 500);
   await abrirAba(j1.pagina, "fichas");
   await j1.pagina.getByTestId("ficha-abrir-pers-aldric").hover();
@@ -200,14 +201,14 @@ test("fichas: um clique no item abre a ficha; dois cliques abrem uma só; Enter 
   await p.getByTestId("janela-ficha-fechar").click();
   await expect(janelas).toHaveCount(0);
 
-  // o menu do item não abre a ficha
-  await p.getByTestId("ficha-menu-pers-aldric").click();
-  await expect(p.getByTestId("ficha-menu-itens-pers-aldric")).toBeVisible();
-  await p.waitForTimeout(300);
+  // o botão direito abre o menu do item (não há mais o "⋯") e não abre a ficha
+  await expect(p.getByTestId("ficha-menu-pers-aldric")).toHaveCount(0);
+  await item.click({ button: "right" });
+  await expect(p.getByTestId("menu-ficha")).toBeVisible();
+  await expect(p.getByTestId("menu-ficha-abrir")).toBeVisible();
   await expect(janelas).toHaveCount(0);
-  await p.getByTestId("ficha-menu-importar-pdf-pers-aldric").waitFor();
   await p.keyboard.press("Escape");
-  await expect(p.getByTestId("ficha-menu-itens-pers-aldric")).toHaveCount(0);
+  await expect(p.getByTestId("menu-ficha")).toHaveCount(0);
   await expect(janelas).toHaveCount(0);
 
   // arrastar o item (pelo nome) para o mapa cria o token e não abre a ficha
@@ -311,11 +312,16 @@ test("compêndio: com a pasta local, 'Usar o exemplo' grava compendio/magias.jso
   expect(gravados[0]?.bytes).toBe(Buffer.byteLength(TEXTO_DO_SRD));
 });
 
-// --- PDF da ficha ---------------------------------------------------------------------------------
+// --- Importar PDF ---------------------------------------------------------------------------------
 
 async function escolherPdf(p: Page, abrir: () => Promise<void>) {
   const [seletor] = await Promise.all([p.waitForEvent("filechooser"), abrir()]);
-  await seletor.setFiles(PDF_DO_DARION);
+  // um nome de arquivo neutro: o nome do arquivo aparece na revisão
+  await seletor.setFiles({
+    name: "ficha.pdf",
+    mimeType: "application/pdf",
+    buffer: readFileSync(PDF_DO_DARION),
+  });
   await expect(p.getByTestId("revisao-pdf")).toBeVisible();
 }
 
@@ -335,7 +341,7 @@ async function criarDarionSimples(p: Page) {
 
 const fichaFrames = (s: Sessao) => s.enviados.filter((f) => /"tipo":"(ficha|personagem)\./.test(f));
 
-test("PDF: os dois caminhos têm o mesmo nome; pelo menu do item o destino já vem preenchido", async ({
+test("PDF: o botão 'Importar PDF' mora na aba Configurar da ficha, sem citar outro programa, e o destino já vem preenchido", async ({
   mesa,
 }) => {
   test.setTimeout(90_000);
@@ -343,14 +349,16 @@ test("PDF: os dois caminhos têm o mesmo nome; pelo menu do item o destino já v
   const p = mestre.pagina;
   await criarDarionSimples(p);
   await abrirAba(p, "fichas");
-  await expect(p.getByTestId("ficha-novo-pdf")).toHaveText("Importar PDF…");
-  await p.getByTestId(`ficha-menu-${DARION_ID}`).click();
-  await expect(p.getByTestId(`ficha-menu-importar-pdf-${DARION_ID}`)).toHaveText(
-    "Importar PDF…",
-  );
+  // não há mais botão no alto da aba nem o "⋯" no item
+  await expect(p.getByTestId("ficha-novo-pdf")).toHaveCount(0);
+  await expect(p.getByTestId(`ficha-menu-${DARION_ID}`)).toHaveCount(0);
 
-  // pelo menu do item: "Por cima de: Darion" já escolhido, e o botão final diz o que vai acontecer
-  await escolherPdf(p, () => p.getByTestId(`ficha-menu-importar-pdf-${DARION_ID}`).click());
+  // dentro da ficha, na aba Configurar: o botão se chama só "Importar PDF"
+  const janela = await abrirFicha(p, DARION_ID, "configurar");
+  await expect(janela.getByTestId("editor-importar-pdf")).toHaveText("Importar PDF");
+
+  // "Por cima de: Darion" já escolhido, e o botão final diz o que vai acontecer
+  await escolherPdf(p, () => janela.getByTestId("editor-importar-pdf").click());
   const destino = p.getByTestId("revisao-destino");
   await expect(destino).toHaveValue(DARION_ID);
   await expect(destino.locator("option:checked")).toHaveText("Por cima de: Darion");
@@ -365,27 +373,6 @@ test("PDF: os dois caminhos têm o mesmo nome; pelo menu do item o destino já v
   await expect(p.getByTestId("revisao-pdf")).toBeHidden();
 });
 
-test("PDF: pelo botão da aba o destino começa em 'Ficha nova' e só sugere o personagem de mesmo nome", async ({
-  mesa,
-}) => {
-  test.setTimeout(90_000);
-  const mestre = await entrarNoMapa(mesa, "mestre");
-  const p = mestre.pagina;
-  await criarDarionSimples(p);
-  await abrirAba(p, "fichas");
-  await escolherPdf(p, () => p.getByTestId("ficha-novo-pdf").click());
-  await expect(p.getByTestId("revisao-destino")).toHaveValue("");
-  await expect(p.getByTestId("revisao-confirmar")).toHaveText("Criar a ficha");
-  await expect(p.getByTestId("revisao-sugestao")).toContainText("Já existe Darion");
-  // a sugestão não escolhe sozinha: um clique a aceita
-  await p.getByTestId("revisao-sugestao-usar").click();
-  await expect(p.getByTestId("revisao-destino")).toHaveValue(DARION_ID);
-  await expect(p.getByTestId("revisao-confirmar")).toHaveText("Substituir a ficha de Darion");
-  await expect(p.getByTestId("revisao-sugestao")).toHaveCount(0);
-  await p.getByTestId("revisao-cancelar").click();
-  await expect(p.getByTestId("revisao-pdf")).toBeHidden();
-});
-
 test("PDF: só os personagens que a pessoa edita aparecem como destino", async ({ mesa }) => {
   test.setTimeout(90_000);
   const mestre = await entrarNoMapa(mesa, "mestre");
@@ -393,10 +380,9 @@ test("PDF: só os personagens que a pessoa edita aparecem como destino", async (
   const j1 = await entrarNoMapa(mesa, "jogador-1");
   const p = j1.pagina;
   await abrirAba(p, "fichas");
-  // o jogador não tem o botão da aba (é do mestre): importa pelo menu do item que ele edita
-  await expect(p.getByTestId("ficha-novo-pdf")).toHaveCount(0);
-  await p.getByTestId(`ficha-menu-${DARION_ID}`).click();
-  await escolherPdf(p, () => p.getByTestId(`ficha-menu-importar-pdf-${DARION_ID}`).click());
+  // o jogador não tem o "+ Novo" (é do mestre): importa pela ficha que ele edita
+  await expect(p.getByTestId("ficha-novo")).toHaveCount(0);
+  await escolherPdf(p, () => clicarImportarPdf(p, DARION_ID));
   await expect(p.getByTestId("revisao-destino")).toHaveValue(DARION_ID);
   const opcoes = await p.getByTestId("revisao-destino").locator("option").allTextContents();
   expect(opcoes).toContain("Ficha nova");
@@ -414,8 +400,7 @@ test("PDF: seções sem incerteza vêm recolhidas com resumo; 'Próximo a confer
   await criarDarionSimples(p);
   await abrirAba(p, "fichas");
   const antes = fichaFrames(mestre).length;
-  await escolherPdf(p, () => p.getByTestId("ficha-novo-pdf").click());
-  await p.getByTestId("revisao-sugestao-usar").click();
+  await escolherPdf(p, () => clicarImportarPdf(p, DARION_ID));
 
   // no alto: a contagem e o botão que leva ao próximo
   await expect(p.getByTestId("revisao-total-incertos")).toContainText("campos para conferir");
@@ -506,18 +491,24 @@ test("PDF: seções sem incerteza vêm recolhidas com resumo; 'Próximo a confer
   expect(dados.operacoes[0]?.valor.ataques[1]?.nome).toBe("Machadinho …");
 });
 
-test("PDF: 'Criar a ficha' gera o personagem novo com o nome digitado", async ({ mesa }) => {
+test("PDF: 'Criar a ficha' (trocando o destino) gera o personagem novo com o nome digitado", async ({
+  mesa,
+}) => {
   test.setTimeout(90_000);
   const mestre = await entrarNoMapa(mesa, "mestre");
   const p = mestre.pagina;
+  await criarDarionSimples(p);
   await abrirAba(p, "fichas");
-  await escolherPdf(p, () => p.getByTestId("ficha-novo-pdf").click());
-  await expect(p.getByTestId("revisao-destino")).toHaveValue("");
+  await escolherPdf(p, () => clicarImportarPdf(p, DARION_ID));
+  await p.getByTestId("revisao-destino").selectOption("");
   await expect(p.getByTestId("revisao-nome")).toHaveValue("Darion");
   await p.getByTestId("revisao-nome").fill("Darion do PDF");
   await p.getByTestId("revisao-confirmar").click();
   await expect(p.getByTestId("revisao-pdf")).toBeHidden();
-  const janela = p.getByTestId("janela-ficha");
+  // o personagem novo entra na lista (na pasta Personagens); abre-se a ficha dele por lá
+  await abrirAba(p, "fichas");
+  await p.locator('[data-testid^="ficha-abrir-"]', { hasText: "Darion do PDF" }).click();
+  const janela = p.locator('[data-testid="janela-ficha"]', { hasText: "Darion do PDF" });
   await expect(janela).toBeVisible();
   await expect(janela.getByTestId("janela-ficha-nome")).toHaveText("Darion do PDF");
   await expect(janela.getByTestId("janela-ficha-resumo")).toContainText(

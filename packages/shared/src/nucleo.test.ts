@@ -8,6 +8,7 @@ import {
   eventoPara,
   type Intencao,
   IntencaoSchema,
+  PASTA_PERSONAGENS_ID,
   PERMISSOES_PADRAO,
   pode,
   processar,
@@ -26,6 +27,19 @@ function criarEstado(): Estado {
       { id: "a", nome: "Assistente", papel: "assistente", cor: "#555" },
     ],
   });
+}
+
+/** Um handout para os testes (id e título iguais); só o mestre o vê, salvo se `visivel` disser outra coisa. */
+function handoutNovo(id: string, extra: Record<string, unknown> = {}) {
+  return {
+    id,
+    pastaId: PASTA_PERSONAGENS_ID,
+    titulo: id,
+    texto: "",
+    fonte: "simples",
+    visivel: { tipo: "mestre" },
+    ...extra,
+  };
 }
 
 let contador = 0;
@@ -98,18 +112,23 @@ describe("pode()", () => {
 });
 
 describe("processar()", () => {
-  it("edita a nota da mesa e numera o evento", () => {
-    const r = aplicar(criarEstado(), "j1", intencao("nota.editar", { texto: "oi" }));
-    expect(r.estado.notaMesa).toBe("oi");
+  it("cria um handout e numera o evento", () => {
+    const r = aplicar(
+      criarEstado(),
+      "m",
+      intencao("handout.criar", { handout: handoutNovo("h1", { texto: "oi" }) }),
+    );
+    expect(r.estado.handouts.map((h) => h.texto)).toEqual(["oi"]);
     expect(r.estado.seq).toBe(1);
-    expect(r.eventos[0]).toMatchObject({ seq: 1, tipo: "nota.alterada" });
-    expect(r.eventos[0]?.origem.usuarioId).toBe("j1");
+    expect(r.eventos[0]).toMatchObject({ seq: 1, tipo: "handout.alterado" });
+    expect(r.eventos[0]?.origem.usuarioId).toBe("m");
   });
 
   it("o jogador não executa ações de mestre", () => {
     const e = criarEstado();
     const proibidas: Intencao[] = [
-      intencao("notaMestre.editar", { texto: "x" }),
+      intencao("handout.criar", { handout: handoutNovo("h1") }),
+      intencao("handout.mostrar", { id: "h1" }),
       intencao("papel.alterar", { usuarioId: "j1", papel: "mestre" }),
       intencao("permissao.alterar", { capacidade: "nota.editar", valor: false }),
       intencao("campanha.exportar"),
@@ -122,21 +141,22 @@ describe("processar()", () => {
     let e = aplicar(
       criarEstado(),
       "m",
-      intencao("permissao.alterar", { capacidade: "nota.editar", valor: false }),
+      intencao("permissao.alterar", { capacidade: "porta.abrir", valor: false }),
     ).estado;
-    const i = intencao("nota.editar", { texto: "x" });
+    // Sem porta na cena: com a capacidade o erro é outro (porta_inexistente), nunca sem_permissao.
+    const i = intencao("porta.alternar", { id: "x" });
     expect(codigoDoErro(e, "j1", i)).toBe("sem_permissao");
     e = aplicar(
       e,
       "m",
-      intencao("permissao.alterar", { capacidade: "nota.editar", valor: true, usuarioId: "j1" }),
+      intencao("permissao.alterar", { capacidade: "porta.abrir", valor: true, usuarioId: "j1" }),
     ).estado;
-    expect(codigoDoErro(e, "j1", i)).toBeNull();
+    expect(codigoDoErro(e, "j1", i)).toBe("porta_inexistente");
     expect(codigoDoErro(e, "j2", i)).toBe("sem_permissao");
     e = aplicar(
       e,
       "m",
-      intencao("permissao.alterar", { capacidade: "nota.editar", valor: null, usuarioId: "j1" }),
+      intencao("permissao.alterar", { capacidade: "porta.abrir", valor: null, usuarioId: "j1" }),
     ).estado;
     expect(e.permissoes.porUsuario).toEqual({});
     expect(codigoDoErro(e, "j1", i)).toBe("sem_permissao");
@@ -180,12 +200,16 @@ describe("processar()", () => {
 
 describe("filtro por papel", () => {
   const base = aplicar(
-    aplicar(criarEstado(), "m", intencao("notaMestre.editar", { texto: "SEGREDO" })).estado,
+    aplicar(
+      criarEstado(),
+      "m",
+      intencao("handout.criar", { handout: handoutNovo("h1", { texto: "SEGREDO" }) }),
+    ).estado,
     "m",
     intencao("permissao.alterar", { capacidade: "luz.apagar", valor: true, usuarioId: "j2" }),
   ).estado;
 
-  it("visaoPara nunca entrega notaMestre nem exceções alheias a jogador", () => {
+  it("visaoPara nunca entrega o handout do mestre nem exceções alheias a jogador", () => {
     const v = visaoPara(base, { id: "j1", papel: "jogador" });
     expect(JSON.stringify(v)).not.toContain("SEGREDO");
     expect(v.permissoes.porUsuario).toEqual({});
@@ -193,7 +217,7 @@ describe("filtro por papel", () => {
     expect(v2.permissoes.porUsuario).toEqual({ j2: { "luz.apagar": true } });
   });
 
-  it("o assistente também não recebe a nota do mestre", () => {
+  it("o assistente também não recebe o handout do mestre", () => {
     const v = visaoPara(base, { id: "a", papel: "assistente" });
     expect(JSON.stringify(v)).not.toContain("SEGREDO");
   });
@@ -206,10 +230,13 @@ describe("filtro por papel", () => {
   });
 
   it("eventoPara omite o que o jogador não vê", () => {
-    const ev = primeiroEvento(
-      aplicar(criarEstado(), "m", intencao("notaMestre.editar", { texto: "SEGREDO" })),
+    const criado = aplicar(
+      criarEstado(),
+      "m",
+      intencao("handout.criar", { handout: handoutNovo("h1", { texto: "SEGREDO" }) }),
     );
-    expect(eventoPara(ev, { id: "j1", papel: "jogador" })).toBeNull();
+    const ev = primeiroEvento(criado);
+    expect(eventoPara(ev, { id: "j1", papel: "jogador" }, undefined, criado.estado)).toBeNull();
     expect(eventoPara(ev, { id: "m2", papel: "mestre" })).toEqual(ev);
 
     const p = primeiroEvento(
@@ -230,8 +257,11 @@ describe("reduzir()", () => {
     let sala = criarEstado();
     let cliente = visaoPara(sala, { id: "j1", papel: "jogador" });
     const passos: [string, Intencao][] = [
-      ["m", intencao("nota.editar", { texto: "a" })],
-      ["m", intencao("notaMestre.editar", { texto: "segredo" })],
+      [
+        "m",
+        intencao("handout.criar", { handout: handoutNovo("h1", { visivel: { tipo: "todos" } }) }),
+      ],
+      ["m", intencao("handout.criar", { handout: handoutNovo("h2", { texto: "segredo" }) })],
       ["m", intencao("permissao.alterar", { capacidade: "luz.apagar", valor: true })],
       [
         "m",
@@ -241,21 +271,28 @@ describe("reduzir()", () => {
         "m",
         intencao("permissao.alterar", { capacidade: "asset.subir", valor: null, usuarioId: "j1" }),
       ],
-      ["j1", intencao("nota.editar", { texto: "b" })],
+      ["m", intencao("handout.editar", { id: "h1", mudancas: { texto: "b" } })],
     ];
     for (const [quem, i] of passos) {
+      const anterior = sala;
       const r = aplicar(sala, quem, i);
       sala = r.estado;
       for (const ev of r.eventos) {
-        const visto = eventoPara(ev, { id: "j1", papel: "jogador" });
+        const visto = eventoPara(ev, { id: "j1", papel: "jogador" }, anterior, sala);
         if (visto) cliente = reduzir(cliente, visto);
       }
+      // O que muda quem vê (a pasta de um handout, por exemplo) vem num snapshot novo.
+      if (r.snapshotPara === "todos") cliente = visaoPara(sala, { id: "j1", papel: "jogador" });
     }
     expect(cliente).toEqual(visaoPara(sala, { id: "j1", papel: "jogador" }));
   });
 
   it("ignora eventos com seq antigo", () => {
-    const r = aplicar(criarEstado(), "m", intencao("nota.editar", { texto: "x" }));
+    const r = aplicar(
+      criarEstado(),
+      "m",
+      intencao("handout.criar", { handout: handoutNovo("h1") }),
+    );
     expect(reduzir(r.estado, primeiroEvento(r))).toBe(r.estado);
   });
 });
@@ -263,8 +300,11 @@ describe("reduzir()", () => {
 describe("exportar e importar", () => {
   it("exportar → importar devolve o mesmo estado", () => {
     let e = criarEstado();
-    e = aplicar(e, "m", intencao("nota.editar", { texto: "mesa" })).estado;
-    e = aplicar(e, "m", intencao("notaMestre.editar", { texto: "mestre" })).estado;
+    e = aplicar(
+      e,
+      "m",
+      intencao("handout.criar", { handout: handoutNovo("h1", { texto: "mesa", fonte: "livro" }) }),
+    ).estado;
     e = aplicar(
       e,
       "m",
@@ -296,9 +336,8 @@ describe("exportar e importar", () => {
         "config",
         "desenhos",
         "luzes",
+        "handouts",
         "modelos",
-        "notaMesa",
-        "notaMestre",
         "ordemDeTurnoVisivel",
         "paredes",
         "pastas",
@@ -322,7 +361,7 @@ describe("exportar e importar", () => {
       "texto",
       {},
       { ...boa, formato: "outro" },
-      { ...boa, versao: 13 },
+      { ...boa, versao: 14 },
       { ...boa, dados: { ...boa.dados, usuarios: [] } },
       {
         ...boa,
@@ -336,7 +375,7 @@ describe("exportar e importar", () => {
         ...boa,
         dados: {
           ...boa.dados,
-          permissoes: { jogadores: { "nota.editar": "sim" }, porUsuario: {} },
+          permissoes: { jogadores: { "luz.apagar": "sim" }, porUsuario: {} },
         },
       },
       {
@@ -356,12 +395,12 @@ describe("exportar e importar", () => {
   it("o seq não volta ao importar uma exportação mais antiga", () => {
     const antiga = criarExportacao(criarEstado(), AGORA);
     let e = criarEstado();
-    for (const texto of ["a", "b", "c"]) {
-      e = aplicar(e, "m", intencao("nota.editar", { texto })).estado;
+    for (const id of ["a", "b", "c"]) {
+      e = aplicar(e, "m", intencao("handout.criar", { handout: handoutNovo(id) })).estado;
     }
     const r = aplicar(e, "m", intencao("campanha.importar", { dados: antiga }));
     expect(r.estado.seq).toBe(e.seq);
-    expect(r.estado.notaMesa).toBe(antiga.dados.notaMesa);
+    expect(r.estado.handouts).toEqual(antiga.dados.handouts);
   });
 
   it("exportação sem uma capacidade nova importa com o padrão da mesa", () => {

@@ -27,25 +27,25 @@ const BOTOES: { testid: string; nome: string; grupo: (typeof GRUPOS)[number] }[]
   { testid: "menu-ver-como", nome: "Ver como", grupo: "ver-como" },
 ];
 
-test("o topo do mestre tem grupos com nome e cada botão tem nome e dica (mouse e teclado)", async ({
+test("o topo do mestre tem grupos (sem rótulo na barra) e cada botão tem nome e dica com o grupo (mouse e teclado)", async ({
   mesa,
 }) => {
   const p = (await entrarNoMapa(mesa, "mestre")).pagina;
 
-  // os cinco grupos, na ordem, cada um com o seu nome visível
+  // os cinco grupos, na ordem, cada um com o nome só para leitor de tela (V3: não há rótulo desenhado na barra)
   const nomes = await p.locator('[data-testid^="menu-grupo-"]').evaluateAll((els) =>
     els.map((e) => ({
       id: e.getAttribute("data-testid"),
       nome: e.getAttribute("aria-label"),
-      visivel: (e.querySelector(".menu-grupo-nome") as HTMLElement | null)?.textContent,
+      rotulo: e.querySelector(".menu-grupo-nome") !== null,
     })),
   );
   expect(nomes).toEqual([
-    { id: "menu-grupo-cena", nome: "Cena", visivel: "Cena" },
-    { id: "menu-grupo-mapa", nome: "Mapa", visivel: "Mapa" },
-    { id: "menu-grupo-luz", nome: "Luz", visivel: "Luz" },
-    { id: "menu-grupo-combate", nome: "Combate", visivel: "Combate" },
-    { id: "menu-grupo-ver-como", nome: "Ver como", visivel: "Ver como" },
+    { id: "menu-grupo-cena", nome: "Cena", rotulo: false },
+    { id: "menu-grupo-mapa", nome: "Mapa", rotulo: false },
+    { id: "menu-grupo-luz", nome: "Luz", rotulo: false },
+    { id: "menu-grupo-combate", nome: "Combate", rotulo: false },
+    { id: "menu-grupo-ver-como", nome: "Ver como", rotulo: false },
   ]);
   for (const b of BOTOES) {
     const botao = p.getByTestId(b.testid);
@@ -57,11 +57,11 @@ test("o topo do mestre tem grupos com nome e cada botão tem nome e dica (mouse 
     await expect(p.getByTestId(`dica-${b.testid}`)).toBeHidden();
   }
 
-  // dica no mouse: o nome e o que faz
+  // dica no mouse: o grupo e o nome ("Cena · Camadas") e o que faz
   await p.getByTestId("menu-camadas").hover();
   const dica = p.getByTestId("dica-menu-camadas");
   await expect(dica).toBeVisible();
-  await expect(dica).toContainText("Camadas");
+  await expect(dica).toContainText("Cena · Camadas");
   await expect(dica).toContainText("camada");
   await p.mouse.move(600, 400);
   await expect(dica).toBeHidden();
@@ -69,7 +69,7 @@ test("o topo do mestre tem grupos com nome e cada botão tem nome e dica (mouse 
   // dica no foco do teclado (e sai ao perder o foco)
   await p.getByTestId("menu-ordem-turno").focus();
   await expect(p.getByTestId("dica-menu-ordem-turno")).toBeVisible();
-  await expect(p.getByTestId("dica-menu-ordem-turno")).toContainText("Ordem de turno");
+  await expect(p.getByTestId("dica-menu-ordem-turno")).toContainText("Combate · Ordem de turno");
   await expect(p.getByTestId("menu-ordem-turno")).toHaveAttribute(
     "aria-describedby",
     (await p.getByTestId("dica-menu-ordem-turno").getAttribute("id")) as string,
@@ -235,44 +235,11 @@ test("o jogador não vê a ferramenta Paredes nem a aba Mesa; as abas de cada um
   expect(await abas(mestre.pagina)).toEqual([
     "Chat",
     "Fichas",
-    "Notas",
     "Compêndio",
     "Preferências",
     "Mesa",
   ]);
-  expect(await abas(j)).toEqual(["Chat", "Fichas", "Notas", "Compêndio", "Preferências"]);
-});
-
-test("Notas é aba própria: o mestre vê as duas notas e o jogador só a da mesa", async ({
-  mesa,
-}) => {
-  const mestre = await entrarNoMapa(mesa, "mestre");
-  const j = await entrarNoMapa(mesa, "jogador-1");
-
-  await abrirAba(mestre.pagina, "notas");
-  const painel = mestre.pagina.getByTestId("aba-painel-notas");
-  await expect(painel.getByText("Nota da mesa (todos veem)")).toBeVisible();
-  await expect(painel.getByText("Nota do mestre (só mestres veem)")).toBeVisible();
-  await expect(painel.getByTestId("nota-mesa")).toBeVisible();
-  await expect(painel.getByTestId("nota-mestre")).toBeVisible();
-  // Fichas ficou só com fichas e pastas
-  await abrirAba(mestre.pagina, "fichas");
-  await expect(mestre.pagina.getByTestId("aba-painel-fichas").getByTestId("nota-mesa")).toHaveCount(
-    0,
-  );
-  await expect(mestre.pagina.getByTestId("ficha-pasta-pasta-personagens")).toBeVisible();
-
-  await abrirAba(j.pagina, "notas");
-  await expect(
-    j.pagina.getByTestId("aba-painel-notas").getByText("Nota da mesa (todos veem)"),
-  ).toBeVisible();
-  await expect(j.pagina.getByTestId("nota-mesa")).toBeVisible();
-  await expect(j.pagina.getByTestId("nota-mestre")).toHaveCount(0);
-
-  // a nota continua indo para todos
-  await abrirAba(mestre.pagina, "notas");
-  await mestre.pagina.getByTestId("nota-mesa").fill("Aviso para a mesa");
-  await expect(j.pagina.getByTestId("nota-mesa")).toHaveValue("Aviso para a mesa");
+  expect(await abas(j)).toEqual(["Chat", "Fichas", "Compêndio", "Preferências"]);
 });
 
 test("Preferências (todos) e Mesa (só mestre) separam o pessoal do que vale para a sala", async ({
@@ -383,7 +350,7 @@ test("'Modelos de tocha…' abre a aba Mesa já na seção de luz", async ({ mes
   await expect(p.getByTestId("config-objetos")).toBeVisible();
 });
 
-test("as seis abas cabem com o painel em 300 px (nomes inteiros, dentro do painel)", async ({
+test("as cinco abas do mestre dividem o painel em partes iguais em 300 px, dentro do painel e com o nome numa linha", async ({
   mesa,
 }) => {
   const m = (await entrarNoMapa(mesa, "mestre")).pagina;
@@ -391,14 +358,13 @@ test("as seis abas cabem com o painel em 300 px (nomes inteiros, dentro do paine
   const nomes: Record<string, string> = {
     chat: "Chat",
     fichas: "Fichas",
-    notas: "Notas",
     compendio: "Compêndio",
     mesa: "Mesa",
     preferencias: "Preferências",
   };
   for (const [p, ids] of [
-    [m, ["chat", "fichas", "notas", "compendio", "mesa", "preferencias"]],
-    [j, ["chat", "fichas", "notas", "compendio", "preferencias"]],
+    [m, ["chat", "fichas", "compendio", "preferencias", "mesa"]],
+    [j, ["chat", "fichas", "compendio", "preferencias"]],
   ] as const) {
     await p.getByTestId("alca-do-painel").focus();
     await p.keyboard.press("Home");
@@ -410,7 +376,8 @@ test("as seis abas cabem com o painel em 300 px (nomes inteiros, dentro do paine
       const aba = p.getByTestId(`aba-${id}`);
       const nome = p.getByTestId(`aba-nome-${id}`);
       await expect(nome).toHaveText(nomes[id] as string);
-      expect(await nome.evaluate((e) => e.scrollWidth <= e.clientWidth)).toBe(true);
+      // V3: o nome é de uma linha só (cortado com reticências, se não couber; a dica traz o inteiro)
+      expect(await nome.evaluate((e) => e.scrollHeight <= e.clientHeight + 1)).toBe(true);
       const c = await caixa(aba);
       expect(c.x).toBeGreaterThanOrEqual(painel.x);
       expect(c.x + c.width).toBeLessThanOrEqual(painel.x + painel.width + 1);

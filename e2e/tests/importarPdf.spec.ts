@@ -1,10 +1,11 @@
 import { fileURLToPath } from "node:url";
 import type { Page } from "@playwright/test";
 import { abrirAba, expect, type Sessao, test } from "./ajudas";
-import { abrirFicha, DARION_ID, mandar } from "./ajudasFicha";
+import { abrirFicha, clicarImportarPdf, DARION_ID, mandar } from "./ajudasFicha";
 import { entrarNoMapa } from "./ajudasMapa";
 
-// Lote 10: importação da ficha em PDF (fixtures/fichas/darion.pdf). O PDF é lido no
+// Lote 10: importação da ficha em PDF (fixtures/fichas/darion.pdf; desde o V3 o botão "Importar PDF" mora na aba
+// Configurar da ficha). O PDF é lido no
 // navegador; só o JSON da ficha vai para a sala, e só depois de "Confirmar".
 
 const decodificado = fileURLToPath(
@@ -26,13 +27,11 @@ async function criarDarionSimples(mestre: Page) {
   });
 }
 
-/** Menu do item → "Importar ficha (PDF)" → escolhe o PDF do Darion. */
-async function escolherPdfPeloItem(p: Page, personagemId: string) {
-  if (!(await p.getByTestId("aba-painel-fichas").isVisible())) await abrirAba(p, "fichas");
-  await p.getByTestId(`ficha-menu-${personagemId}`).click();
+/** Ficha → aba Configurar → "Importar PDF" → escolhe o PDF do Darion. */
+async function escolherPdfPelaFicha(p: Page, personagemId: string) {
   const [seletor] = await Promise.all([
     p.waitForEvent("filechooser"),
-    p.getByTestId(`ficha-menu-importar-pdf-${personagemId}`).click(),
+    clicarImportarPdf(p, personagemId),
   ]);
   await seletor.setFiles(decodificado);
   await expect(p.getByTestId("revisao-pdf")).toBeVisible();
@@ -40,7 +39,7 @@ async function escolherPdfPeloItem(p: Page, personagemId: string) {
 
 const fichaFrames = (s: Sessao) => s.enviados.filter((f) => /"tipo":"(ficha|personagem)\./.test(f));
 
-test("importar o PDF do Darion pelo menu do item: revisão com incertos em amarelo, corrige um machadinho, confirma e o mestre vê a ficha", async ({
+test("importar o PDF do Darion pela aba Configurar da ficha: revisão com incertos em amarelo, corrige um machadinho, confirma e o mestre vê a ficha", async ({
   mesa,
 }) => {
   test.setTimeout(90_000);
@@ -49,7 +48,7 @@ test("importar o PDF do Darion pelo menu do item: revisão com incertos em amare
   const p = mestre.pagina;
   const antes = fichaFrames(mestre).length;
 
-  await escolherPdfPeloItem(p, DARION_ID);
+  await escolherPdfPelaFicha(p, DARION_ID);
   const revisao = p.getByTestId("revisao-pdf");
   // Nada foi para a sala só por ler o PDF.
   expect(fichaFrames(mestre)).toHaveLength(antes);
@@ -124,12 +123,12 @@ test("Cancelar na revisão não manda nenhum frame de ficha para a sala e a fich
   const p = mestre.pagina;
   const antes = fichaFrames(mestre).length;
 
-  await escolherPdfPeloItem(p, DARION_ID);
+  await escolherPdfPelaFicha(p, DARION_ID);
   await p.getByTestId("revisao-campo-ataques.1.nome").fill("Machadinho que não vai");
   await p.getByTestId("revisao-cancelar").click();
   await expect(p.getByTestId("revisao-pdf")).toBeHidden();
   // Também cancela pelo "Voltar" da confirmação de importar por cima.
-  await escolherPdfPeloItem(p, DARION_ID);
+  await escolherPdfPelaFicha(p, DARION_ID);
   await p.getByTestId("revisao-confirmar").click();
   await p.getByTestId("revisao-sobrescrever-nao").click();
   await expect(p.getByTestId("revisao-pdf")).toBeVisible();
@@ -152,8 +151,8 @@ test("o PDF não sai do PC: nenhum frame do WebSocket leva os bytes do PDF, só 
   await criarDarionSimples(mestre.pagina);
   const p = jogador.pagina;
 
-  // O jogador que edita o item também importa (o menu aparece só para quem edita).
-  await escolherPdfPeloItem(p, DARION_ID);
+  // O jogador que edita o item também importa (o botão aparece só para quem edita).
+  await escolherPdfPelaFicha(p, DARION_ID);
   await p.getByTestId("revisao-confirmar").click();
   await p.getByTestId("revisao-sobrescrever-sim").click();
   await expect(p.getByTestId("revisao-pdf")).toBeHidden();
@@ -173,41 +172,46 @@ test("o PDF não sai do PC: nenhum frame do WebSocket leva os bytes do PDF, só 
   expect(mestre.frames.some((f) => f.includes("%PDF"))).toBe(false);
 });
 
-test("+ Novo a partir de PDF cria o item na pasta Personagens com o nome do PDF e abre a ficha", async ({
+test("+ Novo → Personagem abre a ficha em Configurar com 'Importar PDF' à vista; o PDF lido entra nesse personagem", async ({
   mesa,
 }) => {
   test.setTimeout(90_000);
   const mestre = await entrarNoMapa(mesa, "mestre");
   const p = mestre.pagina;
   await abrirAba(p, "fichas");
-  const [seletor] = await Promise.all([
-    p.waitForEvent("filechooser"),
-    p.getByTestId("ficha-novo-pdf").click(),
-  ]);
-  await seletor.setFiles(decodificado);
-  await expect(p.getByTestId("revisao-pdf")).toBeVisible();
-  await expect(p.getByTestId("revisao-nome")).toHaveValue("Darion");
-  // Item novo: não há "importar por cima".
-  await p.getByTestId("revisao-confirmar").click();
-  await expect(p.getByTestId("revisao-pdf")).toBeHidden();
+  await p.getByTestId("ficha-novo").click();
+  await p.getByTestId("ficha-novo-personagem").click();
   const janela = p.locator('[data-testid="janela-ficha"]');
   await expect(janela).toBeVisible();
-  await expect(janela.getByTestId("janela-ficha-nome")).toHaveText("Darion");
+  await expect(janela).toHaveAttribute("data-aba", "configurar");
+  const botao = janela.getByTestId("editor-importar-pdf");
+  await expect(botao).toBeVisible();
+  await expect(botao).toHaveText("Importar PDF");
+  const [seletor] = await Promise.all([p.waitForEvent("filechooser"), botao.click()]);
+  await seletor.setFiles(decodificado);
+  await expect(p.getByTestId("revisao-pdf")).toBeVisible();
+  // o destino já é o personagem novo
+  await expect(p.getByTestId("revisao-destino").locator("option:checked")).toHaveText(
+    "Por cima de: Novo personagem",
+  );
+  await p.getByTestId("revisao-confirmar").click();
+  await p.getByTestId("revisao-sobrescrever-sim").click();
+  await expect(p.getByTestId("revisao-pdf")).toBeHidden();
   await expect(janela.getByTestId("janela-ficha-resumo")).toContainText(
     "Patrulheiro 5 / Clérigo 5",
   );
+  await janela.getByTestId("ficha-aba-principal").click();
   await expect(janela.getByTestId("pericia-total-furtividade")).toHaveText("+8");
-  await expect(p.locator('[data-testid^="ficha-nome-"]', { hasText: "Darion" })).toHaveCount(1);
 });
 
 test("um arquivo que não é PDF mostra o erro e não manda nada", async ({ mesa }) => {
   const mestre = await entrarNoMapa(mesa, "mestre");
   const p = mestre.pagina;
-  await abrirAba(p, "fichas");
+  await criarDarionSimples(p);
   const antes = fichaFrames(mestre).length;
   const [seletor] = await Promise.all([
     p.waitForEvent("filechooser"),
-    p.getByTestId("ficha-novo-pdf").click(),
+    clicarImportarPdf(p, DARION_ID),
   ]);
   await seletor.setFiles({
     name: "lixo.pdf",

@@ -966,7 +966,7 @@ describe("exportação v8", () => {
     const lida = lerExportacao(JSON.parse(JSON.stringify(v7)));
     if (!lida.ok) throw new Error(lida.motivo);
     expect(lida.exportacao.versao).toBe(VERSAO_EXPORTACAO);
-    expect(VERSAO_EXPORTACAO).toBe(12);
+    expect(VERSAO_EXPORTACAO).toBe(13);
     const d = lida.exportacao.dados;
     expect(d.luzes[0]).toMatchObject({
       id: "f1",
@@ -1008,7 +1008,7 @@ describe("exportação v8", () => {
     ).estado;
     const x = ok(e, "m", intencao("campanha.exportar"), em(10)).exportacao;
     if (!x) throw new Error("sem exportação");
-    expect(x.versao).toBe(12);
+    expect(x.versao).toBe(13);
     expect(x.dados.relogio).toEqual({ pausada: true, acumuladoMs: 10 * MIN });
     expect(x.dados.luzes.find((l) => l.id === "o1")?.saldoMs).toBe(30 * MIN);
     expect(JSON.stringify(x)).not.toContain("acendimentos");

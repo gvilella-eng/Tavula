@@ -88,8 +88,8 @@ describe("Armazenamento: histórico do chat", () => {
 
     const reaberto = new Armazenamento(sql as never);
     reaberto.migrar();
-    // o Lote 13 acrescentou a migração dos desenhos: a versão do esquema final é 8
-    expect(reaberto.lerMeta("versao_esquema")).toBe("8");
+    // o Lote 13 acrescentou a migração dos desenhos: a versão do esquema final é 9 (o V3 acrescentou a dos handouts)
+    expect(reaberto.lerMeta("versao_esquema")).toBe("9");
     expect(reaberto.chatAntes(null, 10)).toEqual([]);
     // a campanha antiga continua inteira
     const carregado = reaberto.carregar();
@@ -196,14 +196,14 @@ describe("Armazenamento: combate do Lote 11", () => {
 
     const reaberto = new Armazenamento(sql as never);
     reaberto.migrar();
-    expect(reaberto.lerMeta("versao_esquema")).toBe("8");
+    expect(reaberto.lerMeta("versao_esquema")).toBe("9");
     const carregado = reaberto.carregar();
     expect(carregado?.combate).toBeUndefined();
     expect(carregado?.personagens.map((p) => p.nome)).toContain("Aldric");
     expect(carregado?.tokens.length).toBeGreaterThan(3);
     // migrar de novo não faz nada
     reaberto.migrar();
-    expect(reaberto.lerMeta("versao_esquema")).toBe("8");
+    expect(reaberto.lerMeta("versao_esquema")).toBe("9");
   });
 
   it("grava o combate pelos eventos, regrava a cada mudança e apaga ao encerrar", async () => {
@@ -314,14 +314,14 @@ describe("Armazenamento: desenhos do Lote 13", () => {
 
     const reaberto = new Armazenamento(sql as never);
     reaberto.migrar();
-    expect(reaberto.lerMeta("versao_esquema")).toBe("8");
+    expect(reaberto.lerMeta("versao_esquema")).toBe("9");
     const carregado = reaberto.carregar();
     expect(carregado?.desenhos).toEqual([]);
     expect(carregado?.personagens.map((p) => p.nome)).toContain("Aldric");
     expect(carregado?.tokens.length).toBeGreaterThan(3);
     // migrar de novo não faz nada, e o desenho já grava
     reaberto.migrar();
-    expect(reaberto.lerMeta("versao_esquema")).toBe("8");
+    expect(reaberto.lerMeta("versao_esquema")).toBe("9");
     const base = estadoInicial(semente);
     const d = desenho("d1");
     reaberto.salvarEventos({ ...base, seq: 1, desenhos: [d] }, [
@@ -424,7 +424,7 @@ describe("Armazenamento: compêndio do Lote 14", () => {
     sql.exec("DELETE FROM meta WHERE chave = 'compendio'");
     const reaberto = new Armazenamento(sql as never);
     reaberto.migrar();
-    expect(reaberto.lerMeta("versao_esquema")).toBe("8");
+    expect(reaberto.lerMeta("versao_esquema")).toBe("9");
     const carregado = reaberto.carregar();
     expect(carregado?.compendio).toBeUndefined();
     expect(carregado?.personagens.map((p) => p.nome)).toContain("Aldric");
@@ -506,5 +506,112 @@ describe("Armazenamento: o marco de zerar o relógio (V1)", () => {
       acumuladoMs: 5000,
       marcoMs: 5000,
     });
+  });
+});
+
+describe("Armazenamento: handouts (V3)", () => {
+  /** Banco como o do V2: esquema na versão 8, com as notas na coleção `notas` e sem handouts. */
+  async function bancoDoV2(notas: { mesa: string; mestre: string }) {
+    const { sql } = await abrirBanco();
+    const banco = new Armazenamento(sql as never);
+    banco.migrar();
+    banco.salvarTudo(estadoInicial(semente));
+    const gravar = (id: string, texto: string) =>
+      sql.exec(
+        "INSERT INTO entidades (colecao, id, dados) VALUES ('notas', ?, ?)",
+        id,
+        JSON.stringify({ texto }),
+      );
+    gravar("mesa", notas.mesa);
+    gravar("mestre", notas.mestre);
+    banco.gravarMeta("versao_esquema", "8");
+    return { sql, banco };
+  }
+
+  it("banco do V2 com as duas notas: viram dois handouts numa pasta nova e as notas somem", async () => {
+    const { sql } = await bancoDoV2({ mesa: "Bem-vindos", mestre: "O cofre é falso" });
+    const reaberto = new Armazenamento(sql as never);
+    reaberto.migrar();
+    expect(reaberto.lerMeta("versao_esquema")).toBe("9");
+    const estado = reaberto.carregar();
+    expect(estado?.handouts.map((h) => [h.titulo, h.texto, h.visivel.tipo, h.fonte])).toEqual([
+      ["Nota da mesa", "Bem-vindos", "todos", "simples"],
+      ["Nota do mestre", "O cofre é falso", "mestre", "simples"],
+    ]);
+    const pasta = estado?.pastas.find((p) => p.nome === "Handouts");
+    expect(pasta?.visivel).toEqual({ tipo: "mestre" });
+    expect(estado?.handouts.every((h) => h.pastaId === pasta?.id)).toBe(true);
+    // a campanha antiga continua inteira, e a pasta nova vem depois das antigas
+    expect(estado?.personagens.map((p) => p.nome)).toContain("Aldric");
+    expect(estado?.pastas.at(-1)?.id).toBe(pasta?.id);
+    // as notas antigas saíram do banco e do estado
+    const sobrou = sql.exec("SELECT id FROM entidades WHERE colecao = 'notas'").toArray();
+    expect(sobrou).toEqual([]);
+    expect(Object.keys(estado ?? {})).not.toContain("notaMesa");
+    // abrir de novo não duplica nada
+    const outra = new Armazenamento(sql as never);
+    outra.migrar();
+    expect(outra.carregar()?.handouts).toHaveLength(2);
+  });
+
+  it("banco do V2 com as notas vazias: nenhum handout e nenhuma pasta nova", async () => {
+    const { sql, banco } = await bancoDoV2({ mesa: "", mestre: "" });
+    const antes = banco.carregar()?.pastas.length;
+    const reaberto = new Armazenamento(sql as never);
+    reaberto.migrar();
+    const estado = reaberto.carregar();
+    expect(estado?.handouts).toEqual([]);
+    expect(estado?.pastas).toHaveLength(antes ?? -1);
+  });
+
+  it("só a nota do mestre: um handout só do mestre", async () => {
+    const { sql } = await bancoDoV2({ mesa: "", mestre: "Plano" });
+    const reaberto = new Armazenamento(sql as never);
+    reaberto.migrar();
+    const estado = reaberto.carregar();
+    expect(estado?.handouts.map((h) => [h.titulo, h.visivel.tipo])).toEqual([
+      ["Nota do mestre", "mestre"],
+    ]);
+  });
+
+  it("grava, edita e apaga pelos eventos, e sobrevive ao reinício; salvarTudo troca tudo", async () => {
+    const { sql } = await abrirBanco();
+    const banco = new Armazenamento(sql as never);
+    banco.migrar();
+    const base = estadoInicial(semente);
+    banco.salvarTudo(base);
+    const h = {
+      id: "h1",
+      pastaId: base.pastas[0]?.id ?? "x",
+      titulo: "O livro",
+      texto: "Era uma vez",
+      fonte: "manuscrito" as const,
+      visivel: { tipo: "todos" as const },
+    };
+    const evento = (tipo: string, dados: object, seq: number) =>
+      ({ seq, origem: { usuarioId: "mestre", idPedido: "p" }, tipo, dados }) as EventoSala;
+    banco.salvarEventos({ ...base, handouts: [h] }, [
+      evento("handout.alterado", { handout: h }, 1),
+    ]);
+    const editado = { ...h, texto: "Fim" };
+    banco.salvarEventos({ ...base, handouts: [editado], seq: 2 }, [
+      evento("handout.alterado", { handout: editado }, 2),
+    ]);
+    const reaberto = new Armazenamento(sql as never);
+    reaberto.migrar();
+    expect(reaberto.carregar()?.handouts).toEqual([editado]);
+    // "Mostrar agora" não grava nada
+    banco.salvarEventos({ ...base, handouts: [editado], seq: 3 }, [
+      evento("handout.mostrado", { id: "h1" }, 3),
+    ]);
+    expect(reaberto.carregar()?.handouts).toEqual([editado]);
+    banco.salvarEventos({ ...base, handouts: [], seq: 4 }, [
+      evento("handout.apagado", { id: "h1" }, 4),
+    ]);
+    expect(reaberto.carregar()?.handouts).toEqual([]);
+    banco.salvarTudo({ ...base, handouts: [h] });
+    expect(reaberto.carregar()?.handouts).toEqual([h]);
+    banco.salvarTudo(base);
+    expect(reaberto.carregar()?.handouts).toEqual([]);
   });
 });

@@ -27,7 +27,6 @@ import {
   Pin,
   Settings2,
   SlidersHorizontal,
-  StickyNote,
 } from "lucide-react";
 import {
   type CSSProperties,
@@ -42,7 +41,7 @@ import { AbaCompendio } from "./AbaCompendio";
 import { AbaFichas } from "./AbaFichas";
 import { AbaMesa, testidDaSecaoDaMesa } from "./AbaMesa";
 import { AvisoPerto } from "./AvisoPerto";
-import { AbaNotas, AbaPreferencias } from "./abas";
+import { AbaPreferencias } from "./abas";
 import { caixaDaArea } from "./area";
 import { lerItemArrastado } from "./arrasto";
 import { CacheOpfs } from "./assets/cache";
@@ -57,6 +56,8 @@ import { EstadoDaMesa } from "./EstadoDaMesa";
 import { FaixaDeCenas, type PedirImagem } from "./FaixaDeCenas";
 import { JanelaDaFicha } from "./ficha/JanelaDaFicha";
 import { useJanelasDeFicha } from "./ficha/janelas";
+import { useJanelasDeHandout } from "./handouts";
+import { JanelaDoHandout } from "./JanelaDoHandout";
 import { useLarguraDoPainel } from "./larguraDoPainel";
 import { MenuDaTocha } from "./MenuDaTocha";
 import { MenuDoToken } from "./MenuDoToken";
@@ -221,6 +222,13 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
     atualizar: atualizarFicha,
   } = useJanelasDeFicha();
 
+  // Os handouts abertos em janelas (V3): os que a pessoa abre e os que o mestre manda abrir ("Mostrar agora").
+  const {
+    abertos: handoutsAbertos,
+    abrir: abrirHandout,
+    fechar: fecharHandout,
+  } = useJanelasDeHandout();
+
   // Arquivos locais (PROJETO.md 4.3): fontes (pasta, soltos), processador (worker) e o gerente
   // (cache OPFS, pedidos, envio). O gerente nasce quando sei quem sou.
   const processador = useMemo(() => new Processador(), []);
@@ -253,6 +261,7 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
   const permissoes = estado?.permissoes;
   const cenaAtivaId = estado?.cenaAtivaId;
   const personagens = estado?.personagens;
+  const handoutsDoEstado = estado?.handouts;
 
   // Atalhos de ferramenta (V, H, R), exceto enquanto escreve num campo.
   useEffect(() => {
@@ -402,6 +411,17 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
         else if (o.tipo === "erro") mapa.current?.ressincronizar();
       }),
     [ouvir],
+  );
+
+  // "Mostrar agora" (V3): a sala só manda este evento a quem vê o handout; quem o mandou já está com ele aberto.
+  useEffect(
+    () =>
+      ouvir((o) => {
+        if (o.tipo !== "evento" || o.evento.tipo !== "handout.mostrado") return;
+        if (o.evento.origem.usuarioId === euAtual.current?.id) return;
+        abrirHandout(o.evento.dados.id);
+      }),
+    [ouvir, abrirHandout],
   );
 
   // Cena do grupo e cena vista. O jogador só tem a do grupo (a sala não manda as outras).
@@ -772,6 +792,7 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
       if (p.retratoHash) gerente.garantir(p.retratoHash);
       if (p.tokenPadrao.assetHash) gerente.garantir(p.tokenPadrao.assetHash);
     }
+    for (const h of handoutsDoEstado ?? []) if (h.imagemHash) gerente.garantir(h.imagemHash);
     if (!euMestre) return;
     for (const a of assetsDoEstado ?? []) {
       gerente.conhecerMeta(a);
@@ -787,6 +808,7 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
     hashDoMapa,
     tokensDoEstado,
     personagens,
+    handoutsDoEstado,
     assetsDoEstado,
     versaoDosProntos,
   ]);
@@ -848,7 +870,7 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
   /** Um item das Fichas foi solto no mapa: o token dele nasce na cena que o mestre vê, onde soltou. */
   function soltarItemNoMapa(dados: string, x: number, y: number) {
     const item = lerItemArrastado(dados);
-    if (!item || !euMestre || !cena) return;
+    if (item?.tipo !== "personagem" || !euMestre || !cena) return;
     const p = personagens?.find((q) => q.id === item.id);
     if (!p) return;
     const ponto = encaixarNoGrid({ x, y }, p.tokenPadrao.tamanhoQuadrados, cena.grid.quadradoM);
@@ -960,15 +982,8 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
                 imagens={imagens}
                 versaoDasImagens={versaoDosProntos}
                 aoAbrirFicha={abrirFicha}
+                aoAbrirHandout={abrirHandout}
               />
-            ),
-          },
-          {
-            id: "notas",
-            titulo: "Notas",
-            icone: <StickyNote size={20} />,
-            conteudo: (
-              <AbaNotas estado={estado} eu={eu} pronto={pronto} enviar={enviar} ouvir={ouvir} />
             ),
           },
           {
@@ -1359,6 +1374,26 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
                 aoFechar={() => setMenuDaTocha(null)}
               />
             )}
+            {handoutsAbertos.map((id, cascata) => {
+              const handout = estado.handouts.find((x) => x.id === id);
+              if (!handout) return null;
+              return (
+                <JanelaDoHandout
+                  key={id}
+                  handout={handout}
+                  cascata={cascata}
+                  estado={estado}
+                  eu={eu}
+                  enviar={enviar}
+                  pronto={pronto}
+                  ouvir={ouvir}
+                  imagens={imagens}
+                  versaoDasImagens={versaoDosProntos}
+                  pedirImagem={pedirImagem}
+                  aoFechar={() => fecharHandout(id)}
+                />
+              );
+            })}
             {janelasDeFicha.map((j, cascata) => {
               const personagem = estado.personagens.find((p) => p.id === j.personagemId);
               if (!personagem) return null;

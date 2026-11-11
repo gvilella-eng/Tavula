@@ -117,11 +117,9 @@ for (const tamanho of TAMANHOS) {
         });
 
         // abas
-        await tentar(`${rotulo} notas`, async () => {
-          await m.getByTestId("aba-notas").click();
-          await m.getByTestId("nota-mesa").fill("O grupo chega à masmorra ao anoitecer.");
-          await m.getByTestId("nota-mestre").fill("O vigia do portão é o espião do conde.");
-          await foto(m, `${rotulo}-05-aba-notas`);
+        await tentar(`${rotulo} fichas`, async () => {
+          await m.getByTestId("aba-fichas").click();
+          await foto(m, `${rotulo}-05-aba-fichas`);
         });
         await tentar(`${rotulo} mesa`, async () => {
           await m.getByTestId("aba-mesa").click();
@@ -159,8 +157,8 @@ for (const tamanho of TAMANHOS) {
 
         // mesa do jogador
         await tentar(`${rotulo} jogador`, async () => {
-          await j.getByTestId("aba-notas").click();
-          await foto(j, `${rotulo}-11-jogador-notas`);
+          await j.getByTestId("aba-fichas").click();
+          await foto(j, `${rotulo}-11-jogador-fichas`);
           await j.getByTestId("alca-do-painel").focus();
           await j.keyboard.press("Home");
           await j.getByTestId("aba-chat").click();

@@ -200,8 +200,7 @@ export function BarraLateral({
               className="aba-lateral"
               testid={`aba-${a.id}`}
               nome={a.titulo}
-              semDica={aberta}
-              lado="esquerda"
+              lado={aberta ? "baixo" : "esquerda"}
               aria-label={a.titulo}
               aria-selected={aberta && ativaValida === a.id}
               onClick={() => {

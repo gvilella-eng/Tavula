@@ -54,15 +54,16 @@ async function novoItem(p: Page, tipo: "personagem" | "npc", nome: string): Prom
   return id;
 }
 
-/** Cria uma pasta (só do mestre, por padrão) com o nome dado; devolve o id. */
+/** "+ Novo" → Pasta; renomeia clicando no nome (V3) com o nome dado; devolve o id. */
 async function novaPasta(p: Page, nome: string): Promise<string> {
   await abrirAba(p, "fichas");
-  const antes = await p.locator('[data-testid^="ficha-pasta-pasta-"]').count();
+  const secoes = p.locator('section[data-testid^="ficha-pasta-pasta-"]');
+  const antes = await secoes.count();
+  await p.getByTestId("ficha-novo").click();
   await p.getByTestId("ficha-nova-pasta").click();
-  await expect(p.locator('[data-testid^="ficha-pasta-pasta-"]')).toHaveCount(antes + 1);
-  const ultima = p.locator('section[data-testid^="ficha-pasta-pasta-"]').last();
-  const id = (await ultima.getAttribute("data-pasta-id")) as string;
-  await p.getByTestId(`ficha-pasta-renomear-${id}`).click();
+  await expect(secoes).toHaveCount(antes + 1);
+  const id = (await secoes.last().getAttribute("data-pasta-id")) as string;
+  await p.getByTestId(`ficha-pasta-nome-${id}`).click();
   const campo = p.getByTestId(`ficha-pasta-nome-editar-${id}`);
   await campo.fill(nome);
   await campo.press("Enter");
@@ -70,15 +71,17 @@ async function novaPasta(p: Page, nome: string): Promise<string> {
   return id;
 }
 
+/** Botão direito na pasta → "Quem vê a pasta" (V3: o cadeado saiu da linha). */
 async function visibilidade(p: Page, pastaId: string, opcao: "todos" | "mestre") {
-  await p.getByTestId(`ficha-pasta-visib-${pastaId}`).click();
-  await p.getByTestId(`visib-${opcao}`).click();
+  await p.getByTestId(`ficha-pasta-nome-${pastaId}`).click({ button: "right" });
+  await p.getByTestId(`menu-ficha-visib-${opcao}`).click();
   await p.keyboard.press("Escape");
+  await expect(p.getByTestId("menu-ficha")).toHaveCount(0);
 }
 
-/** Arrasta o item pela alça até a pasta (HTML5 drag and drop de verdade). */
+/** Arrasta o item (por inteiro, V3) até a pasta (HTML5 drag and drop de verdade). */
 async function arrastarItemParaPasta(p: Page, itemId: string, pastaId: string) {
-  await p.getByTestId(`ficha-alca-${itemId}`).dragTo(p.getByTestId(`ficha-pasta-${pastaId}`));
+  await p.getByTestId(`ficha-abrir-${itemId}`).dragTo(p.getByTestId(`ficha-pasta-${pastaId}`));
 }
 
 const doJogador = (frames: string[]) => frames.join("\n");
@@ -140,9 +143,13 @@ test("frames: o jogador não recebe nome de pasta nem item de pasta só do mestr
   for (const j of [j1, j2]) {
     await expect(j.pagina.getByTestId(`ficha-pasta-nome-${pasta}`)).toHaveText("Pistas Reveladas");
     await expect(j.pagina.getByTestId(`ficha-item-${dragao}`)).toBeVisible();
-    // só leitura: sem alça nem ações de pasta
-    await expect(j.pagina.getByTestId(`ficha-alca-${dragao}`)).toHaveCount(0);
-    await expect(j.pagina.getByTestId(`ficha-pasta-apagar-${pasta}`)).toHaveCount(0);
+    // só leitura: o item não se arrasta e a pasta não tem menu
+    await expect(j.pagina.getByTestId(`ficha-abrir-${dragao}`)).not.toHaveAttribute(
+      "draggable",
+      "true",
+    );
+    await j.pagina.getByTestId(`ficha-pasta-nome-${pasta}`).click({ button: "right" });
+    await expect(j.pagina.getByTestId("menu-ficha")).toHaveCount(0);
   }
   expect(doJogador(j1.frames)).toContain("Dragão Ancestral");
 
@@ -165,8 +172,15 @@ test("frames: o jogador não recebe nome de pasta nem item de pasta só do mestr
   await expect(j1.pagina.getByTestId("ficha-item-pers-brisa")).toHaveCount(0);
 
   // só pasta vazia é apagada: a de NPCs não, a nova sim
-  await expect(mestre.pagina.getByTestId("ficha-pasta-apagar-pasta-npcs")).toBeDisabled();
-  await mestre.pagina.getByTestId(`ficha-pasta-apagar-${pasta}`).click();
+  await mestre.pagina.getByTestId("ficha-pasta-nome-pasta-npcs").click({ button: "right" });
+  await expect(mestre.pagina.getByTestId("menu-ficha-apagar")).toHaveAttribute(
+    "aria-disabled",
+    "true",
+  );
+  await mestre.pagina.keyboard.press("Escape");
+  await mestre.pagina.getByTestId(`ficha-pasta-nome-${pasta}`).click({ button: "right" });
+  await mestre.pagina.getByTestId("menu-ficha-apagar").click();
+  await mestre.pagina.getByTestId("menu-ficha-apagar-confirmar").click();
   await expect(mestre.pagina.getByTestId(`ficha-pasta-${pasta}`)).toHaveCount(0);
 });
 
@@ -264,7 +278,7 @@ test("arrastar um item das Fichas para o mapa cria o token na cena que o mestre 
 
   // solta o Lobo num ponto do mapa (a cena do grupo)
   const alvo = await pontoNaPagina(mestre.pagina, 18.75, 14.25);
-  await mestre.pagina.getByTestId(`ficha-alca-${lobo}`).dragTo(mestre.pagina.getByTestId("mapa"), {
+  await mestre.pagina.getByTestId(`ficha-abrir-${lobo}`).dragTo(mestre.pagina.getByTestId("mapa"), {
     targetPosition: await noElementoDoMapa(mestre.pagina, alvo),
   });
   const encaixe = (v: number) => (Math.floor(v / 1.5) + 0.5) * 1.5;
@@ -283,7 +297,7 @@ test("arrastar um item das Fichas para o mapa cria o token na cena que o mestre 
   await expect(mestre.pagina.getByTestId("cena-nome")).toHaveText("Covil");
   const antes = j1.frames.length;
   const alvo2 = await pontoNaPagina(mestre.pagina, 14.25, 14.25);
-  await mestre.pagina.getByTestId(`ficha-alca-${urso}`).dragTo(mestre.pagina.getByTestId("mapa"), {
+  await mestre.pagina.getByTestId(`ficha-abrir-${urso}`).dragTo(mestre.pagina.getByTestId("mapa"), {
     targetPosition: await noElementoDoMapa(mestre.pagina, alvo2),
   });
   await expect
@@ -293,9 +307,12 @@ test("arrastar um item das Fichas para o mapa cria o token na cena que o mestre 
   expect(doJogador(j1.frames.slice(antes))).not.toContain("Urso Pardo");
   expect((await tokensDe(j1.pagina)).some((t) => t.nome === "Urso Pardo")).toBe(false);
 
-  // o jogador não arrasta (sem alça) e forçar a colocação é recusado
+  // o jogador não arrasta e forçar a colocação é recusado
   await abrirAba(j1.pagina, "fichas");
-  await expect(j1.pagina.getByTestId("ficha-alca-pers-aldric")).toHaveCount(0);
+  await expect(j1.pagina.getByTestId("ficha-abrir-pers-aldric")).not.toHaveAttribute(
+    "draggable",
+    "true",
+  );
   const colocar = await enviarCru(
     j1.pagina,
     intencaoCrua("personagem.colocar", {

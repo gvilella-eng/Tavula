@@ -1,5 +1,14 @@
 import { pode } from "./capacidades.ts";
-import type { Cena, Estado, Pasta, Permissoes, Personagem, Token, Usuario } from "./estado.ts";
+import type {
+  Cena,
+  Estado,
+  Handout,
+  Pasta,
+  Permissoes,
+  Personagem,
+  Token,
+  Usuario,
+} from "./estado.ts";
 import { modInteligenciaDoPersonagem } from "./ficha.ts";
 
 /** Cena que existe quando a campanha não define nenhuma (semente, banco antigo, exportação v1). */
@@ -33,6 +42,30 @@ export function pastaVisivelPara(pasta: Pasta, usuario: Quem): boolean {
   const v = pasta.visivel;
   if (v.tipo === "todos") return true;
   return v.tipo === "jogadores" && v.ids.includes(usuario.id);
+}
+
+/** O handout é visível para este usuário? O mestre vê todos; o jogador só os que `visivel` cita (V3). */
+export function handoutVisivelPara(handout: Pick<Handout, "visivel">, usuario: Quem): boolean {
+  if (usuario.papel === "mestre") return true;
+  if (usuario.papel !== "jogador") return false;
+  const v = handout.visivel;
+  if (v.tipo === "todos") return true;
+  return v.tipo === "jogadores" && v.ids.includes(usuario.id);
+}
+
+/**
+ * A pasta chega a este usuário? Se ele a vê, ou se ele vê algum handout dentro dela (V3): então a pasta
+ * aparece só com esses itens. (Os personagens seguem `personagemVisivelPara`, que usa só a pasta.)
+ */
+export function pastaChegaPara(
+  pasta: Pasta,
+  handouts: readonly Pick<Handout, "pastaId" | "visivel">[],
+  usuario: Quem,
+): boolean {
+  return (
+    pastaVisivelPara(pasta, usuario) ||
+    handouts.some((h) => h.pastaId === pasta.id && handoutVisivelPara(h, usuario))
+  );
 }
 
 /** Personagem de jogador: tem alguém que o edita. NPC não tem ninguém (só o mestre). */

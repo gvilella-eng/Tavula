@@ -623,7 +623,7 @@ describe("exportação v11", () => {
     });
     const x = criarExportacao(estado, AGORA);
     expect(x.versao).toBe(VERSAO_EXPORTACAO);
-    expect(VERSAO_EXPORTACAO).toBe(12);
+    expect(VERSAO_EXPORTACAO).toBe(13);
     const lida = lerExportacao(JSON.parse(JSON.stringify(x)));
     if (!lida.ok) throw new Error(lida.motivo);
     expect(lida.exportacao.dados.desenhos).toEqual(estado.desenhos);
@@ -638,7 +638,7 @@ describe("exportação v11", () => {
     x.dados.desenhos = undefined;
     const lida = lerExportacao(x);
     if (!lida.ok) throw new Error(lida.motivo);
-    expect(lida.exportacao.versao).toBe(12);
+    expect(lida.exportacao.versao).toBe(13);
     expect(lida.exportacao.dados.desenhos).toEqual([]);
   });
 

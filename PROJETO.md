@@ -141,7 +141,8 @@ interface Usuario   { id: string; nome: string; papel: Papel; cor: string }
 // só o mestre muda papéis; a sala recusa deixar a mesa sem nenhum mestre
 
 type CapacidadeDelegavel =          // lista completa em docs/protocolo.md
-  | 'nota.editar' /* entidade de teste do Lote 1 */ | 'token.moverProprio' | 'porta.abrir'
+  | 'nota.editar' /* sem uso desde o V3 (a aba Notas saiu); fica só para o banco e as exportações antigas */
+  | 'token.moverProprio' | 'porta.abrir'
   | 'tocha.acender' | 'tocha.entregar' | 'ponto.usar' | 'luz.apagar' | 'ficha.verOutras'
   | 'dado.rolarOculto' | 'asset.subir' | 'desenho.criar' /* lote 13, ligada por padrão */;
 type CapacidadeDoMestre =           // só do mestre, nunca delegáveis
@@ -176,6 +177,20 @@ interface Pasta {                   // lote 4b: pastas da aba Fichas, sem subpas
   id: string; nome: string; ordem: number;
   visivel: { tipo: 'todos' } | { tipo: 'mestre' } | { tipo: 'jogadores'; ids: string[] };
 }
+
+interface Handout {                // V3 (2026-11-11): item das Fichas; até o V2 eram as notas (`Estado.notaMesa`/`notaMestre`)
+  id: string;
+  pastaId: string;
+  titulo: string;                   // 1 a 80 caracteres
+  texto: string;                    // texto puro com quebras de linha, até 20 000 caracteres
+  fonte: 'simples' | 'livro' | 'manuscrito' | 'medieval' | 'datilografado';  // 5 fontes, todas empacotadas
+  imagemHash?: string;              // imagem pequena de preview (asset local, tipo retrato ou token)
+  visivel: { tipo: 'todos' } | { tipo: 'mestre' } | { tipo: 'jogadores'; ids: string[] };  // padrão: só o mestre
+}
+// O jogador só recebe o handout que `visivel` cita (nem o título chega a quem não vê). A pasta chega ao jogador se
+// ele a vê OU se ele vê algum handout dentro dela, e só com esses itens. `Estado.handouts` (V3, 2026-11-11);
+// `Estado.notaMesa` e `Estado.notaMestre` saíram: a migração (banco e exportação até a v12) cria "Nota da mesa"
+// (todos) e "Nota do mestre" (só o mestre) numa pasta nova "Handouts" (só do mestre), quando não vazias.
 
 interface Personagem {              // um item das Fichas (por ora só personagem e NPC)
   id: string;
@@ -705,8 +720,11 @@ cores ou nomes de terceiros.
 - **Controle de zoom flutuante** na borda direita do mapa: +/−, trilho, nível atual, centralizar.
 - **Barra lateral direita recolhível** com abas por ícone: Chat (lote 8), Jogadores (presença e
   papéis), Fichas (lote 9), Notas, Mestre (permissões, uso de hoje, exportar/importar; depois
-  automações) e Configurações (hoje, desde o R4: Chat, Fichas, Notas, Compêndio, **Preferências** e, só do
-  mestre, **Mesa**, que desde o V1 é a última aba, depois de Preferências; ver "Redesign R4" no `docs/ESTADO.md`). No lote 8 a caixa de chat fica fixa no rodapé da barra, com o seletor
+  automações) e Configurações (hoje: Chat, Fichas, Compêndio, **Preferências** e, só do
+  mestre, **Mesa**, que desde o V1 é a última aba, depois de Preferências; a aba Notas saiu no V3 e as notas viraram handouts das Fichas;
+  ver "Redesign R4" no `docs/ESTADO.md`). Desde o V3 as abas têm todas a mesma largura (a do painel dividida pelo número de abas), com o
+  nome cortado com reticências e a dica com o nome inteiro, e os botões do menu do mestre no topo têm todos o mesmo tamanho e o mesmo espaço
+  (o nome do grupo vai para a dica: "Luz · Visão noturna"). No lote 8 a caixa de chat fica fixa no rodapé da barra, com o seletor
   "Como:" (falar como um personagem).
 - **Etiqueta discreta sobre o mapa** com o nome da cena e quem sou eu; o estado da conexão só aparece
   quando não está conectado.
@@ -758,16 +776,24 @@ Base do Lote 4b. **Em definição:** o que cada ícone do menu superior abre o V
   - Camadas valem por cena.
 - **Barra da direita:** expandir/recolher, **Chat**, **Fichas**, **Compêndio de magias** e
   **Configurações**. A aba do mestre de hoje fica por enquanto e migra aos poucos. (Hoje, desde o R4: as abas
-  são Chat, Fichas, Notas, Compêndio, **Preferências** e, só do mestre, **Mesa** (última, desde o V1); a aba "Configurações" e a
-  "Mestre" deixaram de existir.)
+  são Chat, Fichas, Compêndio, **Preferências** e, só do mestre, **Mesa** (última, desde o V1); a aba "Configurações", a
+  "Mestre" e (V3) a "Notas" deixaram de existir.)
   - Chat: conversa, resultado das rolagens e descrição de magia mandada para o chat.
   - Fichas (o "diário"):
     - personagens, NPCs, artefatos, tesouros, handouts etc., organizados em **pastas** sem subpastas;
     - a pasta define **quem vê**: todos, jogadores escolhidos ou só o mestre. Tudo nela obedece, e o
       sigilo vale como sempre: o que o jogador não vê não chega ao navegador dele;
     - cada item define **quem edita**: jogadores escolhidos ou só o mestre. O mestre edita tudo;
-    - arrastar pela borda esquerda do item muda a pasta;
-    - a ficha de D&D completa e o botão "importar ficha" vêm depois.
+    - arrastar o item muda a pasta;
+    - **(V3, 2026-11-11) a lista é uma árvore** (pais e filhos, sem caixas): a pasta é uma linha (seta de recolher, nome, contador) e os
+      itens vêm embaixo, recuados, com uma linha-guia; o mestre renomeia a pasta clicando no nome (Enter e clicar fora confirmam, Esc
+      desfaz, F2 com o nome em foco); não há "⋯", lápis, cadeado nem lixeira: as ações (abrir, configurar, mover para a pasta, quem
+      controla, quem vê, mostrar agora, apagar) estão no menu de botão direito do item e da pasta, que abre também por Shift+F10 ou a
+      tecla de menu; um botão só no alto, **"+ Novo"**: Personagem, NPC, Handout e Pasta (o jogador não o tem);
+    - **handouts (V3)**: título, texto numa de 5 fontes (Simples, Livro, Manuscrito, Medieval e Datilografado), imagem pequena opcional e
+      quem vê; abrem numa janela flutuante (o mestre edita ali; o jogador só lê) e o mestre pode **"Mostrar agora"**, que abre a janela na
+      tela de quem pode vê-lo;
+    - **"Importar PDF"** vive dentro da ficha, na aba Configurar (um personagem novo abre já nela); nenhum texto cita outro programa.
   - Compêndio: magias de D&D (um JSON grande) para puxar para a ficha; talvez monstros e armas
     depois.
 - **Sem menu de "subir arquivo":** a imagem entra onde dá sentido a ela. No editor do item ficam o

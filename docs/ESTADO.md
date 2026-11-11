@@ -2314,6 +2314,55 @@ Segundo lote dos ajustes que o Vilella pediu depois de usar a mesa (2026-11-11).
 4. Como mestre: Ordenar, Próximo turno (abre a rodada 1), arraste uma linha, Alt+↑/↓ numa linha em foco, botão direito → "Dar a vez" e "Tirar da lista", Limpar (cancele uma vez e confirme).
 5. Mande um token do jogador para a camada do mestre: ele some da lista do jogador. O Ogro e o goblin oculto nunca aparecem na lista do jogador.
 
+## Ajustes V3 — Fichas em árvore e handouts, a aba Notas sai, topo e abas iguais (entregue, aguardando o roteiro manual)
+
+Terceiro lote dos ajustes que o Vilella pediu depois de usar a mesa (2026-11-11). Detalhes e decisões em `docs/REDESIGN.md` ("V3 — como ficou").
+
+### O que foi entregue
+
+- Topo do mestre: todos os botões com o mesmo tamanho e o mesmo espaço, rótulos de grupo fora (o grupo vai na dica). Abas do painel com a mesma largura, nome cortado com reticências e dica com o nome inteiro.
+- Aba Fichas em árvore (pasta = linha; itens recuados com linha-guia), "+ Novo" único (Personagem, NPC, Handout, Pasta), renomear a pasta clicando no nome (F2), menu de botão direito / Shift+F10 no item, na pasta e no handout (sem "⋯", lápis, cadeado nem lixeira).
+- "Importar PDF" dentro da ficha (aba Configurar), sem citar outro programa em texto visível; `BotaoImportarPdf` para o V4.
+- Handouts: título, texto, 5 fontes, imagem, quem vê, janela flutuante, "Mostrar agora". A aba Notas saiu; as notas viraram handouts (migração no banco e na importação).
+- Protocolo: `handout.criar`, `handout.editar`, `handout.apagar`, `handout.mostrar` (`mesa.configurar`); eventos `handout.alterado`, `handout.apagado`, `handout.mostrado`; saíram `nota.editar`, `notaMestre.editar` e os dois eventos. Estado: `handouts` no lugar de `notaMesa`/`notaMestre`. Exportação **v13**. Migração SQL 9 (esquema final 9).
+- Dependências novas (só empacotamento de fonte, nada em execução): `@fontsource-variable/lora`, `@fontsource-variable/caveat`, `@fontsource/medievalsharp`, `@fontsource/special-elite`.
+
+### Como rodar
+
+- `pnpm verify` (uma vez). E2E novos e alterados: `pnpm --filter @tabletop/e2e test --repeat-each=3 tests/topo-e-abas.spec.ts tests/fichas-arvore.spec.ts tests/handouts.spec.ts tests/sala.spec.ts tests/fluxos.spec.ts tests/importarPdf.spec.ts tests/fichas.spec.ts tests/organizacao.spec.ts tests/estrutura.spec.ts tests/interface.spec.ts tests/assets.spec.ts tests/ajustes-v1.spec.ts`.
+- Prints: `$env:PRINTS_DIR="<pasta>"; pnpm --filter @tabletop/e2e prints v3`.
+
+### Verificação
+
+- Unidade: `packages/shared/src/handouts.test.ts` (23 testes: migração das notas, importação de exportação v12 e anteriores, v13 ida e volta, validações, permissões, snapshot e eventos do jogador, "Mostrar agora", imagem); `apps/server/src/armazenamento.test.ts` (bloco "handouts (V3)": banco do V2 com as notas, notas vazias, só a do mestre, gravar/editar/apagar pelos eventos, salvarTudo); `protocolo.test.ts`; os testes de exportação v1 a v12 passaram a esperar v13.
+- E2E novos: `topo-e-abas.spec.ts` (3), `fichas-arvore.spec.ts` (8), `handouts.spec.ts` (7).
+- E2E antigos alterados (comportamento mudou de propósito): `sala.spec.ts` (as notas viraram handouts: 8 contextos, refresh e rascunho, reinício, promover mestre, frames do jogador, exportar/importar e arquivo inválido; o teste de `nota.editar` virou o mesmo fluxo de permissão com `porta.abrir`); `organizacao.spec.ts` e `estrutura.spec.ts` e `interface.spec.ts` (aba Notas fora, abas iguais em vez de "nome inteiro", "+ Novo" com 4 opções, grupos sem rótulo e dica "Grupo · Nome"); `ajustes-v1.spec.ts` (lista de abas); `fichas.spec.ts` (pasta nova pelo "+ Novo", renomear clicando, visibilidade e apagar pelo menu, arrastar pelo item); `fluxos.spec.ts` e `importarPdf.spec.ts` (o importador abre pela ficha; o teste "pelo botão da aba" saiu; "Ficha nova" pela troca do destino); `assets.spec.ts` e `interface.spec.ts` (versão 13). Saiu o teste "Notas é aba própria". Prints antigos (`auditoria`, `r4`, `r5b`) acertados só no que quebrava.
+- `pnpm verify` verde numa rodada: 36 (servidor) + 66 (web) + 598 (shared) de unidade e 239 E2E, sem instável. Não houve mudança de código depois dela.
+
+### Decisões
+
+- (assumido) Ver a lista em `docs/REDESIGN.md` ("V3 — como ficou", Decisões).
+
+### Desvios do plano
+
+- O brief dizia que `nota.editar` "sai do protocolo (ou fica só para ler exportação antiga)": saiu a intenção e o evento; a capacidade ficou no enum (sem uso, fora da tela) porque a lista de permissões guardada nos bancos antigos a traz.
+- Criar uma ficha nova pela revisão do PDF (trocando o destino para "Ficha nova") já não abre a ficha na hora (o botão agora é da ficha, que não conhece a lista).
+
+### Frágil / não verificado
+
+- O menu de botão direito abre por Shift+F10 / tecla de menu só testado com as teclas do Playwright; toque não testado.
+- Firefox e Safari: as fontes novas, o arrasto de handout (HTML5) e o menu.
+- O rascunho do texto do handout vive no localStorage até a sala ter o texto.
+
+### Roteiro manual (pendente)
+
+1. Como mestre: aba Fichas → "+ Novo" → Handout. Escreva um título e um texto, troque entre as 5 fontes, escolha uma imagem. Deixe "Só o mestre" e veja o "Mostrar agora" explicar que ninguém mais o vê.
+2. Escolha "Jogador 1" em "Quem vê" e clique em "Mostrar agora": a janela abre na tela do jogador 1 e não na do jogador 2.
+3. Botão direito num personagem, numa pasta e num handout; Shift+F10 com o item em foco; clique no nome de uma pasta para renomear (Enter, Esc, F2).
+4. "+ Novo" → Personagem: a ficha abre em Configurar; "Importar PDF" abre o seletor e a revisão sem citar outro programa.
+5. Confira o topo (botões iguais, dica "Luz · Visão noturna") e as abas em 300 px, no máximo e recolhido.
+6. Abra a campanha antiga: as notas aparecem como "Nota da mesa" e "Nota do mestre" na pasta Handouts.
+
 ---
 
-## Próximo: ajustes V3 (próximo lote dos ajustes do Vilella); depois 7b e 12
+## Próximo: ajustes V4 (próximo lote dos ajustes do Vilella); depois 7b e 12

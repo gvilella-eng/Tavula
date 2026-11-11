@@ -812,6 +812,57 @@ Ordem de turno simples. Detalhes de execução em `docs/ESTADO.md` ("Ajustes V2"
   voltam como opção do menu de botão direito da linha.
 - Seleção múltipla no mapa (entrar com vários tokens de uma vez).
 
+## V3 — como ficou (2026-11-11)
+
+Fichas em árvore e handouts; a aba Notas saiu; topo e abas do painel com tamanho igual. Detalhes de execução em `docs/ESTADO.md` ("Ajustes V3").
+
+**O que foi feito**
+- **Item 0 (pedido do Vilella com print).** No topo do mestre todos os botões têm o **mesmo tamanho (34 px)** e o **mesmo espaço (4 px)**, com o mesmo
+  filete entre os grupos; os rótulos dos grupos saíram e o nome do grupo foi para a dica de cada botão ("Luz · Visão noturna"); o `aria-label` dos
+  grupos continua. As abas do painel têm **todas a mesma largura** (a do painel dividida pelo número de abas, em grade), ícone igual, nome numa linha
+  só cortado com reticências e a dica comum com o nome inteiro (agora sempre, também com o painel aberto). Recolhido, os ícones já eram iguais.
+- **"+ Novo" é o botão único** da aba Fichas (só o mestre): Personagem, NPC, Handout e Pasta. "Pasta" e "Importar PDF…" saíram do alto;
+  Artefato e Tesouro ("em breve") saíram.
+- **Lista em árvore, sem caixas.** A pasta é uma linha (seta de recolher, nome, contador); os itens vêm embaixo com recuo e uma linha-guia fina.
+  Um nível só. O mestre **renomeia clicando no nome** (Enter e clicar fora confirmam, Esc desfaz, **F2** com o nome em foco). Não há "⋯", lápis,
+  cadeado, lixeira nem alça: as ações estão no **menu de botão direito** do item, da pasta e do handout (também **Shift+F10** ou a tecla de menu, com o
+  `useMenuPorTeclado` do R6a). O item arrasta inteiro (R5b) e o handout também, para outra pasta.
+  - Item (personagem/NPC): Abrir a ficha, Configurar… (quem edita), Mover para a pasta, Quem controla (marcar), Apagar… (confirma no menu; mestre).
+  - Pasta: Renomear, Quem vê a pasta (marcar: só o mestre, todos, jogadores), Apagar… (só vazia; senão o item fica desabilitado e a dica diz por quê).
+  - Handout: Abrir, Mostrar agora, Quem vê, Mover, Apagar….
+- **"Importar PDF" dentro da ficha**, na aba Configurar, com esse nome e sem citar outro programa em texto visível. O botão (e o seletor de arquivo e a revisão)
+  é o componente `ficha/BotaoImportarPdf.tsx` (o V4 o reaproveita). "+ Novo → Personagem" abre a ficha já em Configurar. A revisão continua igual; não
+  há mais o caminho "ficha nova sem personagem" na aba (a revisão ainda deixa trocar o destino para "Ficha nova").
+- **Handouts** (entidade nova): id, pasta, título (até 80), texto (até 20 000, texto puro), fonte (uma de 5), imagem opcional (asset local tipo retrato)
+  e quem vê (mesmo `Visibilidade`; padrão só o mestre). Janela flutuante: título no cabeçalho, imagem no alto, texto na fonte; o mestre edita ali (título,
+  fonte, texto com rascunho local como o campo de nota antigo, imagem, quem vê) e o jogador só lê. **Mostrar agora** manda o evento `handout.mostrado` só a
+  quem vê o handout; a janela abre na hora. Num handout só do mestre o botão fica desabilitado e explica que ninguém mais o vê.
+- **5 fontes, empacotadas pelo pnpm** (nada de Google Fonts): Simples = Inter (já era), Livro = **Lora** (`@fontsource-variable/lora`), Manuscrito = **Caveat**
+  (`@fontsource-variable/caveat`), Medieval = **MedievalSharp** (`@fontsource/medievalsharp`), Datilografado = **Special Elite** (`@fontsource/special-elite`).
+  O seletor escreve cada nome na própria fonte.
+- **A aba Notas saiu.** Migração: `notaMesa` não vazia vira o handout "Nota da mesa" (todos) e `notaMestre` não vazia, "Nota do mestre" (só o mestre), numa
+  pasta nova "Handouts" (só do mestre; o jogador a vê pelo handout que lhe cabe). Vale no banco (migração SQL 9) e na importação de exportação até a v12. A
+  exportação nova é **v13** (`handouts` no lugar das notas). `nota.editar`, `notaMestre.editar` e os dois eventos saíram do protocolo; a capacidade
+  `nota.editar` fica no enum só por compatibilidade e some da tela da aba Mesa.
+- **Sigilo.** A sala não manda o handout (nem o título) a quem não o vê: filtro em `visaoPara`/`eventoPara`. A pasta chega ao jogador se ele a vê ou se vê algum
+  handout dentro dela, e só com esses itens (os personagens continuam pela regra da pasta). A imagem do handout só é servida a quem vê o handout.
+
+**Decisões (assumido)**
+- (assumido) Botões do topo de 34 px e espaço de 4 px; filete de 1 px com 8 px de cada lado entre os grupos.
+- (assumido) A dica das abas passa a existir também com o painel aberto (era só recolhido), para o nome cortado ter onde aparecer.
+- (assumido) Um handout novo nasce na pasta "Handouts" (criada na hora se não existe), só do mestre, fonte "Livro", título "Novo handout".
+- (assumido) A pasta nova nasce só do mestre, "Nova pasta"; apagar pasta e item pede confirmação dentro do próprio menu.
+- (assumido) O jogador não vê "+ Novo" (não cria nada); o menu do handout é só do mestre; o jogador com item que edita tem Abrir e Configurar…
+- (assumido) Mudar quem vê um handout, ou a pasta dele, manda **snapshot novo a todos** (como a visibilidade das pastas); mudar texto, título, fonte e imagem, não.
+- (assumido) O arquivo da imagem do handout é do tipo retrato (a mesma regra e o mesmo seletor de imagem).
+- (assumido) A migração das notas usa os ids fixos `handout-nota-da-mesa`, `handout-nota-do-mestre` e `pasta-handouts`.
+- (assumido) Texto do handout é texto puro, sem formatação; o mestre vê um campo de texto na própria fonte (sem modo "ler" separado).
+- (assumido) Os prints antigos (`auditoria`, `r4`, `r5b`) foram acertados só no que quebrava com a nova aba Fichas.
+
+**O que ficou para depois**
+- Handout com texto formatado, vários níveis de pasta e ordenar itens à mão.
+- O V4 refaz a ficha e reaproveita o `BotaoImportarPdf`; o caminho "ficha nova a partir do PDF" na aba foi descartado.
+
 ## Em aberto
 
 - **O plano R1 a R6 terminou** (R1, R2, R2b, R3, R4 em 2026-11-10; R5a, R5b, R6a e R6b em 2026-11-11). Agora o Vilella faz os ajustes

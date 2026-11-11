@@ -482,7 +482,7 @@ describe("exportação v12", () => {
     const e = comCompendio();
     const x = criarExportacao(e, AGORA);
     expect(x.versao).toBe(VERSAO_EXPORTACAO);
-    expect(VERSAO_EXPORTACAO).toBe(12);
+    expect(VERSAO_EXPORTACAO).toBe(13);
     expect(x.dados.compendio).toEqual(REF);
     expect(x.dados.assets.map((a) => a.hash)).toContain(HASH);
     expect(JSON.stringify(x)).not.toContain("Bola de Fogo");
@@ -509,7 +509,7 @@ describe("exportação v12", () => {
     x.versao = 11;
     const lida = lerExportacao(x);
     if (!lida.ok) throw new Error(lida.motivo);
-    expect(lida.exportacao.versao).toBe(12);
+    expect(lida.exportacao.versao).toBe(13);
     expect(lida.exportacao.dados.compendio).toBeUndefined();
   });
 

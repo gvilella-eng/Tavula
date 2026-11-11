@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import type { Page } from "@playwright/test";
 import { abrirAba, test as base, expect, Mesa } from "../tests/ajudas";
 import { ligarOrdem, linha } from "../tests/ajudasCombate";
-import { DARION_ID, mandar } from "../tests/ajudasFicha";
+import { clicarImportarPdf, DARION_ID, mandar } from "../tests/ajudasFicha";
 import { entrarNoMapa, soSelecionarToken } from "../tests/ajudasMapa";
 
 // Prints do lote R5b do redesign (combate, fichas, compêndio e PDF), nos temas Grimório, Edgerunner e
@@ -152,15 +152,13 @@ for (const tamanho of TAMANHOS) {
               ficha: { pvAtual: 10, pvMax: 10, raca: "Humano" },
             },
           });
-          await abrirAba(m, "fichas");
           const [seletor] = await Promise.all([
             m.waitForEvent("filechooser"),
-            m.getByTestId("ficha-novo-pdf").click(),
+            clicarImportarPdf(m, DARION_ID),
           ]);
           await seletor.setFiles(PDF_DO_DARION);
           await expect(m.getByTestId("revisao-pdf")).toBeVisible();
           await foto(m, `${rotulo}-09-pdf-revisao-alto`);
-          await m.getByTestId("revisao-sugestao-usar").click();
           const resumo = m.locator('[data-testid^="revisao-resumo-"]').first();
           await resumo.scrollIntoViewIfNeeded();
           await foto(m, `${rotulo}-10-pdf-revisao-secoes-recolhidas`);

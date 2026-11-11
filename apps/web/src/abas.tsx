@@ -1,56 +1,11 @@
-import { type Estado, type Papel, pode } from "@tabletop/shared";
+import type { Papel } from "@tabletop/shared";
 import { FolderOpen, ShieldCheck } from "lucide-react";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { type ArquivoDaFonte, temSeletorDePasta } from "./assets/fonte";
 import type { Fontes } from "./assets/fontes";
 import type { GerenteDeAssets, StatusDeAsset } from "./assets/gerente";
-import { CampoNota } from "./CampoNota";
 import { ListaDeAtalhos } from "./ListaDeAtalhos";
 import { SeletorDeTema } from "./SeletorDeTema";
-import type { Ocorrencia } from "./useSala";
-
-type Enviar = (tipo: string, dados: object) => string | null;
-
-type PropsNotas = {
-  estado: Estado;
-  eu: { id: string; papel: Papel };
-  pronto: boolean;
-  enviar: Enviar;
-  ouvir: (fn: (o: Ocorrencia) => void) => () => void;
-};
-
-/** Nota da mesa (todos veem) e nota do mestre (só o mestre), com o comportamento do Lote 1. */
-export function AbaNotas({ estado, eu, pronto, enviar, ouvir }: PropsNotas) {
-  const podeEditar = pode(eu, "nota.editar", estado.permissoes);
-  return (
-    <div className="aba-notas" data-testid="aba-notas-conteudo">
-      <CampoNota
-        testid="nota-mesa"
-        rotulo="Nota da mesa (todos veem)"
-        campo="mesa"
-        usuarioId={eu.id}
-        servidor={estado.notaMesa}
-        editavel={podeEditar}
-        pronto={pronto}
-        enviar={enviar}
-        ouvir={ouvir}
-      />
-      {eu.papel === "mestre" && (
-        <CampoNota
-          testid="nota-mestre"
-          rotulo="Nota do mestre (só mestres veem)"
-          campo="mestre"
-          usuarioId={eu.id}
-          servidor={estado.notaMestre ?? ""}
-          editavel
-          pronto={pronto}
-          enviar={enviar}
-          ouvir={ouvir}
-        />
-      )}
-    </div>
-  );
-}
 
 const ROTULO_DO_ESTADO: Record<StatusDeAsset["estado"], string> = {
   pedindo: "pedindo",

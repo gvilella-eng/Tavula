@@ -15,7 +15,14 @@ import {
 import { arquivoPng, assets, definirMapa } from "../tests/ajudasAssets";
 import { definirValor, ligarOrdem, linha, menuDoToken, vezNaOrdem } from "../tests/ajudasCombate";
 import { abrirPincel, escolherNoPincel } from "../tests/ajudasDesenho";
-import { type AbaDaFicha, abrirFicha, criarDarion, DARION_ID, mandar } from "../tests/ajudasFicha";
+import {
+  type AbaDaFicha,
+  abrirFicha,
+  clicarImportarPdf,
+  criarDarion,
+  DARION_ID,
+  mandar,
+} from "../tests/ajudasFicha";
 import { entrarNoMapa, type GanchoDoMapa, pontoNaPagina } from "../tests/ajudasMapa";
 
 // Tour tela a tela da interface atual (mestre e jogador): a revisão final do redesign (R6b). Nasceu como a
@@ -730,7 +737,7 @@ async function partePainelEMenus({ mestre: m, j1, j2 }: Campanha) {
     [m, "mestre"],
     [j1, "jogador"],
   ] as const) {
-    for (const aba of ["chat", "fichas", "notas", "compendio", "preferencias", "mesa"]) {
+    for (const aba of ["chat", "fichas", "compendio", "preferencias", "mesa"]) {
       await tentar(`30 aba ${aba} ${quem}`, async () => {
         if ((await p.getByTestId(`aba-${aba}`).count()) === 0) {
           falhas.push(`(esperado) aba "${aba}" não existe para ${quem}`);
@@ -754,8 +761,7 @@ async function partePainelEMenus({ mestre: m, j1, j2 }: Campanha) {
     await expect(m.getByTestId("ficha-novo-menu")).toBeVisible();
     await foto(m, "30-lateral-fichas-menu-novo-mestre");
     await limparTela(m);
-    await m.getByTestId("ficha-novo").click();
-    await m.getByTestId(`ficha-menu-${DARION_ID}`).click();
+    await m.getByTestId(`ficha-abrir-${DARION_ID}`).click({ button: "right" });
     await foto(m, "30-lateral-fichas-menu-do-item-mestre");
     await limparTela(m);
   });
@@ -870,11 +876,9 @@ async function parteFichas({ mestre: m, j1 }: Campanha) {
 
   // importação de PDF: a tela de revisão
   await tentar("50 revisao de PDF", async () => {
-    await abrirAba(m, "fichas");
-    await m.getByTestId(`ficha-menu-${DARION_ID}`).click();
     const [seletor] = await Promise.all([
       m.waitForEvent("filechooser"),
-      m.getByTestId(`ficha-menu-importar-pdf-${DARION_ID}`).click(),
+      clicarImportarPdf(m, DARION_ID),
     ]);
     await seletor.setFiles(PDF);
     await expect(m.getByTestId("revisao-pdf")).toBeVisible({ timeout: 60_000 });

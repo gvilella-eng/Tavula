@@ -7,11 +7,12 @@ import {
   podeEditarPersonagem,
   type Usuario,
 } from "@tabletop/shared";
-import { Copy, Download, FileText, FileUp, MapPinPlus, Trash2 } from "lucide-react";
+import { Copy, Download, FileUp, MapPinPlus, Trash2 } from "lucide-react";
 import { useRef, useState } from "react";
 import { Avatar } from "./Avatar";
 import { Campo } from "./Campo";
 import type { PedirImagem } from "./FaixaDeCenas";
+import { BotaoImportarPdf } from "./ficha/BotaoImportarPdf";
 import type { ImagensDoMapa } from "./mapa/mapaPixi";
 
 type Enviar = (tipo: string, dados: object) => string | null;
@@ -41,8 +42,6 @@ type Props = {
   exportar: () => Promise<string>;
   /** Importa a ficha de um arquivo JSON (já confirmado); devolve o erro, se houver. */
   importar: (arquivo: File) => Promise<string | null>;
-  /** Abre o seletor do PDF da ficha para importar por cima desta ficha (Lote 10). */
-  importarPdf?: () => void;
 };
 
 /**
@@ -63,7 +62,6 @@ export function EditorDoItem({
   aoFechar,
   exportar,
   importar,
-  importarPdf,
 }: Props) {
   const euMestre = eu.papel === "mestre";
   const editor = podeEditarPersonagem(p, eu);
@@ -362,16 +360,7 @@ export function EditorDoItem({
             >
               <FileUp size={16} /> Importar ficha
             </button>
-            {importarPdf && (
-              <button
-                type="button"
-                data-testid="editor-importar-pdf"
-                title="Lê o PDF impresso da ficha (no seu navegador) e mostra uma tela de revisão"
-                onClick={importarPdf}
-              >
-                <FileText size={16} /> Importar PDF…
-              </button>
-            )}
+            <BotaoImportarPdf estado={estado} eu={eu} enviar={enviar} personagem={p} />
           </>
         )}
       </footer>

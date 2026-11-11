@@ -229,14 +229,13 @@ test("as abas mostram ícone e nome, legíveis na largura mínima (300 px), do m
     chat: "Chat",
     fichas: "Fichas",
     compendio: "Compêndio",
-    notas: "Notas",
     mesa: "Mesa",
     preferencias: "Preferências",
   };
 
   for (const [p, ids] of [
-    [m, ["chat", "fichas", "notas", "compendio", "mesa", "preferencias"]],
-    [j, ["chat", "fichas", "notas", "compendio", "preferencias"]],
+    [m, ["chat", "fichas", "compendio", "preferencias", "mesa"]],
+    [j, ["chat", "fichas", "compendio", "preferencias"]],
   ] as const) {
     await p.getByTestId("alca-do-painel").focus();
     await p.keyboard.press("Home");
@@ -247,8 +246,8 @@ test("as abas mostram ícone e nome, legíveis na largura mínima (300 px), do m
       const nome = p.getByTestId(`aba-nome-${id}`);
       await expect(nome).toBeVisible();
       await expect(nome).toHaveText(nomes[id] as string);
-      // o texto cabe inteiro (nada cortado) e a aba está toda dentro do painel
-      expect(await nome.evaluate((e) => e.scrollWidth <= e.clientWidth)).toBe(true);
+      // o nome é de uma linha só (V3: cortado com reticências quando não cabe) e a aba está toda dentro do painel
+      expect(await nome.evaluate((e) => e.scrollHeight <= e.clientHeight + 1)).toBe(true);
       expect(dentro(await caixa(nome), await caixa(aba))).toBe(true);
       expect(dentro(await caixa(aba), painel)).toBe(true);
       await expect(aba.locator("svg")).toBeVisible(); // o ícone
@@ -536,7 +535,7 @@ test("recolhido, o painel mostra só os ícones das abas; clicar numa aba abre o
   const trilha = await caixa(m.getByTestId("barra-lateral"));
   expect(Math.round(trilha.width)).toBe(52);
   await expect(m.getByTestId("lateral-recolher")).toHaveCount(0);
-  for (const id of ["chat", "fichas", "notas", "compendio", "mesa", "preferencias"]) {
+  for (const id of ["chat", "fichas", "compendio", "preferencias", "mesa"]) {
     await expect(m.getByTestId(`aba-painel-${id}`)).toBeHidden();
     await expect(m.getByTestId(`aba-nome-${id}`)).toBeHidden();
     await expect(m.getByTestId(`aba-${id}`)).toBeVisible();

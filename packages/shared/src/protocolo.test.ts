@@ -5,11 +5,11 @@ const valida = (o: object) => JSON.stringify({ v: 1, id: "p1", ...o });
 
 describe("schemas do protocolo", () => {
   it("aceita intenções bem formadas", () => {
-    expect(lerIntencao(valida({ tipo: "nota.editar", dados: { texto: "oi" } })).ok).toBe(true);
+    expect(lerIntencao(valida({ tipo: "handout.apagar", dados: { id: "h1" } })).ok).toBe(true);
     expect(lerIntencao(valida({ tipo: "campanha.exportar", dados: {} })).ok).toBe(true);
     expect(
       lerIntencao(
-        valida({ tipo: "permissao.alterar", dados: { capacidade: "nota.editar", valor: false } }),
+        valida({ tipo: "permissao.alterar", dados: { capacidade: "luz.apagar", valor: false } }),
       ).ok,
     ).toBe(true);
   });
@@ -17,16 +17,27 @@ describe("schemas do protocolo", () => {
   it.each([
     ["não é JSON", "{{"],
     ["não é texto", 42],
-    ["sem versão", JSON.stringify({ id: "p", tipo: "nota.editar", dados: { texto: "x" } })],
+    ["sem versão", JSON.stringify({ id: "p", tipo: "handout.apagar", dados: { id: "x" } })],
     [
       "versão errada",
-      JSON.stringify({ v: 2, id: "p", tipo: "nota.editar", dados: { texto: "x" } }),
+      JSON.stringify({ v: 2, id: "p", tipo: "handout.apagar", dados: { id: "x" } }),
     ],
-    ["sem id", JSON.stringify({ v: 1, tipo: "nota.editar", dados: { texto: "x" } })],
+    ["sem id", JSON.stringify({ v: 1, tipo: "handout.apagar", dados: { id: "x" } })],
     ["tipo desconhecido", valida({ tipo: "token.mover", dados: {} })],
-    ["dados com tipo errado", valida({ tipo: "nota.editar", dados: { texto: 5 } })],
-    ["sem dados", valida({ tipo: "nota.editar" })],
-    ["nota grande demais", valida({ tipo: "nota.editar", dados: { texto: "x".repeat(20_001) } })],
+    ["dados com tipo errado", valida({ tipo: "handout.apagar", dados: { id: 5 } })],
+    ["sem dados", valida({ tipo: "handout.apagar" })],
+    [
+      "texto de handout grande demais",
+      valida({
+        tipo: "handout.editar",
+        dados: { id: "h1", mudancas: { texto: "x".repeat(20_001) } },
+      }),
+    ],
+    [
+      "fonte de handout inexistente",
+      valida({ tipo: "handout.editar", dados: { id: "h1", mudancas: { fonte: "comic" } } }),
+    ],
+    ["a nota antiga saiu do protocolo", valida({ tipo: "nota.editar", dados: { texto: "oi" } })],
     [
       "papel assistente",
       valida({ tipo: "papel.alterar", dados: { usuarioId: "a", papel: "assistente" } }),
@@ -37,7 +48,7 @@ describe("schemas do protocolo", () => {
     ],
     [
       "remover exceção sem usuário",
-      valida({ tipo: "permissao.alterar", dados: { capacidade: "nota.editar", valor: null } }),
+      valida({ tipo: "permissao.alterar", dados: { capacidade: "luz.apagar", valor: null } }),
     ],
   ])("rejeita: %s", (_nome, entrada) => {
     expect(lerIntencao(entrada).ok).toBe(false);

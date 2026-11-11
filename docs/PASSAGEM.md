@@ -10,7 +10,7 @@ Ponteiros: `REDESIGN` = `docs/REDESIGN.md`, `PERGUNTAS` = `docs/PERGUNTAS.md`, `
 Estado dos docs em 2026-11-11: **o redesign R1 a R6 terminou.** Estão entregues o R1 (fundação visual e marca), R2 (estrutura
 fixa), R2b (pausa automática e 11 temas; 14 desde o V1), R3 (janelas flutuantes), R4 (organização do mestre), R5a (interações no mapa e nos
 tokens), R5b (combate, fichas, compêndio e PDF), R6a (teclado, dicas com atalho, foco e contraste) e R6b (tela pequena, frágeis
-restantes, transições e revisão final). O **V1** (temas com personalidade, aba Mesa no fim e zerar o relógio, 2026-11-11) e o **V2** (ordem de turno simples, 2026-11-11) estão entregues (`REDESIGN`, "V1" e "V2"). O que vem agora são os **seus ajustes finos de UX/UI** a partir deste arquivo (fim do
+restantes, transições e revisão final). O **V1** (temas com personalidade, aba Mesa no fim e zerar o relógio, 2026-11-11), o **V2** (ordem de turno simples, 2026-11-11) e o **V3** (fichas em árvore e handouts, a aba Notas sai, topo e abas iguais, 2026-11-11) estão entregues (`REDESIGN`, "V1", "V2" e "V3"). O que vem agora são os **seus ajustes finos de UX/UI** a partir deste arquivo (fim do
 `ESTADO`, "Próximo"), depois o 7b e o 12.
 
 **O que sobrou de interface (resumo; os detalhes estão nas seções 4, 5 e 7):**
@@ -63,12 +63,14 @@ Tudo em `apps/web/src/`.
   - `area.ts`: onde fica a área do mapa na página (`caixaDaArea`), para prender menus, dicas e janelas a ela. `larguraDoPainel.ts` e `preferencias.ts`: a largura do painel direito (300 px a 1/4 da janela, `tabletop:pref:larguraDoPainel`).
   - `mapa/Mapa.tsx`, `mapa/mapaPixi.ts`, `mapa/camadaDeLuz.ts`, `mapa/camadaDeDesenho.ts`: o mapa em PixiJS.
     **Não muda com o tema** (`REDESIGN:138-139`).
-  - `MenuSuperior.tsx`: os menus do mestre em grupos com nome (Cena, Mapa, Luz, Combate, Ver como), cada botão com dica no mouse e no foco, dentro do topo (a pausa e o relógio estão em `EstadoDaMesa.tsx`).
+  - `MenuSuperior.tsx`: os menus do mestre em grupos (Cena, Mapa, Luz, Combate, Ver como; **desde o V3 sem rótulo desenhado**: o grupo vai na dica, "Luz · Visão noturna"), todos os botões com o mesmo tamanho e espaço, cada um com dica no mouse e no foco, dentro do topo (a pausa e o relógio estão em `EstadoDaMesa.tsx`).
   - `BarraDeFerramentas.tsx`: barra fixa de 52 px à esquerda (selecionar, mão, régua, dados rápidos, pincel e, só do mestre, Paredes e portas, que liga o modo; o selo do modo está em `Mesa.tsx`); a sub-barra do pincel abre ao lado dela.
-  - `BarraLateral.tsx`: painel direito de cima a baixo, recolhível, com abas de ícone e nome e a alça de largura.
-  - `abas.tsx`: `AbaNotas` (nota da mesa e do mestre) e `AbaPreferencias` (usuário, tema, encaixe, pasta local de imagens, status dos arquivos).
+  - `BarraLateral.tsx`: painel direito de cima a baixo, recolhível, com abas de ícone e nome (todas da mesma largura; nome cortado com reticências e dica com o nome inteiro, V3) e a alça de largura.
+  - `abas.tsx`: `AbaPreferencias` (usuário, tema, encaixe, pasta local de imagens, status dos arquivos). A `AbaNotas` saiu no V3.
   - `AbaChat.tsx`, `AbaFichas.tsx`, `AbaCompendio.tsx`: as abas de chat (com os modelos de rolagem), fichas
-    (só pastas e fichas; as notas têm aba própria) e compêndio de magias.
+    (**árvore** de pastas, personagens, NPCs e handouts, V3; "+ Novo" único; menu de botão direito em `MenuDeContexto.tsx`) e compêndio de magias.
+  - Handouts (V3): `JanelaDoHandout.tsx` (a janela, o campo de texto com rascunho e a miniatura da lista), `handouts.ts` (as 5 fontes e o `useJanelasDeHandout`), "Mostrar agora" em `Mesa.tsx` (escuta `handout.mostrado`). Estado: `Estado.handouts`, regras em `packages/shared/src/nucleo.ts`, migração das notas em `pastas.ts` (`migrarNotasParaHandouts`) e na migração SQL 9 de `armazenamento.ts`.
+  - `ficha/BotaoImportarPdf.tsx`: o botão "Importar PDF" (seletor de arquivo + revisão), na aba Configurar da ficha; o V4 o reaproveita.
   - `AbaMesa.tsx` (a aba Mesa, só do mestre e, desde o V1, a última aba, depois de Preferências: índice, papéis, capacidades, campanha, diagnóstico), `PainelDaMesa.tsx` (as seções de regras da mesa e de modelos de luz que ela usa) e `PainelDeIluminacao.tsx` (a janela de iluminação).
   - `PainelDoToken.tsx`: painel compacto do mestre para o token selecionado (canto inferior esquerdo da área do mapa). Desde o R5a só abre por "Editar token…" ou por dois cliques no token; selecionar só seleciona.
   - `NovoToken.tsx`: a janela "Novo token" (nome, cor, tamanho) e, depois dela, o modo de pôr o token com a prévia (a prévia e o clique estão em `mapa/mapaPixi.ts`; o selo e a ligação em `Mesa.tsx`).
@@ -316,6 +318,13 @@ Os itens 49 a 85 são 37; o R2 acrescenta os itens 86 a 92, o R2b os 93 a 96, o 
 na tabela `meta`, o worker do pdf.js, tipos do Node no teste, idempotência de `desenho.apagar`).
 
 ## 5. Pontos frágeis por lote
+
+V3 (fichas em árvore e handouts, 2026-11-11)
+- O menu de botão direito das Fichas (`MenuDeContexto.tsx`) abre pelo teclado com Shift+F10 ou a tecla de menu; o "contextmenu" nativo que o navegador dispara junto é ignorado por 700 ms (zerado quando o mouse age). Só testado com as teclas enviadas pelo Playwright, não com um teclado real, e não em toque. (`REDESIGN`, "V3")
+- Mudar quem vê um handout (ou a pasta dele) manda snapshot novo a todos; quem pediu recebe o snapshot em vez do evento (as ajudas de teste esperam isso). (`ESTADO`, "Ajustes V3")
+- A capacidade `nota.editar` ficou no enum sem uso (só para bancos e arquivos antigos). (`PERGUNTAS`, "Novas do V3")
+- As fontes novas (Lora, Caveat, MedievalSharp, Special Elite) só foram vistas no Chrome. O caminho "ficha nova a partir do PDF" saiu da aba (a revisão ainda deixa trocar o destino para "Ficha nova"). (`REDESIGN`, "V3")
+- O texto do handout usa o rascunho local `tabletop:rascunho:<usuário>:handout:<id>` até a sala confirmar, como a nota antiga. (`ficha`: `JanelaDoHandout.tsx`)
 
 Ajustes V1 (2026-11-11)
 - Os 11 temas novos e o Masmorra foram medidos (contraste, bolinhas distintas) e vistos nos prints, mas só no Chrome e sem teste com daltonismo. (`REDESIGN`, "V1 — como ficou")

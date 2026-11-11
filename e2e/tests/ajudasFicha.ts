@@ -89,3 +89,63 @@ export async function abrirFicha(p: Page, personagemId: string, aba: AbaDaFicha 
   await expect(janela).toHaveAttribute("data-aba", aba);
   return janela;
 }
+
+// Ajudas do V3 (handouts): criar um pela sala (sem passar pela tela) e abrir a janela dele.
+
+/** Cria um handout pela sala (por um socket novo) e devolve o id. Padrão: na pasta Personagens, só do mestre. */
+export async function criarHandoutPelaSala(p: Page, extra: object = {}): Promise<string> {
+  const id = `h-${Math.random().toString(36).slice(2, 8)}`;
+  const handout = {
+    id,
+    pastaId: "pasta-personagens",
+    titulo: "Aviso",
+    texto: "",
+    fonte: "livro",
+    visivel: { tipo: "mestre" },
+    ...extra,
+  };
+  // Handout que os jogadores veem manda snapshot novo a todos (inclusive a quem pediu): quem pediu não recebe o
+  // evento, e sim o snapshot que já traz o handout. A ajuda espera o que vier primeiro: erro, evento ou esse snapshot.
+  const resposta = await p.evaluate(
+    ({ intencao, handoutId }) =>
+      new Promise<string | null>((resolve) => {
+        const ws = new WebSocket(`ws://${location.host}/ws`);
+        const fim = setTimeout(() => {
+          ws.close();
+          resolve(null);
+        }, 8000);
+        ws.onopen = () => ws.send(intencao);
+        ws.onmessage = (e) => {
+          const m = JSON.parse(e.data as string);
+          const traz = typeof e.data === "string" && e.data.includes(`"id":"${handoutId}"`);
+          if (
+            m.tipo === "erro" ||
+            (m.tipo === "evento" && traz) ||
+            (m.tipo === "snapshot" && traz)
+          ) {
+            clearTimeout(fim);
+            ws.close();
+            resolve(m.tipo === "erro" ? `erro ${m.dados.codigo}` : m.tipo);
+          }
+        };
+      }),
+    { intencao: intencaoCrua("handout.criar", { handout }), handoutId: id },
+  );
+  expect(resposta, `handout.criar: ${resposta}`).toMatch(/^(evento|snapshot)$/);
+  return id;
+}
+
+/** Fichas → clique no handout → a janela dele. */
+export async function abrirHandout(p: Page, handoutId: string) {
+  await abrirAba(p, "fichas");
+  await p.getByTestId(`handout-abrir-${handoutId}`).click();
+  const janela = p.locator(`[data-testid="janela-handout"][data-handout-id="${handoutId}"]`);
+  await expect(janela).toBeVisible();
+  return janela;
+}
+
+/** Abre a ficha na aba Configurar e clica em "Importar PDF" (V3: o botão mora ali). O seletor de arquivo abre. */
+export async function clicarImportarPdf(p: Page, personagemId: string) {
+  const janela = await abrirFicha(p, personagemId, "configurar");
+  await janela.getByTestId("editor-importar-pdf").click();
+}

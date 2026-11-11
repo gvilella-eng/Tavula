@@ -51,14 +51,7 @@ test("a aba Mesa é a última, só do mestre, também com o painel recolhido", a
   const j = await entrarNoMapa(mesa, "jogador-1");
   const abas = async (p: Page) =>
     Promise.all((await p.getByRole("tab").all()).map((a) => a.getAttribute("data-testid")));
-  const doMestre = [
-    "aba-chat",
-    "aba-fichas",
-    "aba-notas",
-    "aba-compendio",
-    "aba-preferencias",
-    "aba-mesa",
-  ];
+  const doMestre = ["aba-chat", "aba-fichas", "aba-compendio", "aba-preferencias", "aba-mesa"];
   expect(await abas(m.pagina)).toEqual(doMestre);
   expect(await abas(j.pagina)).toEqual(doMestre.slice(0, -1));
   await expect(j.pagina.getByTestId("aba-mesa")).toHaveCount(0);

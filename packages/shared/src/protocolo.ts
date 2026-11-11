@@ -30,6 +30,8 @@ import {
   EstadoSchema,
   FonteDeLuzAntigaSchema,
   GridSchema,
+  type Handout,
+  HandoutSchema,
   LuzSchema,
   MapaDaCenaSchema,
   ModeloDeObjetoSchema,
@@ -58,12 +60,17 @@ import {
 } from "./ficha.ts";
 import { CENA_PADRAO } from "./mapa.ts";
 import { modelosPadrao } from "./objetos.ts";
-import { migrarPersonagem, PersonagemAntigoSchema, pastasPadrao } from "./pastas.ts";
+import {
+  migrarNotasParaHandouts,
+  migrarPersonagem,
+  PersonagemAntigoSchema,
+  pastasPadrao,
+} from "./pastas.ts";
 import { PedidoDeModeloSchema } from "./rolagens.ts";
 
 export const VERSAO_PROTOCOLO = 1;
-/** Versão do arquivo de exportação (de v1 a v11 ainda são aceitas na importação). */
-export const VERSAO_EXPORTACAO = 12 as const;
+/** Versão do arquivo de exportação (de v1 a v12 ainda são aceitas na importação). */
+export const VERSAO_EXPORTACAO = 13 as const;
 
 const CapacidadeSchema = z.enum(TODAS_AS_CAPACIDADES as [Capacidade, ...Capacidade[]]);
 const Texto = z.string().max(TAMANHO_MAXIMO_NOTA);
@@ -99,8 +106,11 @@ const DadosV2Schema = EstadoSchema.omit({
   retratosDoChat: true,
   desenhos: true,
   compendio: true,
+  handouts: true,
 }).extend({
-  notaMestre: Texto,
+  /** Até a v12 as notas moravam no estado; a v13 as troca por handouts (a leitura as migra). */
+  notaMesa: Texto.default(""),
+  notaMestre: Texto.default(""),
   permissoes: PermissoesExportadasSchema,
 });
 
@@ -177,7 +187,14 @@ const DadosV11Schema = DadosV10Schema.extend({
  * arquivo de magias fica na pasta do mestre). Arquivos antigos o trazem ausente: entram sem compêndio.
  */
 const DadosV12Schema = DadosV11Schema.extend({ compendio: CompendioDaMesaSchema.optional() });
-export type DadosExportados = z.infer<typeof DadosV12Schema>;
+/**
+ * v13 (V3): as notas da mesa e do mestre saem (viram handouts) e entram os handouts, numa pasta das Fichas.
+ * Arquivos antigos: as notas não vazias viram dois handouts na pasta "Handouts" (`migrarNotasParaHandouts`).
+ */
+const DadosV13Schema = DadosV12Schema.omit({ notaMesa: true, notaMestre: true }).extend({
+  handouts: z.array(HandoutSchema).max(2000),
+});
+export type DadosExportados = z.infer<typeof DadosV13Schema>;
 
 /** v1 (Lote 1): sem cenas nem tokens. Vira a cena padrão e nenhum token. */
 const DadosV1Schema = DadosV2Schema.omit({
@@ -189,7 +206,7 @@ const DadosV1Schema = DadosV2Schema.omit({
 const cabecalho = { formato: z.literal("tabletop-campanha"), exportadoEm: z.string() };
 
 /**
- * Aceita de v1 a v12; o resultado é sempre no formato v12. Nas antigas faltam assets, personagens,
+ * Aceita de v1 a v13; o resultado é sempre no formato v13. Nas antigas faltam assets, personagens,
  * pastas, paredes, luzes, configuração, modelos e pontos: entram vazios ou com o padrão (v4: o dono
  * vira "quem edita" numa pasta só do mestre; paredes só existem a partir da v6, luzes e configuração
  * da v7; modelos, pontos e relógio da v8). As luzes da v7 (`acesa`) viram objetos (`estado`).
@@ -208,21 +225,44 @@ export const ExportacaoSchema = z
     z.object({ ...cabecalho, versao: z.literal(10), dados: DadosV10Schema }),
     z.object({ ...cabecalho, versao: z.literal(11), dados: DadosV11Schema }),
     z.object({ ...cabecalho, versao: z.literal(12), dados: DadosV12Schema }),
+    z.object({ ...cabecalho, versao: z.literal(13), dados: DadosV13Schema }),
   ])
   .transform((e) => {
     const d = e.dados;
     const novo =
-      e.versao === 8 || e.versao === 9 || e.versao === 10 || e.versao === 11 || e.versao === 12;
+      e.versao === 8 ||
+      e.versao === 9 ||
+      e.versao === 10 ||
+      e.versao === 11 ||
+      e.versao === 12 ||
+      e.versao === 13;
     const luzes = novo ? e.dados.luzes : e.versao === 7 ? e.dados.luzes.map(migrarFonteAntiga) : [];
     const config = novo
       ? e.dados.config
       : e.versao === 7
         ? configComPadrao(e.dados.config)
         : CONFIG_PADRAO;
+    // V3: as notas antigas saem do estado e viram handouts (numa pasta "Handouts", se houver o que migrar).
+    const {
+      notaMesa,
+      notaMestre,
+      handouts: dosHandouts,
+      ...semNotas
+    } = d as typeof d & {
+      notaMesa?: string;
+      notaMestre?: string;
+      handouts?: Handout[];
+    };
+    const pastasLidas = "pastas" in d ? d.pastas : pastasPadrao();
+    const migradas =
+      e.versao === 13
+        ? { handouts: dosHandouts ?? [], pastas: pastasLidas }
+        : migrarNotasParaHandouts({ notaMesa, notaMestre }, pastasLidas);
     const base = {
-      ...d,
+      ...semNotas,
+      handouts: migradas.handouts,
       assets: "assets" in d ? d.assets : [],
-      pastas: "pastas" in d ? d.pastas : pastasPadrao(),
+      pastas: migradas.pastas,
       ordemDeTurnoVisivel: "ordemDeTurnoVisivel" in d ? d.ordemDeTurnoVisivel : false,
       paredes: "paredes" in d ? d.paredes : [],
       luzes,
@@ -232,9 +272,11 @@ export const ExportacaoSchema = z
       // Sem relógio (arquivo antigo) a mesa começa rodando; a sala preenche `desdeReal` ao importar.
       relogio: novo ? e.dados.relogio : { pausada: false, acumuladoMs: 0 },
       // Lote 13: só a v11 e a v12 trazem desenhos.
-      desenhos: e.versao === 11 || e.versao === 12 ? e.dados.desenhos : [],
-      // Lote 14: só a v12 traz o compêndio (ausente = sem compêndio).
-      ...(e.versao === 12 && e.dados.compendio ? { compendio: e.dados.compendio } : {}),
+      desenhos: e.versao === 11 || e.versao === 12 || e.versao === 13 ? e.dados.desenhos : [],
+      // Lote 14: a v12 e a v13 trazem o compêndio (ausente = sem compêndio).
+      ...((e.versao === 12 || e.versao === 13) && e.dados.compendio
+        ? { compendio: e.dados.compendio }
+        : {}),
     };
     const personagens =
       e.versao === 5 || e.versao === 6 || e.versao === 7 || novo
@@ -344,6 +386,18 @@ const AjusteDoObjetoSchema = z.discriminatedUnion("acao", [
   z.object({ acao: z.literal("consumir") }),
 ]);
 
+const MudancasDoHandoutSchema = z
+  .object({
+    pastaId: HandoutSchema.shape.pastaId,
+    titulo: HandoutSchema.shape.titulo,
+    texto: HandoutSchema.shape.texto,
+    fonte: HandoutSchema.shape.fonte,
+    /** `null`: tira a imagem. */
+    imagemHash: HashSchema.nullable(),
+    visivel: HandoutSchema.shape.visivel,
+  })
+  .partial();
+
 const MudancasDoPersonagemSchema = z
   .object({
     nome: PersonagemSchema.shape.nome,
@@ -404,8 +458,6 @@ function intencao<T extends string, D extends z.ZodType>(tipo: T, dados: D) {
 }
 
 export const IntencaoSchema = z.discriminatedUnion("tipo", [
-  intencao("nota.editar", z.object({ texto: Texto })),
-  intencao("notaMestre.editar", z.object({ texto: Texto })),
   intencao(
     "papel.alterar",
     z.object({ usuarioId: z.string().min(1), papel: z.enum(["mestre", "jogador"]) }),
@@ -475,6 +527,14 @@ export const IntencaoSchema = z.discriminatedUnion("tipo", [
   ),
   /** Só pasta vazia. */
   intencao("pasta.apagar", z.object({ id: IdSchema })),
+  /**
+   * Handouts (V3), todos do mestre (`mesa.configurar`). `criar` leva o handout inteiro; `editar` muda só o
+   * que vier (`imagemHash` `null` tira a imagem); `mostrar` abre a janela do handout na tela de quem o vê, agora.
+   */
+  intencao("handout.criar", z.object({ handout: HandoutSchema })),
+  intencao("handout.editar", z.object({ id: IdSchema, mudancas: MudancasDoHandoutSchema })),
+  intencao("handout.apagar", z.object({ id: IdSchema })),
+  intencao("handout.mostrar", z.object({ id: IdSchema })),
   /** Mostra ou esconde o painel de ordem de turno para todos (inclusive o mestre). */
   intencao("ordemDeTurno.definir", z.object({ visivel: z.boolean() })),
   /**
@@ -757,8 +817,6 @@ export type TipoIntencao = Intencao["tipo"];
  * enviar, e a regra é conferida sobre o asset (`assetVisivelPara`) ou sobre o personagem.
  */
 export const capacidadeDaIntencao: Record<TipoIntencao, Capacidade | null> = {
-  "nota.editar": "nota.editar",
-  "notaMestre.editar": "camadaMestre.ver",
   "papel.alterar": "papel.alterar",
   "permissao.alterar": "permissao.alterar",
   "token.criar": "cena.editar",
@@ -781,6 +839,10 @@ export const capacidadeDaIntencao: Record<TipoIntencao, Capacidade | null> = {
   "pasta.criar": "mesa.configurar",
   "pasta.editar": "mesa.configurar",
   "pasta.apagar": "mesa.configurar",
+  "handout.criar": "mesa.configurar",
+  "handout.editar": "mesa.configurar",
+  "handout.apagar": "mesa.configurar",
+  "handout.mostrar": "mesa.configurar",
   "ordemDeTurno.definir": "mesa.configurar",
   "personagem.colocar": "cena.editar",
   // Quem edita ou o mestre: a capacidade não diz quem edita; `processar` confere.
@@ -876,8 +938,6 @@ function eventoDe<T extends string, D extends z.ZodType>(tipo: T, dados: D) {
 const DimensaoSchema = z.number().positive().max(1000);
 
 export const EventoSalaSchema = z.discriminatedUnion("tipo", [
-  eventoDe("nota.alterada", z.object({ texto: Texto })),
-  eventoDe("notaMestre.alterada", z.object({ texto: Texto })),
   eventoDe("papel.alterado", z.object({ usuarioId: z.string(), papel: PapelSchema })),
   eventoDe(
     "permissao.alterada",
@@ -919,6 +979,11 @@ export const EventoSalaSchema = z.discriminatedUnion("tipo", [
   eventoDe("pasta.alterada", z.object({ pasta: PastaSchema })),
   /** Só o filtro cria o "some" de pasta que o jogador deixou de ver; o mestre também a recebe ao apagar. */
   eventoDe("pasta.apagada", z.object({ id: IdSchema })),
+  /** Handout inteiro depois da mudança (o cliente faz upsert). Só chega a quem o vê; quem deixa de vê-lo recebe `handout.apagado`. */
+  eventoDe("handout.alterado", z.object({ handout: HandoutSchema })),
+  eventoDe("handout.apagado", z.object({ id: IdSchema })),
+  /** "Mostrar agora": abre o handout na tela de quem o vê (não muda o estado; não é gravado). */
+  eventoDe("handout.mostrado", z.object({ id: IdSchema })),
   eventoDe("ordemDeTurno.alterada", z.object({ visivel: z.boolean() })),
   /**
    * O combate inteiro depois da mudança (o cliente troca o dele; `null`: o combate acabou). Para o
@@ -1016,6 +1081,7 @@ export const CODIGOS_DE_ERRO = [
   "personagem_inexistente",
   "cena_inexistente",
   "pasta_inexistente",
+  "handout_inexistente",
   "parede_inexistente",
   "porta_inexistente",
   "porta_trancada",

@@ -59,7 +59,7 @@ export function useImportadorDePdf({ estado, eu, enviar, aoCriar }: Opcoes): {
         setFase({
           tipo: "erro",
           mensagem:
-            "Este PDF não parece a ficha impressa (impressa pelo navegador, com texto). Nada foi importado.",
+            "Este PDF não parece uma ficha que eu saiba ler (precisa ser impresso pelo navegador, com texto, não escaneado). Nada foi importado.",
         });
         return;
       }

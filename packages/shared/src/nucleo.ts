@@ -48,6 +48,7 @@ import type {
   ConfigDaMesa,
   Estado,
   FonteDeLuz,
+  Handout,
   Parede,
   Pasta,
   Personagem,
@@ -65,8 +66,9 @@ import {
   controlaToken,
   ehPersonagemDeJogador,
   encaixarNoGrid,
+  handoutVisivelPara,
   limitarNaCena,
-  pastaVisivelPara,
+  pastaChegaPara,
   personagemParaUsuario,
   personagemVisivelPara,
   podeEditarPersonagem,
@@ -171,6 +173,11 @@ function pastaDe(estado: Pick<Estado, "pastas">, id: string): Pasta | undefined 
 }
 
 const SEM_PASTA = "Pasta não encontrada.";
+const SEM_HANDOUT = "Handout não encontrado.";
+
+function handoutDe(estado: Pick<Estado, "handouts">, id: string): Handout | undefined {
+  return estado.handouts.find((h) => h.id === id);
+}
 
 /** Token de personagem de jogador? (O personagem pode ter sido apagado: então não é.) */
 function ehDoGrupo(estado: Estado, t: Token): boolean {
@@ -251,14 +258,13 @@ export function criarExportacao(estado: Estado, agora: string): Exportacao {
         acumuladoMs: tempoDaSala(estado.relogio, Date.parse(agora)),
         ...marcoDoRelogio(estado.relogio),
       },
-      notaMestre: estado.notaMestre ?? "",
       assets: (estado.assets ?? []).filter((a) => usados.has(a.hash)),
     },
   };
 }
 
 /**
- * Valida um arquivo de exportação (de v1 a v12; o resultado é sempre v12): formato, ids únicos, pelo
+ * Valida um arquivo de exportação (de v1 a v13; o resultado é sempre v13): formato, ids únicos, pelo
  * menos um mestre, exceções válidas, cena ativa, pastas, personagens e tokens coerentes.
  */
 export function lerExportacao(
@@ -278,6 +284,7 @@ export function lerExportacao(
     assets,
     personagens,
     pastas,
+    handouts,
     paredes,
     luzes,
     pontos,
@@ -366,6 +373,17 @@ export function lerExportacao(
       return { ok: false, motivo: `personagem em pasta desconhecida: ${p.id}` };
     }
   }
+  if (new Set(handouts.map((h) => h.id)).size !== handouts.length) {
+    return { ok: false, motivo: "ids de handout repetidos" };
+  }
+  for (const h of handouts) {
+    if (!idsDePastas.has(h.pastaId)) {
+      return { ok: false, motivo: `handout em pasta desconhecida: ${h.id}` };
+    }
+    if (h.visivel.tipo === "jogadores" && h.visivel.ids.some((id) => !ids.has(id))) {
+      return { ok: false, motivo: `handout visível para usuário desconhecido: ${h.id}` };
+    }
+  }
   for (const t of tokens) {
     if (!idsDeCenas.has(t.cenaId)) {
       return { ok: false, motivo: `token em cena desconhecida: ${t.id}` };
@@ -431,6 +449,11 @@ export function lerExportacao(
       return { ok: false, motivo: `imagem sem meta no token ${t.id}` };
     }
   }
+  for (const h of handouts) {
+    if (h.imagemHash !== undefined && !porHash.has(h.imagemHash)) {
+      return { ok: false, motivo: `imagem sem meta no handout ${h.id}` };
+    }
+  }
   for (const p of personagens) {
     if (p.tokenPadrao.assetHash !== undefined && !porHash.has(p.tokenPadrao.assetHash)) {
       return { ok: false, motivo: `imagem sem meta no personagem ${p.id}` };
@@ -450,10 +473,6 @@ export function reduzir(estado: Estado, evento: EventoSala): Estado {
   if (evento.seq <= estado.seq) return estado;
   const base = { ...estado, seq: evento.seq };
   switch (evento.tipo) {
-    case "nota.alterada":
-      return { ...base, notaMesa: evento.dados.texto };
-    case "notaMestre.alterada":
-      return { ...base, notaMestre: evento.dados.texto };
     case "papel.alterado":
       return {
         ...base,
@@ -659,6 +678,21 @@ export function reduzir(estado: Estado, evento: EventoSala): Estado {
     }
     case "pasta.apagada":
       return { ...base, pastas: base.pastas.filter((x) => x.id !== evento.dados.id) };
+    case "handout.alterado": {
+      const { handout } = evento.dados;
+      const existe = base.handouts.some((x) => x.id === handout.id);
+      return {
+        ...base,
+        handouts: existe
+          ? base.handouts.map((x) => (x.id === handout.id ? handout : x))
+          : [...base.handouts, handout],
+      };
+    }
+    case "handout.apagado":
+      return { ...base, handouts: base.handouts.filter((x) => x.id !== evento.dados.id) };
+    case "handout.mostrado":
+      // Só avisa as telas (a janela abre); o estado não muda.
+      return base;
     case "ordemDeTurno.alterada":
       return { ...base, ordemDeTurnoVisivel: evento.dados.visivel };
     case "combate.alterado": {
@@ -814,14 +848,6 @@ export function processar(
     "erro" in saida ? { ok: false, erro: saida.erro } : aplicado(saida.snapshotPara ?? []);
 
   switch (intencao.tipo) {
-    case "nota.editar":
-      emitir({ tipo: "nota.alterada", dados: { texto: intencao.dados.texto } });
-      return aplicado();
-
-    case "notaMestre.editar":
-      emitir({ tipo: "notaMestre.alterada", dados: { texto: intencao.dados.texto } });
-      return aplicado();
-
     case "papel.alterar": {
       const { usuarioId: alvoId, papel } = intencao.dados;
       const alvo = estado.usuarios.find((u) => u.id === alvoId);
@@ -1234,10 +1260,82 @@ export function processar(
     case "pasta.apagar": {
       const { id } = intencao.dados;
       if (!pastaDe(estado, id)) return recusa("pasta_inexistente", SEM_PASTA);
-      if (estado.personagens.some((p) => p.pastaId === id)) {
+      if (
+        estado.personagens.some((p) => p.pastaId === id) ||
+        estado.handouts.some((h) => h.pastaId === id)
+      ) {
         return recusa("dados_invalidos", "Só uma pasta vazia pode ser apagada.");
       }
       emitir({ tipo: "pasta.apagada", dados: { id } });
+      return aplicado();
+    }
+
+    case "handout.criar": {
+      const { handout } = intencao.dados;
+      if (handoutDe(estado, handout.id)) {
+        return recusa("dados_invalidos", "Já existe um handout com esse id.");
+      }
+      if (!pastaDe(estado, handout.pastaId)) return recusa("pasta_inexistente", SEM_PASTA);
+      if (
+        handout.visivel.tipo === "jogadores" &&
+        !handout.visivel.ids.every((id) => ehJogador(estado, id))
+      ) {
+        return recusa("usuario_inexistente", "Jogador não encontrado.");
+      }
+      if (handout.imagemHash !== undefined && !imagemDeTokenExiste(estado, handout.imagemHash)) {
+        return recusa("asset_inexistente", "Imagem não encontrada.");
+      }
+      emitir({ tipo: "handout.alterado", dados: { handout } });
+      // Quem passa a ver o handout precisa também da pasta dele: snapshot novo.
+      return aplicado(handout.visivel.tipo === "mestre" ? [] : "todos");
+    }
+
+    case "handout.editar": {
+      const { id, mudancas: m } = intencao.dados;
+      const atual = handoutDe(estado, id);
+      if (!atual) return recusa("handout_inexistente", SEM_HANDOUT);
+      if (m.pastaId !== undefined && !pastaDe(estado, m.pastaId)) {
+        return recusa("pasta_inexistente", SEM_PASTA);
+      }
+      if (m.visivel?.tipo === "jogadores" && !m.visivel.ids.every((x) => ehJogador(estado, x))) {
+        return recusa("usuario_inexistente", "Jogador não encontrado.");
+      }
+      if (typeof m.imagemHash === "string" && !imagemDeTokenExiste(estado, m.imagemHash)) {
+        return recusa("asset_inexistente", "Imagem não encontrada.");
+      }
+      const { imagemHash: _antiga, ...semImagem } = atual;
+      const imagemHash = m.imagemHash === undefined ? atual.imagemHash : m.imagemHash;
+      const handout: Handout = {
+        ...semImagem,
+        ...(imagemHash === null || imagemHash === undefined ? {} : { imagemHash }),
+        pastaId: m.pastaId ?? atual.pastaId,
+        titulo: m.titulo ?? atual.titulo,
+        texto: m.texto ?? atual.texto,
+        fonte: m.fonte ?? atual.fonte,
+        visivel: m.visivel ?? atual.visivel,
+      };
+      if (JSON.stringify(handout) === JSON.stringify(atual)) return aplicado();
+      emitir({ tipo: "handout.alterado", dados: { handout } });
+      // Mudou quem vê ou a pasta: o jogador ganha ou perde o handout e a pasta dele, snapshot novo.
+      const mudouQuemVe =
+        JSON.stringify(handout.visivel) !== JSON.stringify(atual.visivel) ||
+        handout.pastaId !== atual.pastaId;
+      return aplicado(mudouQuemVe ? "todos" : []);
+    }
+
+    case "handout.apagar": {
+      const { id } = intencao.dados;
+      const atual = handoutDe(estado, id);
+      if (!atual) return recusa("handout_inexistente", SEM_HANDOUT);
+      emitir({ tipo: "handout.apagado", dados: { id } });
+      return aplicado(atual.visivel.tipo === "mestre" ? [] : "todos");
+    }
+
+    case "handout.mostrar": {
+      if (!handoutDe(estado, intencao.dados.id)) {
+        return recusa("handout_inexistente", SEM_HANDOUT);
+      }
+      emitir({ tipo: "handout.mostrado", dados: { id: intencao.dados.id } });
       return aplicado();
     }
 
@@ -2038,7 +2136,7 @@ function contextoDeLuz(e: Estado) {
 }
 
 /**
- * Snapshot filtrado do jogador: sem `notaMestre` e sem as metas dos assets; só as exceções dele; só
+ * Snapshot filtrado do jogador: sem as metas dos assets; só as exceções dele; só
  * a cena ativa (nada de nome, grid, mapa ou chegada das outras); só tokens visíveis dessa cena; só
  * as paredes da cena ativa (a secreta disfarçada), as pastas que ele vê e só os personagens que ele edita ou que estão numa pasta que ele vê (nome de
  * pasta ou item de pasta "só mestre" nunca chega).
@@ -2057,12 +2155,7 @@ export function visaoPara(estado: Estado, usuario: Visao, agoraMs?: number): Est
       relogio: relogioParaVisao(estado.relogio, usuario, agora),
     };
   }
-  const {
-    notaMestre: _oculta,
-    assets: _assets,
-    memoriaEsquecida: _esquecida,
-    ...resto
-  } = semPendencias;
+  const { assets: _assets, memoriaEsquecida: _esquecida, ...resto } = semPendencias;
   const propria = estado.permissoes.porUsuario[usuario.id];
   const { combate: _combate, ...semCombate } = resto;
   return {
@@ -2093,7 +2186,9 @@ export function visaoPara(estado: Estado, usuario: Visao, agoraMs?: number): Est
             [estado.cenaAtivaId]: estado.memoriaEsquecida[estado.cenaAtivaId] as number,
           },
         }),
-    pastas: estado.pastas.filter((p) => pastaVisivelPara(p, usuario)),
+    // A pasta chega se ele a vê ou se vê algum handout dentro dela (e só com esses itens).
+    pastas: estado.pastas.filter((p) => pastaChegaPara(p, estado.handouts, usuario)),
+    handouts: estado.handouts.filter((h) => handoutVisivelPara(h, usuario)),
     // A ficha completa só chega a quem edita o personagem ou tem `ficha.verOutras` (Lote 9).
     personagens: estado.personagens
       .filter((p) => personagemVisivelPara(p, usuario, estado.pastas))
@@ -2126,7 +2221,6 @@ export function eventoPara(
   const visivel = (t: Token, ativa: string | undefined) =>
     ativa !== undefined && tokenVisivelPara(t, usuario, ativa);
   switch (evento.tipo) {
-    case "notaMestre.alterada":
     case "asset.registrado":
     case "cena.criada":
     case "cena.apagada":
@@ -2141,7 +2235,6 @@ export function eventoPara(
     }
     case "chat.limpo":
     case "compendio.alterado":
-    case "nota.alterada":
     case "papel.alterado":
     case "ordemDeTurno.alterada":
     case "config.alterada":
@@ -2224,10 +2317,11 @@ export function eventoPara(
     }
     case "pasta.alterada": {
       if (mestre) return evento;
-      const depoisP = (depois ?? antes)?.pastas.find((p) => p.id === evento.dados.pasta.id);
-      if (depoisP && pastaVisivelPara(depoisP, usuario)) return evento;
+      const ref = depois ?? antes;
+      const depoisP = ref?.pastas.find((p) => p.id === evento.dados.pasta.id);
+      if (depoisP && ref && pastaChegaPara(depoisP, ref.handouts, usuario)) return evento;
       const antiga = antes?.pastas.find((p) => p.id === evento.dados.pasta.id);
-      if (antiga && pastaVisivelPara(antiga, usuario)) {
+      if (antiga && antes && pastaChegaPara(antiga, antes.handouts, usuario)) {
         return { ...evento, tipo: "pasta.apagada", dados: { id: antiga.id } };
       }
       return null;
@@ -2235,7 +2329,27 @@ export function eventoPara(
     case "pasta.apagada": {
       if (mestre) return evento;
       const antiga = antes?.pastas.find((p) => p.id === evento.dados.id);
-      return antiga && pastaVisivelPara(antiga, usuario) ? evento : null;
+      return antiga && antes && pastaChegaPara(antiga, antes.handouts, usuario) ? evento : null;
+    }
+    case "handout.alterado": {
+      if (mestre) return evento;
+      if (handoutVisivelPara(evento.dados.handout, usuario)) return evento;
+      // Deixou de ser visível (o mestre o escondeu): some, sem motivo; quem nunca o viu não recebe nada.
+      const antigo = antes?.handouts.find((h) => h.id === evento.dados.handout.id);
+      if (antigo && handoutVisivelPara(antigo, usuario)) {
+        return { ...evento, tipo: "handout.apagado", dados: { id: antigo.id } };
+      }
+      return null;
+    }
+    case "handout.apagado": {
+      if (mestre) return evento;
+      const antigo = antes?.handouts.find((h) => h.id === evento.dados.id);
+      return antigo && handoutVisivelPara(antigo, usuario) ? evento : null;
+    }
+    case "handout.mostrado": {
+      if (mestre) return evento;
+      const h = (depois ?? antes)?.handouts.find((x) => x.id === evento.dados.id);
+      return h && handoutVisivelPara(h, usuario) ? evento : null;
     }
     case "permissao.alterada":
       if (evento.dados.usuarioId === undefined) return evento;

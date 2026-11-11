@@ -408,7 +408,7 @@ describe("combate: permissões", () => {
     // nem com permissão por usuário: `combate.gerir` não é delegável
     const delegado = {
       ...estado,
-      permissoes: { ...estado.permissoes, porUsuario: { j1: { "nota.editar": true } } },
+      permissoes: { ...estado.permissoes, porUsuario: { j1: { "luz.apagar": true } } },
     };
     expect(recusa(delegado, "j1", "combate.proximo")).toBe("sem_permissao");
   });
@@ -691,7 +691,7 @@ describe("combate: exportação (v10 em diante)", () => {
       concentracao: "Bênção",
     }).estado;
     const exportacao = criarExportacao(estado, AGORA);
-    expect(exportacao.versao).toBe(12);
+    expect(exportacao.versao).toBe(13);
     const lida = lerExportacao(JSON.parse(JSON.stringify(exportacao)));
     if (!lida.ok) throw new Error(lida.motivo);
     expect(lida.exportacao.dados.combate).toEqual(estado.combate);
@@ -713,7 +713,7 @@ describe("combate: exportação (v10 em diante)", () => {
     v10.dados.combate = undefined;
     const lida = lerExportacao(v10);
     if (!lida.ok) throw new Error(lida.motivo);
-    expect(lida.exportacao.versao).toBe(12);
+    expect(lida.exportacao.versao).toBe(13);
     expect(lida.exportacao.dados.combate).toBeUndefined();
   });
 

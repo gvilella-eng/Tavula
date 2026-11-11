@@ -66,8 +66,10 @@ const ICONE_DA_CAMADA: Record<CamadaDeTrabalho, ReactNode> = {
  */
 function Botao(props: {
   testid: string;
-  /** O nome do botão (`aria-label` e título da dica). */
+  /** O nome do botão (`aria-label`). */
   nome: string;
+  /** O grupo do botão: a dica diz "Grupo · Nome" (os grupos não têm rótulo na barra, V3). */
+  grupo: string;
   /** O que ele faz, em uma frase (segunda linha da dica). */
   dica: string;
   ativo?: boolean;
@@ -84,7 +86,7 @@ function Botao(props: {
       <BotaoComDica
         testid={props.testid}
         className={props.alerta ? "botao-icone com-alerta" : "botao-icone"}
-        nome={props.nome}
+        nome={props.grupo === props.nome ? props.nome : `${props.grupo} · ${props.nome}`}
         dica={props.dica}
         semDica={props.aberto}
         aria-label={props.nome}
@@ -98,7 +100,7 @@ function Botao(props: {
   );
 }
 
-/** Um grupo do menu: os botões e, embaixo, o nome do grupo. */
+/** Um grupo do menu: os botões, num conjunto com nome só para leitor de tela (a dica de cada botão diz o grupo). */
 function Grupo(props: { id: string; nome: string; children: ReactNode }) {
   return (
     // biome-ignore lint/a11y/useSemanticElements: grupo de botões com nome; o fieldset é de formulário
@@ -109,9 +111,6 @@ function Grupo(props: { id: string; nome: string; children: ReactNode }) {
       data-testid={`menu-grupo-${props.id}`}
     >
       <div className="menu-grupo-botoes">{props.children}</div>
-      <span className="menu-grupo-nome" aria-hidden="true">
-        {props.nome}
-      </span>
     </div>
   );
 }
@@ -205,6 +204,7 @@ export function MenuSuperior(p: Props) {
         <Grupo id="cena" nome="Cena">
           <Botao
             testid="menu-cenas"
+            grupo="Cena"
             nome="Cenas"
             dica="Abre a faixa de cenas: trocar de cena, levar o grupo, criar e configurar (nome, mapa e grid)."
             ativo={p.faixaAberta}
@@ -214,6 +214,7 @@ export function MenuSuperior(p: Props) {
           </Botao>
           <Botao
             testid="menu-camadas"
+            grupo="Cena"
             nome="Camadas"
             dica="Escolhe em que camada você trabalha (mapa, tokens, mestre ou desenho) e limpa os desenhos."
             ativo={aberto === "camadas"}
@@ -227,6 +228,7 @@ export function MenuSuperior(p: Props) {
         <Grupo id="mapa" nome="Mapa">
           <Botao
             testid="novo-token"
+            grupo="Mapa"
             nome="Novo token"
             dica="Pede o nome, a cor e o tamanho; depois você clica no mapa para pôr o token."
             aoClicar={p.aoNovoToken}
@@ -237,6 +239,7 @@ export function MenuSuperior(p: Props) {
         <Grupo id="luz" nome="Luz">
           <Botao
             testid="menu-visao-noturna"
+            grupo="Luz"
             nome="Visão noturna"
             dica={
               p.visaoNoturna
@@ -251,6 +254,7 @@ export function MenuSuperior(p: Props) {
           <span className="botao-com-lista">
             <Botao
               testid="menu-iluminacao"
+              grupo="Luz"
               nome={p.iluminacaoDinamica ? "Iluminação" : "Iluminação (desligada nesta cena)"}
               dica={
                 p.iluminacaoDinamica
@@ -312,6 +316,7 @@ export function MenuSuperior(p: Props) {
         <Grupo id="combate" nome="Combate">
           <Botao
             testid="menu-ordem-turno"
+            grupo="Combate"
             nome="Ordem de turno"
             dica="Mostra ou esconde a ordem de turno para todos."
             ativo={p.ordemVisivel}
@@ -324,6 +329,7 @@ export function MenuSuperior(p: Props) {
           <span className="botao-com-lista">
             <Botao
               testid="menu-ver-como"
+              grupo="Ver como"
               nome="Ver como"
               dica={
                 vendoComo

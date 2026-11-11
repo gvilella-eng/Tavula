@@ -53,6 +53,13 @@ Juntadas durante os Lotes 6 a 14 (2026-11-06 a 10) para fazer ao Vilella no fim.
 - Lista de ajustes de interface que ele quer fazer.
 - Roteiros manuais pendentes: Lote 3 (parcial), Lotes 4 a 11, 13, 14, R1 e R2 (o 4b não tem roteiro escrito; foi interface para ver). Lista em `docs/PASSAGEM.md`.
 
+## Novas do V3 (2026-11-11)
+- As 5 fontes dos handouts são Inter, Lora, Caveat, MedievalSharp e Special Elite (todas livres e empacotadas). (assumido) servem; se alguma não agradar, troca-se só o pacote e o nome do CSS.
+- O jogador não cria handout (só o mestre). Quer que o jogador possa criar handouts próprios (anotações dele)? (assumido: não)
+- A "Nota da mesa" e a "Nota do mestre" viraram handouts numa pasta "Handouts" só do mestre. Quer que a pasta apareça para todos? (assumido: não; o jogador a vê pelo handout que lhe cabe)
+- A capacidade `nota.editar` ficou sem uso (some da tela da Mesa). (assumido) sai de vez num lote futuro; mantida agora por causa de bancos e arquivos antigos.
+- "Importar PDF" não cria mais uma ficha nova direto da aba: cria-se o personagem e importa-se dentro da ficha. (assumido) basta.
+
 ## Lote 6
 - ~~Visão noturna do mestre~~: cor normal, como está (2026-11-10).
 

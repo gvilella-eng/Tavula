@@ -12,9 +12,11 @@ import {
   DesenhoSchema,
   type Estado,
   type EventoSala,
+  type Handout,
   type Mensagem,
   MensagemSchema,
   type ModeloDeObjeto,
+  migrarNotasParaHandouts,
   modelosPadrao,
   type ObjetoDeLuz,
   objetoDoBanco,
@@ -141,6 +143,43 @@ const MIGRACOES: Migracao[] = [
     )`);
     sql.exec("CREATE INDEX IF NOT EXISTS desenhos_cena ON desenhos (cena_id)");
   },
+  // V3: a aba Notas saiu. A nota da mesa e a do mestre (coleção `notas`, quando não vazias) viram handouts
+  // (coleção `handouts`) numa pasta nova "Handouts" só do mestre; a nota da mesa vale para todos, a do mestre
+  // só para ele. As linhas de `notas` somem. Banco sem notas (ou só vazias): nada nasce.
+  (sql) => {
+    const lerColecao = (colecao: string) =>
+      sql
+        .exec<{ id: string; dados: string }>(
+          "SELECT id, dados FROM entidades WHERE colecao = ? ORDER BY rowid",
+          colecao,
+        )
+        .toArray();
+    const texto = (id: string) => {
+      const linha = lerColecao("notas").find((l) => l.id === id);
+      return linha ? (JSON.parse(linha.dados) as { texto?: string }).texto : undefined;
+    };
+    const pastas = lerColecao("pastas").map((l) => JSON.parse(l.dados) as Pasta);
+    const migrado = migrarNotasParaHandouts(
+      { notaMesa: texto("mesa"), notaMestre: texto("mestre") },
+      pastas,
+    );
+    for (const pasta of migrado.pastas) {
+      if (pastas.some((x) => x.id === pasta.id)) continue;
+      sql.exec(
+        "INSERT OR IGNORE INTO entidades (colecao, id, dados) VALUES ('pastas', ?, ?)",
+        pasta.id,
+        JSON.stringify(pasta),
+      );
+    }
+    for (const h of migrado.handouts) {
+      sql.exec(
+        "INSERT OR IGNORE INTO entidades (colecao, id, dados) VALUES ('handouts', ?, ?)",
+        h.id,
+        JSON.stringify(h),
+      );
+    }
+    sql.exec("DELETE FROM entidades WHERE colecao = 'notas'");
+  },
 ];
 
 /** Um arquivo pré-enviado de uma cena. */
@@ -203,8 +242,6 @@ export class Armazenamento {
       usuarios,
       // Capacidades novas (lotes futuros) entram com o padrão sem perder o que já foi salvo.
       permissoes: { ...salvas, jogadores: { ...PERMISSOES_PADRAO, ...salvas.jogadores } },
-      notaMesa: this.lerNota("mesa"),
-      notaMestre: this.lerNota("mestre"),
       ...this.carregarMapa(),
       ...this.carregarCombate(),
       ...this.carregarCompendio(),
@@ -228,6 +265,7 @@ export class Armazenamento {
     | "assets"
     | "personagens"
     | "pastas"
+    | "handouts"
     | "ordemDeTurnoVisivel"
   > {
     const ler = <T>(colecao: string): T[] =>
@@ -268,6 +306,8 @@ export class Armazenamento {
         .map(personagemDoBanco)
         .map((p) => absorverMochila(p, modelos)),
       pastas: ler<Pasta>("pastas").sort((a, b) => a.ordem - b.ordem),
+      // V3: coleção nova (a migração cria as dos handouts vindos das notas); banco anterior: nenhum.
+      handouts: ler<Handout>("handouts"),
       ordemDeTurnoVisivel: this.lerMeta("ordem_de_turno") === "1",
       assets: ler<AssetMeta>("assets"),
     };
@@ -364,13 +404,6 @@ export class Armazenamento {
     this.gravarMeta("relogio", JSON.stringify(relogio));
   }
 
-  private lerNota(id: string): string {
-    const linha = this.sql
-      .exec<{ dados: string }>("SELECT dados FROM entidades WHERE colecao = 'notas' AND id = ?", id)
-      .toArray()[0];
-    return linha ? (JSON.parse(linha.dados) as { texto: string }).texto : "";
-  }
-
   private gravarEntidade(colecao: string, id: string, dados: unknown): void {
     const json = JSON.stringify(dados);
     // UPDATE primeiro para manter o rowid (a ordem dos usuários).
@@ -394,8 +427,6 @@ export class Armazenamento {
   salvarTudo(estado: Estado): void {
     this.sql.exec("DELETE FROM entidades");
     for (const u of estado.usuarios) this.gravarEntidade("usuarios", u.id, u);
-    this.gravarEntidade("notas", "mesa", { texto: estado.notaMesa });
-    this.gravarEntidade("notas", "mestre", { texto: estado.notaMestre ?? "" });
     for (const c of estado.cenas) this.gravarEntidade("cenas", c.id, c);
     for (const t of estado.tokens) this.gravarEntidade("tokens", t.id, t);
     for (const p of estado.paredes) this.gravarEntidade("paredes", p.id, p);
@@ -407,6 +438,7 @@ export class Armazenamento {
     this.gravarMeta("memoria_esquecida", JSON.stringify(estado.memoriaEsquecida ?? {}));
     for (const p of estado.pastas) this.gravarEntidade("pastas", p.id, p);
     for (const p of estado.personagens) this.gravarEntidade("personagens", p.id, p);
+    for (const h of estado.handouts) this.gravarEntidade("handouts", h.id, h);
     for (const a of estado.assets ?? []) this.gravarEntidade("assets", a.hash, a);
     this.gravarMeta("cena_ativa", estado.cenaAtivaId);
     this.gravarMeta("ordem_de_turno", estado.ordemDeTurnoVisivel ? "1" : "0");
@@ -422,12 +454,6 @@ export class Armazenamento {
   salvarEventos(estado: Estado, eventos: EventoSala[]): void {
     for (const ev of eventos) {
       switch (ev.tipo) {
-        case "nota.alterada":
-          this.gravarEntidade("notas", "mesa", { texto: estado.notaMesa });
-          break;
-        case "notaMestre.alterada":
-          this.gravarEntidade("notas", "mestre", { texto: estado.notaMestre ?? "" });
-          break;
         case "papel.alterado": {
           const u = estado.usuarios.find((x) => x.id === ev.dados.usuarioId);
           if (u) this.gravarEntidade("usuarios", u.id, u);
@@ -509,6 +535,12 @@ export class Armazenamento {
           break;
         case "pasta.apagada":
           this.sql.exec("DELETE FROM entidades WHERE colecao = 'pastas' AND id = ?", ev.dados.id);
+          break;
+        case "handout.alterado":
+          this.gravarEntidade("handouts", ev.dados.handout.id, ev.dados.handout);
+          break;
+        case "handout.apagado":
+          this.sql.exec("DELETE FROM entidades WHERE colecao = 'handouts' AND id = ?", ev.dados.id);
           break;
         case "ordemDeTurno.alterada":
           this.gravarMeta("ordem_de_turno", ev.dados.visivel ? "1" : "0");

@@ -30,6 +30,7 @@ export const PermissoesSchema = z.object({
 });
 export type Permissoes = z.infer<typeof PermissoesSchema>;
 
+/** Tamanho máximo de um texto longo (o texto de um handout; antes, as notas da mesa e do mestre). */
 export const TAMANHO_MAXIMO_NOTA = 20_000;
 
 /**
@@ -416,7 +417,7 @@ export const EditoresSchema = z.discriminatedUnion("tipo", [
 ]);
 export type Editores = z.infer<typeof EditoresSchema>;
 
-/** Quem vê uma pasta (e tudo o que está nela). */
+/** Quem vê uma pasta (e tudo o que está nela) ou um handout. */
 export const VisibilidadeSchema = z.discriminatedUnion("tipo", [
   z.object({ tipo: z.literal("todos") }),
   z.object({ tipo: z.literal("mestre") }),
@@ -432,6 +433,37 @@ export const PastaSchema = z.object({
   visivel: VisibilidadeSchema,
 });
 export type Pasta = z.infer<typeof PastaSchema>;
+
+/**
+ * As 5 fontes de um handout (V3), todas empacotadas (@fontsource): `simples` é a da interface (Inter), `livro`
+ * uma serifada, `manuscrito` uma cursiva legível, `medieval` e `datilografado` as de efeito.
+ */
+export const FONTES_DE_HANDOUT = [
+  "simples",
+  "livro",
+  "manuscrito",
+  "medieval",
+  "datilografado",
+] as const;
+export const FonteDeHandoutSchema = z.enum(FONTES_DE_HANDOUT);
+export type FonteDeHandout = z.infer<typeof FonteDeHandoutSchema>;
+
+/**
+ * Handout (V3): um título e um texto (puro, com quebras de linha) numa fonte à escolha, com uma imagem
+ * pequena opcional (asset local, como o retrato) e quem o vê. O mestre sempre vê; o jogador só recebe o
+ * que `visivel` cita (nem o título chega a quem não vê).
+ */
+export const HandoutSchema = z.object({
+  id: z.string().min(1).max(64),
+  pastaId: z.string().min(1).max(64),
+  titulo: z.string().trim().min(1).max(80),
+  texto: z.string().max(TAMANHO_MAXIMO_NOTA),
+  fonte: FonteDeHandoutSchema,
+  /** Imagem de preview (asset do tipo retrato ou token). */
+  imagemHash: HashSchema.optional(),
+  visivel: VisibilidadeSchema,
+});
+export type Handout = z.infer<typeof HandoutSchema>;
 
 export const PersonagemSchema = z.object({
   id: z.string().min(1).max(64),
@@ -471,15 +503,14 @@ export const PersonagemSchema = z.object({
 export type Personagem = z.infer<typeof PersonagemSchema>;
 
 /**
- * Estado da campanha. Na visão de um jogador `notaMestre` não existe, `porUsuario` só tem a
- * entrada dele mesmo, `cenas` só tem a cena ativa e `pastas`/`personagens` só têm o que ele vê.
+ * Estado da campanha. Na visão de um jogador `porUsuario` só tem a entrada dele mesmo, `cenas` só tem a
+ * cena ativa e `pastas`/`personagens`/`handouts` só têm o que ele vê. (Até o V2 havia `notaMesa` e
+ * `notaMestre`; viraram handouts na migração.)
  */
 export const EstadoSchema = z.object({
   seq: z.number().int().nonnegative(),
   usuarios: z.array(UsuarioSchema),
   permissoes: PermissoesSchema,
-  notaMesa: z.string().max(TAMANHO_MAXIMO_NOTA),
-  notaMestre: z.string().max(TAMANHO_MAXIMO_NOTA).optional(),
   cenas: z.array(CenaSchema).min(1),
   cenaAtivaId: z.string().min(1).max(64),
   /** Na visão de um jogador: sem os tokens ocultos nem os da camada do mestre. */
@@ -523,6 +554,8 @@ export const EstadoSchema = z.object({
   pastas: z.array(PastaSchema),
   /** Na visão de um jogador: os que ele edita e os das pastas que ele vê. */
   personagens: z.array(PersonagemSchema),
+  /** Handouts (V3). Na visão de um jogador: só os que `visivel` cita (e a pasta aparece por causa deles). */
+  handouts: z.array(HandoutSchema),
   /** O painel flutuante de ordem de turno aparece para todos? */
   ordemDeTurnoVisivel: z.boolean(),
   /**

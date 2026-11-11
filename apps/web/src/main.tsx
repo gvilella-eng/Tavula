@@ -1,5 +1,9 @@
+import "@fontsource-variable/caveat/wght.css";
 import "@fontsource-variable/inter";
+import "@fontsource-variable/lora/wght.css";
 import "@fontsource-variable/space-grotesk";
+import "@fontsource/medievalsharp/latin-400.css";
+import "@fontsource/special-elite/latin-400.css";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";

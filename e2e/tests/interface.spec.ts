@@ -78,7 +78,7 @@ test("a ordem de turno liga e desliga para todos, inclusive o mestre; só o mest
     mestre.pagina.getByTestId("exportar").click(),
   ]);
   const json = JSON.parse(readFileSync(await download.path(), "utf8"));
-  expect(json.versao).toBe(12);
+  expect(json.versao).toBe(13);
   expect(json.dados.ordemDeTurnoVisivel).toBe(true);
   expect(json.dados.pastas.map((p: { id: string }) => p.id)).toEqual([
     "pasta-personagens",
@@ -237,7 +237,7 @@ test("menu superior, camadas, dados rápidos e pincel (interface; o que não tem
   await expect(p.getByTestId("barra-ferramentas")).toBeVisible();
 });
 
-test("barra da direita: Chat, Fichas, Notas, Compêndio, Preferências e Mesa (largura fixa, sem texto cortado)", async ({
+test("barra da direita: Chat, Fichas, Compêndio, Preferências e Mesa (largura fixa, sem texto transbordando)", async ({
   mesa,
 }) => {
   test.setTimeout(90_000);
@@ -255,7 +255,6 @@ test("barra da direita: Chat, Fichas, Notas, Compêndio, Preferências e Mesa (l
   expect(await abas(mestre.pagina)).toEqual([
     "aba-chat",
     "aba-fichas",
-    "aba-notas",
     "aba-compendio",
     "aba-preferencias",
     "aba-mesa",
@@ -263,7 +262,6 @@ test("barra da direita: Chat, Fichas, Notas, Compêndio, Preferências e Mesa (l
   expect(await abas(j1.pagina)).toEqual([
     "aba-chat",
     "aba-fichas",
-    "aba-notas",
     "aba-compendio",
     "aba-preferencias",
   ]);
@@ -294,21 +292,18 @@ test("barra da direita: Chat, Fichas, Notas, Compêndio, Preferências e Mesa (l
   await expect(p.getByTestId("chat-aviso")).toHaveCount(0);
   await expect(p.getByTestId("chat-mensagens")).toContainText("Nenhuma mensagem");
 
-  // Notas (aba própria desde o R4): a da mesa e a do mestre; as Fichas ficam só com as pastas
-  await abrirAba(p, "notas");
-  await expect(p.getByTestId("aba-painel-notas").getByTestId("nota-mesa")).toBeVisible();
-  await expect(p.getByTestId("aba-painel-notas").getByTestId("nota-mestre")).toBeVisible();
-  await expect(j1.pagina.getByTestId("nota-mestre")).toHaveCount(0);
+  // Fichas (as notas viraram handouts, V3): as pastas e um botão só, "+ Novo", com as quatro opções
   await abrirAba(p, "fichas");
-  await expect(p.getByTestId("aba-painel-fichas").getByTestId("nota-mesa")).toHaveCount(0);
   await expect(p.getByTestId("ficha-pasta-pasta-personagens")).toBeVisible();
   await expect(p.getByTestId("ficha-pasta-pasta-npcs")).toBeVisible();
-  // "+ Novo": Personagem e NPC funcionam; Artefato, Tesouro e Handout estão desabilitados
   await p.getByTestId("ficha-novo").click();
-  await expect(p.getByTestId("ficha-novo-personagem")).toBeEnabled();
-  await expect(p.getByTestId("ficha-novo-npc")).toBeEnabled();
-  for (const n of ["artefato", "tesouro", "handout"]) {
-    await expect(p.getByTestId(`ficha-novo-${n}`)).toBeDisabled();
+  for (const n of [
+    "ficha-novo-personagem",
+    "ficha-novo-npc",
+    "ficha-novo-handout",
+    "ficha-nova-pasta",
+  ]) {
+    await expect(p.getByTestId(n)).toBeEnabled();
   }
   await p.keyboard.press("Escape");
   // a janela da ficha (duplo clique): na aba Configurar, "Importar ficha" já funciona (Lote 9)
@@ -354,7 +349,7 @@ test("barra da direita: Chat, Fichas, Notas, Compêndio, Preferências e Mesa (l
 
   // largura fixa: a barra não muda de tamanho entre as abas e nada passa da borda
   const largurasVistas = new Set<number>();
-  for (const aba of ["chat", "fichas", "notas", "compendio", "mesa", "preferencias"]) {
+  for (const aba of ["chat", "fichas", "compendio", "mesa", "preferencias"]) {
     await abrirAba(p, aba);
     const caixa = await p.getByTestId("barra-lateral").boundingBox();
     largurasVistas.add(Math.round(caixa?.width ?? 0));

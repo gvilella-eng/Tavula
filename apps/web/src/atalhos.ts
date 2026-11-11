@@ -63,6 +63,11 @@ export const ATALHOS = {
     grupo: "Menus",
     teclas: [["Shift", "F10"], ["Menu"]],
   },
+  menuDaLista: {
+    descricao: "Abrir o menu do item, da pasta ou do handout em foco (aba Fichas)",
+    grupo: "Menus",
+    teclas: [["Shift", "F10"], ["Menu"]],
+  },
   menuNavegar: {
     descricao: "Andar pelos itens de um menu",
     grupo: "Menus",
@@ -106,6 +111,11 @@ export const ATALHOS = {
     descricao: "Quebrar a linha no chat",
     grupo: "Campos",
     teclas: [["Shift", "Enter"]],
+  },
+  renomearPasta: {
+    descricao: "Renomear a pasta em foco (aba Fichas, mestre)",
+    grupo: "Campos",
+    teclas: [["F2"]],
   },
   campoConfirmar: {
     descricao: "Confirmar o campo editado (a iniciativa só vale assim)",

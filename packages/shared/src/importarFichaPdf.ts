@@ -455,7 +455,8 @@ export function importarFichaDoPdf(pedacos: readonly Pedaco[]): ImportacaoDoPdf 
       incertos: [
         {
           caminho: "",
-          motivo: "Este PDF não parece a ficha impressa (não achei nome, classe nem atributos).",
+          motivo:
+            "Este PDF não parece uma ficha que eu saiba ler (não achei nome, classe nem atributos).",
           trecho: "",
         },
       ],

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { Estado, Usuario } from "./estado.ts";
-import { personagemVisivelPara, tokenVisivelPara } from "./mapa.ts";
+import { handoutVisivelPara, personagemVisivelPara, tokenVisivelPara } from "./mapa.ts";
 
 // ---------------------------------------------------------------------------------------------
 // Limites e constantes (PROJETO.md 4.3)
@@ -345,7 +345,7 @@ function metaDe(estado: Pick<Estado, "assets">, hash: string): AssetMeta | undef
 /** Todo hash que algo da campanha usa: mapas das cenas, imagens dos tokens e os tiles deles. */
 export function hashesUsados(
   estado: Pick<Estado, "assets" | "cenas" | "tokens" | "personagens"> &
-    Partial<Pick<Estado, "compendio">>,
+    Partial<Pick<Estado, "compendio" | "handouts">>,
 ): Set<string> {
   const usados = new Set<string>();
   const usar = (hash: string | undefined) => {
@@ -359,6 +359,8 @@ export function hashesUsados(
     usar(p.tokenPadrao.assetHash);
     usar(p.retratoHash);
   }
+  // A imagem de preview dos handouts (V3).
+  for (const h of estado.handouts ?? []) usar(h.imagemHash);
   // O compêndio da mesa (Lote 14): a meta vai na exportação (o arquivo, não).
   usar(estado.compendio?.hash);
   return usados;
@@ -400,7 +402,7 @@ export function hashesPreparaveis(
 export function assetVisivelPara(
   hash: string,
   estado: Pick<Estado, "assets" | "cenas" | "cenaAtivaId" | "tokens" | "personagens" | "pastas"> &
-    Partial<Pick<Estado, "retratosDoChat" | "compendio">>,
+    Partial<Pick<Estado, "retratosDoChat" | "compendio" | "handouts">>,
   usuario: Quem,
 ): boolean {
   const meta = metaDe(estado, hash);
@@ -423,6 +425,12 @@ export function assetVisivelPara(
         (p.tokenPadrao.assetHash === hash || p.retratoHash === hash) &&
         personagemVisivelPara(p, usuario, estado.pastas),
     )
+  ) {
+    return true;
+  }
+  // A imagem de um handout que ele vê (V3).
+  if (
+    estado.handouts?.some((h) => h.imagemHash === hash && handoutVisivelPara(h, usuario)) === true
   ) {
     return true;
   }

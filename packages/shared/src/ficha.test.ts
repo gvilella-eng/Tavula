@@ -796,7 +796,7 @@ describe("migração da mochila do Lote 7", () => {
     expect(lida.ok).toBe(true);
     if (!lida.ok) return;
     expect(lida.exportacao.versao).toBe(VERSAO_EXPORTACAO);
-    expect(VERSAO_EXPORTACAO).toBe(12);
+    expect(VERSAO_EXPORTACAO).toBe(13);
     const p = lida.exportacao.dados.personagens[0];
     expect(p?.mochila).toBeUndefined();
     expect(p?.ficha).toEqual({
@@ -809,7 +809,7 @@ describe("migração da mochila do Lote 7", () => {
   it("exportar e importar uma v9 devolve a mesma ficha", () => {
     const e = criarEstado();
     const x = criarExportacao(e, AGORA);
-    expect(x.versao).toBe(12);
+    expect(x.versao).toBe(13);
     const lida = lerExportacao(JSON.parse(JSON.stringify(x)));
     expect(lida.ok && lida.exportacao.dados.personagens[0]?.ficha).toEqual(darion);
   });

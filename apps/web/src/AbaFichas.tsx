@@ -1,5 +1,7 @@
 import {
   type Estado,
+  type Handout,
+  PASTA_HANDOUTS_ID,
   PASTA_NPCS_ID,
   PASTA_PERSONAGENS_ID,
   type Pasta,
@@ -12,22 +14,20 @@ import {
   ChevronDown,
   ChevronRight,
   Eye,
-  FileText,
   FolderPlus,
-  GripVertical,
   Lock,
-  MoreHorizontal,
-  Pencil,
   Plus,
-  Trash2,
+  ScrollText,
+  User,
   Users,
 } from "lucide-react";
-import { type DragEvent, useEffect, useRef, useState } from "react";
+import { type DragEvent, type KeyboardEvent, useEffect, useRef, useState } from "react";
 import { Avatar } from "./Avatar";
 import { lerItemArrastado, TIPO_DE_ARRASTO_DA_FICHA } from "./arrasto";
 import { BotaoComDica } from "./BotaoComDica";
 import type { AbaDaFicha } from "./ficha/janelas";
-import { useImportadorDePdf } from "./ficha/useImportadorDePdf";
+import { MiniaturaDoHandout } from "./JanelaDoHandout";
+import { type ItemDoMenu, MenuDeContexto, pontoDoElemento } from "./MenuDeContexto";
 import type { ImagensDoMapa } from "./mapa/mapaPixi";
 import { Popover } from "./Popover";
 
@@ -41,94 +41,32 @@ type Props = {
   versaoDasImagens: number;
   /** Abre a janela da ficha (um clique no item; o item recém-criado abre em Configurar). */
   aoAbrirFicha: (personagemId: string, aba?: AbaDaFicha) => void;
+  /** Abre a janela de um handout. */
+  aoAbrirHandout: (handoutId: string) => void;
 };
 
-const ITENS_EM_BREVE = ["Artefato", "Tesouro", "Handout"];
+/** O que o menu de botão direito está mostrando agora: o alvo e o ponto da página. */
+type MenuAberto = {
+  alvo: { tipo: "personagem" | "handout" | "pasta"; id: string };
+  x: number;
+  y: number;
+  teclado: boolean;
+};
 
-function IconeDaVisibilidade({ v }: { v: Visibilidade }) {
+const ATALHO_DO_MENU = (e: KeyboardEvent) =>
+  e.key === "ContextMenu" || (e.key === "F10" && e.shiftKey && !e.ctrlKey && !e.altKey);
+
+function iconeDaVisibilidade(v: Visibilidade) {
   if (v.tipo === "todos") return <Eye size={14} />;
   if (v.tipo === "mestre") return <Lock size={14} />;
   return <Users size={14} />;
 }
 
-/** Quem vê a pasta: todos, jogadores escolhidos ou só o mestre (aplica na hora). */
-function PopoverDeVisibilidade({
-  pasta,
-  jogadores,
-  enviar,
-  aoFechar,
-}: {
-  pasta: Pasta;
-  jogadores: Usuario[];
-  enviar: Enviar;
-  aoFechar: () => void;
-}) {
-  const v = pasta.visivel;
-  const ids = v.tipo === "jogadores" ? v.ids : [];
-  const definir = (visivel: Visibilidade) => enviar("pasta.editar", { id: pasta.id, visivel });
-  return (
-    <Popover
-      testid={`ficha-pasta-visibilidade-${pasta.id}`}
-      titulo="Quem vê esta pasta"
-      className="popover-visibilidade"
-      aoFechar={aoFechar}
-    >
-      <fieldset className="opcoes-visibilidade">
-        <legend className="so-leitor">Quem vê</legend>
-        <label className="item-menu">
-          <input
-            type="radio"
-            name={`visib-${pasta.id}`}
-            data-testid="visib-todos"
-            checked={v.tipo === "todos"}
-            onChange={() => definir({ tipo: "todos" })}
-          />
-          <Eye size={14} /> Todos os jogadores
-        </label>
-        <label className="item-menu">
-          <input
-            type="radio"
-            name={`visib-${pasta.id}`}
-            data-testid="visib-jogadores"
-            checked={v.tipo === "jogadores"}
-            onChange={() => definir({ tipo: "jogadores", ids })}
-          />
-          <Users size={14} /> Jogadores escolhidos
-        </label>
-        {v.tipo === "jogadores" && (
-          <div className="chips recuado">
-            {jogadores.map((u) => (
-              <button
-                key={u.id}
-                type="button"
-                className="chip"
-                data-testid={`visib-jogador-${u.id}`}
-                aria-pressed={ids.includes(u.id)}
-                onClick={() =>
-                  definir({
-                    tipo: "jogadores",
-                    ids: ids.includes(u.id) ? ids.filter((x) => x !== u.id) : [...ids, u.id],
-                  })
-                }
-              >
-                {u.nome}
-              </button>
-            ))}
-          </div>
-        )}
-        <label className="item-menu">
-          <input
-            type="radio"
-            name={`visib-${pasta.id}`}
-            data-testid="visib-mestre"
-            checked={v.tipo === "mestre"}
-            onChange={() => definir({ tipo: "mestre" })}
-          />
-          <Lock size={14} /> Só o mestre
-        </label>
-      </fieldset>
-    </Popover>
-  );
+function rotuloDaVisibilidade(v: Visibilidade, jogadores: Usuario[]): string {
+  if (v.tipo === "todos") return "Todos os jogadores";
+  if (v.tipo === "mestre") return "Só o mestre";
+  const nomes = v.ids.map((id) => jogadores.find((u) => u.id === id)?.nome ?? id);
+  return nomes.length > 0 ? nomes.join(", ") : "Só o mestre";
 }
 
 type PropsItem = {
@@ -137,15 +75,14 @@ type PropsItem = {
   imagens: ImagensDoMapa | null;
   versao: number;
   aoAbrir: () => void;
-  /** Importa a ficha de um PDF de ficha por cima deste item (só para quem edita). */
-  aoImportarPdf: () => void;
+  aoMenu: (x: number, y: number, teclado: boolean) => void;
 };
 
-function Item({ p, eu, imagens, versao, aoAbrir, aoImportarPdf }: PropsItem) {
+/** Um personagem ou NPC na árvore: o retrato, o nome e, à direita, os PV. */
+function Item({ p, eu, imagens, versao, aoAbrir, aoMenu }: PropsItem) {
   const euMestre = eu.papel === "mestre";
   const linha = useRef<HTMLLIElement>(null);
-  const [menu, setMenu] = useState(false);
-  // O mestre arrasta o item inteiro (a alça ou o nome) para outra pasta ou para o mapa.
+  // O mestre arrasta o item inteiro para outra pasta ou para o mapa.
   const iniciarArrasto = (e: DragEvent) => {
     e.dataTransfer.setData(
       TIPO_DE_ARRASTO_DA_FICHA,
@@ -160,29 +97,26 @@ function Item({ p, eu, imagens, versao, aoAbrir, aoImportarPdf }: PropsItem) {
       className="ficha-item"
       data-testid={`ficha-item-${p.id}`}
       data-personagem-id={p.id}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        aoMenu(e.clientX, e.clientY, false);
+      }}
+      onKeyDown={(e) => {
+        if (!ATALHO_DO_MENU(e)) return;
+        e.preventDefault();
+        const ponto = pontoDoElemento(e.currentTarget);
+        aoMenu(ponto.x, ponto.y, true);
+      }}
     >
-      {euMestre ? (
-        // biome-ignore lint/a11y/useSemanticElements: a alça é só o ponto de partida do arrasto (HTML5)
-        <span
-          className="alca"
-          role="button"
-          tabIndex={-1}
-          draggable
-          data-testid={`ficha-alca-${p.id}`}
-          title="Arraste para outra pasta ou para o mapa"
-          aria-label={`Arrastar ${p.nome}`}
-          onDragStart={iniciarArrasto}
-        >
-          <GripVertical size={16} />
-        </span>
-      ) : (
-        <span className="alca desligada" aria-hidden="true" />
-      )}
       <BotaoComDica
         className="ficha-abrir"
         testid={`ficha-abrir-${p.id}`}
         nome="Abrir a ficha"
-        dica={euMestre ? "Arraste para o mapa para pôr o token." : undefined}
+        dica={
+          euMestre
+            ? "Arraste para o mapa para pôr o token. Botão direito: mais ações."
+            : "Botão direito: mais ações."
+        }
         draggable={euMestre || undefined}
         onDragStart={euMestre ? iniciarArrasto : undefined}
         onClick={aoAbrir}
@@ -198,56 +132,88 @@ function Item({ p, eu, imagens, versao, aoAbrir, aoImportarPdf }: PropsItem) {
         <span className="ficha-nome" data-testid={`ficha-nome-${p.id}`}>
           {p.nome}
         </span>
+        {!euMestre && podeEditarPersonagem(p, eu) && <span className="selo">seu</span>}
         {p.ficha && (
           <span className="ficha-pv" title="Pontos de vida">
             {p.ficha.pvAtual}/{p.ficha.pvMax}
           </span>
         )}
-        {!euMestre && podeEditarPersonagem(p, eu) && <span className="selo">seu</span>}
       </BotaoComDica>
-      {podeEditarPersonagem(p, eu) && (
-        <span className="ficha-item-menu">
-          <BotaoComDica
-            className="botao-icone pequeno"
-            data-popover-gatilho=""
-            testid={`ficha-menu-${p.id}`}
-            nome="Mais ações"
-            dica="Importar PDF, exportar e outras ações deste item."
-            semDica={menu}
-            aria-expanded={menu}
-            aria-label={`Mais ações de ${p.nome}`}
-            onClick={() => setMenu(!menu)}
-          >
-            <MoreHorizontal size={16} />
-          </BotaoComDica>
-          {menu && (
-            <Popover
-              testid={`ficha-menu-itens-${p.id}`}
-              className="popover-item"
-              aoFechar={() => setMenu(false)}
-            >
-              <button
-                type="button"
-                className="item-menu"
-                data-testid={`ficha-menu-importar-pdf-${p.id}`}
-                onClick={() => {
-                  setMenu(false);
-                  aoImportarPdf();
-                }}
-              >
-                <FileText size={14} /> Importar PDF…
-              </button>
-            </Popover>
-          )}
+    </li>
+  );
+}
+
+type PropsHandout = {
+  h: Handout;
+  eu: Usuario;
+  jogadores: Usuario[];
+  imagens: ImagensDoMapa | null;
+  versao: number;
+  aoAbrir: () => void;
+  aoMenu: (x: number, y: number, teclado: boolean) => void;
+};
+
+/** Um handout na árvore: a imagem pequena (ou o pergaminho) à esquerda e o título. */
+function ItemDeHandout({ h, eu, jogadores, imagens, versao, aoAbrir, aoMenu }: PropsHandout) {
+  const euMestre = eu.papel === "mestre";
+  const linha = useRef<HTMLLIElement>(null);
+  const iniciarArrasto = (e: DragEvent) => {
+    e.dataTransfer.setData(TIPO_DE_ARRASTO_DA_FICHA, JSON.stringify({ tipo: "handout", id: h.id }));
+    e.dataTransfer.effectAllowed = "move";
+    if (linha.current) e.dataTransfer.setDragImage(linha.current, 12, 12);
+  };
+  return (
+    <li
+      ref={linha}
+      className="ficha-item ficha-handout"
+      data-testid={`handout-item-${h.id}`}
+      data-handout-id={h.id}
+      onContextMenu={(e) => {
+        if (!euMestre) return;
+        e.preventDefault();
+        aoMenu(e.clientX, e.clientY, false);
+      }}
+      onKeyDown={(e) => {
+        if (!euMestre || !ATALHO_DO_MENU(e)) return;
+        e.preventDefault();
+        const ponto = pontoDoElemento(e.currentTarget);
+        aoMenu(ponto.x, ponto.y, true);
+      }}
+    >
+      <BotaoComDica
+        className="ficha-abrir"
+        testid={`handout-abrir-${h.id}`}
+        nome="Abrir o handout"
+        dica={euMestre ? "Botão direito: mais ações." : undefined}
+        draggable={euMestre || undefined}
+        onDragStart={euMestre ? iniciarArrasto : undefined}
+        onClick={aoAbrir}
+      >
+        <MiniaturaDoHandout handout={h} imagens={imagens} versao={versao} />
+        <span className="ficha-nome" data-testid={`handout-nome-${h.id}`}>
+          {h.titulo}
         </span>
-      )}
+        {euMestre && (
+          <span
+            className="handout-quem-ve"
+            data-testid={`handout-quem-ve-${h.id}`}
+            data-visivel={h.visivel.tipo}
+            role="img"
+            aria-label={`Quem vê: ${rotuloDaVisibilidade(h.visivel, jogadores)}`}
+            title={`Quem vê: ${rotuloDaVisibilidade(h.visivel, jogadores)}`}
+          >
+            {iconeDaVisibilidade(h.visivel)}
+          </span>
+        )}
+      </BotaoComDica>
     </li>
   );
 }
 
 type PropsPasta = {
   pasta: Pasta;
-  itens: Personagem[];
+  personagens: Personagem[];
+  handouts: Handout[];
   eu: Usuario;
   jogadores: Usuario[];
   aberta: boolean;
@@ -256,13 +222,21 @@ type PropsPasta = {
   enviar: Enviar;
   aoAlternar: () => void;
   aoAbrirItem: (id: string) => void;
-  aoSoltar: (itemId: string, pastaId: string) => void;
-  aoImportarPdf: (p: Personagem) => void;
+  aoAbrirHandout: (id: string) => void;
+  aoSoltar: (item: { tipo: "personagem" | "handout"; id: string }, pastaId: string) => void;
+  aoMenu: (alvo: MenuAberto["alvo"], x: number, y: number, teclado: boolean) => void;
+  /** O pedido de renomear (menu da pasta): muda a cada pedido, para repetir. */
+  renomear: number;
 };
 
+/**
+ * Uma pasta da árvore: a linha dela (seta de recolher, nome e quantos itens) e, embaixo, os itens com um recuo
+ * à esquerda e uma linha-guia. Sem caixa em volta. O mestre renomeia clicando no nome (ou F2 com ele em foco).
+ */
 function SecaoDaPasta({
   pasta,
-  itens,
+  personagens,
+  handouts,
   eu,
   jogadores,
   aberta,
@@ -271,23 +245,33 @@ function SecaoDaPasta({
   enviar,
   aoAlternar,
   aoAbrirItem,
+  aoAbrirHandout,
   aoSoltar,
-  aoImportarPdf,
+  aoMenu,
+  renomear,
 }: PropsPasta) {
   const euMestre = eu.papel === "mestre";
   const [editando, setEditando] = useState(false);
   const [nome, setNome] = useState(pasta.nome);
-  const [visibilidade, setVisibilidade] = useState(false);
   const [sobre, setSobre] = useState(false);
+  const botaoDoNome = useRef<HTMLButtonElement>(null);
   useEffect(() => setNome(pasta.nome), [pasta.nome]);
+  // O menu da pasta pediu para renomear.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: o gatilho é o contador do pedido
+  useEffect(() => {
+    if (renomear > 0 && euMestre) setEditando(true);
+  }, [renomear]);
 
   function confirmar() {
     setEditando(false);
     const limpo = nome.trim();
     if (limpo && limpo !== pasta.nome) enviar("pasta.editar", { id: pasta.id, nome: limpo });
     else setNome(pasta.nome);
+    // O foco volta ao nome (o campo some ao confirmar).
+    requestAnimationFrame(() => botaoDoNome.current?.focus({ preventScroll: true }));
   }
 
+  const total = personagens.length + handouts.length;
   return (
     // biome-ignore lint/a11y/useSemanticElements: a pasta é alvo de soltar (HTML5); fieldset estragaria o layout
     <section
@@ -311,10 +295,25 @@ function SecaoDaPasta({
         const item = lerItemArrastado(e.dataTransfer.getData(TIPO_DE_ARRASTO_DA_FICHA));
         if (!item || !euMestre) return;
         e.preventDefault();
-        aoSoltar(item.id, pasta.id);
+        aoSoltar(item, pasta.id);
       }}
     >
-      <header className="ficha-pasta-cabecalho">
+      {/* biome-ignore lint/a11y/noStaticElementInteractions: o menu também abre pelo teclado, nos botões da linha (Shift+F10) */}
+      <header
+        className="ficha-pasta-cabecalho"
+        data-testid={`ficha-pasta-linha-${pasta.id}`}
+        onContextMenu={(e) => {
+          if (!euMestre) return;
+          e.preventDefault();
+          aoMenu({ tipo: "pasta", id: pasta.id }, e.clientX, e.clientY, false);
+        }}
+        onKeyDown={(e) => {
+          if (!euMestre || editando || !ATALHO_DO_MENU(e)) return;
+          e.preventDefault();
+          const ponto = pontoDoElemento(e.currentTarget);
+          aoMenu({ tipo: "pasta", id: pasta.id }, ponto.x, ponto.y, true);
+        }}
+      >
         <button
           type="button"
           className="botao-icone pequeno"
@@ -328,77 +327,62 @@ function SecaoDaPasta({
         </button>
         {editando ? (
           <input
-            className="cena-nome-campo"
+            className="cena-nome-campo ficha-pasta-campo"
             aria-label={`Nome da pasta ${pasta.nome}`}
             data-testid={`ficha-pasta-nome-editar-${pasta.id}`}
             value={nome}
             maxLength={64}
-            // biome-ignore lint/a11y/noAutofocus: o campo nasce do clique em renomear
+            // biome-ignore lint/a11y/noAutofocus: o campo nasce do clique no nome
             autoFocus
+            onFocus={(e) => e.currentTarget.select()}
             onChange={(e) => setNome(e.target.value)}
             onBlur={confirmar}
             onKeyDown={(e) => {
+              e.stopPropagation();
               if (e.key === "Enter") e.currentTarget.blur();
               if (e.key === "Escape") {
                 setNome(pasta.nome);
                 setEditando(false);
+                requestAnimationFrame(() => botaoDoNome.current?.focus({ preventScroll: true }));
               }
             }}
           />
-        ) : (
-          <span className="ficha-pasta-nome" data-testid={`ficha-pasta-nome-${pasta.id}`}>
+        ) : euMestre ? (
+          <button
+            ref={botaoDoNome}
+            type="button"
+            className="ficha-pasta-nome editavel"
+            data-testid={`ficha-pasta-nome-${pasta.id}`}
+            title="Clique para renomear (F2)"
+            aria-keyshortcuts="F2"
+            onClick={() => setEditando(true)}
+            onKeyDown={(e) => {
+              if (e.key === "F2") {
+                e.preventDefault();
+                setEditando(true);
+              }
+            }}
+          >
             {pasta.nome}
-          </span>
+          </button>
+        ) : (
+          <button
+            ref={botaoDoNome}
+            type="button"
+            className="ficha-pasta-nome"
+            data-testid={`ficha-pasta-nome-${pasta.id}`}
+            onClick={aoAlternar}
+          >
+            {pasta.nome}
+          </button>
         )}
-        <span className="ficha-pasta-total">{itens.length}</span>
-        {euMestre && (
-          <span className="ficha-pasta-acoes">
-            <button
-              type="button"
-              className="botao-icone pequeno"
-              data-testid={`ficha-pasta-renomear-${pasta.id}`}
-              title="Renomear a pasta"
-              aria-label="Renomear a pasta"
-              onClick={() => setEditando(true)}
-            >
-              <Pencil size={14} />
-            </button>
-            <button
-              type="button"
-              className="botao-icone pequeno"
-              data-popover-gatilho=""
-              data-testid={`ficha-pasta-visib-${pasta.id}`}
-              title="Quem vê esta pasta"
-              aria-label="Quem vê esta pasta"
-              onClick={() => setVisibilidade(!visibilidade)}
-            >
-              <IconeDaVisibilidade v={pasta.visivel} />
-            </button>
-            <button
-              type="button"
-              className="botao-icone pequeno"
-              data-testid={`ficha-pasta-apagar-${pasta.id}`}
-              disabled={itens.length > 0}
-              title={itens.length > 0 ? "Só uma pasta vazia pode ser apagada" : "Apagar a pasta"}
-              aria-label="Apagar a pasta"
-              onClick={() => enviar("pasta.apagar", { id: pasta.id })}
-            >
-              <Trash2 size={14} />
-            </button>
-          </span>
-        )}
+        <span className="ficha-pasta-total" data-testid={`ficha-pasta-total-${pasta.id}`}>
+          {total}
+        </span>
       </header>
-      {visibilidade && euMestre && (
-        <PopoverDeVisibilidade
-          pasta={pasta}
-          jogadores={jogadores}
-          enviar={enviar}
-          aoFechar={() => setVisibilidade(false)}
-        />
-      )}
       {aberta && (
         <ul className="lista-simples ficha-lista">
-          {itens.map((p) => (
+          {personagens.map((p) => (
             <Item
               key={p.id}
               p={p}
@@ -406,10 +390,22 @@ function SecaoDaPasta({
               imagens={imagens}
               versao={versao}
               aoAbrir={() => aoAbrirItem(p.id)}
-              aoImportarPdf={() => aoImportarPdf(p)}
+              aoMenu={(x, y, teclado) => aoMenu({ tipo: "personagem", id: p.id }, x, y, teclado)}
             />
           ))}
-          {itens.length === 0 && <li className="nota">Pasta vazia.</li>}
+          {handouts.map((h) => (
+            <ItemDeHandout
+              key={h.id}
+              h={h}
+              eu={eu}
+              jogadores={jogadores}
+              imagens={imagens}
+              versao={versao}
+              aoAbrir={() => aoAbrirHandout(h.id)}
+              aoMenu={(x, y, teclado) => aoMenu({ tipo: "handout", id: h.id }, x, y, teclado)}
+            />
+          ))}
+          {total === 0 && <li className="nota ficha-vazia">Pasta vazia.</li>}
         </ul>
       )}
     </section>
@@ -417,30 +413,47 @@ function SecaoDaPasta({
 }
 
 /**
- * Aba Fichas (o "diário"): as pastas, sem subpastas (as notas têm aba própria desde o R4).
- * A pasta define quem vê (o mestre muda); quem edita é do item. Arrastar pela alça leva o item para
- * outra pasta ou para o mapa (só o mestre).
+ * Aba Fichas (o "diário"), em árvore (V3): cada pasta é uma linha e os itens dela (personagens, NPCs e handouts)
+ * vêm embaixo com um recuo, sem subpastas. Um botão só, "+ Novo" (Personagem, NPC, Handout e Pasta). Clique abre;
+ * o botão direito (ou Shift+F10) abre o menu do item e da pasta; o mestre arrasta o item para outra pasta e o
+ * personagem para o mapa.
  */
-export function AbaFichas({ estado, eu, enviar, imagens, versaoDasImagens, aoAbrirFicha }: Props) {
+export function AbaFichas({
+  estado,
+  eu,
+  enviar,
+  imagens,
+  versaoDasImagens,
+  aoAbrirFicha,
+  aoAbrirHandout,
+}: Props) {
   const euMestre = eu.papel === "mestre";
   const jogadores = estado.usuarios.filter((u) => u.papel === "jogador");
   const [recolhidas, setRecolhidas] = useState<Set<string>>(new Set());
   const [novoAberto, setNovoAberto] = useState(false);
   const [paraAbrir, setParaAbrir] = useState<string | null>(null);
-  const importadorDePdf = useImportadorDePdf({
-    estado,
-    eu,
-    enviar,
-    aoCriar: (id) => aoAbrirFicha(id, "principal"),
+  const [handoutParaAbrir, setHandoutParaAbrir] = useState<string | null>(null);
+  const [menu, setMenu] = useState<MenuAberto | null>(null);
+  const abriuNoTeclado = useRef(0);
+  const [apagando, setApagando] = useState<string | null>(null);
+  const [pedidoDeRenomear, setPedidoDeRenomear] = useState<{ id: string; n: number }>({
+    id: "",
+    n: 0,
   });
 
-  // O item recém-criado abre na janela (aba Configurar) assim que a sala o devolve.
+  // O item recém-criado abre na janela (aba Configurar, com o "Importar PDF" à vista) assim que a sala o devolve.
   useEffect(() => {
     if (paraAbrir && estado.personagens.some((p) => p.id === paraAbrir)) {
       aoAbrirFicha(paraAbrir, "configurar");
       setParaAbrir(null);
     }
   }, [paraAbrir, estado.personagens, aoAbrirFicha]);
+  useEffect(() => {
+    if (handoutParaAbrir && estado.handouts.some((h) => h.id === handoutParaAbrir)) {
+      aoAbrirHandout(handoutParaAbrir);
+      setHandoutParaAbrir(null);
+    }
+  }, [handoutParaAbrir, estado.handouts, aoAbrirHandout]);
 
   const pastas = [...estado.pastas].sort((a, b) => a.ordem - b.ordem);
   const idsDePastas = new Set(pastas.map((p) => p.id));
@@ -481,99 +494,378 @@ export function AbaFichas({ estado, eu, enviar, imagens, versaoDasImagens, aoAbr
     if (enviado) setParaAbrir(id);
   }
 
+  function proximaOrdem(): number {
+    return pastas.reduce((m, p) => Math.max(m, p.ordem), -1) + 1;
+  }
+
   function criarPasta() {
-    const ordem = pastas.reduce((m, p) => Math.max(m, p.ordem), -1) + 1;
+    setNovoAberto(false);
     enviar("pasta.criar", {
       pasta: {
         id: `pasta-${crypto.randomUUID().slice(0, 8)}`,
         nome: "Nova pasta",
-        ordem,
+        ordem: proximaOrdem(),
         visivel: { tipo: "mestre" },
       },
     });
   }
 
-  function moverParaPasta(itemId: string, pastaId: string) {
-    const p = estado.personagens.find((x) => x.id === itemId);
-    if (p && p.pastaId !== pastaId)
-      enviar("personagem.editar", { id: itemId, mudancas: { pastaId } });
+  /** Um handout novo vai para a pasta "Handouts" (criada na hora, se ainda não existe), só do mestre e em "Livro". */
+  function criarHandout() {
+    setNovoAberto(false);
+    let pastaId = PASTA_HANDOUTS_ID;
+    if (!idsDePastas.has(PASTA_HANDOUTS_ID)) {
+      pastaId = PASTA_HANDOUTS_ID;
+      enviar("pasta.criar", {
+        pasta: {
+          id: PASTA_HANDOUTS_ID,
+          nome: "Handouts",
+          ordem: proximaOrdem(),
+          visivel: { tipo: "mestre" },
+        },
+      });
+    }
+    const id = `handout-${crypto.randomUUID().slice(0, 8)}`;
+    const enviado = enviar("handout.criar", {
+      handout: {
+        id,
+        pastaId,
+        titulo: "Novo handout",
+        texto: "",
+        fonte: "livro",
+        visivel: { tipo: "mestre" },
+      },
+    });
+    if (enviado) setHandoutParaAbrir(id);
   }
 
+  function moverParaPasta(item: { tipo: "personagem" | "handout"; id: string }, pastaId: string) {
+    if (item.tipo === "personagem") {
+      const p = estado.personagens.find((x) => x.id === item.id);
+      if (p && p.pastaId !== pastaId) {
+        enviar("personagem.editar", { id: item.id, mudancas: { pastaId } });
+      }
+      return;
+    }
+    const h = estado.handouts.find((x) => x.id === item.id);
+    if (h && h.pastaId !== pastaId)
+      enviar("handout.editar", { id: item.id, mudancas: { pastaId } });
+  }
+
+  function abrirMenu(alvo: MenuAberto["alvo"], x: number, y: number, teclado: boolean) {
+    // A tecla de menu também dispara o "contextmenu" do navegador: some quando fomos nós a abrir o menu (como no token).
+    if (teclado) abriuNoTeclado.current = performance.now();
+    else if (performance.now() - abriuNoTeclado.current < 700) return;
+    setNovoAberto(false);
+    setApagando(null);
+    setMenu({ alvo, x, y, teclado });
+  }
+
+  /** As linhas do menu de botão direito do alvo aberto: o que o mestre e quem edita podem fazer com ele. */
+  function itensDoMenu(m: MenuAberto): { titulo: string; itens: ItemDoMenu[] } | null {
+    const fechar = () => setMenu(null);
+    const outrasPastas = (atualId: string): ItemDoMenu[] => [
+      { tipo: "titulo", chave: "t-mover", rotulo: "Mover para a pasta" },
+      ...pastas
+        .filter((x) => x.id !== atualId)
+        .map(
+          (x): ItemDoMenu => ({
+            id: `mover-${x.id}`,
+            rotulo: x.nome,
+            aoClicar: () => {
+              if (m.alvo.tipo === "personagem" || m.alvo.tipo === "handout") {
+                moverParaPasta({ tipo: m.alvo.tipo, id: m.alvo.id }, x.id);
+              }
+            },
+          }),
+        ),
+    ];
+    const confirmarApagar = (chave: string, rotulo: string, apagar: () => void): ItemDoMenu =>
+      apagando === chave
+        ? {
+            id: "apagar-confirmar",
+            rotulo: `Confirmar: ${rotulo}`,
+            perigo: true,
+            manterAberto: false,
+            aoClicar: apagar,
+          }
+        : {
+            id: "apagar",
+            rotulo: "Apagar…",
+            perigo: true,
+            manterAberto: true,
+            aoClicar: () => setApagando(chave),
+          };
+
+    if (m.alvo.tipo === "personagem") {
+      const p = estado.personagens.find((x) => x.id === m.alvo.id);
+      if (!p) return null;
+      const editor = podeEditarPersonagem(p, eu);
+      const itens: ItemDoMenu[] = [
+        { id: "abrir", rotulo: "Abrir a ficha", aoClicar: () => aoAbrirFicha(p.id) },
+      ];
+      if (editor) {
+        itens.push({
+          id: "configurar",
+          rotulo: "Configurar…",
+          aoClicar: () => aoAbrirFicha(p.id, "configurar"),
+        });
+      }
+      if (euMestre) {
+        const ids = p.editores.tipo === "jogadores" ? p.editores.ids : [];
+        itens.push(
+          { tipo: "separador", chave: "s1" },
+          ...outrasPastas(p.pastaId),
+          { tipo: "separador", chave: "s2" },
+          { tipo: "titulo", chave: "t-controla", rotulo: "Quem controla" },
+          {
+            id: "controla-todos",
+            rotulo: "Todos os jogadores",
+            marcado: p.editores.tipo === "todos",
+            aoClicar: () =>
+              enviar("personagem.editar", {
+                id: p.id,
+                mudancas: {
+                  editores:
+                    p.editores.tipo === "todos"
+                      ? { tipo: "jogadores", ids: [] }
+                      : { tipo: "todos" },
+                },
+              }),
+          },
+          ...jogadores.map(
+            (u): ItemDoMenu => ({
+              id: `controla-${u.id}`,
+              rotulo: u.nome,
+              marcado: p.editores.tipo === "jogadores" && ids.includes(u.id),
+              aoClicar: () =>
+                enviar("personagem.editar", {
+                  id: p.id,
+                  mudancas: {
+                    editores: {
+                      tipo: "jogadores",
+                      ids:
+                        p.editores.tipo === "jogadores" && ids.includes(u.id)
+                          ? ids.filter((x) => x !== u.id)
+                          : p.editores.tipo === "jogadores"
+                            ? [...ids, u.id]
+                            : [u.id],
+                    },
+                  },
+                }),
+            }),
+          ),
+          { tipo: "separador", chave: "s3" },
+          confirmarApagar(`p:${p.id}`, "apagar o item e os tokens", () => {
+            enviar("personagem.apagar", { id: p.id });
+            fechar();
+          }),
+        );
+      }
+      return { titulo: p.nome, itens };
+    }
+
+    if (m.alvo.tipo === "handout") {
+      const h = estado.handouts.find((x) => x.id === m.alvo.id);
+      if (!h) return null;
+      const ids = h.visivel.tipo === "jogadores" ? h.visivel.ids : [];
+      const definirVisivel = (visivel: Visibilidade) =>
+        enviar("handout.editar", { id: h.id, mudancas: { visivel } });
+      return {
+        titulo: h.titulo,
+        itens: [
+          { id: "abrir", rotulo: "Abrir o handout", aoClicar: () => aoAbrirHandout(h.id) },
+          {
+            id: "mostrar",
+            rotulo: "Mostrar agora",
+            ...(h.visivel.tipo === "mestre"
+              ? { motivo: "Só você vê este handout: escolha quem vê antes de mostrar." }
+              : {}),
+            aoClicar: () => enviar("handout.mostrar", { id: h.id }),
+          },
+          { tipo: "separador", chave: "s1" },
+          { tipo: "titulo", chave: "t-quem", rotulo: "Quem vê" },
+          {
+            id: "visib-mestre",
+            rotulo: "Só o mestre",
+            marcado: h.visivel.tipo === "mestre",
+            aoClicar: () => definirVisivel({ tipo: "mestre" }),
+          },
+          {
+            id: "visib-todos",
+            rotulo: "Todos os jogadores",
+            marcado: h.visivel.tipo === "todos",
+            aoClicar: () => definirVisivel({ tipo: "todos" }),
+          },
+          ...jogadores.map(
+            (u): ItemDoMenu => ({
+              id: `visib-${u.id}`,
+              rotulo: u.nome,
+              marcado: h.visivel.tipo === "jogadores" && ids.includes(u.id),
+              aoClicar: () => {
+                const novos =
+                  h.visivel.tipo === "jogadores" && ids.includes(u.id)
+                    ? ids.filter((x) => x !== u.id)
+                    : h.visivel.tipo === "jogadores"
+                      ? [...ids, u.id]
+                      : [u.id];
+                definirVisivel(
+                  novos.length === 0 ? { tipo: "mestre" } : { tipo: "jogadores", ids: novos },
+                );
+              },
+            }),
+          ),
+          { tipo: "separador", chave: "s2" },
+          ...outrasPastas(h.pastaId),
+          { tipo: "separador", chave: "s3" },
+          confirmarApagar(`h:${h.id}`, "apagar o handout", () => {
+            enviar("handout.apagar", { id: h.id });
+            fechar();
+          }),
+        ],
+      };
+    }
+
+    const pasta = pastas.find((x) => x.id === m.alvo.id);
+    if (!pasta) return null;
+    const v = pasta.visivel;
+    const ids = v.tipo === "jogadores" ? v.ids : [];
+    const vazia =
+      !estado.personagens.some((p) => p.pastaId === pasta.id) &&
+      !estado.handouts.some((h) => h.pastaId === pasta.id);
+    const definirVisivel = (visivel: Visibilidade) =>
+      enviar("pasta.editar", { id: pasta.id, visivel });
+    return {
+      titulo: pasta.nome,
+      itens: [
+        {
+          id: "renomear",
+          rotulo: "Renomear",
+          aoClicar: () => setPedidoDeRenomear((a) => ({ id: pasta.id, n: a.n + 1 })),
+        },
+        { tipo: "separador", chave: "s1" },
+        { tipo: "titulo", chave: "t-quem", rotulo: "Quem vê a pasta" },
+        {
+          id: "visib-mestre",
+          rotulo: "Só o mestre",
+          marcado: v.tipo === "mestre",
+          aoClicar: () => definirVisivel({ tipo: "mestre" }),
+        },
+        {
+          id: "visib-todos",
+          rotulo: "Todos os jogadores",
+          marcado: v.tipo === "todos",
+          aoClicar: () => definirVisivel({ tipo: "todos" }),
+        },
+        ...jogadores.map(
+          (u): ItemDoMenu => ({
+            id: `visib-${u.id}`,
+            rotulo: u.nome,
+            marcado: v.tipo === "jogadores" && ids.includes(u.id),
+            aoClicar: () => {
+              const novos =
+                v.tipo === "jogadores" && ids.includes(u.id)
+                  ? ids.filter((x) => x !== u.id)
+                  : v.tipo === "jogadores"
+                    ? [...ids, u.id]
+                    : [u.id];
+              definirVisivel(
+                novos.length === 0 ? { tipo: "mestre" } : { tipo: "jogadores", ids: novos },
+              );
+            },
+          }),
+        ),
+        { tipo: "separador", chave: "s2" },
+        vazia
+          ? confirmarApagar(`d:${pasta.id}`, "apagar a pasta", () => {
+              enviar("pasta.apagar", { id: pasta.id });
+              fechar();
+            })
+          : {
+              id: "apagar",
+              rotulo: "Apagar…",
+              perigo: true,
+              motivo: "Só uma pasta vazia pode ser apagada.",
+              aoClicar: () => {},
+            },
+      ],
+    };
+  }
+
+  const menuAtual = menu ? itensDoMenu(menu) : null;
+
   return (
-    <div className="aba-fichas" data-testid="aba-fichas-conteudo">
-      {importadorDePdf.elementos}
+    <div
+      className="aba-fichas"
+      data-testid="aba-fichas-conteudo"
+      onPointerDownCapture={() => {
+        abriuNoTeclado.current = 0;
+      }}
+    >
       <section className="fichas-pastas">
-        <div className="fichas-barra">
-          <h3>Pastas</h3>
-          {euMestre && (
-            <span className="linha-botoes">
-              <span className="novo-area">
-                <button
-                  type="button"
-                  data-popover-gatilho=""
-                  data-testid="ficha-novo"
-                  aria-expanded={novoAberto}
-                  onClick={() => setNovoAberto(!novoAberto)}
-                >
-                  <Plus size={14} /> Novo
-                </button>
-                {novoAberto && (
-                  <Popover
-                    testid="ficha-novo-menu"
-                    className="popover-novo"
-                    aoFechar={() => setNovoAberto(false)}
-                  >
-                    <button
-                      type="button"
-                      className="item-menu"
-                      data-testid="ficha-novo-personagem"
-                      onClick={() => criarItem(false)}
-                    >
-                      Personagem
-                    </button>
-                    <button
-                      type="button"
-                      className="item-menu"
-                      data-testid="ficha-novo-npc"
-                      onClick={() => criarItem(true)}
-                    >
-                      NPC
-                    </button>
-                    {ITENS_EM_BREVE.map((nome) => (
-                      <button
-                        key={nome}
-                        type="button"
-                        className="item-menu"
-                        data-testid={`ficha-novo-${nome.toLowerCase()}`}
-                        disabled
-                        title="Em breve"
-                      >
-                        {nome} <span className="nota">em breve</span>
-                      </button>
-                    ))}
-                  </Popover>
-                )}
-              </span>
+        {euMestre && (
+          <div className="fichas-barra">
+            <span className="novo-area">
               <button
                 type="button"
-                data-testid="ficha-novo-pdf"
-                title="Lê o PDF impresso da ficha (no seu navegador) e mostra a revisão: ficha nova ou por cima de um personagem"
-                onClick={() => importadorDePdf.escolher(null)}
+                data-popover-gatilho=""
+                data-testid="ficha-novo"
+                aria-expanded={novoAberto}
+                aria-haspopup="menu"
+                onClick={() => setNovoAberto(!novoAberto)}
               >
-                <FileText size={14} /> Importar PDF…
+                <Plus size={14} /> Novo
               </button>
-              <button type="button" data-testid="ficha-nova-pasta" onClick={criarPasta}>
-                <FolderPlus size={14} /> Pasta
-              </button>
+              {novoAberto && (
+                <Popover
+                  testid="ficha-novo-menu"
+                  className="popover-novo"
+                  aoFechar={() => setNovoAberto(false)}
+                >
+                  <button
+                    type="button"
+                    className="item-menu"
+                    data-testid="ficha-novo-personagem"
+                    onClick={() => criarItem(false)}
+                  >
+                    <User size={14} /> Personagem
+                  </button>
+                  <button
+                    type="button"
+                    className="item-menu"
+                    data-testid="ficha-novo-npc"
+                    onClick={() => criarItem(true)}
+                  >
+                    <Users size={14} /> NPC
+                  </button>
+                  <button
+                    type="button"
+                    className="item-menu"
+                    data-testid="ficha-novo-handout"
+                    onClick={criarHandout}
+                  >
+                    <ScrollText size={14} /> Handout
+                  </button>
+                  <button
+                    type="button"
+                    className="item-menu"
+                    data-testid="ficha-nova-pasta"
+                    onClick={criarPasta}
+                  >
+                    <FolderPlus size={14} /> Pasta
+                  </button>
+                </Popover>
+              )}
             </span>
-          )}
-        </div>
+          </div>
+        )}
 
         {pastas.map((pasta) => (
           <SecaoDaPasta
             key={pasta.id}
             pasta={pasta}
-            itens={estado.personagens.filter((p) => p.pastaId === pasta.id)}
+            personagens={estado.personagens.filter((p) => p.pastaId === pasta.id)}
+            handouts={estado.handouts.filter((h) => h.pastaId === pasta.id)}
             eu={eu}
             jogadores={jogadores}
             aberta={!recolhidas.has(pasta.id)}
@@ -582,8 +874,10 @@ export function AbaFichas({ estado, eu, enviar, imagens, versaoDasImagens, aoAbr
             enviar={enviar}
             aoAlternar={() => alternar(pasta.id)}
             aoAbrirItem={(id) => aoAbrirFicha(id)}
+            aoAbrirHandout={aoAbrirHandout}
             aoSoltar={moverParaPasta}
-            aoImportarPdf={importadorDePdf.escolher}
+            aoMenu={abrirMenu}
+            renomear={pedidoDeRenomear.id === pasta.id ? pedidoDeRenomear.n : 0}
           />
         ))}
         {avulsos.length > 0 && (
@@ -601,16 +895,32 @@ export function AbaFichas({ estado, eu, enviar, imagens, versaoDasImagens, aoAbr
                   imagens={imagens}
                   versao={versaoDasImagens}
                   aoAbrir={() => aoAbrirFicha(p.id)}
-                  aoImportarPdf={() => importadorDePdf.escolher(p)}
+                  aoMenu={(x, y, teclado) =>
+                    abrirMenu({ tipo: "personagem", id: p.id }, x, y, teclado)
+                  }
                 />
               ))}
             </ul>
           </section>
         )}
         {pastas.length === 0 && avulsos.length === 0 && (
-          <p className="nota">Nenhuma ficha visível para você ainda.</p>
+          <p className="nota">Nada para você aqui ainda.</p>
         )}
       </section>
+      {menu && menuAtual && (
+        <MenuDeContexto
+          testid="menu-ficha"
+          titulo={menuAtual.titulo}
+          x={menu.x}
+          y={menu.y}
+          teclado={menu.teclado}
+          itens={menuAtual.itens}
+          aoFechar={() => {
+            setMenu(null);
+            setApagando(null);
+          }}
+        />
+      )}
     </div>
   );
 }
