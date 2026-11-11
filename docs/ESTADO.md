@@ -1800,4 +1800,69 @@ relatório do Playwright (`[erro na página]`).
 
 ---
 
-## Próximo: Redesign R3 — Janelas flutuantes (arrastar pelo cabeçalho, posição e tamanho por usuário, dois cliques minimizam, sempre dentro da tela); depois R4 a R6, 7b e 12
+## Redesign R3 — Janelas flutuantes (entregue, aguardando o roteiro manual)
+
+### O que foi entregue
+
+- **`Janela`** (`apps/web/src/janelas/Janela.tsx`, com `pilha.ts` e `geometria.ts`): o componente único de janela flutuante. Arrasta pelo cabeçalho (pointer events com captura; arrasto que começa em botão ou campo não move; com o cabeçalho focado, as setas movem 8 px, com Shift 40); **dois cliques no cabeçalho minimizam** (só a barra do título) e restauram, e há o botão "Minimizar"/"Restaurar"; "Fechar" onde a janela já fechava; redimensiona pela quina (ficha) ou pela borda de baixo (ordem de turno e fontes de luz); fica **sempre dentro da área do mapa** (ao abrir, ao soltar e quando a área muda); a **última clicada fica por cima** (pilha única); `role="dialog"` não modal com nome, Esc não fecha.
+- **Preferência por janela e por navegador**: `tabletop:pref:janela:<id>` (`{x, y, largura, altura, minimizada}`, em `preferencias.ts`, com try/catch). Nenhum frame vai para a sala.
+- **Passam a usar a `Janela`**: ordem de turno (`ordem`), ficha (`ficha:<personagemId>`, uma por personagem), painel do token (`token`), paredes e portas (`paredes`), fontes de luz (`fontes`), iluminação (`iluminacao`) e dados rápidos (`dados`). Menus de contexto e dicas continuam como eram. `ficha/janelas.ts` guarda só a lista e a aba das fichas abertas; posição, tamanho e pilha são da `Janela`.
+- Contêiner `data-testid="janela-<id>"` com `data-minimizada`; os `data-testid` antigos continuam no miolo (mesma caixa, 1 px de borda para dentro).
+- **Seletor de tema**: a metade de cima da bolinha usa o token novo `amostra` (a cor viva do tema; `temas.ts`, nos 11 temas e no teste); Druida, Leviatã, Licantropo e Paladino se distinguem. A interface não mudou de cor.
+- Dois ajustes pequenos na ficha para caber em ~60% da área: as caixas do resumo (CA, iniciativa, deslocamento, proficiência, percepção) quebram em duas linhas quando falta largura, e as abas têm menos espaço lateral e rolam de lado se faltar. Resolve o item 16 e as partes do 8 e do 14 que eram do R3.
+
+### Como rodar
+
+- `pnpm verify` (uma vez). E2E novo: `pnpm --filter @tabletop/e2e test --repeat-each=3 tests/janelas.spec.ts tests/tema.spec.ts tests/luz.spec.ts tests/ficha.spec.ts`. Prints: `$env:PRINTS_DIR="<pasta>"; pnpm --filter @tabletop/e2e prints r3`.
+
+### Verificação
+
+- Unidade nova: `janelas/geometria.test.ts` (empurrar para dentro da área, limitar tamanho, posições padrão), `preferencias.test.ts` (chave `tabletop:pref:janela:<id>`, valores estragados, sem localStorage) e, em `temas.test.ts`, a `amostra` se distingue da barra e das outras amostras.
+- E2E novo `e2e/tests/janelas.spec.ts` (9 testes): arrastar a ordem de turno e a ficha, recarregar e continuar no lugar, outro navegador com a posição padrão, nenhum frame para a sala; dois cliques minimizam (só o cabeçalho, conteúdo escondido) e restauram, o estado sobrevive ao recarregar, botão com nome; redimensionar (ficha pela quina, ordem pela altura) e guardar; empurrar para dentro da área quando o painel direito alarga ou o navegador estreita (e a janela volta ao canto quando a área cresce); a última clicada fica por cima (`z-index` e `elementFromPoint`); arrasto iniciado num botão do cabeçalho não move; teclado (setas, Shift), Esc não fecha, `role` e nome; em 1280×720 a ficha abre inteira na área, a segunda em cascata e o token embaixo à esquerda; paredes, fontes, iluminação e dados abrem dentro da área, em lugares diferentes, e fecham pelo X. E um teste novo em `tema.spec.ts` (as 11 amostras distintas).
+- E2E antigos alterados (a disposição mudou de propósito; nenhuma asserção de comportamento foi afrouxada): `luz.spec.ts` ("clicar duas vezes no cabeçalho minimiza o painel": o corpo agora fica montado mas escondido, então o teste confere `data-minimizada` e `toBeHidden`, em vez de contagem 0 e opacidade 0,7); `ficha.spec.ts` ("várias janelas...": o `z-index` mora no contêiner `.janela` e a ficha agora abre no tamanho mínimo em 1280×720, então o teste **aumenta** a janela em 100×60 em vez de diminuir); `tema.spec.ts` ("o seletor é um grupo de rádio...": a metade de cima da bolinha do Grimório é a amostra `rgb(74, 74, 74)`, não a barra `rgb(27, 27, 27)`).
+- `pnpm verify` verde numa rodada: 31 (servidor) + 35 (web) + 553 (shared) de unidade e 164 E2E, sem instável. (Numa rodada anterior do verify, `estrutura.spec.ts` "a alça também funciona pelo teclado" falhou uma vez na entrada, antes da mesa abrir: o `status-conexao` não apareceu em 10 s; não repetiu em 3x nem na rodada seguinte e não toca nas janelas: não achei a causa.) Repetição 3x de `janelas`, `tema`, `luz` e `ficha`: 120 execuções verdes (40 testes × 3, sem nenhuma repetição). Antes, na primeira passada do `janelas.spec.ts`, dois testes novos reprovaram por erro do próprio teste (o testid antigo da ficha é o miolo, 2 px menor que a janela; e clicar no cabeçalho da ordem quando a ficha o cobria): corrigidos nos testes.
+- Prints (3 temas, 1600×900 e 1280×720) em `PRINTS_DIR`: `<tema>-<largura>-01-padrao` (ordem de turno, ficha e painel do token abertos), `02-ordem-minimizada`, `03-ficha-redimensionada`, `04-arrastadas`, `05-fontes-de-luz`, `06-iluminacao`, `07-paredes`, `08-dados-rapidos`, `09-duas-fichas-em-cascata` (Grimório), `10-seletor-de-tema` (e `10-seletor-recorte`).
+
+### Decisões
+
+- (assumido) Ficha: posição e tamanho por personagem (`ficha:<personagemId>`); a segunda ficha sem posição guardada abre deslocada em cascata (32 px).
+- (assumido) Esc não fecha janela; setas movem a janela com o cabeçalho focado.
+- (assumido) Só a ficha redimensiona nos dois eixos; ordem de turno e fontes de luz só na altura; as outras não.
+- (assumido) Os dados rápidos deixaram de fechar ao clicar fora; fecham pelo X, pelo botão da barra ou sozinhos depois de rolar. O "recolher" das fontes de luz virou o minimizar comum (sem os 70% de opacidade).
+- (assumido) Minimizar esconde o corpo sem desmontar; a posição só é guardada depois que a pessoa mexe; a escolha fica intacta e só o que se vê é empurrado para dentro da área.
+- (assumido) Posições padrão: ordem no alto à direita, token embaixo à esquerda, ficha no alto à esquerda (até 60% da largura da área, no mínimo 520 px, sem passar da ordem de turno quando cabe; 75% da altura), paredes e fontes lado a lado no alto à esquerda, iluminação ao centro, dados ao lado do botão. A ordem de turno tem no máximo "altura da área menos 80 px".
+- (assumido) O contêiner leva `janela-<id>` e o testid antigo fica no miolo.
+
+### Desvios do plano
+
+- Nenhum. Nada mudou na sala, no protocolo nem na exportação; nenhuma dependência nova (`createPortal` é do `react-dom` já instalado).
+
+### Frágil / não verificado
+
+- Toque (celular): arrastar e redimensionar só foram testados com mouse.
+- Em 1280×720, com ordem de turno, ficha e painel do token abertos nas posições padrão, as três se sobrepõem em parte (o painel do token fica embaixo à esquerda, atrás da ficha se ela foi aberta depois); a última clicada fica por cima.
+- A ficha de 520 px (o mínimo, e o tamanho padrão em 1280×720) fica apertada: o resumo quebra em duas linhas, mas outros trechos da ficha ainda foram pensados para mais largura. Polimento é do R6.
+- Janela sem posição guardada acompanha a área (a ficha em 60%, a ordem de turno colada no canto); só depois de mexer ela passa a ficar onde foi deixada.
+- Fontes de luz e paredes abrem lado a lado e a iluminação ao centro: em telas estreitas as três podem se cobrir em parte.
+- Só o Chrome foi testado.
+
+### Roteiro manual (pendente)
+
+1. Abrir a ordem de turno, uma ficha e o painel do token (selecionar um token): cada uma abre num lugar diferente, sem cobrir as barras.
+2. Arrastar cada janela pelo cabeçalho para outros cantos; tentar arrastar para fora da área: ela para na borda. Recarregar a página: tudo volta onde ficou. Outro navegador (outro perfil) abre nos lugares padrão.
+3. Dois cliques no título minimizam (só a barra); dois cliques restauram; recarregar mantém minimizada. O botão "−" também.
+4. Redimensionar a ficha pela quina e a ordem de turno pela borda de baixo.
+5. Estreitar a janela do navegador e alargar o painel direito: as janelas são empurradas para dentro; ao voltar, voltam ao lugar.
+6. Clicar numa janela a põe por cima das outras. Arrastar começando por um botão do cabeçalho não move.
+7. Com o cabeçalho focado (Tab), as setas movem a janela; Esc não a fecha.
+8. Abrir duas fichas: a segunda desloca em cascata. Abrir fontes de luz, paredes, iluminação e dados rápidos: dentro da área; os dados abrem ao lado do botão da barra.
+9. Configurações, "Tema de cor": as bolinhas de Druida, Leviatã, Licantropo e Paladino se distinguem.
+10. Os 3 temas nas duas larguras de janela.
+
+### Revisão (antes do commit de fechamento)
+
+- Os 56 prints (3 temas × 1600×900 e 1280×720: posições padrão, ordem de turno minimizada, ficha redimensionada, as três arrastadas, fontes de luz, iluminação, paredes, dados rápidos, duas fichas em cascata e o seletor de tema) conferidos: janelas dentro da área, sem cobrir as barras, cabeçalho legível nos três temas; o seletor distingue Druida, Leviatã, Licantropo e Paladino. Dois defeitos achados e corrigidos antes de entregar: o resumo da ficha (CA, iniciativa, deslocamento, proficiência, percepção) tinha os rótulos sobrepostos na largura de 60% (agora quebra em duas linhas) e as abas da ficha cortavam "Configurar". Ficou visível, e é o que a lista de frágeis diz, que com três janelas abertas em 1280×720 elas se sobrepõem em parte. (Falta a revisão do Vilella.)
+
+---
+
+## Próximo: Redesign R4 — Organização do mestre (menu superior agrupado e com nomes, Paredes na barra de ferramentas, Preferências e Mesa separadas, Notas como aba); depois R5, R6, 7b e 12

@@ -187,14 +187,15 @@ test("o seletor é um grupo de rádio com 11 bolinhas, nome embaixo e selo no es
   await expect(p.getByTestId("tema-grimorio")).toBeChecked();
   await expect(seletor.locator(".bolinha-selo")).toHaveCount(1);
   await expect(p.getByTestId("tema-selo-grimorio")).toBeVisible();
-  // a bolinha: cima na barra, embaixo o destaque e o corpo das janelas
+  // a bolinha: em cima a `amostra` do tema (a cor viva; a barra é quase preta), embaixo o destaque e o corpo
+  // das janelas (R3: antes a metade de cima usava a barra, rgb(27, 27, 27) no Grimório)
   const barra = await p.evaluate(() =>
     getComputedStyle(document.documentElement).getPropertyValue("--barra").trim().toUpperCase(),
   );
   expect(barra).toBe("#1B1B1B");
   await expect(seletor.locator(".opcao-de-tema").first().locator(".bolinha-barra")).toHaveCSS(
     "background-color",
-    "rgb(27, 27, 27)",
+    "rgb(74, 74, 74)",
   );
   // o nome também está na dica
   await expect(seletor.locator(".opcao-de-tema").nth(1)).toHaveAttribute("title", "Tema Taverna");
@@ -283,4 +284,47 @@ test("o seletor cabe no painel de 300 px sem rolar de lado", async ({ mesa }) =>
   });
   expect(sobra).toEqual({ caixa: true, scroll: true });
   await expect(seletor.getByRole("radio")).toHaveCount(11);
+});
+
+test("as bolinhas dos temas escuros têm a metade de cima viva e todas diferentes (Druida, Leviatã, Licantropo e Paladino se distinguem)", async ({
+  mesa,
+}) => {
+  const m = await mesa.entrar("mestre");
+  const p = m.pagina;
+  await abrirAba(p, "configuracoes");
+  const ids = [
+    "grimorio",
+    "taverna",
+    "forja",
+    "licantropo",
+    "paladino",
+    "druida",
+    "leviata",
+    "vampiro",
+    "arcana",
+    "escuro",
+    "claro",
+  ];
+  const cores: Record<string, number[]> = {};
+  const barras: Record<string, number[]> = {};
+  const rgb = (css: string) => (css.match(/[0-9]+/g) ?? []).slice(0, 3).map(Number);
+  for (const id of ids) {
+    const bolinha = p.getByTestId(`tema-${id}`).locator("xpath=..").locator(".bolinha-barra");
+    cores[id] = rgb(await bolinha.evaluate((e) => getComputedStyle(e).backgroundColor));
+  }
+  const distancia = (a: number[], b: number[]) =>
+    Math.hypot((a[0] ?? 0) - (b[0] ?? 0), (a[1] ?? 0) - (b[1] ?? 0), (a[2] ?? 0) - (b[2] ?? 0));
+  for (let i = 0; i < ids.length; i++) {
+    for (let j = i + 1; j < ids.length; j++) {
+      expect(
+        distancia(cores[ids[i] as string] as number[], cores[ids[j] as string] as number[]),
+        `${ids[i]} x ${ids[j]}`,
+      ).toBeGreaterThan(40);
+    }
+  }
+  // cada uma é bem mais clara/viva que a barra quase preta do tema escuro (a do Grimório é #1B1B1B)
+  barras.grimorio = [27, 27, 27];
+  for (const id of ["licantropo", "paladino", "druida", "leviata"]) {
+    expect(distancia(cores[id] as number[], barras.grimorio), id).toBeGreaterThan(60);
+  }
 });

@@ -344,7 +344,7 @@ test("o painel de fontes de luz cria uma luz e muda a intensidade e o fator gera
   await expect.poll(async () => await raio("luz-braseiro")).toBeUndefined();
 });
 
-test("o mestre arrasta a luz no mapa e clica nela para editar; clicar duas vezes no cabeçalho recolhe o painel", async ({
+test("o mestre arrasta a luz no mapa e clica nela para editar; clicar duas vezes no cabeçalho minimiza o painel", async ({
   mesa,
 }) => {
   const mestre = await entrarNoMapa(mesa, "mestre");
@@ -379,17 +379,17 @@ test("o mestre arrasta a luz no mapa e clica nela para editar; clicar duas vezes
   expect((await luzes(p)).find((l) => l.id === "luz-braseiro")?.y).toBeCloseTo(12.75, 0);
   expect((await luzes(p)).find((l) => l.id === "luz-tocha-sala")?.x).toBeCloseTo(11.25, 1);
 
-  // recolher: só o cabeçalho fica e a opacidade cai para ~0,7
+  // minimizar (R3): só o cabeçalho fica; o conteúdo continua montado, mas escondido
   await expect(p.getByTestId("painel-fontes-corpo")).toBeVisible();
-  const painel = p.getByTestId("painel-fontes");
-  expect(await painel.evaluate((e) => getComputedStyle(e).opacity)).toBe("1");
+  const janela = p.getByTestId("janela-fontes");
+  await expect(janela).toHaveAttribute("data-minimizada", "false");
   await p.getByTestId("painel-fontes-cabecalho").dblclick();
-  await expect(p.getByTestId("painel-fontes-corpo")).toHaveCount(0);
+  await expect(janela).toHaveAttribute("data-minimizada", "true");
+  await expect(p.getByTestId("painel-fontes-corpo")).toBeHidden();
   await expect(p.getByTestId("painel-fontes-cabecalho")).toBeVisible();
-  expect(await painel.evaluate((e) => getComputedStyle(e).opacity)).toBe("0.7");
   await p.getByTestId("painel-fontes-cabecalho").dblclick();
+  await expect(janela).toHaveAttribute("data-minimizada", "false");
   await expect(p.getByTestId("painel-fontes-corpo")).toBeVisible();
-  expect(await painel.evaluate((e) => getComputedStyle(e).opacity)).toBe("1");
 });
 
 test("o item Iluminação dinâmica mostra claramente se está ligado ou desligado", async ({

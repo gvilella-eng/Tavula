@@ -1,6 +1,7 @@
 import { Circle, Diamond, Hexagon, Octagon, Pentagon, Square, Triangle } from "lucide-react";
 import type { ReactNode } from "react";
-import { Popover } from "./Popover";
+import { caixaDaArea } from "./area";
+import { Janela } from "./janelas/Janela";
 
 export const DADOS: { faces: number; nome: string; icone: ReactNode }[] = [
   { faces: 4, nome: "D4", icone: <Triangle size={16} /> },
@@ -20,6 +21,12 @@ type Props = {
   aoFechar: () => void;
 };
 
+/** Onde fica o botão que abre os dados (na barra fixa), em coordenadas da área do mapa. */
+function topoDoBotao(): number {
+  const botao = document.querySelector<HTMLElement>('[data-testid="ferramenta-dados"]');
+  return botao ? Math.round(botao.getBoundingClientRect().top - caixaDaArea().topo) : 8;
+}
+
 /**
  * Grade de dados rápidos: a linha é o dado, a coluna é a quantidade. Clicar no nome rola 1; no
  * número, aquela quantidade. A sala rola e o resultado vai para o chat de todos; com Shift a
@@ -27,11 +34,14 @@ type Props = {
  */
 export function DadosRapidos({ aoRolar, podeOculta, aoFechar }: Props) {
   return (
-    <Popover
-      testid="dados-rapidos"
+    <Janela
+      id="dados"
       titulo="Dados rápidos"
-      className="popover-dados"
+      testid="dados-rapidos"
+      classeDoCorpo="janela-dados"
+      padrao={() => ({ x: 8, y: topoDoBotao() })}
       aoFechar={aoFechar}
+      rotuloDoFechar="Fechar os dados rápidos"
     >
       <table className="grade-dados">
         <tbody>
@@ -68,6 +78,6 @@ export function DadosRapidos({ aoRolar, podeOculta, aoFechar }: Props) {
       <p className="nota">
         O resultado vai para o chat.{podeOculta ? " Shift+clique rola oculto." : ""}
       </p>
-    </Popover>
+    </Janela>
   );
 }

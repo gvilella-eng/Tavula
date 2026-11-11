@@ -296,9 +296,76 @@ Dois pedaços independentes: a pausa automática (muda a sala, autorizado) e os 
 - Um aviso de "pausou porque o mestre saiu" para os jogadores (hoje o selo de pausa é o mesmo da manual).
 - O mapa (PixiJS) continua igual em qualquer tema, como antes.
 
+## R3 — como ficou (2026-11-10)
+
+Janelas flutuantes. Nada mudou na sala, no protocolo nem na exportação: posição, tamanho e "minimizada" são
+preferência de cada navegador e nenhum frame vai para a sala (E2E confere).
+
+**O que foi feito**
+- **Um componente só**, `apps/web/src/janelas/Janela.tsx`, para tudo o que abre sobre o mapa: ordem de turno
+  (`ordem`), ficha (`ficha:<personagemId>`), painel do token (`token`), paredes e portas (`paredes`), fontes de
+  luz (`fontes`), iluminação (`iluminacao`) e dados rápidos (`dados`). Menus de contexto e dicas **não** viraram
+  janela. A janela entra na área do mapa por um portal (`[data-area-do-mapa]`), de onde for chamada.
+- **Arrastar pelo cabeçalho** (pointer events com captura; cursor de mover). Arrasto que começa num botão ou
+  campo do cabeçalho não move. Com o cabeçalho focado, as setas movem 8 px (Shift, 40 px). **Dois cliques no
+  cabeçalho minimizam** (só a barra do título; o corpo fica montado, mas escondido) e dois cliques restauram;
+  há também um botão "Minimizar"/"Restaurar" e o "Fechar" onde a janela já fechava. Cabeçalho em `--barra`,
+  corpo em `--painel`.
+- **Sempre dentro da área do mapa** (`area.ts`/`janelas/geometria.ts`): ao abrir, ao soltar e quando a área
+  muda (janela do navegador, painel direito ajustado ou recolhido) a janela é empurrada para dentro. O que a
+  pessoa escolheu fica guardado intacto; o que se vê é empurrado (como a largura do painel no R2): se a área
+  volta a crescer, a janela volta ao lugar escolhido.
+- **A última clicada fica por cima**: pilha única entre as janelas (`janelas/pilha.ts`); abrir uma janela a põe
+  por cima.
+- **Preferência por janela e por navegador**: `tabletop:pref:janela:<id>` com `{x, y, largura, altura,
+  minimizada}` (coordenadas da área; só o que a pessoa mudou). Sem localStorage nada quebra.
+- **Redimensionar**: a ficha pela quina (mínimo 520×360, como antes); a ordem de turno e as fontes de luz só
+  pela altura (borda de baixo). As outras não redimensionam.
+- **Ficha estreita** (520 px, o tamanho com que abre em 1280×720): as caixas do resumo quebram em duas linhas,
+  as abas rolam de lado se faltar espaço e, na linha de cada classe, a subclasse desce para baixo (container
+  query `ficha` no corpo da ficha), para o nível e a lixeira continuarem à vista (achado na revisão dos prints).
+- **Posições padrão** (enquanto a pessoa não mexe, ficam presas ao canto): ordem de turno no alto à direita;
+  painel do token embaixo à esquerda; ficha no alto à esquerda, com no máximo 60% da largura da área (mínimo
+  520 px, e sem passar por cima da ordem de turno quando cabe) e 75% da altura; uma segunda ficha sem posição
+  guardada desloca 32 px em cascata; fontes de luz e paredes no alto à esquerda, lado a lado; iluminação no
+  alto ao centro; dados rápidos ao lado do botão que os abre, na barra de ferramentas.
+- **Acessibilidade**: `role="dialog"` não modal com nome; cabeçalho `role="toolbar"` focável; botões com
+  `aria-label`; Esc **não** fecha janela (Esc é da seleção, R5).
+- **Cada janela** tem `data-testid="janela-<id>"` no contêiner com `data-minimizada`; os `data-testid` antigos
+  continuam no miolo (mesma caixa).
+- **Seletor de tema**: a metade de cima da bolinha usa o token novo `amostra` (a cor viva do tema), em vez da
+  barra, quase preta em nove deles; Druida, Leviatã, Licantropo e Paladino se distinguem (teste de unidade e de
+  E2E). A interface não mudou de cor.
+- Resolve o 16 do levantamento e as partes do 8 (painel do token) e do 14 (ordem de turno) que eram do R3.
+
+**Decisões (assumido)**
+- (assumido) Ficha: uma posição e um tamanho guardados por personagem (`ficha:<personagemId>`).
+- (assumido) Esc não fecha as janelas.
+- (assumido) Setas movem a janela com o cabeçalho focado (8 px; Shift, 40 px).
+- (assumido) Só a ficha redimensiona nos dois eixos; ordem de turno e fontes de luz só na altura; o resto não.
+- (assumido) A janela de dados rápidos deixou de fechar ao clicar fora (agora é janela: fecha pelo X, ou
+  sozinha depois de rolar, como antes). O botão da barra continua alternando.
+- (assumido) Minimizar esconde o corpo sem desmontá-lo (nada se perde: campos, rolagem, ficha em edição).
+- (assumido) O "recolher" das fontes de luz (que deixava o painel a 70% de opacidade) virou o minimizar comum,
+  sem a opacidade.
+- (assumido) Fechar o painel do token ou a ficha não apaga a posição guardada; ela só é guardada depois que a
+  pessoa move ou redimensiona.
+- (assumido) A ordem de turno tem no máximo "altura da área menos 80 px", para deixar livre o canto do zoom.
+- (assumido) Janela de ficha sem posição guardada acompanha o tamanho da área até a pessoa mexer nela.
+
+**O que ficou para depois**
+- Os controles da ordem de turno (cinco linhas, valor que reordena ao digitar, "Rolar para todos" sem motivo)
+  continuam como eram: R5.
+- Esc soltar a seleção (item 8) e o painel do token deixar de abrir sozinho ao selecionar: R5. Hoje o painel
+  pelo menos se arrasta, minimiza e fecha.
+- Toque (celular): arrastar e redimensionar continuam só testados com mouse.
+- Com ficha, ordem de turno e painel do token abertos em 1280×720 os três se sobrepõem em parte nas posições
+  padrão (não cabem lado a lado); a última clicada fica por cima.
+- Na ficha a 520 px, Raça, Antecedente e Alinhamento cortam o texto dentro do campo ("Elfo da f"): R6.
+
 ## Em aberto
 
-- R1 e R2 feitos (2026-11-10). **Plano aprovado (2026-11-10):** R2 a R6 seguem como planejados, um depois do
+- R1, R2, R2b e R3 feitos (2026-11-10). **Plano aprovado (2026-11-10):** R2 a R6 seguem como planejados, um depois do
   outro; depois do R6 o Vilella faz os ajustes finos de UX/UI e a reorganização dos itens, a partir de
   `docs/PASSAGEM.md`.
 - Itens de interface que vieram dos lotes e entram no R5/R6: a dica das condições abrir por clique, alças de

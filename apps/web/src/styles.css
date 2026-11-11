@@ -454,33 +454,9 @@ textarea {
 
 /* --- painel do token ---------------------------------------------------------------------- */
 
-.painel-token {
-  position: absolute;
-  left: 12px;
-  bottom: 12px;
-  z-index: 15;
-  width: 236px;
-  max-height: calc(100% - var(--respiro-topo) - 12px);
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
+.painel-token.janela-corpo {
   gap: 4px;
-  padding: 6px 10px;
-  font-size: 13px;
-  background: var(--painel);
-  border: 1px solid var(--borda);
-  border-radius: var(--raio);
-  box-shadow: var(--sombra);
-}
-.painel-token header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  /* O cabeçalho das janelas usa a cor das barras fixas; o corpo usa --painel. */
-  margin: -6px -10px 2px;
-  padding: 4px 10px;
-  background: var(--barra);
-  border-radius: var(--raio) var(--raio) 0 0;
+  padding: 6px 10px 8px;
 }
 .painel-token label {
   display: flex;
@@ -971,11 +947,9 @@ button:disabled:hover {
   font-size: 12px;
   padding: 4px 8px;
 }
-.popover-dados {
-  left: calc(100% + 10px);
-  top: 50%;
-  transform: translateY(-50%);
-  width: max-content;
+.janela-corpo.janela-dados {
+  gap: 6px;
+  padding: 8px 10px 10px;
 }
 .grade-dados {
   border-collapse: separate;
@@ -1690,34 +1664,9 @@ button:disabled:hover {
 
 /* --- ordem de turno ------------------------------------------------------------------------- */
 
-.ordem-de-turno {
-  position: absolute;
-  z-index: 18;
-  top: var(--respiro-topo);
-  right: 12px;
-  width: 364px;
-  max-width: calc(100% - 24px);
-  min-height: 90px;
-  /* Deixa livre o canto do zoom, embaixo. */
-  max-height: calc(100% - var(--respiro-topo) - 68px);
-  display: flex;
-  flex-direction: column;
+.ordem-de-turno.janela-corpo {
   gap: 8px;
-  overflow-y: auto;
   padding: 10px 12px;
-  background: var(--painel);
-  border: 1px solid var(--acento);
-  border-radius: var(--raio);
-  box-shadow: var(--sombra);
-}
-.ordem-de-turno header {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin: -10px -12px 0;
-  padding: 8px 12px;
-  background: var(--barra);
-  border-radius: var(--raio) var(--raio) 0 0;
 }
 
 /* --- painel do token e avisos --------------------------------------------------------------- */
@@ -1818,58 +1767,18 @@ button:disabled:hover {
   border: 2px solid var(--painel);
 }
 
-.painel-fontes,
-.painel-config-luz {
-  position: absolute;
-  z-index: 19;
-  top: var(--respiro-topo);
-  left: 12px;
-  display: flex;
-  flex-direction: column;
+.painel-fontes.janela-corpo,
+.painel-config-luz.janela-corpo {
   gap: 6px;
-  width: 292px;
-  max-height: calc(100% - var(--respiro-topo) - 12px);
-  overflow-y: auto;
   padding: 8px 10px;
-  font-size: 13px;
-  background: var(--painel);
-  border: 1px solid var(--acento);
-  border-radius: var(--raio);
-  box-shadow: var(--sombra);
 }
-.painel-fontes header,
-.painel-config-luz header {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  user-select: none;
-  margin: -8px -10px 0;
-  padding: 6px 10px;
-  background: var(--barra);
-  border-radius: var(--raio) var(--raio) 0 0;
-}
-.painel-fontes header .botao-icone,
-.painel-config-luz header .botao-icone {
-  margin-left: auto;
-}
-.painel-fontes header .nota {
+.janela-cabecalho .nota {
   margin: 0;
-}
-.painel-fontes[data-recolhido="true"] {
-  opacity: 0.7;
-  min-height: 0;
-  padding-bottom: 6px;
 }
 .painel-fontes-corpo {
   display: flex;
   flex-direction: column;
   gap: 6px;
-}
-.painel-config-luz {
-  left: 50%;
-  transform: translateX(-50%);
-  width: 340px;
-  z-index: 21;
 }
 .painel-config-luz label,
 .painel-fontes label {
@@ -2469,74 +2378,88 @@ button:disabled:hover {
 
 /* --- janela da ficha 5e (Lote 9) ------------------------------------------------------------ */
 
-.janela-ficha {
+/* --- janelas flutuantes (R3) --------------------------------------------------------------- */
+
+.janela {
   position: absolute;
   display: flex;
   flex-direction: column;
-  min-width: 520px;
-  min-height: 360px;
   max-width: 100%;
   max-height: 100%;
   overflow: hidden;
+  font-size: 13px;
+  /* O cabeçalho usa a cor das barras fixas (--barra); o corpo, --painel. */
   background: var(--painel);
   border: 1px solid var(--borda);
-  border-radius: 12px;
+  border-radius: var(--raio);
   box-shadow: var(--sombra);
 }
-.janela-ficha-cabecalho {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
-  background: var(--barra);
-  border-bottom: 1px solid var(--borda);
-  cursor: grab;
-  user-select: none;
-  touch-action: none;
+.janela[data-minimizada="true"] {
+  height: auto;
+  min-height: 0;
 }
-.janela-ficha-cabecalho:active {
-  cursor: grabbing;
-}
-.janela-ficha-titulo {
+.janela-miolo {
+  position: relative;
   display: flex;
   flex: 1;
   flex-direction: column;
   min-width: 0;
+  min-height: 0;
 }
-.janela-ficha-titulo strong {
-  font-size: 16px;
+.janela-cabecalho {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  min-height: 38px;
+  padding: 4px 8px 4px 12px;
+  background: var(--barra);
+  border-bottom: 1px solid var(--borda-barra);
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
 }
-.janela-ficha .janela-ficha-titulo .nota {
+.janela-cabecalho:active {
+  cursor: grabbing;
+}
+.janela-cabecalho:focus-visible {
+  outline: 2px solid var(--acento-forte);
+  outline-offset: -2px;
+}
+.janela[data-minimizada="true"] .janela-cabecalho {
+  border-bottom: 0;
+}
+.janela-cabecalho > .botao-icone {
+  flex: none;
+  cursor: pointer;
+}
+.janela-titulo {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.janela-titulo > strong {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.janela-ficha-abas {
+.janela-conteudo {
   display: flex;
-  gap: 2px;
-  padding: 0 8px;
-  border-bottom: 1px solid var(--borda);
-  background: var(--painel);
-}
-.janela-ficha .janela-ficha-abas button {
-  padding: 7px 12px;
-  background: transparent;
-  border: 0;
-  border-bottom: 2px solid transparent;
-  border-radius: 0;
-  color: var(--texto-suave);
-}
-.janela-ficha .janela-ficha-abas button[aria-selected="true"] {
-  color: var(--texto);
-  border-bottom-color: var(--acento-forte);
-}
-.janela-ficha-corpo {
   flex: 1;
+  flex-direction: column;
   min-height: 0;
-  overflow: auto;
-  padding: 12px;
 }
-.janela-ficha-alca {
+.janela-conteudo[hidden] {
+  display: none;
+}
+.janela-corpo {
+  gap: 6px;
+  padding: 8px 10px;
+  overflow: auto;
+}
+.janela-alca {
   position: absolute;
   right: 0;
   bottom: 0;
@@ -2555,6 +2478,63 @@ button:disabled:hover {
     transparent 85%
   );
   touch-action: none;
+}
+.janela-borda-baixo {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 8px;
+  cursor: ns-resize;
+  touch-action: none;
+}
+.janela-borda-baixo:hover {
+  background: var(--acento-suave);
+}
+
+/* --- janela da ficha 5e (Lote 9) ------------------------------------------------------------ */
+
+.janela-ficha-titulo {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+.janela-ficha-titulo strong {
+  font-size: 16px;
+}
+.janela-ficha .janela-ficha-titulo .nota {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.janela-ficha-abas {
+  display: flex;
+  overflow-x: auto;
+  gap: 2px;
+  padding: 0 8px;
+  border-bottom: 1px solid var(--borda);
+  background: var(--painel);
+}
+.janela-ficha .janela-ficha-abas button {
+  padding: 7px 9px;
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  color: var(--texto-suave);
+}
+.janela-ficha .janela-ficha-abas button[aria-selected="true"] {
+  color: var(--texto);
+  border-bottom-color: var(--acento-forte);
+}
+.janela-ficha-corpo {
+  /* As abas se rearrumam pela largura da ficha (não da tela): ver `.fh-classe`. */
+  container: ficha / inline-size;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px;
 }
 .fh-vantagem {
   display: inline-flex;
@@ -2785,14 +2765,26 @@ button:disabled:hover {
 }
 .fh-classe {
   display: grid;
-  grid-template-columns: minmax(8em, 1.2fr) minmax(8em, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 6px;
   width: 100%;
 }
+/* Ficha estreita (o mínimo é 520 px; em 1280×720 ela abre assim): a subclasse desce para a linha de baixo,
+   para o nível e a lixeira continuarem à vista. */
+@container ficha (max-width: 640px) {
+  .fh-classe {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+  }
+  .fh-classe > :nth-child(2) {
+    grid-row: 2;
+    grid-column: 1 / -1;
+  }
+}
 .fh-resumo {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  /* Na janela estreita (a ficha abre com ~60% da área) as caixas quebram em duas linhas. */
+  grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));
   gap: 8px;
 }
 .fh-caixa {
@@ -2816,10 +2808,16 @@ button:disabled:hover {
   color: var(--texto-suave);
 }
 .fh-rotulo {
+  max-width: 100%;
+  overflow-wrap: anywhere;
   font-size: 11px;
   letter-spacing: 0.04em;
   color: var(--texto-suave);
   text-transform: uppercase;
+}
+.fh-resumo .fh-rotulo {
+  font-size: 10px;
+  letter-spacing: 0;
 }
 .fh-grande {
   font-size: 22px;
@@ -3356,8 +3354,7 @@ button:disabled:hover {
 
 /* --- combate: ordem de turno, condições e dica (Lote 11) ----------------------------------------- */
 
-.ordem-de-turno header .ot-rodada {
-  margin-left: auto;
+.janela-cabecalho .ot-rodada {
   padding: 2px 10px;
   font-size: 12px;
   font-weight: 700;

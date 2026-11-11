@@ -135,4 +135,28 @@ describe("temas de cor", () => {
       expect(m?.[1]?.toUpperCase(), id).toBe(TEMAS[id].fundo.toUpperCase());
     }
   });
+
+  // R3: a metade de cima da bolinha do seletor usa `amostra`, a cor viva do tema (a barra é quase preta em
+  // nove deles). Cada tema tem de ser reconhecível e diferente dos outros.
+  it("a amostra da bolinha se distingue da barra e das amostras dos outros temas", () => {
+    const rgb = (hex: string) => {
+      const n = Number.parseInt(hex.slice(1), 16);
+      return [(n >> 16) & 255, (n >> 8) & 255, n & 255] as const;
+    };
+    const distancia = (a: string, b: string) => {
+      const [r1, g1, b1] = rgb(a);
+      const [r2, g2, b2] = rgb(b);
+      return Math.hypot(r1 - r2, g1 - g2, b1 - b2);
+    };
+    for (const id of IDS_DOS_TEMAS) {
+      expect(distancia(TEMAS[id].amostra, TEMAS[id].barra), `${id} x barra`).toBeGreaterThan(40);
+    }
+    for (const a of IDS_DOS_TEMAS) {
+      for (const b of IDS_DOS_TEMAS) {
+        if (a < b) {
+          expect(distancia(TEMAS[a].amostra, TEMAS[b].amostra), `${a} x ${b}`).toBeGreaterThan(40);
+        }
+      }
+    }
+  });
 });

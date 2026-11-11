@@ -1,7 +1,9 @@
 import { type Cena, type ConfigIluminacao, luzAmbienteDa } from "@tabletop/shared";
-import { SlidersHorizontal, X } from "lucide-react";
+import { SlidersHorizontal } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Campo } from "./Campo";
+import { noTopoAoCentro } from "./janelas/geometria";
+import { Janela } from "./janelas/Janela";
 
 type Props = {
   cena: Cena;
@@ -37,25 +39,18 @@ export function PainelDeIluminacao({ cena, config, enviar, aoFechar }: Props) {
   };
 
   return (
-    <section
-      className="painel-config-luz"
-      data-testid="painel-config-iluminacao"
-      aria-label="Configurações de iluminação"
+    <Janela
+      id="iluminacao"
+      titulo="Configurações de iluminação"
+      icone={<SlidersHorizontal size={16} />}
+      testid="painel-config-iluminacao"
+      classeDoCorpo="painel-config-luz"
+      padrao={noTopoAoCentro()}
+      largura={340}
+      aoFechar={aoFechar}
+      rotuloDoFechar="Fechar"
+      testidDoFechar="config-fechar"
     >
-      <header>
-        <SlidersHorizontal size={16} /> <strong>Configurações de iluminação</strong>
-        <button
-          type="button"
-          className="botao-icone pequeno"
-          title="Fechar"
-          aria-label="Fechar"
-          data-testid="config-fechar"
-          onClick={aoFechar}
-        >
-          <X size={16} />
-        </button>
-      </header>
-
       <fieldset className="quem-controla">
         <legend>Luz ambiente de “{cena.nome}”</legend>
         <div className="deslizante">
@@ -173,6 +168,6 @@ export function PainelDeIluminacao({ cena, config, enviar, aoFechar }: Props) {
           </p>
         )}
       </fieldset>
-    </section>
+    </Janela>
   );
 }

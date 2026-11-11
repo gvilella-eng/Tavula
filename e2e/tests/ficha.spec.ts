@@ -341,7 +341,9 @@ test("várias janelas ao mesmo tempo, arrastáveis e redimensionáveis", async (
   await expect(p.getByTestId("janela-ficha")).toHaveCount(2);
 
   // a que abriu por último está na frente; clicar na outra a traz
-  const z = async (j: typeof darion) => Number(await j.evaluate((e) => getComputedStyle(e).zIndex));
+  // (R3: o z-index mora no contêiner da Janela, o ancestral `.janela` do elemento de testid janela-ficha)
+  const z = async (j: typeof darion) =>
+    Number(await j.evaluate((e) => getComputedStyle(e.closest(".janela") as Element).zIndex));
   expect(await z(aldric)).toBeGreaterThan(await z(darion));
   await darion.getByTestId("janela-ficha-cabecalho").click({ position: { x: 300, y: 8 } });
   expect(await z(darion)).toBeGreaterThan(await z(aldric));
@@ -365,18 +367,19 @@ test("várias janelas ao mesmo tempo, arrastáveis e redimensionáveis", async (
   expect(Math.round(depois.x - antes.x)).toBe(60);
   expect(Math.round(depois.y - antes.y)).toBe(40);
 
-  // redimensionar pela quina
+  // redimensionar pela quina (R3: a ficha agora abre no tamanho mínimo em 1280×720, então o teste aumenta
+  // a janela em vez de diminuir)
   const alca = (await darion.getByTestId("janela-ficha-redimensionar").boundingBox()) as {
     x: number;
     y: number;
   };
   await p.mouse.move(alca.x + 8, alca.y + 8);
   await p.mouse.down();
-  await p.mouse.move(alca.x - 92, alca.y - 52, { steps: 5 });
+  await p.mouse.move(alca.x + 108, alca.y + 68, { steps: 5 });
   await p.mouse.up();
-  const menor = (await darion.boundingBox()) as typeof antes;
-  expect(Math.round(depois.width - menor.width)).toBe(100);
-  expect(Math.round(depois.height - menor.height)).toBe(60);
+  const maior = (await darion.boundingBox()) as typeof antes;
+  expect(Math.round(maior.width - depois.width)).toBe(100);
+  expect(Math.round(maior.height - depois.height)).toBe(60);
 
   // fechar uma não fecha a outra
   await darion.getByTestId("janela-ficha-fechar").click();

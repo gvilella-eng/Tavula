@@ -1,5 +1,5 @@
-import { useCallback, useRef, useState } from "react";
-import { tamanhoDaArea } from "../area";
+import { useCallback, useState } from "react";
+import { trazerParaFrente } from "../janelas/pilha";
 
 export const ABAS_DA_FICHA = [
   ["principal", "Principal"],
@@ -11,60 +11,34 @@ export const ABAS_DA_FICHA = [
 ] as const;
 export type AbaDaFicha = (typeof ABAS_DA_FICHA)[number][0];
 
+/** Uma ficha aberta. A posição, o tamanho e a pilha são da `Janela` (por pessoa, no navegador). */
 export type JanelaDeFicha = {
   personagemId: string;
-  x: number;
-  y: number;
-  largura: number;
-  altura: number;
-  /** Ordem de empilhamento: maior = mais à frente. */
-  z: number;
   aba: AbaDaFicha;
 };
 
 export const LARGURA_MINIMA = 520;
 export const ALTURA_MINIMA = 360;
 
-/** Tamanho inicial: grande, mas sempre cabendo na área do mapa (as janelas abrem dentro dela). */
-function tamanhoInicial() {
-  const area = tamanhoDaArea();
-  return {
-    largura: Math.max(LARGURA_MINIMA, Math.min(860, area.largura - 120)),
-    altura: Math.max(ALTURA_MINIMA, Math.min(640, area.altura - 72)),
-  };
-}
+/** O id da `Janela` de uma ficha: uma por personagem (guarda posição e tamanho de cada uma). */
+export const idDaJanelaDaFicha = (personagemId: string) => `ficha:${personagemId}`;
 
 /**
- * As janelas de ficha abertas (várias ao mesmo tempo, arrastáveis e redimensionáveis). Abrir uma que já
- * está aberta só a traz para a frente (e muda a aba, se pedida).
+ * As janelas de ficha abertas (várias ao mesmo tempo). Abrir uma que já está aberta só a traz para a
+ * frente (e muda a aba, se pedida).
  */
 export function useJanelasDeFicha() {
   const [janelas, setJanelas] = useState<JanelaDeFicha[]>([]);
-  const topo = useRef(1);
 
   const abrir = useCallback((personagemId: string, aba?: AbaDaFicha) => {
+    trazerParaFrente(idDaJanelaDaFicha(personagemId));
     setJanelas((atuais) => {
-      const z = ++topo.current;
-      const existe = atuais.find((j) => j.personagemId === personagemId);
-      if (existe) {
-        return atuais.map((j) =>
-          j.personagemId === personagemId ? { ...j, z, ...(aba ? { aba } : {}) } : j,
-        );
+      if (atuais.some((j) => j.personagemId === personagemId)) {
+        return aba
+          ? atuais.map((j) => (j.personagemId === personagemId ? { ...j, aba } : j))
+          : atuais;
       }
-      const n = atuais.length;
-      const t = tamanhoInicial();
-      const area = tamanhoDaArea();
-      return [
-        ...atuais,
-        {
-          personagemId,
-          x: Math.max(8, Math.min(24 + n * 36, area.largura - t.largura - 8)),
-          y: Math.max(8, Math.min(24 + n * 36, area.altura - t.altura - 8)),
-          ...t,
-          z,
-          aba: aba ?? "principal",
-        },
-      ];
+      return [...atuais, { personagemId, aba: aba ?? "principal" }];
     });
   }, []);
 
@@ -78,16 +52,5 @@ export function useJanelasDeFicha() {
     );
   }, []);
 
-  const focar = useCallback((personagemId: string) => {
-    // Já é a da frente: não redesenha à toa.
-    setJanelas((atuais) => {
-      const maior = Math.max(...atuais.map((j) => j.z));
-      const alvo = atuais.find((j) => j.personagemId === personagemId);
-      if (!alvo || alvo.z === maior) return atuais;
-      const z = ++topo.current;
-      return atuais.map((j) => (j.personagemId === personagemId ? { ...j, z } : j));
-    });
-  }, []);
-
-  return { janelas, abrir, fechar, atualizar, focar };
+  return { janelas, abrir, fechar, atualizar };
 }

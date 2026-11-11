@@ -1,7 +1,9 @@
 import type { Camada, Token, Usuario } from "@tabletop/shared";
-import { ImagePlus, Trash2, X } from "lucide-react";
+import { ImagePlus, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { PedirImagem } from "./FaixaDeCenas";
+import { noCanto } from "./janelas/geometria";
+import { Janela } from "./janelas/Janela";
 
 type Props = {
   token: Token;
@@ -33,24 +35,18 @@ export function PainelDoToken({ token, jogadores, enviar, pedirImagem, aoFechar 
   }
 
   return (
-    <section
-      className="painel-token"
-      data-testid="painel-token"
-      data-token-id={token.id}
-      aria-label="Token selecionado"
+    <Janela
+      id="token"
+      titulo="Token selecionado"
+      cabecalho={<strong>Token</strong>}
+      testid="painel-token"
+      dados={{ "data-token-id": token.id }}
+      classeDoCorpo="painel-token"
+      padrao={noCanto("baixo-esquerda")}
+      largura={236}
+      aoFechar={aoFechar}
+      rotuloDoFechar="Fechar"
     >
-      <header>
-        <strong>Token</strong>
-        <button
-          type="button"
-          className="botao-icone pequeno"
-          title="Fechar"
-          aria-label="Fechar"
-          onClick={aoFechar}
-        >
-          <X size={16} />
-        </button>
-      </header>
       <label>
         Nome
         <input
@@ -200,6 +196,6 @@ export function PainelDoToken({ token, jogadores, enviar, pedirImagem, aoFechar 
           ))}
         </div>
       </fieldset>
-    </section>
+    </Janela>
   );
 }

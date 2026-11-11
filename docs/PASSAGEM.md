@@ -7,8 +7,8 @@ ponteiro, não entrou. Onde a fonte é ambígua ou os docs se contradizem, o ite
 Ponteiros: `REDESIGN` = `docs/REDESIGN.md`, `PERGUNTAS` = `docs/PERGUNTAS.md`, `ESTADO` = `docs/ESTADO.md`,
 `PROJETO` = `PROJETO.md` (na raiz), `IDEIAS` = `docs/IDEIAS.md`. Número depois dos dois-pontos é a linha.
 
-Estado dos docs em 2026-11-10: os Redesigns R1, R2 e R2b (pausa automática e 11 temas) estão entregues; R3 em
-diante não começou (fim do `ESTADO`, "Próximo").
+Estado dos docs em 2026-11-10: os Redesigns R1, R2, R2b (pausa automática e 11 temas) e R3 (janelas flutuantes)
+estão entregues; R4 em diante não começou (fim do `ESTADO`, "Próximo").
 
 ## 1. Como subir a mesa para olhar
 
@@ -59,7 +59,8 @@ Tudo em `apps/web/src/`.
   - `PainelDoMestre.tsx`, `PainelDaMesa.tsx`, `PainelDeIluminacao.tsx`: configurações do mestre, regras da
     mesa (mãos, penalidade, estágios, modelos de luz) e iluminação.
   - `PainelDoToken.tsx`: painel compacto do mestre para o token selecionado (canto inferior esquerdo da área do mapa).
-  - `OrdemDeTurno.tsx`: painel flutuante da ordem de turno.
+  - `janelas/Janela.tsx`, `janelas/pilha.ts`, `janelas/geometria.ts`: a janela flutuante comum (arrastar, minimizar, redimensionar, dentro da área, pilha). Posição e tamanho por janela em `tabletop:pref:janela:<id>` (`preferencias.ts`).
+  - `OrdemDeTurno.tsx`: a ordem de turno (uma `Janela`).
   - `FaixaDeCenas.tsx`: faixa de cenas, com prévia do mapa e menu de contexto.
   - `ConfigurarCena.tsx`: nome, mapa, pixels por quadrado e grid da cena.
   - `PainelDasParedes.tsx`, `PainelDeFontesDeLuz.tsx`: paredes e portas; fontes de luz.
@@ -74,7 +75,7 @@ Tudo em `apps/web/src/`.
 ## 3. Levantamento de usabilidade (22 itens)
 
 Fonte: `REDESIGN:38-87`. Prioridade: A = atrapalha o jogo ou esconde função; B = confunde ou dá trabalho; C =
-acabamento. Lote = o do plano (`REDESIGN:89-117`) que resolve o item. R1 e R2 foram entregues.
+acabamento. Lote = o do plano (`REDESIGN:89-117`) que resolve o item. R1, R2 e R3 foram entregues.
 
 | # | Resumo | Classe | Lote |
 |---|---|---|---|
@@ -85,15 +86,15 @@ acabamento. Lote = o do plano (`REDESIGN:89-117`) que resolve o item. R1 e R2 fo
 | 5 | Paredes escondidas (copo, Paredes e portas, tipo, cliques); nada mostra o modo ligado | A | R4 |
 | 6 | Modelos de tocha só aparecem rolando Configurações | B | R4 |
 | 7 | "+" cria "Novo token" no meio da vista sem perguntar nome nem lugar | B | R5 |
-| 8 | Esc não solta a seleção; painel do token cobre o mapa | B | R3 (painel) e R5 (Esc) |
+| 8 | Esc não solta a seleção; painel do token cobre o mapa | B | R3 (painel, entregue: arrasta, minimiza e fecha) e R5 (Esc, e não abrir sozinho) |
 | 9 | Tocha só por gestos sem explicação; alça e tempo pequenos | A | R5 |
 | 10 | Condições: muitos cliques; marcadores pequenos; regra só no mouse | B | R5 |
 | 11 | Régua some ao soltar | C | R5 |
 | 12 | Aviso (toast) no rodapé, longe do clique, some rápido | B | R5 |
 | 13 | Jogador sem token na cena vê tela preta sem explicação | A | R5 |
-| 14 | Ordem de turno do mestre: cinco linhas de controles; número reordena enquanto digita; "Rolar para todos" cinza sem motivo | B | R3 (janela) e R5 (controles) |
+| 14 | Ordem de turno do mestre: cinco linhas de controles; número reordena enquanto digita; "Rolar para todos" cinza sem motivo | B | R3 (janela, entregue) e R5 (controles) |
 | 15 | Abrir a ficha exige dois cliques, sem dica | B | R5 |
-| 16 | Janela da ficha grande e fixa; em tela pequena cobre quase tudo | B | R3 |
+| 16 | Janela da ficha grande e fixa; em tela pequena cobre quase tudo | B | R3 (entregue) |
 | 17 | Lista de presença ocupa 1/4 do painel do chat | B | R2 (entregue) |
 | 18 | Compêndio: o mestre lê ajuda de JSON; falta "usar o exemplo" | B | R5 |
 | 19 | Importar PDF com dois caminhos de nomes diferentes; revisão longa (19 campos amarelos) | C | R5 |
@@ -105,11 +106,11 @@ Classes: A = 6 (1, 2, 4, 5, 9, 13), B = 13, C = 3 (11, 19, 22).
 
 ## 4. Perguntas e suposições esperando o "ok" dele
 
-**Total: 45 abertos em `PERGUNTAS`** (47 numerados; o 9 e o 21 já estão resolvidos) (a seção "Respondidas em 2026-11-10" não entra, nem o item riscado do
-nome). Mais **44 suposições "(assumido)"** (37 de antes e 7 do R2) que só aparecem no `ESTADO`/`REDESIGN` (parte B). Os que o texto
+**Total: 44 abertos em `PERGUNTAS`** (47 numerados; o 9, o 21 e o 24 já estão resolvidos) (a seção "Respondidas em 2026-11-10" não entra, nem o item riscado do
+nome). Mais **55 suposições "(assumido)"** (37 de antes, 7 do R2, 4 do R2b e 7 do R3) que só aparecem no `ESTADO`/`REDESIGN` (parte B). Os que o texto
 marca "(assumido)" valem até ele dizer o contrário.
 
-### A. Em `PERGUNTAS.md` (47 numerados, 45 abertos)
+### A. Em `PERGUNTAS.md` (47 numerados, 44 abertos)
 
 Já vinham de antes
 1. Camada mapa = imagem do mapa + objetos de cenário? (assumido) (`PERGUNTAS:13`)
@@ -138,10 +139,10 @@ Lote 8
 
 Lote 9
 20. Ficha completa de outro personagem só com `ficha.verOutras` (padrão desligado)? (assumido) (`PERGUNTAS:45`). **Inconsistência real**: a capacidade sumiu da tela do mestre (`PainelDoMestre.tsx:24`, "quem vê a ficha agora é a pasta"), mas ainda libera a ficha completa no código (`packages/shared/src/mapa.ts:81`). Decidir se sai de vez ou volta à tela.
-21. ~~Ficha numa janela flutuante~~: já existe (`ficha/JanelaDaFicha.tsx`); arrastar e lembrar a posição por usuário vem no R3 (`PERGUNTAS:46`). Não conta no total.
+21. ~~Ficha numa janela flutuante~~: já existe (`ficha/JanelaDaFicha.tsx`); arrastar e lembrar a posição por usuário entregue no R3 (`janelas/Janela.tsx`; `PERGUNTAS:46`). Não conta no total.
 22. O jogador pode repor tochas na própria ficha? (assumido: só o mestre aumenta) (`PERGUNTAS:86`)
 23. A importação da ficha deve ler também de dentro de `fichas/`? (assumido: arquivo escolhido) (`PERGUNTAS:87`)
-24. A janela da ficha deve lembrar a posição? (`PERGUNTAS:88`). O R3 prevê posição por usuário.
+24. ~~A janela da ficha deve lembrar a posição?~~ Respondida no R3: sim, por usuário, no navegador (`tabletop:pref:janela:ficha:<id>`; `PERGUNTAS:88`). Não conta no total.
 25. Darion: conferir na ficha original Labareda Protetora 2/longo e Radiação do Amanhecer 1/curto (`PERGUNTAS:89`). Tochas e flechas já seguem o PDF.
 
 Lote 10
@@ -178,7 +179,7 @@ Fora da contagem, no mesmo arquivo: "A lista de presença ocupa muito espaço co
 o item 17 do levantamento (resolvido no R2: avatares no topo); "Sobreposição de alças e ícones de ponto" (`PERGUNTAS:38`) está na seção 5
 (Lote 7); "Ideias para o 7b" (`PERGUNTAS:62`) está na seção 7.
 
-### B. Suposições "(assumido)" só no ESTADO/REDESIGN (44)
+### B. Suposições "(assumido)" só no ESTADO/REDESIGN (55)
 
 Não aparecem em `PERGUNTAS`. Resumidas; o texto completo está no ponteiro.
 
@@ -250,7 +251,16 @@ Redesign R2b (`REDESIGN`, "R2b — como ficou")
 94. Só a saída de conexão de mestre dispara a pausa; o jogador não vê diferença entre pausa manual e automática
 95. Nos 8 temas escuros novos o destaque e os tokens de estado são os do Grimório; o resto foi derivado no tom de cada paleta; degradê do painel por coeficiente sobre a barra
 
-Os itens 49 a 85 são 37; o R2 acrescenta os itens 86 a 92. Deixei de fora as suposições puramente técnicas (por exemplo, onde mora o compêndio
+Redesign R3 (`REDESIGN`, "R3 — como ficou")
+96. Ficha: uma posição e um tamanho guardados por personagem (`ficha:<personagemId>`); a segunda ficha sem posição guardada desloca em cascata
+97. Esc não fecha as janelas (é da seleção, R5); as setas movem a janela com o cabeçalho focado (8 px; Shift, 40 px)
+98. Só a ficha redimensiona nos dois eixos; ordem de turno e fontes de luz só na altura; o resto não redimensiona
+99. Os dados rápidos deixaram de fechar ao clicar fora (agora fecham pelo X, ou sozinhos depois de rolar); o "recolher" das fontes de luz virou o minimizar comum, sem a opacidade de 70%
+100. Minimizar esconde o corpo sem desmontá-lo; a posição só é guardada depois que a pessoa move ou redimensiona
+101. Posições padrão: ordem no alto à direita, token embaixo à esquerda, ficha no alto à esquerda (até 60% da largura, 75% da altura), paredes e fontes lado a lado no alto à esquerda, iluminação ao centro, dados ao lado do botão
+102. Seletor de tema: token novo `amostra` por tema para a metade de cima da bolinha; a interface não muda de cor
+
+Os itens 49 a 85 são 37; o R2 acrescenta os itens 86 a 92, o R2b os 93 a 96 e o R3 os 97 a 103. Deixei de fora as suposições puramente técnicas (por exemplo, onde mora o compêndio
 na tabela `meta`, o worker do pdf.js, tipos do Node no teste, idempotência de `desenho.apagar`).
 
 ## 5. Pontos frágeis por lote
@@ -264,7 +274,7 @@ Vários lotes
 - Hibernação real da sala não testada (L3: posse ao acordar; L4: preparos pendentes). (`ESTADO:531`, `ESTADO:719`)
 - Visual das abas conferido só por teste, sem polimento (L3 Biblioteca; L4 abas novas). (`ESTADO:541`, `ESTADO:726`)
 - Mesma cena duplicada obriga a refazer o preparo e baixa o mapa duas vezes. (`ESTADO:715`, `ESTADO:854`)
-- Toque (celular) não testado: arrastar alça da tocha (L7) e arrastar e redimensionar a janela da ficha (L9). (`ESTADO:1117`, `ESTADO:1261`)
+- Toque (celular) não testado: arrastar alça da tocha (L7) e arrastar e redimensionar as janelas (L9, R3). (`ESTADO:1117`, `ESTADO:1261`)
 - Banco real do Vilella nunca aberto com as migrações novas (leitura coberta só por teste com banco simulado) (L7, L8, L9). (`ESTADO:1122`, `ESTADO:1196`, `ESTADO:1266`)
 - Arrasto HTML5 (drag and drop): L4b só no Chrome; L11 sem E2E do arrasto da lista. (`ESTADO:852`, `ESTADO:1418`)
 - Custo real de uso (inventário no SQLite, frames) nunca medido numa mesa de 3 h (L3; custo de linhas também em L8). (`ESTADO:537-538`)
@@ -314,7 +324,7 @@ Lote 8
 - ~~A lista de presença no topo do chat ocupa muito espaço com 8 pessoas~~: resolvido no R2 (avatares no topo da mesa). (`PERGUNTAS:83`, levantamento 17)
 
 Lote 9
-- A janela da ficha não guarda posição entre sessões (também em `PERGUNTAS:88`). (`ESTADO:1261`)
+- ~~A janela da ficha não guarda posição entre sessões~~: resolvido no R3 (posição e tamanho por usuário). (`PERGUNTAS:88`, `ESTADO:1261`)
 - Duas pessoas no mesmo campo: vale a última; o já enviado fica por cima por 2,5 s ou até o eco. (`ESTADO:1262`)
 - Escrita em `fichas/` (File System Access) não testada no E2E; sem pasta, o teste cobre o download. (`ESTADO:1263`)
 - Chave numérica em operação (`espacosGastos.1`) cria lista em vez de objeto quando o pai não existe. (`ESTADO:1264`)
@@ -330,7 +340,7 @@ Lote 10
 
 Lote 11
 - A dica das condições só aparece com o mouse; em toque não há como lê-la (também em `PERGUNTAS:60`, `REDESIGN:251`). (`ESTADO:1419`)
-- O painel da ordem tem 364 px e, em 1280 px, cobre parte do mapa (levantamento 14). Desde o R2 abre dentro da área do mapa, no canto superior direito, sem cobrir barras nem zoom; vira janela arrastável no R3. (`ESTADO:1420`)
+- O painel da ordem tem 364 px e, em 1280 px, cobre parte do mapa (levantamento 14). Desde o R2 abre dentro da área do mapa, no canto superior direito, sem cobrir barras nem zoom; no R3 virou janela (arrasta, minimiza, altura ajustável). (`ESTADO:1420`)
 - `combate.alterado` leva o combate inteiro a cada mudança (até 200 entradas). (`ESTADO:1421`)
 - Ordenação por nome com `Intl.Collator("pt-BR")` testada no Node, não no `wrangler dev` do Vilella com lista grande. (`ESTADO:1422`)
 - Sem automação de regra (desvantagem, falha automática, teste de concentração): fica para o 7b. (`ESTADO:1423`)
@@ -356,6 +366,12 @@ Redesign R1
 - Selo "Mestre" preso ao id `mestre` (também em `REDESIGN:167`). (`ESTADO:1665`)
 - Texto branco sobre cores de usuário claras (amarelo do mestre) no avatar: contraste baixo; fica para o R6. (`ESTADO:1666`, `REDESIGN:167-168`)
 - Os rótulos desenhados dentro do mapa não seguem o tema; também ficam para o R6. (`ESTADO:1667`, `REDESIGN:168`)
+
+Redesign R3
+- Toque (celular) não testado: arrastar e redimensionar as janelas só foram testados com mouse. (`ESTADO`, "R3", Frágil)
+- Com ordem de turno, ficha e painel do token abertos em 1280×720 as três se sobrepõem em parte nas posições padrão; a última clicada fica por cima. (`ESTADO`, "R3", Frágil)
+- A ficha sem tamanho guardado acompanha a área (60% da largura) e a ordem de turno tem altura máxima "área menos 80 px"; janelas de outros tamanhos de tela só foram vistas em 1600×900 e 1280×720. (`ESTADO`, "R3", Frágil)
+- A ficha abre com 520 px em 1280×720: a linha da classe se rearruma (subclasse embaixo), mas Raça, Antecedente e Alinhamento cortam o texto no campo. Fica para o R6. (`REDESIGN`, "R3 — como ficou")
 
 Redesign R2b
 - O mestre que perde a rede por mais de 5 s pausa a mesa para todos. (`ESTADO`, "R2b", Frágil)
@@ -394,8 +410,9 @@ dos Lotes 1 e 2 (fora do escopo deste mapa).
 - Redesign R1, pendente: `ESTADO:1670`.
 - Redesign R2, pendente: `ESTADO:1729`.
 - Redesign R2b, pendente: o "Roteiro manual" da seção "Redesign R2b" no `ESTADO`.
+- Redesign R3, pendente: o "Roteiro manual" da seção "Redesign R3" no `ESTADO`.
 
-Total: 14 roteiros com seção própria (1 parcial e 13 pendentes).
+Total: 15 roteiros com seção própria (1 parcial e 14 pendentes).
 
 ## 7. Adiados
 
@@ -414,7 +431,7 @@ planejados, mudam de escopo ou ficam com ele):
 - **R2, estrutura fixa (entregue)**: topo de 48 px, ferramentas de 52 px, painel direito em coluna com abas nomeadas e
   largura ajustável (300 px a 1/4 da tela), zoom fixo no canto, presença em avatares no topo, pausa e relógio
   claros, "centralizar" só na área visível. Resolve 1, 3, 17, 21.
-- **R3, janelas flutuantes**: componente único (arrastar, posição e tamanho por usuário, dois cliques
+- **R3, janelas flutuantes (entregue)**: componente único (arrastar, posição e tamanho por usuário, dois cliques
   minimizam, sempre na tela, a última clicada por cima) para ordem de turno, ficha, token, paredes, fontes de
   luz, iluminação e dados rápidos. Resolve 8 (parte), 14 (parte), 16.
 - **R4, organização do mestre**: menu superior agrupado e com nomes; Paredes vira ferramenta da barra

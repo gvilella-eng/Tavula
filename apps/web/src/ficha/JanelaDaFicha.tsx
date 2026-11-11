@@ -12,13 +12,13 @@ import {
   VANTAGENS,
   type Vantagem,
 } from "@tabletop/shared";
-import { BedDouble, Coffee, X } from "lucide-react";
+import { BedDouble, Coffee } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Avatar } from "../Avatar";
-import { tamanhoDaArea } from "../area";
 import type { Fontes } from "../assets/fontes";
 import { EditorDoItem } from "../EditorDoItem";
 import type { PedirImagem } from "../FaixaDeCenas";
+import { Janela } from "../janelas/Janela";
 import type { ImagensDoMapa } from "../mapa/mapaPixi";
 import type { TempoDaTela } from "../tempo";
 import { AbaMagias } from "./AbaMagias";
@@ -28,6 +28,7 @@ import {
   ABAS_DA_FICHA,
   type AbaDaFicha,
   ALTURA_MINIMA,
+  idDaJanelaDaFicha,
   type JanelaDeFicha,
   LARGURA_MINIMA,
 } from "./janelas";
@@ -40,8 +41,8 @@ type Enviar = (tipo: string, dados: object) => string | null;
 
 type Props = {
   janela: JanelaDeFicha;
-  /** Posição na pilha (0 = a de trás), para o `z-index`. */
-  camada: number;
+  /** Quantas fichas abriram antes desta: sem posição guardada, abre deslocada em cascata. */
+  cascata: number;
   personagem: Personagem;
   estado: Estado;
   eu: Usuario;
@@ -53,11 +54,14 @@ type Props = {
   tempo: TempoDaTela;
   fontes: Fontes;
   aoFechar: () => void;
-  aoFocar: () => void;
   aoMudar: (mudancas: Partial<JanelaDeFicha>) => void;
 };
 
-const BASE_DO_Z = 45;
+/** Deslocamento de cada ficha a mais aberta (cascata) e a folga da primeira. */
+const PASSO_DA_CASCATA = 32;
+const FOLGA = 12;
+/** A ordem de turno (364 px) mais as folgas: o que a ficha deixa livre à direita quando cabe. */
+const LARGURA_DA_ORDEM_E_FOLGAS = 364 + 3 * FOLGA;
 
 /** "Clérigo 5 / Patrulheiro 5 · Elfo da floresta · Forasteiro": a linha de baixo do nome. */
 function resumoDaFicha(p: Personagem): string {
@@ -70,13 +74,14 @@ function resumoDaFicha(p: Personagem): string {
 }
 
 /**
- * Janela flutuante da ficha 5e (Lote 9): arrastável pelo cabeçalho, redimensionável pela quina, várias
- * ao mesmo tempo, em tema escuro, como nas mesas virtuais. Abas: Principal, Magias, Características,
+ * Janela flutuante da ficha 5e (Lote 9), agora uma `Janela` (R3): arrastável pelo cabeçalho, minimiza com
+ * dois cliques, redimensionável pela quina, várias ao mesmo tempo; posição e tamanho de cada ficha
+ * ficam no navegador de cada pessoa. Abas: Principal, Magias, Características,
  * Equipamento, Notas e Configurar (o editor do item).
  */
 export function JanelaDaFicha({
   janela,
-  camada,
+  cascata,
   personagem: p,
   estado,
   eu,
@@ -88,7 +93,6 @@ export function JanelaDaFicha({
   tempo,
   fontes,
   aoFechar,
-  aoFocar,
   aoMudar,
 }: Props) {
   const editar = podeEditarPersonagem(p, eu);
@@ -139,96 +143,55 @@ export function JanelaDaFicha({
     setAviso(descanso === "curto" ? "Descanso curto feito." : "Descanso longo feito.");
   }
 
-  // --- arrastar e redimensionar ---------------------------------------------------------------
-  const gesto = useRef<{
-    tipo: "mover" | "tamanho";
-    x: number;
-    y: number;
-    j: JanelaDeFicha;
-  } | null>(null);
-  function iniciar(tipo: "mover" | "tamanho", e: React.PointerEvent) {
-    if (e.button !== 0) return;
-    aoFocar();
-    gesto.current = { tipo, x: e.clientX, y: e.clientY, j: janela };
-    e.currentTarget.setPointerCapture(e.pointerId);
-    e.preventDefault();
-  }
-  function seguir(e: React.PointerEvent) {
-    const g = gesto.current;
-    if (!g) return;
-    const dx = e.clientX - g.x;
-    const dy = e.clientY - g.y;
-    // A janela vive dentro da área do mapa: as medidas são as dela, não as da janela do navegador.
-    const area = tamanhoDaArea();
-    if (g.tipo === "mover") {
-      aoMudar({
-        x: Math.min(Math.max(g.j.x + dx, 80 - g.j.largura), area.largura - 80),
-        y: Math.min(Math.max(g.j.y + dy, 0), area.altura - 40),
-      });
-    } else {
-      aoMudar({
-        largura: Math.min(
-          Math.max(g.j.largura + dx, LARGURA_MINIMA),
-          Math.max(LARGURA_MINIMA, area.largura - g.j.x),
-        ),
-        altura: Math.min(
-          Math.max(g.j.altura + dy, ALTURA_MINIMA),
-          Math.max(ALTURA_MINIMA, area.altura - g.j.y),
-        ),
-      });
-    }
-  }
-  function soltar(e: React.PointerEvent) {
-    gesto.current = null;
-    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
-      e.currentTarget.releasePointerCapture(e.pointerId);
-    }
-  }
-
   return (
-    <section
-      className="janela-ficha"
-      role="dialog"
-      aria-label={`Ficha de ${p.nome}`}
-      data-testid="janela-ficha"
-      data-personagem-id={p.id}
-      data-aba={aba}
-      style={{
-        left: janela.x,
-        top: janela.y,
-        width: janela.largura,
-        height: janela.altura,
-        zIndex: BASE_DO_Z + camada,
-      }}
-      onPointerDownCapture={aoFocar}
-    >
-      <header
-        className="janela-ficha-cabecalho"
-        data-testid="janela-ficha-cabecalho"
-        onPointerDown={(e) => {
-          // Botões e campos do cabeçalho não arrastam.
-          if ((e.target as Element).closest("button, input, select, textarea")) return;
-          iniciar("mover", e);
-        }}
-        onPointerMove={seguir}
-        onPointerUp={soltar}
-        onPointerCancel={soltar}
-      >
-        <Avatar
-          imagens={imagens}
-          versao={versaoDasImagens}
-          hash={p.retratoHash}
-          nome={p.nome}
-          cor={p.tokenPadrao.cor}
-          className="pequeno"
-        />
-        <div className="janela-ficha-titulo">
-          <strong data-testid="janela-ficha-nome">{p.nome}</strong>
-          <span className="nota" data-testid="janela-ficha-resumo">
-            {resumoDaFicha(p)}
-          </span>
-        </div>
-        {temFicha && (
+    <Janela
+      id={idDaJanelaDaFicha(p.id)}
+      titulo={`Ficha de ${p.nome}`}
+      testid="janela-ficha"
+      testidDoCabecalho="janela-ficha-cabecalho"
+      testidDoFechar="janela-ficha-fechar"
+      testidDoRedimensionar="janela-ficha-redimensionar"
+      rotuloDoFechar="Fechar a ficha"
+      dados={{ "data-personagem-id": p.id, "data-aba": aba }}
+      classe="janela-ficha"
+      corpoLivre
+      redimensionar="ambos"
+      minLargura={LARGURA_MINIMA}
+      minAltura={ALTURA_MINIMA}
+      // No máximo ~60% da largura da área (não menos que o mínimo, e sem passar por cima da ordem de
+      // turno, no alto à direita) e três quartos da altura.
+      largura={(area) =>
+        Math.max(
+          LARGURA_MINIMA,
+          Math.min(860, Math.round(area.largura * 0.6), area.largura - LARGURA_DA_ORDEM_E_FOLGAS),
+        )
+      }
+      altura={(area) => Math.max(ALTURA_MINIMA, Math.min(640, Math.round(area.altura * 0.75)))}
+      padrao={() => ({
+        x: FOLGA + cascata * PASSO_DA_CASCATA,
+        y: FOLGA + cascata * PASSO_DA_CASCATA,
+      })}
+      aoFechar={aoFechar}
+      cabecalho={
+        <>
+          <Avatar
+            imagens={imagens}
+            versao={versaoDasImagens}
+            hash={p.retratoHash}
+            nome={p.nome}
+            cor={p.tokenPadrao.cor}
+            className="pequeno"
+          />
+          <div className="janela-ficha-titulo">
+            <strong data-testid="janela-ficha-nome">{p.nome}</strong>
+            <span className="nota" data-testid="janela-ficha-resumo">
+              {resumoDaFicha(p)}
+            </span>
+          </div>
+        </>
+      }
+      acoes={
+        temFicha ? (
           <>
             <fieldset
               className="fh-vantagem"
@@ -274,19 +237,9 @@ export function JanelaDaFicha({
               </>
             )}
           </>
-        )}
-        <button
-          type="button"
-          className="botao-icone pequeno"
-          data-testid="janela-ficha-fechar"
-          title="Fechar"
-          aria-label="Fechar a ficha"
-          onClick={aoFechar}
-        >
-          <X size={16} />
-        </button>
-      </header>
-
+        ) : null
+      }
+    >
       <div className="janela-ficha-abas" role="tablist" aria-label="Abas da ficha">
         {ABAS_DA_FICHA.filter(([id]) => temFicha || id === "configurar").map(([id, titulo]) => (
           <button
@@ -383,17 +336,6 @@ export function JanelaDaFicha({
         )}
       </div>
       {importadorDePdf.elementos}
-      {/* biome-ignore lint/a11y/useSemanticElements: a alça de redimensionar é só um ponto de arrasto */}
-      <div
-        className="janela-ficha-alca"
-        role="separator"
-        aria-label="Redimensionar a janela"
-        data-testid="janela-ficha-redimensionar"
-        onPointerDown={(e) => iniciar("tamanho", e)}
-        onPointerMove={seguir}
-        onPointerUp={soltar}
-        onPointerCancel={soltar}
-      />
-    </section>
+    </Janela>
   );
 }

@@ -56,3 +56,58 @@ export function gravarLarguraDoPainel(largura: number): void {
     // sem localStorage: vale só nesta sessão
   }
 }
+
+// --- janelas flutuantes (posição, tamanho e minimizada, por janela e por navegador) -----------------
+
+/** O que cada pessoa escolheu para uma janela. Falta o campo = vale o padrão. Nunca vai para a sala. */
+export type PreferenciaDeJanela = {
+  x?: number;
+  y?: number;
+  largura?: number;
+  altura?: number;
+  minimizada?: boolean;
+};
+
+export const chaveDaJanela = (id: string) => `tabletop:pref:janela:${id}`;
+
+const numeroOuNada = (v: unknown): number | undefined =>
+  typeof v === "number" && Number.isFinite(v) ? Math.round(v) : undefined;
+
+export function lerJanela(id: string): PreferenciaDeJanela {
+  try {
+    const bruto = localStorage.getItem(chaveDaJanela(id));
+    if (!bruto) return {};
+    const v = JSON.parse(bruto) as Record<string, unknown> | null;
+    if (v === null || typeof v !== "object") return {};
+    const x = numeroOuNada(v.x);
+    const y = numeroOuNada(v.y);
+    const largura = numeroOuNada(v.largura);
+    const altura = numeroOuNada(v.altura);
+    return {
+      // posição só vale com os dois eixos
+      ...(x !== undefined && y !== undefined ? { x, y } : {}),
+      ...(largura !== undefined && largura > 0 ? { largura } : {}),
+      ...(altura !== undefined && altura > 0 ? { altura } : {}),
+      ...(v.minimizada === true ? { minimizada: true } : {}),
+    };
+  } catch {
+    return {};
+  }
+}
+
+export function gravarJanela(id: string, pref: PreferenciaDeJanela): void {
+  try {
+    const limpa: PreferenciaDeJanela = {
+      ...(pref.x !== undefined && pref.y !== undefined
+        ? { x: Math.round(pref.x), y: Math.round(pref.y) }
+        : {}),
+      ...(pref.largura !== undefined ? { largura: Math.round(pref.largura) } : {}),
+      ...(pref.altura !== undefined ? { altura: Math.round(pref.altura) } : {}),
+      ...(pref.minimizada ? { minimizada: true } : {}),
+    };
+    if (Object.keys(limpa).length === 0) localStorage.removeItem(chaveDaJanela(id));
+    else localStorage.setItem(chaveDaJanela(id), JSON.stringify(limpa));
+  } catch {
+    // sem localStorage: vale só nesta sessão
+  }
+}

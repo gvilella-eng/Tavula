@@ -4,7 +4,9 @@ import {
   TIPOS_DE_PAREDE,
   type TipoDeParede,
 } from "@tabletop/shared";
-import { Trash2, X } from "lucide-react";
+import { Trash2 } from "lucide-react";
+import { noCanto } from "./janelas/geometria";
+import { Janela } from "./janelas/Janela";
 
 export const ROTULO_DO_TIPO: Record<TipoDeParede, string> = {
   parede: "Parede",
@@ -35,20 +37,17 @@ export function PainelDasParedes(p: Props) {
   const s = p.selecionada;
   const temEstado = s !== null && (s.tipo === "porta" || s.tipo === "secreta");
   return (
-    <section className="painel-token" data-testid="painel-paredes" aria-label="Paredes e portas">
-      <header>
-        <strong>Paredes e portas</strong>
-        <button
-          type="button"
-          className="botao-icone pequeno"
-          title="Fechar a ferramenta"
-          aria-label="Fechar a ferramenta"
-          data-testid="paredes-fechar"
-          onClick={p.aoFechar}
-        >
-          <X size={16} />
-        </button>
-      </header>
+    <Janela
+      id="paredes"
+      titulo="Paredes e portas"
+      testid="painel-paredes"
+      classeDoCorpo="painel-token"
+      padrao={noCanto("topo-esquerda", 316)}
+      largura={236}
+      aoFechar={p.aoFechar}
+      rotuloDoFechar="Fechar a ferramenta"
+      testidDoFechar="paredes-fechar"
+    >
       <p className="nota">
         Clique para desenhar em sequência (duplo clique ou Esc encerra; Alt solta do grid). Clique
         numa parede para editar; Delete apaga.
@@ -113,6 +112,6 @@ export function PainelDasParedes(p: Props) {
           </button>
         </fieldset>
       )}
-    </section>
+    </Janela>
   );
 }

@@ -185,7 +185,6 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
     abrir: abrirFicha,
     fechar: fecharFicha,
     atualizar: atualizarFicha,
-    focar: focarFicha,
   } = useJanelasDeFicha();
 
   // Arquivos locais (PROJETO.md 4.3): fontes (pasta, soltos), processador (worker) e o gerente
@@ -1074,32 +1073,29 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
                 aoFechar={() => setMenuDaTocha(null)}
               />
             )}
-            {[...janelasDeFicha]
-              .sort((a, b) => a.z - b.z)
-              .map((j, camada) => {
-                const personagem = estado.personagens.find((p) => p.id === j.personagemId);
-                if (!personagem) return null;
-                return (
-                  <JanelaDaFicha
-                    key={j.personagemId}
-                    janela={j}
-                    camada={camada}
-                    personagem={personagem}
-                    estado={estado}
-                    eu={eu}
-                    enviar={enviar}
-                    imagens={imagens}
-                    versaoDasImagens={versaoDosProntos}
-                    pedirImagem={pedirImagem}
-                    cenaVista={cenaVista}
-                    tempo={tempo}
-                    fontes={fontes}
-                    aoFechar={() => fecharFicha(j.personagemId)}
-                    aoFocar={() => focarFicha(j.personagemId)}
-                    aoMudar={(mudancas) => atualizarFicha(j.personagemId, mudancas)}
-                  />
-                );
-              })}
+            {janelasDeFicha.map((j, cascata) => {
+              const personagem = estado.personagens.find((p) => p.id === j.personagemId);
+              if (!personagem) return null;
+              return (
+                <JanelaDaFicha
+                  key={j.personagemId}
+                  janela={j}
+                  cascata={cascata}
+                  personagem={personagem}
+                  estado={estado}
+                  eu={eu}
+                  enviar={enviar}
+                  imagens={imagens}
+                  versaoDasImagens={versaoDosProntos}
+                  pedirImagem={pedirImagem}
+                  cenaVista={cenaVista}
+                  tempo={tempo}
+                  fontes={fontes}
+                  aoFechar={() => fecharFicha(j.personagemId)}
+                  aoMudar={(mudancas) => atualizarFicha(j.personagemId, mudancas)}
+                />
+              );
+            })}
           </div>
           <BarraLateral
             abas={abas}

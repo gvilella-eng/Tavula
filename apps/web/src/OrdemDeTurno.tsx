@@ -21,6 +21,8 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { noCanto } from "./janelas/geometria";
+import { Janela } from "./janelas/Janela";
 
 type Props = {
   estado: Estado;
@@ -139,14 +141,20 @@ export function OrdemDeTurno({ estado, eu, enviar, selecionadoId, somenteLeitura
   const rotuloDaRodada = rodada > 0 ? `Rodada ${rodada}` : "Não começou";
 
   return (
-    <aside
-      className="ordem-de-turno"
-      data-testid="ordem-de-turno"
-      aria-label="Ordem de turno"
-      data-gerencia={gerencia}
-    >
-      <header>
-        <ListOrdered size={16} /> <strong>Ordem de turno</strong>
+    <Janela
+      id="ordem"
+      titulo="Ordem de turno"
+      icone={<ListOrdered size={16} />}
+      testid="ordem-de-turno"
+      dados={{ "data-gerencia": String(gerencia) }}
+      classeDoCorpo="ordem-de-turno"
+      padrao={noCanto("topo-direita")}
+      largura={364}
+      minLargura={364}
+      minAltura={160}
+      alturaMaxima="calc(100% - 80px)"
+      redimensionar="altura"
+      acoes={
         <span
           className="ot-rodada"
           data-testid="ordem-rodada"
@@ -155,8 +163,8 @@ export function OrdemDeTurno({ estado, eu, enviar, selecionadoId, somenteLeitura
         >
           {rotuloDaRodada}
         </span>
-      </header>
-
+      }
+    >
       {entradas.length === 0 ? (
         <p className="nota" data-testid="ordem-vazia">
           {gerencia
@@ -467,6 +475,6 @@ export function OrdemDeTurno({ estado, eu, enviar, selecionadoId, somenteLeitura
           )}
         </div>
       )}
-    </aside>
+    </Janela>
   );
 }

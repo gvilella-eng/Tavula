@@ -10,7 +10,7 @@ import {
 } from "./tema/temas";
 
 /**
- * Escolha do tema de cor, em bolinhas como os temas do Chrome: a metade de cima na cor da barra, embaixo
+ * Escolha do tema de cor, em bolinhas como os temas do Chrome: a metade de cima na cor viva do tema (`amostra`), embaixo
  * à esquerda o destaque e à direita o corpo das janelas; o escolhido leva um selo de check. São botões de
  * rádio de verdade (mesmo `name`), então o grupo se anda com as setas. É preferência deste navegador:
  * nada vai para a sala.
@@ -52,7 +52,7 @@ export function SeletorDeTema() {
               />
               <span className="bolinha-caixa" aria-hidden="true">
                 <span className="bolinha-de-tema" style={{ borderColor: t.borda }}>
-                  <span className="bolinha-barra" style={{ background: t.barra }} />
+                  <span className="bolinha-barra" style={{ background: t.amostra }} />
                   <span style={{ background: t.acento }} />
                   <span style={{ background: t.painel }} />
                 </span>

@@ -84,7 +84,7 @@ Juntadas durante os Lotes 6 a 14 (2026-11-06 a 10) para fazer ao Vilella no fim.
 ## Lote 9 (do agente)
 - O jogador pode repor tochas na própria ficha? (assumido: só o mestre aumenta)
 - A importação da ficha deve ler também de dentro de `fichas/`? (assumido: arquivo escolhido)
-- A janela da ficha deve lembrar a posição?
+- ~~A janela da ficha deve lembrar a posição?~~ Respondida no R3 (2026-11-10): sim, por usuário, no navegador dele (x, y, tamanho e minimizada, uma por personagem), nunca na sala.
 - Darion: conferir na ficha impressa Labareda Protetora 2/longo e Radiação do Amanhecer 1/curto (tochas e flechas já seguem o PDF desde 2026-11-10).
 
 ---
