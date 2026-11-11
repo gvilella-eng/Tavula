@@ -70,7 +70,6 @@ function MenuDoRelogio({ aoZerar }: { aoZerar: () => void }) {
         testid="menu-relogio"
         className="botao-icone menu-relogio-gatilho"
         nome="Opções do relógio"
-        dica="Zerar o relógio da mesa"
         semDica={aberto}
         aria-label="Opções do relógio"
         aria-haspopup="menu"
@@ -175,9 +174,9 @@ export function EstadoDaMesa({
               aria-describedby={dica.id}
               // biome-ignore lint/a11y/noNoninteractiveTabindex: o selo é só informação, mas a dica tem de valer no foco do teclado
               tabIndex={0}
-              onMouseEnter={dica.mostrar}
+              onMouseEnter={dica.aoEntrarMouse}
               onMouseLeave={dica.esconder}
-              onFocus={dica.mostrar}
+              onFocus={dica.aoFocar}
               onBlur={dica.esconder}
               onKeyDown={dica.aoTeclar}
             >
@@ -188,7 +187,7 @@ export function EstadoDaMesa({
               id={dica.id}
               visivel={dica.visivel}
               testid="dica-estado-mesa-selo"
-              texto={mestreOnline ? DICA_PAUSA_MANUAL : DICA_PAUSA_SEM_MESTRE}
+              nome={mestreOnline ? DICA_PAUSA_MANUAL : DICA_PAUSA_SEM_MESTRE}
             />
           </>
         )}
@@ -197,15 +196,10 @@ export function EstadoDaMesa({
   }
   return (
     <div className="estado-mesa" data-testid="estado-mesa" data-pausada={pausada}>
-      <button
-        type="button"
+      <BotaoComDica
         className={pausada ? "estado-mesa-botao pausada" : "estado-mesa-botao"}
-        data-testid="menu-pausa"
-        title={
-          pausada
-            ? "Retomar a mesa (o tempo volta a correr)"
-            : "Pausar a mesa (congela o tempo das tochas)"
-        }
+        testid="menu-pausa"
+        nome={pausada ? "Retomar a mesa" : "Pausar a mesa"}
         aria-label={pausada ? "Retomar a mesa" : "Pausar a mesa"}
         aria-pressed={pausada}
         onClick={aoAlternarPausa}
@@ -223,7 +217,7 @@ export function EstadoDaMesa({
           <Pause size={16} aria-hidden="true" />
         )}
         <RelogioDaSala pausada={pausada} salaMs={salaMs} marcoMs={marcoMs} />
-      </button>
+      </BotaoComDica>
       <MenuDoRelogio aoZerar={aoZerarRelogio} />
     </div>
   );

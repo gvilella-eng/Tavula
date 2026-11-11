@@ -71,7 +71,7 @@ export function NovoToken({ aoConfirmar, aoCancelar }: Props) {
           <legend>Cor</legend>
           <div className="chips">
             {CORES_DE_TOKEN.map((c, i) => (
-              <label key={c} className="novo-token-cor-rotulo" title={NOMES_DAS_CORES[i]}>
+              <label key={c} className="novo-token-cor-rotulo">
                 <input
                   type="radio"
                   name="novo-token-cor"

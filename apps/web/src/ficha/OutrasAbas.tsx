@@ -1,6 +1,7 @@
 import type { Estado, Usuario } from "@tabletop/shared";
 import { Minus, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
+import { BotaoComDica } from "../BotaoComDica";
 import { MochilaDoItem } from "../MochilaDoItem";
 import type { TempoDaTela } from "../tempo";
 import type { PropsDaAba } from "./AbaPrincipal";
@@ -28,16 +29,15 @@ export function AbaCaracteristicas({ ficha, alterar, editar }: PropsDaAba) {
               aoMudar={(t) => alterar(um(`caracteristicas.${i}.nome`, t))}
             />
             {editar && (
-              <button
-                type="button"
+              <BotaoComDica
                 className="botao-icone pequeno"
-                data-testid={`caracteristica-remover-${i}`}
-                title="Tirar a característica"
+                testid={`caracteristica-remover-${i}`}
+                nome={`Tirar a característica ${c.nome}`}
                 aria-label={`Tirar a característica ${c.nome}`}
                 onClick={() => alterar(um(`caracteristicas.${i}`, null))}
               >
                 <Trash2 size={14} />
-              </button>
+              </BotaoComDica>
             )}
           </div>
           <CampoTexto
@@ -155,7 +155,6 @@ export function AbaEquipamento({
                 <select
                   data-testid={`item-modelo-${i}`}
                   aria-label={`Objeto de luz de ${it.nome}`}
-                  title="Objeto de luz (acende da ficha)"
                   value={it.modeloId ?? ""}
                   onChange={(e) =>
                     alterar(
@@ -174,16 +173,15 @@ export function AbaEquipamento({
                 modelo && <span className="selo">{modelo.nome}</span>
               )}
               {editar && (
-                <button
-                  type="button"
+                <BotaoComDica
                   className="botao-icone pequeno"
-                  data-testid={`item-remover-${i}`}
-                  title="Tirar o item"
+                  testid={`item-remover-${i}`}
+                  nome={`Tirar ${it.nome}`}
                   aria-label={`Tirar ${it.nome}`}
                   onClick={() => alterar(um(`itens.${i}`, null))}
                 >
                   <Trash2 size={14} />
-                </button>
+                </BotaoComDica>
               )}
             </div>
           );
@@ -268,16 +266,15 @@ export function AbaEquipamento({
               <option value="nenhuma">não recarrega</option>
             </select>
             {editar && (
-              <button
-                type="button"
+              <BotaoComDica
                 className="botao-icone pequeno"
-                data-testid={`recurso-remover-${i}`}
-                title="Tirar o recurso"
+                testid={`recurso-remover-${i}`}
+                nome={`Tirar o recurso ${r.nome}`}
                 aria-label={`Tirar o recurso ${r.nome}`}
                 onClick={() => alterar(um(`recursos.${i}`, null))}
               >
                 <Trash2 size={14} />
-              </button>
+              </BotaoComDica>
             )}
           </div>
         ))}

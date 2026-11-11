@@ -57,12 +57,12 @@ test("o topo do mestre tem grupos (sem rótulo na barra) e cada botão tem nome 
     await expect(p.getByTestId(`dica-${b.testid}`)).toBeHidden();
   }
 
-  // dica no mouse: o grupo e o nome ("Cena · Camadas") e o que faz
+  // dica no mouse: o grupo e o nome ("Cena · Camadas"), numa linha só
   await p.getByTestId("menu-camadas").hover();
   const dica = p.getByTestId("dica-menu-camadas");
   await expect(dica).toBeVisible();
   await expect(dica).toContainText("Cena · Camadas");
-  await expect(dica).toContainText("camada");
+  await expect(dica).toHaveText("Cena · Camadas");
   await p.mouse.move(600, 400);
   await expect(dica).toBeHidden();
 

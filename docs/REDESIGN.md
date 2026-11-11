@@ -605,7 +605,7 @@ restantes, transições e a revisão final dos prints). Nada mudou na sala, no p
 dos R anteriores.
 
 **O que foi feito**
-- **Uma dica só, com atalho** (item 22; `Dica.tsx`, `BotaoComDica.tsx`): o `BotaoComDica` virou a única dica da interface. Vale no
+- **Uma dica só, com atalho** (item 22; `Dica.tsx`, `BotaoComDica.tsx`; **mudou no V3b**: agora só onde falta nome, de uma linha e com atraso, ver "V3b — como ficou"): o `BotaoComDica` virou a única dica da interface. Vale no
   mouse e no foco do teclado, tem nome em negrito, o que faz e o atalho em `<kbd>` ("Régua · R"), mostra o motivo de um
   botão desabilitado, liga-se por `aria-describedby` (e `aria-keyshortcuts`) e sai com Esc, ao clicar e ao perder o foco. É um
   portal no `body`, com posição fixa e lado (baixo, direita ou esquerda). O `Botao` do `MenuSuperior` (R4) passou a usá-la.
@@ -862,6 +862,49 @@ Fichas em árvore e handouts; a aba Notas saiu; topo e abas do painel com tamanh
 **O que ficou para depois**
 - Handout com texto formatado, vários níveis de pasta e ordenar itens à mão.
 - O V4 refaz a ficha e reaproveita o `BotaoImportarPdf`; o caminho "ficha nova a partir do PDF" na aba foi descartado.
+
+## V3b — como ficou (2026-11-11)
+
+Dicas enxutas (pedido do Vilella: "TUDO está com o tooltip ao passar o mouse, tá um saco"; outras mesas virtuais são a referência: menos é mais). Nada mudou na sala,
+no protocolo, no estado nem na exportação: a opção nova vive só no navegador e nenhum frame foi criado. O **tour de introdução não entrou**: fica para
+depois do V5 (`docs/IDEIAS.md`). Esta seção muda o que o R6a decidiu sobre dicas ("Uma dica só, com atalho": nome, o que faz e atalho, em todo botão).
+
+**O que foi feito**
+- **Dica só onde o controle não tem nome à vista** (`BotaoComDica.tsx`, `Dica.tsx`): botões só de ícone (barra de ferramentas, sub-barra do pincel, topo do
+  mestre, zoom, Minimizar e Fechar das janelas, rodapé da ordem de turno, "+N" da presença, pausa e opções do relógio, pílula da pausa do jogador, alça de
+  largura do painel, lixeiras e descansos da ficha, fontes de luz) e a aba **cortada** com reticências (ou com o painel recolhido). Saiu a dica de tudo
+  que já mostra o nome: abas com o nome inteiro, botões com texto (`nomeVisivel`: "Mostrar agora", dados rápidos, itens das Fichas e das fontes de luz),
+  linhas da ordem de turno, campos, itens de menu, cores do pincel e do novo token (a cor está à vista).
+- **Uma linha só**: "Nome · atalho" (ou "Nome — motivo"). A segunda linha de explicação saiu; o texto que ela tinha foi guardado em
+  `apps/web/src/textosDoTour.ts` (`TEXTOS_DO_TOUR`, por `data-testid` do controle) para o lote do tour usar. Nada lê esse módulo ainda.
+- **Atraso** (`useDica`): no mouse a dica aparece com **700 ms** parado em cima (sair antes cancela); com outra dica aberta, ou fechada há menos de 300 ms,
+  a próxima aparece **na hora** (passar de um botão a outro, como no Windows). No foco do **teclado** aparece na hora; foco que veio de
+  clique de mouse (junto do `pointerdown`) não mostra. Esc, clique e perder o foco fecham, como antes.
+- **Botão desabilitado**: a dica é "Nome — motivo" ("Ordenar pela iniciativa — A lista está vazia"). O motivo também é a descrição para leitor de tela.
+- **Opção "Dicas ao passar o mouse"** em Preferências (`pref-dicas`; ligada por padrão; `dicasLigadas.ts`, `tabletop:pref:dicas`, try/catch, nenhum
+  frame). Desligada, nenhuma dica no mouse nem no foco; `aria-label`, `aria-keyshortcuts` e a lista "Atalhos do teclado" continuam. Com ela desligada, o
+  **clique** num botão desabilitado mostra o motivo num balão curto junto do botão (o mesmo balão, `aria-live="polite"`), que some em 2,8 s.
+- **Conteúdo, não dica de botão**: a dica das condições e a da alça da tocha no mapa ficam como estavam, mas esperam os mesmos 700 ms (`Mesa.tsx`);
+  aberta, acompanha o ponteiro. Elas **não** obedecem à opção de desligar (é informação do mapa, não ajuda de botão).
+- **`title` nativo**: saiu de tudo que mostra o nome (botões com texto, campos, abas, itens de menu, nome da pasta, cena, handout) e dos números de
+  rolagem da ficha (o nome da linha está ao lado). Nos só-ícone virou a dica comum (fechar de modais e do aviso, recolher da pasta, lixeiras da ficha,
+  descansos, proficiência, régua fixada, exaustão no menu do token). Num botão ou item desabilitado com motivo, o `title` é "Nome — motivo".
+
+**Decisões (assumido)**
+- (assumido) 700 ms no mouse; troca na hora com outra dica aberta ou fechada há menos de 300 ms; teclado na hora.
+- (assumido) O cabeçalho das janelas já mostra o nome: a dica "Mover a janela · setas" só aparece no foco do teclado, não no mouse.
+- (assumido) A dica dos marcadores do mapa continua ligada com a opção desligada (conteúdo do mapa).
+- (assumido) O clique num desabilitado só mostra o balão com as dicas desligadas; com elas ligadas, a dica no mouse já diz o motivo.
+- (assumido) Pincel sem permissão: dica "Pincel — Pincel desligado: o mestre tirou de você a permissão de desenhar." e o aviso "Entendi" de antes.
+- (assumido) Cores da paleta do pincel e do novo token ficam sem dica (a cor está à vista; o `aria-label` fica); as espessuras do pincel mantêm.
+- (assumido) Continuam com `title` nativo, por não serem botões: avatares da presença (iniciais, com nome e estado), siglas dos atributos, ícones
+  "quem vê" do handout e da cena (grupo, vista) e o progresso do preparo da cena (explica "3/7").
+- (assumido) O balão do motivo reaproveita o elemento da dica (`dica-<testid>`).
+
+**O que ficou para depois**
+- O tour de introdução (plano em `docs/IDEIAS.md`; os textos já estão em `textosDoTour.ts`).
+- Os ícones "quem vê" e os avatares da presença seguem com `title` nativo (não são botões; dica comum pediria foco e papel próprios).
+- Toque: a dica por mouse não existe em tela de toque (como antes); o balão do motivo também depende do clique.
 
 ## Em aberto
 

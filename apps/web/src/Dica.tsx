@@ -3,6 +3,7 @@ import {
   type KeyboardEvent,
   type RefObject,
   useCallback,
+  useEffect,
   useId,
   useLayoutEffect,
   useRef,
@@ -10,8 +11,9 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { ATALHOS, type Combinacao, type IdDoAtalho } from "./atalhos";
+import { dicasLigadas, useDicasLigadas } from "./dicasLigadas";
 
-/** A dica é uma só em toda a interface (R6a): no mouse e no foco do teclado, com o atalho quando há. */
+/** A dica é uma só em toda a interface (R6a); desde o V3b, de uma linha, com atraso e só onde falta nome. */
 
 /** As teclas de um atalho, cada uma num `<kbd>`: "Shift + F10 ou Menu". */
 export function Teclas({
@@ -41,16 +43,96 @@ export function Teclas({
 
 const SETAS = new Set(["←", "↑", "↓", "→"]);
 
-/** Quando a dica está à vista, e os eventos que a mostram e a escondem (mouse, foco e Esc). */
+/** Parado em cima do botão por este tempo, no mouse, antes de a dica aparecer (V3b). */
+export const ATRASO_DA_DICA = 700;
+/** Depois de uma dica fechar, a próxima aparece na hora durante este tempo (passar de um botão a outro). */
+const JANELA_DE_TROCA = 300;
+
+let abertas = 0;
+/** O instante (relógio dos eventos) do último clique ou toque: foco que chega junto dele não mostra a dica. */
+let ultimoToqueDoPonteiro = Number.NEGATIVE_INFINITY;
+let ultimoAlvoDoPonteiro: EventTarget | null = null;
+if (typeof window !== "undefined") {
+  window.addEventListener(
+    "pointerdown",
+    (e) => {
+      ultimoToqueDoPonteiro = e.timeStamp;
+      ultimoAlvoDoPonteiro = e.target;
+    },
+    true,
+  );
+}
+let fechouEm = Number.NEGATIVE_INFINITY;
+
+/**
+ * Quando a dica está à vista, e os eventos que a mostram e a escondem. No mouse ela espera `ATRASO_DA_DICA`
+ * (sair antes cancela); com outra dica já aberta, ou recém-fechada, aparece na hora; no foco (do teclado, ou
+ * programático) também, salvo se o foco veio de um clique. Com a opção "Dicas ao passar o mouse" desligada nunca aparece.
+ */
 export function useDica() {
   const id = useId();
+  const ligadas = useDicasLigadas();
   const [visivel, setVisivel] = useState(false);
-  const mostrar = useCallback(() => setVisivel(true), []);
-  const esconder = useCallback(() => setVisivel(false), []);
-  const aoTeclar = useCallback((e: KeyboardEvent) => {
-    if (e.key === "Escape") setVisivel(false);
+  const espera = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const cancelar = useCallback(() => {
+    if (espera.current !== null) {
+      clearTimeout(espera.current);
+      espera.current = null;
+    }
   }, []);
-  return { id, visivel, mostrar, esconder, aoTeclar };
+  const esconder = useCallback(() => {
+    cancelar();
+    setVisivel(false);
+  }, [cancelar]);
+  const mostrar = useCallback(() => {
+    cancelar();
+    setVisivel(true);
+  }, [cancelar]);
+  /** Ao entrar com o mouse: espera o atraso, a não ser que haja uma dica aberta (ou recém-fechada). */
+  const aoEntrarMouse = useCallback(() => {
+    if (!dicasLigadas()) return;
+    cancelar();
+    if (abertas > 0 || Date.now() - fechouEm < JANELA_DE_TROCA) {
+      setVisivel(true);
+      return;
+    }
+    espera.current = setTimeout(() => {
+      espera.current = null;
+      setVisivel(true);
+    }, ATRASO_DA_DICA);
+  }, [cancelar]);
+  /** No foco: mostra na hora, a não ser que o foco tenha vindo de um clique de mouse (o clique já esconde a dica). */
+  const aoFocar = useCallback(
+    (e: { nativeEvent: Event; currentTarget: Element }) => {
+      if (!dicasLigadas()) return;
+      const doClique =
+        e.nativeEvent.timeStamp - ultimoToqueDoPonteiro < 100 &&
+        ultimoAlvoDoPonteiro instanceof Node &&
+        e.currentTarget.contains(ultimoAlvoDoPonteiro);
+      if (doClique) return;
+      mostrar();
+    },
+    [mostrar],
+  );
+  const aoTeclar = useCallback(
+    (e: KeyboardEvent) => {
+      if (e.key === "Escape") esconder();
+    },
+    [esconder],
+  );
+
+  useEffect(() => {
+    if (!visivel) return;
+    abertas += 1;
+    return () => {
+      abertas -= 1;
+      fechouEm = Date.now();
+    };
+  }, [visivel]);
+  useEffect(() => cancelar, [cancelar]);
+
+  return { id, visivel: visivel && ligadas, mostrar, esconder, aoEntrarMouse, aoFocar, aoTeclar };
 }
 
 type PropsDaDica = {
@@ -60,12 +142,13 @@ type PropsDaDica = {
   visivel: boolean;
   /** `data-testid` da dica (por convenção, `dica-<testid do alvo>`). */
   testid: string;
-  /** Título em negrito (o nome do botão); sem ele, o `texto` é a primeira linha. */
-  nome?: string | undefined;
-  texto?: string | undefined;
+  /** O nome do controle, em negrito. */
+  nome: string;
   atalho?: IdDoAtalho | undefined;
-  /** É o motivo de o botão estar desabilitado (marca `data-motivo`). */
-  motivo?: boolean | undefined;
+  /** Por que o botão está desabilitado: "Nome — motivo" (marca `data-motivo`). */
+  motivo?: string | undefined;
+  /** É um aviso (o clique no botão desabilitado com as dicas desligadas): o leitor de tela anuncia. */
+  aviso?: boolean | undefined;
   /** Onde aparece: embaixo do alvo (padrão), à direita ou à esquerda (barras laterais). */
   lado?: "baixo" | "direita" | "esquerda" | undefined;
 };
@@ -80,9 +163,9 @@ export function Dica({
   visivel,
   testid,
   nome,
-  texto,
   atalho,
   motivo,
+  aviso,
   lado,
 }: PropsDaDica) {
   const balao = useRef<HTMLSpanElement>(null);
@@ -127,8 +210,7 @@ export function Dica({
     else setLugar(null);
   }, [visivel, posicionar]);
 
-  const primeira = nome ?? texto;
-  if (!primeira) return null;
+  if (!nome) return null;
   return createPortal(
     <span
       ref={balao}
@@ -136,13 +218,15 @@ export function Dica({
       role="tooltip"
       className="dica-flutuante"
       data-testid={testid}
-      data-motivo={motivo || undefined}
+      data-motivo={motivo ? true : undefined}
+      aria-live={aviso ? "polite" : undefined}
       hidden={!visivel}
       style={lugar ? { left: lugar.x, top: lugar.y } : { left: 0, top: 0, visibility: "hidden" }}
     >
       <span className="dica-linha">
-        {nome ? <strong className="dica-nome">{nome}</strong> : <span>{texto}</span>}
-        {atalho && (
+        <strong className="dica-nome">{nome}</strong>
+        {motivo && <span className="dica-motivo">{` — ${motivo}`}</span>}
+        {atalho && !motivo && (
           <span className="dica-atalho">
             <span className="dica-ponto" aria-hidden="true">
               {"·"}
@@ -151,7 +235,6 @@ export function Dica({
           </span>
         )}
       </span>
-      {nome && texto && <span className="dica-texto">{texto}</span>}
     </span>,
     document.body,
   );

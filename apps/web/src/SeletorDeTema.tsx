@@ -36,12 +36,7 @@ export function SeletorDeTema() {
           const t = TEMAS[id];
           const nome = NOMES_DOS_TEMAS[id];
           return (
-            <label
-              key={id}
-              className="opcao-de-tema"
-              data-atual={atual === id}
-              title={`Tema ${nome}`}
-            >
+            <label key={id} className="opcao-de-tema" data-atual={atual === id}>
               <input
                 type="radio"
                 name="tema"

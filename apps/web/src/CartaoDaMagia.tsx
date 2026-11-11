@@ -12,16 +12,12 @@ export function MarcasDaMagia({ magia }: { magia: MagiaDoCompendio }) {
   return (
     <span className="marcas-da-magia">
       {magia.concentracao && (
-        <span className="etiqueta-magia" data-testid="marca-concentracao" title="Concentração">
+        <span className="etiqueta-magia" data-testid="marca-concentracao">
           Concentração
         </span>
       )}
       {magia.ritual && (
-        <span
-          className="etiqueta-magia"
-          data-testid="marca-ritual"
-          title="Pode ser conjurada como ritual"
-        >
+        <span className="etiqueta-magia" data-testid="marca-ritual">
           Ritual
         </span>
       )}

@@ -1,6 +1,7 @@
 import { X } from "lucide-react";
 import { useLayoutEffect, useRef, useState } from "react";
 import { caixaDaArea } from "./area";
+import { BotaoComDica } from "./BotaoComDica";
 import type { Aviso } from "./useSala";
 
 type Props = { aviso: Aviso; aoDispensar: () => void };
@@ -54,18 +55,18 @@ export function AvisoPerto({ aviso, aoDispensar }: Props) {
       onClick={aoDispensar}
     >
       <span>{aviso.texto}</span>
-      <button
-        type="button"
+      <BotaoComDica
         className="aviso-fechar"
+        testid="aviso-fechar"
+        nome="Dispensar"
         aria-label="Dispensar o aviso"
-        title="Dispensar"
         onClick={(e) => {
           e.stopPropagation();
           aoDispensar();
         }}
       >
         <X size={14} />
-      </button>
+      </BotaoComDica>
     </div>
   );
 }

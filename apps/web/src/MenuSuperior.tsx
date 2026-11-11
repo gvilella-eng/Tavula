@@ -61,8 +61,8 @@ const ICONE_DA_CAMADA: Record<CamadaDeTrabalho, ReactNode> = {
 };
 
 /**
- * Botão do menu do mestre: o nome vai no `aria-label` e na dica (nome e o que faz), que aparece ao passar o
- * mouse e ao receber o foco do teclado. Com a lista do botão aberta, a dica sai da frente.
+ * Botão do menu do mestre: o nome vai no `aria-label` e na dica de uma linha ("Grupo · Nome"), que aparece ao parar o
+ * mouse em cima (700 ms) e ao receber o foco do teclado. Com a lista do botão aberta, a dica sai da frente.
  */
 function Botao(props: {
   testid: string;
@@ -70,8 +70,6 @@ function Botao(props: {
   nome: string;
   /** O grupo do botão: a dica diz "Grupo · Nome" (os grupos não têm rótulo na barra, V3). */
   grupo: string;
-  /** O que ele faz, em uma frase (segunda linha da dica). */
-  dica: string;
   ativo?: boolean;
   /** Mostra um pontinho de alerta no ícone (algo importante está desligado). */
   alerta?: boolean;
@@ -87,7 +85,6 @@ function Botao(props: {
         testid={props.testid}
         className={props.alerta ? "botao-icone com-alerta" : "botao-icone"}
         nome={props.grupo === props.nome ? props.nome : `${props.grupo} · ${props.nome}`}
-        dica={props.dica}
         semDica={props.aberto}
         aria-label={props.nome}
         aria-pressed={props.ativo}
@@ -124,7 +121,6 @@ type ItemDaLista = {
   /** Mostra o estado por extenso ("Ligada", "Desligada") em destaque, além do visto. */
   estado?: { ligado: boolean; ligadoRotulo: string; desligadoRotulo: string };
   desabilitado?: boolean;
-  dica?: string;
   aoClicar: () => void;
 };
 
@@ -158,7 +154,6 @@ function ListaDoMenu(props: {
           className="item-menu"
           data-testid={`${props.testid}-${i.id}`}
           disabled={i.desabilitado}
-          title={i.dica}
           onClick={() => {
             props.aoFechar();
             i.aoClicar();
@@ -206,7 +201,6 @@ export function MenuSuperior(p: Props) {
             testid="menu-cenas"
             grupo="Cena"
             nome="Cenas"
-            dica="Abre a faixa de cenas: trocar de cena, levar o grupo, criar e configurar (nome, mapa e grid)."
             ativo={p.faixaAberta}
             aoClicar={p.aoAlternarFaixa}
           >
@@ -216,7 +210,6 @@ export function MenuSuperior(p: Props) {
             testid="menu-camadas"
             grupo="Cena"
             nome="Camadas"
-            dica="Escolhe em que camada você trabalha (mapa, tokens, mestre ou desenho) e limpa os desenhos."
             ativo={aberto === "camadas"}
             aberto={aberto === "camadas"}
             gatilho
@@ -226,13 +219,7 @@ export function MenuSuperior(p: Props) {
           </Botao>
         </Grupo>
         <Grupo id="mapa" nome="Mapa">
-          <Botao
-            testid="novo-token"
-            grupo="Mapa"
-            nome="Novo token"
-            dica="Pede o nome, a cor e o tamanho; depois você clica no mapa para pôr o token."
-            aoClicar={p.aoNovoToken}
-          >
+          <Botao testid="novo-token" grupo="Mapa" nome="Novo token" aoClicar={p.aoNovoToken}>
             <CirclePlus size={20} />
           </Botao>
         </Grupo>
@@ -241,11 +228,6 @@ export function MenuSuperior(p: Props) {
             testid="menu-visao-noturna"
             grupo="Luz"
             nome="Visão noturna"
-            dica={
-              p.visaoNoturna
-                ? "Ligada: você vê a cena iluminada só pelas fontes de luz. Só na sua tela."
-                : "Desligada: você vê a cena toda clara. Só na sua tela."
-            }
             ativo={p.visaoNoturna}
             aoClicar={p.aoAlternarVisaoNoturna}
           >
@@ -256,11 +238,6 @@ export function MenuSuperior(p: Props) {
               testid="menu-iluminacao"
               grupo="Luz"
               nome={p.iluminacaoDinamica ? "Iluminação" : "Iluminação (desligada nesta cena)"}
-              dica={
-                p.iluminacaoDinamica
-                  ? "Liga e desliga a iluminação dinâmica, abre as fontes de luz e os ajustes."
-                  : "A iluminação dinâmica está DESLIGADA nesta cena: os jogadores veem tudo. Abra para ligar."
-              }
               ativo={aberto === "iluminacao"}
               aberto={aberto === "iluminacao"}
               alerta={!p.iluminacaoDinamica}
@@ -305,7 +282,6 @@ export function MenuSuperior(p: Props) {
                     id: "modelos",
                     rotulo: "Modelos de tocha…",
                     icone: <Flashlight size={16} />,
-                    dica: "Abre a aba Mesa na seção dos modelos de tocha e objetos de luz",
                     aoClicar: p.aoAbrirModelosDeTocha,
                   },
                 ]}
@@ -318,7 +294,6 @@ export function MenuSuperior(p: Props) {
             testid="menu-ordem-turno"
             grupo="Combate"
             nome="Ordem de turno"
-            dica="Mostra ou esconde a ordem de turno para todos."
             ativo={p.ordemVisivel}
             aoClicar={p.aoAlternarOrdem}
           >
@@ -330,12 +305,7 @@ export function MenuSuperior(p: Props) {
             <Botao
               testid="menu-ver-como"
               grupo="Ver como"
-              nome="Ver como"
-              dica={
-                vendoComo
-                  ? `Você está vendo a mesa como ${vendoComo.nome}. Escolha outro jogador ou volte a você.`
-                  : "Vê a mesa pelos olhos de um jogador (o que ele enxerga e controla). Só na sua tela."
-              }
+              nome={vendoComo ? `Ver como (agora: ${vendoComo.nome})` : "Ver como"}
               ativo={p.verComoId !== null}
               aberto={aberto === "verComo"}
               gatilho
@@ -403,8 +373,8 @@ export function MenuSuperior(p: Props) {
                     disabled={p.desenhosNaCena === 0}
                     title={
                       p.desenhosNaCena === 0
-                        ? "Não há desenhos nesta cena"
-                        : "Apagar todos os desenhos desta cena"
+                        ? "Limpar desenhos — Não há desenhos nesta cena"
+                        : undefined
                     }
                     onClick={() => setConfirmandoLimpar(true)}
                   >

@@ -307,7 +307,7 @@ test("a pausa é óbvia no topo, para o mestre e para o jogador", async ({ mesa 
   // rodando: sem selo; o botão do mestre diz "Pausar" e leva o relógio dentro dele
   await expect(j.getByTestId("estado-mesa")).toHaveAttribute("data-pausada", "false");
   await expect(j.getByTestId("estado-mesa-selo")).toHaveCount(0);
-  await expect(m.getByTestId("menu-pausa")).toHaveAttribute("title", /^Pausar/);
+  await expect(m.getByTestId("menu-pausa")).toHaveAttribute("aria-label", "Pausar a mesa");
   await expect(m.getByTestId("menu-pausa").getByTestId("relogio-sala")).toHaveAttribute(
     "data-pausada",
     "false",
@@ -335,7 +335,7 @@ test("a pausa é óbvia no topo, para o mestre e para o jogador", async ({ mesa 
   await expect(j.getByTestId("dica-estado-mesa-selo")).toContainText(/^O mestre pausou a mesa/);
   await expect(j.getByTestId("estado-mesa-selo")).toHaveCSS("cursor", "auto");
   // o mestre: um controle só, a pílula "Pausada · relógio" que retoma; o relógio está dentro dele
-  await expect(m.getByTestId("menu-pausa")).toHaveAttribute("title", /^Retomar/);
+  await expect(m.getByTestId("menu-pausa")).toHaveAttribute("aria-label", "Retomar a mesa");
   await expect(m.getByTestId("menu-pausa").getByTestId("estado-mesa-selo")).toHaveAttribute(
     "aria-label",
     "Mesa pausada",

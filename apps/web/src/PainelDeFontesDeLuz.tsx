@@ -228,7 +228,7 @@ export function PainelDeFontesDeLuz(p: Props) {
                   </BotaoComDica>
                   <BotaoComDica
                     className="luz-nome"
-                    dica={`Editar (${onde(f)})`}
+                    nomeVisivel
                     testid={`luz-escolher-${f.id}`}
                     onClick={() => p.aoSelecionar(f.id === p.selecionadaId ? null : f.id)}
                   >
@@ -287,7 +287,7 @@ export function PainelDeFontesDeLuz(p: Props) {
                     </BotaoComDica>
                     <BotaoComDica
                       className="luz-nome"
-                      dica={`Detalhes (${onde(f)})`}
+                      nomeVisivel
                       testid={`luz-escolher-${f.id}`}
                       onClick={() => p.aoSelecionar(f.id === p.selecionadaId ? null : f.id)}
                     >
@@ -452,7 +452,7 @@ export function PainelDeFontesDeLuz(p: Props) {
                   <BotaoComDica
                     className="luz-nome"
                     testid={`ponto-escolher-${x.id}`}
-                    dica="Editar o ponto"
+                    nomeVisivel
                     onClick={() => p.aoSelecionarPonto(x.id === p.pontoSelecionadoId ? null : x.id)}
                   >
                     {x.nome}{" "}

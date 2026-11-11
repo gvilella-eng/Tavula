@@ -115,7 +115,6 @@ function ComoMontar({
           type="button"
           className="primario"
           data-testid="compendio-usar-exemplo"
-          title="Põe 3 magias do SRD 5.1 (Bola de Fogo, Mísseis Mágicos e Detectar Magia) como compêndio da mesa"
           onClick={() => void usar(false)}
         >
           <Sparkles size={14} /> Usar o exemplo do SRD (3 magias)
@@ -543,7 +542,6 @@ export function AbaCompendio({
                 type="button"
                 data-testid="compendio-recarregar"
                 disabled={c.lendo}
-                title="Ler de novo o magias.json da sua pasta"
                 onClick={() => void c.recarregar()}
               >
                 <RefreshCw size={14} /> Recarregar

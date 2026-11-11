@@ -102,7 +102,7 @@ function MenuDeContexto({
           className={i.perigo ? "item-menu perigo" : "item-menu"}
           data-testid={`menu-cena-${i.id}`}
           disabled={i.desabilitado}
-          title={i.dica}
+          title={i.dica ? `${i.rotulo} — ${i.dica}` : undefined}
           onClick={() => {
             aoFechar();
             i.aoClicar();
@@ -252,7 +252,6 @@ function Card({
             <span
               className="cena-nome"
               data-testid={`cena-nome-${cena.id}`}
-              title="Duplo clique para renomear"
               onDoubleClick={(e) => {
                 e.stopPropagation();
                 setEditando(true);

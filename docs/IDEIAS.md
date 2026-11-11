@@ -40,10 +40,11 @@ Desenhar paredes à mão em mapas de caverna (formas orgânicas) é o custo esco
 ### Tour de introdução (combinado com o Vilella, 2026-11-11; depois do V5)
 
 O Vilella achou as dicas no mouse demais ("tudo tem tooltip, tá um saco"). Ficou combinado:
-- **Agora (lote V3b):**
+- **Feito (lote V3b, 2026-11-11):**
   - dica só em botão só de ícone, numa linha (nome e atalho), com 700 ms de atraso;
   - opção em Preferências para desligar as dicas;
-  - os textos explicativos saem das dicas e ficam guardados para o tour.
+  - os textos explicativos saíram das dicas e estão guardados em `apps/web/src/textosDoTour.ts` (`TEXTOS_DO_TOUR`,
+    por `data-testid` do controle; ainda nada o lê). O tour deve usá-lo e acrescentar ali os passos que não são de botão.
 - **Depois do V5 (de preferência junto do marco "Mesa na internet", que traz o primeiro login de verdade):** um
   tour de introdução:
   - no primeiro acesso, com "Pular", e "Fazer o tour de novo" nas Preferências;

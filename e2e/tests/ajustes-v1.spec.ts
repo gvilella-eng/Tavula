@@ -185,12 +185,12 @@ test("zerar com a mesa pausada: continua pausada em 00:00 e ao retomar conta de 
   await expect.poll(() => pilula(m)).toBeLessThan(40);
 });
 
-test("o menu do relógio se usa só pelo teclado e a dica explica", async ({ mesa }) => {
+test("o menu do relógio se usa só pelo teclado e a dica dá o nome", async ({ mesa }) => {
   const m = (await entrarNoMapa(mesa, "mestre")).pagina;
   const gatilho = m.getByTestId("menu-relogio");
   await expect(gatilho).toHaveAccessibleName("Opções do relógio");
   await gatilho.focus();
-  await expect(m.getByTestId("dica-menu-relogio")).toContainText("Zerar o relógio da mesa");
+  await expect(m.getByTestId("dica-menu-relogio")).toHaveText("Opções do relógio");
   await m.keyboard.press("Enter");
   await expect(m.getByTestId("zerar-relogio")).toBeFocused();
   await m.keyboard.press("Enter");

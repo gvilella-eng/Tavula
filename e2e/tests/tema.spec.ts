@@ -204,8 +204,9 @@ test("o seletor é um grupo de rádio com 14 bolinhas, nome embaixo e selo no es
     "background-color",
     "rgb(74, 74, 74)",
   );
-  // o nome também está na dica
-  await expect(seletor.locator(".opcao-de-tema").nth(6)).toHaveAttribute("title", "Tema Taverna");
+  // o nome está à vista (V3b: sem dica nem title onde o nome já aparece)
+  await expect(seletor.locator(".opcao-de-tema").nth(6)).toContainText("Taverna");
+  await expect(seletor.locator(".opcao-de-tema").nth(6)).not.toHaveAttribute("title", /.+/);
 });
 
 test("teclado: as setas andam pelos temas e escolhem", async ({ mesa }) => {

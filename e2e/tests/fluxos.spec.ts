@@ -25,11 +25,12 @@ const framesDeCombate = (s: Sessao) => s.enviados.filter((f) => f.includes('"tip
 async function confereMotivo(botao: Locator, dica: Locator, motivo: string) {
   await expect(botao).toHaveAttribute("aria-disabled", "true");
   await expect(botao).toBeDisabled();
-  await expect(botao).toHaveAccessibleDescription(motivo);
+  // V3b: a dica é "Nome — motivo"
+  await expect(botao).toHaveAccessibleDescription(new RegExp(` — ${motivo}$`));
   await botao.page().mouse.move(0, 0);
   await botao.hover();
   await expect(dica).toBeVisible();
-  await expect(dica).toHaveText(motivo);
+  await expect(dica).toHaveText(new RegExp(`^[^—]+ — ${motivo}$`));
   await botao.page().mouse.move(0, 0);
   await expect(dica).toBeHidden();
 }
@@ -160,21 +161,10 @@ test("fichas: um clique no item abre a ficha; dois cliques abrem uma só; Enter 
   const janelas = p.getByTestId("janela-ficha");
   const item = p.getByTestId("ficha-abrir-pers-aldric");
 
-  // a dica diz o que fazer (R6a: a dica comum, no hover e no foco, não o title nativo)
+  // o item mostra o nome: sem dica e sem title (V3b; o texto de ajuda foi para textosDoTour.ts)
   await expect(item).not.toHaveAttribute("title", /.+/);
-  await item.hover();
-  const dicaItem = p.getByTestId("dica-ficha-abrir-pers-aldric");
-  await expect(dicaItem).toBeVisible();
-  await expect(dicaItem).toContainText("Abrir a ficha");
-  await expect(dicaItem).toContainText("Arraste para o mapa");
-  await expect(dicaItem).toContainText("Botão direito");
-  await p.mouse.move(700, 500);
+  await expect(p.getByTestId("dica-ficha-abrir-pers-aldric")).toHaveCount(0);
   await abrirAba(j1.pagina, "fichas");
-  await j1.pagina.getByTestId("ficha-abrir-pers-aldric").hover();
-  const dicaJogador = j1.pagina.getByTestId("dica-ficha-abrir-pers-aldric");
-  await expect(dicaJogador).toBeVisible();
-  await expect(dicaJogador).toContainText("Abrir a ficha");
-  await expect(dicaJogador).not.toContainText("Arraste");
 
   // um clique abre (e não manda nada para a sala)
   const antes = mestre.enviados.length;

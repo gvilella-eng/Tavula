@@ -1,5 +1,6 @@
 import type { Locator, Page } from "@playwright/test";
 import { expect, test } from "./ajudas";
+import { congelarRelogio, PASSA_DO_ATRASO, passar } from "./ajudasDicas";
 import { entrarNoMapa } from "./ajudasMapa";
 
 // V3, item 0 (pedido do Vilella com print): os ícones do topo e as abas do painel têm tamanho e espaçamento iguais.
@@ -115,7 +116,7 @@ async function conferirAbas(p: Page, ids: readonly string[], rotulo: string) {
   return abas;
 }
 
-test("abas do painel: a mesma largura em 300 px e na largura máxima, nome numa linha, cortado com reticências e com o nome inteiro na dica", async ({
+test("abas do painel: a mesma largura em 300 px e na largura máxima, nome numa linha, cortado com reticências e a dica com o nome inteiro só onde ele foi cortado", async ({
   mesa,
 }) => {
   const m = (await entrarNoMapa(mesa, "mestre")).pagina;
@@ -132,6 +133,7 @@ test("abas do painel: a mesma largura em 300 px e na largura máxima, nome numa 
     [m, "mestre", ["chat", "fichas", "compendio", "preferencias", "mesa"]],
     [j, "jogador", ["chat", "fichas", "compendio", "preferencias"]],
   ] as const) {
+    await congelarRelogio(p);
     await p.getByTestId("alca-do-painel").focus();
     for (const [tecla, largura] of [
       ["Home", 300],
@@ -154,16 +156,25 @@ test("abas do painel: a mesma largura em 300 px e na largura máxima, nome numa 
         await expect(nome).toHaveCSS("white-space", "nowrap");
         await expect(nome).toHaveCSS("text-overflow", "ellipsis");
         expect(await nome.evaluate((e) => e.scrollHeight <= e.clientHeight + 1)).toBe(true);
-        // o nome que foi cortado tem a dica com o nome inteiro (a dica existe sempre, com o painel aberto também)
+        // V3b: só o nome que foi cortado tem a dica (com o nome inteiro); o nome inteiro à vista não precisa dela
         const cortado = await nome.evaluate((e) => e.scrollWidth > e.clientWidth);
         await p.getByTestId(`aba-${id}`).hover();
+        await passar(p, PASSA_DO_ATRASO);
         const dica = p.getByTestId(`dica-aba-${id}`);
-        await expect(
-          dica,
-          `dica da aba ${id} (${quem} ${tecla}, cortado: ${cortado})`,
-        ).toBeVisible();
-        await expect(dica).toContainText(nomes[id] as string);
+        if (cortado) {
+          await expect(
+            dica,
+            `dica da aba ${id} (${quem} ${tecla}, cortado: ${cortado})`,
+          ).toBeVisible();
+          await expect(dica).toHaveText(nomes[id] as string);
+        } else {
+          await expect(
+            dica,
+            `aba ${id} (${quem} ${tecla}) tem o nome inteiro: sem dica`,
+          ).toBeHidden();
+        }
         await p.mouse.move(400, 600);
+        await passar(p, 500);
       }
     }
     // em 300 px o mestre tem nome cortado (cinco abas); a dica já foi conferida acima para todos

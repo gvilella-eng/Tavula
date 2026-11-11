@@ -3627,7 +3627,7 @@ button[aria-disabled="true"]:hover {
   flex-direction: column;
   gap: 2px;
   width: max-content;
-  max-width: 340px;
+  max-width: 460px;
   padding: 6px 10px;
   font-size: 12px;
   line-height: 1.35;
@@ -3645,7 +3645,7 @@ button[aria-disabled="true"]:hover {
 .dica-nome {
   font-size: 13px;
 }
-.dica-texto {
+.dica-motivo {
   color: var(--texto-suave);
 }
 .dica-ponto {

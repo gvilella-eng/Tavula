@@ -91,7 +91,7 @@ export function MenuDeContexto({ testid, titulo, x, y, itens, teclado, aoFechar 
             className={item.perigo ? "item-menu perigo" : "item-menu"}
             data-testid={`${testid}-${item.id}`}
             aria-disabled={desabilitado || undefined}
-            title={item.motivo}
+            title={item.motivo ? `${item.rotulo} — ${item.motivo}` : undefined}
             onClick={() => {
               if (desabilitado) return;
               if (!item.manterAberto && item.marcado === undefined) aoFechar();

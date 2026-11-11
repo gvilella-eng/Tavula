@@ -169,7 +169,7 @@ test("Novo token pede nome, cor e tamanho; entra no modo de pôr (com prévia) e
 
   // nome, cor e tamanho; Enter entra no modo de pôr
   await p.getByTestId("novo-token-nome").fill("Goblin 7");
-  await p.getByTitle("Laranja").click();
+  await p.locator("label.novo-token-cor-rotulo", { has: p.getByLabel("Laranja") }).click();
   await p.getByTestId("novo-token-tamanho").selectOption("2");
   await p.getByTestId("novo-token-nome").press("Enter");
   await expect(p.getByTestId("novo-token-janela")).toHaveCount(0);

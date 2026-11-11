@@ -234,7 +234,6 @@ function LinhaDoModelo({ modelo: m, enviar }: { modelo: ModeloDeObjeto; enviar: 
           type="button"
           className="perigo"
           data-testid={`modelo-apagar-${m.id}`}
-          title="Só se nenhum objeto, mochila ou ponto usa este modelo"
           onClick={() => enviar("modelo.apagar", { id: m.id })}
         >
           <Trash2 size={14} /> Apagar o modelo

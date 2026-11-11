@@ -2365,4 +2365,52 @@ Terceiro lote dos ajustes que o Vilella pediu depois de usar a mesa (2026-11-11)
 
 ---
 
+## Ajustes V3b — Dicas enxutas (entregue, aguardando o roteiro manual)
+
+Pedido do Vilella ("TUDO está com o tooltip ao passar o mouse, tá um saco"; referência: outras mesas virtuais). Detalhes e decisões em `docs/REDESIGN.md` ("V3b — como ficou"). O tour de introdução **não** entrou (fica para depois do V5).
+
+### O que foi entregue
+
+- Dica só em controle sem nome à vista, de uma linha ("Régua · R" ou "Nome — motivo"), com 700 ms de atraso no mouse, na hora com outra dica aberta e no foco do teclado.
+- Opção "Dicas ao passar o mouse" em Preferências (`tabletop:pref:dicas`, só no navegador, nenhum frame); desligada, o clique num botão desabilitado mostra o motivo num balão curto (`aria-live`).
+- `title` nativo limpo (some onde o nome está à vista; nos só-ícone virou a dica comum).
+- Os textos explicativos que saíram das dicas estão em `apps/web/src/textosDoTour.ts` (para o tour).
+- Sem mudança de estado, protocolo, migração nem exportação.
+
+### Como rodar
+
+- `pnpm verify` (uma vez). Prints: `$env:PRINTS_DIR="<pasta>"; pnpm --filter @tabletop/e2e prints v3b`.
+
+### Verificação
+
+- Unidade nova: `apps/web/src/dicasLigadas.test.ts` (opção ligada por padrão, sem localStorage; cada id de `textosDoTour.ts` ainda existe no código).
+- E2E novo: `e2e/tests/dicas.spec.ts` (7 testes; relógio da página congelado por `ajudasDicas.ts`).
+- E2E antigos alterados (comportamento mudou de propósito): `teclado.spec.ts` (dica da janela só no foco; dica do "+N" de uma linha), `organizacao.spec.ts` (dica "Cena · Camadas" sem a segunda linha), `fluxos.spec.ts` (motivo agora é "Nome — motivo"; o item das Fichas não tem mais dica), `topo-e-abas.spec.ts` (dica só na aba cortada, relógio congelado), `ajustes-v1.spec.ts` (dica do relógio é só o nome), `estrutura.spec.ts` e `pausaAutomatica.spec.ts` (o botão de pausa usa `aria-label` em vez de `title`), `tema.spec.ts` (o tema não tem mais `title`), `interacoes.spec.ts` (cor do novo token por rótulo em vez de `title`).
+- `--repeat-each=3` não foi rodado (decisão do dono: o `pnpm verify` já reprova teste instável).
+- `pnpm verify` verde numa rodada: 36 (servidor) + 70 (web) + 598 (shared) de unidade e 246 E2E, sem instável. Rodadas anteriores acharam duas instabilidades, corrigidas na causa: o foco logo após o clique (agora só conta o clique no mesmo elemento) e, em `combate.spec.ts`, o teste de condições clicava em sequência sem esperar a sala confirmar (agora espera `aria-checked`). Não houve mudança de código depois do último verify.
+
+### Decisões
+
+- (assumido) Ver `REDESIGN`, "V3b — como ficou", Decisões.
+
+### Desvios do plano
+
+- A dica de condições e da alça da tocha no mapa não obedece à opção de desligar (é conteúdo do mapa).
+
+### Frágil / não verificado
+
+- Toque (celular): sem hover não há dica; o balão do motivo depende do clique. Só Chrome.
+- O foco "de clique" é detectado por `pointerdown` no mesmo elemento em até 100 ms; foco programático logo depois de um clique no mesmo elemento não mostra a dica.
+- Ficam com `title` nativo (não são botões): avatares da presença, siglas dos atributos, ícones "quem vê" e de cena, progresso do preparo.
+
+### Roteiro manual (pendente)
+
+1. Passe o mouse num ícone da barra esquerda e no do topo: a dica vem depois de um instante, numa linha, com o atalho. Passe ao botão vizinho: a próxima vem na hora.
+2. Passe o mouse numa aba com o nome inteiro, num botão com texto e num item das Fichas: nenhuma dica.
+3. Painel no mínimo (300 px): a aba com nome cortado mostra a dica com o nome.
+4. Ordem de turno vazia: "Ordenar pela iniciativa" mostra "— A lista está vazia".
+5. Preferências → desligue "Dicas ao passar o mouse": nenhuma dica no mouse nem no Tab; clique no "Ordenar" desabilitado mostra o motivo por uns 3 s. Recarregue: continua desligado.
+
+---
+
 ## Próximo: ajustes V4 (próximo lote dos ajustes do Vilella); depois 7b e 12

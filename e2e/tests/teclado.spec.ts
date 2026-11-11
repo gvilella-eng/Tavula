@@ -97,10 +97,11 @@ test("a dica vale no mouse e no foco por Tab, com o atalho: topo, barra esquerda
   expect(await teclasDa(dicaCab)).toEqual(teclasDoAtalho("janelaMover"));
   await p.keyboard.press("Escape");
   await expect(dicaCab).toBeHidden();
+  // V3b: o cabeçalho já mostra o nome da janela, então a dica de mover só vale no foco do teclado, não no mouse
   // (o meio do cabeçalho da ordem agora é o campo da rodada do mestre: o mouse vai ao título, na ponta esquerda)
   await cabecalho.hover({ position: { x: 24, y: 14 } });
-  await expect(dicaCab).toBeVisible();
-  // sobre um botão do cabeçalho vale a dica do botão, não a do cabeçalho (a ordem só tem o Fechar)
+  await expect(dicaCab).toBeHidden();
+  // sobre um botão do cabeçalho vale a dica do botão (a ordem só tem o Fechar)
   await expect(p.getByTestId("janela-ordem-minimizar")).toHaveCount(0);
   await p.getByTestId("janela-ordem-fechar").hover();
   await expect(dicaCab).toBeHidden();
@@ -287,9 +288,9 @@ test("o '+N' da presença abre e fecha pelo teclado e o foco continua nele", asy
   await expect(mais).toHaveAttribute("aria-expanded", "false");
   await p.keyboard.press("Tab");
   await mais.focus();
-  // a dica aparece no foco, com o nome e o que faz
+  // a dica aparece no foco, com o nome (V3b: uma linha só)
   await expect(p.getByTestId("dica-presenca-mais")).toBeVisible();
-  await expect(p.getByTestId("dica-presenca-mais")).toContainText("lista");
+  await expect(p.getByTestId("dica-presenca-mais")).toHaveText(/^Mais [0-9]+ na mesa$/);
   await p.keyboard.press("Enter");
   await expect(lista).toBeVisible();
   await expect(mais).toHaveAttribute("aria-expanded", "true");

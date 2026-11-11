@@ -37,7 +37,8 @@ function Item({
       className={naLista ? "presenca-item presenca-linha" : "presenca-item"}
       data-testid={`presenca-${u.id}`}
       data-estado={estado}
-      title={dica}
+      // Na lista o nome está à vista; só os avatares de iniciais precisam do nome e do estado.
+      title={naLista ? undefined : dica}
     >
       <span className="avatar" style={{ background: u.cor, color: corDoTextoSobre(u.cor) }}>
         {iniciais(u.nome)}
@@ -100,7 +101,6 @@ export function PresencaNoTopo({ usuarios, presenca, euId }: Props) {
             testid="presenca-mais"
             data-popover-gatilho=""
             nome={`Mais ${outros.length} na mesa`}
-            dica="Abre a lista de quem está na mesa."
             semDica={aberta}
             aria-expanded={aberta}
             aria-controls={idDaLista}

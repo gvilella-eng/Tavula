@@ -254,8 +254,17 @@ test("condição e concentração que o jogador aplica no próprio token aparece
   await expect(j1.pagina.getByTestId("menu-token-editar")).toHaveCount(0);
   await expect(j1.pagina.getByTestId("menu-token-iniciativa")).toHaveCount(0);
   await j1.pagina.getByTestId("condicao-caido").click();
+  // espera a sala confirmar antes do próximo clique (cada clique manda a lista inteira a partir do estado conhecido)
+  await expect(j1.pagina.getByTestId("condicao-caido")).toHaveAttribute("aria-checked", "true");
   await j1.pagina.getByTestId("condicao-cego").click();
+  // espera a sala confirmar antes do próximo clique (cada clique manda a lista inteira a partir do estado conhecido)
+  await expect(j1.pagina.getByTestId("condicao-cego")).toHaveAttribute("aria-checked", "true");
   await j1.pagina.getByTestId("condicao-envenenado").click();
+  // espera a sala confirmar antes do próximo clique (cada clique manda a lista inteira a partir do estado conhecido)
+  await expect(j1.pagina.getByTestId("condicao-envenenado")).toHaveAttribute(
+    "aria-checked",
+    "true",
+  );
   await j1.pagina.getByTestId("exaustao-2").click();
   await j1.pagina.getByTestId("concentracao-input").fill("Bênção");
   await j1.pagina.getByTestId("concentracao-aplicar").click();

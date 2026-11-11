@@ -264,12 +264,7 @@ export function OrdemDeTurno({
           ? { aoFechar: aoFecharAqui, rotuloDoFechar: "Fechar a ordem de turno (só para você)" }
           : {})}
     >
-      <div
-        className="ot-rodada"
-        data-testid="ordem-rodada"
-        data-rodada={rodada}
-        title="Rodada atual"
-      >
+      <div className="ot-rodada" data-testid="ordem-rodada" data-rodada={rodada}>
         {gerencia ? (
           <>
             <span className="ot-rodada-rotulo">Rodada:</span>
@@ -345,9 +340,7 @@ export function OrdemDeTurno({
                   style={{ background: token?.cor ?? "var(--borda)" }}
                   aria-hidden
                 />
-                <span className="ot-nome" title={e.nome}>
-                  {e.nome}
-                </span>
+                <span className="ot-nome">{e.nome}</span>
                 {gerencia ? (
                   <CampoDeNumero
                     className="ot-campo"
@@ -409,7 +402,7 @@ export function OrdemDeTurno({
                 className="botao-icone"
                 aria-label="Turno anterior"
                 motivo={semLista}
-                dica="Volta ao turno anterior (da primeira entrada, à última da rodada anterior)"
+                nome="Turno anterior"
                 onClick={() => enviar("combate.anterior", {})}
               >
                 <ChevronLeft size={16} />
@@ -419,7 +412,7 @@ export function OrdemDeTurno({
                 className="botao-icone perigo"
                 aria-label="Limpar a lista"
                 motivo={semCombate && rodada === 0 ? "Não há nada para limpar" : null}
-                dica="Esvazia a lista e zera a rodada (pede confirmação); fechar a janela não apaga nada"
+                nome="Limpar a lista"
                 onClick={() => setConfirmando(true)}
               >
                 <Trash2 size={16} />
@@ -435,7 +428,7 @@ export function OrdemDeTurno({
                       : "Precisa de pelo menos duas entradas"
                     : null
                 }
-                dica="Ordena pela iniciativa (maior primeiro; empate: Destreza, jogador antes de NPC, nome)"
+                nome="Ordenar pela iniciativa"
                 onClick={() => enviar("combate.ordenar", {})}
               >
                 <ArrowDownWideNarrow size={16} />
@@ -445,7 +438,7 @@ export function OrdemDeTurno({
                 className="primario ot-proximo"
                 aria-label="Próximo turno"
                 motivo={semLista}
-                dica="Passa para o próximo turno (o primeiro abre a rodada 1; a rodada muda quando a lista dá a volta)"
+                nome="Próximo turno"
                 onClick={() => enviar("combate.proximo", {})}
               >
                 <ChevronRight size={18} />

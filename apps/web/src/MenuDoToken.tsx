@@ -4,7 +4,6 @@ import {
   type Estado,
   NIVEIS_DE_EXAUSTAO,
   NOME_DA_CONDICAO,
-  RESUMO_DA_CONDICAO,
   resumoDaExaustao,
 } from "@tabletop/shared";
 import {
@@ -19,6 +18,7 @@ import {
 } from "lucide-react";
 import { useRef, useState } from "react";
 import { caixaDaArea, dentroDaArea } from "./area";
+import { BotaoComDica } from "./BotaoComDica";
 import { useFecharFora } from "./Popover";
 import { useMenuPorTeclado } from "./useMenuPorTeclado";
 
@@ -200,7 +200,6 @@ export function MenuDoToken({
               aria-checked={ativas.has(c)}
               className="item-menu mt-condicao"
               data-testid={`condicao-${c}`}
-              title={RESUMO_DA_CONDICAO[c]}
               onClick={() => alternar(c)}
             >
               <span className="mt-caixa" aria-hidden>
@@ -223,17 +222,16 @@ export function MenuDoToken({
               0
             </button>
             {NIVEIS_DE_EXAUSTAO.map((n) => (
-              <button
+              <BotaoComDica
                 key={n}
-                type="button"
                 className="chip"
-                data-testid={`exaustao-${n}`}
+                testid={`exaustao-${n}`}
+                nome={resumoDaExaustao(n)}
                 aria-pressed={token.exaustao === n}
-                title={resumoDaExaustao(n)}
                 onClick={() => enviar("token.condicoes", { id: tokenId, exaustao: n })}
               >
                 {n}
-              </button>
+              </BotaoComDica>
             ))}
           </fieldset>
         </div>

@@ -52,7 +52,7 @@ export function DadosRapidos({ aoRolar, podeOculta, aoFechar }: Props) {
                 <BotaoComDica
                   className="botao-dado"
                   testid={`dado-${d.nome}`}
-                  dica={`Rolar 1${d.nome.toLowerCase()}`}
+                  nomeVisivel
                   onClick={(e) => aoRolar(1, d.faces, e.shiftKey && podeOculta)}
                 >
                   {d.icone} {d.nome}
@@ -63,7 +63,7 @@ export function DadosRapidos({ aoRolar, podeOculta, aoFechar }: Props) {
                   <BotaoComDica
                     className="botao-dado numero"
                     testid={`dado-${d.nome}-${q}`}
-                    dica={`Rolar ${q}${d.nome.toLowerCase()}`}
+                    nomeVisivel
                     onClick={(e) => aoRolar(q, d.faces, e.shiftKey && podeOculta)}
                   >
                     {q}

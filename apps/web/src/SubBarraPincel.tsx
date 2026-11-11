@@ -66,7 +66,6 @@ export function SubBarraPincel({ config, aoMudar, aoFechar, aoDesfazer }: Props)
         testid="pincel-desfazer"
         className="botao-icone"
         nome="Voltar"
-        dica="Apaga o meu desenho mais recente desta cena."
         lado="direita"
         aria-label="Voltar: apaga o meu desenho mais recente desta cena"
         onClick={aoDesfazer}
@@ -77,7 +76,6 @@ export function SubBarraPincel({ config, aoMudar, aoFechar, aoDesfazer }: Props)
         testid="pincel-selecionar"
         className="botao-icone"
         nome="Selecionar"
-        dica="Seleciona desenhos para mover ou apagar."
         atalho="apagar"
         lado="direita"
         aria-label="Selecionar desenhos"
@@ -90,7 +88,6 @@ export function SubBarraPincel({ config, aoMudar, aoFechar, aoDesfazer }: Props)
         testid="pincel-borracha"
         className="botao-icone"
         nome="Borracha"
-        dica="Apaga o desenho inteiro que tocar."
         lado="direita"
         aria-label="Borracha"
         aria-pressed={modo === "borracha"}
@@ -117,7 +114,6 @@ export function SubBarraPincel({ config, aoMudar, aoFechar, aoDesfazer }: Props)
         testid="pincel-preenchido"
         className="botao-icone"
         nome="Preenchido"
-        dica="Preenche o retângulo e o círculo."
         motivo={fechada ? null : "Escolha retângulo ou círculo para preencher"}
         lado="direita"
         aria-label="Preenchido"
@@ -134,7 +130,8 @@ export function SubBarraPincel({ config, aoMudar, aoFechar, aoDesfazer }: Props)
             key={c}
             className="cor-pincel"
             testid={`pincel-cor-${c.slice(1)}`}
-            dica={`Cor ${c}`}
+            nome={`Cor ${c}`}
+            nomeVisivel
             lado="direita"
             aria-label={`Cor ${c}`}
             aria-pressed={cor.toLowerCase() === c}
@@ -145,7 +142,6 @@ export function SubBarraPincel({ config, aoMudar, aoFechar, aoDesfazer }: Props)
       </fieldset>
       <label
         className="cor-livre"
-        title="Cor livre"
         data-ativa={!naPaleta}
         style={{ ["--cor-livre" as string]: cor }}
       >

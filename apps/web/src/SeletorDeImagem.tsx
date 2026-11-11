@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { ArquivoDaFonte } from "./assets/fonte";
 import type { Fontes } from "./assets/fontes";
 import type { Processador } from "./assets/processador";
+import { BotaoComDica } from "./BotaoComDica";
 import { useFecharFora } from "./Popover";
 
 const MAX_MINIATURAS = 60;
@@ -90,15 +91,15 @@ export function SeletorDeImagem({ titulo, fontes, processador, aoEscolher, aoFec
       >
         <header className="cabecalho-modal">
           <strong>{titulo}</strong>
-          <button
-            type="button"
+          <BotaoComDica
             className="botao-icone pequeno"
-            title="Fechar"
+            testid="seletor-fechar"
+            nome="Fechar"
             aria-label="Fechar"
             onClick={aoFechar}
           >
             <X size={16} />
-          </button>
+          </BotaoComDica>
         </header>
         <p className="nota">As imagens ficam no seu computador: a mesa só recebe o que você usa.</p>
         <div className="linha-botoes">
@@ -132,7 +133,6 @@ export function SeletorDeImagem({ titulo, fontes, processador, aoEscolher, aoFec
                   className="miniatura"
                   data-testid="seletor-item"
                   data-nome={a.nome}
-                  title={a.caminho}
                   disabled={ocupado}
                   onClick={() => void usar(() => a.abrir())}
                 >

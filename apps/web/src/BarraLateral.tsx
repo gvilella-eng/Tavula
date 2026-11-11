@@ -47,6 +47,13 @@ const PASSO_GRANDE = 64;
  * ajustável pela borda esquerda (mouse e teclado). Todos os painéis ficam montados (só o ativo
  * aparece): campos com rascunho não perdem o estado ao trocar de aba.
  */
+/** A aba só precisa de dica quando o nome não aparece inteiro (cortado com reticências, ou o painel recolhido). */
+function nomeCortado(botao: HTMLButtonElement): boolean {
+  const nome = botao.querySelector<HTMLElement>(".aba-nome");
+  if (!nome || nome.offsetParent === null) return true;
+  return nome.scrollWidth > nome.clientWidth;
+}
+
 export function BarraLateral({
   abas,
   pedido,
@@ -162,9 +169,9 @@ export function BarraLateral({
           ref={alcaRef}
           data-testid="alca-do-painel"
           aria-describedby={dicaDaAlca.id}
-          onMouseEnter={dicaDaAlca.mostrar}
+          onMouseEnter={dicaDaAlca.aoEntrarMouse}
           onMouseLeave={dicaDaAlca.esconder}
-          onFocus={dicaDaAlca.mostrar}
+          onFocus={dicaDaAlca.aoFocar}
           onBlur={dicaDaAlca.esconder}
           onPointerDown={(e) => {
             dicaDaAlca.esconder();
@@ -186,7 +193,6 @@ export function BarraLateral({
           visivel={dicaDaAlca.visivel}
           testid="dica-alca-do-painel"
           nome="Ajustar a largura"
-          texto="Arraste a borda do painel."
           atalho="painelLargura"
           lado="esquerda"
         />
@@ -200,6 +206,7 @@ export function BarraLateral({
               className="aba-lateral"
               testid={`aba-${a.id}`}
               nome={a.titulo}
+              dicaSe={nomeCortado}
               lado={aberta ? "baixo" : "esquerda"}
               aria-label={a.titulo}
               aria-selected={aberta && ativaValida === a.id}

@@ -120,7 +120,7 @@ export function EditorDoItem({
             className="caixa-retrato"
             data-testid="editor-retrato"
             disabled={!podeTrocarImagem}
-            title={podeTrocarImagem ? "Escolher o retrato" : "Você não pode trocar o retrato"}
+            title={podeTrocarImagem ? undefined : "Retrato — você não pode trocar o retrato"}
             onClick={trocarRetrato}
           >
             <Avatar
@@ -138,7 +138,7 @@ export function EditorDoItem({
             className="caixa-token"
             data-testid="editor-token"
             disabled={!podeTrocarImagem}
-            title={podeTrocarImagem ? "Escolher o token padrão" : "Você não pode trocar o token"}
+            title={podeTrocarImagem ? undefined : "Token — você não pode trocar o token"}
             onClick={trocarToken}
           >
             <Avatar
@@ -289,7 +289,6 @@ export function EditorDoItem({
             <button
               type="button"
               data-testid={`personagem-colocar-${p.id}`}
-              title={`Põe o token na cena que você está vendo (${cenaVista.nome})`}
               onClick={() => {
                 enviar("personagem.colocar", {
                   personagemId: p.id,
@@ -329,7 +328,6 @@ export function EditorDoItem({
           <button
             type="button"
             data-testid="ficha-exportar"
-            title="Salva a ficha em JSON (na pasta fichas/ se houver pasta; senão baixa o arquivo)"
             onClick={async () => setAviso(await exportar())}
           >
             <Download size={16} /> Exportar ficha
@@ -355,7 +353,6 @@ export function EditorDoItem({
             <button
               type="button"
               data-testid="editor-importar"
-              title="Troca a ficha por uma exportada em JSON"
               onClick={() => entradaDeArquivo.current?.click()}
             >
               <FileUp size={16} /> Importar ficha

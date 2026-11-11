@@ -28,8 +28,6 @@ const MOTIVO_SEM_PINCEL = "Pincel desligado: o mestre tirou de você a permissã
 function Botao(props: {
   testid: string;
   nome: string;
-  /** O que ele faz (segunda linha da dica). */
-  dica?: string | undefined;
   atalho?: IdDoAtalho | undefined;
   ativo?: boolean;
   gatilho?: boolean;
@@ -43,7 +41,6 @@ function Botao(props: {
       testid={props.testid}
       className="botao-icone"
       nome={props.nome}
-      dica={props.dica}
       atalho={props.atalho}
       lado="direita"
       aria-label={props.nome}
@@ -68,25 +65,21 @@ export function BarraDeFerramentas(p: Props) {
   const ferramentas: {
     id: "selecionar" | "mao" | "regua";
     nome: string;
-    dica: string;
     icone: ReactNode;
   }[] = [
     {
       id: "selecionar",
       nome: "Selecionar e mover",
-      dica: "Seleciona tokens e os move; dois cliques abrem o painel do token.",
       icone: <MousePointer2 size={20} />,
     },
     {
       id: "mao",
       nome: "Mão",
-      dica: "Arrasta o mapa. Com qualquer ferramenta, segure Espaço.",
       icone: <Hand size={20} />,
     },
     {
       id: "regua",
       nome: "Régua",
-      dica: "Mede a distância no mapa. Shift ao soltar deixa a medida na tela.",
       icone: <Ruler size={20} />,
     },
   ];
@@ -98,7 +91,6 @@ export function BarraDeFerramentas(p: Props) {
             key={f.id}
             testid={`ferramenta-${f.id}`}
             nome={f.nome}
-            dica={f.dica}
             atalho={f.id}
             ativo={p.ferramenta === f.id}
             aoClicar={() => p.aoEscolher(f.id)}
@@ -110,7 +102,6 @@ export function BarraDeFerramentas(p: Props) {
         <Botao
           testid="ferramenta-dados"
           nome="Dados rápidos"
-          dica="Rola dados no chat. Shift ao clicar rola oculto (mestre)."
           ativo={dadosAbertos}
           gatilho
           aoClicar={() => setDadosAbertos(!dadosAbertos)}
@@ -119,10 +110,7 @@ export function BarraDeFerramentas(p: Props) {
         </Botao>
         <Botao
           testid="ferramenta-pincel"
-          nome={p.podeDesenhar ? "Pincel" : MOTIVO_SEM_PINCEL}
-          dica={
-            p.podeDesenhar ? "Desenha formas e traços para todos; borracha e seleção." : undefined
-          }
+          nome={p.podeDesenhar ? "Pincel" : `Pincel — ${MOTIVO_SEM_PINCEL}`}
           ativo={p.ferramenta === "pincel"}
           indisponivel={!p.podeDesenhar}
           aoClicar={() => {
@@ -139,7 +127,6 @@ export function BarraDeFerramentas(p: Props) {
             <Botao
               testid="ferramenta-paredes"
               nome="Paredes e portas"
-              dica="Desenha as paredes que bloqueiam a luz. Clique de novo para sair."
               ativo={p.ferramenta === "paredes"}
               aoClicar={() => {
                 setDadosAbertos(false);

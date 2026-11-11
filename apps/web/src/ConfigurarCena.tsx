@@ -2,6 +2,7 @@ import { type Cena, PX_POR_QUADRADO_PADRAO } from "@tabletop/shared";
 import { ImagePlus, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import { BotaoComDica } from "./BotaoComDica";
 import type { PedirImagem } from "./FaixaDeCenas";
 
 type Props = {
@@ -84,15 +85,15 @@ export function ConfigurarCena({ cena, enviar, pedirImagem, aoFechar }: Props) {
       >
         <header className="cabecalho-modal">
           <strong>Configurar cena</strong>
-          <button
-            type="button"
+          <BotaoComDica
             className="botao-icone pequeno"
-            title="Fechar"
+            testid="configurar-cena-fechar"
+            nome="Fechar"
             aria-label="Fechar"
             onClick={aoFechar}
           >
             <X size={16} />
-          </button>
+          </BotaoComDica>
         </header>
         <label className="campo-coluna">
           Nome

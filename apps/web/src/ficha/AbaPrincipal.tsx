@@ -64,13 +64,12 @@ function BotaoDeProficiencia({
     return NIVEIS_DE_PROFICIENCIA[(i + 1) % NIVEIS_DE_PROFICIENCIA.length] ?? "nenhuma";
   };
   return (
-    <button
-      type="button"
+    <BotaoComDica
       className="fh-prof"
-      data-testid={testid}
+      testid={testid}
+      nome={`${nome}: ${ROTULO_DA_PROFICIENCIA[nivel]}`}
+      motivo={editar ? null : "Só quem edita a ficha muda"}
       data-nivel={nivel}
-      disabled={!editar}
-      title={`${nome}: ${ROTULO_DA_PROFICIENCIA[nivel]} (clique para alternar)`}
       aria-label={`Proficiência em ${nome}: ${ROTULO_DA_PROFICIENCIA[nivel]}`}
       onClick={() => aoMudar(proximo())}
     />
@@ -99,7 +98,7 @@ function NumeroRolavel({
       className={`fh-rolavel ${className ?? ""}`}
       data-testid={testid}
       disabled={!rolador.podeRolar}
-      title={rolador.podeRolar ? `Rolar ${nome}` : "Só quem edita a ficha rola"}
+      title={rolador.podeRolar ? undefined : "Só quem edita a ficha rola"}
       aria-label={`Rolar ${nome} ${formatarBonus(valor)}`}
       onClick={() => rolador.teste(nome, valor, cd)}
     >
@@ -281,16 +280,15 @@ function Identidade({ ficha, alterar, editar }: PropsDaAba) {
               aoMudar={(n) => alterar(um(`classes.${i}.nivel`, n))}
             />
             {editar && (
-              <button
-                type="button"
+              <BotaoComDica
                 className="botao-icone pequeno"
-                data-testid={`classe-remover-${i}`}
-                title="Tirar a classe"
+                testid={`classe-remover-${i}`}
+                nome={`Tirar a classe ${c.classe}`}
                 aria-label={`Tirar a classe ${c.classe}`}
                 onClick={() => alterar(um(`classes.${i}`, null))}
               >
                 <Trash2 size={14} />
-              </button>
+              </BotaoComDica>
             )}
           </div>
         ))}
@@ -453,7 +451,6 @@ function PontosDeVida({ personagemId, ficha, d, alterar, editar, rolador }: Prop
               className="fh-rolavel"
               disabled={!rolador.podeRolar}
               data-testid={`dv-rolar-${dv.dado}`}
-              title={`Rolar 1${dv.dado} + CON (e gastar um dado)`}
               onClick={() => {
                 if (dv.restantes <= 0) return;
                 rolador.expressao(
@@ -504,7 +501,6 @@ function PontosDeVida({ personagemId, ficha, d, alterar, editar, rolador }: Prop
           className="fh-rolavel"
           disabled={!rolador.podeRolar}
           data-testid="morte-rolar"
-          title="Rolar um teste contra a morte (CD 10)"
           onClick={() => rolador.teste("Teste contra a morte", 0, 10)}
         >
           <Dices size={14} /> Rolar
@@ -544,9 +540,6 @@ function Ataques({ ficha, alterar, editar, rolador }: PropsDaAba) {
                 className="fh-rolavel"
                 data-testid={`ataque-rolar-${i}`}
                 disabled={!rolador.podeRolar || (!acerto && !a.dano)}
-                title={
-                  acerto ? `Rolar o ataque de ${a.nome}` : a.dano ? "Rolar o dano" : "Sem rolagem"
-                }
                 onClick={() => rolador.ataque(a, ficha)}
               >
                 {descricaoDoAcerto(ficha, a)}
@@ -556,7 +549,6 @@ function Ataques({ ficha, alterar, editar, rolador }: PropsDaAba) {
                 className="fh-rolavel dano"
                 data-testid={`ataque-dano-${i}`}
                 disabled={!rolador.podeRolar || !a.dano}
-                title={a.dano ? `Rolar só o dano (${a.dano})` : "Sem dano"}
                 onClick={() => rolador.dano(a)}
               >
                 {a.dano || "—"}
@@ -565,20 +557,19 @@ function Ataques({ ficha, alterar, editar, rolador }: PropsDaAba) {
                 {a.tipo ?? ""}
               </span>
               {editar && (
-                <button
-                  type="button"
+                <BotaoComDica
                   className="botao-icone pequeno"
-                  data-testid={`ataque-remover-${i}`}
-                  title="Tirar o ataque"
+                  testid={`ataque-remover-${i}`}
+                  nome={`Tirar o ataque ${a.nome}`}
                   aria-label={`Tirar o ataque ${a.nome}`}
                   onClick={() => alterar(um(`ataques.${i}`, null))}
                 >
                   <Trash2 size={14} />
-                </button>
+                </BotaoComDica>
               )}
               {editar && (
                 <details className="fh-ataque-edicao">
-                  <summary title="Editar acerto, dano e tipo">Editar</summary>
+                  <summary>Editar</summary>
                   <div className="fh-grade-3">
                     <div className="fh-campo">
                       <span>Acerto (fixo)</span>
@@ -666,12 +657,7 @@ function Condicoes({ token }: PropsDaAba) {
       ) : (
         <ul className="fh-condicoes-lista">
           {icones.map((i) => (
-            <li
-              key={i.chave}
-              className="fh-condicao"
-              data-testid={`fh-condicao-${i.chave}`}
-              title={i.resumo}
-            >
+            <li key={i.chave} className="fh-condicao" data-testid={`fh-condicao-${i.chave}`}>
               <span
                 className="fh-condicao-sigla"
                 style={{ background: i.cor, color: corDoTextoSobre(i.cor) }}

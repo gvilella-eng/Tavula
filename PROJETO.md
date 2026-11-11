@@ -714,7 +714,7 @@ tela e as ferramentas flutuam em volta.** A identidade visual é própria: nada 
 cores ou nomes de terceiros.
 
 - **Mapa em tela cheia** (PixiJS), fundo escuro.
-- **Barra de ferramentas vertical à esquerda**, com ícones e dica ao passar o mouse: selecionar/mover,
+- **Barra de ferramentas vertical à esquerda**, com ícones e dica ao passar o mouse (V3b, 2026-11-11: dica só onde falta nome, de uma linha, 700 ms de atraso, e opção para desligar em Preferências): selecionar/mover,
   mão (arrastar o mapa), régua; depois desenhar paredes (lote 5), luzes e pontos (lotes 6–7). No
   rodapé, o seletor de camada (tokens / mestre). Ferramenta só do mestre só aparece para o mestre.
 - **Controle de zoom flutuante** na borda direita do mapa: +/−, trilho, nível atual, centralizar.

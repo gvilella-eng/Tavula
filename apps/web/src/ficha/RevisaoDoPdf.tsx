@@ -305,7 +305,6 @@ export function RevisaoDoPdf({
                 value={nome}
                 maxLength={80}
                 aria-label="Nome do personagem"
-                title="Nome do personagem novo"
                 data-testid="revisao-nome"
                 onChange={(e) => setNome(e.target.value)}
               />
@@ -342,7 +341,6 @@ export function RevisaoDoPdf({
               type="button"
               data-testid="revisao-proximo-incerto"
               disabled={total === 0}
-              title={total === 0 ? "Nenhum campo incerto" : "Leva o foco ao próximo campo incerto"}
               onClick={irParaOProximoIncerto}
             >
               Próximo a conferir
@@ -1018,7 +1016,6 @@ function CampoDeNivel({
       <input
         type="number"
         aria-label="Bônus extra"
-        title="Bônus extra"
         value={bonus ?? 0}
         onChange={(e) => editar(`${caminho}.bonus`, apenasNumero(e.target.value) ?? 0)}
       />

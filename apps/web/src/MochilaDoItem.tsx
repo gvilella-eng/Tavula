@@ -71,7 +71,7 @@ export function MochilaDoItem({ personagem: p, estado, eu, enviar, tempo }: Prop
                   data-testid={`mochila-acender-${m.id}`}
                   disabled={!podeMexer || novas <= 0}
                   title={
-                    novas <= 0 ? "Sem unidade nova (use uma usada abaixo)" : "Acender uma nova"
+                    novas <= 0 ? "Acender — sem unidade nova (use uma usada abaixo)" : undefined
                   }
                   onClick={() =>
                     enviar("tocha.acender", {

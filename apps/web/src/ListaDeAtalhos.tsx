@@ -7,7 +7,8 @@ export function ListaDeAtalhos() {
     <section className="lista-de-atalhos" data-testid="atalhos" aria-labelledby="atalhos-titulo">
       <h3 id="atalhos-titulo">Atalhos do teclado</h3>
       <p className="nota">
-        Os mesmos que aparecem nas dicas dos botões. Não valem enquanto você escreve num campo.
+        Os mesmos que aparecem nas dicas dos botões (se as dicas estiverem ligadas). Não valem
+        enquanto você escreve num campo.
       </p>
       {GRUPOS_DE_ATALHOS.map((grupo) => (
         <div key={grupo} className="atalhos-grupo" data-testid={`atalhos-grupo-${grupo}`}>

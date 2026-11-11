@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import {
   type CSSProperties,
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -51,7 +52,9 @@ import { type Canal, GerenteDeAssets } from "./assets/gerente";
 import { Processador } from "./assets/processador";
 import { BarraDeFerramentas } from "./BarraDeFerramentas";
 import { BarraLateral, type PedidoDeAba } from "./BarraLateral";
+import { BotaoComDica } from "./BotaoComDica";
 import { type CamadaDeTrabalho, camadaDoNovoToken } from "./camadas";
+import { ATRASO_DA_DICA } from "./Dica";
 import { EstadoDaMesa } from "./EstadoDaMesa";
 import { FaixaDeCenas, type PedirImagem } from "./FaixaDeCenas";
 import { JanelaDaFicha } from "./ficha/JanelaDaFicha";
@@ -201,6 +204,31 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
     teclado?: boolean;
   } | null>(null);
   const [dicaDoMapa, setDicaDoMapa] = useState<DicaDoMapa | null>(null);
+  // A dica de um marcador é conteúdo, não dica de botão, mas espera o mesmo atraso (V3b): o mapa avisa a cada
+  // movimento do mouse e a dica só abre se o ponteiro ficar sobre o marcador; aberta, acompanha o ponteiro.
+  const esperaDaDicaDoMapa = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dicaDoMapaAberta = useRef(false);
+  const pedidaDaDicaDoMapa = useRef<DicaDoMapa | null>(null);
+  const mostrarDicaDoMapa = useCallback((d: DicaDoMapa | null) => {
+    pedidaDaDicaDoMapa.current = d;
+    if (d === null) {
+      if (esperaDaDicaDoMapa.current !== null) clearTimeout(esperaDaDicaDoMapa.current);
+      esperaDaDicaDoMapa.current = null;
+      dicaDoMapaAberta.current = false;
+      setDicaDoMapa(null);
+      return;
+    }
+    if (dicaDoMapaAberta.current) {
+      setDicaDoMapa(d);
+      return;
+    }
+    if (esperaDaDicaDoMapa.current !== null) return;
+    esperaDaDicaDoMapa.current = setTimeout(() => {
+      esperaDaDicaDoMapa.current = null;
+      dicaDoMapaAberta.current = true;
+      setDicaDoMapa(pedidaDaDicaDoMapa.current);
+    }, ATRASO_DA_DICA);
+  }, []);
   // "Ver como o jogador X" (só da tela do mestre): `null` = ele mesmo.
   const [verComoId, setVerComoId] = useState<string | null>(null);
   // Chat: de quem estou falando (vale também para os dados rápidos), a aba à vista e até onde já li.
@@ -298,12 +326,12 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
       setMenuDoToken(null);
       setMenuDaTocha(null);
       setRegraAberta(null);
-      setDicaDoMapa(null);
+      mostrarDicaDoMapa(null);
       setTokenParaPor(null);
     }
     window.addEventListener("keydown", aoTeclarEsc);
     return () => window.removeEventListener("keydown", aoTeclarEsc);
-  }, []);
+  }, [mostrarDicaDoMapa]);
 
   const chatDaMesa = estado?.chat;
   const ultimoSeqDoChat = chatDaMesa?.[chatDaMesa.length - 1]?.seq ?? 0;
@@ -661,7 +689,7 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
           setMenuDoToken({ tokenId, x, y });
         }
       },
-      dica: setDicaDoMapa,
+      dica: mostrarDicaDoMapa,
       moverLuz: (id, x, y) =>
         enviar("fonte.editar", { id, mudancas: { portador: { tipo: "cena", x, y } } }),
       selecionarLuz: setLuzSelecionadaId,
@@ -674,7 +702,7 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
         });
       },
     }),
-    [enviar],
+    [enviar, mostrarDicaDoMapa],
   );
 
   const opcoes = useMemo(
@@ -1208,7 +1236,6 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
                 type="button"
                 className="regua-fixar"
                 data-testid="regua-fixar"
-                title="Deixa esta medida na tela (Shift ao soltar faz o mesmo). Esc tira."
                 style={{ left: medicao.x + 14, top: medicao.y + 46 }}
                 onClick={() => mapa.current?.fixarRegua()}
               >
@@ -1216,17 +1243,16 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
               </button>
             )}
             {reguasFixas.map((f) => (
-              <button
+              <BotaoComDica
                 key={f.id}
-                type="button"
                 className="regua-rotulo regua-fixa"
-                data-testid="regua-fixa-rotulo"
-                title="Clique para tirar esta medida"
+                testid="regua-fixa-rotulo"
+                nome="Tirar esta medida"
                 style={{ left: f.x + 14, top: f.y + 14 }}
                 onClick={() => mapa.current?.removerReguaFixa(f.id)}
               >
                 <Pin size={12} /> {f.medida.rotulo}
-              </button>
+              </BotaoComDica>
             ))}
             {modoMestre && tokenParaPor && (
               <div className="selo-modo" data-testid="modo-pondo-token-selo" role="status">

@@ -7,6 +7,7 @@ import {
 } from "@tabletop/shared";
 import { ChevronDown, ChevronRight, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
+import { BotaoComDica } from "../BotaoComDica";
 import type { PropsDaAba } from "./AbaPrincipal";
 import { CampoTexto } from "./campos";
 
@@ -91,7 +92,7 @@ function Conjuracao({ ficha, d, alterar, editar, rolador }: PropsDaAba) {
               className="fh-rolavel grande"
               data-testid={`conjuracao-ataque-${c.classe}`}
               disabled={!rolador.podeRolar}
-              title={`Rolar o ataque de magia de ${c.classe}`}
+              title={rolador.podeRolar ? undefined : "Só quem edita a ficha rola"}
               onClick={() => rolador.teste(`Ataque de magia (${c.classe})`, c.ataque)}
             >
               {formatarBonus(c.ataque)}
@@ -172,7 +173,6 @@ function LinhaDeMagia({
           type="checkbox"
           data-testid={`magia-preparada-${i}`}
           aria-label={`${m.nome} preparada`}
-          title="Preparada"
           checked={m.preparada}
           disabled={!editar}
           onChange={() => alterar(um(`magias.${i}.preparada`, !m.preparada))}
@@ -196,16 +196,15 @@ function LinhaDeMagia({
           aoMudar={(t) => alterar(um(`magias.${i}.escola`, t === "" ? null : t))}
         />
         {editar && (
-          <button
-            type="button"
+          <BotaoComDica
             className="botao-icone pequeno"
-            data-testid={`magia-remover-${i}`}
-            title="Tirar a magia"
+            testid={`magia-remover-${i}`}
+            nome={`Tirar a magia ${m.nome}`}
             aria-label={`Tirar a magia ${m.nome}`}
             onClick={() => alterar(um(`magias.${i}`, null))}
           >
             <Trash2 size={14} />
-          </button>
+          </BotaoComDica>
         )}
       </div>
       {aberta && (

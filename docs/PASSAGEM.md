@@ -10,11 +10,12 @@ Ponteiros: `REDESIGN` = `docs/REDESIGN.md`, `PERGUNTAS` = `docs/PERGUNTAS.md`, `
 Estado dos docs em 2026-11-11: **o redesign R1 a R6 terminou.** Estão entregues o R1 (fundação visual e marca), R2 (estrutura
 fixa), R2b (pausa automática e 11 temas; 14 desde o V1), R3 (janelas flutuantes), R4 (organização do mestre), R5a (interações no mapa e nos
 tokens), R5b (combate, fichas, compêndio e PDF), R6a (teclado, dicas com atalho, foco e contraste) e R6b (tela pequena, frágeis
-restantes, transições e revisão final). O **V1** (temas com personalidade, aba Mesa no fim e zerar o relógio, 2026-11-11), o **V2** (ordem de turno simples, 2026-11-11) e o **V3** (fichas em árvore e handouts, a aba Notas sai, topo e abas iguais, 2026-11-11) estão entregues (`REDESIGN`, "V1", "V2" e "V3"). O que vem agora são os **seus ajustes finos de UX/UI** a partir deste arquivo (fim do
+restantes, transições e revisão final). O **V1** (temas com personalidade, aba Mesa no fim e zerar o relógio, 2026-11-11), o **V2** (ordem de turno simples, 2026-11-11) o **V3** (fichas em árvore e handouts, a aba Notas sai, topo e abas iguais, 2026-11-11) e o **V3b** (dicas enxutas, 2026-11-11) estão entregues (`REDESIGN`, "V1", "V2", "V3" e "V3b"). O que vem agora são os **seus ajustes finos de UX/UI** a partir deste arquivo (fim do
 `ESTADO`, "Próximo"), depois o 7b e o 12.
 
 **O que sobrou de interface (resumo; os detalhes estão nas seções 4, 5 e 7):**
 - Toque (celular) nunca foi testado: arrastar janelas, alça da tocha, dicas e menus só valem com mouse e teclado.
+- Dicas (V3b): só em botão sem nome à vista, uma linha, 700 ms no mouse (na hora no teclado), opção `tabletop:pref:dicas` em Preferências. `Dica.tsx` (`useDica`: atraso e troca), `BotaoComDica.tsx` (`nomeVisivel`, `dicaSe`, `motivo`), `dicasLigadas.ts`. As explicações que saíram das dicas estão em `textosDoTour.ts` (o tour vem depois do V5).
 - Só o Chrome foi testado (Firefox e Safari não: arrasto de item, WebP, OPFS, pasta local).
 - Seleção múltipla no mapa não existe.
 - "Entregar" a tocha só por arrastar a alça até outro token (o menu do token não tem "Entregar").
@@ -63,9 +64,9 @@ Tudo em `apps/web/src/`.
   - `area.ts`: onde fica a área do mapa na página (`caixaDaArea`), para prender menus, dicas e janelas a ela. `larguraDoPainel.ts` e `preferencias.ts`: a largura do painel direito (300 px a 1/4 da janela, `tabletop:pref:larguraDoPainel`).
   - `mapa/Mapa.tsx`, `mapa/mapaPixi.ts`, `mapa/camadaDeLuz.ts`, `mapa/camadaDeDesenho.ts`: o mapa em PixiJS.
     **Não muda com o tema** (`REDESIGN:138-139`).
-  - `MenuSuperior.tsx`: os menus do mestre em grupos (Cena, Mapa, Luz, Combate, Ver como; **desde o V3 sem rótulo desenhado**: o grupo vai na dica, "Luz · Visão noturna"), todos os botões com o mesmo tamanho e espaço, cada um com dica no mouse e no foco, dentro do topo (a pausa e o relógio estão em `EstadoDaMesa.tsx`).
+  - `MenuSuperior.tsx`: os menus do mestre em grupos (Cena, Mapa, Luz, Combate, Ver como; **desde o V3 sem rótulo desenhado**: o grupo vai na dica, "Luz · Visão noturna"), todos os botões com o mesmo tamanho e espaço, cada um com dica de uma linha no mouse (700 ms) e no foco, dentro do topo (a pausa e o relógio estão em `EstadoDaMesa.tsx`).
   - `BarraDeFerramentas.tsx`: barra fixa de 52 px à esquerda (selecionar, mão, régua, dados rápidos, pincel e, só do mestre, Paredes e portas, que liga o modo; o selo do modo está em `Mesa.tsx`); a sub-barra do pincel abre ao lado dela.
-  - `BarraLateral.tsx`: painel direito de cima a baixo, recolhível, com abas de ícone e nome (todas da mesma largura; nome cortado com reticências e dica com o nome inteiro, V3) e a alça de largura.
+  - `BarraLateral.tsx`: painel direito de cima a baixo, recolhível, com abas de ícone e nome (todas da mesma largura; nome cortado com reticências e dica com o nome inteiro só quando cortado, V3 e V3b) e a alça de largura.
   - `abas.tsx`: `AbaPreferencias` (usuário, tema, encaixe, pasta local de imagens, status dos arquivos). A `AbaNotas` saiu no V3.
   - `AbaChat.tsx`, `AbaFichas.tsx`, `AbaCompendio.tsx`: as abas de chat (com os modelos de rolagem), fichas
     (**árvore** de pastas, personagens, NPCs e handouts, V3; "+ Novo" único; menu de botão direito em `MenuDeContexto.tsx`) e compêndio de magias.
@@ -301,7 +302,7 @@ Redesign R5b (`REDESIGN`, "R5b — como ficou")
 123. ~~Os controles de montar a ordem de turno ficam numa seção recolhível "Montar"~~: a seção saiu no V2 (a ordem virou uma lista simples; `tabletop:pref:ordem:montar` não é mais lida)
 124. Esc no campo da iniciativa devolve o valor de antes; a roda do mouse num campo com foco tira o foco (e confirma o que estava digitado)
 125. Anterior e Próximo turno também dizem "A lista está vazia" quando desabilitados (desde o V2 não há Anterior; Próximo, Ordenar e Limpar dizem o motivo)
-126. A dica do botão desabilitado aparece também ao mexer o mouse sobre ele (o botão pode ficar desabilitado com o mouse já em cima)
+126. A dica do botão desabilitado aparece também ao mexer o mouse sobre ele (o botão pode ficar desabilitado com o mouse já em cima); desde o V3b é "Nome — motivo" e, com as dicas desligadas, o clique mostra o motivo num balão
 127. O mestre arrasta o item das Fichas por inteiro (nome e alça), não só pela alça
 128. "Usar o exemplo" com pasta grava `compendio/magias.json` e confirma antes de substituir; sem pasta vale até recarregar; falha ao gravar na pasta mostra erro, sem cair para "sem pasta"
 129. A atribuição do SRD fica nos créditos (aberta) e numa linha "Exemplo do SRD 5.1 em uso", só enquanto o compêndio da mesa é o exemplo (comparado pelo hash)
@@ -318,6 +319,11 @@ Os itens 49 a 85 são 37; o R2 acrescenta os itens 86 a 92, o R2b os 93 a 96, o 
 na tabela `meta`, o worker do pdf.js, tipos do Node no teste, idempotência de `desenho.apagar`).
 
 ## 5. Pontos frágeis por lote
+
+V3b (dicas enxutas, 2026-11-11)
+- A dica no mouse espera 700 ms e o foco mostra na hora, salvo se veio de um clique (compara o `timeStamp` do foco com o do último `pointerdown` no mesmo elemento, 100 ms; não usa `:focus-visible`, que escondia o foco programático depois de um mouse). `useDica` guarda a contagem de dicas abertas e o instante do último fechamento em variáveis do módulo (troca na hora); os E2E congelam o relógio da página (`ajudasDicas.ts`) para provar o atraso. (`REDESIGN`, "V3b")
+- Botão desabilitado por `motivo` usa `aria-disabled` (não o `disabled` nativo); o `toBeDisabled` do Playwright aceita os dois. Com as dicas desligadas o clique nele mostra um balão de 2,8 s (`aria-live`). Dica de marcador de condição e de alça de tocha no mapa não obedece à opção de desligar. (`REDESIGN`, "V3b")
+- Ficaram com `title` nativo (não são botões): avatares da presença, siglas dos atributos, ícones "quem vê" e de cena, progresso do preparo. (`REDESIGN`, "V3b")
 
 V3 (fichas em árvore e handouts, 2026-11-11)
 - O menu de botão direito das Fichas (`MenuDeContexto.tsx`) abre pelo teclado com Shift+F10 ou a tecla de menu; o "contextmenu" nativo que o navegador dispara junto é ignorado por 700 ms (zerado quando o mouse age). Só testado com as teclas enviadas pelo Playwright, não com um teclado real, e não em toque. (`REDESIGN`, "V3")
@@ -476,7 +482,7 @@ Redesign R5a
 
 Redesign R4
 - Os E2E só rodam com 1 worker (sala compartilhada): `--workers` maior dá falhas falsas. (`ESTADO`, "R4", Como rodar)
-- ~~A dica do menu do topo é própria do `MenuSuperior`~~: resolvido no R6a (uma dica só, `BotaoComDica`, com atalho). Ainda com `title` nativo: botões menores de fichas, fontes de luz, editor do item, ordem de turno, chat, faixa de cenas, cores do pincel e a alça do item das Fichas. (`ESTADO`, "R4", Frágil)
+- ~~A dica do menu do topo é própria do `MenuSuperior`~~: resolvido no R6a (uma dica só, `BotaoComDica`, com atalho). Os `title` nativos que sobravam foram limpos no V3b (saíram onde o nome está à vista; viraram a dica comum nos só-ícone; sobram só os de elementos que não são botões, ver `REDESIGN`, "V3b"). (`ESTADO`, "R4", Frágil)
 - ~~Os prints antigos (`r1` a `r3` e os dos lotes) usam testids que não existem mais~~: resolvido no R6b (apagados; o tour `auditoria` foi refeito). (`ESTADO`, "R4", Frágil)
 - O selo de modo existe só para Paredes e portas; luz e ponto não têm. (`ESTADO`, "R4", Frágil)
 - ~~`PROJETO.md` ainda cita a aba "Configurações" e a aba do mestre~~: resolvido no R6b (os trechos ganharam "(hoje: Preferências / Mesa)").

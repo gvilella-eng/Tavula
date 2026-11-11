@@ -200,11 +200,7 @@ export function MensagemDoChat({ mensagem, usuarios, euId, imagens, versaoDasIma
           <strong className="mensagem-autor" data-testid="chat-autor">
             {nome}
           </strong>
-          {mensagem.como && autor && (
-            <span className="mensagem-por" title={`Falando como ${nome}`}>
-              ({autor.nome})
-            </span>
-          )}
+          {mensagem.como && autor && <span className="mensagem-por">({autor.nome})</span>}
           <time className="mensagem-hora">{hora(mensagem.emReal)}</time>
         </header>
         {etiqueta}

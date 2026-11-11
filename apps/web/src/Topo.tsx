@@ -16,7 +16,7 @@ export function Topo({ cena, menus, children }: Props) {
     <header className="topo" data-testid="topo">
       <div className="topo-marca">
         <Logo tamanho={22} />
-        <span className="topo-cena" data-testid="topo-cena" title={`Cena do grupo: ${cena}`}>
+        <span className="topo-cena" data-testid="topo-cena">
           {cena}
         </span>
       </div>

@@ -111,12 +111,7 @@ function Item({ p, eu, imagens, versao, aoAbrir, aoMenu }: PropsItem) {
       <BotaoComDica
         className="ficha-abrir"
         testid={`ficha-abrir-${p.id}`}
-        nome="Abrir a ficha"
-        dica={
-          euMestre
-            ? "Arraste para o mapa para pôr o token. Botão direito: mais ações."
-            : "Botão direito: mais ações."
-        }
+        nomeVisivel
         draggable={euMestre || undefined}
         onDragStart={euMestre ? iniciarArrasto : undefined}
         onClick={aoAbrir}
@@ -134,7 +129,7 @@ function Item({ p, eu, imagens, versao, aoAbrir, aoMenu }: PropsItem) {
         </span>
         {!euMestre && podeEditarPersonagem(p, eu) && <span className="selo">seu</span>}
         {p.ficha && (
-          <span className="ficha-pv" title="Pontos de vida">
+          <span className="ficha-pv">
             {p.ficha.pvAtual}/{p.ficha.pvMax}
           </span>
         )}
@@ -183,8 +178,7 @@ function ItemDeHandout({ h, eu, jogadores, imagens, versao, aoAbrir, aoMenu }: P
       <BotaoComDica
         className="ficha-abrir"
         testid={`handout-abrir-${h.id}`}
-        nome="Abrir o handout"
-        dica={euMestre ? "Botão direito: mais ações." : undefined}
+        nomeVisivel
         draggable={euMestre || undefined}
         onDragStart={euMestre ? iniciarArrasto : undefined}
         onClick={aoAbrir}
@@ -314,17 +308,16 @@ function SecaoDaPasta({
           aoMenu({ tipo: "pasta", id: pasta.id }, ponto.x, ponto.y, true);
         }}
       >
-        <button
-          type="button"
+        <BotaoComDica
           className="botao-icone pequeno"
-          data-testid={`ficha-pasta-alternar-${pasta.id}`}
+          testid={`ficha-pasta-alternar-${pasta.id}`}
+          nome={aberta ? "Recolher a pasta" : "Abrir a pasta"}
           aria-expanded={aberta}
-          title={aberta ? "Recolher a pasta" : "Abrir a pasta"}
           aria-label={aberta ? "Recolher a pasta" : "Abrir a pasta"}
           onClick={aoAlternar}
         >
           {aberta ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-        </button>
+        </BotaoComDica>
         {editando ? (
           <input
             className="cena-nome-campo ficha-pasta-campo"
@@ -353,7 +346,6 @@ function SecaoDaPasta({
             type="button"
             className="ficha-pasta-nome editavel"
             data-testid={`ficha-pasta-nome-${pasta.id}`}
-            title="Clique para renomear (F2)"
             aria-keyshortcuts="F2"
             onClick={() => setEditando(true)}
             onKeyDown={(e) => {

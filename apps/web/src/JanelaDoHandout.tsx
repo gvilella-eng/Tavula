@@ -346,7 +346,7 @@ export function JanelaDoHandout({
               testid="handout-mostrar"
               className="primario"
               nome="Mostrar agora"
-              dica="Abre este handout na tela de quem pode vê-lo, agora."
+              nomeVisivel
               motivo={
                 soOMestre ? "Só você vê este handout: escolha quem vê antes de mostrar." : null
               }

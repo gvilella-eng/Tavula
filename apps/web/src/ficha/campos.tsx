@@ -37,7 +37,6 @@ export function CampoNumero({
       className={`fh-numero ${className ?? ""}`}
       data-testid={testid}
       aria-label={rotulo}
-      title={rotulo}
       type="number"
       inputMode="numeric"
       min={min}

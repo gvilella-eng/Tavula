@@ -23,7 +23,6 @@ export function BotaoImportarPdf({ estado, eu, enviar, personagem }: Props) {
       <button
         type="button"
         data-testid="editor-importar-pdf"
-        title="Lê o PDF impresso da ficha (no seu navegador) e mostra uma tela de revisão antes de trocar a ficha"
         onClick={() => importador.escolher(personagem)}
       >
         <FileText size={16} /> Importar PDF

@@ -16,6 +16,7 @@ import { BedDouble, Coffee } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Avatar } from "../Avatar";
 import type { Fontes } from "../assets/fontes";
+import { BotaoComDica } from "../BotaoComDica";
 import { EditorDoItem } from "../EditorDoItem";
 import type { PedirImagem } from "../FaixaDeCenas";
 import { Janela } from "../janelas/Janela";
@@ -230,7 +231,6 @@ export function JanelaDaFicha({
                   type="button"
                   data-testid={`vantagem-${v}`}
                   aria-pressed={vantagem === v}
-                  title={`${ROTULO_DA_VANTAGEM[v]} no próximo d20`}
                   onClick={() => setVantagem(v)}
                 >
                   {ROTULO_DA_VANTAGEM[v]}
@@ -239,26 +239,24 @@ export function JanelaDaFicha({
             </fieldset>
             {editar && (
               <>
-                <button
-                  type="button"
+                <BotaoComDica
                   className="botao-icone"
-                  data-testid="descanso-curto"
-                  title="Descanso curto"
+                  testid="descanso-curto"
+                  nome="Descanso curto"
                   aria-label="Descanso curto"
                   onClick={() => setDescanso("curto")}
                 >
                   <Coffee size={16} />
-                </button>
-                <button
-                  type="button"
+                </BotaoComDica>
+                <BotaoComDica
                   className="botao-icone"
-                  data-testid="descanso-longo"
-                  title="Descanso longo"
+                  testid="descanso-longo"
+                  nome="Descanso longo"
                   aria-label="Descanso longo"
                   onClick={() => setDescanso("longo")}
                 >
                   <BedDouble size={16} />
-                </button>
+                </BotaoComDica>
               </>
             )}
           </>

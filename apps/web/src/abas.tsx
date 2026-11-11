@@ -4,6 +4,7 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import { type ArquivoDaFonte, temSeletorDePasta } from "./assets/fonte";
 import type { Fontes } from "./assets/fontes";
 import type { GerenteDeAssets, StatusDeAsset } from "./assets/gerente";
+import { definirDicasLigadas, useDicasLigadas } from "./dicasLigadas";
 import { ListaDeAtalhos } from "./ListaDeAtalhos";
 import { SeletorDeTema } from "./SeletorDeTema";
 
@@ -86,9 +87,7 @@ function PastaLocal({ fontes }: { fontes: Fontes }) {
       {arquivos.length > 0 && (
         <ul className="lista-simples nomes-de-arquivos" data-testid="biblioteca-lista">
           {arquivos.slice(0, 8).map((a) => (
-            <li key={a.id} title={a.caminho}>
-              {a.nome}
-            </li>
+            <li key={a.id}>{a.nome}</li>
           ))}
           {arquivos.length > 8 && <li className="nota">e mais {arquivos.length - 8}…</li>}
         </ul>
@@ -137,6 +136,7 @@ export function AbaPreferencias({
   fontes,
   gerente,
 }: PropsPreferencias) {
+  const dicas = useDicasLigadas();
   return (
     <>
       <p>
@@ -156,6 +156,15 @@ export function AbaPreferencias({
           onChange={(e) => aoMudarEncaixe(e.target.checked)}
         />
         Encaixar tokens no grid (segure Alt ao arrastar para soltar sem encaixe)
+      </label>
+      <label className="linha-opcao">
+        <input
+          type="checkbox"
+          data-testid="pref-dicas"
+          checked={dicas}
+          onChange={(e) => definirDicasLigadas(e.target.checked)}
+        />
+        Dicas ao passar o mouse (o nome e o atalho dos botões só de ícone)
       </label>
       <PastaLocal fontes={fontes} />
       {gerente && <Transferencias gerente={gerente} />}

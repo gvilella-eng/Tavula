@@ -258,11 +258,8 @@ function JanelaNaArea({ alvo, ...p }: Props & { alvo: HTMLElement }) {
           tabIndex={0}
           data-testid={p.testidDoCabecalho ?? `janela-${id}-cabecalho`}
           aria-describedby={dicaDoCabecalho.id}
-          onMouseOver={(e) =>
-            ehControle(e) ? dicaDoCabecalho.esconder() : dicaDoCabecalho.mostrar()
-          }
-          onMouseLeave={dicaDoCabecalho.esconder}
-          onFocus={(e) => e.target === e.currentTarget && dicaDoCabecalho.mostrar()}
+          // O cabeçalho já mostra o nome da janela: a dica de mover só aparece no foco do teclado (V3b).
+          onFocus={(e) => e.target === e.currentTarget && dicaDoCabecalho.aoFocar(e)}
           onBlur={dicaDoCabecalho.esconder}
           onPointerDown={(e) => {
             dicaDoCabecalho.esconder();
@@ -295,7 +292,6 @@ function JanelaNaArea({ alvo, ...p }: Props & { alvo: HTMLElement }) {
               className="botao-icone pequeno"
               testid={`janela-${id}-minimizar`}
               nome={minimizada ? "Restaurar" : "Minimizar"}
-              dica={minimizada ? "Mostra a janela inteira de novo." : "Deixa só a barra do título."}
               aria-label={`${minimizada ? "Restaurar" : "Minimizar"} ${nome}`}
               onClick={alternar}
             >
@@ -320,7 +316,6 @@ function JanelaNaArea({ alvo, ...p }: Props & { alvo: HTMLElement }) {
           visivel={dicaDoCabecalho.visivel}
           testid={`dica-janela-${id}-cabecalho`}
           nome="Mover a janela"
-          texto="Arraste pelo cabeçalho. Dois cliques minimizam ou restauram."
           atalho="janelaMover"
         />
 
