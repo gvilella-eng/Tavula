@@ -5,6 +5,8 @@ import {
   importarFichaDoPdf,
   PASTA_PERSONAGENS_ID,
   type Personagem,
+  podeEditarPersonagem,
+  type Usuario,
 } from "@tabletop/shared";
 import { type ReactNode, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -20,6 +22,8 @@ type Fase =
 
 type Opcoes = {
   estado: Estado;
+  /** Quem importa: só os personagens que ele edita são destino de "Por cima de". */
+  eu: Usuario;
   enviar: Enviar;
   /** O item novo foi enviado: quem chama abre a janela dele. */
   aoCriar?: (personagemId: string) => void;
@@ -29,9 +33,10 @@ type Opcoes = {
  * Importação da ficha em PDF (Lote 10): escolher o PDF, ler no navegador (o arquivo não sai do
  * PC), mostrar a tela de revisão e, só se o jogador confirmar, mandar a ficha (JSON) para a sala. Devolve
  * `escolher(alvo)` — o item que será substituído, ou `null` para criar um item novo — e os `elementos` que
- * quem usa precisa deixar na árvore (o seletor de arquivo escondido e a tela de revisão).
+ * quem usa precisa deixar na árvore (o seletor de arquivo escondido e a tela de revisão). A revisão
+ * mostra o destino ("Ficha nova" ou "Por cima de: <personagem>"): `alvo` só o deixa já preenchido.
  */
-export function useImportadorDePdf({ estado, enviar, aoCriar }: Opcoes): {
+export function useImportadorDePdf({ estado, eu, enviar, aoCriar }: Opcoes): {
   escolher: (alvo: Personagem | null) => void;
   elementos: ReactNode;
 } {
@@ -67,9 +72,8 @@ export function useImportadorDePdf({ estado, enviar, aoCriar }: Opcoes): {
     }
   }
 
-  function confirmar(ficha: Ficha, nome: string): string | null {
+  function confirmar(ficha: Ficha, nome: string, itemAlvo: Personagem | null): string | null {
     if (fase?.tipo !== "revisao") return null;
-    const itemAlvo = fase.alvo;
     if (itemAlvo) {
       // Importar por cima: troca só a ficha; retrato, token e pasta do item ficam como estão.
       const id = enviar("ficha.alterar", {
@@ -146,6 +150,7 @@ export function useImportadorDePdf({ estado, enviar, aoCriar }: Opcoes): {
             nomeDoArquivo={fase.arquivo}
             resultado={fase.resultado}
             alvo={fase.alvo}
+            candidatos={estado.personagens.filter((p) => podeEditarPersonagem(p, eu))}
             aoConfirmar={confirmar}
             aoCancelar={() => setFase(null)}
           />,

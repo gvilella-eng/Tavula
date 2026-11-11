@@ -102,7 +102,7 @@ export function JanelaDaFicha({
   const [vantagem, setVantagem] = useState<Vantagem>("normal");
   const [descanso, setDescanso] = useState<"curto" | "longo" | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
-  const importadorDePdf = useImportadorDePdf({ estado, enviar });
+  const importadorDePdf = useImportadorDePdf({ estado, eu, enviar });
   const aba: AbaDaFicha = temFicha ? janela.aba : "configurar";
   // Trocar de aba volta ao topo (cada aba é uma página).
   const corpo = useRef<HTMLDivElement>(null);

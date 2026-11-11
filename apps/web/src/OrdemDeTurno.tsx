@@ -8,8 +8,10 @@ import {
   type Usuario,
 } from "@tabletop/shared";
 import {
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
+  ChevronUp,
   Dices,
   EyeOff,
   GripVertical,
@@ -20,9 +22,11 @@ import {
   SquareArrowDown,
   X,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { BotaoComDica } from "./BotaoComDica";
 import { noCanto } from "./janelas/geometria";
 import { Janela } from "./janelas/Janela";
+import { gravarMontarDaOrdem, lerMontarDaOrdem } from "./preferencias";
 
 type Props = {
   estado: Estado;
@@ -36,7 +40,11 @@ type Props = {
 
 const novoId = () => `ent-${crypto.randomUUID().slice(0, 8)}`;
 
-/** Campo do valor da iniciativa: confirma ao sair do campo ou com Enter; vazio tira o valor. */
+/**
+ * Campo do valor da iniciativa: só vale ao sair do campo ou com Enter (digitar, as setas e a roda do mouse
+ * mudam só o texto: nenhum frame vai para a sala e a lista não reordena); Esc devolve o valor de antes;
+ * vazio tira o valor.
+ */
 function CampoDeValor({
   entrada,
   aoMudar,
@@ -46,8 +54,13 @@ function CampoDeValor({
 }) {
   const atual = entrada.iniciativa === undefined ? "" : String(entrada.iniciativa);
   const [texto, setTexto] = useState(atual);
+  const cancelado = useRef(false);
   useEffect(() => setTexto(atual), [atual]);
   function confirmar() {
+    if (cancelado.current) {
+      cancelado.current = false;
+      return setTexto(atual);
+    }
     if (texto === atual) return;
     if (texto.trim() === "") return aoMudar(null);
     const n = Number(texto);
@@ -68,7 +81,17 @@ function CampoDeValor({
       max={LIMITES_DO_COMBATE.iniciativaMax}
       onChange={(e) => setTexto(e.target.value)}
       onBlur={confirmar}
-      onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") e.currentTarget.blur();
+        // Esc devolve o valor de antes e sai do campo sem mandar nada para a sala.
+        if (e.key === "Escape") {
+          cancelado.current = true;
+          setTexto(atual);
+          e.currentTarget.blur();
+        }
+      }}
+      // A roda do mouse num campo com foco mudaria o número sem querer: tira o foco e deixa a lista rolar.
+      onWheel={(e) => e.currentTarget.blur()}
     />
   );
 }
@@ -88,6 +111,15 @@ export function OrdemDeTurno({ estado, eu, enviar, selecionadoId, somenteLeitura
   const [soltaOculta, setSoltaOculta] = useState(false);
   const [arrastando, setArrastando] = useState<string | null>(null);
   const [sobre, setSobre] = useState<string | null>(null);
+  // "Montar" (rolar, ordenar, adicionar, encerrar): a pessoa escolhe aberta ou fechada e o navegador lembra.
+  // Sem escolha, fica aberta enquanto o combate não começou (rodada 0) e recolhida depois.
+  const [escolhaDoMontar, setEscolhaDoMontar] = useState<boolean | null>(lerMontarDaOrdem);
+  const montarAberto = escolhaDoMontar ?? rodada === 0;
+  function alternarMontar() {
+    const nova = !montarAberto;
+    setEscolhaDoMontar(nova);
+    gravarMontarDaOrdem(nova);
+  }
 
   // Mudou o combate (acabou, por exemplo): a confirmação de encerrar não fica pendurada.
   useEffect(() => {
@@ -109,6 +141,7 @@ export function OrdemDeTurno({ estado, eu, enviar, selecionadoId, somenteLeitura
     return p !== undefined && ehPersonagemDeJogador(p);
   });
   const jaNaLista = (tokenId: string) => entradas.some((e) => e.tokenId === tokenId);
+  const semLista = entradas.length === 0 ? "A lista está vazia" : null;
 
   function adicionarSolta() {
     const nome = soltaNome.trim();
@@ -328,150 +361,197 @@ export function OrdemDeTurno({ estado, eu, enviar, selecionadoId, somenteLeitura
 
       {gerencia && (
         <div className="ot-comandos">
-          <div className="ot-linha">
-            <button
-              type="button"
-              data-testid="ordem-anterior"
-              disabled={entradas.length === 0}
+          <div className="ot-linha ot-turno">
+            <BotaoComDica
+              testid="ordem-anterior"
+              motivo={semLista}
+              dica="Volta ao turno anterior"
               onClick={() => enviar("combate.anterior", {})}
             >
               <ChevronLeft size={14} /> Anterior
-            </button>
-            <button
-              type="button"
+            </BotaoComDica>
+            <BotaoComDica
+              testid="ordem-proximo"
               className="primario"
-              data-testid="ordem-proximo"
-              disabled={entradas.length === 0}
+              motivo={semLista}
+              dica="Passa para o próximo turno (a rodada muda quando a lista dá a volta)"
               onClick={() => enviar("combate.proximo", {})}
             >
               Próximo turno <ChevronRight size={14} />
+            </BotaoComDica>
+            <button
+              type="button"
+              className="ot-montar-botao"
+              data-testid="ordem-montar-alternar"
+              aria-expanded={montarAberto}
+              aria-controls="ordem-montar"
+              title="Montar o combate: rolar, ordenar, adicionar e encerrar"
+              onClick={alternarMontar}
+            >
+              Montar
+              {montarAberto ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
             </button>
           </div>
-          <div className="ot-linha">
-            <button
-              type="button"
-              data-testid="ordem-rolar-todos"
-              disabled={!entradas.some((e) => e.iniciativa === undefined)}
-              title="Rola a iniciativa de quem ainda não tem valor (as dos NPCs vão ocultas)"
-              onClick={() => enviar("combate.rolar", {})}
-            >
-              <Dices size={14} /> Rolar para todos
-            </button>
-            <button
-              type="button"
-              data-testid="ordem-ordenar"
-              disabled={entradas.length < 2}
-              title="Volta a lista à ordem pelos valores"
-              onClick={() => enviar("combate.ordenar", {})}
-            >
-              <SquareArrowDown size={14} /> Ordenar
-            </button>
-          </div>
-          <div className="ot-linha">
-            <button
-              type="button"
-              data-testid="ordem-adicionar-selecionados"
-              disabled={selecionadoId === null || jaNaLista(selecionadoId)}
-              title="Adiciona o token selecionado no mapa"
-              onClick={() =>
-                selecionadoId &&
-                enviar("combate.adicionar", {
-                  entradas: [{ id: novoId(), tokenId: selecionadoId }],
-                })
-              }
-            >
-              <Plus size={14} /> Adicionar selecionados
-            </button>
-            <button
-              type="button"
-              data-testid="ordem-adicionar-grupo"
-              disabled={tokensDoGrupo.every((t) => jaNaLista(t.id))}
-              title="Adiciona os tokens dos personagens dos jogadores na cena do grupo"
-              onClick={() =>
-                enviar("combate.adicionar", {
-                  entradas: tokensDoGrupo
-                    .filter((t) => !jaNaLista(t.id))
-                    .map((t) => ({ id: novoId(), tokenId: t.id })),
-                })
-              }
-            >
-              <Plus size={14} /> O grupo
-            </button>
-          </div>
-          <form
-            className="ot-solta"
-            data-testid="ordem-solta"
-            onSubmit={(ev) => {
-              ev.preventDefault();
-              adicionarSolta();
-            }}
-          >
-            <input
-              type="text"
-              data-testid="ordem-solta-nome"
-              aria-label="Nome da entrada solta"
-              placeholder="Entrada solta (Covil)"
-              maxLength={64}
-              value={soltaNome}
-              onChange={(e) => setSoltaNome(e.target.value)}
-            />
-            <input
-              type="number"
-              data-testid="ordem-solta-valor"
-              aria-label="Valor da entrada solta"
-              placeholder="20"
-              value={soltaValor}
-              onChange={(e) => setSoltaValor(e.target.value)}
-            />
-            <button
-              type="button"
-              className="botao-icone pequeno"
-              data-testid="ordem-solta-oculta"
-              aria-pressed={soltaOculta}
-              title="Entrada escondida dos jogadores"
-              aria-label="Entrada solta escondida dos jogadores"
-              onClick={() => setSoltaOculta(!soltaOculta)}
-            >
-              <EyeOff size={14} />
-            </button>
-            <button type="submit" data-testid="ordem-solta-adicionar" disabled={!soltaNome.trim()}>
-              <Plus size={14} />
-            </button>
-          </form>
-          {confirmando ? (
-            <div className="ot-confirmar" role="alertdialog" data-testid="ordem-encerrar-confirmar">
-              <p>Encerrar o combate? A lista e a rodada serão apagadas.</p>
+          {montarAberto && (
+            <div className="ot-montar" id="ordem-montar" data-testid="ordem-montar">
               <div className="ot-linha">
-                <button
-                  type="button"
-                  className="perigo"
-                  data-testid="ordem-encerrar-sim"
-                  onClick={() => {
-                    enviar("combate.encerrar", {});
-                    setConfirmando(false);
-                  }}
+                <BotaoComDica
+                  testid="ordem-rolar-todos"
+                  motivo={
+                    entradas.length === 0
+                      ? "A lista está vazia"
+                      : entradas.every((e) => e.iniciativa !== undefined)
+                        ? "Todos já têm iniciativa"
+                        : null
+                  }
+                  dica="Rola a iniciativa de quem ainda não tem valor (as dos NPCs vão ocultas)"
+                  onClick={() => enviar("combate.rolar", {})}
                 >
-                  Encerrar
-                </button>
-                <button
-                  type="button"
-                  data-testid="ordem-encerrar-nao"
-                  onClick={() => setConfirmando(false)}
+                  <Dices size={14} /> Rolar para todos
+                </BotaoComDica>
+                <BotaoComDica
+                  testid="ordem-ordenar"
+                  motivo={
+                    entradas.length === 0
+                      ? "A lista está vazia"
+                      : entradas.length < 2
+                        ? "Precisa de pelo menos duas entradas"
+                        : null
+                  }
+                  dica="Volta a lista à ordem pelos valores"
+                  onClick={() => enviar("combate.ordenar", {})}
                 >
-                  Cancelar
-                </button>
+                  <SquareArrowDown size={14} /> Ordenar
+                </BotaoComDica>
               </div>
+              <div className="ot-linha">
+                <BotaoComDica
+                  testid="ordem-adicionar-selecionados"
+                  motivo={
+                    selecionadoId === null
+                      ? "Selecione um token no mapa"
+                      : jaNaLista(selecionadoId)
+                        ? "Já está na lista"
+                        : null
+                  }
+                  dica="Adiciona o token selecionado no mapa"
+                  onClick={() =>
+                    selecionadoId &&
+                    enviar("combate.adicionar", {
+                      entradas: [{ id: novoId(), tokenId: selecionadoId }],
+                    })
+                  }
+                >
+                  <Plus size={14} /> Adicionar selecionados
+                </BotaoComDica>
+                <BotaoComDica
+                  testid="ordem-adicionar-grupo"
+                  motivo={
+                    tokensDoGrupo.length === 0
+                      ? "Não há personagens de jogadores nesta cena"
+                      : tokensDoGrupo.every((t) => jaNaLista(t.id))
+                        ? "O grupo já está na lista"
+                        : null
+                  }
+                  dica="Adiciona os tokens dos personagens dos jogadores na cena do grupo"
+                  onClick={() =>
+                    enviar("combate.adicionar", {
+                      entradas: tokensDoGrupo
+                        .filter((t) => !jaNaLista(t.id))
+                        .map((t) => ({ id: novoId(), tokenId: t.id })),
+                    })
+                  }
+                >
+                  <Plus size={14} /> O grupo
+                </BotaoComDica>
+              </div>
+              <form
+                className="ot-solta"
+                data-testid="ordem-solta"
+                onSubmit={(ev) => {
+                  ev.preventDefault();
+                  adicionarSolta();
+                }}
+              >
+                <input
+                  type="text"
+                  data-testid="ordem-solta-nome"
+                  aria-label="Nome da entrada solta"
+                  placeholder="Entrada solta (Covil)"
+                  maxLength={64}
+                  value={soltaNome}
+                  onChange={(e) => setSoltaNome(e.target.value)}
+                />
+                <input
+                  type="number"
+                  data-testid="ordem-solta-valor"
+                  aria-label="Valor da entrada solta"
+                  placeholder="20"
+                  value={soltaValor}
+                  onChange={(e) => setSoltaValor(e.target.value)}
+                />
+                <button
+                  type="button"
+                  className="botao-icone pequeno"
+                  data-testid="ordem-solta-oculta"
+                  aria-pressed={soltaOculta}
+                  title="Entrada escondida dos jogadores"
+                  aria-label="Entrada solta escondida dos jogadores"
+                  onClick={() => setSoltaOculta(!soltaOculta)}
+                >
+                  <EyeOff size={14} />
+                </button>
+                <BotaoComDica
+                  testid="ordem-solta-adicionar"
+                  type="submit"
+                  className="botao-icone pequeno"
+                  motivo={soltaNome.trim() ? null : "Escreva o nome da entrada"}
+                  dica="Adiciona a entrada solta à lista"
+                  aria-label="Adicionar a entrada solta"
+                >
+                  <Plus size={14} />
+                </BotaoComDica>
+              </form>
+              {confirmando ? (
+                <div
+                  className="ot-confirmar"
+                  role="alertdialog"
+                  data-testid="ordem-encerrar-confirmar"
+                >
+                  <p>Encerrar o combate? A lista e a rodada serão apagadas.</p>
+                  <div className="ot-linha">
+                    <button
+                      type="button"
+                      className="perigo"
+                      data-testid="ordem-encerrar-sim"
+                      onClick={() => {
+                        enviar("combate.encerrar", {});
+                        setConfirmando(false);
+                      }}
+                    >
+                      Encerrar
+                    </button>
+                    <button
+                      type="button"
+                      data-testid="ordem-encerrar-nao"
+                      onClick={() => setConfirmando(false)}
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <BotaoComDica
+                  testid="ordem-encerrar"
+                  className="perigo"
+                  motivo={combate === undefined ? "Não há combate em andamento" : null}
+                  dica="Apaga a lista e a rodada (pede confirmação)"
+                  onClick={() => setConfirmando(true)}
+                >
+                  <Square size={14} /> Encerrar combate
+                </BotaoComDica>
+              )}
             </div>
-          ) : (
-            <button
-              type="button"
-              className="perigo"
-              data-testid="ordem-encerrar"
-              disabled={combate === undefined}
-              onClick={() => setConfirmando(true)}
-            >
-              <Square size={14} /> Encerrar combate
-            </button>
           )}
         </div>
       )}

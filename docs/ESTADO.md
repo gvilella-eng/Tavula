@@ -2014,4 +2014,72 @@ relatório do Playwright (`[erro na página]`).
 
 ---
 
-## Próximo: Redesign R5b — combate, fichas, compêndio e PDF (ordem de turno compacta com o valor confirmado no Enter, ficha com um clique, "usar o exemplo" no compêndio, importar PDF com um caminho só); depois R6, 7b e 12
+## Redesign R5b — Combate, fichas, compêndio e PDF (entregue, aguardando o roteiro manual)
+
+### O que foi entregue
+
+- **Ordem de turno compacta** (`OrdemDeTurno.tsx`): uma linha com Anterior, Próximo turno e o botão Montar (`ordem-montar-alternar`); o resto (rolar para todos, ordenar, adicionar selecionados, o grupo, entrada solta, encerrar) fica na seção "Montar" (`ordem-montar`). Aberta ou fechada é preferência do navegador (`tabletop:pref:ordem:montar`, sem frame); sem escolha, aberta antes do combate e recolhida depois. O valor da iniciativa só vale no Enter ou ao sair do campo (digitar, setas e roda só mudam o texto); Esc devolve o valor de antes.
+- **Botão desabilitado diz por quê** (`BotaoComDica.tsx`, novo): `aria-disabled` com o clique ignorado, motivo na dica (hover e foco, `role="tooltip"`, `data-testid="dica-<testid do botão>"`) e na descrição acessível.
+- **Ficha com um clique** (`AbaFichas.tsx`): um clique ou Enter no item (`ficha-abrir-<id>`) abre ou traz para a frente; dois cliques abrem uma só; a dica é "Abrir a ficha" (mestre: com "arraste para o mapa"); o mestre arrasta o item inteiro e isso não abre a ficha.
+- **Compêndio** (`AbaCompendio.tsx`, `useCompendio.ts`, `exemploSrd.ts`): "Usar o exemplo do SRD (3 magias)" (`compendio-usar-exemplo`), "Escolher o arquivo…" e a ajuda do JSON recolhida (`compendio-ajuda-formato`); com pasta grava `compendio/magias.json` (confirma antes de substituir: `compendio-exemplo-confirmar`); sem pasta vale até recarregar; atribuição do SRD aberta nos créditos (`compendio-creditos-texto`) e `compendio-exemplo-em-uso`; vazio do jogador explicado.
+- **PDF** (`useImportadorDePdf.tsx`, `RevisaoDoPdf.tsx`): "Importar PDF…" nos três lugares (`ficha-novo-pdf`, `ficha-menu-importar-pdf-<id>`, `editor-importar-pdf`); revisão com destino (`revisao-destino`, `revisao-sugestao`), botão final "Criar a ficha" / "Substituir a ficha de X" (`revisao-confirmar`), contagem "N campos para conferir" (`revisao-total-incertos`), "Próximo a conferir" (`revisao-proximo-incerto`), "Mostrar tudo" (`revisao-mostrar-tudo`) e seções sem incerto recolhidas com resumo (`revisao-secao-<id>` com `data-aberta`, `revisao-resumo-<id>`, `revisao-secao-alternar-<id>`).
+- Nada na sala, no protocolo nem na exportação mudou; nenhuma dependência nova. Só para os testes: gancho `usarMemoriaComoPasta` (modo `e2e`) e `Memoria.gravar` que devolve o `.json` gravado.
+
+### Como rodar
+
+- `pnpm verify` (uma vez). E2E novos: `pnpm --filter @tabletop/e2e test --repeat-each=3 tests/fluxos.spec.ts tests/combate.spec.ts tests/importarPdf.spec.ts`. Prints: `$env:PRINTS_DIR="<pasta>"; pnpm --filter @tabletop/e2e prints r5b`.
+- Só 1 worker nos E2E (sala compartilhada).
+
+### Verificação
+
+- `e2e/tests/fluxos.spec.ts` (11 testes): ordem de turno (digitar, setas e Esc sem frame nem reordenar até o Enter; Montar recolhe, vem aberta/recolhida conforme a rodada, fica só no navegador e o jogador não a tem; cada botão desabilitado com motivo no hover, no foco e na descrição acessível, e clique forçado não manda nada); fichas (um clique, dois cliques, Enter, menu do item e arrastar não abrem); compêndio (exemplo sem pasta com as 3 magias e a atribuição, o jogador vendo como vê hoje, vazio do jogador; com a "pasta" dos testes, grava `compendio/magias.json` e confirma antes de substituir); PDF (mesmo nome nos dois caminhos, destino preenchido pelo menu, sugestão por nome, só os personagens editáveis como destino, seções recolhidas, "Próximo a conferir", "Mostrar tudo", confirmar gera o mesmo `ficha.alterar` e o personagem novo).
+- Unidade: `preferencias.test.ts` (preferência da seção Montar).
+- E2E antigos alterados (a disposição mudou de propósito; nenhuma asserção de comportamento afrouxada):
+  - `compendio.spec.ts`: abre "Como montar o seu arquivo" antes de conferir o exemplo do JSON.
+  - `combate.spec.ts`: antes de "Encerrar combate" (que agora mora em "Montar", recolhida depois que o combate começa) chama o novo `abrirMontar` (`ajudasCombate.ts`).
+  - `importarPdf.spec.ts`: o texto do selo passou de "campos para revisar" para "campos para conferir".
+- `pnpm verify` verde na segunda rodada: 31 (servidor) + 39 (web) + 553 (shared) de unidade e 196 E2E (185 + 11 novos), sem instável. A primeira rodada reprovou 1 E2E antigo (`compendio.spec.ts`, "JSON inválido…", falhou também na repetição): esperava ver o exemplo do JSON no estado vazio, que agora fica recolhido; o teste passou a abrir o título "Como montar o seu arquivo" antes (listado acima).
+- Repetição 3x: `fluxos` (11 testes, 33 execuções), `combate` + `importarPdf` (30 execuções) e `compendio` (30 execuções) verdes, sem instável.
+- Prints (3 temas, 1600×900 e 1280×720) em `prints-r5b`: `<tema>-<largura>-01-ordem-mestre-montar-aberto`, `02-ordem-mestre-montar-fechado`, `03-ordem-jogador`, `04-dica-botao-desabilitado`, `05-aba-fichas`, `06-compendio-vazio-mestre`, `07-compendio-vazio-jogador`, `08-compendio-com-exemplo`, `09-pdf-revisao-alto`, `10-pdf-revisao-secoes-recolhidas` (60 prints).
+
+### Decisões
+
+- (assumido) Controles de montar numa seção recolhível "Montar" (não num menu "Mais"), aberta antes do combate e recolhida depois, até a pessoa escolher.
+- (assumido) Esc no campo da iniciativa devolve o valor de antes; a roda do mouse num campo com foco tira o foco.
+- (assumido) Anterior e Próximo turno também dizem "A lista está vazia" quando desabilitados.
+- (assumido) A dica do botão desabilitado aparece também ao mexer o mouse sobre ele (o botão pode ficar desabilitado com o mouse já em cima).
+- (assumido) O mestre arrasta o item das Fichas por inteiro, não só pela alça.
+- (assumido) "Usar o exemplo" com pasta grava e confirma antes de substituir; sem pasta vale até recarregar; falha ao gravar na pasta mostra erro (não cai para "sem pasta").
+- (assumido) A atribuição do SRD fica nos créditos (aberta) e numa linha "Exemplo do SRD 5.1 em uso", só enquanto o compêndio da mesa é o exemplo (hash).
+- (assumido) O nome do PDF que bate com um personagem só sugere o destino.
+- (assumido) O nome do personagem novo mora no bloco do destino; "N campos para conferir" no lugar de "para revisar".
+- (assumido) "Próximo a conferir" dá a volta; "Mostrar tudo" vira "Recolher o que está certo".
+
+### Desvios do plano
+
+- Nenhum. O levantamento dizia que a lista reordenava enquanto se digita; no código atual isso já não acontecia (o campo só confirma no Enter/saída). Foi fechado o único caminho que sobrava (a roda do mouse) e o comportamento passou a ter teste.
+
+### Frágil / não verificado
+
+- A dica do item das Fichas é o `title` nativo do navegador (não aparece em print).
+- O "grava na pasta" do exemplo só foi testado com a `Memoria` dos testes, não com a pasta real do Chrome.
+- O arrasto do item pelo nome (botão `draggable`) foi testado no Chrome; Firefox e Safari tratam botão arrastável de outro jeito.
+- Os prints antigos com `ordem-*` depois do combate começar (Montar recolhida) e os que clicam em "Confirmar importação" podem precisar de ajuste (R6).
+- Só o Chrome foi testado.
+
+### Roteiro manual (pendente)
+
+1. Como mestre, abrir a Ordem de turno: adicionar o grupo, digitar valores (a lista só muda no Enter ou ao sair do campo; Esc volta ao valor de antes), "Próximo turno": "Montar" recolhe sozinha; abrir e fechar e recarregar a página (a escolha fica).
+2. Passar o mouse e tabular nos botões cinza ("Rolar para todos" depois que todos têm valor, "Adicionar selecionados" sem token ou com token já na lista, "Encerrar combate" sem combate): cada um diz o motivo.
+3. Aba Fichas: um clique abre a ficha; dois cliques não abrem duas; arrastar o item (pelo nome e pela alça) para o mapa põe o token e não abre a ficha; o menu "…" não abre.
+4. Aba Compêndio vazia como mestre: "Usar o exemplo do SRD (3 magias)" sem pasta e, com a pasta local escolhida, de novo (grava `compendio/magias.json`; recarregar a página mantém); com o arquivo já existente, o aviso antes de substituir; a atribuição do SRD nos créditos. Como jogador: o aviso do compêndio vazio e depois as magias.
+5. "Importar PDF…" pelo botão da aba e pelo menu de um item: destino, sugestão pelo nome, "Próximo a conferir", seções recolhidas, "Mostrar tudo", "Criar a ficha" e "Substituir a ficha de X".
+6. Os 3 temas nas duas larguras de janela.
+
+### Revisão (antes do commit de fechamento)
+
+- Os 60 prints foram gerados e uma amostra conferida (ordem do mestre aberta e recolhida e dica de botão desabilitado nos 3 temas em 1280×720, ordem do jogador, compêndio vazio do mestre e do jogador, compêndio com exemplo e atribuição, revisão do PDF em 1280×720 e 1600×900): Montar cabe na janela, a dica do botão desabilitado legível (cobre o botão vizinho por um instante, aceitável), seções recolhidas com resumo, destino e contagem no alto. Nada cortado ou sobreposto de forma feia. (Falta a revisão do Vilella.)
+
+---
+
+## Próximo: Redesign R6 — polimento (tela pequena, foco e contraste, atalhos nas dicas, transições, conserto dos prints antigos e revisão final dos prints nos 3 temas); depois os ajustes do Vilella, 7b e 12

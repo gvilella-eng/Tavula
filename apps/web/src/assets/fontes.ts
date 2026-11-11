@@ -83,6 +83,17 @@ export class Fontes {
     return this.pasta && this.estadoDaPasta === "autorizada" ? this.pasta : null;
   }
 
+  /** Só nos testes e2e: faz a `Memoria` valer como a pasta local com escrita (o "Usar o exemplo" grava nela). */
+  private memoriaComoPasta = false;
+  definirMemoriaComoPasta(valor: boolean): void {
+    this.memoriaComoPasta = valor && this.memoria !== null;
+  }
+
+  /** Onde "Usar o exemplo" grava o `compendio/magias.json`: a pasta local autorizada (ou, nos testes, a memória). */
+  pastaDoCompendio(): FonteDeAssets | null {
+    return this.pastaGravavel() ?? (this.memoriaComoPasta ? this.memoria : null);
+  }
+
   /** Um arquivo do compêndio escolhido à mão (para quem não tem seletor de pasta); vale até recarregar a página. */
   private compendioSolto: File | null = null;
 

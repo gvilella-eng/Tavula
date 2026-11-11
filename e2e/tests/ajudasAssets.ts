@@ -106,6 +106,8 @@ type GanchoDosAssets = {
   gravados(): Promise<{ caminho: string; bytes: number; sha256: string }[]>;
   /** Põe um arquivo de texto na "pasta" do mestre (Lote 14: o `compendio/magias.json`). */
   adicionarNaPasta(caminho: string, texto: string): void;
+  /** A "pasta" dos testes (a `Memoria`) passa a valer como a pasta local com escrita (R5b). */
+  usarMemoriaComoPasta(valor: boolean): void;
 };
 
 type ImagensVistas = {

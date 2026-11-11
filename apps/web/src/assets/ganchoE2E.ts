@@ -42,6 +42,8 @@ export function instalarGanchoDeAssets(gerente: GerenteDeAssets, fontes: Fontes)
       fontes.memoria?.adicionarTexto(caminho, texto);
       fontes.notificar();
     },
+    /** Faz a "pasta" dos testes (a `Memoria`) valer como a pasta local com escrita (compêndio: "Usar o exemplo"). */
+    usarMemoriaComoPasta: (valor: boolean) => fontes.definirMemoriaComoPasta(valor),
     /** O que foi "gravado na pasta" (a `Memoria` do modo e2e): caminho, tamanho e SHA-256. */
     gravados: async () => {
       const lista = fontes.memoria?.gravados() ?? [];

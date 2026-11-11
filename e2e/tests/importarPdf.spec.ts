@@ -55,7 +55,7 @@ test("importar o PDF do Darion pelo menu do item: revisão com incertos em amare
   expect(fichaFrames(mestre)).toHaveLength(antes);
 
   // Os incertos aparecem em amarelo.
-  await expect(p.getByTestId("revisao-total-incertos")).toContainText("campos para revisar");
+  await expect(p.getByTestId("revisao-total-incertos")).toContainText("campos para conferir");
   const celula = revisao.locator("td", { has: p.getByTestId("revisao-campo-ataques.1.nome") });
   await expect(celula).toHaveAttribute("data-incerto", "true");
   await expect(celula).toHaveCSS("background-color", /rgba\(245, 197, 66, 0\.1/);

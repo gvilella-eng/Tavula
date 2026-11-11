@@ -512,9 +512,94 @@ clique e as alças de tocha sobre o ícone de ponto (do "Em aberto").
 - Aviso sem origem ("sala avisando") só foi conferido por leitura do código e do CSS, não por E2E.
 - "Entregar" a tocha pelo menu do token.
 
+## R5b — como ficou (2026-11-11)
+
+Combate, fichas, compêndio e PDF (a segunda metade do R5 do plano). Nada mudou nas regras, na sala, no protocolo
+nem na exportação: nenhum frame novo e nenhum frame de menos; a leitura do PDF e a ficha que sai dela são as de
+antes. Resolve 14 (o resto), 15, 18 e 19.
+
+**O que foi feito**
+- **Ordem de turno compacta** (item 14; `OrdemDeTurno.tsx`): o mestre vê uma linha com o que se usa a cada
+  turno (**Anterior**, **Próximo turno** e o botão **Montar**); a rodada continua no cabeçalho da janela. O que é de
+  montar o combate (rolar para todos, ordenar, adicionar selecionados, adicionar o grupo, entrada solta e encerrar)
+  ficou numa seção recolhível **"Montar"** (`ordem-montar`, botão `ordem-montar-alternar`). Aberta ou fechada é
+  preferência do navegador (`tabletop:pref:ordem:montar`, nenhum frame); sem escolha, a seção vem aberta enquanto o
+  combate não começou (rodada 0) e recolhida depois. O jogador continua vendo só o que é dele.
+- **O valor da iniciativa só vale no Enter ou ao sair do campo.** Conferido no código: digitar, as setas e a roda
+  do mouse no campo numérico só mudam o texto (não havia caminho que mandasse frame durante a digitação; o que
+  reordena a lista é a própria confirmação, porque `combate.editar` com iniciativa reordena, como sempre). Fechado
+  o caminho que sobrava: a roda do mouse num campo com foco mudava o número sem querer, e agora tira o foco e deixa
+  a lista rolar. **Esc devolve o valor de antes** e sai do campo sem mandar nada.
+- **Todo botão desabilitado diz por quê** (`BotaoComDica.tsx`, novo): o botão usa `aria-disabled` (o clique é
+  ignorado; o `disabled` nativo não deixa a dica aparecer) e o motivo vira a dica (hover e foco; `role="tooltip"`
+  ligada por `aria-describedby`) e a descrição acessível. Motivos: "A lista está vazia", "Todos já têm iniciativa",
+  "Precisa de pelo menos duas entradas", "Selecione um token no mapa", "Já está na lista", "Não há personagens de
+  jogadores nesta cena", "O grupo já está na lista", "Escreva o nome da entrada" e "Não há combate em andamento". A
+  dica é desenhada por um portal no `body`, com posição fixa (não é cortada pela rolagem da janela), e some ao
+  clicar, ao perder o foco e com Esc.
+- **Ficha abre com um clique** (item 15; `AbaFichas.tsx`): um clique (ou Enter) no item abre a ficha ou traz para a
+  frente a que já está aberta; dois cliques não abrem duas. A dica do item é "Abrir a ficha" e, para o mestre,
+  "(arraste para o mapa para pôr o token)". O mestre agora arrasta o item **inteiro** (a alça ou o nome): arrastar
+  cria o token e não abre a ficha (o navegador não dispara o clique depois de um arrasto). O menu do item é
+  irmão do botão, então clicar nele não abre a ficha.
+- **Compêndio com "Usar o exemplo"** (item 18; `AbaCompendio.tsx`, `useCompendio.ts`, `exemploSrd.ts`): o estado
+  vazio do mestre abre com **"Usar o exemplo do SRD (3 magias)"** (ação principal) ao lado de **"Escolher o
+  arquivo…"** e "Recarregar"; a ajuda do formato JSON ficou recolhida em **"Como montar o seu arquivo"**. O
+  exemplo é o próprio `fixtures/compendio/exemplo-srd.json`, importado como texto pelo Vite (`?raw`), sem cópia
+  do conteúdo e empacotado no build. Com a pasta local escolhida (e com escrita), grava `compendio/magias.json` e
+  ele fica entre visitas; se o arquivo já existe, pede confirmação antes de substituir (também no caso do
+  arquivo com erro); sem pasta, vale até recarregar a página, como "Escolher o arquivo…". A atribuição do SRD
+  (o campo `creditos` do arquivo) aparece **aberta** nos créditos do compêndio quando o exemplo está em uso (a
+  tela compara o hash do compêndio da mesa com o do exemplo empacotado), com uma linha "Exemplo do SRD 5.1 em
+  uso" que diz onde ele ficou. O estado vazio do jogador explica: "O mestre ainda não montou o compêndio desta
+  mesa" e que ele não precisa fazer nada.
+- **PDF com um caminho e um nome** (item 19): os três lugares (botão da aba, menu do item e o botão da aba
+  Configurar da ficha) agora dizem **"Importar PDF…"**. A **revisão** mostra no alto o **destino**
+  (`revisao-destino`: "Ficha nova" ou "Por cima de: <personagem>", só os que a pessoa edita), já preenchido
+  quando se começou pelo menu do item. Se o nome lido do PDF bate com um personagem existente, a tela **sugere**
+  o destino ("Já existe Darion na mesa. Importar por cima dele") sem escolher sozinha. O nome do personagem novo
+  passou para o mesmo bloco do destino (só aparece em "Ficha nova"). O botão final diz o que vai acontecer
+  ("Criar a ficha" / "Substituir a ficha de X") e a confirmação extra de substituir continua. **Revisão mais curta**:
+  no alto, "N campos para conferir", **"Próximo a conferir"** (leva o foco ao próximo campo incerto, abrindo a
+  seção se estava recolhida) e **"Mostrar tudo"** (vira "Recolher o que está certo"); as seções sem campo
+  incerto vêm **recolhidas** com um resumo ("12 campos lidos, nada a conferir") e as com campo incerto, abertas.
+- Só para os testes (modo `e2e`): o gancho `usarMemoriaComoPasta` faz a `Memoria` valer como a pasta com escrita,
+  e a `Memoria` passou a guardar de volta o `.json` gravado; sem isso não haveria como cobrir "grava na pasta".
+
+**Decisões (assumido)**
+- (assumido) Controles de montar numa seção recolhível "Montar" (e não num menu "Mais"); fica aberta antes do
+  combate começar e recolhida depois, até a pessoa escolher (a escolha vale daí em diante).
+- (assumido) Esc no campo da iniciativa devolve o valor de antes; a roda do mouse num campo com foco tira o foco.
+- (assumido) Anterior e Próximo turno também dizem "A lista está vazia" quando desabilitados.
+- (assumido) A dica do botão desabilitado aparece também ao mexer o mouse sobre ele (o botão pode ficar
+  desabilitado com o mouse já em cima, logo depois do clique).
+- (assumido) O mestre arrasta o item das Fichas por inteiro (nome e alça), não só pela alça, para a dica "arraste
+  para o mapa" valer onde a pessoa está olhando. O jogador não arrasta.
+- (assumido) "Usar o exemplo" com pasta grava `compendio/magias.json` e pede confirmação se já existe; sem
+  pasta (ou sem o seletor de pasta do navegador) vale até recarregar. Se a gravação na pasta falhar, mostra o
+  erro e não cai para "sem pasta" (o arquivo da pasta continuaria mandando).
+- (assumido) A atribuição do SRD fica nos créditos (aberta quando o exemplo está em uso) e numa linha "Exemplo do SRD
+  5.1 em uso", só enquanto o compêndio da mesa é o exemplo (comparado pelo hash).
+- (assumido) O nome do PDF que bate com um personagem só **sugere** o destino (comparação sem caixa e sem espaços nas
+  pontas); a pessoa aceita com um clique.
+- (assumido) O nome do personagem novo mora no bloco do destino, não mais no cabeçalho da ficha da revisão.
+- (assumido) "N campos para conferir" no lugar de "para revisar" (texto da revisão e do selo das seções).
+- (assumido) "Próximo a conferir" dá a volta ao chegar no último; "Mostrar tudo" vira "Recolher o que está certo"
+  (recolhe só as seções sem incerto).
+- (assumido) Quantos "campos lidos" cada seção tem (resumo da seção recolhida): atributos 12 (6 valores e 6
+  salvaguardas), perícias 18, números gerais 8, e nas demais o tamanho da lista ou o que veio preenchido.
+
+**O que ficou para depois**
+- A dica do item das Fichas ("Abrir a ficha") é a dica nativa do navegador (`title`); não foi para o estilo do R4.
+- Atalhos de teclado nas dicas (R6).
+- O caminho "grava na pasta" do exemplo foi coberto no E2E só com a `Memoria` dos testes; com a pasta real do
+  navegador (File System Access) só por leitura do código.
+- Os prints antigos que usam `ordem-*` com o combate em andamento (Montar vem recolhida) ou o texto "Confirmar
+  importação" ficam para o R6.
+
 ## Em aberto
 
-- R1, R2, R2b, R3, R4 (2026-11-10) e R5a (2026-11-11) feitos. **Plano aprovado (2026-11-10):** R2 a R6 seguem
+- R1, R2, R2b, R3, R4 (2026-11-10), R5a e R5b (2026-11-11) feitos. **Plano aprovado (2026-11-10):** R2 a R6 seguem
   como planejados, um depois do outro (o R5 foi dividido em R5a e R5b); depois do R6 o Vilella faz os ajustes
   finos de UX/UI e a reorganização dos itens, a partir de `docs/PASSAGEM.md`.
 - Itens de interface que vieram dos lotes: seleção múltipla no mapa (ainda não existe). A dica das condições por

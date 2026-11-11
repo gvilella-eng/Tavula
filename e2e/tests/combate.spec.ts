@@ -1,5 +1,6 @@
 import { enviarCru, expect, intencaoCrua, test } from "./ajudas";
 import {
+  abrirMontar,
   definirValor,
   emVez,
   ligarOrdem,
@@ -81,6 +82,8 @@ test("o mestre avança o turno e o jogador vê a vez mudar: na lista e no anel d
   await expect.poll(() => emVez(j1.pagina, "tok-jogador-3")).toBe(false);
 
   // encerrar pede confirmação; cancelar não apaga; confirmar limpa para todos
+  // (depois que o combate começa, a seção "Montar" vem recolhida)
+  await abrirMontar(mestre.pagina);
   await mestre.pagina.getByTestId("ordem-encerrar").click();
   await mestre.pagina.getByTestId("ordem-encerrar-nao").click();
   await expect(linha(mestre.pagina, "Aldric")).toBeVisible();

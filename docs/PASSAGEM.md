@@ -8,8 +8,8 @@ Ponteiros: `REDESIGN` = `docs/REDESIGN.md`, `PERGUNTAS` = `docs/PERGUNTAS.md`, `
 `PROJETO` = `PROJETO.md` (na raiz), `IDEIAS` = `docs/IDEIAS.md`. Número depois dos dois-pontos é a linha.
 
 Estado dos docs em 2026-11-11: os Redesigns R1, R2, R2b (pausa automática e 11 temas), R3 (janelas flutuantes),
-R4 (organização do mestre) e R5a (interações no mapa e nos tokens) estão entregues; o R5b (combate, fichas, compêndio e PDF) e o R6
-não começaram (fim do `ESTADO`, "Próximo").
+R4 (organização do mestre), R5a (interações no mapa e nos tokens) e R5b (combate, fichas, compêndio e PDF) estão entregues; o R6
+não começou (fim do `ESTADO`, "Próximo").
 
 ## 1. Como subir a mesa para olhar
 
@@ -76,7 +76,7 @@ Tudo em `apps/web/src/`.
 ## 3. Levantamento de usabilidade (22 itens)
 
 Fonte: `REDESIGN:38-87`. Prioridade: A = atrapalha o jogo ou esconde função; B = confunde ou dá trabalho; C =
-acabamento. Lote = o do plano (`REDESIGN:89-117`) que resolve o item. R1, R2, R3, R4 e R5a foram entregues.
+acabamento. Lote = o do plano (`REDESIGN:89-117`) que resolve o item. R1, R2, R3, R4, R5a e R5b foram entregues.
 
 | # | Resumo | Classe | Lote |
 |---|---|---|---|
@@ -93,22 +93,22 @@ acabamento. Lote = o do plano (`REDESIGN:89-117`) que resolve o item. R1, R2, R3
 | 11 | Régua some ao soltar | C | R5a (entregue) |
 | 12 | Aviso (toast) no rodapé, longe do clique, some rápido | B | R5a (entregue) |
 | 13 | Jogador sem token na cena vê tela preta sem explicação | A | R5a (entregue) |
-| 14 | Ordem de turno do mestre: cinco linhas de controles; número reordena enquanto digita; "Rolar para todos" cinza sem motivo | B | R3 (janela, entregue) e R5b (controles) |
-| 15 | Abrir a ficha exige dois cliques, sem dica | B | R5b |
+| 14 | Ordem de turno do mestre: cinco linhas de controles; número reordena enquanto digita; "Rolar para todos" cinza sem motivo | B | R3 (janela, entregue) e R5b (controles; entregue) |
+| 15 | Abrir a ficha exige dois cliques, sem dica | B | R5b (entregue) |
 | 16 | Janela da ficha grande e fixa; em tela pequena cobre quase tudo | B | R3 (entregue) |
 | 17 | Lista de presença ocupa 1/4 do painel do chat | B | R2 (entregue) |
-| 18 | Compêndio: o mestre lê ajuda de JSON; falta "usar o exemplo" | B | R5b |
-| 19 | Importar PDF com dois caminhos de nomes diferentes; revisão longa (19 campos amarelos) | C | R5b |
+| 18 | Compêndio: o mestre lê ajuda de JSON; falta "usar o exemplo" | B | R5b (entregue) |
+| 19 | Importar PDF com dois caminhos de nomes diferentes; revisão longa (19 campos amarelos) | C | R5b (entregue) |
 | 20 | Tela de entrada sem marca nem personalidade | B | R1 (entregue) |
 | 21 | Pausa pouco visível: botão e relógio iguais pausado e rodando | B | R2 (entregue) |
 | 22 | Nenhum atalho de teclado nas dicas | C | R6 |
 
-Classes: A = 6 (1, 2, 4, 5, 9, 13), B = 13, C = 3 (11, 19, 22). Desde o R5a, 7, 8, 9, 10, 11, 12 e 13 estão resolvidos.
+Classes: A = 6 (1, 2, 4, 5, 9, 13), B = 13, C = 3 (11, 19, 22). Desde o R5a, 7, 8, 9, 10, 11, 12 e 13 estão resolvidos; desde o R5b, 14, 15, 18 e 19. Só falta o 22 (R6).
 
 ## 4. Perguntas e suposições esperando o "ok" dele
 
 **Total: 43 abertos em `PERGUNTAS`** (47 numerados; o 9, o 21, o 24 e o 34 já estão resolvidos) (a seção "Respondidas em 2026-11-10" não entra, nem o item riscado do
-nome). Mais **75 suposições "(assumido)"** (as 63 da parte B, mais as 12 do R5a) que só aparecem no `ESTADO`/`REDESIGN` (parte B). Os que o texto
+nome). Mais **86 suposições "(assumido)"** (as 63 da parte B, mais as 12 do R5a e as 11 do R5b) que só aparecem no `ESTADO`/`REDESIGN` (parte B). Os que o texto
 marca "(assumido)" valem até ele dizer o contrário.
 
 ### A. Em `PERGUNTAS.md` (47 numerados, 44 abertos)
@@ -179,7 +179,7 @@ Lote 14
 Fora da contagem, no mesmo arquivo: "A lista de presença ocupa muito espaço com 8 pessoas" (`PERGUNTAS:83`) era
 o item 17 do levantamento (resolvido no R2: avatares no topo); "Sobreposição de alças e ícones de ponto" (`PERGUNTAS:38`) foi resolvida no R5a; "Ideias para o 7b" (`PERGUNTAS:62`) está na seção 7.
 
-### B. Suposições "(assumido)" só no ESTADO/REDESIGN (74)
+### B. Suposições "(assumido)" só no ESTADO/REDESIGN (85)
 
 Não aparecem em `PERGUNTAS`. Resumidas; o texto completo está no ponteiro.
 
@@ -282,7 +282,20 @@ Redesign R5a (`REDESIGN`, "R5a — como ficou")
 121. Em token pequeno cabem menos marcadores de condição (o resto vira "+N") por causa do tamanho maior
 122. Esc não age com o foco dentro de uma janela (num botão do painel do token, por exemplo); com o foco no mapa e o painel do token aberto, Esc solta a seleção e o painel fecha junto
 
-Os itens 49 a 85 são 37; o R2 acrescenta os itens 86 a 92, o R2b os 93 a 96, o R3 os 97 a 103, o R4 os 104 a 111 e o R5a os 112 a 122. Deixei de fora as suposições puramente técnicas (por exemplo, onde mora o compêndio
+Redesign R5b (`REDESIGN`, "R5b — como ficou")
+123. Os controles de montar a ordem de turno ficam numa seção recolhível "Montar" (não num menu "Mais"), aberta antes do combate começar e recolhida depois, até a pessoa escolher; a escolha é só do navegador (`tabletop:pref:ordem:montar`)
+124. Esc no campo da iniciativa devolve o valor de antes; a roda do mouse num campo com foco tira o foco (e confirma o que estava digitado)
+125. Anterior e Próximo turno também dizem "A lista está vazia" quando desabilitados
+126. A dica do botão desabilitado aparece também ao mexer o mouse sobre ele (o botão pode ficar desabilitado com o mouse já em cima)
+127. O mestre arrasta o item das Fichas por inteiro (nome e alça), não só pela alça
+128. "Usar o exemplo" com pasta grava `compendio/magias.json` e confirma antes de substituir; sem pasta vale até recarregar; falha ao gravar na pasta mostra erro, sem cair para "sem pasta"
+129. A atribuição do SRD fica nos créditos (aberta) e numa linha "Exemplo do SRD 5.1 em uso", só enquanto o compêndio da mesa é o exemplo (comparado pelo hash)
+130. O nome do PDF que bate com um personagem só sugere o destino "Por cima de"; a pessoa aceita com um clique
+131. O nome do personagem novo mora no bloco do destino da revisão do PDF; "N campos para conferir" no lugar de "para revisar"
+132. "Próximo a conferir" dá a volta no fim; "Mostrar tudo" vira "Recolher o que está certo"
+133. O resumo da seção recolhida conta: atributos 12, perícias 18, números gerais 8 e, nas demais, o tamanho da lista ou o que veio preenchido
+
+Os itens 49 a 85 são 37; o R2 acrescenta os itens 86 a 92, o R2b os 93 a 96, o R3 os 97 a 103, o R4 os 104 a 111, o R5a os 112 a 123 e o R5b os 124 a 134. Deixei de fora as suposições puramente técnicas (por exemplo, onde mora o compêndio
 na tabela `meta`, o worker do pdf.js, tipos do Node no teste, idempotência de `desenho.apagar`).
 
 ## 5. Pontos frágeis por lote
@@ -389,6 +402,12 @@ Redesign R1
 - Texto branco sobre cores de usuário claras (amarelo do mestre) no avatar: contraste baixo; fica para o R6. (`ESTADO:1666`, `REDESIGN:167-168`)
 - Os rótulos desenhados dentro do mapa não seguem o tema; também ficam para o R6. (`ESTADO:1667`, `REDESIGN:168`)
 
+Redesign R5b
+- A dica do item das Fichas ("Abrir a ficha") é o `title` nativo do navegador, não o estilo das dicas do R4. (`ESTADO`, "R5b", Frágil)
+- O "Usar o exemplo" que grava `compendio/magias.json` só foi testado com a "pasta" dos testes (a `Memoria`), não com a pasta real do Chrome (File System Access). (`ESTADO`, "R5b", Frágil)
+- O item das Fichas agora é arrastável pelo nome (botão `draggable`): testado no Chrome; Firefox e Safari tratam botão arrastável de outro jeito. (`ESTADO`, "R5b", Frágil)
+- Os prints antigos que usam `ordem-*` com o combate já em andamento (Montar vem recolhida) e os que clicam em "Confirmar importação" (agora "Criar a ficha" / "Substituir a ficha de X") podem não rodar mais (R6). (`ESTADO`, "R5b", Frágil)
+
 Redesign R5a
 - A dica da alça da tocha e o menu do token só existem para o mouse (botão direito e passar o mouse); não há caminho por teclado nem por foco, e toque (celular) não foi testado. Fica para o R6. (`ESTADO`, "R5a", Frágil)
 - O aviso de erro sem origem (a sala avisando por conta própria) ficou no alto da área e só foi conferido por leitura; os E2E cobrem o aviso com origem. (`ESTADO`, "R5a", Frágil)
@@ -448,8 +467,9 @@ dos Lotes 1 e 2 (fora do escopo deste mapa).
 - Redesign R2, pendente: `ESTADO:1729`.
 - Redesign R2b, pendente: o "Roteiro manual" da seção "Redesign R2b" no `ESTADO`.
 - Redesign R3, pendente: o "Roteiro manual" da seção "Redesign R3" no `ESTADO`.
+- Redesign R4, R5a e R5b, pendentes: o "Roteiro manual" de cada seção no `ESTADO`.
 
-Total: 15 roteiros com seção própria (1 parcial e 14 pendentes).
+Total: 18 roteiros com seção própria (1 parcial e 17 pendentes).
 
 ## 7. Adiados
 
@@ -474,7 +494,7 @@ planejados, mudam de escopo ou ficam com ele):
 - **R4, organização do mestre (entregue)**: menu superior agrupado e com nomes; Paredes vira ferramenta da barra
   esquerda; "Eventos" sai até o 7b; Configurações separadas em Preferências e Mesa; Notas viram aba; grid vai
   para a cena; "uso de hoje" vai para diagnóstico. Resolve 2, 4, 5, 6.
-- **R5, interações e fluxos** (dividido em **R5a**, mapa e tokens, entregue, e **R5b**, combate, fichas, compêndio e PDF, pendente): Esc solta a seleção; criar token pede nome e lugar; tocha com dica e menu;
+- **R5, interações e fluxos** (dividido em **R5a**, mapa e tokens, e **R5b**, combate, fichas, compêndio e PDF; os dois entregues): Esc solta a seleção; criar token pede nome e lugar; tocha com dica e menu;
   condições com menos cliques; régua que fica; avisos perto do clique; ordem de turno compacta com Enter; ficha
   com um clique; estados vazios que orientam. Resolve 7, 8 (parte), 9–15, 18, 19.
 - **R6, polimento**: tela pequena (1280×720), foco e contraste (inclui o avatar e os rótulos do mapa),

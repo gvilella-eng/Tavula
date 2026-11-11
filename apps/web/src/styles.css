@@ -841,12 +841,14 @@ button.primario {
   border-color: var(--acento-forte);
   font-weight: 600;
 }
-button:disabled {
+button:disabled,
+button[aria-disabled="true"] {
   cursor: default;
   color: var(--texto-desabilitado);
   border-color: var(--borda);
 }
-button:disabled:hover {
+button:disabled:hover,
+button[aria-disabled="true"]:hover {
   border-color: var(--borda);
 }
 .nota.erro {
@@ -3129,6 +3131,63 @@ button:disabled:hover {
   background: var(--aviso-suave);
   border-color: var(--aviso-borda);
 }
+.rev-topo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding: 8px 14px;
+  background: var(--painel);
+  border-bottom: 1px solid var(--borda);
+}
+.rev-destino,
+.rev-conferir {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  min-width: 0;
+}
+.rev-destino label {
+  font-weight: 600;
+}
+.rev-destino select {
+  max-width: 240px;
+}
+.rev-destino input[type="text"] {
+  width: 200px;
+}
+.rev-sugestao {
+  font-size: 12px;
+  color: var(--texto-suave);
+}
+.rev-conferir .rev-selo.amarelo {
+  margin-left: 0;
+}
+.rev-par[hidden] {
+  display: none;
+}
+.rev-secao-alternar {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px 2px 2px;
+  font: inherit;
+  font-weight: 600;
+  color: inherit;
+  background: transparent;
+  border: 0;
+}
+.rev-secao-alternar:hover {
+  background: var(--cabecalho);
+}
+.rev-resumo {
+  margin-left: 10px;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--texto-suave);
+}
 .rev-corpo {
   flex: 1;
   min-height: 0;
@@ -3515,6 +3574,34 @@ button:disabled:hover {
 }
 .ordem-de-turno .ot-linha > button {
   flex: 1 1 0;
+}
+.ordem-de-turno .ot-linha > .ot-montar-botao {
+  flex: none;
+  padding: 4px 8px 4px 10px;
+}
+.ot-montar {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--borda);
+}
+.dica-flutuante {
+  position: fixed;
+  z-index: 80;
+  max-width: 240px;
+  padding: 6px 10px;
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--texto);
+  background: var(--painel);
+  border: 1px solid var(--borda);
+  border-radius: var(--raio);
+  box-shadow: var(--sombra);
+  pointer-events: none;
+}
+.dica-flutuante[hidden] {
+  display: none;
 }
 .ot-solta {
   display: flex;

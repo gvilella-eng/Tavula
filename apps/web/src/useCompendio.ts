@@ -1,7 +1,14 @@
-import { type Compendio, type CompendioDaMesa, lerCompendio, sha256Hex } from "@tabletop/shared";
+import {
+  CAMINHO_DO_COMPENDIO,
+  type Compendio,
+  type CompendioDaMesa,
+  lerCompendio,
+  sha256Hex,
+} from "@tabletop/shared";
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { Fontes } from "./assets/fontes";
 import type { GerenteDeAssets, StatusDeAsset } from "./assets/gerente";
+import { NOME_DO_EXEMPLO_SRD, TEXTO_DO_EXEMPLO_SRD } from "./exemploSrd";
 
 const semAssinatura = () => () => {};
 const versaoZero = () => 0;
@@ -15,6 +22,12 @@ type Parametros = {
   fontes: Fontes;
   enviar: (tipo: string, dados: object) => string | null;
 };
+
+/**
+ * O que "Usar o exemplo" fez: `gravado` (escreveu `compendio/magias.json` na pasta local), `solto` (sem pasta: vale
+ * até recarregar a página), `existe` (a pasta já tem o arquivo: precisa confirmar para substituir) ou `falhou`.
+ */
+export type ResultadoDoExemplo = "gravado" | "solto" | "existe" | "falhou";
 
 export type SituacaoDoCompendio =
   /** A mesa não tem compêndio (o mestre ainda não pôs o arquivo). */
@@ -128,6 +141,34 @@ export function useCompendio({
     }
   }, []);
 
+  /** Mestre: põe o exemplo do SRD como compêndio (na pasta, se houver; senão só até recarregar). */
+  const usarExemplo = useCallback(async (substituir = false): Promise<ResultadoDoExemplo> => {
+    const f = ultima.current.fontes;
+    const pasta = f.pastaDoCompendio();
+    if (pasta) {
+      try {
+        if (!substituir && (await pasta.abrirPorCaminho(CAMINHO_DO_COMPENDIO))) return "existe";
+        const caminho = [...CAMINHO_DO_COMPENDIO];
+        const nome = caminho.pop() ?? "magias.json";
+        const gravou = await pasta.gravar(
+          caminho,
+          nome,
+          new Blob([TEXTO_DO_EXEMPLO_SRD], { type: "application/json" }),
+          true,
+        );
+        if (!gravou) return "falhou";
+        f.notificar();
+        return "gravado";
+      } catch {
+        return "falhou";
+      }
+    }
+    f.escolherCompendioSolto(
+      new File([TEXTO_DO_EXEMPLO_SRD], NOME_DO_EXEMPLO_SRD, { type: "application/json" }),
+    );
+    return "solto";
+  }, []);
+
   // Mestre: ao abrir, quando a pasta fica autorizada ou ganha um arquivo, e ao reconectar.
   // biome-ignore lint/correctness/useExhaustiveDependencies: `versaoDasFontes` avisa que a pasta ou os arquivos mudaram
   useEffect(() => {
@@ -159,5 +200,6 @@ export function useCompendio({
     recebidos: status?.recebidos ?? 0,
     total: status?.total ?? 0,
     recarregar: carregarDaPasta,
+    usarExemplo,
   };
 }

@@ -63,6 +63,7 @@ Juntadas durante os Lotes 6 a 14 (2026-11-06 a 10) para fazer ao Vilella no fim.
 - O jogador pode refazer a própria iniciativa, ou só o mestre? (assumido: só o mestre)
 - ~~A dica das condições deveria abrir também por clique (tela de toque)?~~ Respondida no R5a (2026-11-11): sim, a regra abre por clique no marcador (popover que fecha com Esc ou clique fora), além da dica no mouse.
 - O nome da entrada na ordem de turno deve seguir a renomeação do token? (assumido: não)
+- (R5b) A seção "Montar" da ordem de turno: aberta antes do combate e recolhida depois, com a escolha da pessoa valendo daí em diante (assumido); Esc no campo da iniciativa devolve o valor de antes (assumido). Resolvido no R5b: o número da iniciativa só vale no Enter ou ao sair do campo.
 - Ideias para o 7b: teste de concentração com a CD sugerida; condições que aplicam vantagem ou desvantagem nas rolagens.
 
 ## Lote 13
@@ -80,6 +81,7 @@ Juntadas durante os Lotes 6 a 14 (2026-11-06 a 10) para fazer ao Vilella no fim.
 - Mostrar as classes e o nome original na lista do compêndio?
 - Conversor de outros formatos; monstros e armas no mesmo arquivo ou em outro?
 - Conferir a tradução das 3 magias do exemplo do SRD.
+- (R5b) "Usar o exemplo" no estado vazio: com pasta local grava `compendio/magias.json` (confirma antes de substituir) e sem pasta vale até recarregar (assumido). A ajuda do JSON ficou recolhida em "Como montar o seu arquivo" (assumido).
 
 ## Lote 8 (do agente)
 - Seta para cima deve reenviar ou só trazer a mensagem de volta? (assumido: só trazer)

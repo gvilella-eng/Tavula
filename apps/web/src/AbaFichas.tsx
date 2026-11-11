@@ -22,7 +22,7 @@ import {
   Trash2,
   Users,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { type DragEvent, useEffect, useRef, useState } from "react";
 import { Avatar } from "./Avatar";
 import { lerItemArrastado, TIPO_DE_ARRASTO_DA_FICHA } from "./arrasto";
 import type { AbaDaFicha } from "./ficha/janelas";
@@ -38,7 +38,7 @@ type Props = {
   enviar: Enviar;
   imagens: ImagensDoMapa | null;
   versaoDasImagens: number;
-  /** Abre a janela da ficha (duplo clique no item; o item recém-criado abre em Configurar). */
+  /** Abre a janela da ficha (um clique no item; o item recém-criado abre em Configurar). */
   aoAbrirFicha: (personagemId: string, aba?: AbaDaFicha) => void;
 };
 
@@ -144,6 +144,15 @@ function Item({ p, eu, imagens, versao, aoAbrir, aoImportarPdf }: PropsItem) {
   const euMestre = eu.papel === "mestre";
   const linha = useRef<HTMLLIElement>(null);
   const [menu, setMenu] = useState(false);
+  // O mestre arrasta o item inteiro (a alça ou o nome) para outra pasta ou para o mapa.
+  const iniciarArrasto = (e: DragEvent) => {
+    e.dataTransfer.setData(
+      TIPO_DE_ARRASTO_DA_FICHA,
+      JSON.stringify({ tipo: "personagem", id: p.id }),
+    );
+    e.dataTransfer.effectAllowed = "move";
+    if (linha.current) e.dataTransfer.setDragImage(linha.current, 12, 12);
+  };
   return (
     <li
       ref={linha}
@@ -161,14 +170,7 @@ function Item({ p, eu, imagens, versao, aoAbrir, aoImportarPdf }: PropsItem) {
           data-testid={`ficha-alca-${p.id}`}
           title="Arraste para outra pasta ou para o mapa"
           aria-label={`Arrastar ${p.nome}`}
-          onDragStart={(e) => {
-            e.dataTransfer.setData(
-              TIPO_DE_ARRASTO_DA_FICHA,
-              JSON.stringify({ tipo: "personagem", id: p.id }),
-            );
-            e.dataTransfer.effectAllowed = "move";
-            if (linha.current) e.dataTransfer.setDragImage(linha.current, 12, 12);
-          }}
+          onDragStart={iniciarArrasto}
         >
           <GripVertical size={16} />
         </span>
@@ -179,9 +181,10 @@ function Item({ p, eu, imagens, versao, aoAbrir, aoImportarPdf }: PropsItem) {
         type="button"
         className="ficha-abrir"
         data-testid={`ficha-abrir-${p.id}`}
-        title="Duplo clique abre a ficha"
-        onDoubleClick={aoAbrir}
-        onKeyDown={(e) => e.key === "Enter" && aoAbrir()}
+        title={euMestre ? "Abrir a ficha (arraste para o mapa para pôr o token)" : "Abrir a ficha"}
+        draggable={euMestre || undefined}
+        onDragStart={euMestre ? iniciarArrasto : undefined}
+        onClick={aoAbrir}
       >
         <Avatar
           imagens={imagens}
@@ -230,7 +233,7 @@ function Item({ p, eu, imagens, versao, aoAbrir, aoImportarPdf }: PropsItem) {
                   aoImportarPdf();
                 }}
               >
-                <FileText size={14} /> Importar ficha (PDF)
+                <FileText size={14} /> Importar PDF…
               </button>
             </Popover>
           )}
@@ -424,6 +427,7 @@ export function AbaFichas({ estado, eu, enviar, imagens, versaoDasImagens, aoAbr
   const [paraAbrir, setParaAbrir] = useState<string | null>(null);
   const importadorDePdf = useImportadorDePdf({
     estado,
+    eu,
     enviar,
     aoCriar: (id) => aoAbrirFicha(id, "principal"),
   });
@@ -551,10 +555,10 @@ export function AbaFichas({ estado, eu, enviar, imagens, versaoDasImagens, aoAbr
               <button
                 type="button"
                 data-testid="ficha-novo-pdf"
-                title="Cria um personagem a partir do PDF impresso da ficha (lido no seu navegador)"
+                title="Lê o PDF impresso da ficha (no seu navegador) e mostra a revisão: ficha nova ou por cima de um personagem"
                 onClick={() => importadorDePdf.escolher(null)}
               >
-                <Plus size={14} /> Novo a partir de PDF
+                <FileText size={14} /> Importar PDF…
               </button>
               <button type="button" data-testid="ficha-nova-pasta" onClick={criarPasta}>
                 <FolderPlus size={14} /> Pasta

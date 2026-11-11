@@ -321,7 +321,8 @@ test("JSON inválido mostra o erro ao mestre com o campo e nada é distribuído;
   await expect(mestre.pagina.getByTestId("compendio-erro-motivo")).toContainText(
     "magia 2, campo nivel",
   );
-  // continua mostrando como montar
+  // continua mostrando como montar (a ajuda do formato fica recolhida desde o R5b: abre pelo título)
+  await mestre.pagina.getByTestId("compendio-ajuda-formato").locator("summary").click();
   await expect(mestre.pagina.getByTestId("compendio-exemplo")).toBeVisible();
   // nada foi distribuído: nem registro, nem definição, nem compêndio para o jogador
   await mestre.pagina.waitForTimeout(500);

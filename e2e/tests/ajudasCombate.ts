@@ -45,3 +45,10 @@ export async function emVez(p: Page, tokenId: string): Promise<boolean | null> {
   const t = await tokenDe(p, tokenId).catch(() => null);
   return t ? t.emVez : null;
 }
+
+/** Abre a seção "Montar" da ordem de turno se ela está recolhida (depois que o combate começa, ela vem recolhida). */
+export async function abrirMontar(p: Page) {
+  const alternar = p.getByTestId("ordem-montar-alternar");
+  if ((await alternar.getAttribute("aria-expanded")) !== "true") await alternar.click();
+  await expect(p.getByTestId("ordem-montar")).toBeVisible();
+}

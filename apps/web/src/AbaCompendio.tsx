@@ -9,10 +9,19 @@ import {
   opcoesDeFiltro,
   podeEditarPersonagem,
   ROTULO_DO_NIVEL_DE_MAGIA,
+  sha256Hex,
   type Usuario,
 } from "@tabletop/shared";
-import { ArrowLeft, BookPlus, FileUp, MessageSquarePlus, RefreshCw, Search } from "lucide-react";
-import { useMemo, useState } from "react";
+import {
+  ArrowLeft,
+  BookPlus,
+  FileUp,
+  MessageSquarePlus,
+  RefreshCw,
+  Search,
+  Sparkles,
+} from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import type { Fontes } from "./assets/fontes";
 import type { GerenteDeAssets } from "./assets/gerente";
 import {
@@ -22,7 +31,8 @@ import {
   MarcasDaMagia,
   TextoDaMagia,
 } from "./CartaoDaMagia";
-import { useCompendio } from "./useCompendio";
+import { TEXTO_DO_EXEMPLO_SRD } from "./exemploSrd";
+import { type ResultadoDoExemplo, useCompendio } from "./useCompendio";
 
 type Enviar = (tipo: string, dados: object) => string | null;
 
@@ -62,20 +72,33 @@ const EXEMPLO_DO_FORMATO = `{
 
 const NIVEIS = Array.from({ length: 10 }, (_, n) => n);
 
-/** Quando o mestre ainda não pôs o arquivo, ou o arquivo está com erro: como montar o JSON. */
+/**
+ * Compêndio vazio (ou com o arquivo da pasta errado), visto pelo mestre: a ação principal é usar o exemplo
+ * do SRD; escolher o próprio arquivo fica ao lado e a ajuda do formato JSON fica recolhida.
+ */
 function ComoMontar({
   fontes,
   erro,
   semArquivo,
   aoRecarregar,
+  aoUsarExemplo,
 }: {
   fontes: Fontes;
   erro: string | null;
   semArquivo: boolean;
   aoRecarregar: () => void;
+  aoUsarExemplo: (substituir: boolean) => Promise<ResultadoDoExemplo>;
 }) {
+  const [confirmando, setConfirmando] = useState(false);
+  const [falhou, setFalhou] = useState(false);
+  async function usar(substituir: boolean) {
+    setFalhou(false);
+    const r = await aoUsarExemplo(substituir);
+    setConfirmando(r === "existe");
+    setFalhou(r === "falhou");
+  }
   return (
-    <div data-testid="compendio-como-montar">
+    <div className="compendio-vazio" data-testid="compendio-como-montar">
       {erro && (
         <p className="erro-do-arquivo" role="alert" data-testid="compendio-erro">
           <strong>O arquivo magias.json tem um erro e não foi enviado à mesa.</strong>
@@ -84,29 +107,18 @@ function ComoMontar({
         </p>
       )}
       <p>
-        O compêndio é um arquivo seu: ele fica no seu computador, fora do repositório, e a mesa só o
-        recebe quando você o usa. Para montar:
-      </p>
-      <ol className="passos">
-        <li>
-          Escolha a pasta local em <strong>Configurações</strong> (a mesma das imagens).
-        </li>
-        <li>
-          Dentro dela crie a pasta <code>{CAMINHO_DO_COMPENDIO[0]}</code> e o arquivo{" "}
-          <code>{CAMINHO_DO_COMPENDIO[1]}</code> neste formato:
-        </li>
-      </ol>
-      <pre className="exemplo-json" data-testid="compendio-exemplo">
-        {EXEMPLO_DO_FORMATO}
-      </pre>
-      <p className="nota">
-        <code>nivel</code> vai de 0 (truque) a 9. <code>classes</code> e <code>nomeOriginal</code>{" "}
-        ajudam a achar a magia. Um exemplo pronto com 3 magias do SRD está em{" "}
-        <code>fixtures/compendio/exemplo-srd.json</code>.
+        <strong>O compêndio desta mesa está vazio.</strong> Comece pelo exemplo ou escolha o seu
+        arquivo de magias.
       </p>
       <div className="linha-botoes">
-        <button type="button" data-testid="compendio-recarregar" onClick={aoRecarregar}>
-          <RefreshCw size={14} /> Recarregar
+        <button
+          type="button"
+          className="primario"
+          data-testid="compendio-usar-exemplo"
+          title="Põe 3 magias do SRD 5.1 (Bola de Fogo, Mísseis Mágicos e Detectar Magia) como compêndio da mesa"
+          onClick={() => void usar(false)}
+        >
+          <Sparkles size={14} /> Usar o exemplo do SRD (3 magias)
         </button>
         <label className="botao-arquivo">
           <FileUp size={14} /> Escolher o arquivo…
@@ -122,12 +134,72 @@ function ComoMontar({
             }}
           />
         </label>
+        <button type="button" data-testid="compendio-recarregar" onClick={aoRecarregar}>
+          <RefreshCw size={14} /> Recarregar
+        </button>
       </div>
+      {confirmando && (
+        <div className="ot-confirmar" role="alertdialog" data-testid="compendio-exemplo-confirmar">
+          <p>
+            Já existe <code>{CAMINHO_DO_COMPENDIO.join("/")}</code> na sua pasta. Substituir pelo
+            exemplo?
+          </p>
+          <div className="linha-botoes">
+            <button
+              type="button"
+              className="perigo"
+              data-testid="compendio-exemplo-substituir"
+              onClick={() => void usar(true)}
+            >
+              Substituir
+            </button>
+            <button
+              type="button"
+              data-testid="compendio-exemplo-cancelar"
+              onClick={() => setConfirmando(false)}
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+      {falhou && (
+        <p className="erro-do-arquivo" role="alert" data-testid="compendio-exemplo-falhou">
+          Não consegui gravar o exemplo na sua pasta. Confira a permissão da pasta nas Preferências.
+        </p>
+      )}
       {semArquivo && !erro && (
         <p className="nota" data-testid="compendio-sem-arquivo">
           Ainda não achei <code>{CAMINHO_DO_COMPENDIO.join("/")}</code> na sua pasta.
         </p>
       )}
+      <p className="nota">
+        Com a pasta local escolhida (Preferências), o exemplo é gravado nela e fica entre visitas.
+        Sem pasta, vale até você recarregar a página.
+      </p>
+      <details className="avancado" data-testid="compendio-ajuda-formato">
+        <summary>Como montar o seu arquivo</summary>
+        <p>
+          O compêndio é um arquivo seu: ele fica no seu computador, fora do repositório, e a mesa só
+          o recebe quando você o usa. Para montar:
+        </p>
+        <ol className="passos">
+          <li>
+            Escolha a pasta local em <strong>Preferências</strong> (a mesma das imagens).
+          </li>
+          <li>
+            Dentro dela crie a pasta <code>{CAMINHO_DO_COMPENDIO[0]}</code> e o arquivo{" "}
+            <code>{CAMINHO_DO_COMPENDIO[1]}</code> neste formato:
+          </li>
+        </ol>
+        <pre className="exemplo-json" data-testid="compendio-exemplo">
+          {EXEMPLO_DO_FORMATO}
+        </pre>
+        <p className="nota">
+          <code>nivel</code> vai de 0 (truque) a 9. <code>classes</code> e <code>nomeOriginal</code>{" "}
+          ajudam a achar a magia.
+        </p>
+      </details>
     </div>
   );
 }
@@ -287,6 +359,20 @@ export function AbaCompendio({
   });
   const [filtro, setFiltro] = useState<FiltroDeMagias>({});
   const [aberta, setAberta] = useState<string | null>(null);
+  // O mestre usou o exemplo do SRD nesta visita: onde ele ficou (na pasta, ou só até recarregar).
+  const [ondeFicouOExemplo, setOndeFicouOExemplo] = useState<"gravado" | "solto" | null>(null);
+  // O compêndio da mesa é o exemplo do SRD? (compara o hash do arquivo empacotado)
+  const [hashDoExemplo, setHashDoExemplo] = useState<string | null>(null);
+  useEffect(() => {
+    let vivo = true;
+    void sha256Hex(new TextEncoder().encode(TEXTO_DO_EXEMPLO_SRD)).then((h) => {
+      if (vivo) setHashDoExemplo(h);
+    });
+    return () => {
+      vivo = false;
+    };
+  }, []);
+  const exemploEmUso = hashDoExemplo !== null && estado.compendio?.hash === hashDoExemplo;
   const magias = c.compendio?.magias;
   const opcoes = useMemo(() => opcoesDeFiltro(magias ?? []), [magias]);
   const achadas = useMemo(() => buscarMagias(magias ?? [], filtro), [magias, filtro]);
@@ -313,12 +399,22 @@ export function AbaCompendio({
               erro={c.erroDoArquivo}
               semArquivo={c.semArquivo}
               aoRecarregar={() => void c.recarregar()}
+              aoUsarExemplo={async (substituir) => {
+                const r = await c.usarExemplo(substituir);
+                if (r === "gravado" || r === "solto") setOndeFicouOExemplo(r);
+                return r;
+              }}
             />
           ) : (
-            <p className="nota" data-testid="compendio-vazio-jogador">
-              O mestre ainda não montou o compêndio desta mesa. Quando ele o fizer, as magias
-              aparecem aqui.
-            </p>
+            <div className="compendio-vazio" data-testid="compendio-vazio-jogador">
+              <p>
+                <strong>O mestre ainda não montou o compêndio desta mesa.</strong>
+              </p>
+              <p className="nota">
+                Não falta nada do seu lado: quando ele puser as magias, elas aparecem aqui sozinhas
+                e você poderá buscá-las e mandá-las para o chat ou para a sua ficha.
+              </p>
+            </div>
           )
         ) : c.situacao === "baixando" ? (
           <p className="nota" data-testid="compendio-baixando">
@@ -487,10 +583,33 @@ export function AbaCompendio({
               ))}
             </ul>
           )}
+          {exemploEmUso && (
+            <p className="nota" data-testid="compendio-exemplo-em-uso">
+              Exemplo do SRD 5.1 em uso (3 magias).
+              {euMestre && ondeFicouOExemplo === "gravado" && (
+                <>
+                  {" "}
+                  Gravado em <code>{CAMINHO_DO_COMPENDIO.join("/")}</code> na sua pasta.
+                </>
+              )}
+              {euMestre && ondeFicouOExemplo === "solto" && (
+                <>
+                  {" "}
+                  Vale até recarregar a página; escolha uma pasta nas Preferências para guardá-lo.
+                </>
+              )}
+            </p>
+          )}
           {c.compendio?.creditos && (
-            <details className="creditos-do-compendio" data-testid="compendio-creditos">
+            <details
+              className="creditos-do-compendio"
+              data-testid="compendio-creditos"
+              open={exemploEmUso || undefined}
+            >
               <summary>Créditos</summary>
-              <p className="nota">{c.compendio.creditos}</p>
+              <p className="nota" data-testid="compendio-creditos-texto">
+                {c.compendio.creditos}
+              </p>
             </details>
           )}
         </>

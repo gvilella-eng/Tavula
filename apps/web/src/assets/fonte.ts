@@ -106,11 +106,13 @@ export class Memoria implements FonteDeAssets {
     }));
   }
 
-  async gravar(pasta: string[], nome: string, dados: Blob): Promise<boolean> {
+  async gravar(pasta: string[], nome: string, dados: Blob, substituir = false): Promise<boolean> {
     const caminho = [...pasta, nome].join("/");
     const bytes = new Uint8Array(await dados.arrayBuffer());
-    if (this.gravadosEm.get(caminho)?.length === bytes.length) return false;
+    if (!substituir && this.gravadosEm.get(caminho)?.length === bytes.length) return false;
     this.gravadosEm.set(caminho, bytes);
+    // o que se grava em JSON pode ser lido de volta (o `compendio/magias.json` que "Usar o exemplo" grava)
+    if (nome.endsWith(".json")) this.outros.set(caminho, new TextDecoder().decode(bytes));
     return true;
   }
 

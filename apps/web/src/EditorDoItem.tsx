@@ -369,7 +369,7 @@ export function EditorDoItem({
                 title="Lê o PDF impresso da ficha (no seu navegador) e mostra uma tela de revisão"
                 onClick={importarPdf}
               >
-                <FileText size={16} /> Importar ficha (PDF)
+                <FileText size={16} /> Importar PDF…
               </button>
             )}
           </>

@@ -13,16 +13,19 @@ import {
   RECARGAS,
   ROTULO_DO_ATRIBUTO,
 } from "@tabletop/shared";
-import { AlertTriangle, FileCheck2, X } from "lucide-react";
-import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { AlertTriangle, ChevronDown, ChevronRight, FileCheck2, X } from "lucide-react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 
 type Props = {
   nomeDoArquivo: string;
   resultado: ImportacaoDoPdf;
-  /** O item cuja ficha será substituída; `null` quando é um item novo. */
+  /** O destino já escolhido ao começar (pelo menu de um item): o item cuja ficha será substituída; `null` = ficha nova. */
   alvo: Personagem | null;
-  /** Manda a ficha para a sala; devolve o erro, se houver. */
-  aoConfirmar: (ficha: Ficha, nome: string) => string | null;
+  /** Os personagens que a pessoa pode editar: os destinos possíveis de "Por cima de". */
+  candidatos: Personagem[];
+  /** Manda a ficha para a sala (por cima do destino, ou nova se `null`); devolve o erro, se houver. */
+  aoConfirmar: (ficha: Ficha, nome: string, destino: Personagem | null) => string | null;
   aoCancelar: () => void;
 };
 
@@ -69,6 +72,35 @@ const TITULOS: Record<Secao, string> = {
   notas: "Notas (personalidade e moedas)",
 };
 
+/** Quantos campos a seção leu (para o resumo da seção recolhida: "12 campos lidos, nada a conferir"). */
+function camposLidos(secao: Secao, f: Ficha): number {
+  const tem = (v: unknown) => (v === undefined || v === null || v === "" ? 0 : 1);
+  switch (secao) {
+    case "cabecalho":
+      return tem(f.raca) + tem(f.antecedente) + tem(f.alinhamento) + (f.classes?.length ?? 0);
+    case "atributos":
+      return 12;
+    case "pericias":
+      return PERICIAS.length;
+    case "gerais":
+      return 8;
+    case "ataques":
+      return f.ataques?.length ?? 0;
+    case "magias":
+      return f.magias?.length ?? 0;
+    case "caracteristicas":
+      return f.caracteristicas?.length ?? 0;
+    case "equipamento":
+      return f.itens?.length ?? 0;
+    case "recursos":
+      return f.recursos?.length ?? 0;
+    case "notas":
+      return tem(f.notas);
+  }
+}
+
+const mesmoNome = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
+
 /** Muda um campo numa cópia da ficha (`undefined` remove o campo). Sem validar: isso fica para o fim. */
 function definirNoCaminho(ficha: Ficha, caminho: string, valor: unknown): Ficha {
   const copia = JSON.parse(JSON.stringify(ficha)) as Record<string, unknown>;
@@ -98,9 +130,26 @@ type Editar = (caminho: string, valor: unknown) => void;
  * Tela de revisão da importação do PDF da ficha (Lote 10): cada seção da ficha com o valor lido, o trecho
  * do PDF ao lado e os campos incertos em amarelo e editáveis. Nada vai para a sala sem "Confirmar".
  */
-export function RevisaoDoPdf({ nomeDoArquivo, resultado, alvo, aoConfirmar, aoCancelar }: Props) {
+export function RevisaoDoPdf({
+  nomeDoArquivo,
+  resultado,
+  alvo: alvoInicial,
+  candidatos,
+  aoConfirmar,
+  aoCancelar,
+}: Props) {
   const [ficha, setFicha] = useState<Ficha>(resultado.ficha);
-  const [nome, setNome] = useState(alvo?.nome ?? resultado.nome ?? "Personagem importado");
+  const [nome, setNome] = useState(resultado.nome ?? "Personagem importado");
+  // O destino: ficha nova ou por cima de um personagem que a pessoa edita. Já vem preenchido quando se
+  // começou pelo menu do item; senão começa em "Ficha nova" e só sugere (nunca escolhe sozinho).
+  const [destinoId, setDestinoId] = useState<string | null>(alvoInicial?.id ?? null);
+  const alvo = candidatos.find((c) => c.id === destinoId) ?? null;
+  const sugerido =
+    alvo === null && resultado.nome
+      ? (candidatos.find((c) => mesmoNome(c.nome, resultado.nome ?? "")) ?? null)
+      : null;
+  const corpo = useRef<HTMLDivElement>(null);
+  const proximoIncerto = useRef(-1);
   const [confirmando, setConfirmando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const editar: Editar = (caminho, valor) => setFicha((f) => definirNoCaminho(f, caminho, valor));
@@ -114,6 +163,18 @@ export function RevisaoDoPdf({ nomeDoArquivo, resultado, alvo, aoConfirmar, aoCa
   }, [aoCancelar]);
 
   const d = useMemo(() => derivar(ficha), [ficha]);
+  // Seções sem campo incerto começam recolhidas; as com campo incerto, abertas. "Mostrar tudo" abre todas.
+  const [abertas, setAbertas] = useState<Set<Secao>>(
+    () => new Set(resultado.incertos.map((i) => secaoDoCaminho(i.caminho))),
+  );
+  const alternar = (id: Secao) =>
+    setAbertas((a) => {
+      const n = new Set(a);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
+  const tudoAberto = SECOES.every((x) => abertas.has(x));
   const incertosPorSecao = useMemo(() => {
     const mapa = new Map<Secao, Incerto[]>();
     for (const i of resultado.incertos) {
@@ -125,6 +186,26 @@ export function RevisaoDoPdf({ nomeDoArquivo, resultado, alvo, aoConfirmar, aoCa
   const doCaminho = (caminho: string) => resultado.incertos.filter((i) => i.caminho === caminho);
   const ehIncerto = (caminho: string) => doCaminho(caminho).length > 0;
 
+  /** Leva o foco ao próximo campo incerto (abre a seção dele se estava recolhida). */
+  function irParaOProximoIncerto() {
+    const raiz = corpo.current;
+    if (!raiz) return;
+    const todos = [...raiz.querySelectorAll<HTMLElement>('[data-incerto="true"]')];
+    // só o mais externo de cada grupo (a linha da tabela e a célula dela contam como um campo)
+    const alvos = todos.filter((el) => !todos.some((o) => o !== el && o.contains(el)));
+    if (alvos.length === 0) return;
+    proximoIncerto.current = (proximoIncerto.current + 1) % alvos.length;
+    const el = alvos[proximoIncerto.current] as HTMLElement;
+    const id = el.closest<HTMLElement>("[data-secao]")?.dataset.secao as Secao | undefined;
+    if (id) flushSync(() => setAbertas((a) => new Set(a).add(id)));
+    const campo = el.matches("input, select, textarea, button, summary")
+      ? el
+      : (el.querySelector<HTMLElement>("input, select, textarea, button, summary") ?? el);
+    if (campo === el && !el.hasAttribute("tabindex")) el.tabIndex = -1;
+    campo.focus();
+    campo.scrollIntoView({ block: "center" });
+  }
+
   function tentarConfirmar() {
     const valida = FichaSchema.safeParse(ficha);
     if (!valida.success) {
@@ -132,7 +213,7 @@ export function RevisaoDoPdf({ nomeDoArquivo, resultado, alvo, aoConfirmar, aoCa
       setErro(`Há um valor inválido em ${p?.path.join(".") ?? "ficha"}: ${p?.message ?? ""}`);
       return;
     }
-    if (nome.trim() === "") {
+    if (alvo === null && nome.trim() === "") {
       setErro("Dê um nome ao personagem.");
       return;
     }
@@ -145,7 +226,7 @@ export function RevisaoDoPdf({ nomeDoArquivo, resultado, alvo, aoConfirmar, aoCa
   }
 
   function enviar() {
-    const falha = aoConfirmar(ficha, nome.trim());
+    const falha = aoConfirmar(ficha, nome.trim(), alvo);
     if (falha) {
       setConfirmando(false);
       setErro(falha);
@@ -153,6 +234,12 @@ export function RevisaoDoPdf({ nomeDoArquivo, resultado, alvo, aoConfirmar, aoCa
   }
 
   const total = resultado.incertos.length;
+  const resumoDe = (id: Secao) => {
+    const n = camposLidos(id, ficha);
+    return n === 0
+      ? "Nada lido neste trecho, nada a conferir"
+      : `${n} ${n === 1 ? "campo lido" : "campos lidos"}, nada a conferir`;
+  };
   const trecho = (s: string) => resultado.trechos[s] ?? "";
 
   // Itens de uma seção que não têm campo próprio: aparecem como aviso amarelo.
@@ -180,19 +267,11 @@ export function RevisaoDoPdf({ nomeDoArquivo, resultado, alvo, aoConfirmar, aoCa
         <header className="rev-cabecalho">
           <FileCheck2 size={20} />
           <div className="rev-titulo">
-            <strong>
-              {alvo ? `Importar por cima da ficha de ${alvo.nome}` : "Nova ficha a partir do PDF"}
-            </strong>
+            <strong>Importar PDF</strong>
             <span className="nota">
               {nomeDoArquivo} · o PDF foi lido neste computador; só a ficha vai para a sala
             </span>
           </div>
-          <span
-            className={`rev-selo ${total > 0 ? "amarelo" : ""}`}
-            data-testid="revisao-total-incertos"
-          >
-            {total} {total === 1 ? "campo" : "campos"} para revisar
-          </span>
           <button
             type="button"
             className="botao-icone"
@@ -204,7 +283,84 @@ export function RevisaoDoPdf({ nomeDoArquivo, resultado, alvo, aoConfirmar, aoCa
           </button>
         </header>
 
-        <div className="rev-corpo" data-testid="revisao-corpo">
+        <div className="rev-topo" data-testid="revisao-topo">
+          <div className="rev-destino" data-testid="revisao-destino-bloco">
+            <label htmlFor="revisao-destino">Destino</label>
+            <select
+              id="revisao-destino"
+              data-testid="revisao-destino"
+              value={destinoId ?? ""}
+              onChange={(e) => setDestinoId(e.target.value === "" ? null : e.target.value)}
+            >
+              <option value="">Ficha nova</option>
+              {candidatos.map((c) => (
+                <option key={c.id} value={c.id}>
+                  Por cima de: {c.nome}
+                </option>
+              ))}
+            </select>
+            {alvo === null ? (
+              <input
+                type="text"
+                value={nome}
+                maxLength={80}
+                aria-label="Nome do personagem"
+                title="Nome do personagem novo"
+                data-testid="revisao-nome"
+                onChange={(e) => setNome(e.target.value)}
+              />
+            ) : (
+              <span className="nota" data-testid="revisao-destino-aviso">
+                Troca só a ficha. O retrato, o token e a pasta de {alvo.nome} ficam como estão.
+              </span>
+            )}
+            {sugerido && (
+              <span className="rev-sugestao" data-testid="revisao-sugestao">
+                Já existe {sugerido.nome} na mesa.{" "}
+                <button
+                  type="button"
+                  className="link"
+                  data-testid="revisao-sugestao-usar"
+                  onClick={() => setDestinoId(sugerido.id)}
+                >
+                  Importar por cima dele
+                </button>
+              </span>
+            )}
+          </div>
+          <div className="rev-conferir">
+            <span
+              className={`rev-selo ${total > 0 ? "amarelo" : ""}`}
+              data-testid="revisao-total-incertos"
+              role="status"
+            >
+              {total === 0
+                ? "Nada para conferir"
+                : `${total} ${total === 1 ? "campo" : "campos"} para conferir`}
+            </span>
+            <button
+              type="button"
+              data-testid="revisao-proximo-incerto"
+              disabled={total === 0}
+              title={total === 0 ? "Nenhum campo incerto" : "Leva o foco ao próximo campo incerto"}
+              onClick={irParaOProximoIncerto}
+            >
+              Próximo a conferir
+            </button>
+            <button
+              type="button"
+              data-testid="revisao-mostrar-tudo"
+              aria-pressed={tudoAberto}
+              onClick={() =>
+                setAbertas(tudoAberto ? new Set(incertosPorSecao.keys()) : new Set(SECOES))
+              }
+            >
+              {tudoAberto ? "Recolher o que está certo" : "Mostrar tudo"}
+            </button>
+          </div>
+        </div>
+
+        <div className="rev-corpo" data-testid="revisao-corpo" ref={corpo}>
           <p className="rev-intro">
             Confira o que foi lido. Os campos em <mark className="rev-amostra">amarelo</mark> estão
             incertos (nome cortado no PDF, caixa repetida, campo vazio, conta que não fecha):
@@ -222,19 +378,11 @@ export function RevisaoDoPdf({ nomeDoArquivo, resultado, alvo, aoConfirmar, aoCa
             titulo={TITULOS.cabecalho}
             trecho={trecho("cabecalho")}
             avisos={incertosPorSecao.get("cabecalho")?.length ?? 0}
+            aberta={abertas.has("cabecalho")}
+            aoAlternar={() => alternar("cabecalho")}
+            resumo={resumoDe("cabecalho")}
           >
             <dl className="rev-dl">
-              <dt>Nome</dt>
-              <dd>
-                <input
-                  type="text"
-                  value={nome}
-                  maxLength={80}
-                  aria-label="Nome do personagem"
-                  data-testid="revisao-nome"
-                  onChange={(e) => setNome(e.target.value)}
-                />
-              </dd>
               <dt>Raça</dt>
               <dd>{ficha.raca ?? "—"}</dd>
               <dt>Antecedente</dt>
@@ -276,6 +424,9 @@ export function RevisaoDoPdf({ nomeDoArquivo, resultado, alvo, aoConfirmar, aoCa
             titulo={TITULOS.atributos}
             trecho={[trecho("atributos"), trecho("salvaguardas")].filter(Boolean).join("\n")}
             avisos={incertosPorSecao.get("atributos")?.length ?? 0}
+            aberta={abertas.has("atributos")}
+            aoAlternar={() => alternar("atributos")}
+            resumo={resumoDe("atributos")}
           >
             <table className="rev-tabela">
               <thead>
@@ -328,6 +479,9 @@ export function RevisaoDoPdf({ nomeDoArquivo, resultado, alvo, aoConfirmar, aoCa
             titulo={TITULOS.pericias}
             trecho={trecho("pericias")}
             avisos={incertosPorSecao.get("pericias")?.length ?? 0}
+            aberta={abertas.has("pericias")}
+            aoAlternar={() => alternar("pericias")}
+            resumo={resumoDe("pericias")}
           >
             <ul className="rev-grade">
               {PERICIAS.map((p) => {
@@ -361,6 +515,9 @@ export function RevisaoDoPdf({ nomeDoArquivo, resultado, alvo, aoConfirmar, aoCa
             titulo={TITULOS.gerais}
             trecho={[trecho("gerais"), trecho("idiomas")].filter(Boolean).join("\n")}
             avisos={incertosPorSecao.get("gerais")?.length ?? 0}
+            aberta={abertas.has("gerais")}
+            aoAlternar={() => alternar("gerais")}
+            resumo={resumoDe("gerais")}
           >
             <dl className="rev-dl">
               <dt>CA</dt>
@@ -422,6 +579,9 @@ export function RevisaoDoPdf({ nomeDoArquivo, resultado, alvo, aoConfirmar, aoCa
             titulo={`${TITULOS.ataques} (${ficha.ataques?.length ?? 0})`}
             trecho={trecho("ataques")}
             avisos={incertosPorSecao.get("ataques")?.length ?? 0}
+            aberta={abertas.has("ataques")}
+            aoAlternar={() => alternar("ataques")}
+            resumo={resumoDe("ataques")}
           >
             <table className="rev-tabela rev-ataques" data-testid="revisao-ataques">
               <thead>
@@ -451,6 +611,9 @@ export function RevisaoDoPdf({ nomeDoArquivo, resultado, alvo, aoConfirmar, aoCa
             titulo={`${TITULOS.magias} (${ficha.magias?.length ?? 0} magias)`}
             trecho={[trecho("conjuracao"), trecho("magias")].filter(Boolean).join("\n")}
             avisos={incertosPorSecao.get("magias")?.length ?? 0}
+            aberta={abertas.has("magias")}
+            aoAlternar={() => alternar("magias")}
+            resumo={resumoDe("magias")}
           >
             <ul className="rev-lista">
               {d.conjuradoras.map((c) => (
@@ -503,6 +666,9 @@ export function RevisaoDoPdf({ nomeDoArquivo, resultado, alvo, aoConfirmar, aoCa
             titulo={`${TITULOS.caracteristicas} (${ficha.caracteristicas?.length ?? 0})`}
             trecho={trecho("caracteristicas")}
             avisos={incertosPorSecao.get("caracteristicas")?.length ?? 0}
+            aberta={abertas.has("caracteristicas")}
+            aoAlternar={() => alternar("caracteristicas")}
+            resumo={resumoDe("caracteristicas")}
           >
             {(ficha.caracteristicas ?? []).map((c, i) => (
               <details key={`caracteristica-${c.nome}`} data-testid={`revisao-caracteristica-${i}`}>
@@ -518,6 +684,9 @@ export function RevisaoDoPdf({ nomeDoArquivo, resultado, alvo, aoConfirmar, aoCa
             titulo={`${TITULOS.equipamento} (${ficha.itens?.length ?? 0})`}
             trecho={trecho("equipamento")}
             avisos={incertosPorSecao.get("equipamento")?.length ?? 0}
+            aberta={abertas.has("equipamento")}
+            aoAlternar={() => alternar("equipamento")}
+            resumo={resumoDe("equipamento")}
           >
             <ul className="rev-lista">
               {(ficha.itens ?? []).map((it, i) => (
@@ -535,6 +704,9 @@ export function RevisaoDoPdf({ nomeDoArquivo, resultado, alvo, aoConfirmar, aoCa
             titulo={TITULOS.recursos}
             trecho={trecho("recursos")}
             avisos={incertosPorSecao.get("recursos")?.length ?? 0}
+            aberta={abertas.has("recursos")}
+            aoAlternar={() => alternar("recursos")}
+            resumo={resumoDe("recursos")}
           >
             {(ficha.recursos ?? []).length === 0 && (
               <p className="nota">Nenhuma caixa de recurso no PDF.</p>
@@ -607,6 +779,9 @@ export function RevisaoDoPdf({ nomeDoArquivo, resultado, alvo, aoConfirmar, aoCa
             titulo={TITULOS.notas}
             trecho={trecho("notas")}
             avisos={incertosPorSecao.get("notas")?.length ?? 0}
+            aberta={abertas.has("notas")}
+            aoAlternar={() => alternar("notas")}
+            resumo={resumoDe("notas")}
           >
             <pre className="rev-descricao">{ficha.notas || "(vazio)"}</pre>
           </Secao>
@@ -630,7 +805,7 @@ export function RevisaoDoPdf({ nomeDoArquivo, resultado, alvo, aoConfirmar, aoCa
             data-testid="revisao-confirmar"
             onClick={tentarConfirmar}
           >
-            Confirmar importação
+            {alvo ? `Substituir a ficha de ${alvo.nome}` : "Criar a ficha"}
           </button>
         </footer>
 
@@ -672,21 +847,49 @@ function Secao({
   titulo,
   trecho,
   avisos,
+  aberta,
+  aoAlternar,
+  resumo,
   children,
 }: {
   id: string;
   titulo: string;
   trecho: string;
   avisos: number;
+  aberta: boolean;
+  aoAlternar: () => void;
+  /** O que a seção recolhida diz no lugar do conteúdo. */
+  resumo: string;
   children: ReactNode;
 }) {
+  const idDoCorpo = `revisao-corpo-${id}`;
   return (
-    <section className="rev-secao" data-testid={`revisao-secao-${id}`}>
+    <section
+      className="rev-secao"
+      data-testid={`revisao-secao-${id}`}
+      data-secao={id}
+      data-aberta={aberta}
+    >
       <h3>
-        {titulo}
-        {avisos > 0 && <span className="rev-selo amarelo">{avisos} para revisar</span>}
+        <button
+          type="button"
+          className="rev-secao-alternar"
+          data-testid={`revisao-secao-alternar-${id}`}
+          aria-expanded={aberta}
+          aria-controls={idDoCorpo}
+          onClick={aoAlternar}
+        >
+          {aberta ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+          <span>{titulo}</span>
+        </button>
+        {avisos > 0 && <span className="rev-selo amarelo">{avisos} para conferir</span>}
+        {!aberta && avisos === 0 && (
+          <span className="rev-resumo" data-testid={`revisao-resumo-${id}`}>
+            {resumo}
+          </span>
+        )}
       </h3>
-      <div className="rev-par">
+      <div className="rev-par" id={idDoCorpo} hidden={!aberta}>
         <div className="rev-lido">{children}</div>
         <div className="rev-pdf">
           <div className="rev-pdf-titulo">Trecho do PDF</div>
