@@ -13,6 +13,8 @@ export type Atalho = {
   grupo: GrupoDeAtalhos;
   /** Formas equivalentes de fazer a mesma coisa (cada uma é uma combinação). */
   teclas: readonly Combinacao[];
+  /** As teclas são um conjunto só (as quatro setas: "← ↑ ↓ →"), não alternativas: sem "ou" entre elas. */
+  juntas?: true;
 };
 
 export const ATALHOS = {
@@ -80,6 +82,7 @@ export const ATALHOS = {
     descricao: "Mover a janela com o cabeçalho em foco (Shift: passo maior)",
     grupo: "Janelas e painéis",
     teclas: [["←"], ["↑"], ["↓"], ["→"]],
+    juntas: true,
   },
   painelLargura: {
     descricao: "Ajustar a largura do painel com a alça em foco (Shift: passo maior)",

@@ -2135,4 +2135,70 @@ Detalhes e decisões em `docs/REDESIGN.md` ("R6a — como ficou").
 
 ---
 
-## Próximo: Redesign R6b — polimento final (tela pequena, frágeis restantes, transições discretas, conserto dos prints antigos e revisão final de todos os prints nos 3 temas); depois os ajustes do Vilella, 7b e 12
+## Redesign R6b — Tela pequena, frágeis restantes, transições e revisão final (entregue, aguardando o roteiro manual)
+
+Último lote do redesign. Detalhes e decisões em `docs/REDESIGN.md` ("R6b — como ficou").
+
+### O que foi entregue
+
+- Ficha a 520 px: Raça, Antecedente e Alinhamento empilham e o texto cabe (`.fh-grade-3`, `auto-fit`).
+- Posições padrão em 1280×720 (área "apertada", altura < 900 px): o painel do token vai embaixo à direita, abaixo da ordem de turno, e os dois dividem a altura da coluna; ordem, ficha e painel do token não se cobrem, em qualquer ordem de abertura.
+- A vista do mapa mantém o centro quando a área muda de tamanho (alça do painel, recolher o painel, janela do navegador).
+- Pílula da pausa com a mesma largura rodando e pausada; espaço da pílula reservado para o jogador.
+- "Pergaminho" numa linha no seletor de tema com o painel em 360 px.
+- Aviso da pausa sem mestre para o jogador (dica da pílula pela dica comum e aviso no alto da área do mapa), sem frame novo (`useSala.avisar`).
+- Transições de 140 ms (janelas, menus, popovers, dicas, avisos e troca de aba), desligadas por `prefers-reduced-motion`; nada no canvas.
+- Quatro setas como um grupo só nas dicas e na lista de atalhos; dica sem quebrar o "·" sozinho.
+- Rótulos dos tokens em pílula escura translúcida (legíveis sobre mapa claro e escuro).
+- Dica comum (`BotaoComDica`) no lugar do `title`: ordem de turno, pincel, chat, fontes de luz e dados rápidos.
+- O modal "Configurar cena" passou a abrir num portal no `body` (com o painel do token embaixo à direita, ele ficava atrás da janela).
+- Prints: apagados os dos lotes 6 a 14 e `r1`, `r2`, `r2b`, `r3`; `auditoria` refeito como tour da interface de hoje; novo `r6b`.
+- `PROJETO.md` aponta Preferências e Mesa; `docs/PASSAGEM.md` pronto como ponto de partida do Vilella.
+- Nada na sala, no protocolo nem na exportação mudou; nenhuma dependência nova.
+
+### Como rodar
+
+- `pnpm verify` (uma vez). E2E novos: `pnpm --filter @tabletop/e2e test --repeat-each=3 tests/polimento.spec.ts` (e os alterados: `tests/janelas.spec.ts tests/estrutura.spec.ts`). Os E2E rodam com `reducedMotion: "reduce"` (`playwright.config.ts`).
+- Prints: `$env:PRINTS_DIR="<pasta>"; pnpm --filter @tabletop/e2e prints r6b` e `... prints auditoria` (o tour: 4 combinações, uma só com `$env:TOUR="grimorio-1280x720"`).
+- Só 1 worker nos E2E (sala compartilhada).
+
+### Verificação
+
+- `e2e/tests/polimento.spec.ts` (6 testes): ficha a 520 px sem texto cortado (`scrollWidth` = `clientWidth` com valores longos); ordem, ficha e painel do token (e o zoom) sem sobreposição em 1280×720, também com a ordem aberta depois; o centro da vista se mantém ao mexer na alça do painel, recolher e mudar a janela; mesma largura da pílula rodando e pausada (mestre e jogador, e os avatares não se mexem); aviso e dica da pausa sem mestre (pausa manual não avisa); transições existem sem a preferência (140 ms) e somem com ela.
+- E2E antigos alterados (disposição mudou de propósito; nada afrouxado): `janelas.spec.ts` (o painel do token em 1280×720 está embaixo à direita, acima do zoom, e não embaixo à esquerda); `estrutura.spec.ts` (a dica da pílula do jogador deixou de ser o `title` e virou a dica comum: confere o mesmo texto no hover).
+- Config: `reducedMotion: "reduce"` em `playwright.config.ts` e `playwright.prints.config.ts` (e `actionTimeout` de 15 s nos prints).
+- `pnpm verify` verde numa rodada (duas vezes: a segunda depois do ajuste final do teto da ordem e da dica de uma linha): 31 (servidor) + 59 (web) + 553 (shared) de unidade e 213 E2E (207 + 6 novos), sem instável. Repetição 3x de `polimento`, `janelas`, `estrutura` e `teclado`: 114 execuções verdes.
+- Prints: tour (4 combinações, ~430 prints) em `prints-final` e `r6b` (72 prints) em `prints-r6b`, no scratchpad da sessão. `r4`, `r5a`, `r5b` e `r6a` rodam.
+
+### Decisões
+
+- (assumido) Ver a lista em `docs/REDESIGN.md` ("R6b — como ficou", Decisões).
+
+### Desvios do plano
+
+- Os prints antigos foram apagados (não refeitos): lotes 6 a 14 e `r1`, `r2`, `r2b`, `r3`.
+- Ficam com `title` nativo: campos pequenos da ficha e do editor do item, os itens do menu de contexto da faixa de cenas (o E2E exige `disabled` de verdade), textos informativos da faixa de cenas, o botão `menu-pausa` do mestre (os E2E conferem o `title`) e o rótulo "Cor livre" do pincel.
+
+### Frágil / não verificado
+
+- Toque (celular) e navegadores além do Chrome seguem sem teste.
+- Em área apertada o painel do token (418 px naturais) rola por dentro (teto ~245 px em 1280×720: vê nome, cor, tamanho e camada; "Apagar" e "Quem controla" ficam abaixo) e a ordem de turno também (teto ~340 px), enquanto os dois estão abertos; com "Montar" aberta a lista da ordem mostra poucas linhas. Telas menores que 1280×720 não foram vistas.
+- Sem animação de saída; a entrada usa a propriedade CSS `translate` (Chrome atual).
+- Presença vazia = "há mestre": quem entra antes da primeira presença não vê o aviso até ela chegar.
+- Rótulos dos tokens: vistos sobre mapa claro e escuro, não sobre cores intermediárias.
+
+### Roteiro manual (pendente)
+
+1. Em 1280×720 (ou uma janela pequena): abra a ordem de turno com 4 ou mais entradas, o painel do token (dois cliques num token) e a ficha: nenhuma cobre a outra nem o zoom. Em tela grande, o painel do token volta para embaixo à esquerda.
+2. Ficha no tamanho mínimo: Raça, Antecedente e Alinhamento inteiros.
+3. Recolha e abra o painel direito, mexa na alça e redimensione a janela do navegador: o ponto no centro do mapa continua no centro.
+4. Pause e retome a mesa como mestre: a pílula não muda de largura nem desloca os avatares.
+5. Como jogador, com o mestre fechando a aba: a dica da pílula diz que o mestre saiu e aparece o aviso no alto do mapa.
+6. Abra janelas, menus, dicas e troque de aba: entram suavemente; com "reduzir movimento" ligado no sistema nada anima.
+7. Preferências com o painel em 360 px: "Pergaminho" numa linha; a dica do cabeçalho da janela mostra as quatro setas juntas.
+8. Rótulos dos tokens legíveis sobre um mapa claro e um escuro.
+9. Passe pelo tour de prints (`auditoria`) e anote o que quiser ajustar.
+
+---
+
+## Próximo: ajustes finos de UX/UI do Vilella a partir de `docs/PASSAGEM.md` (o plano R1 a R6 terminou); depois 7b e 12

@@ -130,12 +130,12 @@ export function SubBarraPincel({ config, aoMudar, aoFechar, aoDesfazer }: Props)
       <fieldset className="cores-pincel">
         <legend className="so-leitor">Cor</legend>
         {CORES_DO_PINCEL.map((c) => (
-          <button
+          <BotaoComDica
             key={c}
-            type="button"
             className="cor-pincel"
-            data-testid={`pincel-cor-${c.slice(1)}`}
-            title={`Cor ${c}`}
+            testid={`pincel-cor-${c.slice(1)}`}
+            dica={`Cor ${c}`}
+            lado="direita"
             aria-label={`Cor ${c}`}
             aria-pressed={cor.toLowerCase() === c}
             style={{ background: c }}
@@ -161,12 +161,12 @@ export function SubBarraPincel({ config, aoMudar, aoFechar, aoDesfazer }: Props)
       <fieldset className="espessuras-pincel">
         <legend className="so-leitor">Espessura</legend>
         {ESPESSURAS_DO_PINCEL.map((e) => (
-          <button
+          <BotaoComDica
             key={e.valor}
-            type="button"
             className="botao-espessura"
-            data-testid={`pincel-espessura-${e.valor}`}
-            title={`${e.titulo} (${e.valor})`}
+            testid={`pincel-espessura-${e.valor}`}
+            dica={`${e.titulo} (${e.valor})`}
+            lado="direita"
             aria-label={`Espessura ${e.titulo.toLowerCase()}`}
             aria-pressed={espessura === e.valor}
             onClick={() => aoMudar({ ...config, espessura: e.valor })}
@@ -175,7 +175,7 @@ export function SubBarraPincel({ config, aoMudar, aoFechar, aoDesfazer }: Props)
               className="ponto-espessura"
               style={{ width: tamanhoDoPonto(e.valor), height: tamanhoDoPonto(e.valor) }}
             />
-          </button>
+          </BotaoComDica>
         ))}
       </fieldset>
     </nav>

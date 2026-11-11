@@ -694,7 +694,8 @@ cores ou nomes de terceiros.
 - **Controle de zoom flutuante** na borda direita do mapa: +/−, trilho, nível atual, centralizar.
 - **Barra lateral direita recolhível** com abas por ícone: Chat (lote 8), Jogadores (presença e
   papéis), Fichas (lote 9), Notas, Mestre (permissões, uso de hoje, exportar/importar; depois
-  automações) e Configurações. No lote 8 a caixa de chat fica fixa no rodapé da barra, com o seletor
+  automações) e Configurações (hoje, desde o R4: Chat, Fichas, Notas, Compêndio, **Preferências** e, só do
+  mestre, **Mesa**; ver "Redesign R4" no `docs/ESTADO.md`). No lote 8 a caixa de chat fica fixa no rodapé da barra, com o seletor
   "Como:" (falar como um personagem).
 - **Etiqueta discreta sobre o mapa** com o nome da cena e quem sou eu; o estado da conexão só aparece
   quando não está conectado.
@@ -742,7 +743,9 @@ Base do Lote 4b. **Em definição:** o que cada ícone do menu superior abre o V
   - No menu de camadas, ao lado da camada de desenho, o mestre tem "limpar todos os desenhos".
   - Camadas valem por cena.
 - **Barra da direita:** expandir/recolher, **Chat**, **Fichas**, **Compêndio de magias** e
-  **Configurações**. A aba do mestre de hoje fica por enquanto e migra aos poucos.
+  **Configurações**. A aba do mestre de hoje fica por enquanto e migra aos poucos. (Hoje, desde o R4: as abas
+  são Chat, Fichas, Notas, Compêndio, **Preferências** e, só do mestre, **Mesa**; a aba "Configurações" e a
+  "Mestre" deixaram de existir.)
   - Chat: conversa, resultado das rolagens e descrição de magia mandada para o chat.
   - Fichas (o "diário"):
     - personagens, NPCs, artefatos, tesouros, handouts etc., organizados em **pastas** sem subpastas;
@@ -1014,7 +1017,7 @@ eventos, iluminação, visão noturna, ordem de turno) aparece só como **interf
   Por ora os itens são os personagens; os outros tipos aparecem como "em breve";
 - o editor do item com **retrato e token padrão** (a imagem entra ali, sem menu de arquivos);
 - arrastar um item das Fichas para o mapa coloca o token;
-- a escolha da pasta local vai para Configurações;
+- a escolha da pasta local vai para Configurações (hoje: aba **Preferências**);
 - a correção dos ajustes já vistos (zoom inicial, painel do token cobrindo o mapa, texto cortado,
   contador de arquivos).
 
@@ -1128,7 +1131,7 @@ no editor; ligar a ordem de turno.
     tremular);
   - clicar duas vezes no cabeçalho recolhe o painel (opacidade ~0,7);
   - as variáveis (tempo ±1 min, consumir) entram no Lote 7.
-- **Luz ambiente** por cena, de 0 (escuro) a 1 (dia), em "Configurações de iluminação".
+- **Luz ambiente** por cena, de 0 (escuro) a 1 (dia), em "Configurações de iluminação" (hoje: Luz → Configurações de iluminação, a janela `iluminacao`).
 - **O que o jogador vê:** a visão dos tokens que ele controla (Lote 5), cruzada com a luz.
   - luz plena aparece normal e penumbra aparece mais escura;
   - **visão no escuro**: dentro do alcance, o escuro aparece em tons de cinza e a penumbra como luz
@@ -1234,7 +1237,7 @@ assumido sem o Vilella está marcado com "(assumido)" e entra nas perguntas do f
   - o mestre recebe sempre `restanteMs`, `estagio` e o histórico.
 - **`ConfigDaMesa` completa** (`maosPorPersonagem` 2, `penalidadeAoApagarS` 0, `alcanceInteracaoM` 1,5,
   `tempoParaJogadores` 'exato', `estagios`), editada pelo mestre na aba **Configurações** da barra
-  direita, seção "Mesa". Intenção `config.mesa` (`mesa.configurar`).
+  direita, seção "Mesa" (hoje: aba **Mesa**, seções de regras da mesa e de modelos de luz). Intenção `config.mesa` (`mesa.configurar`).
 - **Modelos de objeto** (nome, luz, duração ou infinita, ocupa mão, tags) na mesma aba, seção "Objetos de
   luz". Semente: Tocha 5e (6 m + 6 m, 60 min, ocupa mão), Lanterna (9 m + 9 m, 6 h, ocupa mão) e Fogueira
   (6 m + 6 m, infinita, não ocupa mão). A campanha de referência muda a tocha para 30 min e 9 m + 6 m por
@@ -1479,7 +1482,7 @@ entra nas perguntas do fim):**
 - **Gravação agrupada:** o navegador junta as mudanças por ~400 ms e manda `ficha.alterar` com uma lista
   de operações `{ caminho, valor }`; a sala aplica, valida a ficha inteira com zod e recusa se passar de
   256 KB. Duas pessoas no mesmo campo: vale a última.
-- **Exportar e importar a ficha** em JSON: na pasta local escolhida em Configurações (subpasta `fichas/`),
+- **Exportar e importar a ficha** em JSON: na pasta local escolhida em Configurações (hoje: Preferências; subpasta `fichas/`),
   ou baixar o arquivo se não houver pasta. Importar substitui a ficha depois de confirmação.
 - **Fixture:** `fixtures/fichas/darion.json` montado à mão com os valores da seção 8 (ataques como valor
   fixo), usado nos testes e carregável na semente de teste.

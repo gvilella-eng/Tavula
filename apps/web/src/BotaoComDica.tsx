@@ -20,7 +20,7 @@ type Props = Omit<ButtonHTMLAttributes<HTMLButtonElement>, "title" | "disabled">
   semDica?: boolean | undefined;
   /** Onde a dica aparece em relação ao botão. */
   lado?: "baixo" | "direita" | "esquerda" | undefined;
-  children: ReactNode;
+  children?: ReactNode;
 };
 
 /**

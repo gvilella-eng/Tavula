@@ -8,6 +8,7 @@ import {
 } from "@tabletop/shared";
 import { Flame, Minus, Plus, Power, Trash2, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { BotaoComDica } from "./BotaoComDica";
 import { Campo } from "./Campo";
 import { noCanto } from "./janelas/geometria";
 import { Janela } from "./janelas/Janela";
@@ -213,41 +214,38 @@ export function PainelDeFontesDeLuz(p: Props) {
                 data-acesa={f.estado === "acesa"}
               >
                 <div className="linha-fonte">
-                  <button
-                    type="button"
+                  <BotaoComDica
                     className="botao-icone pequeno"
-                    title={f.estado === "acesa" ? "Apagar" : "Acender"}
+                    dica={f.estado === "acesa" ? "Apagar" : "Acender"}
                     aria-label={f.estado === "acesa" ? "Apagar" : "Acender"}
                     aria-pressed={f.estado === "acesa"}
-                    data-testid={`luz-acesa-${f.id}`}
+                    testid={`luz-acesa-${f.id}`}
                     onClick={() =>
                       editar(f.id, { estado: f.estado === "acesa" ? "apagada" : "acesa" })
                     }
                   >
                     <Power size={14} />
-                  </button>
-                  <button
-                    type="button"
+                  </BotaoComDica>
+                  <BotaoComDica
                     className="luz-nome"
-                    title={`Editar (${onde(f)})`}
-                    data-testid={`luz-escolher-${f.id}`}
+                    dica={`Editar (${onde(f)})`}
+                    testid={`luz-escolher-${f.id}`}
                     onClick={() => p.aoSelecionar(f.id === p.selecionadaId ? null : f.id)}
                   >
                     {f.nome}
-                  </button>
-                  <button
-                    type="button"
+                  </BotaoComDica>
+                  <BotaoComDica
                     className="botao-icone pequeno perigo"
-                    title="Apagar a fonte"
+                    dica="Apagar a fonte"
                     aria-label={`Apagar ${f.nome}`}
-                    data-testid={`luz-apagar-${f.id}`}
+                    testid={`luz-apagar-${f.id}`}
                     onClick={() => {
                       p.enviar("fonte.apagar", { id: f.id });
                       if (p.selecionadaId === f.id) p.aoSelecionar(null);
                     }}
                   >
                     <Trash2 size={14} />
-                  </button>
+                  </BotaoComDica>
                 </div>
                 <Deslizante
                   testid={`luz-intensidade-${f.id}`}
@@ -277,63 +275,58 @@ export function PainelDeFontesDeLuz(p: Props) {
                   data-variavel="true"
                 >
                   <div className="linha-fonte">
-                    <button
-                      type="button"
+                    <BotaoComDica
                       className="botao-icone pequeno"
-                      title={f.estado === "acesa" ? "Apagar" : "Reacender"}
+                      dica={f.estado === "acesa" ? "Apagar" : "Reacender"}
                       aria-label={f.estado === "acesa" ? "Apagar" : "Reacender"}
                       aria-pressed={f.estado === "acesa"}
-                      data-testid={`luz-acesa-${f.id}`}
+                      testid={`luz-acesa-${f.id}`}
                       onClick={() => p.enviar("tocha.alternar", { id: f.id })}
                     >
                       <Power size={14} />
-                    </button>
-                    <button
-                      type="button"
+                    </BotaoComDica>
+                    <BotaoComDica
                       className="luz-nome"
-                      title={`Detalhes (${onde(f)})`}
-                      data-testid={`luz-escolher-${f.id}`}
+                      dica={`Detalhes (${onde(f)})`}
+                      testid={`luz-escolher-${f.id}`}
                       onClick={() => p.aoSelecionar(f.id === p.selecionadaId ? null : f.id)}
                     >
                       {f.nome} <span className="nota">{onde(f)}</span>
-                    </button>
-                    <button
-                      type="button"
+                    </BotaoComDica>
+                    <BotaoComDica
                       className="botao-icone pequeno perigo"
-                      title="Extinguir de vez (consumida)"
+                      dica="Extinguir de vez (consumida)"
                       aria-label={`Extinguir ${f.nome}`}
-                      data-testid={`luz-consumir-${f.id}`}
+                      testid={`luz-consumir-${f.id}`}
                       onClick={() => {
                         ajustar(f.id, { acao: "consumir" });
                         if (p.selecionadaId === f.id) p.aoSelecionar(null);
                       }}
                     >
                       <Trash2 size={14} />
-                    </button>
+                    </BotaoComDica>
                   </div>
                   {comTempo ? (
                     <div className="linha-tempo">
-                      <button
-                        type="button"
+                      <BotaoComDica
                         className="botao-icone pequeno"
-                        title="Tirar 1 minuto"
+                        dica="Tirar 1 minuto"
                         aria-label={`Tirar 1 minuto de ${f.nome}`}
-                        data-testid={`luz-menos-${f.id}`}
+                        testid={`luz-menos-${f.id}`}
                         onClick={() => ajustar(f.id, { acao: "tempo", deltaMs: -UM_MINUTO_MS })}
                       >
                         <Minus size={14} />
-                      </button>
+                      </BotaoComDica>
                       <TempoDaLuz luz={f} restante={p.tempo.restanteDe(f.id)} />
-                      <button
-                        type="button"
+                      <BotaoComDica
                         className="botao-icone pequeno"
-                        title="Somar 1 minuto"
+                        dica="Somar 1 minuto"
                         aria-label={`Somar 1 minuto a ${f.nome}`}
-                        data-testid={`luz-mais-${f.id}`}
+                        testid={`luz-mais-${f.id}`}
                         onClick={() => ajustar(f.id, { acao: "tempo", deltaMs: UM_MINUTO_MS })}
                       >
                         <Plus size={14} />
-                      </button>
+                      </BotaoComDica>
                       {f.estagio && (
                         <span className="estagio" data-estagio={f.estagio}>
                           {f.estagio}
@@ -456,11 +449,10 @@ export function PainelDeFontesDeLuz(p: Props) {
                 data-selecionada={x.id === p.pontoSelecionadoId}
               >
                 <div className="linha-fonte">
-                  <button
-                    type="button"
+                  <BotaoComDica
                     className="luz-nome"
-                    data-testid={`ponto-escolher-${x.id}`}
-                    title="Editar o ponto"
+                    testid={`ponto-escolher-${x.id}`}
+                    dica="Editar o ponto"
                     onClick={() => p.aoSelecionarPonto(x.id === p.pontoSelecionadoId ? null : x.id)}
                   >
                     {x.nome}{" "}
@@ -468,20 +460,19 @@ export function PainelDeFontesDeLuz(p: Props) {
                       {x.tipo === "suporte" ? "suporte" : "inflamável"}
                       {x.visivelParaJogadores ? "" : " · oculto"}
                     </span>
-                  </button>
-                  <button
-                    type="button"
+                  </BotaoComDica>
+                  <BotaoComDica
                     className="botao-icone pequeno perigo"
-                    title="Apagar o ponto (e o que está nele)"
+                    dica="Apagar o ponto (e o que está nele)"
                     aria-label={`Apagar ${x.nome}`}
-                    data-testid={`ponto-apagar-${x.id}`}
+                    testid={`ponto-apagar-${x.id}`}
                     onClick={() => {
                       p.enviar("ponto.apagar", { id: x.id });
                       if (p.pontoSelecionadoId === x.id) p.aoSelecionarPonto(null);
                     }}
                   >
                     <Trash2 size={14} />
-                  </button>
+                  </BotaoComDica>
                 </div>
               </li>
             ))}
@@ -532,16 +523,15 @@ function DetalheDoObjeto(props: {
                   : " · sem prazo"}
                 {m.nota ? ` · ${m.nota}` : ""}
               </span>
-              <button
-                type="button"
+              <BotaoComDica
                 className="botao-icone pequeno"
-                title="Tirar o modificador"
+                dica="Tirar o modificador"
                 aria-label="Tirar o modificador"
-                data-testid={`luz-mod-tirar-${m.id}`}
+                testid={`luz-mod-tirar-${m.id}`}
                 onClick={() => props.ajustar(o.id, { acao: "tirarModificador", id: m.id })}
               >
                 <X size={14} />
-              </button>
+              </BotaoComDica>
             </li>
           ))}
         </ul>

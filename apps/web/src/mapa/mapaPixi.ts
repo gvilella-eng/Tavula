@@ -441,6 +441,8 @@ export class MapaPixi {
   private chaveDaPrevia = "";
   private ponteiroNoMapa: { p: Ponto; alt: boolean } | null = null;
   private jaCentralizou = false;
+  /** O tamanho da área do mapa na última vez que a vista foi acertada (para manter o centro ao redimensionar). */
+  private telaAntes = { largura: 0, altura: 0 };
   private sujo = true;
   private quadro = 0;
   private observador: ResizeObserver | null = null;
@@ -518,6 +520,7 @@ export class MapaPixi {
     this.observador.observe(this.host);
 
     this.pronto = true;
+    this.telaAntes = { largura: this.largura(), altura: this.altura() };
     this.chaveDaVisao = this.chaveDe_visao();
     this.instalarGanchoDeTeste();
     this.desenharCena();
@@ -900,8 +903,18 @@ export class MapaPixi {
   }
 
   private readonly aoRedimensionar = () => {
+    const largura = this.largura();
+    const altura = this.altura();
     if (!this.jaCentralizou) this.vistaInicial();
-    else this.aplicarVista();
+    else {
+      // A área mudou (painel, janela do navegador): o ponto que estava no centro continua no centro.
+      if (this.telaAntes.largura > 0 && this.telaAntes.altura > 0 && largura > 0 && altura > 0) {
+        this.vista.x += (largura - this.telaAntes.largura) / 2;
+        this.vista.y += (altura - this.telaAntes.altura) / 2;
+      }
+      this.aplicarVista();
+    }
+    this.telaAntes = { largura, altura };
   };
 
   // --- desenho --------------------------------------------------------------------------------
@@ -964,18 +977,28 @@ export class MapaPixi {
     });
     iniciais.anchor.set(0.5);
     iniciais.visible = textura === undefined;
+    // O nome vai numa pílula escura translúcida (legível sobre mapa claro ou escuro, sem contorno borrado).
     const rotulo = new Text({
       text: token.nome,
       style: {
-        fill: 0xe8eaed,
+        fill: 0xf4f5f7,
         fontSize: 13,
+        fontWeight: "600",
         fontFamily: "system-ui, sans-serif",
-        stroke: { color: 0x000000, width: 3 },
       },
     });
     rotulo.anchor.set(0.5, 0);
     const icones = iconesDoToken(token);
     rotulo.position.set(0, raio + 4 + (icones.length > 0 ? RAIO_DA_MARCA : 0));
+    const pilulaDoRotulo = new Graphics()
+      .roundRect(
+        -rotulo.width / 2 - 6,
+        rotulo.y - 2,
+        rotulo.width + 12,
+        rotulo.height + 4,
+        (rotulo.height + 4) / 2,
+      )
+      .fill({ color: 0x0b0d11, alpha: 0.72 });
     const anel = new Graphics().circle(0, 0, raio + 5).stroke({ width: 3, color: ACENTO });
     anel.visible = false;
     const anelVez = new Graphics()
@@ -984,7 +1007,7 @@ export class MapaPixi {
       .circle(0, 0, raio + 8)
       .stroke({ width: 4, color: COR_DA_VEZ });
     anelVez.visible = false;
-    container.addChild(anelVez, anel, corpo, imagem, iniciais, rotulo);
+    container.addChild(anelVez, anel, corpo, imagem, iniciais, pilulaDoRotulo, rotulo);
     const marcas = this.desenharMarcas(container, icones, raio);
     if (token.oculto) container.addChild(this.desenharOlhoCortado(raio));
     container.position.set(x * PX_POR_M, y * PX_POR_M);

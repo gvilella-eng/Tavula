@@ -16,7 +16,7 @@ export function ListaDeAtalhos() {
             {atalhosDoGrupo(grupo).map(({ id }) => (
               <div key={id} className="atalho-linha" data-testid={`atalho-${id}`}>
                 <dt>
-                  <Teclas teclas={ATALHOS[id].teclas} />
+                  <Teclas teclas={ATALHOS[id].teclas} juntas={"juntas" in ATALHOS[id]} />
                 </dt>
                 <dd>{ATALHOS[id].descricao}</dd>
               </div>

@@ -7,9 +7,21 @@ ponteiro, não entrou. Onde a fonte é ambígua ou os docs se contradizem, o ite
 Ponteiros: `REDESIGN` = `docs/REDESIGN.md`, `PERGUNTAS` = `docs/PERGUNTAS.md`, `ESTADO` = `docs/ESTADO.md`,
 `PROJETO` = `PROJETO.md` (na raiz), `IDEIAS` = `docs/IDEIAS.md`. Número depois dos dois-pontos é a linha.
 
-Estado dos docs em 2026-11-11: os Redesigns R1, R2, R2b (pausa automática e 11 temas), R3 (janelas flutuantes),
-R4 (organização do mestre), R5a (interações no mapa e nos tokens) e R5b (combate, fichas, compêndio e PDF) estão entregues; o R6
-não começou (fim do `ESTADO`, "Próximo").
+Estado dos docs em 2026-11-11: **o redesign R1 a R6 terminou.** Estão entregues o R1 (fundação visual e marca), R2 (estrutura
+fixa), R2b (pausa automática e 11 temas), R3 (janelas flutuantes), R4 (organização do mestre), R5a (interações no mapa e nos
+tokens), R5b (combate, fichas, compêndio e PDF), R6a (teclado, dicas com atalho, foco e contraste) e R6b (tela pequena, frágeis
+restantes, transições e revisão final). O que vem agora são os **seus ajustes finos de UX/UI** a partir deste arquivo (fim do
+`ESTADO`, "Próximo"), depois o 7b e o 12.
+
+**O que sobrou de interface (resumo; os detalhes estão nas seções 4, 5 e 7):**
+- Toque (celular) nunca foi testado: arrastar janelas, alça da tocha, dicas e menus só valem com mouse e teclado.
+- Só o Chrome foi testado (Firefox e Safari não: arrasto de item, WebP, OPFS, pasta local).
+- Seleção múltipla no mapa não existe.
+- "Entregar" a tocha só por arrastar a alça até outro token (o menu do token não tem "Entregar").
+- Selecionar um token só pelo teclado não existe (o Shift+F10 parte de um token já selecionado).
+- Em 1280×720, ordem de turno, ficha e painel do token só cabem juntos porque o painel do token vai para a coluna da direita e a
+  ordem fica mais baixa (com rolagem); telas menores que isso não foram vistas.
+- Fora do plano: automações do 7b e o MCP do 12 (seção 7).
 
 ## 1. Como subir a mesa para olhar
 
@@ -37,7 +49,7 @@ Tudo em `apps/web/src/`.
   reprova par de texto e fundo abaixo de 4,5:1 (AA) (`REDESIGN:125-140`). O `index.html` repete as 11 cores de
   fundo de propósito (anti-piscada); o mesmo teste confere que são iguais às do `temas.ts`.
 - `styles.css`: todo o resto do visual, usando as variáveis CSS dos tokens. Sobraram cores fixas só de
-  conteúdo (texto branco no avatar, contorno do ponto da ordem de turno, sigla das condições, roda de cores
+  conteúdo (texto preto ou branco no avatar e nas iniciais do token, escolhido pela cor em `contrasteDeCor.ts` desde o R6a; contorno do ponto da ordem de turno, sigla das condições, roda de cores
   do pincel) (`REDESIGN:132-139`).
 - `SeletorDeTema.tsx`: o seletor de bolinhas (aba Preferências, desde o R4; grupo de rádio, setas).
 - `Logo.tsx`: símbolo SVG da mesa redonda com a chama, mais o nome em Space Grotesk. `../public/favicon.svg`:
@@ -46,7 +58,7 @@ Tudo em `apps/web/src/`.
   primeira renderização.
 - Componentes principais da tela:
   - `Mesa.tsx`: a mesa inteira, em quatro regiões fixas (topo, ferramentas, painel direito e a área do mapa no meio); tudo o que abre sobre o mapa vive dentro de `.area-mapa`. O CSS grid está em `.mesa` no `styles.css`.
-  - `Topo.tsx`, `PresencaNoTopo.tsx`, `EstadoDaMesa.tsx`: o topo de 48 px (marca e cena, menus do mestre, avatares de presença com "+N", selo "Pausada", botão e relógio do mestre).
+  - `Topo.tsx`, `PresencaNoTopo.tsx`, `EstadoDaMesa.tsx`: o topo de 48 px (marca e cena, menus do mestre, avatares de presença com "+N", selo de pausa para o jogador (só o ícone e o amarelo; a dica diz se o mestre pausou ou saiu), botão e relógio do mestre).
   - `area.ts`: onde fica a área do mapa na página (`caixaDaArea`), para prender menus, dicas e janelas a ela. `larguraDoPainel.ts` e `preferencias.ts`: a largura do painel direito (300 px a 1/4 da janela, `tabletop:pref:larguraDoPainel`).
   - `mapa/Mapa.tsx`, `mapa/mapaPixi.ts`, `mapa/camadaDeLuz.ts`, `mapa/camadaDeDesenho.ts`: o mapa em PixiJS.
     **Não muda com o tema** (`REDESIGN:138-139`).
@@ -76,7 +88,7 @@ Tudo em `apps/web/src/`.
 ## 3. Levantamento de usabilidade (22 itens)
 
 Fonte: `REDESIGN:38-87`. Prioridade: A = atrapalha o jogo ou esconde função; B = confunde ou dá trabalho; C =
-acabamento. Lote = o do plano (`REDESIGN:89-117`) que resolve o item. R1, R2, R3, R4, R5a, R5b e R6a foram entregues.
+acabamento. Lote = o do plano (`REDESIGN:89-117`) que resolve o item. R1, R2, R3, R4, R5a, R5b, R6a e R6b foram entregues.
 
 | # | Resumo | Classe | Lote |
 |---|---|---|---|
@@ -108,7 +120,7 @@ Classes: A = 6 (1, 2, 4, 5, 9, 13), B = 13, C = 3 (11, 19, 22). Desde o R5a, 7, 
 ## 4. Perguntas e suposições esperando o "ok" dele
 
 **Total: 43 abertos em `PERGUNTAS`** (47 numerados; o 9, o 21, o 24 e o 34 já estão resolvidos) (a seção "Respondidas em 2026-11-10" não entra, nem o item riscado do
-nome). Mais **86 suposições "(assumido)"** (as 63 da parte B, mais as 12 do R5a e as 11 do R5b) que só aparecem no `ESTADO`/`REDESIGN` (parte B). Os que o texto
+nome). Mais **103 suposições "(assumido)"** (as 63 da parte B, mais as 12 do R5a, as 11 do R5b, as 8 do R6a e as 9 do R6b) que só aparecem no `ESTADO`/`REDESIGN` (parte B). Os que o texto
 marca "(assumido)" valem até ele dizer o contrário.
 
 ### A. Em `PERGUNTAS.md` (47 numerados, 44 abertos)
@@ -295,6 +307,8 @@ Redesign R5b (`REDESIGN`, "R5b — como ficou")
 132. "Próximo a conferir" dá a volta no fim; "Mostrar tudo" vira "Recolher o que está certo"
 133. O resumo da seção recolhida conta: atributos 12, perícias 18, números gerais 8 e, nas demais, o tamanho da lista ou o que veio preenchido
 
+R6a (8 suposições) e R6b (9 suposições): a lista está nas seções "Decisões (assumido)" de "R6a — como ficou" e "R6b — como ficou" no `REDESIGN`; as perguntas novas estão em `PERGUNTAS` ("Novas do R6a" e "Novas do R6b").
+
 Os itens 49 a 85 são 37; o R2 acrescenta os itens 86 a 92, o R2b os 93 a 96, o R3 os 97 a 103, o R4 os 104 a 111, o R5a os 112 a 123 e o R5b os 124 a 134. Deixei de fora as suposições puramente técnicas (por exemplo, onde mora o compêndio
 na tabela `meta`, o worker do pdf.js, tipos do Node no teste, idempotência de `desenho.apagar`).
 
@@ -402,40 +416,50 @@ Redesign R1
 - ~~Texto branco sobre cores de usuário claras (amarelo do mestre) no avatar~~: resolvido no R6a (texto branco ou preto pela luminância da cor, AA; `contrasteDeCor.ts`). (`ESTADO:1666`, `REDESIGN:167-168`)
 - ~~Os rótulos desenhados dentro do mapa não seguem o tema~~: decidido no R6a (assumido): continuam independentes do tema (o mapa é conteúdo) e têm contorno; conferidos sobre mapa claro e escuro. (`ESTADO:1667`, `REDESIGN:168`)
 
+Redesign R6b
+- Toque (celular) continua sem teste: o painel do token na coluna da direita, as janelas e as dicas só foram vistos com mouse e teclado. (`ESTADO`, "R6b", Frágil)
+- Em área apertada (altura da área < 900 px) o painel do token vai embaixo à direita e a ordem de turno, com o painel aberto, tem teto de ~340 px e o painel do token de ~245 px (rolam por dentro; com "Montar" aberta a lista da ordem mostra poucas linhas); quem redimensionou a ordem continua preso a esse teto enquanto o painel do token está aberto. Telas menores que 1280×720 não foram vistas. (`REDESIGN`, "R6b — como ficou")
+- A aba do painel, as janelas, os menus, as dicas e os avisos entram com 140 ms (`@keyframes entrada`, só opacidade e 4 px de deslocamento; nada no canvas). Sem animação de saída. Com `prefers-reduced-motion: reduce` nada anima; os E2E rodam assim (`reducedMotion: "reduce"` no Playwright) e um teste confere a diferença. (`ESTADO`, "R6b")
+- O aviso da pausa sem mestre só vem da presença que o cliente já tem: quem entra com a presença ainda vazia não é avisado (supõe mestre online até a presença chegar); "reconectando" conta como mestre fora. (`REDESIGN`, "R6b — como ficou")
+- Ainda com `title` nativo (decisão: não são botões muito usados): campos pequenos da ficha e do editor do item, os itens do menu de contexto da faixa de cenas (precisam de `disabled` de verdade), os textos informativos da faixa de cenas, o selo da pílula do mestre (`menu-pausa`) e o rótulo "Cor livre" do pincel. (`ESTADO`, "R6b")
+- Os rótulos dos tokens agora levam uma pílula escura translúcida (independente do tema); mapa de cor intermediária não foi visto. (`ESTADO`, "R6b")
+- Os prints: restam `auditoria` (o tour tela a tela), `r4`, `r5a`, `r5b`, `r6a` e `r6b`; os dos lotes 6 a 14 e `r1`, `r2`, `r2b` e `r3` foram apagados (só registravam a interface antiga). (`ESTADO`, "R6b")
+
 Redesign R6a
 - Espaço só deixa de arrastar a vista num botão em foco pelo teclado (`:focus-visible`); botão focado com o mouse continua com o Espaço do mapa. Conferido só no Chrome. (`ESTADO`, "R6a", Frágil)
 - O jogador não seleciona tokens: o Shift+F10 dele abre o menu do primeiro token que controla na cena (assumido). (`REDESIGN`, "R6a — como ficou")
 - A tecla de menu e o menu nativo do navegador: o menu nativo é suprimido por 700 ms depois que abrimos o nosso; só testado com Shift+F10 e ContextMenu enviados pelo Playwright, não com um teclado real. (`ESTADO`, "R6a", Frágil)
 - O mapa (canvas) agora recebe foco (`tabIndex=0`): Tab passa por ele; o anel aparece só no foco por teclado. (`REDESIGN`, "R6a — como ficou")
 - Os rótulos do mapa continuam fixos (claro com contorno preto), independentes do tema; mapa de cor intermediária não foi visto. (`ESTADO`, "R6a", Frágil)
-- Os prints antigos continuam quebrados (R6b); só `r4`, `r5a`, `r5b` e `r6a` rodam.
+- ~~Os prints antigos continuam quebrados~~: resolvido no R6b (os antigos foram apagados; o tour `auditoria` foi refeito).
+- ~~Rótulos do mapa fixos com contorno preto, borrados sobre mapa claro~~: resolvido no R6b (pílula escura translúcida).
 
 Redesign R5b
 - ~~A dica do item das Fichas é o `title` nativo~~: resolvido no R6a (dica comum). (`ESTADO`, "R5b", Frágil)
 - O "Usar o exemplo" que grava `compendio/magias.json` só foi testado com a "pasta" dos testes (a `Memoria`), não com a pasta real do Chrome (File System Access). (`ESTADO`, "R5b", Frágil)
 - O item das Fichas agora é arrastável pelo nome (botão `draggable`): testado no Chrome; Firefox e Safari tratam botão arrastável de outro jeito. (`ESTADO`, "R5b", Frágil)
-- Os prints antigos que usam `ordem-*` com o combate já em andamento (Montar vem recolhida) e os que clicam em "Confirmar importação" (agora "Criar a ficha" / "Substituir a ficha de X") podem não rodar mais (R6). (`ESTADO`, "R5b", Frágil)
+- ~~Os prints antigos que usam `ordem-*` e "Confirmar importação" podem não rodar mais~~: resolvido no R6b (apagados ou refeitos). (`ESTADO`, "R5b", Frágil)
 
 Redesign R5a
 - ~~O menu do token só existe para o mouse~~: desde o R6a abre com Shift+F10 ou a tecla de menu (a tocha vale por ele). A dica da alça da tocha continua só no mouse (a alça é do canvas e não recebe foco), e toque (celular) não foi testado. (`ESTADO`, "R5a", Frágil)
 - O aviso de erro sem origem (a sala avisando por conta própria) ficou no alto da área e só foi conferido por leitura; os E2E cobrem o aviso com origem. (`ESTADO`, "R5a", Frágil)
 - A origem do aviso é o último ponto do ponteiro até 1,5 s antes do envio, ou o campo com o foco: um erro que volta depois de outra ação do mouse pode aparecer perto do ponto errado. (`ESTADO`, "R5a", Frágil)
 - Clicar num marcador de condição abre a regra e não arrasta o token por ali; quem pega o token pela borda de baixo, onde os marcadores ficam, abre a regra em vez de arrastar. (`REDESIGN`, "R5a — como ficou")
-- Os prints antigos que clicam em `menu-token-condicoes` ou `menu-token-fechar` (r1, r2, lote-11, auditoria) não rodam mais: esses botões saíram. (`ESTADO`, "R5a", Frágil)
+- ~~Os prints antigos que clicam em `menu-token-condicoes` ou `menu-token-fechar` não rodam mais~~: resolvido no R6b (apagados ou refeitos). (`ESTADO`, "R5a", Frágil)
 - Entregar a tocha continua só por arrastar a alça até outro token (o menu do token não tem "Entregar"). (`REDESIGN`, "R5a — como ficou")
 
 Redesign R4
 - Os E2E só rodam com 1 worker (sala compartilhada): `--workers` maior dá falhas falsas. (`ESTADO`, "R4", Como rodar)
 - ~~A dica do menu do topo é própria do `MenuSuperior`~~: resolvido no R6a (uma dica só, `BotaoComDica`, com atalho). Ainda com `title` nativo: botões menores de fichas, fontes de luz, editor do item, ordem de turno, chat, faixa de cenas, cores do pincel e a alça do item das Fichas. (`ESTADO`, "R4", Frágil)
-- Os prints antigos (`e2e/prints/r1` a `r3` e os dos lotes) usam testids que não existem mais (`aba-configuracoes`, `lanterna-paredes`): só o `r4` roda. (`ESTADO`, "R4", Frágil)
+- ~~Os prints antigos (`r1` a `r3` e os dos lotes) usam testids que não existem mais~~: resolvido no R6b (apagados; o tour `auditoria` foi refeito). (`ESTADO`, "R4", Frágil)
 - O selo de modo existe só para Paredes e portas; luz e ponto não têm. (`ESTADO`, "R4", Frágil)
-- `PROJETO.md` ainda cita a aba "Configurações" e a aba do mestre em textos de lotes antigos (por exemplo `PROJETO:745`, `PROJETO:1017`, `PROJETO:1236`): hoje são as abas Preferências e Mesa.
+- ~~`PROJETO.md` ainda cita a aba "Configurações" e a aba do mestre~~: resolvido no R6b (os trechos ganharam "(hoje: Preferências / Mesa)").
 
 Redesign R3
 - Toque (celular) não testado: arrastar e redimensionar as janelas só foram testados com mouse. (`ESTADO`, "R3", Frágil)
-- Com ordem de turno, ficha e painel do token abertos em 1280×720 as três se sobrepõem em parte nas posições padrão; a última clicada fica por cima. (`ESTADO`, "R3", Frágil)
+- ~~Com ordem de turno, ficha e painel do token abertos em 1280×720 as três se sobrepõem~~: resolvido no R6b (painel do token na coluna da direita em área apertada). (`ESTADO`, "R3", Frágil)
 - A ficha sem tamanho guardado acompanha a área (60% da largura) e a ordem de turno tem altura máxima "área menos 80 px"; janelas de outros tamanhos de tela só foram vistas em 1600×900 e 1280×720. (`ESTADO`, "R3", Frágil)
-- A ficha abre com 520 px em 1280×720: a linha da classe se rearruma (subclasse embaixo), mas Raça, Antecedente e Alinhamento cortam o texto no campo. Fica para o R6. (`REDESIGN`, "R3 — como ficou")
+- ~~Raça, Antecedente e Alinhamento cortam o texto na ficha de 520 px~~: resolvido no R6b (os três campos empilham na ficha estreita). (`REDESIGN`, "R3 — como ficou")
 
 Redesign R2b
 - O mestre que perde a rede por mais de 5 s pausa a mesa para todos. (`ESTADO`, "R2b", Frágil)
@@ -443,8 +467,8 @@ Redesign R2b
 - `/teste/zerar` ignora o fechamento atrasado de sockets anteriores (`anterioresAoZerar` em `sala.ts`), para a pausa automática não pausar a mesa zerada do teste seguinte.
 
 Redesign R2
-- Ao mudar o tamanho da área (painel, janela) a vista do mapa fica ancorada no canto superior esquerdo; "Centralizar" resolve. (`ESTADO:1723`, `REDESIGN:244`)
-- A pílula do mestre muda de largura entre rodando e pausada, deslocando os avatares ao lado. (`ESTADO:1725`)
+- ~~Ao mudar o tamanho da área a vista do mapa fica ancorada no canto superior esquerdo~~: resolvido no R6b (a vista mantém o centro). (`ESTADO:1723`, `REDESIGN:244`)
+- ~~A pílula do mestre muda de largura entre rodando e pausada~~: resolvido no R6b (mesma largura; o espaço do jogador fica reservado). (`ESTADO:1725`)
 - Com 5 abas na largura mínima "Configurações" ocupava quase a linha. Ficou velho: desde o R4 são 6 abas (5 para o jogador) e elas cabem numa linha em 300 px, apertadas. (`ESTADO`, "R4")
 - ~~A lista do "+N" da presença não tem teste de foco por teclado~~: coberta no R6a (`teclado.spec.ts`). (`ESTADO:1724`)
 
@@ -505,7 +529,7 @@ planejados, mudam de escopo ou ficam com ele):
 - **R5, interações e fluxos** (dividido em **R5a**, mapa e tokens, e **R5b**, combate, fichas, compêndio e PDF; os dois entregues): Esc solta a seleção; criar token pede nome e lugar; tocha com dica e menu;
   condições com menos cliques; régua que fica; avisos perto do clique; ordem de turno compacta com Enter; ficha
   com um clique; estados vazios que orientam. Resolve 7, 8 (parte), 9–15, 18, 19.
-- **R6, polimento**: tela pequena (1280×720), foco e contraste (inclui o avatar e os rótulos do mapa),
+- **R6, polimento (entregue: R6a e R6b)**: tela pequena (1280×720), foco e contraste (inclui o avatar e os rótulos do mapa),
   atalhos nas dicas, transições discretas, revisão final dos prints nos 3 temas. Resolve 22 e o que sobrar.
 
 Cada lote termina com `pnpm verify` verde numa rodada (mais `--repeat-each=3` nos E2E novos), prints nos 3 temas,

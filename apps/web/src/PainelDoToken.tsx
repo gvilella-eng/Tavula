@@ -2,7 +2,13 @@ import type { Camada, Token, Usuario } from "@tabletop/shared";
 import { ImagePlus, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { PedirImagem } from "./FaixaDeCenas";
-import { noCanto } from "./janelas/geometria";
+import {
+  alturaDoTokenNaColuna,
+  apertada,
+  MARGEM,
+  noCanto,
+  RESERVA_DO_ZOOM,
+} from "./janelas/geometria";
 import { Janela } from "./janelas/Janela";
 
 type Props = {
@@ -42,7 +48,13 @@ export function PainelDoToken({ token, jogadores, enviar, pedirImagem, aoFechar 
       testid="painel-token"
       dados={{ "data-token-id": token.id }}
       classeDoCorpo="painel-token"
-      padrao={noCanto("baixo-esquerda")}
+      // Embaixo à esquerda; numa área apertada (1280×720) vai para a coluna da direita, embaixo da ordem de turno.
+      padrao={(area, janela) =>
+        apertada(area)
+          ? noCanto("baixo-direita", MARGEM, RESERVA_DO_ZOOM)(area, janela)
+          : noCanto("baixo-esquerda")(area, janela)
+      }
+      alturaMaxima={(area) => (apertada(area) ? `${alturaDoTokenNaColuna(area)}px` : undefined)}
       largura={236}
       aoFechar={aoFechar}
       rotuloDoFechar="Fechar"

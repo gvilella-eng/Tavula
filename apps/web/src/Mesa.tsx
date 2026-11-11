@@ -133,6 +133,7 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
     presenca,
     uso,
     aviso,
+    avisar,
     dispensarAviso,
     preparos,
     chatTemMais,
@@ -229,6 +230,19 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
   const euId = eu?.id;
 
   const euMestre = eu?.papel === "mestre";
+  // Algum mestre online? Enquanto a presença não chegou, supõe que sim (para não avisar à toa).
+  const mestreOnline =
+    Object.keys(presenca).length === 0 ||
+    (estado?.usuarios.some((u) => u.papel === "mestre" && presenca[u.id] === "online") ?? true);
+  // Pausa automática (R2b) vista por quem joga: pausada e sem mestre online. Na hora em que isso acontece, um aviso.
+  const pausadaSemMestre = !euMestre && estado?.relogio.pausada === true && !mestreOnline;
+  const avisouSemMestre = useRef(false);
+  useEffect(() => {
+    if (pausadaSemMestre && !avisouSemMestre.current) {
+      avisar("Mesa pausada: o mestre saiu. Ela volta quando o mestre retomar.");
+    }
+    avisouSemMestre.current = pausadaSemMestre;
+  }, [pausadaSemMestre, avisar]);
   // O tempo restante das luzes e o relógio da sala: a sala manda, a tela só anima entre os envios.
   const tempo = useTempoDaSala(estado);
   const permissoes = estado?.permissoes;
@@ -1056,6 +1070,7 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
                 enviar(estado.relogio.pausada ? "mesa.retomar" : "mesa.pausar", {})
               }
               salaMs={tempo.salaMs}
+              mestreOnline={mestreOnline}
             />
           </Topo>
           <BarraDeFerramentas
@@ -1219,6 +1234,9 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
                 enviar={enviar}
                 selecionadoId={selecionadoId}
                 somenteLeitura={usuarioVisto !== null}
+                dividirColuna={
+                  modoMestre && ferramenta !== "paredes" && !!selecionado && painelDoTokenAberto
+                }
               />
             )}
             {modoMestre && ferramenta === "paredes" && (

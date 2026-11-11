@@ -18,12 +18,13 @@ import { abrirPincel, escolherNoPincel } from "../tests/ajudasDesenho";
 import { type AbaDaFicha, abrirFicha, criarDarion, DARION_ID, mandar } from "../tests/ajudasFicha";
 import { entrarNoMapa, type GanchoDoMapa, pontoNaPagina } from "../tests/ajudasMapa";
 
-// Auditoria de usabilidade: um conjunto completo de prints da interface atual (mestre e jogador), antes
-// do redesign. Só CAPTURA: não corrige nem opina. Fora do `pnpm verify`:
+// Tour tela a tela da interface atual (mestre e jogador): a revisão final do redesign (R6b). Nasceu como a
+// auditoria de antes do redesign e foi atualizado para a interface de hoje. Só CAPTURA. Fora do `pnpm verify`:
 //   PRINTS_DIR=<pasta> pnpm --filter @tabletop/e2e prints auditoria
-// Os testes montam a mesma campanha de demonstração (mapa, 3 PJs, o Darion, NPCs, tocha, combate na
-// rodada 2, desenhos, chat, compêndio) e tiram os prints; o que falhar vai para a lista final, sem
-// derrubar o resto.
+// Roda em Grimório 1600×900 e 1280×720 e em Edgerunner e Pergaminho 1280×720 (um teste por combinação; os nomes dos
+// prints levam o prefixo "<tema>-<tamanho>-"). Cada combinação monta a campanha de demonstração (mapa, 3 PJs, o
+// Darion, NPCs, tocha, combate na rodada 2, desenhos, chat, compêndio) e tira os prints; o que falhar vai para a
+// lista final, sem derrubar o resto. TOUR=<tema>-<tamanho> roda só uma combinação.
 
 const PASTA = process.env.PRINTS_DIR;
 if (!PASTA) throw new Error("Defina PRINTS_DIR (a pasta onde os prints serão gravados).");
@@ -35,18 +36,28 @@ const SRD = readFileSync(
 );
 const PDF = fileURLToPath(new URL("../../fixtures/fichas/darion.pdf", import.meta.url));
 
-const test = base.extend<{ grande: Mesa; pequena: Mesa }>({
-  grande: async ({ browser, zerado: _ }, use) => {
-    const mesa = new Mesa(browser, { viewport: { width: 1600, height: 900 } });
-    await use(mesa);
-    await mesa.fechar();
-  },
-  pequena: async ({ browser, zerado: _ }, use) => {
-    const mesa = new Mesa(browser, { viewport: { width: 1280, height: 720 } });
-    await use(mesa);
-    await mesa.fechar();
-  },
-});
+const test = base;
+
+const COMBINACOES = [
+  { tema: "grimorio", tamanho: "1600x900", width: 1600, height: 900 },
+  { tema: "grimorio", tamanho: "1280x720", width: 1280, height: 720 },
+  { tema: "escuro", tamanho: "1280x720", width: 1280, height: 720 },
+  { tema: "claro", tamanho: "1280x720", width: 1280, height: 720 },
+] as const;
+
+/** O prefixo dos prints e o tema da combinação em andamento (os testes rodam em série, 1 worker). */
+let prefixo = "";
+let temaAtual = "grimorio";
+
+/** Entra no mapa e escolhe o tema da combinação (a preferência é de cada navegador). */
+async function entrar(mesa: Mesa, usuario: string) {
+  const s = await entrarNoMapa(mesa, usuario);
+  await s.pagina.getByTestId("aba-preferencias").click();
+  await s.pagina.getByTestId(`tema-${temaAtual}`).check({ force: true });
+  await expect(s.pagina.locator("html")).toHaveAttribute("data-tema", temaAtual);
+  await s.pagina.getByTestId("aba-chat").click();
+  return s;
+}
 
 // ---------------------------------------------------------------------------------------------
 // Fotos e o relatório do que não deu certo
@@ -57,7 +68,7 @@ const falhas: string[] = [];
 
 async function foto(p: Page, nome: string, espera = 500) {
   await p.waitForTimeout(espera);
-  await p.screenshot({ path: join(PASTA as string, `${nome}.png`) });
+  await p.screenshot({ path: join(PASTA as string, `${prefixo}${nome}.png`) });
   tiradas.push(nome);
 }
 
@@ -68,7 +79,7 @@ async function recorte(
   area: { x: number; y: number; width: number; height: number },
 ) {
   await p.waitForTimeout(500);
-  await p.screenshot({ path: join(PASTA as string, `${nome}.png`), clip: area });
+  await p.screenshot({ path: join(PASTA as string, `${prefixo}${nome}.png`), clip: area });
   tiradas.push(nome);
 }
 
@@ -317,10 +328,10 @@ type Campanha = {
  */
 async function montar(mesa: Mesa, request: APIRequestContext): Promise<Campanha> {
   expect((await request.post("/teste/dados?semente=5")).ok()).toBe(true);
-  const ms = await entrarNoMapa(mesa, "mestre");
+  const ms = await entrar(mesa, "mestre");
   const m = ms.pagina;
-  const s1 = await entrarNoMapa(mesa, "jogador-1");
-  const s2 = await entrarNoMapa(mesa, "jogador-2");
+  const s1 = await entrar(mesa, "jogador-1");
+  const s2 = await entrar(mesa, "jogador-2");
   const j1 = s1.pagina;
   const j2 = s2.pagina;
 
@@ -419,11 +430,10 @@ async function montar(mesa: Mesa, request: APIRequestContext): Promise<Campanha>
   // condições na Brisa, pelo menu do token (botão direito)
   await enquadrar(m, 14.25, 11.25, 1.6, 215);
   await menuDoToken(m, "tok-jogador-2", 38);
-  await m.getByTestId("menu-token-condicoes").click();
   await m.getByTestId("condicao-amedrontado").click();
   await m.getByTestId("condicao-envenenado").click();
   await m.getByTestId("exaustao-1").click();
-  await m.getByTestId("menu-token-fechar").click();
+  await m.keyboard.press("Escape");
 
   // combate: iniciativas, e a vez do Aldric na rodada 2
   await mandar(m, "combate.adicionar", {
@@ -505,17 +515,15 @@ async function montar(mesa: Mesa, request: APIRequestContext): Promise<Campanha>
 // 1. Entrada, mesa ao entrar, estados vazios, aviso
 // ---------------------------------------------------------------------------------------------
 
-test("auditoria 00-09: entrada, mesa ao entrar, estados vazios e aviso (mesa recém-criada)", async ({
-  grande,
-}) => {
-  test.setTimeout(240_000);
+/** 00-09: entrada, mesa ao entrar, estados vazios e aviso (mesa recém-criada). */
+async function parteEntrada(grande: Mesa) {
   const pg = await grande.abrir();
   await pg.pagina.goto("/");
   await expect(pg.pagina.getByTestId("lista-usuarios")).toBeVisible();
   await foto(pg.pagina, "00-entrada-escolher-usuario");
 
-  const mestre = await entrarNoMapa(grande, "mestre");
-  const j1 = await entrarNoMapa(grande, "jogador-1");
+  const mestre = await entrar(grande, "mestre");
+  const j1 = await entrar(grande, "jogador-1");
   await foto(mestre.pagina, "01-mesa-ao-entrar-mestre");
   await foto(j1.pagina, "01-mesa-ao-entrar-jogador");
 
@@ -529,7 +537,7 @@ test("auditoria 00-09: entrada, mesa ao entrar, estados vazios e aviso (mesa rec
 
   // fichas vazias: um jogador sem nenhum personagem
   await tentar("03 fichas vazias", async () => {
-    const j5 = await entrarNoMapa(grande, "jogador-5");
+    const j5 = await entrar(grande, "jogador-5");
     await abrirAba(j5.pagina, "fichas");
     await foto(j5.pagina, "03-fichas-vazio-jogador-sem-personagem");
     await abrirAba(j5.pagina, "chat");
@@ -558,19 +566,14 @@ test("auditoria 00-09: entrada, mesa ao entrar, estados vazios e aviso (mesa rec
     await mestre.pagina.getByTestId("menu-cenas").click();
     await foto(mestre.pagina, "06-faixa-de-cenas-com-cena-nova-mestre", 500);
   });
-});
+}
 
 // ---------------------------------------------------------------------------------------------
 // 2. A mesa em jogo, o menu superior e a barra de ferramentas
 // ---------------------------------------------------------------------------------------------
 
-test("auditoria 10-29: mesa em jogo, menu superior e barra de ferramentas", async ({
-  grande,
-  request,
-}) => {
-  test.setTimeout(420_000);
-  const { mestre: m, j1, j2 } = await montar(grande, request);
-
+/** 10-29: mesa em jogo, menu superior e barra de ferramentas. */
+async function parteMesaEmJogo({ mestre: m, j1, j2 }: Campanha) {
   await foto(m, "10-mesa-em-jogo-mestre");
   await foto(j1, "10-mesa-em-jogo-jogador-aldric");
   await foto(j2, "10-mesa-em-jogo-jogador-brisa");
@@ -589,9 +592,9 @@ test("auditoria 10-29: mesa em jogo, menu superior e barra de ferramentas", asyn
     await limparTela(m);
   });
   await tentar("13 visao noturna", async () => {
-    await m.getByTestId("menu-visao-noturna").click({ button: "right" });
+    await m.getByTestId("menu-ver-como").click();
     await expect(m.getByTestId("ver-como")).toBeVisible();
-    await foto(m, "13-menu-visao-noturna-ver-como-clique-direito-mestre");
+    await foto(m, "13-menu-ver-como-lista-mestre");
     await m.getByTestId("ver-como-jogador-2").click();
     await expect(m.getByTestId("ver-como-selo")).toBeVisible();
     await foto(m, "13-ver-como-jogador-2-mestre");
@@ -602,40 +605,45 @@ test("auditoria 10-29: mesa em jogo, menu superior e barra de ferramentas", asyn
   });
   await tentar("14 novo token", async () => {
     await m.getByTestId("novo-token").click();
-    await expect(m.getByTestId("painel-token")).toBeVisible();
-    await foto(m, "14-menu-novo-token-apos-clicar-mestre");
-    await m.getByTestId("token-apagar").click(); // limpa o token de teste para os próximos prints
-    await expect(m.getByTestId("painel-token")).toHaveCount(0);
-  });
-  await tentar("15 eventos", async () => {
-    await m.getByTestId("menu-eventos").click();
-    await expect(m.getByTestId("painel-eventos")).toBeVisible();
-    await foto(m, "15-menu-eventos-automacoes-em-breve-mestre");
-    await limparTela(m);
+    await expect(m.getByTestId("novo-token-janela")).toBeVisible();
+    await m.getByTestId("novo-token-nome").fill("Goblin 7");
+    await foto(m, "14-novo-token-formulario-mestre");
+    await m.getByTestId("novo-token-nome").press("Enter");
+    await expect(m.getByTestId("modo-pondo-token-selo")).toBeVisible();
+    await m.mouse.move(700, 450, { steps: 4 });
+    await foto(m, "14-novo-token-modo-de-por-mestre");
+    await m.keyboard.press("Escape");
+    await expect(m.getByTestId("modo-pondo-token-selo")).toHaveCount(0);
   });
   await tentar("16 iluminacao", async () => {
     await m.getByTestId("menu-iluminacao").click();
     await expect(m.getByTestId("lanterna")).toBeVisible();
-    await foto(m, "16-menu-iluminacao-lista-mestre");
+    await foto(m, "16-menu-luz-lista-mestre");
     await limparTela(m);
   });
   await tentar("17 ordem de turno", async () => {
     await foto(m, "17-ordem-de-turno-mestre-rodada-2");
     await foto(j1, "17-ordem-de-turno-jogador-aldric-na-vez");
     await foto(j2, "17-ordem-de-turno-jogador-brisa-fora-da-vez");
-    await recorte(m, "17-ordem-de-turno-mestre-recorte", { x: 0, y: 0, width: 520, height: 900 });
+    await janelaFoto(m, "ordem", "17-ordem-de-turno-mestre-janela");
   });
   await tentar("18 pausa", async () => {
     await m.getByTestId("menu-pausa").click();
-    await expect(j1.getByTestId("selo-pausa")).toBeVisible();
+    await expect(j1.getByTestId("estado-mesa-selo")).toBeVisible();
     await foto(m, "18-pausa-mesa-pausada-mestre");
     await foto(j1, "18-pausa-mesa-pausada-jogador");
-    await recorte(m, "18-pausa-relogio-recorte", { x: 450, y: 0, width: 700, height: 80 });
+    await m
+      .getByTestId("topo")
+      .screenshot({ path: join(PASTA as string, `${prefixo}18-pausa-topo-mestre.png`) });
+    await j1
+      .getByTestId("topo")
+      .screenshot({ path: join(PASTA as string, `${prefixo}18-pausa-topo-jogador.png`) });
     await m.getByTestId("menu-pausa").click();
+    await expect(j1.getByTestId("estado-mesa-selo")).toHaveCount(0);
   });
 
   // ---- barra de ferramentas (esquerda): o painel da ordem sai do caminho no mestre ----
-  await m.getByTestId("menu-ordem-turno").click();
+  await ordem(m, false);
   await tentar("20 barra visao geral", async () => {
     await recorte(m, "20-barra-de-ferramentas-recorte-mestre", {
       x: 0,
@@ -648,14 +656,17 @@ test("auditoria 10-29: mesa em jogo, menu superior e barra de ferramentas", asyn
     await m.getByTestId("ferramenta-selecionar").click();
     const alvo = await pontoNaPagina(m, 14.25, 11.25);
     await m.mouse.click(alvo.x, alvo.y);
+    await foto(m, "21-ferramenta-selecionar-token-selecionado-mestre");
+    await m.mouse.dblclick(alvo.x, alvo.y); // dois cliques abrem o painel do token
     await expect(m.getByTestId("painel-token")).toBeVisible();
-    await foto(m, "21-ferramenta-selecionar-token-e-painel-do-token-mestre");
-    await m.mouse.click(900, 760); // clique no vazio solta a seleção
+    await foto(m, "21-painel-do-token-mestre");
+    await m.keyboard.press("Escape"); // Esc solta a seleção e fecha o painel
+    await expect(m.getByTestId("painel-token")).toHaveCount(0);
     // o jogador seleciona o próprio token
     const aldric = await pontoNaPagina(j1, 11.25, 9.75);
     await j1.mouse.click(aldric.x, aldric.y);
     await foto(j1, "21-ferramenta-selecionar-token-proprio-jogador");
-    await j1.mouse.click(aldric.x + 300, aldric.y + 300);
+    await j1.keyboard.press("Escape");
   });
   await tentar("22 mao", async () => {
     await m.getByTestId("ferramenta-mao").click();
@@ -705,25 +716,21 @@ test("auditoria 10-29: mesa em jogo, menu superior e barra de ferramentas", asyn
     await foto(j1, "25-ferramenta-pincel-subbarra-jogador");
     await j1.getByTestId("pincel-fechar").click();
   });
-});
+}
 
 // ---------------------------------------------------------------------------------------------
 // 3. Painel lateral e menus de contexto
 // ---------------------------------------------------------------------------------------------
 
-test("auditoria 30-39: painel lateral (cada aba, mestre e jogador), recolhido e menus de contexto", async ({
-  grande,
-  request,
-}) => {
-  test.setTimeout(420_000);
-  const { mestre: m, j1, j2 } = await montar(grande, request);
-  await m.getByTestId("menu-ordem-turno").click(); // o painel da ordem cobriria o mapa do mestre
+/** 30-39: painel lateral (cada aba, mestre e jogador), recolhido e menus de contexto. */
+async function partePainelEMenus({ mestre: m, j1, j2 }: Campanha) {
+  await ordem(m, false); // o painel da ordem cobriria o mapa do mestre
 
   for (const [p, quem] of [
     [m, "mestre"],
     [j1, "jogador"],
   ] as const) {
-    for (const aba of ["chat", "fichas", "compendio", "configuracoes", "mestre"]) {
+    for (const aba of ["chat", "fichas", "notas", "compendio", "preferencias", "mesa"]) {
       await tentar(`30 aba ${aba} ${quem}`, async () => {
         if ((await p.getByTestId(`aba-${aba}`).count()) === 0) {
           falhas.push(`(esperado) aba "${aba}" não existe para ${quem}`);
@@ -758,8 +765,8 @@ test("auditoria 30-39: painel lateral (cada aba, mestre e jogador), recolhido e 
     await foto(m, "31-lateral-recolhida-mestre");
     await recolherLateral(j1);
     await foto(j1, "31-lateral-recolhida-jogador");
-    await m.getByTestId("lateral-recolher").click();
-    await j1.getByTestId("lateral-recolher").click();
+    await m.getByTestId("aba-chat").click();
+    await j1.getByTestId("aba-chat").click();
   });
 
   // ---- menus de contexto ----
@@ -770,9 +777,9 @@ test("auditoria 30-39: painel lateral (cada aba, mestre e jogador), recolhido e 
     await menuDoToken(m, "tok-jogador-2", 38);
     await expect(m.getByTestId("menu-token")).toBeVisible();
     await foto(m, "32-menu-de-contexto-token-mestre");
-    await m.getByTestId("menu-token-condicoes").click();
-    await foto(m, "33-menu-de-contexto-token-condicoes-mestre");
-    await m.getByTestId("menu-token-fechar").click();
+    await m.getByTestId("condicao-cego").focus();
+    await foto(m, "33-menu-de-contexto-token-condicao-em-foco-mestre");
+    await limparTela(m);
   });
   await tentar("32 menu do token jogador", async () => {
     await enquadrar(j1, 11.25, 9.75, 1.6, 215);
@@ -811,19 +818,14 @@ test("auditoria 30-39: painel lateral (cada aba, mestre e jogador), recolhido e 
     await m.getByTestId("menu-cenas").click();
   });
   void j2;
-});
+}
 
 // ---------------------------------------------------------------------------------------------
 // 4. Janela da ficha e importação de PDF
 // ---------------------------------------------------------------------------------------------
 
-test("auditoria 40-59: janela da ficha (cada aba), ficha de NPC e importação de PDF", async ({
-  grande,
-  request,
-}) => {
-  test.setTimeout(420_000);
-  const { mestre: m, j1 } = await montar(grande, request);
-
+/** 40-59: janela da ficha (cada aba), ficha de NPC e importação de PDF. */
+async function parteFichas({ mestre: m, j1 }: Campanha) {
   const abas: AbaDaFicha[] = [
     "principal",
     "magias",
@@ -893,25 +895,23 @@ test("auditoria 40-59: janela da ficha (cada aba), ficha de NPC e importação d
       await m.getByTestId("revisao-confirmar").click();
       await expect(m.getByTestId("revisao-sobrescrever")).toBeVisible();
       await foto(m, "55-importar-pdf-confirmacao-de-sobrescrever-mestre");
+      await m.getByTestId("revisao-sobrescrever-nao").click();
+      await m.getByTestId("revisao-cancelar").click();
+      await expect(m.getByTestId("revisao-pdf")).toHaveCount(0);
     });
   });
-});
+}
 
 // ---------------------------------------------------------------------------------------------
 // 5. Paredes, luz, escuro e o editor de cena
 // ---------------------------------------------------------------------------------------------
 
-test("auditoria 60-79: paredes, fontes de luz, iluminação, editor de cena e o escuro", async ({
-  grande,
-  request,
-}) => {
-  test.setTimeout(420_000);
-  const { mestre: m, j1, j2 } = await montar(grande, request);
-  await m.getByTestId("menu-ordem-turno").click(); // o painel da ordem cobriria o mapa do mestre
+/** 60-79: paredes, fontes de luz, iluminação, editor de cena e o escuro. */
+async function parteLuz({ mestre: m, j1, j2 }: Campanha, grande: Mesa) {
+  await ordem(m, false); // o painel da ordem cobriria o mapa do mestre
 
   await tentar("60 modo paredes desenhando", async () => {
-    await m.getByTestId("menu-iluminacao").click();
-    await m.getByTestId("lanterna-paredes").click();
+    await m.getByTestId("ferramenta-paredes").click();
     await expect(m.getByTestId("painel-paredes")).toBeVisible();
     await foto(m, "60-modo-de-paredes-painel-aberto-mestre");
     await enquadrar(m, 19, 12, 1);
@@ -926,16 +926,15 @@ test("auditoria 60-79: paredes, fontes de luz, iluminação, editor de cena e o 
     await foto(m, "62-modo-de-paredes-apos-desenhar-mestre");
     await m.getByTestId("parede-novo-porta").click();
     await foto(m, "63-modo-de-paredes-tipo-porta-mestre");
-    await m.getByTestId("paredes-fechar").click();
+    await m.getByTestId("ferramenta-selecionar").click();
   });
   await tentar("64 selecionar porta no mapa", async () => {
-    await m.getByTestId("menu-iluminacao").click();
-    await m.getByTestId("lanterna-paredes").click();
+    await m.getByTestId("ferramenta-paredes").click();
     await enquadrar(m, 11.25, 24, 1.4);
     const porta = await pontoNaPagina(m, 11.25, 24);
     await m.mouse.click(porta.x, porta.y);
     await foto(m, "64-modo-de-paredes-porta-selecionada-mestre");
-    await m.getByTestId("paredes-fechar").click();
+    await m.getByTestId("ferramenta-selecionar").click();
   });
   await tentar("65 fontes de luz", async () => {
     await m.getByTestId("menu-iluminacao").click();
@@ -964,8 +963,10 @@ test("auditoria 60-79: paredes, fontes de luz, iluminação, editor de cena e o 
     await m.getByTestId("menu-cenas").click();
   });
   await tentar("68 configuracoes da mesa e modelos de tocha", async () => {
-    await abrirAba(m, "configuracoes");
-    await foto(m, "68-configuracoes-da-mesa-modelos-de-tocha-mestre");
+    await m.getByTestId("menu-iluminacao").click();
+    await m.getByTestId("lanterna-modelos").click();
+    await expect(m.getByTestId("config-objetos")).toBeVisible();
+    await foto(m, "68-aba-mesa-modelos-de-tocha-mestre");
     const modelo = m.getByTestId("modelo-modelo-tocha");
     await modelo.locator("summary").click();
     await modelo.scrollIntoViewIfNeeded();
@@ -985,7 +986,7 @@ test("auditoria 60-79: paredes, fontes de luz, iluminação, editor de cena e o 
     await m.getByTestId("menu-visao-noturna").click();
   });
   await tentar("73 memoria do mapa", async () => {
-    const j3 = await entrarNoMapa(grande, "jogador-3");
+    const j3 = await entrar(grande, "jogador-3");
     const p = j3.pagina;
     await recolherLateral(p);
     await levar(m, "tok-jogador-3", 11.25, 29.25);
@@ -1006,44 +1007,98 @@ test("auditoria 60-79: paredes, fontes de luz, iluminação, editor de cena e o 
     await enquadrar(m, 11.25, 24, 1);
     await foto(m, "74-memoria-do-mapa-mesma-cena-visao-do-mestre");
   });
-});
+}
 
 // ---------------------------------------------------------------------------------------------
 // 6. Tela pequena (1280×720)
 // ---------------------------------------------------------------------------------------------
 
-test("auditoria 90-99: tela pequena 1280x720", async ({ pequena, request }) => {
-  test.setTimeout(420_000);
-  const { mestre: m, j1 } = await montar(pequena, request);
+/** 90-99: janelas juntas e o que depende do tamanho da tela. */
+/** Seleciona o Cael e abre o painel dele com dois cliques (o mapa está livre de janelas). */
+async function abrirPainelDoTokenDoMestre(m: Page) {
+  await m.getByTestId("ferramenta-selecionar").click();
+  const alvo = await pontoNaPagina(m, 12.75, 12.75);
+  await m.mouse.dblclick(alvo.x, alvo.y);
+  await expect(m.getByTestId("painel-token")).toBeVisible();
+}
 
-  await tentar("90 mesa em jogo", async () => {
-    await abrirAba(m, "chat");
-    await foto(m, "90-pequena-1280-mesa-em-jogo-mestre");
-    await foto(j1, "90-pequena-1280-mesa-em-jogo-jogador");
-  });
-  await tentar("91 ficha aberta", async () => {
+/** Foto só da janela flutuante. */
+async function janelaFoto(p: Page, id: string, nome: string) {
+  const el = p.getByTestId(`janela-${id}`);
+  await el.screenshot({ path: join(PASTA as string, `${prefixo}${nome}.png`) });
+  tiradas.push(nome);
+}
+
+async function parteJanelas({ mestre: m, j1 }: Campanha) {
+  await ordem(m, true);
+
+  await tentar("90 painel do token, ordem e ficha juntos", async () => {
+    await abrirPainelDoTokenDoMestre(m);
     await abrirFicha(m, DARION_ID, "principal");
-    await foto(m, "91-pequena-1280-ficha-aberta-mestre");
-    await m.getByTestId("ficha-aba-magias").click();
-    await foto(m, "91-pequena-1280-ficha-aba-magias-mestre");
+    await foto(m, "90-janelas-ordem-ficha-e-token-juntas-mestre");
+  });
+  await tentar("91 ficha nas abas", async () => {
+    for (const aba of ["magias", "equipamento"] as const) {
+      await m.getByTestId(`ficha-aba-${aba}`).click();
+      await foto(m, `91-janelas-ficha-aba-${aba}-mestre`);
+    }
     await m.getByTestId("janela-ficha-fechar").click();
+    await m.keyboard.press("Escape");
+  });
+  await tentar("92 ficha do jogador com a ordem", async () => {
     await abrirFicha(j1, DARION_ID, "principal");
-    await foto(j1, "91-pequena-1280-ficha-aberta-jogador");
+    await foto(j1, "92-janelas-ficha-e-ordem-jogador");
     await j1.getByTestId("janela-ficha-fechar").click();
   });
-  await tentar("92 painel de fichas", async () => {
-    await abrirAba(m, "fichas");
-    await foto(m, "92-pequena-1280-painel-de-fichas-mestre");
-    await abrirAba(j1, "fichas");
-    await foto(j1, "92-pequena-1280-painel-de-fichas-jogador");
-  });
-  await tentar("93 ordem de turno", async () => {
-    await foto(m, "93-pequena-1280-ordem-de-turno-mestre");
-    await foto(j1, "93-pequena-1280-ordem-de-turno-jogador");
-  });
-  await tentar("94 menu superior", async () => {
+  await tentar("93 menu de luz", async () => {
     await m.getByTestId("menu-iluminacao").click();
-    await foto(m, "94-pequena-1280-menu-iluminacao-mestre");
+    await foto(m, "93-janelas-menu-luz-mestre");
     await limparTela(m);
   });
-});
+}
+
+/** Liga ou desliga o painel da ordem de turno do mestre (ele cobriria o mapa em alguns prints). */
+async function ordem(m: Page, ligada: boolean) {
+  const botao = m.getByTestId("menu-ordem-turno");
+  if (((await botao.getAttribute("aria-pressed")) === "true") !== ligada) await botao.click();
+  if (ligada) await expect(m.getByTestId("ordem-de-turno")).toBeVisible();
+  else await expect(m.getByTestId("ordem-de-turno")).toHaveCount(0);
+}
+
+// ---------------------------------------------------------------------------------------------
+// Uma combinação (tema × tamanho) por teste: a mesa vazia, depois a campanha montada e as partes em série
+// ---------------------------------------------------------------------------------------------
+
+for (const c of COMBINACOES) {
+  const rotulo = `${c.tema}-${c.tamanho}`;
+  if (process.env.TOUR && process.env.TOUR !== rotulo) continue;
+  test(`tour ${rotulo}`, async ({ browser, request }) => {
+    test.setTimeout(1_500_000);
+    temaAtual = c.tema;
+    prefixo = `${rotulo}-`;
+    const viewport = { width: c.width, height: c.height };
+
+    // a mesa recém-criada (entrada, estados vazios, aviso)
+    const vazia = new Mesa(browser, { viewport });
+    try {
+      expect((await request.post("/teste/zerar")).ok()).toBe(true);
+      await parteEntrada(vazia);
+    } finally {
+      await vazia.fechar();
+    }
+
+    // a campanha montada: tudo o que não estraga o estado e, por último, o que estraga (paredes, tokens movidos)
+    const mesa = new Mesa(browser, { viewport });
+    try {
+      expect((await request.post("/teste/zerar")).ok()).toBe(true);
+      const campanha = await montar(mesa, request);
+      await parteMesaEmJogo(campanha);
+      await partePainelEMenus(campanha);
+      await parteFichas(campanha);
+      await parteJanelas(campanha);
+      await parteLuz(campanha, mesa);
+    } finally {
+      await mesa.fechar();
+    }
+  });
+}

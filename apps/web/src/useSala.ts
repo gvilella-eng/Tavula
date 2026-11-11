@@ -255,6 +255,17 @@ export function useSala(opcoes: Opcoes) {
     return () => clearTimeout(t);
   }, [aviso]);
 
+  /** Um aviso da própria tela (sem origem: aparece no alto da área do mapa), por exemplo a pausa sem mestre. */
+  const avisar = useCallback((texto: string) => {
+    setAviso({
+      numero: ++contadorDeAvisos.current,
+      texto,
+      codigo: null,
+      origem: null,
+      duracaoMs: duracaoDoAviso(texto),
+    });
+  }, []);
+
   /** Um clique no aviso o dispensa. */
   const dispensarAviso = useCallback(() => setAviso(null), []);
 
@@ -301,6 +312,7 @@ export function useSala(opcoes: Opcoes) {
     presenca,
     uso,
     aviso,
+    avisar,
     dispensarAviso,
     preparos,
     chatTemMais,

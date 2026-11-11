@@ -410,7 +410,7 @@ test("o teclado move a janela com o cabeçalho focado (Shift anda mais), Esc nã
   await expect(janela(p, "ordem")).not.toHaveAttribute("aria-modal", "true");
 });
 
-test("em 1280×720 a ficha abre inteira dentro da área, a segunda desloca em cascata e o painel do token fica embaixo à esquerda", async ({
+test("em 1280×720 a ficha abre inteira dentro da área, a segunda desloca em cascata e o painel do token fica embaixo à direita", async ({
   mesa,
 }) => {
   test.setTimeout(90_000);
@@ -437,15 +437,16 @@ test("em 1280×720 a ficha abre inteira dentro da área, a segunda desloca em ca
   expect(c2.x - c1.x).toBeGreaterThanOrEqual(24);
   expect(c2.y - c1.y).toBeGreaterThanOrEqual(24);
 
-  // painel do token embaixo à esquerda
+  // painel do token embaixo à direita (R6b: numa área apertada ele vai para a coluna da ordem de turno, acima do zoom)
   await f2.getByTestId("janela-ficha-fechar").click();
   await f1.getByTestId("janela-ficha-fechar").click();
   await selecionarToken(p, "tok-jogador-1");
   await expect(p.getByTestId("painel-token")).toBeVisible();
   const t = await caixa(janela(p, "token"));
   expect(dentro(t, a)).toBe(true);
-  expect(t.x - a.x).toBeLessThanOrEqual(13);
-  expect(a.y + a.height - (t.y + t.height)).toBeLessThanOrEqual(13);
+  expect(a.x + a.width - (t.x + t.width)).toBeLessThanOrEqual(13);
+  expect(a.y + a.height - (t.y + t.height)).toBeLessThanOrEqual(65);
+  expect(a.y + a.height - (t.y + t.height)).toBeGreaterThanOrEqual(60);
 });
 
 test("paredes, fontes de luz, iluminação e dados rápidos abrem dentro da área, em lugares diferentes, e fecham pelo X", async ({

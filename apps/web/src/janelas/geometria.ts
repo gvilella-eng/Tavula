@@ -33,6 +33,27 @@ export function noCanto(canto: Canto, dx = MARGEM, dy = MARGEM): Padrao {
   });
 }
 
+/**
+ * Área "apertada" (R6b): baixa demais para a ordem de turno, a ficha e o painel do token ficarem sem se cobrir
+ * (1280×720 dá uma área de ~670 px de altura). Nela o painel do token vai para a coluna da direita, embaixo da
+ * ordem de turno, e os dois dividem a altura da coluna.
+ */
+export const ALTURA_APERTADA = 900;
+export const apertada = (area: Tam) => area.altura < ALTURA_APERTADA;
+
+/** Folga embaixo, na coluna da direita, para o controle de zoom (canto da área). */
+export const RESERVA_DO_ZOOM = 64;
+
+/** A altura que sobra na coluna da direita, numa área apertada, para a ordem de turno e o painel do token juntos. */
+function alturaDaColuna(area: Tam): number {
+  return Math.max(400, area.altura - MARGEM - RESERVA_DO_ZOOM - MARGEM);
+}
+
+/** A ordem de turno fica com a maior parte da coluna (é a que se olha o tempo todo); o painel do token, com o resto (rola por dentro). */
+export const alturaDaOrdemNaColuna = (area: Tam): number => Math.round(alturaDaColuna(area) * 0.58);
+export const alturaDoTokenNaColuna = (area: Tam): number =>
+  alturaDaColuna(area) - alturaDaOrdemNaColuna(area);
+
 /** Padrão "no alto, centralizada". */
 export function noTopoAoCentro(dy = MARGEM): Padrao {
   return (area, janela) => ({ x: Math.round((area.largura - janela.largura) / 2), y: dy });

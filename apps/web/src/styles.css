@@ -197,7 +197,8 @@ textarea {
 /* Bolinhas como as dos temas do Chrome; cabem a partir de 300 px de painel, sem rolar de lado. */
 .seletor-de-tema-grade {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(62px, 1fr));
+  /* 76 px: o nome mais comprido ("Pergaminho") cabe numa linha com o painel em 360 px (R6b). */
+  grid-template-columns: repeat(auto-fill, minmax(76px, 1fr));
   gap: 8px 4px;
 }
 .opcao-de-tema {
@@ -228,7 +229,9 @@ textarea {
 }
 .nome-do-tema {
   max-width: 100%;
-  overflow-wrap: anywhere;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   color: var(--texto-suave);
 }
 .opcao-de-tema[data-atual="true"] .nome-do-tema {
@@ -724,7 +727,6 @@ textarea {
   height: 8px;
   border-radius: 50%;
   background: var(--acento);
-  animation: pulsar 1.2s ease-in-out infinite;
 }
 @keyframes pulsar {
   50% {
@@ -1958,6 +1960,11 @@ button[aria-disabled="true"]:hover {
   border: 1px solid var(--aviso-borda);
   border-radius: 999px;
 }
+/* O jogador: o espaço da pílula fica reservado, para ela não empurrar os avatares ao aparecer (R6b). */
+.estado-mesa-jogador {
+  min-width: 36px;
+  justify-content: flex-end;
+}
 .estado-mesa-botao {
   display: inline-flex;
   align-items: center;
@@ -1965,17 +1972,19 @@ button[aria-disabled="true"]:hover {
   height: 34px;
   padding: 0 12px;
   border-radius: 999px;
+  font-weight: 600;
   color: var(--texto);
 }
 .estado-mesa-botao.pausada {
-  font-weight: 700;
+  /* Mesma largura rodando e pausada: só a cor muda (o peso da letra e o ícone têm o mesmo tamanho). */
   color: var(--aviso);
   background: var(--aviso-fundo);
   border-color: var(--aviso-borda);
 }
 .estado-mesa-botao .relogio-sala {
-  min-width: 0;
+  min-width: 6ch;
   padding: 0;
+  text-align: center;
   color: inherit;
 }
 
@@ -2785,7 +2794,8 @@ button[aria-disabled="true"]:hover {
 }
 .fh-grade-3 {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  /* Raça, Antecedente e Alinhamento: 3 colunas quando cabem; na ficha estreita (520 px) empilham, e o texto não corta. */
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 140px), 1fr));
   gap: 8px;
 }
 .fh-campo {
@@ -3599,7 +3609,7 @@ button[aria-disabled="true"]:hover {
   flex-direction: column;
   gap: 2px;
   width: max-content;
-  max-width: 260px;
+  max-width: 340px;
   padding: 6px 10px;
   font-size: 12px;
   line-height: 1.35;
@@ -3623,11 +3633,38 @@ button[aria-disabled="true"]:hover {
 .dica-ponto {
   color: var(--texto-suave);
 }
+/* O nome, o ponto e as teclas ficam numa linha; se faltar espaço, as teclas descem juntas, nunca o ponto sozinho. */
+.dica-linha:has(.dica-nome) {
+  /* Com nome, o nome e as teclas ficam na mesma linha (a dica é um pouco mais larga em vez de quebrar o "·" sozinho). */
+  flex-wrap: nowrap;
+}
+.dica-linha {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 6px;
+}
+.dica-atalho {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
 .teclas {
   display: inline-flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 2px;
+}
+.teclas-juntas {
+  flex-wrap: nowrap;
+  gap: 3px;
+}
+/* As setas ficam finas na fonte da interface: maiores e com mais largura, para ler como teclas. */
+kbd.tecla-seta {
+  min-width: 22px;
+  padding: 0 4px;
+  font-size: 14px;
+  line-height: 17px;
 }
 .teclas-ou,
 .teclas-mais {
@@ -4394,4 +4431,29 @@ kbd {
 .atalho-linha dd {
   color: var(--texto-suave);
   font-size: 12px;
+}
+
+/* --- transições discretas (R6b) -------------------------------------------------------------- */
+
+/* Janelas, menus, dicas, avisos e a troca de aba entram em 140 ms (opacidade e um deslocamento de 4 px). Usa a
+   propriedade `translate`, que não mexe no `transform` de quem já o usa (o menu da lista). Nada no canvas do
+   mapa. Com a preferência de "menos movimento" nenhuma animação roda (inclusive o pulso do indicador). */
+@keyframes entrada {
+  from {
+    opacity: 0;
+    translate: 0 4px;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .janela,
+  .menu-contexto,
+  .popover,
+  .dica-flutuante,
+  .aviso,
+  .painel-aba {
+    animation: entrada 140ms ease-out backwards;
+  }
+  .indicador {
+    animation: pulsar 1.2s ease-in-out infinite;
+  }
 }

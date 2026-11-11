@@ -1,6 +1,7 @@
 import { Circle, Diamond, Hexagon, Octagon, Pentagon, Square, Triangle } from "lucide-react";
 import type { ReactNode } from "react";
 import { caixaDaArea } from "./area";
+import { BotaoComDica } from "./BotaoComDica";
 import { Janela } from "./janelas/Janela";
 
 export const DADOS: { faces: number; nome: string; icone: ReactNode }[] = [
@@ -48,27 +49,25 @@ export function DadosRapidos({ aoRolar, podeOculta, aoFechar }: Props) {
           {DADOS.map((d) => (
             <tr key={d.faces}>
               <th scope="row">
-                <button
-                  type="button"
+                <BotaoComDica
                   className="botao-dado"
-                  data-testid={`dado-${d.nome}`}
-                  title={`Rolar 1${d.nome.toLowerCase()}`}
+                  testid={`dado-${d.nome}`}
+                  dica={`Rolar 1${d.nome.toLowerCase()}`}
                   onClick={(e) => aoRolar(1, d.faces, e.shiftKey && podeOculta)}
                 >
                   {d.icone} {d.nome}
-                </button>
+                </BotaoComDica>
               </th>
               {QUANTIDADES.map((q) => (
                 <td key={q}>
-                  <button
-                    type="button"
+                  <BotaoComDica
                     className="botao-dado numero"
-                    data-testid={`dado-${d.nome}-${q}`}
-                    title={`Rolar ${q}${d.nome.toLowerCase()}`}
+                    testid={`dado-${d.nome}-${q}`}
+                    dica={`Rolar ${q}${d.nome.toLowerCase()}`}
                     onClick={(e) => aoRolar(q, d.faces, e.shiftKey && podeOculta)}
                   >
                     {q}
-                  </button>
+                  </BotaoComDica>
                 </td>
               ))}
             </tr>

@@ -14,16 +14,23 @@ import { ATALHOS, type Combinacao, type IdDoAtalho } from "./atalhos";
 /** A dica é uma só em toda a interface (R6a): no mouse e no foco do teclado, com o atalho quando há. */
 
 /** As teclas de um atalho, cada uma num `<kbd>`: "Shift + F10 ou Menu". */
-export function Teclas({ teclas }: { teclas: readonly Combinacao[] }) {
+export function Teclas({
+  teclas,
+  juntas,
+}: {
+  teclas: readonly Combinacao[];
+  /** Um conjunto só (as quatro setas), sem "ou" entre as teclas. */
+  juntas?: boolean | undefined;
+}) {
   return (
-    <span className="teclas">
+    <span className={juntas ? "teclas teclas-juntas" : "teclas"}>
       {teclas.map((combo, i) => (
         <Fragment key={combo.join("+")}>
-          {i > 0 && <span className="teclas-ou"> ou </span>}
+          {i > 0 && !juntas && <span className="teclas-ou"> ou </span>}
           {combo.map((t, j) => (
             <Fragment key={t}>
               {j > 0 && <span className="teclas-mais">+</span>}
-              <kbd>{t}</kbd>
+              <kbd className={SETAS.has(t) ? "tecla-seta" : undefined}>{t}</kbd>
             </Fragment>
           ))}
         </Fragment>
@@ -31,6 +38,8 @@ export function Teclas({ teclas }: { teclas: readonly Combinacao[] }) {
     </span>
   );
 }
+
+const SETAS = new Set(["←", "↑", "↓", "→"]);
 
 /** Quando a dica está à vista, e os eventos que a mostram e a escondem (mouse, foco e Esc). */
 export function useDica() {
@@ -134,12 +143,12 @@ export function Dica({
       <span className="dica-linha">
         {nome ? <strong className="dica-nome">{nome}</strong> : <span>{texto}</span>}
         {atalho && (
-          <>
+          <span className="dica-atalho">
             <span className="dica-ponto" aria-hidden="true">
-              {" · "}
+              {"·"}
             </span>
-            <Teclas teclas={ATALHOS[atalho].teclas} />
-          </>
+            <Teclas teclas={ATALHOS[atalho].teclas} juntas={"juntas" in ATALHOS[atalho]} />
+          </span>
         )}
       </span>
       {nome && texto && <span className="dica-texto">{texto}</span>}

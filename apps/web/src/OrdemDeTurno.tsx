@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { BotaoComDica } from "./BotaoComDica";
-import { noCanto } from "./janelas/geometria";
+import { alturaDaOrdemNaColuna, apertada, noCanto } from "./janelas/geometria";
 import { Janela } from "./janelas/Janela";
 import { gravarMontarDaOrdem, lerMontarDaOrdem } from "./preferencias";
 
@@ -36,6 +36,8 @@ type Props = {
   selecionadoId: string | null;
   /** O mestre "vendo como" um jogador: só olha. */
   somenteLeitura: boolean;
+  /** O painel do token está aberto: numa área apertada os dois dividem a coluna da direita (R6b). */
+  dividirColuna?: boolean;
 };
 
 const novoId = () => `ent-${crypto.randomUUID().slice(0, 8)}`;
@@ -101,7 +103,14 @@ function CampoDeValor({
  * superior. O mestre monta e conduz o combate; o jogador vê a lista que a sala lhe manda (sem as
  * entradas ocultas, "?" no valor oculto), rola a própria iniciativa e passa o próprio turno.
  */
-export function OrdemDeTurno({ estado, eu, enviar, selecionadoId, somenteLeitura }: Props) {
+export function OrdemDeTurno({
+  estado,
+  eu,
+  enviar,
+  selecionadoId,
+  somenteLeitura,
+  dividirColuna,
+}: Props) {
   const combate = estado.combate;
   const { entradas, atualId, rodada } = combateDe(estado);
   const gerencia = eu.papel === "mestre" && !somenteLeitura;
@@ -185,7 +194,10 @@ export function OrdemDeTurno({ estado, eu, enviar, selecionadoId, somenteLeitura
       largura={364}
       minLargura={364}
       minAltura={160}
-      alturaMaxima="calc(100% - 80px)"
+      // Com o painel do token aberto numa área apertada, a ordem e o painel dividem a coluna da direita.
+      alturaMaxima={(area) =>
+        dividirColuna && apertada(area) ? `${alturaDaOrdemNaColuna(area)}px` : "calc(100% - 80px)"
+      }
       redimensionar="altura"
       acoes={
         <span
@@ -271,12 +283,11 @@ export function OrdemDeTurno({ estado, eu, enviar, selecionadoId, somenteLeitura
                 )}
                 {gerencia ? (
                   <>
-                    <button
-                      type="button"
+                    <BotaoComDica
                       className="botao-icone pequeno"
-                      data-testid={`ordem-valor-oculto-${e.id}`}
+                      testid={`ordem-valor-oculto-${e.id}`}
                       aria-pressed={e.valorOculto === true}
-                      title="Mostrar o valor com ? para os jogadores"
+                      dica="Mostrar o valor com ? para os jogadores"
                       aria-label={`Esconder o valor de ${e.nome} dos jogadores`}
                       onClick={() =>
                         enviar("combate.editar", {
@@ -286,13 +297,12 @@ export function OrdemDeTurno({ estado, eu, enviar, selecionadoId, somenteLeitura
                       }
                     >
                       <HelpCircle size={14} />
-                    </button>
-                    <button
-                      type="button"
+                    </BotaoComDica>
+                    <BotaoComDica
                       className="botao-icone pequeno"
-                      data-testid={`ordem-oculta-${e.id}`}
+                      testid={`ordem-oculta-${e.id}`}
                       aria-pressed={e.oculta === true}
-                      title="Esconder a entrada inteira dos jogadores"
+                      dica="Esconder a entrada inteira dos jogadores"
                       aria-label={`Esconder ${e.nome} dos jogadores`}
                       onClick={() =>
                         enviar("combate.editar", {
@@ -302,23 +312,22 @@ export function OrdemDeTurno({ estado, eu, enviar, selecionadoId, somenteLeitura
                       }
                     >
                       <EyeOff size={14} />
-                    </button>
+                    </BotaoComDica>
                     <CampoDeValor
                       entrada={e}
                       aoMudar={(valor) =>
                         enviar("combate.editar", { id: e.id, mudancas: { iniciativa: valor } })
                       }
                     />
-                    <button
-                      type="button"
+                    <BotaoComDica
                       className="botao-icone pequeno"
-                      data-testid={`ordem-tirar-${e.id}`}
-                      title="Tirar da ordem"
+                      testid={`ordem-tirar-${e.id}`}
+                      dica="Tirar da ordem"
                       aria-label={`Tirar ${e.nome} da ordem`}
                       onClick={() => enviar("combate.tirar", { id: e.id })}
                     >
                       <X size={14} />
-                    </button>
+                    </BotaoComDica>
                   </>
                 ) : (
                   <>
@@ -330,15 +339,14 @@ export function OrdemDeTurno({ estado, eu, enviar, selecionadoId, somenteLeitura
                       {e.valorOculto === true ? "?" : (e.iniciativa ?? "—")}
                     </span>
                     {minha && e.iniciativa === undefined && e.valorOculto !== true && (
-                      <button
-                        type="button"
+                      <BotaoComDica
                         className="ot-rolar"
-                        data-testid={`ordem-rolar-${e.id}`}
-                        title="Rolar a iniciativa"
+                        testid={`ordem-rolar-${e.id}`}
+                        dica="Rolar a iniciativa"
                         onClick={() => enviar("combate.rolar", { ids: [e.id] })}
                       >
                         <Dices size={14} /> Rolar
-                      </button>
+                      </BotaoComDica>
                     )}
                   </>
                 )}
@@ -379,18 +387,17 @@ export function OrdemDeTurno({ estado, eu, enviar, selecionadoId, somenteLeitura
             >
               Próximo turno <ChevronRight size={14} />
             </BotaoComDica>
-            <button
-              type="button"
+            <BotaoComDica
               className="ot-montar-botao"
-              data-testid="ordem-montar-alternar"
+              testid="ordem-montar-alternar"
               aria-expanded={montarAberto}
               aria-controls="ordem-montar"
-              title="Montar o combate: rolar, ordenar, adicionar e encerrar"
+              dica="Montar o combate: rolar, ordenar, adicionar e encerrar"
               onClick={alternarMontar}
             >
               Montar
               {montarAberto ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-            </button>
+            </BotaoComDica>
           </div>
           {montarAberto && (
             <div className="ot-montar" id="ordem-montar" data-testid="ordem-montar">
@@ -490,17 +497,16 @@ export function OrdemDeTurno({ estado, eu, enviar, selecionadoId, somenteLeitura
                   value={soltaValor}
                   onChange={(e) => setSoltaValor(e.target.value)}
                 />
-                <button
-                  type="button"
+                <BotaoComDica
                   className="botao-icone pequeno"
-                  data-testid="ordem-solta-oculta"
+                  testid="ordem-solta-oculta"
                   aria-pressed={soltaOculta}
-                  title="Entrada escondida dos jogadores"
+                  dica="Entrada escondida dos jogadores"
                   aria-label="Entrada solta escondida dos jogadores"
                   onClick={() => setSoltaOculta(!soltaOculta)}
                 >
                   <EyeOff size={14} />
-                </button>
+                </BotaoComDica>
                 <BotaoComDica
                   testid="ordem-solta-adicionar"
                   type="submit"

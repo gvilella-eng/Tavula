@@ -19,6 +19,11 @@ Juntadas durante os Lotes 6 a 14 (2026-11-06 a 10) para fazer ao Vilella no fim.
 - O jogador não seleciona tokens; (assumido) Shift+F10 abre o menu do token que ele controla.
 - Selecionar um token só pelo teclado não existe (o mestre seleciona com o mouse). Vale um atalho (por exemplo Tab entre tokens)? (assumido) não neste lote.
 
+## Novas do R6b (2026-11-11)
+- O aviso da pausa automática para os jogadores (ficou do R2b) **foi feito no R6b**: dica da pílula e aviso no alto do mapa quando a mesa está pausada e não há mestre online.
+- Numa tela baixa (altura da área < 900 px) o painel do token vai embaixo à direita e divide a coluna com a ordem de turno. (assumido) Vale ficar assim? A alternativa é o painel do token embaixo à esquerda, com a ficha menor.
+- Os prints dos lotes 6 a 14 e r1, r2, r2b, r3 foram apagados (só mostravam a interface de cada lote). (assumido) O tour `auditoria` e os `r4` a `r6b` bastam.
+
 ## Já vinham de antes
 - Camada mapa = imagem do mapa + objetos de cenário? (assumido)
 - Pincel: jogador apaga/seleciona só os próprios desenhos? desenhar é delegável e ligado por padrão? (assumido)

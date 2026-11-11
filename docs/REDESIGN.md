@@ -648,10 +648,66 @@ dos R anteriores.
   do chat, da faixa de cenas, as cores do pincel e a alça do item das Fichas.
 - Selecionar um token só pelo teclado (não há; o atalho parte de um token já selecionado).
 
+## R6b — como ficou (2026-11-11)
+
+Tela pequena, frágeis restantes, transições e revisão final. É o **último lote do redesign**: depois dele o Vilella faz os ajustes
+finos a partir de `docs/PASSAGEM.md`. Nada mudou na sala, no protocolo nem na exportação: nenhum frame novo (o aviso da pausa sem
+mestre vem do estado e da presença que o cliente já tem).
+
+**O que foi feito**
+- **Ficha a 520 px** (frágil do R3): Raça, Antecedente e Alinhamento (`.fh-grade-3`) passaram de 3 colunas fixas para colunas que
+  quebram (`auto-fit`, mínimo de 140 px). Na ficha estreita a coluna da identidade tem ~210 px, então os três campos empilham e o
+  texto cabe inteiro (o campo tinha 47 px: "Elfo da f").
+- **Janelas em 1280×720** (frágil do R3): numa área "apertada" (altura < 900 px; `janelas/geometria.ts`) o painel do token abre
+  embaixo à direita, na coluna da ordem de turno, com 64 px de folga para o zoom, e a ordem e o painel dividem a altura da coluna
+  (a ordem fica com 58% e o painel do token com o resto, ~340 px e ~245 px em 1280×720, os dois com rolagem por dentro; a ordem só tem esse
+  teto com o painel do token aberto: `dividirColuna`). A ficha continua
+  no alto à esquerda. As três não se cobrem, em qualquer ordem de abertura (é posição estática, não depende de quem abriu antes).
+  Janela com posição guardada pela pessoa não muda. Em área alta (≥ 900 px) tudo fica como era (painel do token embaixo à esquerda).
+  `Janela` aceita `alturaMaxima` como função da área.
+- **A vista mantém o centro** (frágil do R2; `mapa/mapaPixi.ts`): ao mudar o tamanho da área do mapa (alça do painel, recolher o painel,
+  janela do navegador) o ponto que estava no centro continua no centro, em vez de a vista ficar ancorada no canto superior esquerdo.
+- **Pílula da pausa** (frágil do R2): mesma largura rodando e pausada (mesmo peso de letra, ícone e relógio com largura mínima fixa; só a
+  cor muda). Para o jogador o espaço da pílula fica reservado: ela não empurra os avatares ao aparecer.
+- **Seletor de tema** (R2): colunas de no mínimo 76 px e nome sem quebra; "Pergaminho" cabe numa linha com o painel em 360 px.
+- **Aviso da pausa sem mestre** (ficou do R2b): com a mesa pausada e nenhum mestre online (presença), a dica da pílula do jogador diz
+  "Pausada: o mestre saiu da mesa; ela volta quando o mestre retomar" e, na hora em que isso acontece, o aviso sem origem do R5a aparece
+  no alto da área do mapa ("Mesa pausada: o mestre saiu. Ela volta quando o mestre retomar."). `useSala` ganhou `avisar(texto)` (aviso
+  local, sem frame). A pílula continua sem a palavra "Pausada" (só o ícone e o amarelo).
+- **Transições discretas**: janelas, menus de contexto, popovers, dicas, avisos e a troca de aba entram em 140 ms (opacidade e 4 px de
+  deslocamento, pela propriedade `translate`, que não mexe no `transform` de quem já o usa). Nada no canvas do mapa; sem animação de
+  saída. Com `prefers-reduced-motion: reduce` nenhuma animação roda (inclusive o pulso do indicador de aba).
+- **Setas nas dicas**: as quatro setas (mover a janela) são um grupo só, "← ↑ ↓ →", sem "ou", em teclas mais largas e maiores; o nome, o
+  ponto e as teclas não se separam mais na quebra de linha. Vale para a lista de atalhos das Preferências (mesma tabela).
+- **Rótulos dos tokens**: o nome vai numa pílula escura translúcida, sem contorno, legível sobre mapa claro e escuro, sem depender do tema.
+- **`title` nativo → dica comum** (`BotaoComDica`): ordem de turno, cores e espessuras do pincel (agora com dica à direita), chat
+  (modelos, limpar, enviar com "Enter"), fontes de luz (acender, apagar, editar, tirar e somar minuto, modificadores, pontos) e dados rápidos.
+- **Prints**: apagados os que só registravam a interface antiga (lotes 6 a 14, `r1`, `r2`, `r2b`, `r3`); o `auditoria` virou o tour da
+  interface de hoje (4 combinações: Grimório 1600×900 e 1280×720, Edgerunner e Pergaminho 1280×720); novo `r6b`.
+- **Docs**: `PROJETO.md` aponta Preferências e Mesa onde descrevia as abas antigas; `PASSAGEM.md` pronto como ponto de partida.
+
+**Decisões (assumido)**
+- (assumido) "Área apertada" = altura da área do mapa abaixo de 900 px; nela o painel do token vai para a coluna da direita (em vez de
+  embaixo à esquerda).
+- (assumido) Ordem de turno (58%) e painel do token (o resto) dividem a altura da coluna, com rolagem por dentro, só enquanto os dois estão abertos; o painel do token, de ~418 px naturais, mostra só a metade de cima (nome, cor, tamanho, camada) e rola para o resto.
+- (assumido) A ficha estreita empilha os três campos de identidade (em vez de reduzir a fonte ou abreviar o rótulo).
+- (assumido) Sem a presença chegar, supõe-se mestre online (nada de aviso falso na entrada); "reconectando" conta como mestre fora.
+- (assumido) O aviso da pausa sem mestre aparece também a quem entra numa mesa já nesse estado (a presença chega logo depois).
+- (assumido) Entrada de 140 ms com opacidade e 4 px; sem animação de saída; E2E rodam com `reducedMotion: "reduce"`.
+- (assumido) Rótulo do token em pílula escura translúcida, igual nos 11 temas.
+- (assumido) Ficam com `title` nativo: campos pequenos da ficha e do editor do item, os itens do menu de contexto da faixa de cenas (o
+  teste exige `disabled` de verdade), textos informativos (nome da cena, "o grupo está aqui", progresso do preparo), o selo da pílula do
+  mestre e o rótulo "Cor livre".
+- (assumido) Prints antigos apagados em vez de refeitos: só mostravam a interface de cada lote, e o tour cobre as telas de hoje.
+
+**O que ficou para depois**
+- Toque (celular) e navegadores além do Chrome.
+- Seleção múltipla no mapa; "Entregar" a tocha pelo menu do token; selecionar um token só pelo teclado.
+- Telas menores que 1280×720.
+
 ## Em aberto
 
-- R1, R2, R2b, R3, R4 (2026-11-10), R5a, R5b e R6a (2026-11-11) feitos. **Plano aprovado (2026-11-10):** R2 a R6 seguem
-  como planejados, um depois do outro (o R5 foi dividido em R5a e R5b); depois do R6 o Vilella faz os ajustes
+- **O plano R1 a R6 terminou** (R1, R2, R2b, R3, R4 em 2026-11-10; R5a, R5b, R6a e R6b em 2026-11-11). Agora o Vilella faz os ajustes
   finos de UX/UI e a reorganização dos itens, a partir de `docs/PASSAGEM.md`.
-- Itens de interface que vieram dos lotes: seleção múltipla no mapa (ainda não existe). A dica das condições por
-  clique e as alças de tocha sobre o ícone de ponto foram resolvidas no R5a.
+- Itens de interface que sobram: seleção múltipla no mapa (ainda não existe), toque (celular) e navegadores além do Chrome, "Entregar" a
+  tocha só por arrastar. A dica das condições por clique e as alças de tocha sobre o ícone de ponto foram resolvidas no R5a.

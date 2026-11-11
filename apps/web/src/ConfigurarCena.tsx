@@ -1,6 +1,7 @@
 import { type Cena, PX_POR_QUADRADO_PADRAO } from "@tabletop/shared";
 import { ImagePlus, X } from "lucide-react";
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import type { PedirImagem } from "./FaixaDeCenas";
 
 type Props = {
@@ -68,7 +69,8 @@ export function ConfigurarCena({ cena, enviar, pedirImagem, aoFechar }: Props) {
     aoFechar();
   }
 
-  return (
+  // No `body`: dentro da faixa de cenas (z-index 20) o modal ficaria atrás das janelas flutuantes (R6b).
+  return createPortal(
     <div className="fundo-modal">
       <form
         className="modal modal-configurar"
@@ -181,6 +183,7 @@ export function ConfigurarCena({ cena, enviar, pedirImagem, aoFechar }: Props) {
           </button>
         </div>
       </form>
-    </div>
+    </div>,
+    document.body,
   );
 }

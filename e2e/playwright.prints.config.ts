@@ -15,7 +15,7 @@ export default defineConfig({
   workers: 1,
   reporter: [["list"]],
   expect: { timeout: 10_000 },
-  use: { baseURL: urlWeb, channel: "chrome" },
+  use: { baseURL: urlWeb, channel: "chrome", reducedMotion: "reduce", actionTimeout: 15_000 },
   webServer: [
     {
       command: "pnpm --filter @tabletop/server dev:e2e",

@@ -331,10 +331,9 @@ test("a pausa é óbvia no topo, para o mestre e para o jogador", async ({ mesa 
     await expect(p.getByTestId("selo-pausa")).toHaveCount(0);
   }
   // o jogador: pílula sem clique, com a dica do que houve
-  await expect(j.getByTestId("estado-mesa-selo")).toHaveAttribute(
-    "title",
-    /^O mestre pausou a mesa/,
-  );
+  // (R6b: a dica deixou de ser o `title` nativo e virou a dica comum, no mouse e no foco)
+  await j.getByTestId("estado-mesa-selo").hover();
+  await expect(j.getByTestId("dica-estado-mesa-selo")).toContainText(/^O mestre pausou a mesa/);
   await expect(j.getByTestId("estado-mesa-selo")).toHaveCSS("cursor", "auto");
   // o mestre: um controle só, a pílula "Pausada · relógio" que retoma; o relógio está dentro dele
   await expect(m.getByTestId("menu-pausa")).toHaveAttribute("title", /^Retomar/);

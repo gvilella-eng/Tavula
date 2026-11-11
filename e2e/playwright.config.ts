@@ -19,7 +19,14 @@ export default defineConfig({
   failOnFlakyTests: true,
   reporter: [["list"]],
   expect: { timeout: 10_000 },
-  use: { baseURL: urlWeb, channel: "chrome", trace: "retain-on-failure" },
+  // reducedMotion: as transições da interface (R6b) ficam desligadas nos E2E, para uma janela não ser medida no meio
+  // da entrada; o `polimento.spec.ts` confere que elas existem sem a preferência e somem com ela.
+  use: {
+    baseURL: urlWeb,
+    channel: "chrome",
+    trace: "retain-on-failure",
+    reducedMotion: "reduce",
+  },
   webServer: [
     {
       // A sala, com MODO=teste (rotas /teste/*) e estado em e2e/.estado-sala.

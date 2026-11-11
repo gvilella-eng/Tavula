@@ -45,8 +45,8 @@ type Props = {
   /** Largura (px) quando a pessoa não escolheu uma; função da área do mapa. */
   largura?: number | ((area: Tam) => number);
   altura?: number | ((area: Tam) => number);
-  /** Altura máxima em CSS (padrão: a da área). */
-  alturaMaxima?: string;
+  /** Altura máxima em CSS (padrão: a da área); pode depender do tamanho da área. */
+  alturaMaxima?: string | ((area: Tam) => string | undefined);
   /** Pela quina (`ambos`), só pela borda de baixo (`altura`) ou sem redimensionar. */
   redimensionar?: false | "altura" | "ambos";
   minLargura?: number;
@@ -216,6 +216,7 @@ function JanelaNaArea({ alvo, ...p }: Props & { alvo: HTMLElement }) {
     atualizar(limitarNaArea({ x: x + d[0], y: y + d[1] }, tam, area), true);
   }
 
+  const alturaMaxima = typeof p.alturaMaxima === "function" ? p.alturaMaxima(area) : p.alturaMaxima;
   const estilo: CSSProperties = {
     left: x,
     top: y,
@@ -229,7 +230,7 @@ function JanelaNaArea({ alvo, ...p }: Props & { alvo: HTMLElement }) {
           ...(minimizada ? {} : { minHeight: `min(${minA}px, 100%)` }),
         }
       : {}),
-    ...(p.alturaMaxima ? { maxHeight: p.alturaMaxima } : {}),
+    ...(alturaMaxima ? { maxHeight: alturaMaxima } : {}),
     // Até medir a janela (um instante, antes de pintar) ela fica invisível, para não pular.
     ...(medida === null ? { visibility: "hidden" } : {}),
   };

@@ -13,6 +13,7 @@ import {
 } from "@tabletop/shared";
 import { Dices, Send, Trash2 } from "lucide-react";
 import { type KeyboardEvent, useLayoutEffect, useRef, useState } from "react";
+import { BotaoComDica } from "./BotaoComDica";
 import { MensagemDoChat } from "./MensagemDoChat";
 import type { ImagensDoMapa } from "./mapa/mapaPixi";
 
@@ -374,28 +375,26 @@ export function AbaChat({
               ))}
             </select>
           </label>
-          <button
-            type="button"
+          <BotaoComDica
             className="botao-icone pequeno"
-            data-testid="chat-modelos-abrir"
+            testid="chat-modelos-abrir"
             aria-pressed={modelosAbertos}
-            title="Modelos de rolagem (ataque e teste)"
+            dica="Modelos de rolagem (ataque e teste)"
             aria-label="Modelos de rolagem"
             onClick={() => setModelosAbertos(!modelosAbertos)}
           >
             <Dices size={16} />
-          </button>
+          </BotaoComDica>
           {eu.papel === "mestre" && (
-            <button
-              type="button"
+            <BotaoComDica
               className="botao-icone pequeno"
-              data-testid="chat-limpar"
-              title="Limpar o chat"
+              testid="chat-limpar"
+              dica="Limpar o chat"
               aria-label="Limpar o chat"
               onClick={() => setConfirmandoLimpar(true)}
             >
               <Trash2 size={16} />
-            </button>
+            </BotaoComDica>
           )}
         </div>
         {confirmandoLimpar && (
@@ -442,15 +441,16 @@ export function AbaChat({
             }}
             onKeyDown={aoTeclar}
           />
-          <button
+          <BotaoComDica
             type="submit"
             className="botao-icone"
-            data-testid="chat-enviar"
+            testid="chat-enviar"
             aria-label="Enviar"
-            title="Enviar (Enter)"
+            nome="Enviar"
+            atalho="chatEnviar"
           >
             <Send size={18} />
-          </button>
+          </BotaoComDica>
         </div>
         {erro && (
           <p className="nota erro" data-testid="chat-erro" role="alert">
