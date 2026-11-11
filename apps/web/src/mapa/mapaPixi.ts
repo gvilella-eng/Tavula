@@ -137,6 +137,8 @@ export type OpcoesDoMapa = {
   encaixe: boolean;
   selecionadoId: string | null;
   podeMover: (token: Token) => boolean;
+  /** O jogador seleciona (só na tela dele) os tokens que controla (V2); o mestre seleciona qualquer um. */
+  controla: (token: Token) => boolean;
   /** O mestre vendo como mestre (não "como o jogador X"): vê todas as paredes e as portas secretas. */
   modoMestre: boolean;
   paredeSelecionadaId: string | null;
@@ -2516,7 +2518,11 @@ export class MapaPixi {
       }
       return;
     }
-    if (this.opcoes.euMestre) this.retornos().selecionar(v.token.id);
+    // V2: o jogador também seleciona, mas só o token que controla; clicar em outro solta a seleção. Fica só na
+    // tela dele (nada vai para a sala).
+    this.retornos().selecionar(
+      this.opcoes.euMestre || this.opcoes.controla(v.token) ? v.token.id : null,
+    );
     if (!this.opcoes.podeMover(v.token)) return;
     const m = this.paraMundo(p);
     const id = v.token.id;

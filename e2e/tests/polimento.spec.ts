@@ -36,7 +36,19 @@ base("a ficha a 520 px não corta Raça, Antecedente nem Alinhamento", async ({ 
   await criarDarion(p);
   const ficha = await abrirFicha(p, DARION_ID, "principal");
 
-  // a ficha abre com 520 px em 1280×720 (o mínimo dela)
+  // a ficha abre com pelo menos 520 px (o mínimo dela) em 1280×720; com a ordem de turno mais estreita (V2, 270 px)
+  // ela ganha uns pixels a mais, então o teste a leva ao mínimo antes de conferir os campos
+  await expect
+    .poll(async () => Math.round((await caixa(janela(p, `ficha:${DARION_ID}`))).width))
+    .toBeGreaterThanOrEqual(520);
+  const alca = await caixa(p.getByTestId("janela-ficha-redimensionar"));
+  const largura = (await caixa(janela(p, `ficha:${DARION_ID}`))).width;
+  await p.mouse.move(alca.x + alca.width / 2, alca.y + alca.height / 2);
+  await p.mouse.down();
+  await p.mouse.move(alca.x + alca.width / 2 - (largura - 520), alca.y + alca.height / 2, {
+    steps: 6,
+  });
+  await p.mouse.up();
   await expect
     .poll(async () => Math.round((await caixa(janela(p, `ficha:${DARION_ID}`))).width))
     .toBe(520);

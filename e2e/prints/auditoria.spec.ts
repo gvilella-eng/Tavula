@@ -473,8 +473,8 @@ async function montar(mesa: Mesa, request: APIRequestContext): Promise<Campanha>
   }
   // avança um turno de cada vez, esperando a vez mudar (clicar depressa demais perde cliques)
   for (let i = 0; i < 12; i++) {
-    const rodada = await m.getByTestId("ordem-rodada").textContent();
-    if (rodada === "Rodada 2" && (await vezNaOrdem(m)) === "Aldric") break;
+    const rodada = `Rodada: ${await m.getByTestId("ordem-rodada").getAttribute("data-rodada")}`;
+    if (rodada === "Rodada: 2" && (await vezNaOrdem(m)) === "Aldric") break;
     const antes = `${rodada}|${await vezNaOrdem(m)}`;
     await m.getByTestId("ordem-proximo").click();
     await expect
@@ -484,7 +484,7 @@ async function montar(mesa: Mesa, request: APIRequestContext): Promise<Campanha>
       .not.toBe(antes);
   }
   await expect.poll(() => vezNaOrdem(m)).toBe("Aldric");
-  await expect(m.getByTestId("ordem-rodada")).toHaveText("Rodada 2");
+  await expect(m.getByTestId("ordem-rodada")).toHaveAttribute("data-rodada", "2");
 
   // chat: texto, rolagens, sussurro, magia
   await abrirAba(m, "chat");

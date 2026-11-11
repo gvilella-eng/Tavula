@@ -47,6 +47,8 @@ type Props = {
   estado: Estado;
   eu: Usuario;
   enviar: Enviar;
+  /** O token selecionado no mapa desta tela (V2): a Iniciativa da ficha o põe na ordem de turno. */
+  selecionadoId?: string | null;
   imagens: ImagensDoMapa | null;
   versaoDasImagens: number;
   pedirImagem: PedirImagem;
@@ -60,8 +62,8 @@ type Props = {
 /** Deslocamento de cada ficha a mais aberta (cascata) e a folga da primeira. */
 const PASSO_DA_CASCATA = 32;
 const FOLGA = 12;
-/** A ordem de turno (364 px) mais as folgas: o que a ficha deixa livre à direita quando cabe. */
-const LARGURA_DA_ORDEM_E_FOLGAS = 364 + 3 * FOLGA;
+/** A ordem de turno (270 px) mais as folgas: o que a ficha deixa livre à direita quando cabe. */
+const LARGURA_DA_ORDEM_E_FOLGAS = 270 + 3 * FOLGA;
 
 /** "Clérigo 5 / Patrulheiro 5 · Elfo da floresta · Forasteiro": a linha de baixo do nome. */
 function resumoDaFicha(p: Personagem): string {
@@ -86,6 +88,7 @@ export function JanelaDaFicha({
   estado,
   eu,
   enviar,
+  selecionadoId = null,
   imagens,
   versaoDasImagens,
   pedirImagem,
@@ -118,7 +121,31 @@ export function JanelaDaFicha({
     vantagem,
     aoRolarD20: () => setVantagem("normal"),
   });
+  // Iniciativa na ficha (V2): com a ordem aberta, rola na sala e põe o token na lista.
+  const [avisoDaOrdem, setAvisoDaOrdem] = useState<string | null>(null);
+  useEffect(() => {
+    if (avisoDaOrdem === null) return;
+    const t = setTimeout(() => setAvisoDaOrdem(null), 5000);
+    return () => clearTimeout(t);
+  }, [avisoDaOrdem]);
+  function entrarNaOrdem() {
+    if (!editar || !temFicha) return;
+    if (!estado.ordemDeTurnoVisivel) return rolador.teste("Iniciativa", d.iniciativa);
+    const doPersonagem = estado.tokens.filter(
+      (t) => t.personagemId === p.id && t.cenaId === estado.cenaAtivaId,
+    );
+    const alvo =
+      doPersonagem.find((t) => t.id === selecionadoId) ??
+      (doPersonagem.length === 1 ? doPersonagem[0] : undefined);
+    if (!alvo) return setAvisoDaOrdem("Selecione o seu token no mapa.");
+    if (estado.combate?.entradas.some((e) => e.tokenId === alvo.id)) {
+      return setAvisoDaOrdem("Já está na ordem de turno.");
+    }
+    setAvisoDaOrdem(null);
+    enviar("combate.entrar", { tokenId: alvo.id });
+  }
   const propsDaAba: PropsDaAba = {
+    ordem: { aberta: estado.ordemDeTurnoVisivel, entrar: entrarNaOrdem },
     personagemId: p.id,
     ficha,
     d,
@@ -286,6 +313,11 @@ export function JanelaDaFicha({
       {aviso && (
         <p className="nota fh-aviso" role="status" data-testid="ficha-aviso">
           {aviso}
+        </p>
+      )}
+      {avisoDaOrdem && (
+        <p className="nota fh-aviso" role="status" data-testid="ficha-aviso-ordem">
+          {avisoDaOrdem}
         </p>
       )}
 

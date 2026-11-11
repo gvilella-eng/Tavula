@@ -97,20 +97,21 @@ test("a dica vale no mouse e no foco por Tab, com o atalho: topo, barra esquerda
   expect(await teclasDa(dicaCab)).toEqual(teclasDoAtalho("janelaMover"));
   await p.keyboard.press("Escape");
   await expect(dicaCab).toBeHidden();
-  await cabecalho.hover();
+  // (o meio do cabeçalho da ordem agora é o campo da rodada do mestre: o mouse vai ao título, na ponta esquerda)
+  await cabecalho.hover({ position: { x: 24, y: 14 } });
   await expect(dicaCab).toBeVisible();
-  // sobre um botão do cabeçalho vale a dica do botão, não a do cabeçalho
-  await p.getByTestId("janela-ordem-minimizar").hover();
+  // sobre um botão do cabeçalho vale a dica do botão, não a do cabeçalho (a ordem só tem o Fechar)
+  await expect(p.getByTestId("janela-ordem-minimizar")).toHaveCount(0);
+  await p.getByTestId("janela-ordem-fechar").hover();
   await expect(dicaCab).toBeHidden();
-  await expect(p.getByTestId("dica-janela-ordem-minimizar")).toBeVisible();
-  await expect(p.getByTestId("dica-janela-ordem-minimizar")).toContainText("Minimizar");
+  await expect(p.getByTestId("dica-janela-ordem-fechar")).toBeVisible();
+  await expect(p.getByTestId("dica-janela-ordem-fechar")).toContainText("Fechar");
   await p.mouse.move(700, 600);
-  // o botão Minimizar também mostra a dica no foco, e a janela minimiza com Enter
-  await p.getByTestId("janela-ordem-minimizar").focus();
-  await expect(p.getByTestId("dica-janela-ordem-minimizar")).toBeVisible();
-  await p.keyboard.press("Enter");
-  await expect(janela).toHaveAttribute("data-minimizada", "true");
-  await expect(p.getByTestId("dica-janela-ordem-minimizar")).toBeHidden();
+  // o botão Fechar também mostra a dica no foco
+  await p.getByTestId("janela-ordem-fechar").focus();
+  await expect(p.getByTestId("dica-janela-ordem-fechar")).toBeVisible();
+  await p.keyboard.press("Escape");
+  await expect(p.getByTestId("dica-janela-ordem-fechar")).toBeHidden();
 });
 
 test("a lista 'Atalhos do teclado' das Preferências bate com a tabela única", async ({ mesa }) => {
@@ -331,7 +332,7 @@ for (const tema of ["grimorio", "escuro", "claro"] as const) {
       "zoom-mais",
       "lateral-recolher",
       "alca-do-painel",
-      "janela-ordem-minimizar",
+      "janela-ordem-fechar",
       "presenca-mais",
       "mapa",
     ];

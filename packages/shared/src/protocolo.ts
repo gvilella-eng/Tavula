@@ -691,6 +691,16 @@ export const IntencaoSchema = z.discriminatedUnion("tipo", [
   /** Limpa a lista e a rodada. */
   intencao("combate.encerrar", SemDados),
   /**
+   * V2: entra na ordem de turno. A sala rola 1d20 + a iniciativa da ficha do token (o cliente não manda o
+   * número), manda a rolagem ao chat e põe o token na lista. Vale só com a ordem aberta, para o mestre
+   * (qualquer token) ou para quem controla o token; o token tem de estar na cena ativa e fora da lista.
+   */
+  intencao("combate.entrar", z.object({ tokenId: IdSchema })),
+  /** V2: o mestre escreve a rodada (0 = ainda não começou). */
+  intencao("combate.rodada", z.object({ rodada: z.number().int().min(0).max(9999) })),
+  /** V2: o mestre dá a vez a uma entrada (a rodada não muda; começa na rodada 1 se ainda não tinha começado). */
+  intencao("combate.darVez", z.object({ id: IdSchema })),
+  /**
    * Condições, exaustão e concentração de um token (Lote 11): o mestre ou quem edita o personagem do
    * token. Só muda o que vier: `condicoes` troca a lista inteira, `exaustao` 0 tira, `concentracao`
    * `null` tira.
@@ -830,6 +840,10 @@ export const capacidadeDaIntencao: Record<TipoIntencao, Capacidade | null> = {
   "combate.proximo": "combate.gerir",
   "combate.anterior": "combate.gerir",
   "combate.encerrar": "combate.gerir",
+  // V2: o jogador entra com o token que controla (a sala confere); o mestre escreve a rodada e dá a vez.
+  "combate.entrar": null,
+  "combate.rodada": "combate.gerir",
+  "combate.darVez": "combate.gerir",
   // Mestre ou quem edita o personagem do token: `processar` confere.
   "token.condicoes": null,
   "desenho.criar": "desenho.criar",

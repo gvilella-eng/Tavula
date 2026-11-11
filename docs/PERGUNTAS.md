@@ -30,6 +30,16 @@ Juntadas durante os Lotes 6 a 14 (2026-11-06 a 10) para fazer ao Vilella no fim.
 - O "Zerar o relógio" fica num botão de seta ao lado da pílula do topo; prefere clique direito na pílula? (assumido: seta, que também vale no teclado)
 - Quer um "marcar tempo" (vários marcos, como cronômetro de voltas) em vez de só zerar? (assumido: não)
 
+## Novas do V2 (2026-11-11)
+- A ordem "na tela" reaproveita o `ordemDeTurnoVisivel` que já existia (em vez de um campo novo `combate.aberta`). (assumido: sim)
+- Entrar, rolar e mudar um valor reordenam a lista sozinhos; o arrasto à mão vale até o próximo valor mudar ou o Ordenar. Prefere que nada reordene sozinho (como nas mesas virtuais)? (assumido: reordena)
+- A Iniciativa da ficha usa o token selecionado só se for do personagem daquela ficha; senão o único token dele na cena; com vários ou nenhum, avisa "Selecione o seu token no mapa.". (assumido)
+- Clicar num token que o jogador não controla solta a seleção dele. (assumido)
+- Rolar para todos, esconder entrada ou valor dos jogadores e o "Passar o meu turno" saíram da tela. Sente falta de algum? (assumido: não; voltariam no botão direito da linha)
+- O "Entrar na iniciativa" do botão direito no token entra sem valor (o mestre escreve). Prefere que ele já role? (assumido: sem valor)
+- O × do jogador fecha a ordem só na tela dele até o mestre reabrir. (assumido)
+- Resolve o item 34 do Lote 11 ("o jogador pode refazer a própria iniciativa?"): sem botão de rolar, só o mestre muda o valor (e a Iniciativa da ficha não rola de novo).
+
 ## Já vinham de antes
 - Camada mapa = imagem do mapa + objetos de cenário? (assumido)
 - Pincel: jogador apaga/seleciona só os próprios desenhos? desenhar é delegável e ligado por padrão? (assumido)

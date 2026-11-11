@@ -3481,13 +3481,31 @@ button[aria-disabled="true"]:hover {
 
 /* --- combate: ordem de turno, condições e dica (Lote 11) ----------------------------------------- */
 
-.janela-cabecalho .ot-rodada {
-  padding: 2px 10px;
-  font-size: 12px;
+.ot-rodada {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
   font-weight: 700;
-  color: var(--acento-texto);
-  background: var(--acento);
-  border-radius: 999px;
+}
+.ot-rodada-nota {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--texto-suave);
+}
+.ot-vazia {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 16px 4px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--texto-suave);
+}
+.ot-vazia strong {
+  font-size: 13px;
+  color: var(--texto);
 }
 .ot-lista {
   list-style: none;
@@ -3518,10 +3536,6 @@ button[aria-disabled="true"]:hover {
   border-color: var(--sucesso);
   border-left-color: var(--sucesso);
 }
-.ot-alca {
-  flex: none;
-  color: var(--texto-suave);
-}
 .ot-marca {
   flex: none;
   width: 14px;
@@ -3545,40 +3559,46 @@ button[aria-disabled="true"]:hover {
 .ot-entrada[data-vez] .ot-nome {
   font-weight: 700;
 }
-.ot-selo {
+.ot-campo {
   flex: none;
-  display: inline-flex;
-  color: var(--perigo);
+  width: 48px;
+  padding: 2px 6px;
+  font-family: var(--fonte-titulo);
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  appearance: textfield;
 }
-.ot-valor {
-  flex: none;
+.ot-campo::-webkit-outer-spin-button,
+.ot-campo::-webkit-inner-spin-button {
+  margin: 0;
+  appearance: none;
+}
+.ot-campo:hover,
+.ot-campo:focus {
+  background: var(--campo);
+  border-color: var(--borda);
+}
+.ot-campo-rodada {
   width: 52px;
-  padding: 2px 4px;
+  padding: 0 6px;
+  font-size: 13px;
   text-align: center;
 }
 .ot-numero {
   flex: none;
-  min-width: 28px;
-  text-align: center;
+  min-width: 48px;
+  padding: 0 7px;
+  text-align: right;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
 .ot-numero[data-oculto] {
   color: var(--texto-suave);
-}
-.ot-rolar,
-.ot-passar {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  padding: 2px 8px;
-  font-size: 12px;
-}
-.ot-passar {
-  width: 100%;
-  padding: 6px 10px;
-  font-size: 13px;
 }
 .ot-comandos {
   display: flex;
@@ -3593,11 +3613,6 @@ button[aria-disabled="true"]:hover {
   padding: 4px 8px;
   font-size: 12px;
 }
-.ordem-de-turno .ot-comandos .botao-icone.pequeno {
-  width: 24px;
-  height: 24px;
-  padding: 0;
-}
 .ot-linha {
   display: flex;
   gap: 6px;
@@ -3605,16 +3620,14 @@ button[aria-disabled="true"]:hover {
 .ordem-de-turno .ot-linha > button {
   flex: 1 1 0;
 }
-.ordem-de-turno .ot-linha > .ot-montar-botao {
+.ordem-de-turno .ot-rodape > button.botao-icone {
   flex: none;
-  padding: 4px 8px 4px 10px;
+  width: 36px;
+  height: 32px;
+  padding: 0;
 }
-.ot-montar {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding-top: 8px;
-  border-top: 1px solid var(--borda);
+.ordem-de-turno .ot-rodape > .ot-proximo {
+  flex: 1 1 auto;
 }
 .dica-flutuante {
   position: fixed;
@@ -3699,19 +3712,6 @@ kbd {
   border: 1px solid var(--borda);
   border-bottom-width: 2px;
   border-radius: 4px;
-}
-.ot-solta {
-  display: flex;
-  gap: 4px;
-  align-items: center;
-}
-.ot-solta input[type="text"] {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-.ot-solta input[type="number"] {
-  flex: none;
-  width: 56px;
 }
 .ot-confirmar {
   padding: 8px;

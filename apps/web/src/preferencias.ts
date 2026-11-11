@@ -111,25 +111,3 @@ export function gravarJanela(id: string, pref: PreferenciaDeJanela): void {
     // sem localStorage: vale só nesta sessão
   }
 }
-
-// --- ordem de turno: seção "Montar" aberta ou fechada (só deste navegador) --------------------------
-
-const CHAVE_MONTAR_DA_ORDEM = "tabletop:pref:ordem:montar";
-
-/** O que a pessoa escolheu para a seção "Montar" da ordem de turno; `null` = nunca escolheu (vale o padrão). */
-export function lerMontarDaOrdem(): boolean | null {
-  try {
-    const v = localStorage.getItem(CHAVE_MONTAR_DA_ORDEM);
-    return v === "1" ? true : v === "0" ? false : null;
-  } catch {
-    return null;
-  }
-}
-
-export function gravarMontarDaOrdem(aberta: boolean): void {
-  try {
-    localStorage.setItem(CHAVE_MONTAR_DA_ORDEM, aberta ? "1" : "0");
-  } catch {
-    // sem localStorage: vale só nesta sessão
-  }
-}

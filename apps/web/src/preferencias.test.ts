@@ -3,9 +3,7 @@ import {
   ajustarLarguraDoPainel,
   chaveDaJanela,
   gravarJanela,
-  gravarMontarDaOrdem,
   lerJanela,
-  lerMontarDaOrdem,
   limitesDoPainel,
 } from "./preferencias";
 
@@ -74,43 +72,5 @@ describe("preferência das janelas", () => {
     delete (globalThis as { localStorage?: unknown }).localStorage;
     expect(lerJanela("a")).toEqual({});
     expect(() => gravarJanela("a", { x: 1, y: 1 })).not.toThrow();
-  });
-});
-
-// Redesign R5b: a seção "Montar" da ordem de turno, aberta ou fechada, é preferência deste navegador.
-describe("preferência da seção Montar da ordem de turno", () => {
-  const guardado = new Map<string, string>();
-  beforeEach(() => {
-    guardado.clear();
-    (globalThis as { localStorage?: unknown }).localStorage = {
-      getItem: (k: string) => guardado.get(k) ?? null,
-      setItem: (k: string, v: string) => void guardado.set(k, v),
-      removeItem: (k: string) => void guardado.delete(k),
-    };
-  });
-  afterEach(() => {
-    delete (globalThis as { localStorage?: unknown }).localStorage;
-  });
-
-  it("sem escolha devolve null; depois de escolher, lembra", () => {
-    expect(lerMontarDaOrdem()).toBeNull();
-    gravarMontarDaOrdem(false);
-    expect(guardado.get("tabletop:pref:ordem:montar")).toBe("0");
-    expect(lerMontarDaOrdem()).toBe(false);
-    gravarMontarDaOrdem(true);
-    expect(lerMontarDaOrdem()).toBe(true);
-  });
-
-  it("sem localStorage não quebra", () => {
-    (globalThis as { localStorage?: unknown }).localStorage = {
-      getItem: () => {
-        throw new Error("bloqueado");
-      },
-      setItem: () => {
-        throw new Error("bloqueado");
-      },
-    };
-    expect(lerMontarDaOrdem()).toBeNull();
-    expect(() => gravarMontarDaOrdem(true)).not.toThrow();
   });
 });

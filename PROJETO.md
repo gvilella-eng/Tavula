@@ -229,6 +229,7 @@ interface Combate {                 // lote 11: Estado.combate (sem o campo = se
   rodada: number;                   // 0 = não começou
 }
 // o jogador só recebe as entradas que vê, sem Destreza e sem o número das de valor oculto
+// (V2, 2026-11-11) a ordem "na tela" é Estado.ordemDeTurnoVisivel (do mestre, vale para todos); fechar não apaga o combate
 
 interface Desenho {                // lote 13: Estado.desenhos; chega a quem recebe a cena
   id: string; cenaId: string; autorId: string;
@@ -1640,6 +1641,14 @@ entra nas perguntas do fim):**
 - **Concentração:** marca no token (com o nome da magia), mostrada no token e na ficha. Sem teste de
   Constituição automático por enquanto (vira ideia para o 7b).
 - **Exportação:** a ordem de turno e as condições entram (versão nova da exportação) (assumido).
+
+**Ordem de turno simples (V2, 2026-11-11; prevalece sobre o que está acima onde conflitar):** a janela é uma lista estreita (270 px, layout de referência) com o nome, o número da
+iniciativa à direita e a linha "Rodada: N" abaixo do cabeçalho (só título e ×); o mestre edita os números e a rodada clicando, ordena, passa o turno, dá a vez e limpa;
+arrasta a linha (ou Alt+↑/↓) e usa o botão direito ("Dar a vez", "Tirar da lista"). Saíram da tela "Montar" (rolar para todos, o grupo,
+adicionar selecionados, entrada solta), esconder entrada ou valor, a alça e o "Passar" do jogador; os campos `valorOculto` e
+`oculta` seguem no schema. O mestre abre e fecha a ordem para todos (fechar não apaga a lista nem a rodada). O jogador seleciona os
+tokens que controla (só na tela dele) e, com a ordem aberta, entra clicando em Iniciativa na ficha: intenção `combate.entrar { tokenId }`
+(a sala rola 1d20 + a ficha, manda ao chat e põe o token na lista); `combate.rodada` e `combate.darVez` são do mestre.
 
 **Como ficou (2026-11-09):**
 - `Estado.combate?` (tabela `combate`, migração 7) e, no token, `condicoes?`, `exaustao?` e

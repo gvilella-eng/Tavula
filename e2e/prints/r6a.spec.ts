@@ -95,7 +95,7 @@ for (const tamanho of TAMANHOS) {
           await m.getByTestId("janela-ordem").getByRole("toolbar").focus();
           await expect(m.getByTestId("dica-janela-ordem-cabecalho")).toBeVisible();
           await foto(m, `${rotulo}-03-dica-janela-cabecalho`);
-          await m.getByTestId("janela-ordem-minimizar").focus();
+          await m.getByTestId("janela-ordem-fechar").focus();
           await foto(m, `${rotulo}-04-foco-botao-da-janela`);
           await m.getByTestId("menu-ordem-turno").click();
         });

@@ -758,6 +758,60 @@ Temas com personalidade, aba Mesa no fim e "Zerar o relógio". Detalhes de execu
 - Os temas não foram vistos por quem tem daltonismo (só o contraste foi medido).
 - Ajustes de gosto nas cores: o Vilella olha e diz.
 
+## V2 — como ficou (2026-11-11)
+
+Ordem de turno simples. Detalhes de execução em `docs/ESTADO.md` ("Ajustes V2").
+
+**O que foi feito**
+- **Layout de referência, a pedido do dono** (vale por cima do brief): a janela é **estreita (270 px)**. O cabeçalho tem só o título "Ordem de
+  turno" e o **×** (sem botão de minimizar; minimizar é com dois cliques no cabeçalho, como em toda janela). Logo abaixo, a linha
+  **"Rodada: N"** à esquerda (0: "não começou"); o mestre clica no número e escreve (Enter confirma, Esc desfaz), o jogador só lê. A lista tem o
+  ponto da cor do token, o **nome** à esquerda e o **número** à direita; a da vez em destaque (fundo e borda de sucesso, nome em negrito, "▶"). O
+  mestre clica no número e escreve (Enter confirma, Esc desfaz, vazio tira o valor). Lista vazia: texto centralizado, "Ninguém na ordem de
+  turno." e "Selecione o seu token e clique em Iniciativa na ficha." (o mestre também lê "Ou clique direito no token e escolha Entrar na
+  iniciativa.").
+- **Rodapé do mestre, numa linha**: [← Turno anterior] [lixeira: Limpar] [Ordenar pela iniciativa] [→ Próximo turno, botão de acento], todos só
+  com ícone e a dica comum. Limpar pede confirmação curta (é o `combate.encerrar`: esvazia a lista e zera a rodada, e a janela continua aberta).
+  O **Anterior voltou** (o brief o tinha tirado). O jogador não vê o rodapé.
+- **Saíram da tela**: "Montar" (Rolar para todos, O grupo, Adicionar selecionados, entrada solta, Encerrar), o olho de esconder,
+  o "?" de valor oculto, o × de cada linha, a alça de arrastar, o "Rolar" e o "Passar o meu turno" do jogador. Os campos `valorOculto`,
+  `oculta`, `destreza` e `jogador` continuam no schema (compatibilidade; entrada antiga `oculta` continua sem chegar ao jogador), sem
+  interface. As intenções `combate.adicionar`, `combate.rolar` e `combate.passar` continuam na sala.
+- **Reordenar à mão**: o mestre arrasta a linha inteira; pelo teclado, a linha em foco com **Alt+↑/↓** (entra na tabela de atalhos). **Botão
+  direito** numa linha (ou a tecla de menu com a linha em foco): "Dar a vez" e "Tirar da lista".
+- **A ordem na tela é do mestre e vale para todos**: já existia (`ordemDeTurnoVisivel`, intenção `ordemDeTurno.definir`, pelo menu
+  Combate). O mestre agora também a fecha pelo **×** da janela (fecha para todos); fechar **não apaga** a lista nem a rodada, e reabrir devolve
+  tudo igual. O jogador vê a janela enquanto está aberta, pode **minimizar** (dois cliques) e **fechar só na tela dele** até o mestre reabrir (assumido); o × dele não manda nada à sala.
+- **O jogador entra pela ficha**: ele passa a **selecionar os tokens que controla** (anel de seleção; só na tela dele; Esc solta; clicar
+  num token alheio solta a seleção; nada vai para a sala; o painel do token continua só do mestre; Shift+F10 usa o token selecionado). Com a
+  ordem **aberta**, clicar em **Iniciativa** na ficha (dica "Rolar a iniciativa e entrar na ordem de turno") chama `combate.entrar`: a sala
+  rola 1d20 + a iniciativa da ficha, manda a rolagem ao chat como as outras e põe o token na lista com o valor. Com a ordem **fechada**, a
+  Iniciativa só rola no chat, como antes. O mestre usa o mesmo caminho e continua com "Entrar na iniciativa" do menu do token.
+- **Sala**: intenção nova `combate.entrar { tokenId }` (sem capacidade; conferida: ordem aberta, o usuário controla o token ou é o mestre, o token
+  é visível para ele, está na cena ativa e ainda não está na lista; o valor é rolado no servidor). `combate.rodada { rodada }` e
+  `combate.darVez { id }` (`combate.gerir`). Nenhum campo novo no estado, nenhuma migração, a exportação continua v12.
+- **Sigilo**: continua o filtro `combateParaUsuario`; a rolagem de NPC entra no chat oculta; a entrada que um token ganha ao ir para a
+  camada do mestre some do jogador (snapshot novo) e volta se o token voltar.
+
+**Decisões (assumido)**
+- (assumido) O "estado novo `combate.aberta`" do brief já existia como `ordemDeTurnoVisivel` (V1 e antes: liga e desliga para todos, guardado,
+  exportado, migração `false` para estado antigo). Foi reaproveitado em vez de criar um segundo campo; "estado antigo sem o campo = fechada"
+  já valia.
+- (assumido) Mudar o valor, entrar e rolar continuam **reordenando** a lista pelos valores (regra do Lote 11); o arrasto e o Alt+setas valem
+  até o próximo valor mudar ou o mestre apertar Ordenar.
+- (assumido) A Iniciativa da ficha só usa o token selecionado se ele for do personagem daquela ficha; senão, vale o único token do personagem
+  na cena ativa; com vários ou nenhum, o aviso "Selecione o seu token no mapa." (sob o cabeçalho da ficha, some em 5 s).
+- (assumido) Clicar num token alheio solta a seleção do jogador (em vez de mantê-la).
+- (assumido) O "Entrar na iniciativa" do menu do token continua entrando sem valor (o mestre escreve o número); só a Iniciativa da ficha rola.
+- (assumido) A vantagem escolhida na ficha não vale para a iniciativa que entra na ordem (a sala rola um d20 simples).
+- (assumido) O mestre "vendo como" um jogador só olha: não seleciona, não fecha a janela, não edita.
+- (assumido) Quem tinha a preferência `tabletop:pref:ordem:montar` fica com uma chave solta no navegador (nada a lê mais).
+
+**O que ficou para depois**
+- Rolar para todos de uma vez (a intenção `combate.rolar` continua, sem botão) e esconder entrada ou valor dos jogadores: se o Vilella sentir falta,
+  voltam como opção do menu de botão direito da linha.
+- Seleção múltipla no mapa (entrar com vários tokens de uma vez).
+
 ## Em aberto
 
 - **O plano R1 a R6 terminou** (R1, R2, R2b, R3, R4 em 2026-11-10; R5a, R5b, R6a e R6b em 2026-11-11). Agora o Vilella faz os ajustes

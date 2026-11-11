@@ -33,6 +33,8 @@ type Props = {
   /** Mostra o botão "Fechar" no cabeçalho. Sem isso a janela não fecha por ela mesma. */
   aoFechar?: () => void;
   rotuloDoFechar?: string;
+  /** Sem o botão de minimizar (ainda se minimiza com dois cliques no cabeçalho). */
+  semMinimizar?: boolean;
   /** `data-testid` que o elemento da janela já tinha antes do R3 (o `janela-<id>` fica no contêiner). */
   testid?: string;
   testidDoCabecalho?: string;
@@ -288,16 +290,18 @@ function JanelaNaArea({ alvo, ...p }: Props & { alvo: HTMLElement }) {
             )}
           </div>
           {p.acoes}
-          <BotaoComDica
-            className="botao-icone pequeno"
-            testid={`janela-${id}-minimizar`}
-            nome={minimizada ? "Restaurar" : "Minimizar"}
-            dica={minimizada ? "Mostra a janela inteira de novo." : "Deixa só a barra do título."}
-            aria-label={`${minimizada ? "Restaurar" : "Minimizar"} ${nome}`}
-            onClick={alternar}
-          >
-            {minimizada ? <Maximize2 size={14} /> : <Minus size={16} />}
-          </BotaoComDica>
+          {!p.semMinimizar && (
+            <BotaoComDica
+              className="botao-icone pequeno"
+              testid={`janela-${id}-minimizar`}
+              nome={minimizada ? "Restaurar" : "Minimizar"}
+              dica={minimizada ? "Mostra a janela inteira de novo." : "Deixa só a barra do título."}
+              aria-label={`${minimizada ? "Restaurar" : "Minimizar"} ${nome}`}
+              onClick={alternar}
+            >
+              {minimizada ? <Maximize2 size={14} /> : <Minus size={16} />}
+            </BotaoComDica>
+          )}
           {p.aoFechar && (
             <BotaoComDica
               className="botao-icone pequeno"

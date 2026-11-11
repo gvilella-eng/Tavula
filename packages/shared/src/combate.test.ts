@@ -732,3 +732,159 @@ describe("combate: exportação (v10 em diante)", () => {
     expect(lerExportacao({ ...base, dados: { ...base.dados, combate: ruim } }).ok).toBe(false);
   });
 });
+
+// ---------------------------------------------------------------------------------------------
+// V2: ordem de turno simples (entrar pela ficha, rodada à mão, dar a vez)
+// ---------------------------------------------------------------------------------------------
+
+describe("V2: combate.entrar", () => {
+  const aberta = () =>
+    aplicar(criarEstado(), "m", "ordemDeTurno.definir", { visivel: true }).estado;
+
+  it("com a ordem aberta, o jogador entra com o token que controla: a sala rola 1d20 + a ficha e manda ao chat", () => {
+    const r = aplicar(aberta(), "j1", "combate.entrar", { tokenId: "ta" });
+    const e = r.estado.combate?.entradas.find((x) => x.tokenId === "ta");
+    expect(e).toMatchObject({ nome: "Aldric", jogador: true, destreza: 16 });
+    // d20 + 2 da ficha do Aldric
+    expect(e?.iniciativa).toBeGreaterThanOrEqual(3);
+    expect(e?.iniciativa).toBeLessThanOrEqual(22);
+    const msg = r.eventos.find((x) => x.tipo === "chat.mensagem");
+    expect(msg?.tipo === "chat.mensagem" && msg.dados.mensagem.visivelPara).toBe("todos");
+    expect(msg?.tipo === "chat.mensagem" && msg.dados.mensagem.como?.nome).toBe("Aldric");
+    // o número da lista é o mesmo da rolagem do chat
+    const modelo = msg?.tipo === "chat.mensagem" ? msg.dados.mensagem.modelo : undefined;
+    const total = modelo?.modelo === "teste" ? modelo.rolagem.total : null;
+    expect(e?.iniciativa).toBe(total);
+  });
+
+  it("é determinístico e o jogador não manda o número (campo extra é descartado)", () => {
+    const a = aplicar(aberta(), "j1", "combate.entrar", { tokenId: "ta" }, 3).estado;
+    const b = aplicar(aberta(), "j1", "combate.entrar", { tokenId: "ta" }, 3).estado;
+    expect(a.combate?.entradas[0]?.iniciativa).toBe(b.combate?.entradas[0]?.iniciativa);
+    const lida = IntencaoSchema.safeParse({
+      v: 1,
+      id: "p",
+      tipo: "combate.entrar",
+      dados: { tokenId: "ta", iniciativa: 99 },
+    });
+    expect(lida.success && "iniciativa" in lida.data.dados).toBe(false);
+  });
+
+  it("recusa com a ordem fechada, token alheio, token invisível, de outra cena e repetido", () => {
+    expect(recusa(criarEstado(), "j1", "combate.entrar", { tokenId: "ta" })).toBe(
+      "dados_invalidos",
+    );
+    const e = aberta();
+    expect(recusa(e, "j1", "combate.entrar", { tokenId: "tb" })).toBe("sem_permissao");
+    expect(recusa(e, "j1", "combate.entrar", { tokenId: "tg1" })).toBe("sem_permissao");
+    // oculto e camada do mestre respondem como inexistentes para o jogador
+    expect(recusa(e, "j1", "combate.entrar", { tokenId: "tg3" })).toBe("token_inexistente");
+    expect(recusa(e, "j1", "combate.entrar", { tokenId: "tg4" })).toBe("token_inexistente");
+    expect(recusa(e, "j1", "combate.entrar", { tokenId: "nao-existe" })).toBe("token_inexistente");
+    const outraCena: Estado = {
+      ...e,
+      tokens: e.tokens.map((t) => (t.id === "ta" ? { ...t, cenaId: "cena-2" } : t)),
+    };
+    expect(recusa(outraCena, "m", "combate.entrar", { tokenId: "ta" })).not.toBeNull();
+    // repetido: não entra de novo nem rola outra vez
+    const dentro = aplicar(e, "j1", "combate.entrar", { tokenId: "ta" });
+    const mensagens = dentro.estado.chat?.length ?? 0;
+    expect(recusa(dentro.estado, "j1", "combate.entrar", { tokenId: "ta" })).toBe(
+      "dados_invalidos",
+    );
+    expect(recusa(dentro.estado, "m", "combate.entrar", { tokenId: "ta" })).toBe("dados_invalidos");
+    expect(dentro.estado.chat?.length ?? 0).toBe(mensagens);
+  });
+
+  it("o mestre entra com qualquer token; a rolagem de NPC é oculta e o oculto não chega ao jogador", () => {
+    const antes = aberta();
+    const r = aplicar(antes, "m", "combate.entrar", { tokenId: "tg1" });
+    const msg = r.eventos.find((x) => x.tipo === "chat.mensagem");
+    expect(msg && eventoPara(msg, j1, antes, r.estado)).toBeNull();
+    expect(r.estado.combate?.entradas[0]).toMatchObject({ nome: "Goblin A" });
+    const oculto = aplicar(r.estado, "m", "combate.entrar", { tokenId: "tg3" }).estado;
+    expect(visaoPara(oculto, j1).combate?.entradas.map((x) => x.nome)).toEqual(["Goblin A"]);
+  });
+
+  it("o token entregue a um jogador (controladoPor) também entra", () => {
+    const e = aberta();
+    const dele: Estado = {
+      ...e,
+      tokens: e.tokens.map((t) => (t.id === "tg2" ? { ...t, controladoPor: ["j2"] } : t)),
+    };
+    const r = aplicar(dele, "j2", "combate.entrar", { tokenId: "tg2" });
+    expect(r.estado.combate?.entradas[0]).toMatchObject({ nome: "Goblin B" });
+  });
+
+  it("o token que vai para a camada do mestre some da lista do jogador", () => {
+    const e = aplicar(aberta(), "j1", "combate.entrar", { tokenId: "ta" }).estado;
+    expect(visaoPara(e, j2).combate?.entradas).toHaveLength(1);
+    const r = aplicar(e, "m", "token.editar", { id: "ta", mudancas: { camada: "mestre" } });
+    expect(r.snapshotPara).toBe("todos");
+    expect(visaoPara(r.estado, j2).combate?.entradas).toHaveLength(0);
+    expect(visaoPara(r.estado, mestre).combate?.entradas).toHaveLength(1);
+  });
+});
+
+describe("V2: rodada, dar a vez, limpar e fechar", () => {
+  it("o mestre escreve a rodada; 0 volta a 'não começou' e tira a vez; o jogador não escreve", () => {
+    let e = comCombate();
+    e = aplicar(e, "m", "combate.rodada", { rodada: 5 }).estado;
+    expect(e.combate?.rodada).toBe(5);
+    e = aplicar(e, "m", "combate.proximo").estado;
+    expect(e.combate?.rodada).toBe(5);
+    expect(e.combate?.atualId).toBeDefined();
+    e = aplicar(e, "m", "combate.rodada", { rodada: 0 }).estado;
+    expect(e.combate?.rodada).toBe(0);
+    expect(e.combate?.atualId).toBeUndefined();
+    expect(recusa(e, "j1", "combate.rodada", { rodada: 2 })).toBe("sem_permissao");
+    expect(recusa(e, "m", "combate.rodada", { rodada: -1 })).toBe("mensagem_invalida");
+    expect(recusa(e, "m", "combate.rodada", { rodada: 10000 })).toBe("mensagem_invalida");
+    const novo = aplicar(criarEstado(), "m", "combate.rodada", { rodada: 3 }).estado;
+    expect(novo.combate).toMatchObject({ entradas: [], rodada: 3 });
+  });
+
+  it("a rodada chega ao jogador", () => {
+    const e = aplicar(comCombate(), "m", "combate.rodada", { rodada: 4 }).estado;
+    expect(visaoPara(e, j1).combate?.rodada).toBe(4);
+  });
+
+  it("dar a vez: a rodada continua (ou abre a 1); entrada inexistente e jogador recusados", () => {
+    let e = comCombate();
+    e = aplicar(e, "m", "combate.darVez", { id: "e-tb" }).estado;
+    expect(e.combate).toMatchObject({ atualId: "e-tb", rodada: 1 });
+    e = aplicar(e, "m", "combate.rodada", { rodada: 3 }).estado;
+    e = aplicar(e, "m", "combate.darVez", { id: "e-tc" }).estado;
+    expect(e.combate).toMatchObject({ atualId: "e-tc", rodada: 3 });
+    expect(recusa(e, "m", "combate.darVez", { id: "nada" })).toBe("dados_invalidos");
+    expect(recusa(e, "j1", "combate.darVez", { id: "e-ta" })).toBe("sem_permissao");
+  });
+
+  it("Limpar zera a lista e a rodada e não fecha a janela (a ordem continua aberta)", () => {
+    let e = aplicar(comCombate(), "m", "ordemDeTurno.definir", { visivel: true }).estado;
+    e = aplicar(e, "m", "combate.rodada", { rodada: 3 }).estado;
+    e = aplicar(e, "m", "combate.encerrar").estado;
+    expect(e.combate).toBeUndefined();
+    expect(e.ordemDeTurnoVisivel).toBe(true);
+  });
+
+  it("fechar a ordem não apaga a lista nem a rodada; abrir de novo a devolve igual", () => {
+    let e = aplicar(comCombate(), "m", "ordemDeTurno.definir", { visivel: true }).estado;
+    e = aplicar(e, "m", "combate.rodada", { rodada: 2 }).estado;
+    const antes = e.combate;
+    e = aplicar(e, "m", "ordemDeTurno.definir", { visivel: false }).estado;
+    expect(e.combate).toEqual(antes);
+    e = aplicar(e, "m", "ordemDeTurno.definir", { visivel: true }).estado;
+    expect(e.combate).toEqual(antes);
+  });
+
+  it("exportar e importar a mesa leva a ordem, a rodada e a ordem aberta", () => {
+    let e = aplicar(comCombate(), "m", "ordemDeTurno.definir", { visivel: true }).estado;
+    e = aplicar(e, "m", "combate.rodada", { rodada: 6 }).estado;
+    const volta = lerExportacao(JSON.parse(JSON.stringify(criarExportacao(e, AGORA))));
+    expect(volta.ok).toBe(true);
+    if (!volta.ok) return;
+    expect(volta.exportacao.dados.combate?.rodada).toBe(6);
+    expect(volta.exportacao.dados.ordemDeTurnoVisivel).toBe(true);
+  });
+});

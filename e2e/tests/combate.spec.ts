@@ -1,16 +1,16 @@
 import { enviarCru, expect, intencaoCrua, test } from "./ajudas";
 import {
-  abrirMontar,
   definirValor,
   emVez,
   ligarOrdem,
   linha,
+  menuDaLinha,
   menuDoToken,
   nomesNaOrdem,
   vezNaOrdem,
 } from "./ajudasCombate";
 import { mandar } from "./ajudasFicha";
-import { entrarNoMapa, selecionarToken, tokenDe } from "./ajudasMapa";
+import { entrarNoMapa, tokenDe } from "./ajudasMapa";
 
 // Lote 11: combate (ordem de turno, condições e concentração). A semente da campanha traz Aldric, Brisa e
 // Cael (jogador-1, 2 e 3), o Ogro (NPC visível), um goblin oculto e um marcador na camada do mestre.
@@ -20,16 +20,18 @@ test("o mestre avança o turno e o jogador vê a vez mudar: na lista e no anel d
 }) => {
   const mestre = await entrarNoMapa(mesa, "mestre");
   const j1 = await entrarNoMapa(mesa, "jogador-1");
-  // o Ogro é selecionado antes de abrir o painel, que cobre o centro da tela em 1280 px
-  await selecionarToken(mestre.pagina, "tok-ogro");
   await ligarOrdem(mestre.pagina);
   await expect(j1.pagina.getByTestId("ordem-de-turno")).toBeVisible();
   await expect(j1.pagina.getByTestId("ordem-vazia")).toBeVisible();
 
-  // o grupo entra de uma vez; o Ogro, pelo botão "Adicionar selecionados"
-  await mestre.pagina.getByTestId("ordem-adicionar-grupo").click();
+  // o grupo e o Ogro entram na lista (V2: a interface de "Montar" saiu; aqui vale a intenção da sala)
+  await mandar(mestre.pagina, "combate.adicionar", {
+    entradas: ["tok-jogador-1", "tok-jogador-2", "tok-jogador-3", "tok-ogro"].map((t) => ({
+      id: `e-${t}`,
+      tokenId: t,
+    })),
+  });
   await expect(linha(mestre.pagina, "Cael")).toBeVisible();
-  await mestre.pagina.getByTestId("ordem-adicionar-selecionados").click();
   await expect(linha(mestre.pagina, "Ogro")).toBeVisible();
   await expect(linha(j1.pagina, "Ogro")).toBeVisible();
 
@@ -41,13 +43,14 @@ test("o mestre avança o turno e o jogador vê a vez mudar: na lista e no anel d
   for (const s of [mestre, j1]) {
     await expect.poll(() => nomesNaOrdem(s.pagina)).toEqual(["Aldric", "Ogro", "Brisa", "Cael"]);
   }
-  await expect(mestre.pagina.getByTestId("ordem-rodada")).toHaveText("Não começou");
+  await expect(mestre.pagina.getByTestId("ordem-rodada")).toContainText("não começou");
+  await expect(j1.pagina.getByTestId("ordem-rodada")).toHaveText("Rodada: não começou");
 
   // primeiro Próximo: rodada 1, vez do Aldric
   await mestre.pagina.getByTestId("ordem-proximo").click();
   for (const s of [mestre, j1]) {
     await expect.poll(() => vezNaOrdem(s.pagina)).toBe("Aldric");
-    await expect(s.pagina.getByTestId("ordem-rodada")).toHaveText("Rodada 1");
+    await expect(s.pagina.getByTestId("ordem-rodada")).toHaveAttribute("data-rodada", "1");
   }
   await expect.poll(() => emVez(j1.pagina, "tok-jogador-1")).toBe(true);
   await expect.poll(() => emVez(mestre.pagina, "tok-jogador-1")).toBe(true);
@@ -64,26 +67,26 @@ test("o mestre avança o turno e o jogador vê a vez mudar: na lista e no anel d
   await mestre.pagina.getByTestId("ordem-proximo").click();
   await mestre.pagina.getByTestId("ordem-proximo").click();
   await expect.poll(() => vezNaOrdem(j1.pagina)).toBe("Aldric");
-  await expect(j1.pagina.getByTestId("ordem-rodada")).toHaveText("Rodada 2");
-  await mestre.pagina.getByTestId("ordem-anterior").click();
+  await expect(j1.pagina.getByTestId("ordem-rodada")).toHaveText("Rodada: 2");
+  // botão direito na linha: "Dar a vez" (substitui o Anterior); a rodada continua
+  await menuDaLinha(mestre.pagina, "Cael", "ordem-menu-dar-vez");
   await expect.poll(() => vezNaOrdem(j1.pagina)).toBe("Cael");
-  await expect(j1.pagina.getByTestId("ordem-rodada")).toHaveText("Rodada 1");
+  await expect(j1.pagina.getByTestId("ordem-rodada")).toHaveText("Rodada: 2");
 
-  // o jogador não tem os comandos do mestre
+  // o jogador não tem os comandos do mestre, nem o menu da linha
   await expect(j1.pagina.getByTestId("ordem-proximo")).toHaveCount(0);
   await expect(j1.pagina.getByTestId("ordem-encerrar")).toHaveCount(0);
+  await linha(j1.pagina, "Cael").click({ button: "right" });
+  await expect(j1.pagina.getByTestId("ordem-menu")).toHaveCount(0);
 
-  // tirar a entrada da vez passa o turno; "Ordenar" refaz a ordem pelos valores
-  const idDoCael = await linha(mestre.pagina, "Cael").getAttribute("data-id");
-  await mestre.pagina.getByTestId(`ordem-tirar-${idDoCael}`).click();
+  // tirar a entrada da vez passa o turno (botão direito > "Tirar da lista")
+  await menuDaLinha(mestre.pagina, "Cael", "ordem-menu-tirar");
   await expect.poll(() => nomesNaOrdem(j1.pagina)).toEqual(["Aldric", "Ogro", "Brisa"]);
   await expect.poll(() => vezNaOrdem(j1.pagina)).toBe("Aldric");
-  await expect(j1.pagina.getByTestId("ordem-rodada")).toHaveText("Rodada 2");
+  await expect(j1.pagina.getByTestId("ordem-rodada")).toHaveText("Rodada: 3");
   await expect.poll(() => emVez(j1.pagina, "tok-jogador-3")).toBe(false);
 
-  // encerrar pede confirmação; cancelar não apaga; confirmar limpa para todos
-  // (depois que o combate começa, a seção "Montar" vem recolhida)
-  await abrirMontar(mestre.pagina);
+  // Limpar pede confirmação; cancelar não apaga; confirmar limpa para todos
   await mestre.pagina.getByTestId("ordem-encerrar").click();
   await mestre.pagina.getByTestId("ordem-encerrar-nao").click();
   await expect(linha(mestre.pagina, "Aldric")).toBeVisible();
@@ -91,8 +94,10 @@ test("o mestre avança o turno e o jogador vê a vez mudar: na lista e no anel d
   await mestre.pagina.getByTestId("ordem-encerrar-sim").click();
   for (const s of [mestre, j1]) {
     await expect(s.pagina.getByTestId("ordem-vazia")).toBeVisible();
-    await expect(s.pagina.getByTestId("ordem-rodada")).toHaveText("Não começou");
+    await expect(s.pagina.getByTestId("ordem-rodada")).toHaveAttribute("data-rodada", "0");
   }
+  // limpar não fecha a janela
+  await expect(j1.pagina.getByTestId("ordem-de-turno")).toBeVisible();
   expect(await emVez(j1.pagina, "tok-jogador-1")).toBe(false);
 });
 
@@ -118,10 +123,10 @@ test("frames: a iniciativa oculta não chega ao jogador (token oculto, camada do
   // o mestre vê tudo; o jogador só o que o mapa dele mostra
   await expect(mestre.pagina.getByTestId("ordem-entrada")).toHaveCount(6);
   await expect(j1.pagina.getByTestId("ordem-entrada")).toHaveCount(3);
-  await expect(mestre.pagina.getByTestId("ordem-escondida")).toHaveCount(3);
 
-  // rolar para todos: os NPCs rolam ocultos (só o mestre vê); os PJs, em público
-  await mestre.pagina.getByTestId("ordem-rolar-todos").click();
+  // rolar para todos (pela sala; a interface de "Rolar para todos" saiu no V2): os NPCs rolam ocultos (só o
+  // mestre vê); os PJs, em público
+  await mandar(mestre.pagina, "combate.rolar", {});
   await expect(
     mestre.pagina.locator('[data-testid="chat-mensagem"][data-tipo="modelo"]'),
   ).toHaveCount(6);
@@ -146,7 +151,7 @@ test("frames: a iniciativa oculta não chega ao jogador (token oculto, camada do
   await mestre.pagina.getByTestId("ordem-proximo").click();
   await expect.poll(() => vezNaOrdem(mestre.pagina)).toBe("Goblin Emboscado");
   // a vez de uma entrada que o jogador não vê não destaca ninguém para ele; a rodada chega
-  await expect(j1.pagina.getByTestId("ordem-rodada")).toHaveText("Rodada 1");
+  await expect(j1.pagina.getByTestId("ordem-rodada")).toHaveText("Rodada: 1");
   await expect(j1.pagina.locator('[data-testid="ordem-entrada"][data-vez]')).toHaveCount(0);
   expect(await emVez(j1.pagina, "tok-jogador-1")).toBe(false);
   // o Ogro aparece com "?" no lugar do número
@@ -184,77 +189,52 @@ test("frames: a iniciativa oculta não chega ao jogador (token oculto, camada do
   expect(doMestre).toContain("Armadilha secreta");
 });
 
-test("o jogador rola a própria iniciativa e passa o próprio turno; não passa o de outro", async ({
+test("o jogador não rola nem passa o turno de outro, nem por fora da tela (a sala confere)", async ({
   mesa,
 }) => {
   const mestre = await entrarNoMapa(mesa, "mestre");
   const j1 = await entrarNoMapa(mesa, "jogador-1");
   const j2 = await entrarNoMapa(mesa, "jogador-2");
-  await selecionarToken(mestre.pagina, "tok-ogro");
   await ligarOrdem(mestre.pagina);
-  await mestre.pagina.getByTestId("ordem-adicionar-grupo").click();
-  await mestre.pagina.getByTestId("ordem-adicionar-selecionados").click();
+  await mandar(mestre.pagina, "combate.adicionar", {
+    entradas: [
+      { id: "e-aldric", tokenId: "tok-jogador-1" },
+      { id: "e-brisa", tokenId: "tok-jogador-2" },
+      { id: "e-ogro", tokenId: "tok-ogro" },
+    ],
+  });
   await expect(linha(j1.pagina, "Ogro")).toBeVisible();
+  // a lista do jogador não tem botão de rolar nem de passar: entra-se pela ficha (V2)
+  await expect(j1.pagina.getByTestId("ordem-passar")).toHaveCount(0);
+  await expect(j1.pagina.locator('[data-testid^="ordem-rolar-"]')).toHaveCount(0);
 
-  // cada jogador só tem o botão "Rolar" da própria entrada
-  const idDe = async (nome: string) =>
-    (await linha(mestre.pagina, nome).getAttribute("data-id")) ?? "";
-  const aldric = await idDe("Aldric");
-  const brisa = await idDe("Brisa");
-  const ogro = await idDe("Ogro");
-  await expect(j1.pagina.getByTestId(`ordem-rolar-${aldric}`)).toBeVisible();
-  await expect(j1.pagina.getByTestId(`ordem-rolar-${brisa}`)).toHaveCount(0);
-  await expect(j1.pagina.getByTestId(`ordem-rolar-${ogro}`)).toHaveCount(0);
-  await expect(j2.pagina.getByTestId(`ordem-rolar-${aldric}`)).toHaveCount(0);
-
-  // o jogador rola a do Aldric: o valor aparece para todos e a rolagem vai pública para o chat
-  await j1.pagina.getByTestId(`ordem-rolar-${aldric}`).click();
-  await expect(j1.pagina.getByTestId(`ordem-numero-${aldric}`)).not.toHaveText("—");
-  await expect(j2.pagina.getByTestId(`ordem-numero-${aldric}`)).not.toHaveText("—");
-  await expect(j1.pagina.getByTestId(`ordem-rolar-${aldric}`)).toHaveCount(0);
-  const rolagemNoChat = j2.pagina.locator('[data-testid="chat-mensagem"][data-tipo="modelo"]');
-  await expect(rolagemNoChat).toHaveCount(1);
-  await expect(rolagemNoChat).toContainText("Iniciativa");
-  await expect(rolagemNoChat.getByTestId("chat-autor")).toHaveText("Aldric");
-
-  // tentar rolar a do outro (por fora da tela) é recusado
-  const outro = await enviarCru(j1.pagina, intencaoCrua("combate.rolar", { ids: [brisa] }));
+  // rolar a de outro, a de NPC ou sem dizer qual é recusado
+  const outro = await enviarCru(j1.pagina, intencaoCrua("combate.rolar", { ids: ["e-brisa"] }));
   expect(outro).toMatchObject({ tipo: "erro", dados: { codigo: "sem_permissao" } });
-  const npc = await enviarCru(j1.pagina, intencaoCrua("combate.rolar", { ids: [ogro] }));
+  const npc = await enviarCru(j1.pagina, intencaoCrua("combate.rolar", { ids: ["e-ogro"] }));
   expect(npc).toMatchObject({ tipo: "erro", dados: { codigo: "sem_permissao" } });
-  // rolar de novo a própria também
-  const denovo = await enviarCru(j1.pagina, intencaoCrua("combate.rolar", { ids: [aldric] }));
-  expect(denovo?.tipo).toBe("erro");
 
-  // o mestre põe os demais lá embaixo: o Aldric abre a rodada (o valor rolado é um d20 de verdade e
-  // pode sair baixo; fixá-lo em 20 deixa a ordem certa sem depender do dado)
+  // o mestre abre a rodada: a vez é do Aldric; o Brisa (j2) não passa o turno dele
   await definirValor(mestre.pagina, "Aldric", 20);
   await definirValor(mestre.pagina, "Brisa", 1);
-  await definirValor(mestre.pagina, "Cael", 2);
   await definirValor(mestre.pagina, "Ogro", 3);
-  await expect.poll(() => nomesNaOrdem(j1.pagina)).toEqual(["Aldric", "Ogro", "Cael", "Brisa"]);
+  await expect.poll(() => nomesNaOrdem(j2.pagina)).toEqual(["Aldric", "Ogro", "Brisa"]);
   await mestre.pagina.getByTestId("ordem-proximo").click();
   await expect.poll(() => vezNaOrdem(j2.pagina)).toBe("Aldric");
-
-  // só quem edita o Aldric vê "Passar o meu turno", e ele nem pode ser passado por outro
-  await expect(j1.pagina.getByTestId("ordem-passar")).toBeVisible();
-  await expect(j2.pagina.getByTestId("ordem-passar")).toHaveCount(0);
   const alheio = await enviarCru(j2.pagina, intencaoCrua("combate.passar", {}));
   expect(alheio).toMatchObject({ tipo: "erro", dados: { codigo: "sem_permissao" } });
   await expect.poll(() => vezNaOrdem(j2.pagina)).toBe("Aldric");
 
-  await j1.pagina.getByTestId("ordem-passar").click();
-  await expect.poll(() => vezNaOrdem(j2.pagina)).toBe("Ogro");
-  await expect(j1.pagina.getByTestId("ordem-passar")).toHaveCount(0);
-  // agora é a vez do Ogro (NPC): nenhum jogador passa
-  for (const s of [j1, j2]) {
-    const r = await enviarCru(s.pagina, intencaoCrua("combate.passar", {}));
-    expect(r).toMatchObject({ tipo: "erro", dados: { codigo: "sem_permissao" } });
+  // quem não gerencia não avança, não escreve a rodada nem dá a vez
+  for (const [tipo, dados] of [
+    ["combate.proximo", {}],
+    ["combate.rodada", { rodada: 9 }],
+    ["combate.darVez", { id: "e-brisa" }],
+  ] as const) {
+    const r = await enviarCru(j1.pagina, intencaoCrua(tipo, dados));
+    expect(r, tipo).toMatchObject({ tipo: "erro", dados: { codigo: "sem_permissao" } });
   }
-  await expect.poll(() => vezNaOrdem(mestre.pagina)).toBe("Ogro");
-  // quem não gerencia não avança: erro de permissão
-  const avanca = await enviarCru(j1.pagina, intencaoCrua("combate.proximo", {}));
-  expect(avanca).toMatchObject({ tipo: "erro", dados: { codigo: "sem_permissao" } });
+  await expect.poll(() => vezNaOrdem(mestre.pagina)).toBe("Aldric");
 });
 
 test("condição e concentração que o jogador aplica no próprio token aparecem para o mestre", async ({

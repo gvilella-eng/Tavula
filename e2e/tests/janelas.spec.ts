@@ -164,14 +164,14 @@ test("dois cliques no cabeçalho minimizam (só a barra do título) e restauram;
   const j = janela(p, "ordem");
   const cheia = await caixa(j);
   await expect(j).toHaveAttribute("data-minimizada", "false");
-  await expect(p.getByTestId("ordem-solta")).toBeVisible();
+  await expect(p.getByTestId("ordem-encerrar")).toBeVisible();
 
   // dois cliques no título
   const ponto = await pontoDoCabecalho(p, "ordem");
   await p.mouse.dblclick(ponto.x, ponto.y);
   await expect(j).toHaveAttribute("data-minimizada", "true");
-  await expect(p.getByTestId("ordem-solta")).toBeHidden();
-  await expect(p.getByTestId("ordem-rodada")).toBeVisible();
+  await expect(p.getByTestId("ordem-encerrar")).toBeHidden();
+  await expect(p.getByTestId("ordem-rodada")).toBeHidden();
   const minimizada = await caixa(j);
   expect(minimizada.height).toBeLessThan(60);
   expect(minimizada.height).toBeLessThan(cheia.height);
@@ -183,7 +183,7 @@ test("dois cliques no cabeçalho minimizam (só a barra do título) e restauram;
   // sobrevive ao recarregar (a conexão nova manda as mensagens do começo: a contagem recomeça depois)
   await recarregar(p);
   await expect(janela(p, "ordem")).toHaveAttribute("data-minimizada", "true");
-  await expect(p.getByTestId("ordem-solta")).toBeHidden();
+  await expect(p.getByTestId("ordem-encerrar")).toBeHidden();
 
   await assentar(s);
   const depoisDoRecarregar = contagem(s);
@@ -192,19 +192,14 @@ test("dois cliques no cabeçalho minimizam (só a barra do título) e restauram;
   const ponto2 = await pontoDoCabecalho(p, "ordem");
   await p.mouse.dblclick(ponto2.x, ponto2.y);
   await expect(janela(p, "ordem")).toHaveAttribute("data-minimizada", "false");
-  await expect(p.getByTestId("ordem-solta")).toBeVisible();
+  await expect(p.getByTestId("ordem-encerrar")).toBeVisible();
   const restaurada = await caixa(janela(p, "ordem"));
   expect(perto(restaurada.height, cheia.height)).toBe(true);
   expect(await guardada(p, "ordem")).toBeNull();
 
-  // o botão também minimiza e restaura (com nome para quem não usa o mouse)
-  const botao = p.getByTestId("janela-ordem-minimizar");
-  await expect(botao).toHaveAttribute("aria-label", "Minimizar Ordem de turno");
-  await botao.click();
-  await expect(janela(p, "ordem")).toHaveAttribute("data-minimizada", "true");
-  await expect(botao).toHaveAttribute("aria-label", "Restaurar Ordem de turno");
-  await botao.click();
-  await expect(janela(p, "ordem")).toHaveAttribute("data-minimizada", "false");
+  // a ordem não tem botão de minimizar (só os dois cliques no cabeçalho); tem o de fechar
+  await expect(p.getByTestId("janela-ordem-minimizar")).toHaveCount(0);
+  await expect(p.getByTestId("janela-ordem-fechar")).toBeVisible();
 
   // nada disso foi para a sala
   await p.waitForTimeout(300);

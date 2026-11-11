@@ -359,9 +359,9 @@ test("várias janelas ao mesmo tempo, arrastáveis e redimensionáveis", async (
     x: number;
     y: number;
   };
-  await p.mouse.move(cab.x + 400, cab.y + 10);
+  await p.mouse.move(cab.x + 250, cab.y + 10);
   await p.mouse.down();
-  await p.mouse.move(cab.x + 460, cab.y + 50, { steps: 5 });
+  await p.mouse.move(cab.x + 310, cab.y + 50, { steps: 5 });
   await p.mouse.up();
   const depois = (await darion.boundingBox()) as typeof antes;
   expect(Math.round(depois.x - antes.x)).toBe(60);

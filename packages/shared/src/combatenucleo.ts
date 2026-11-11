@@ -228,9 +228,125 @@ export function combatePassar(c: ContextoDeCombate): SaidaDeCombate {
   return {};
 }
 
+/** V2: o mestre escreve a rodada. 0 = ainda não começou (e ninguém fica na vez). */
+export function combateRodada(c: ContextoDeCombate, dados: De<"combate.rodada">): SaidaDeCombate {
+  const combate = combateDe(c.atual());
+  if (combate.rodada === dados.rodada) return {};
+  const { atualId, ...resto } = combate;
+  emitirCombate(c, {
+    ...resto,
+    ...(atualId === undefined || dados.rodada === 0 ? {} : { atualId }),
+    rodada: dados.rodada,
+  });
+  return {};
+}
+
+/** V2: o mestre dá a vez a uma entrada. A rodada continua; se o combate não tinha começado, abre a 1. */
+export function combateDarVez(c: ContextoDeCombate, dados: De<"combate.darVez">): SaidaDeCombate {
+  const combate = combateDe(c.atual());
+  if (!combate.entradas.some((e) => e.id === dados.id)) return erro("dados_invalidos", SEM_ENTRADA);
+  const rodada = Math.max(combate.rodada, 1);
+  if (combate.atualId === dados.id && combate.rodada === rodada) return {};
+  emitirCombate(c, { ...combate, atualId: dados.id, rodada });
+  return {};
+}
+
+/**
+ * V2: entra na ordem de turno com um token. A sala confere que a ordem está aberta, que o usuário controla o
+ * token (o mestre, qualquer um), que o token está na cena ativa e que ainda não está na lista; rola 1d20 + a
+ * iniciativa da ficha (o jogador não manda o número) e manda a rolagem ao chat.
+ */
+export function combateEntrar(c: ContextoDeCombate, dados: De<"combate.entrar">): SaidaDeCombate {
+  const estado = c.atual();
+  if (!estado.ordemDeTurnoVisivel) {
+    return erro("dados_invalidos", "A ordem de turno está fechada.");
+  }
+  const token = estado.tokens.find((t) => t.id === dados.tokenId);
+  // Token que o usuário não vê responde igual a token inexistente.
+  if (!token || !tokenVisivelPara(token, c.usuario, estado.cenaAtivaId)) {
+    return erro("token_inexistente", SEM_TOKEN);
+  }
+  if (!ehMestre(c) && !controlaToken(token, c.usuario, estado.personagens)) {
+    return erro("sem_permissao", "Você não controla este token.");
+  }
+  if (token.cenaId !== estado.cenaAtivaId) {
+    return erro("dados_invalidos", "O token não está na cena ativa.");
+  }
+  const combate = combateDe(estado);
+  if (combate.entradas.some((e) => e.tokenId === token.id)) {
+    return erro("dados_invalidos", "Já está na ordem de turno.");
+  }
+  if (combate.entradas.length >= LIMITES_DO_COMBATE.entradas) {
+    return erro("dados_invalidos", `No máximo ${LIMITES_DO_COMBATE.entradas} entradas.`);
+  }
+  const p = personagemDoToken(estado, token);
+  const destreza = destrezaDe(p);
+  const ids = new Set(combate.entradas.map((e) => e.id));
+  let n = estado.seq + 1;
+  while (ids.has(`ent-${n}`)) n += 1;
+  const base: EntradaDeCombate = {
+    id: `ent-${n}`,
+    tokenId: token.id,
+    nome: token.nome,
+    ...(destreza === undefined ? {} : { destreza }),
+    ...(p !== undefined && ehPersonagemDeJogador(p) ? { jogador: true } : {}),
+  };
+  const r = rolarDaEntrada(c, base);
+  if ("erro" in r) return r;
+  emitirCombate(c, ordenarCombate({ ...combate, entradas: [...combate.entradas, r.entrada] }));
+  return {};
+}
+
 // ---------------------------------------------------------------------------------------------
 // Rolagem de iniciativa
 // ---------------------------------------------------------------------------------------------
+
+/**
+ * Rola a iniciativa de uma entrada (d20 + bônus da ficha, ou 0) pelo modelo de teste do Lote 8, manda o
+ * resultado ao chat e devolve a entrada com o valor. A rolagem de NPC (e de entrada com valor oculto ou
+ * escondida) vai OCULTA: só o mestre a vê. A de personagem de jogador vai pública.
+ */
+function rolarDaEntrada(
+  c: ContextoDeCombate,
+  e: EntradaDeCombate,
+): { erro: ErroDaSala } | { entrada: EntradaDeCombate } {
+  const estado = c.atual();
+  const p = personagemDaEntrada(estado, e);
+  const bonus = p?.ficha ? iniciativaDaFicha(p.ficha) : 0;
+  const r = rolarTeste({ nome: "Iniciativa", bonus }, c.aleatorio);
+  if (!r.ok) return erro("dados_invalidos", r.motivo);
+  const total = Math.min(
+    Math.max(r.resultado.rolagem.total, LIMITES_DO_COMBATE.iniciativaMin),
+    LIMITES_DO_COMBATE.iniciativaMax,
+  );
+  const destreza = destrezaDe(p);
+  const entrada: EntradaDeCombate = { ...e, iniciativa: total };
+  if (destreza !== undefined) entrada.destreza = destreza;
+  const publica = e.jogador === true && e.valorOculto !== true && e.oculta !== true;
+  const seq = estado.seq + 1;
+  const mensagem: Mensagem = {
+    id: `m${seq}`,
+    seq,
+    emSala: tempoDaSala(estado.relogio, c.agoraMs),
+    emReal: c.agoraMs,
+    autorId: c.usuario.id,
+    ...(p
+      ? {
+          como: {
+            personagemId: p.id,
+            nome: p.nome,
+            ...(p.retratoHash === undefined ? {} : { retratoHash: p.retratoHash }),
+          },
+        }
+      : { texto: e.nome }),
+    tipo: "modelo",
+    modelo: r.resultado,
+    visivelPara: publica ? "todos" : { ids: [] },
+    ...(publica ? {} : { oculta: true }),
+  };
+  c.emitir({ tipo: "chat.mensagem", dados: { mensagem } });
+  return { entrada };
+}
 
 /**
  * Rola a iniciativa (d20 + bônus da ficha, ou 0) pelo modelo de teste do Lote 8 e manda cada resultado
@@ -272,43 +388,9 @@ export function combateRolar(c: ContextoDeCombate, dados: De<"combate.rolar">): 
 
   const rolados = new Map<string, EntradaDeCombate>();
   for (const e of alvos) {
-    const p = personagemDaEntrada(estado, e);
-    const bonus = p?.ficha ? iniciativaDaFicha(p.ficha) : 0;
-    const r = rolarTeste({ nome: "Iniciativa", bonus }, c.aleatorio);
-    if (!r.ok) return erro("dados_invalidos", r.motivo);
-    const total = Math.min(
-      Math.max(r.resultado.rolagem.total, LIMITES_DO_COMBATE.iniciativaMin),
-      LIMITES_DO_COMBATE.iniciativaMax,
-    );
-    const destreza = destrezaDe(p);
-    const novo: EntradaDeCombate = { ...e, iniciativa: total };
-    if (destreza !== undefined) novo.destreza = destreza;
-    rolados.set(e.id, novo);
-
-    const publica = e.jogador === true && e.valorOculto !== true && e.oculta !== true;
-    const e2 = c.atual();
-    const seq = e2.seq + 1;
-    const mensagem: Mensagem = {
-      id: `m${seq}`,
-      seq,
-      emSala: tempoDaSala(e2.relogio, c.agoraMs),
-      emReal: c.agoraMs,
-      autorId: c.usuario.id,
-      ...(p
-        ? {
-            como: {
-              personagemId: p.id,
-              nome: p.nome,
-              ...(p.retratoHash === undefined ? {} : { retratoHash: p.retratoHash }),
-            },
-          }
-        : { texto: e.nome }),
-      tipo: "modelo",
-      modelo: r.resultado,
-      visivelPara: publica ? "todos" : { ids: [] },
-      ...(publica ? {} : { oculta: true }),
-    };
-    c.emitir({ tipo: "chat.mensagem", dados: { mensagem } });
+    const r = rolarDaEntrada(c, e);
+    if ("erro" in r) return r;
+    rolados.set(e.id, r.entrada);
   }
   const entradas = combate.entradas.map((e) => rolados.get(e.id) ?? e);
   emitirCombate(c, { ...combate, entradas: ordenarEntradas(entradas) });

@@ -2251,4 +2251,69 @@ Primeiro lote dos ajustes que o Vilella pediu depois de usar a mesa (2026-11-11)
 
 ---
 
-## Próximo: ajustes V2 (próximo lote dos ajustes do Vilella); depois 7b e 12
+## Ajustes V2 — Ordem de turno simples (entregue, aguardando o roteiro manual)
+
+Segundo lote dos ajustes que o Vilella pediu depois de usar a mesa (2026-11-11). Detalhes e decisões em `docs/REDESIGN.md` ("V2 — como ficou").
+
+### O que foi entregue
+
+- A ordem de turno virou uma lista estreita (270 px, layout de referência a pedido do dono): cabeçalho só com o título e o ×; abaixo, "Rodada: N"; nome e número à direita, o da vez em destaque; rodapé do mestre numa linha com [← Turno anterior] [lixeira] [Ordenar] [→ Próximo turno]; lista vazia centralizada. O mestre edita os números e a rodada
+  clicando (Enter confirma, Esc desfaz), ordena, volta e passa o turno e limpa (com confirmação). Arrasta a linha inteira ou usa Alt+↑/↓ na linha em foco;
+  botão direito: "Dar a vez" e "Tirar da lista". Saíram "Montar" e tudo dentro, o olho, o "?", a alça, o × e o "Passar" do jogador.
+- O mestre fecha a janela pelo × (fecha para todos, sem apagar a lista nem a rodada); o jogador fecha só na tela dele (volta quando o mestre reabre) e minimiza com dois cliques no cabeçalho (sem botão de minimizar).
+- O jogador seleciona os tokens que controla (só na tela dele) e, com a ordem aberta, clica em Iniciativa na ficha: a sala rola 1d20 + a ficha, manda
+  a rolagem ao chat e põe o token na lista. Com a ordem fechada, a Iniciativa só rola no chat.
+- Protocolo: `combate.entrar { tokenId }` (sem capacidade, conferida), `combate.rodada { rodada }` e `combate.darVez { id }` (`combate.gerir`). Sem
+  campo novo no estado e sem migração SQL: a ordem "na tela" é o `ordemDeTurnoVisivel` que já existia (estado antigo = fechada). Exportação continua
+  v12. Nenhuma dependência nova.
+
+### Como rodar
+
+- `pnpm verify` (uma vez). E2E novos e alterados: `pnpm --filter @tabletop/e2e test --repeat-each=3 tests/ordem-simples.spec.ts tests/combate.spec.ts tests/fluxos.spec.ts tests/janelas.spec.ts`.
+- Prints: `$env:PRINTS_DIR="<pasta>"; pnpm --filter @tabletop/e2e prints v2` (mestre vazia, com 6 entradas na rodada 2, editando um número e a
+  rodada, botão direito, confirmação do Limpar; jogador; jogador com o token selecionado clicando em Iniciativa; Grimório, Masmorra, Pergaminho e
+  Edgerunner a 1600×900 e os três primeiros a 1280×720).
+
+### Verificação
+
+- Unidade (`packages/shared/src/combate.test.ts`, blocos "V2"): `combate.entrar` (rola na sala e o número é o do chat, ordem fechada, token alheio,
+  invisível, de outra cena e repetido recusados; mestre com qualquer token; o do jogador vai público e o de NPC, oculto; `controladoPor`), o token que
+  vai para a camada do mestre some da lista do jogador, `combate.rodada` e `combate.darVez` (permissões, limites, 0 tira a vez), Limpar não fecha a
+  janela, fechar não apaga, exportar e importar. Migração: não há campo novo (o estado antigo sem `ordemDeTurnoVisivel` já vale `false`; testes antigos
+  de v1 a v11 em `fichas.test.ts`, `luz.test.ts` e `paredes.test.ts`). Saiu o teste de preferência do "Montar" (`preferencias.test.ts`).
+- E2E novos: `ordem-simples.spec.ts` (6 testes: abrir e fechar para todos sem apagar e reabrir; o jogador seleciona o próprio token, não o alheio, Esc,
+  nada vai para a sala; Iniciativa da ficha com a ordem fechada, aberta, sem seleção e repetida, e o valor da lista igual ao do chat; o mestre pelo mesmo
+  caminho; valor, rodada, Ordenar, Próximo turno (rodada 1 e virada), Limpar com confirmação; arrastar, Alt+setas, botão direito; sigilo pelos frames).
+- E2E antigos alterados (comportamento mudou de propósito): `combate.spec.ts` (os passos de "Montar", Rolar para todos, ×, olho e o "Passar/Rolar" do jogador viraram intenções diretas ou saíram; Anterior e o × de cada linha pelo menu de botão direito; "Rodada: N"); `fluxos.spec.ts` (o teste da seção Montar saiu; o dos botões desabilitados agora cobre Anterior, Próximo, Ordenar e Limpar); `janelas.spec.ts` (sem botão de minimizar na ordem; a rodada fica no corpo e some minimizada); `teclado.spec.ts` (dica e foco no ×, o meio do cabeçalho é o título); `ficha.spec.ts` (arrasto do cabeçalho mais à esquerda: a ficha ficou um pouco mais larga); `polimento.spec.ts` (a ficha abre com 545 px e o teste a leva ao mínimo de 520 antes de conferir os campos); prints `auditoria`, `r5b` e `r6a` acompanham os testids.
+- `pnpm verify` verde numa rodada (a terceira, depois do layout de referência e de ajustar os E2E acima): 32 (servidor) + 66 (web) + 573 (shared) de unidade e 223 E2E, sem instável. Repetição 3x de `ordem-simples`, `combate`, `fluxos`, `janelas`, `teclado`, `ficha` e `polimento`: 165 execuções verdes.
+- Prints (91) em `prints-v2`, no scratchpad da sessão. Vistos: a ordem do mestre vazia, com 6 entradas, editando, botão direito e confirmação do Limpar, a do jogador e o jogador entrando pela ficha (Grimório, Masmorra, Pergaminho, Edgerunner; 1600×900 e 1280×720): sem corte nem sobreposição.
+
+### Decisões
+
+- (assumido) Ver a lista em `docs/REDESIGN.md` ("V2 — como ficou", Decisões).
+
+### Desvios do plano
+
+- O brief pedia um estado novo `combate.aberta`; o `ordemDeTurnoVisivel` (que já fazia exatamente isso, para todos, guardado e exportado) foi reaproveitado.
+- O brief dizia "Opções do menu Combate → Ordem de turno abre para todos": já era assim; o que mudou é o × do mestre.
+
+### Frágil / não verificado
+
+- O arrasto da linha usa o arrastar-e-soltar do navegador (HTML5) com o campo do número dentro da linha: no Chrome selecionar o texto do campo com o
+  mouse arrasta a linha. Não testado no Firefox nem no Safari, nem em toque.
+- A seleção do jogador não tem teste de "vendo como" nem de vários tokens do mesmo personagem além do caso de dois tokens do Aldric.
+- Em 270 px o rodapé tem só ícones (dica comum em cada um); o botão de acento é o "Próximo turno". Não visto em toque.
+- Aviso "Selecione o seu token no mapa." some em 5 s por um temporizador; a ficha não anuncia por leitor de tela além do `role="status"`.
+- Ficou uma chave solta `tabletop:pref:ordem:montar` nos navegadores que a gravaram (inofensiva).
+
+### Roteiro manual (pendente)
+
+1. Como mestre: menu Combate → Ordem de turno. A janela abre para todos. Selecione o token do Aldric e use "Entrar na iniciativa" do botão direito; clique no número e escreva 15 (Enter); escreva a rodada 3 no cabeçalho.
+2. Feche pelo ×: a janela some para o jogador também; reabra pelo menu e a lista e a rodada estão iguais.
+3. Como jogador: clique no seu token (anel de seleção, sem painel), abra a ficha e clique em Iniciativa: entra na lista com o número que apareceu no chat. Clique de novo: "Já está na ordem de turno.". Esc solta a seleção.
+4. Como mestre: Ordenar, Próximo turno (abre a rodada 1), arraste uma linha, Alt+↑/↓ numa linha em foco, botão direito → "Dar a vez" e "Tirar da lista", Limpar (cancele uma vez e confirme).
+5. Mande um token do jogador para a camada do mestre: ele some da lista do jogador. O Ogro e o goblin oculto nunca aparecem na lista do jogador.
+
+---
+
+## Próximo: ajustes V3 (próximo lote dos ajustes do Vilella); depois 7b e 12

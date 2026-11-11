@@ -15,6 +15,7 @@ import {
   type Token,
 } from "@tabletop/shared";
 import { Dices, Plus, Trash2 } from "lucide-react";
+import { BotaoComDica } from "../BotaoComDica";
 import { corDoTextoSobre } from "../contrasteDeCor";
 import { CampoNumero, CampoTexto } from "./campos";
 import type { Rolador } from "./rolador";
@@ -28,6 +29,11 @@ export type PropsDaAba = {
   rolador: Rolador;
   /** O token do personagem na cena ativa (as condições e a concentração moram nele); sem token, `undefined`. */
   token?: Token | undefined;
+  /**
+   * A ordem de turno (V2). Aberta, clicar em Iniciativa rola 1d20 + o valor da ficha na sala e põe o token
+   * selecionado na lista; fechada, só rola no chat como antes.
+   */
+  ordem?: { aberta: boolean; entrar: () => void } | undefined;
 };
 
 /** Uma operação só: `caminho` recebe `valor` (`null` remove). */
@@ -311,7 +317,7 @@ function Identidade({ ficha, alterar, editar }: PropsDaAba) {
   );
 }
 
-function Resumo({ personagemId, d, alterar, editar, rolador }: PropsDaAba) {
+function Resumo({ personagemId, d, alterar, editar, rolador, ordem }: PropsDaAba) {
   return (
     <section className="fh-resumo" aria-label="Resumo">
       <div className="fh-caixa" data-testid="fh-ca">
@@ -328,13 +334,27 @@ function Resumo({ personagemId, d, alterar, editar, rolador }: PropsDaAba) {
       </div>
       <div className="fh-caixa" data-testid="fh-iniciativa">
         <span className="fh-rotulo">Iniciativa</span>
-        <NumeroRolavel
-          testid="iniciativa"
-          valor={d.iniciativa}
-          nome="Iniciativa"
-          rolador={rolador}
-          className="grande"
-        />
+        {ordem?.aberta ? (
+          <BotaoComDica
+            type="button"
+            className="fh-rolavel grande"
+            testid="iniciativa"
+            dica="Rolar a iniciativa e entrar na ordem de turno"
+            motivo={rolador.podeRolar ? null : "Só quem edita a ficha rola"}
+            aria-label={`Rolar Iniciativa ${formatarBonus(d.iniciativa)} e entrar na ordem de turno`}
+            onClick={ordem.entrar}
+          >
+            {formatarBonus(d.iniciativa)}
+          </BotaoComDica>
+        ) : (
+          <NumeroRolavel
+            testid="iniciativa"
+            valor={d.iniciativa}
+            nome="Iniciativa"
+            rolador={rolador}
+            className="grande"
+          />
+        )}
       </div>
       <div className="fh-caixa" data-testid="fh-deslocamento">
         <span className="fh-rotulo">Deslocamento</span>

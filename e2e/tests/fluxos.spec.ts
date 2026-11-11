@@ -5,15 +5,9 @@ import { abrirAba, expect, type Sessao, test } from "./ajudas";
 import { assets } from "./ajudasAssets";
 import { definirValor, ligarOrdem, linha, nomesNaOrdem } from "./ajudasCombate";
 import { DARION_ID, mandar } from "./ajudasFicha";
-import {
-  entrarNoMapa,
-  noElementoDoMapa,
-  pontoNaPagina,
-  soSelecionarToken,
-  tokensDe,
-} from "./ajudasMapa";
+import { entrarNoMapa, noElementoDoMapa, pontoNaPagina, tokensDe } from "./ajudasMapa";
 
-// Redesign R5b: combate (ordem de turno compacta), ficha com um clique, compêndio com "Usar o exemplo" e
+// Redesign R5b (combate adaptado ao V2: ordem de turno simples): combate, ficha com um clique, compêndio com "Usar o exemplo" e
 // o PDF da ficha com um caminho e um nome. Nada muda na sala: só a disposição e o que a tela diz.
 
 const TEXTO_DO_SRD = readFileSync(
@@ -23,11 +17,9 @@ const TEXTO_DO_SRD = readFileSync(
 const PDF_DO_DARION = fileURLToPath(
   new URL("../../fixtures/fichas/darion.pdf", import.meta.url),
 );
-const CHAVE_MONTAR = "tabletop:pref:ordem:montar";
 const CAMINHO_DO_COMPENDIO = "compendio/magias.json";
 
 const framesDeCombate = (s: Sessao) => s.enviados.filter((f) => f.includes('"tipo":"combate.'));
-const preferencia = (p: Page, chave: string) => p.evaluate((k) => localStorage.getItem(k), chave);
 
 /** A dica do botão (hover ou foco) está na tela com o texto e ligada ao botão para o leitor de tela. */
 async function confereMotivo(botao: Locator, dica: Locator, motivo: string) {
@@ -51,7 +43,12 @@ test("ordem de turno: digitar o valor não reordena nem manda frame até o Enter
   const mestre = await entrarNoMapa(mesa, "mestre");
   const p = mestre.pagina;
   await ligarOrdem(p);
-  await p.getByTestId("ordem-adicionar-grupo").click();
+  await mandar(p, "combate.adicionar", {
+    entradas: ["tok-jogador-1", "tok-jogador-2", "tok-jogador-3"].map((t) => ({
+      id: `e-${t}`,
+      tokenId: t,
+    })),
+  });
   await expect(linha(p, "Cael")).toBeVisible();
   await definirValor(p, "Aldric", 10);
   await definirValor(p, "Brisa", 5);
@@ -97,60 +94,6 @@ test("ordem de turno: digitar o valor não reordena nem manda frame até o Enter
   expect(await nomesNaOrdem(p)).toEqual(["Brisa", "Cael", "Aldric"]);
 });
 
-test("ordem de turno: a seção Montar recolhe, o estado fica só no navegador e o jogador não a tem", async ({
-  mesa,
-}) => {
-  test.setTimeout(90_000);
-  const mestre = await entrarNoMapa(mesa, "mestre");
-  const j1 = await entrarNoMapa(mesa, "jogador-1");
-  const p = mestre.pagina;
-  await ligarOrdem(p);
-  const alternar = p.getByTestId("ordem-montar-alternar");
-
-  // combate ainda não começou: Montar vem aberta; uma linha de turno fica à vista
-  await expect(alternar).toHaveAttribute("aria-expanded", "true");
-  await expect(p.getByTestId("ordem-montar")).toBeVisible();
-  await p.getByTestId("ordem-adicionar-grupo").click();
-  await expect(linha(p, "Cael")).toBeVisible();
-  await p.getByTestId("ordem-rolar-todos").click();
-  await expect(p.getByTestId("ordem-rolar-todos")).toHaveAttribute("aria-disabled", "true");
-  expect(await preferencia(p, CHAVE_MONTAR)).toBeNull();
-
-  // o jogador vê a lista, sem os comandos do mestre
-  await expect(j1.pagina.getByTestId("ordem-de-turno")).toBeVisible();
-  await expect(j1.pagina.getByTestId("ordem-montar-alternar")).toHaveCount(0);
-  await expect(j1.pagina.getByTestId("ordem-montar")).toHaveCount(0);
-
-  // o combate começa: sem escolha da pessoa, Montar se recolhe sozinha (sobra a linha do turno)
-  await p.getByTestId("ordem-proximo").click();
-  await expect(p.getByTestId("ordem-rodada")).toHaveText("Rodada 1");
-  await expect(alternar).toHaveAttribute("aria-expanded", "false");
-  await expect(p.getByTestId("ordem-montar")).toHaveCount(0);
-  await expect(p.getByTestId("ordem-solta")).toHaveCount(0);
-  await expect(p.getByTestId("ordem-anterior")).toBeVisible();
-  await expect(p.getByTestId("ordem-proximo")).toBeVisible();
-  expect(await preferencia(p, CHAVE_MONTAR)).toBeNull();
-
-  // abrir e fechar é preferência: grava no navegador e não manda frame
-  const framesAntes = framesDeCombate(mestre).length;
-  await alternar.click();
-  await expect(alternar).toHaveAttribute("aria-expanded", "true");
-  await expect(p.getByTestId("ordem-solta")).toBeVisible();
-  expect(await preferencia(p, CHAVE_MONTAR)).toBe("1");
-  await p.reload();
-  await expect(p.getByTestId("status-conexao")).toHaveText("conectado");
-  await expect(p.getByTestId("ordem-montar-alternar")).toHaveAttribute("aria-expanded", "true");
-  await p.getByTestId("ordem-montar-alternar").click();
-  await expect(p.getByTestId("ordem-montar-alternar")).toHaveAttribute("aria-expanded", "false");
-  expect(await preferencia(p, CHAVE_MONTAR)).toBe("0");
-  await p.reload();
-  await expect(p.getByTestId("status-conexao")).toHaveText("conectado");
-  await expect(p.getByTestId("ordem-montar-alternar")).toHaveAttribute("aria-expanded", "false");
-  // nada foi para a sala por abrir e fechar (a reconexão só pede o estado)
-  expect(framesDeCombate(mestre)).toHaveLength(framesAntes);
-  expect(j1.frames.some((f) => f.includes(CHAVE_MONTAR))).toBe(false);
-});
-
 test("ordem de turno: todo botão desabilitado diz por quê (dica no mouse e no foco, e para o leitor de tela)", async ({
   mesa,
 }) => {
@@ -161,15 +104,12 @@ test("ordem de turno: todo botão desabilitado diz por quê (dica no mouse e no 
   const b = (id: string) => p.getByTestId(id);
   const d = (id: string) => p.getByTestId(`dica-${id}`);
 
-  // lista vazia, nada selecionado, sem combate
+  // lista vazia, sem combate
   const vazios: [string, string][] = [
     ["ordem-anterior", "A lista está vazia"],
     ["ordem-proximo", "A lista está vazia"],
-    ["ordem-rolar-todos", "A lista está vazia"],
     ["ordem-ordenar", "A lista está vazia"],
-    ["ordem-adicionar-selecionados", "Selecione um token no mapa"],
-    ["ordem-solta-adicionar", "Escreva o nome da entrada"],
-    ["ordem-encerrar", "Não há combate em andamento"],
+    ["ordem-encerrar", "Não há nada para limpar"],
   ];
   for (const [id, motivo] of vazios) await confereMotivo(b(id), d(id), motivo);
 
@@ -181,44 +121,29 @@ test("ordem de turno: todo botão desabilitado diz por quê (dica no mouse e no 
 
   // clicar num botão desabilitado não faz nada
   const antes = framesDeCombate(mestre).length;
-  await b("ordem-rolar-todos").click({ force: true });
+  await b("ordem-ordenar").click({ force: true });
+  await b("ordem-proximo").click({ force: true });
   await b("ordem-encerrar").click({ force: true });
-  await b("ordem-solta-adicionar").click({ force: true });
   await p.waitForTimeout(300);
   expect(framesDeCombate(mestre)).toHaveLength(antes);
   await expect(b("ordem-encerrar-confirmar")).toHaveCount(0);
 
-  // com um nome o botão da entrada solta passa a valer
-  await p.getByTestId("ordem-solta-nome").fill("Covil");
-  await expect(b("ordem-solta-adicionar")).not.toHaveAttribute("aria-disabled", "true");
-  await p.getByTestId("ordem-solta-nome").fill("");
-  await expect(b("ordem-solta-adicionar")).toHaveAttribute("aria-disabled", "true");
-
-  // um token selecionado no mapa libera o "Adicionar selecionados"; depois de adicionado, diz que já está
-  await soSelecionarToken(p, "tok-ogro");
-  await expect(b("ordem-adicionar-selecionados")).not.toHaveAttribute("aria-disabled", "true");
-  await b("ordem-adicionar-selecionados").click();
+  // com uma entrada só, Ordenar pede pelo menos duas; Próximo e Limpar já valem
+  await mandar(p, "combate.adicionar", { entradas: [{ id: "e-ogro", tokenId: "tok-ogro" }] });
   await expect(linha(p, "Ogro")).toBeVisible();
   await confereMotivo(
-    b("ordem-adicionar-selecionados"),
-    d("ordem-adicionar-selecionados"),
-    "Já está na lista",
+    b("ordem-ordenar"),
+    d("ordem-ordenar"),
+    "Precisa de pelo menos duas entradas",
   );
-
-  // o grupo entra; depois diz que já está; "Rolar para todos" vale até todos terem valor
-  await expect(b("ordem-adicionar-grupo")).not.toHaveAttribute("aria-disabled", "true");
-  await b("ordem-adicionar-grupo").click();
-  await expect(linha(p, "Cael")).toBeVisible();
-  await confereMotivo(
-    b("ordem-adicionar-grupo"),
-    d("ordem-adicionar-grupo"),
-    "O grupo já está na lista",
-  );
+  await expect(b("ordem-proximo")).not.toHaveAttribute("aria-disabled", "true");
   await expect(b("ordem-encerrar")).not.toHaveAttribute("aria-disabled", "true");
-  await expect(b("ordem-rolar-todos")).not.toHaveAttribute("aria-disabled", "true");
-  await b("ordem-rolar-todos").click();
-  await expect(b("ordem-rolar-todos")).toHaveAttribute("aria-disabled", "true");
-  await confereMotivo(b("ordem-rolar-todos"), d("ordem-rolar-todos"), "Todos já têm iniciativa");
+
+  // com duas, Ordenar vale
+  await mandar(p, "combate.adicionar", {
+    entradas: [{ id: "e-aldric", tokenId: "tok-jogador-1" }],
+  });
+  await expect(linha(p, "Aldric")).toBeVisible();
   await expect(b("ordem-ordenar")).not.toHaveAttribute("aria-disabled", "true");
 });
 

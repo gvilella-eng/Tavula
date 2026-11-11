@@ -150,6 +150,11 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
   const [ferramenta, setFerramenta] = useState<Ferramenta>("selecionar");
   const [camadaTrabalho, setCamadaTrabalho] = useState<CamadaDeTrabalho>("tokens");
   const [selecionadoId, setSelecionadoId] = useState<string | null>(null);
+  // O jogador fecha a ordem de turno só na tela dele; reaparece quando o mestre a reabre (V2).
+  const [ordemFechadaAqui, setOrdemFechadaAqui] = useState(false);
+  const ordemAbertaNaSala = estado?.ordemDeTurnoVisivel === true;
+  // biome-ignore lint/correctness/useExhaustiveDependencies: o gatilho é a mudança do mestre
+  useEffect(() => setOrdemFechadaAqui(false), [ordemAbertaNaSala]);
   // Pincel (Lote 13): o que ele faz agora e o desenho selecionado (só da tela de quem desenha).
   const [pincel, setPincel] = useState<ConfigDoPincel>(PINCEL_PADRAO);
   const [desenhoSelecionadoId, setDesenhoSelecionadoId] = useState<string | null>(null);
@@ -442,8 +447,8 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
       const sala = estadoAtual.current;
       const m = mapa.current;
       if (!quem || !sala || !m) return;
-      // O jogador não seleciona tokens (só o mestre): para ele a tecla abre o menu do token que ele controla na
-      // cena (o primeiro, se forem vários) (assumido).
+      // Com um token selecionado (o jogador seleciona os que controla, V2) a tecla abre o menu dele; sem seleção, o
+      // jogador cai no token que controla na cena (o primeiro, se forem vários) (assumido).
       const alvoDoMenu =
         selecionado ??
         (quem.papel === "mestre"
@@ -700,6 +705,8 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
         }
         return eu !== null && personagens !== undefined && controlaToken(t, eu, personagens);
       },
+      controla: (t: Token) =>
+        eu !== null && personagens !== undefined && controlaToken(t, eu, personagens),
       podeMover: (t: Token) =>
         eu && permissoes && cenaAtivaId !== undefined && personagens
           ? podeMoverToken(t, eu, { permissoes, cenaAtivaId, personagens })
@@ -784,11 +791,17 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
     versaoDosProntos,
   ]);
 
-  /** O personagem que mexe nas tochas: o do token selecionado (mestre) ou o primeiro que eu controlo. */
+  /** O personagem que mexe nas tochas: o do token selecionado ou o primeiro que eu controlo. */
   function meuPersonagemId(): string | undefined {
     if (!estado || !eu) return undefined;
     const doSelecionado = selecionado?.personagemId;
-    if (euMestre && doSelecionado) return doSelecionado;
+    if (
+      selecionado &&
+      doSelecionado &&
+      (euMestre || controlaToken(selecionado, eu, estado.personagens))
+    ) {
+      return doSelecionado;
+    }
     return estado.tokens.find(
       (t) =>
         t.cenaId === estado.cenaAtivaId &&
@@ -1230,12 +1243,12 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
                 <p>{semTokenNaCena.texto}</p>
               </div>
             )}
-            {estado.ordemDeTurnoVisivel && (
+            {estado.ordemDeTurnoVisivel && (euMestre || !ordemFechadaAqui) && (
               <OrdemDeTurno
+                aoFecharAqui={() => setOrdemFechadaAqui(true)}
                 estado={estadoVisto ?? estado}
                 eu={eu}
                 enviar={enviar}
-                selecionadoId={selecionadoId}
                 somenteLeitura={usuarioVisto !== null}
                 dividirColuna={
                   modoMestre && ferramenta !== "paredes" && !!selecionado && painelDoTokenAberto
@@ -1358,6 +1371,7 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
                   estado={estado}
                   eu={eu}
                   enviar={enviar}
+                  selecionadoId={selecionadoId}
                   imagens={imagens}
                   versaoDasImagens={versaoDosProntos}
                   pedirImagem={pedirImagem}

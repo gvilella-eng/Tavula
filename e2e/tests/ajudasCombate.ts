@@ -2,7 +2,7 @@ import type { Locator, Page } from "@playwright/test";
 import { expect } from "./ajudas";
 import { centrarNoToken, tokenDe } from "./ajudasMapa";
 
-// Ajudas do Lote 11 (combate): o painel da ordem de turno, o menu do token e a leitura do que a tela mostra.
+// Ajudas do Lote 11 (combate), atualizadas no V2: a ordem de turno simples, o menu do token e a leitura do que a tela mostra.
 
 /** Liga o painel da ordem de turno (menu superior do mestre) se ainda não está ligado. */
 export async function ligarOrdem(mestre: Page) {
@@ -46,9 +46,13 @@ export async function emVez(p: Page, tokenId: string): Promise<boolean | null> {
   return t ? t.emVez : null;
 }
 
-/** Abre a seção "Montar" da ordem de turno se ela está recolhida (depois que o combate começa, ela vem recolhida). */
-export async function abrirMontar(p: Page) {
-  const alternar = p.getByTestId("ordem-montar-alternar");
-  if ((await alternar.getAttribute("aria-expanded")) !== "true") await alternar.click();
-  await expect(p.getByTestId("ordem-montar")).toBeVisible();
+/** A rodada que a janela mostra (lida do atributo, igual para o mestre, que a edita, e para o jogador). */
+export async function rodadaDe(p: Page): Promise<number> {
+  return Number(await p.getByTestId("ordem-rodada").getAttribute("data-rodada"));
+}
+
+/** Botão direito na linha da entrada e um item do menu ("ordem-menu-dar-vez" ou "ordem-menu-tirar"). */
+export async function menuDaLinha(mestre: Page, nome: string, item: string) {
+  await linha(mestre, nome).click({ button: "right" });
+  await mestre.getByTestId(item).click();
 }

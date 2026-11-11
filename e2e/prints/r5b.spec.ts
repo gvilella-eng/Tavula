@@ -107,7 +107,7 @@ for (const tamanho of TAMANHOS) {
         // 2: o combate começa e Montar se recolhe: sobra uma linha de turno
         await tentar(`${rotulo} ordem montar fechado`, async () => {
           await m.getByTestId("ordem-proximo").click();
-          await expect(m.getByTestId("ordem-rodada")).toHaveText("Rodada 1");
+          await expect(m.getByTestId("ordem-rodada")).toHaveAttribute("data-rodada", "1");
           await expect(m.getByTestId("ordem-montar-alternar")).toHaveAttribute(
             "aria-expanded",
             "false",

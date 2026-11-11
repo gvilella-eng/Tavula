@@ -10,7 +10,7 @@ Ponteiros: `REDESIGN` = `docs/REDESIGN.md`, `PERGUNTAS` = `docs/PERGUNTAS.md`, `
 Estado dos docs em 2026-11-11: **o redesign R1 a R6 terminou.** Estão entregues o R1 (fundação visual e marca), R2 (estrutura
 fixa), R2b (pausa automática e 11 temas; 14 desde o V1), R3 (janelas flutuantes), R4 (organização do mestre), R5a (interações no mapa e nos
 tokens), R5b (combate, fichas, compêndio e PDF), R6a (teclado, dicas com atalho, foco e contraste) e R6b (tela pequena, frágeis
-restantes, transições e revisão final). O **V1** (temas com personalidade, aba Mesa no fim e zerar o relógio, 2026-11-11) está entregue (`REDESIGN`, "V1"). O que vem agora são os **seus ajustes finos de UX/UI** a partir deste arquivo (fim do
+restantes, transições e revisão final). O **V1** (temas com personalidade, aba Mesa no fim e zerar o relógio, 2026-11-11) e o **V2** (ordem de turno simples, 2026-11-11) estão entregues (`REDESIGN`, "V1" e "V2"). O que vem agora são os **seus ajustes finos de UX/UI** a partir deste arquivo (fim do
 `ESTADO`, "Próximo"), depois o 7b e o 12.
 
 **O que sobrou de interface (resumo; os detalhes estão nas seções 4, 5 e 7):**
@@ -74,11 +74,11 @@ Tudo em `apps/web/src/`.
   - `NovoToken.tsx`: a janela "Novo token" (nome, cor, tamanho) e, depois dela, o modo de pôr o token com a prévia (a prévia e o clique estão em `mapa/mapaPixi.ts`; o selo e a ligação em `Mesa.tsx`).
   - `AvisoPerto.tsx`: o aviso de erro dentro da área do mapa, perto de onde a pessoa agiu (a origem é guardada em `useSala.ts`).
   - `janelas/Janela.tsx`, `janelas/pilha.ts`, `janelas/geometria.ts`: a janela flutuante comum (arrastar, minimizar, redimensionar, dentro da área, pilha). Posição e tamanho por janela em `tabletop:pref:janela:<id>` (`preferencias.ts`).
-  - `OrdemDeTurno.tsx`: a ordem de turno (uma `Janela`).
+  - `OrdemDeTurno.tsx`: a ordem de turno (uma `Janela`), simples desde o V2 (270 px, layout de referência): cabeçalho só com título e ×, linha "Rodada: N", lista e rodapé do mestre (Turno anterior, Limpar, Ordenar, Próximo turno), menu de botão direito na linha, Alt+↑/↓. O jogador entra pela Iniciativa da ficha (`ficha/JanelaDaFicha.tsx`, `entrarNaOrdem`; `combate.entrar` na sala).
   - `FaixaDeCenas.tsx`: faixa de cenas, com prévia do mapa e menu de contexto.
   - `ConfigurarCena.tsx`: nome, mapa, pixels por quadrado e o grid da cena (visível e quadrado em metros).
   - `PainelDasParedes.tsx`, `PainelDeFontesDeLuz.tsx`: paredes e portas; fontes de luz.
-  - `MenuDoToken.tsx`, `MenuDaTocha.tsx`: menus de botão direito no token (Editar token…, iniciativa, grupo Tocha e as condições direto como itens de marcar) e na alça da
+  - `MenuDoToken.tsx`, `MenuDaTocha.tsx`: menus de botão direito no token (Editar token…, "Entrar na iniciativa" (sem valor; o mestre escreve o número), grupo Tocha e as condições direto como itens de marcar) e na alça da
     tocha.
   - `SubBarraPincel.tsx`, `DadosRapidos.tsx`, `ZoomFlutuante.tsx`: sub-barra do pincel, grade de dados
     rápidos e controle de zoom no canto inferior direito da área do mapa.
@@ -296,9 +296,9 @@ Redesign R5a (`REDESIGN`, "R5a — como ficou")
 122. Esc não age com o foco dentro de uma janela (num botão do painel do token, por exemplo); com o foco no mapa e o painel do token aberto, Esc solta a seleção e o painel fecha junto
 
 Redesign R5b (`REDESIGN`, "R5b — como ficou")
-123. Os controles de montar a ordem de turno ficam numa seção recolhível "Montar" (não num menu "Mais"), aberta antes do combate começar e recolhida depois, até a pessoa escolher; a escolha é só do navegador (`tabletop:pref:ordem:montar`)
+123. ~~Os controles de montar a ordem de turno ficam numa seção recolhível "Montar"~~: a seção saiu no V2 (a ordem virou uma lista simples; `tabletop:pref:ordem:montar` não é mais lida)
 124. Esc no campo da iniciativa devolve o valor de antes; a roda do mouse num campo com foco tira o foco (e confirma o que estava digitado)
-125. Anterior e Próximo turno também dizem "A lista está vazia" quando desabilitados
+125. Anterior e Próximo turno também dizem "A lista está vazia" quando desabilitados (desde o V2 não há Anterior; Próximo, Ordenar e Limpar dizem o motivo)
 126. A dica do botão desabilitado aparece também ao mexer o mouse sobre ele (o botão pode ficar desabilitado com o mouse já em cima)
 127. O mestre arrasta o item das Fichas por inteiro (nome e alça), não só pela alça
 128. "Usar o exemplo" com pasta grava `compendio/magias.json` e confirma antes de substituir; sem pasta vale até recarregar; falha ao gravar na pasta mostra erro, sem cair para "sem pasta"
@@ -425,9 +425,17 @@ Redesign R1
 - ~~Texto branco sobre cores de usuário claras (amarelo do mestre) no avatar~~: resolvido no R6a (texto branco ou preto pela luminância da cor, AA; `contrasteDeCor.ts`). (`ESTADO:1666`, `REDESIGN:167-168`)
 - ~~Os rótulos desenhados dentro do mapa não seguem o tema~~: decidido no R6a (assumido): continuam independentes do tema (o mapa é conteúdo) e têm contorno; conferidos sobre mapa claro e escuro. (`ESTADO:1667`, `REDESIGN:168`)
 
+V2 (ordem de turno simples)
+- O jogador seleciona os tokens que controla (`opcoes.controla` em `mapa/mapaPixi.ts`, `Mesa.tsx`): só da tela dele; clicar em token alheio solta a seleção (assumido). (`REDESIGN`, "V2 — como ficou")
+- A ordem "na tela" é o `ordemDeTurnoVisivel` (não há campo `combate.aberta`); o × do mestre fecha para todos sem apagar a lista nem a rodada. (`REDESIGN`, "V2")
+- Mudar o valor, entrar e rolar reordenam a lista; o arrasto e o Alt+setas valem até o próximo valor mudar ou o Ordenar. (`REDESIGN`, "V2")
+- A Iniciativa da ficha só rola na sala com a ordem aberta; só usa o token selecionado se for do personagem da ficha (senão o único token na cena; com vários ou nenhum, avisa). Vantagem da ficha não vale. (`REDESIGN`, "V2")
+- O arrasto da linha é o do navegador (HTML5), com o campo do número dentro dela; só o Chrome foi testado. (`ESTADO`, "V2", Frágil)
+- As intenções `combate.adicionar`, `combate.rolar` e `combate.passar` seguem na sala sem botão (Rolar para todos e Passar saíram da tela; o Turno anterior voltou no V2). (`REDESIGN`, "V2")
+
 Redesign R6b
 - Toque (celular) continua sem teste: o painel do token na coluna da direita, as janelas e as dicas só foram vistos com mouse e teclado. (`ESTADO`, "R6b", Frágil)
-- Em área apertada (altura da área < 900 px) o painel do token vai embaixo à direita e a ordem de turno, com o painel aberto, tem teto de ~340 px e o painel do token de ~245 px (rolam por dentro; com "Montar" aberta a lista da ordem mostra poucas linhas); quem redimensionou a ordem continua preso a esse teto enquanto o painel do token está aberto. Telas menores que 1280×720 não foram vistas. (`REDESIGN`, "R6b — como ficou")
+- Em área apertada (altura da área < 900 px) o painel do token vai embaixo à direita e a ordem de turno, com o painel aberto, tem teto de ~340 px e o painel do token de ~245 px (rolam por dentro; desde o V2 a ordem é só a lista e o rodapé); quem redimensionou a ordem continua preso a esse teto enquanto o painel do token está aberto. Telas menores que 1280×720 não foram vistas. (`REDESIGN`, "R6b — como ficou")
 - A aba do painel, as janelas, os menus, as dicas e os avisos entram com 140 ms (`@keyframes entrada`, só opacidade e 4 px de deslocamento; nada no canvas). Sem animação de saída. Com `prefers-reduced-motion: reduce` nada anima; os E2E rodam assim (`reducedMotion: "reduce"` no Playwright) e um teste confere a diferença. (`ESTADO`, "R6b")
 - O aviso da pausa sem mestre só vem da presença que o cliente já tem: quem entra com a presença ainda vazia não é avisado (supõe mestre online até a presença chegar); "reconectando" conta como mestre fora. (`REDESIGN`, "R6b — como ficou")
 - Ainda com `title` nativo (decisão: não são botões muito usados): campos pequenos da ficha e do editor do item, os itens do menu de contexto da faixa de cenas (precisam de `disabled` de verdade), os textos informativos da faixa de cenas, o selo da pílula do mestre (`menu-pausa`) e o rótulo "Cor livre" do pincel. (`ESTADO`, "R6b")

@@ -15,12 +15,15 @@ import {
   type ContextoDeCombate,
   combateAdicionar,
   combateAnterior,
+  combateDarVez,
   combateEditar,
   combateEncerrar,
+  combateEntrar,
   combateMover,
   combateOrdenar,
   combatePassar,
   combateProximo,
+  combateRodada,
   combateRolar,
   combateTirar,
   semEntradasDosTokens,
@@ -1876,6 +1879,12 @@ export function processar(
       return doCombate(combatePassar(contextoDeCombate));
     case "combate.encerrar":
       return doCombate(combateEncerrar(contextoDeCombate));
+    case "combate.entrar":
+      return doCombate(combateEntrar(contextoDeCombate, intencao.dados));
+    case "combate.rodada":
+      return doCombate(combateRodada(contextoDeCombate, intencao.dados));
+    case "combate.darVez":
+      return doCombate(combateDarVez(contextoDeCombate, intencao.dados));
     case "token.condicoes":
       return doCombate(tokenCondicoes(contextoDeCombate, intencao.dados));
 
