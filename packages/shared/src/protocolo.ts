@@ -572,6 +572,8 @@ export const IntencaoSchema = z.discriminatedUnion("tipo", [
   /** Pausa ou retoma a mesa: o relógio da sala (tochas, estágios) congela ou volta a correr. */
   intencao("mesa.pausar", SemDados),
   intencao("mesa.retomar", SemDados),
+  /** V1: zera o número da pílula do topo (um marco no tempo da sala). Não mexe nas tochas. */
+  intencao("mesa.zerarRelogio", SemDados),
   /** Modelos de objeto de luz (Tocha 5e, Lanterna, Fogueira...). */
   intencao("modelo.criar", z.object({ modelo: ModeloDeObjetoSchema })),
   intencao("modelo.editar", z.object({ id: IdSchema, mudancas: MudancasDoModeloSchema })),
@@ -790,6 +792,7 @@ export const capacidadeDaIntencao: Record<TipoIntencao, Capacidade | null> = {
   "config.mesa": "mesa.configurar",
   "mesa.pausar": "mesa.configurar",
   "mesa.retomar": "mesa.configurar",
+  "mesa.zerarRelogio": "mesa.configurar",
   "modelo.criar": "mesa.configurar",
   "modelo.editar": "mesa.configurar",
   "modelo.apagar": "mesa.configurar",
@@ -949,6 +952,14 @@ export const EventoSalaSchema = z.discriminatedUnion("tipo", [
   /** A mesa voltou a correr a partir de `salaMs` (o jogador recebe 0). */
   eventoDe(
     "mesa.retomada",
+    z.object({ salaMs: z.number().nonnegative(), desdeReal: z.number().nonnegative().optional() }),
+  ),
+  /**
+   * V1: o relógio da pílula foi zerado. `salaMs` é o tempo da sala na hora (vira o marco e o novo
+   * acumulado); `desdeReal` só com a mesa rodando. Só o mestre recebe este evento.
+   */
+  eventoDe(
+    "mesa.relogioZerado",
     z.object({ salaMs: z.number().nonnegative(), desdeReal: z.number().nonnegative().optional() }),
   ),
   /** Modelo inteiro depois da mudança (o cliente faz upsert). */

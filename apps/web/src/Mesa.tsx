@@ -975,16 +975,6 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
               />
             ),
           },
-          ...(euMestre
-            ? [
-                {
-                  id: "mesa",
-                  titulo: "Mesa",
-                  icone: <Settings2 size={20} />,
-                  conteudo: <AbaMesa estado={estado} uso={uso} enviar={enviar} />,
-                },
-              ]
-            : []),
           {
             id: "preferencias",
             titulo: "Preferências",
@@ -1002,6 +992,17 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
               />
             ),
           },
+          // A aba Mesa é a última e só do mestre (V1).
+          ...(euMestre
+            ? [
+                {
+                  id: "mesa",
+                  titulo: "Mesa",
+                  icone: <Settings2 size={20} />,
+                  conteudo: <AbaMesa estado={estado} uso={uso} enviar={enviar} />,
+                },
+              ]
+            : []),
         ]
       : [];
 
@@ -1070,6 +1071,8 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
                 enviar(estado.relogio.pausada ? "mesa.retomar" : "mesa.pausar", {})
               }
               salaMs={tempo.salaMs}
+              marcoMs={estado.relogio.marcoMs ?? 0}
+              aoZerarRelogio={() => enviar("mesa.zerarRelogio", {})}
               mestreOnline={mestreOnline}
             />
           </Topo>

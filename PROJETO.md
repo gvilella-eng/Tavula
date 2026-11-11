@@ -170,7 +170,7 @@ interface ConfigDaMesa {            // por campanha; só o mestre altera
   };
 }
 // lote 6 criou `iluminacao`; o lote 7 completou o resto. Modelos e pontos são coleções do estado
-// (`Estado.modelos`, `Estado.pontos`), e o relógio é `Estado.relogio` ({ pausada, acumuladoMs, desdeReal? })
+// (`Estado.modelos`, `Estado.pontos`), e o relógio é `Estado.relogio` ({ pausada, acumuladoMs, desdeReal?, marcoMs? }; o `marcoMs` é do "zerar o relógio" da pílula do mestre, ausente = 0; V1, 2026-11-11)
 
 interface Pasta {                   // lote 4b: pastas da aba Fichas, sem subpastas
   id: string; nome: string; ordem: number;
@@ -546,6 +546,11 @@ quem escolhe o usuário mestre na tela de entrada é mestre.
   vencimento, porque cada Durable Object tem **um alarme por vez**.
 - O mestre pode **pausar a mesa** (intervalo da sessão): tudo congela. Pausar um ciclo (seção 4.11) é
   outra coisa e não para as tochas.
+- O mestre pode **zerar o relógio** da pílula do topo (V1, 2026-11-11): é um **marco** (`relogio.marcoMs`,
+  o tempo da sala na hora de zerar), e a pílula mostra `tempoDaSala − marcoMs`. O tempo da sala, as tochas
+  e tudo o que queima não mudam. Vale pausada ou rodando (pausada continua pausada, em 00:00). Intenção
+  `mesa.zerarRelogio` (`mesa.configurar`), evento `mesa.relogioZerado` só para o mestre; o jogador não
+  recebe o marco nem o evento. Entra na exportação (campo opcional do `relogio`; sem ele, marco 0).
 - O que o jogador vê do tempo é configuração (`tempoParaJogadores`): exato, só o estágio ("forte",
   "fraca", "morrendo") ou nada. Fora do modo exato, o número **não sai da sala** para o jogador (pode ser
   um recurso de roleplay). O mestre sempre vê o tempo de todas as luzes.
@@ -680,6 +685,11 @@ criar cenas, notas do mestre, modelos de objeto, pontos, zonas, ciclos, reaçõe
   navegador do mestre busca na pasta dele.
 - Bom para regras, objetos, NPCs, notas e automações (pode ler a bíblia de uma campanha e popular a
   mesa). Ruim para desenhar paredes em cima de imagem: para isso, o editor de paredes.
+- **Fácil de usar para a IA, com pouco desgaste** (pedido do Vilella, 2026-11-11): poucas ferramentas,
+  com nomes e descrições claros. Elas aceitam e devolvem dados compactos: nomes em vez de ids sempre que
+  possível, resumo por padrão e detalhe só quando a IA pedir. Ações em lote ("criar estes 6 NPCs") são
+  uma chamada só. O erro diz o que corrigir. Uma ferramenta "o que existe na mesa" dá o panorama numa
+  chamada, para a IA não precisar explorar.
 
 ### 4.13 Interface
 
@@ -695,11 +705,14 @@ cores ou nomes de terceiros.
 - **Barra lateral direita recolhível** com abas por ícone: Chat (lote 8), Jogadores (presença e
   papéis), Fichas (lote 9), Notas, Mestre (permissões, uso de hoje, exportar/importar; depois
   automações) e Configurações (hoje, desde o R4: Chat, Fichas, Notas, Compêndio, **Preferências** e, só do
-  mestre, **Mesa**; ver "Redesign R4" no `docs/ESTADO.md`). No lote 8 a caixa de chat fica fixa no rodapé da barra, com o seletor
+  mestre, **Mesa**, que desde o V1 é a última aba, depois de Preferências; ver "Redesign R4" no `docs/ESTADO.md`). No lote 8 a caixa de chat fica fixa no rodapé da barra, com o seletor
   "Como:" (falar como um personagem).
 - **Etiqueta discreta sobre o mapa** com o nome da cena e quem sou eu; o estado da conexão só aparece
   quando não está conectado.
-- **Tema escuro** por padrão. Ícones e fontes vêm de pacotes npm empacotados no app (ex.:
+- **Tema escuro** por padrão (Grimório). Desde o V1 são 14 temas de cor: os três discretos (Grimório, Masmorra =
+  id `escuro`, Pergaminho), nove com personalidade (Edgerunner cyberpunk, Vampiro, Licantropo, Taverna, Forja,
+  Paladino, Druida, Leviatã, Arcana) e dois claros novos (Élfico, Celestial); ver `docs/REDESIGN.md`, "V1"
+  (V1, 2026-11-11). Ícones e fontes vêm de pacotes npm empacotados no app (ex.:
   `lucide-react`, `@fontsource/*`), nunca de CDN ou Google Fonts em execução.
 - Alvo é o desktop; em tela estreita a barra lateral recolhe.
 
@@ -744,7 +757,7 @@ Base do Lote 4b. **Em definição:** o que cada ícone do menu superior abre o V
   - Camadas valem por cena.
 - **Barra da direita:** expandir/recolher, **Chat**, **Fichas**, **Compêndio de magias** e
   **Configurações**. A aba do mestre de hoje fica por enquanto e migra aos poucos. (Hoje, desde o R4: as abas
-  são Chat, Fichas, Notas, Compêndio, **Preferências** e, só do mestre, **Mesa**; a aba "Configurações" e a
+  são Chat, Fichas, Notas, Compêndio, **Preferências** e, só do mestre, **Mesa** (última, desde o V1); a aba "Configurações" e a
   "Mestre" deixaram de existir.)
   - Chat: conversa, resultado das rolagens e descrição de magia mandada para o chat.
   - Fichas (o "diário"):
@@ -1219,7 +1232,7 @@ assumido sem o Vilella está marcado com "(assumido)" e entra nas perguntas do f
   - **consumida** (tempo acabou ou lixeira do mestre) libera a mão e o objeto sai da coleção; o
     histórico vai junto (assumido);
   - exportação **v8**, importando v1 a v7 (`acesa: true/false` vira `estado`).
-- **Relógio da sala** (`packages/shared/src/relogio.ts`, puro): `{ pausada, acumuladoMs, desdeReal? }`.
+- **Relógio da sala** (`packages/shared/src/relogio.ts`, puro): `{ pausada, acumuladoMs, desdeReal?, marcoMs? }` (o marco é do V1, 2026-11-11: `tempoDaPilula = tempoDaSala − marcoMs`).
   O tempo da sala é `acumuladoMs + (agora − desdeReal)` enquanto não está pausada. `processar` continua
   recebendo `agora` (real) e calcula o tempo da sala; os testes usam `agora` falso. Pausar a mesa congela
   tudo (tochas, estágios e, no 7b, ciclos).
@@ -1280,7 +1293,7 @@ assumido sem o Vilella está marcado com "(assumido)" e entra nas perguntas do f
   "−1 min: apagada", "+1 min (mestre)". Intenção `objeto.ajustar` (capacidade do mestre).
 - **Pausar a mesa:** botão de pausa/retomar com o relógio da sala no fim do menu superior do mestre
   (assumido: o Vilella não definiu onde). Para os jogadores, um selo discreto "Mesa pausada" no topo.
-  Intenções `mesa.pausar` e `mesa.retomar` (`mesa.configurar`).
+  Intenções `mesa.pausar` e `mesa.retomar` (`mesa.configurar`). V1 (2026-11-11): `mesa.zerarRelogio` (ver 4.8).
 - **Capacidades** (já existem em `capacidades.ts`): `tocha.acender` (acender, apagar e reacender a
   **própria** tocha, guardar), `tocha.entregar` (entregar, pôr no suporte), `ponto.usar` (tirar do
   suporte, acender inflamável), `luz.apagar` (apagar a luz de um ponto; padrão desligado, como hoje) e

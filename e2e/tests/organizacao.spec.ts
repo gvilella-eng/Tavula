@@ -237,8 +237,8 @@ test("o jogador não vê a ferramenta Paredes nem a aba Mesa; as abas de cada um
     "Fichas",
     "Notas",
     "Compêndio",
-    "Mesa",
     "Preferências",
+    "Mesa",
   ]);
   expect(await abas(j)).toEqual(["Chat", "Fichas", "Notas", "Compêndio", "Preferências"]);
 });

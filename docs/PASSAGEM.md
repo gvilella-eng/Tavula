@@ -8,9 +8,9 @@ Ponteiros: `REDESIGN` = `docs/REDESIGN.md`, `PERGUNTAS` = `docs/PERGUNTAS.md`, `
 `PROJETO` = `PROJETO.md` (na raiz), `IDEIAS` = `docs/IDEIAS.md`. Número depois dos dois-pontos é a linha.
 
 Estado dos docs em 2026-11-11: **o redesign R1 a R6 terminou.** Estão entregues o R1 (fundação visual e marca), R2 (estrutura
-fixa), R2b (pausa automática e 11 temas), R3 (janelas flutuantes), R4 (organização do mestre), R5a (interações no mapa e nos
+fixa), R2b (pausa automática e 11 temas; 14 desde o V1), R3 (janelas flutuantes), R4 (organização do mestre), R5a (interações no mapa e nos
 tokens), R5b (combate, fichas, compêndio e PDF), R6a (teclado, dicas com atalho, foco e contraste) e R6b (tela pequena, frágeis
-restantes, transições e revisão final). O que vem agora são os **seus ajustes finos de UX/UI** a partir deste arquivo (fim do
+restantes, transições e revisão final). O **V1** (temas com personalidade, aba Mesa no fim e zerar o relógio, 2026-11-11) está entregue (`REDESIGN`, "V1"). O que vem agora são os **seus ajustes finos de UX/UI** a partir deste arquivo (fim do
 `ESTADO`, "Próximo"), depois o 7b e o 12.
 
 **O que sobrou de interface (resumo; os detalhes estão nas seções 4, 5 e 7):**
@@ -43,10 +43,11 @@ restantes, transições e revisão final). O que vem agora são os **seus ajuste
 
 Tudo em `apps/web/src/`.
 
-- `tema/temas.ts`: as cores dos **11 temas** (Grimório, Taverna, Forja, Licantropo, Paladino, Druida, Leviatã,
-  Vampiro, Arcana, Edgerunner = id `escuro`, Pergaminho = id `claro`; `REDESIGN`, "R2b"). É a **única fonte** dos
-  tokens. `tema/temas.test.ts` confere que os 11 têm as mesmas chaves, o degradê do painel nos coeficientes e
-  reprova par de texto e fundo abaixo de 4,5:1 (AA) (`REDESIGN:125-140`). O `index.html` repete as 11 cores de
+- `tema/temas.ts`: as cores dos **14 temas** (V1, 2026-11-11), na ordem do seletor: Grimório, Masmorra (id `escuro`, era o
+  "Edgerunner"), Pergaminho (id `claro`), Edgerunner (id `edgerunner`, cyberpunk novo), Vampiro, Licantropo, Taverna, Forja,
+  Paladino, Druida, Leviatã, Arcana, Élfico e Celestial (os dois claros novos); `REDESIGN`, "R2b" e "V1". É a **única fonte** dos
+  tokens. `tema/temas.test.ts` confere que os 14 têm as mesmas chaves, o degradê do painel nos coeficientes e
+  reprova par de texto e fundo abaixo de 4,5:1 (AA) (`REDESIGN:125-140`). O `index.html` repete as 14 cores de
   fundo de propósito (anti-piscada); o mesmo teste confere que são iguais às do `temas.ts`.
 - `styles.css`: todo o resto do visual, usando as variáveis CSS dos tokens. Sobraram cores fixas só de
   conteúdo (texto preto ou branco no avatar e nas iniciais do token, escolhido pela cor em `contrasteDeCor.ts` desde o R6a; contorno do ponto da ordem de turno, sigla das condições, roda de cores
@@ -58,7 +59,7 @@ Tudo em `apps/web/src/`.
   primeira renderização.
 - Componentes principais da tela:
   - `Mesa.tsx`: a mesa inteira, em quatro regiões fixas (topo, ferramentas, painel direito e a área do mapa no meio); tudo o que abre sobre o mapa vive dentro de `.area-mapa`. O CSS grid está em `.mesa` no `styles.css`.
-  - `Topo.tsx`, `PresencaNoTopo.tsx`, `EstadoDaMesa.tsx`: o topo de 48 px (marca e cena, menus do mestre, avatares de presença com "+N", selo de pausa para o jogador (só o ícone e o amarelo; a dica diz se o mestre pausou ou saiu), botão e relógio do mestre).
+  - `Topo.tsx`, `PresencaNoTopo.tsx`, `EstadoDaMesa.tsx`: o topo de 48 px (marca e cena, menus do mestre, avatares de presença com "+N", selo de pausa para o jogador (só o ícone e o amarelo; a dica diz se o mestre pausou ou saiu), botão e relógio do mestre; desde o V1 há ao lado do relógio o botão de seta "Opções do relógio", com "Zerar o relógio": o marco `relogio.marcoMs`, só do mestre).
   - `area.ts`: onde fica a área do mapa na página (`caixaDaArea`), para prender menus, dicas e janelas a ela. `larguraDoPainel.ts` e `preferencias.ts`: a largura do painel direito (300 px a 1/4 da janela, `tabletop:pref:larguraDoPainel`).
   - `mapa/Mapa.tsx`, `mapa/mapaPixi.ts`, `mapa/camadaDeLuz.ts`, `mapa/camadaDeDesenho.ts`: o mapa em PixiJS.
     **Não muda com o tema** (`REDESIGN:138-139`).
@@ -68,7 +69,7 @@ Tudo em `apps/web/src/`.
   - `abas.tsx`: `AbaNotas` (nota da mesa e do mestre) e `AbaPreferencias` (usuário, tema, encaixe, pasta local de imagens, status dos arquivos).
   - `AbaChat.tsx`, `AbaFichas.tsx`, `AbaCompendio.tsx`: as abas de chat (com os modelos de rolagem), fichas
     (só pastas e fichas; as notas têm aba própria) e compêndio de magias.
-  - `AbaMesa.tsx` (a aba Mesa, só do mestre: índice, papéis, capacidades, campanha, diagnóstico), `PainelDaMesa.tsx` (as seções de regras da mesa e de modelos de luz que ela usa) e `PainelDeIluminacao.tsx` (a janela de iluminação).
+  - `AbaMesa.tsx` (a aba Mesa, só do mestre e, desde o V1, a última aba, depois de Preferências: índice, papéis, capacidades, campanha, diagnóstico), `PainelDaMesa.tsx` (as seções de regras da mesa e de modelos de luz que ela usa) e `PainelDeIluminacao.tsx` (a janela de iluminação).
   - `PainelDoToken.tsx`: painel compacto do mestre para o token selecionado (canto inferior esquerdo da área do mapa). Desde o R5a só abre por "Editar token…" ou por dois cliques no token; selecionar só seleciona.
   - `NovoToken.tsx`: a janela "Novo token" (nome, cor, tamanho) e, depois dela, o modo de pôr o token com a prévia (a prévia e o clique estão em `mapa/mapaPixi.ts`; o selo e a ligação em `Mesa.tsx`).
   - `AvisoPerto.tsx`: o aviso de erro dentro da área do mapa, perto de onde a pessoa agiu (a origem é guardada em `useSala.ts`).
@@ -119,7 +120,7 @@ Classes: A = 6 (1, 2, 4, 5, 9, 13), B = 13, C = 3 (11, 19, 22). Desde o R5a, 7, 
 
 ## 4. Perguntas e suposições esperando o "ok" dele
 
-**Total: 43 abertos em `PERGUNTAS`** (47 numerados; o 9, o 21, o 24 e o 34 já estão resolvidos) (a seção "Respondidas em 2026-11-10" não entra, nem o item riscado do
+**Total: 47 abertos em `PERGUNTAS`** (43 até o R6b, mais 4 do V1) (47 numerados; o 9, o 21, o 24 e o 34 já estão resolvidos) (a seção "Respondidas em 2026-11-10" não entra, nem o item riscado do
 nome). Mais **103 suposições "(assumido)"** (as 63 da parte B, mais as 12 do R5a, as 11 do R5b, as 8 do R6a e as 9 do R6b) que só aparecem no `ESTADO`/`REDESIGN` (parte B). Os que o texto
 marca "(assumido)" valem até ele dizer o contrário.
 
@@ -309,10 +310,18 @@ Redesign R5b (`REDESIGN`, "R5b — como ficou")
 
 R6a (8 suposições) e R6b (9 suposições): a lista está nas seções "Decisões (assumido)" de "R6a — como ficou" e "R6b — como ficou" no `REDESIGN`; as perguntas novas estão em `PERGUNTAS` ("Novas do R6a" e "Novas do R6b").
 
+Ajustes V1 (7 suposições): a lista está em "V1 — como ficou" (Decisões) no `REDESIGN`; as 4 perguntas novas estão em "Novas do V1" no `PERGUNTAS`.
+
 Os itens 49 a 85 são 37; o R2 acrescenta os itens 86 a 92, o R2b os 93 a 96, o R3 os 97 a 103, o R4 os 104 a 111, o R5a os 112 a 123 e o R5b os 124 a 134. Deixei de fora as suposições puramente técnicas (por exemplo, onde mora o compêndio
 na tabela `meta`, o worker do pdf.js, tipos do Node no teste, idempotência de `desenho.apagar`).
 
 ## 5. Pontos frágeis por lote
+
+Ajustes V1 (2026-11-11)
+- Os 11 temas novos e o Masmorra foram medidos (contraste, bolinhas distintas) e vistos nos prints, mas só no Chrome e sem teste com daltonismo. (`REDESIGN`, "V1 — como ficou")
+- O marco do "zerar o relógio" só existe para o mestre: se um dia o jogador passar a ver o relógio, o marco terá de ir junto no filtro. O sinal de que dá certo é o teste "o jogador não recebe o marco". (`packages/shared/src/zerarRelogio.test.ts`, `objetos.ts:relogioParaVisao`)
+- Quem monta um relógio novo na mão (`pausarRelogio`, `retomarRelogio`, os casos `mesa.pausada`/`mesa.retomada` do `reduzir`) tem de copiar o `marcoMs` (`marcoDoRelogio`), senão pausar zera sem querer. Há teste de pausar e retomar depois de zerar. (`packages/shared/src/relogio.ts`)
+- O menu do relógio (`MenuDoRelogio` em `EstadoDaMesa.tsx`) é um botão de seta ao lado da pílula; o foco vai ao primeiro botão ao abrir e volta ao botão com Esc. Não foi visto em tela de toque. (`ESTADO`, "Ajustes V1")
 
 Fonte: subseções "Frágil / não verificado" ou "Pontos frágeis" do `ESTADO` (Lote 3 em diante). Onde o mesmo
 ponto aparece em mais de um lote, vai numa linha só, com os dois lugares.
@@ -500,6 +509,7 @@ dos Lotes 1 e 2 (fora do escopo deste mapa).
 - Redesign R2b, pendente: o "Roteiro manual" da seção "Redesign R2b" no `ESTADO`.
 - Redesign R3, pendente: o "Roteiro manual" da seção "Redesign R3" no `ESTADO`.
 - Redesign R4, R5a e R5b, pendentes: o "Roteiro manual" de cada seção no `ESTADO`.
+- Ajustes V1 (R6a e R6b também): o "Roteiro manual" da seção "Ajustes V1" no `ESTADO`.
 
 Total: 18 roteiros com seção própria (1 parcial e 17 pendentes).
 

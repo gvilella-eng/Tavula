@@ -134,42 +134,49 @@ test("nenhuma requisição sai para fora de 127.0.0.1 e as fontes são as empaco
   expect(externas).toEqual([]);
 });
 
-// Redesign R2b: 11 temas, escolhidos por bolinhas.
+// Redesign R2b (11 temas) e V1 (14 temas: os três padrão, os escuros com personalidade e os claros novos),
+// escolhidos por bolinhas.
 
 const IDS = [
   "grimorio",
+  "escuro",
+  "claro",
+  "edgerunner",
+  "vampiro",
+  "licantropo",
   "taverna",
   "forja",
-  "licantropo",
   "paladino",
   "druida",
   "leviata",
-  "vampiro",
   "arcana",
-  "escuro",
-  "claro",
+  "elfico",
+  "celestial",
 ] as const;
 const NOMES = [
   "Grimório",
+  "Masmorra",
+  "Pergaminho",
+  "Edgerunner",
+  "Vampiro",
+  "Licantropo",
   "Taverna",
   "Forja",
-  "Licantropo",
   "Paladino",
   "Druida",
   "Leviatã",
-  "Vampiro",
   "Arcana",
-  "Edgerunner",
-  "Pergaminho",
+  "Élfico",
+  "Celestial",
 ];
 const FUNDO_NOVOS: Record<string, string> = {
-  taverna: "rgb(14, 11, 9)",
-  forja: "rgb(14, 14, 13)",
-  paladino: "rgb(10, 14, 26)",
-  vampiro: "rgb(18, 11, 13)",
+  taverna: "rgb(16, 11, 7)",
+  forja: "rgb(13, 12, 11)",
+  paladino: "rgb(10, 14, 29)",
+  vampiro: "rgb(10, 4, 5)",
 };
 
-test("o seletor é um grupo de rádio com 11 bolinhas, nome embaixo e selo no escolhido", async ({
+test("o seletor é um grupo de rádio com 14 bolinhas, nome embaixo e selo no escolhido", async ({
   mesa,
 }) => {
   const m = await mesa.entrar("mestre");
@@ -178,7 +185,7 @@ test("o seletor é um grupo de rádio com 11 bolinhas, nome embaixo e selo no es
   const seletor = p.getByTestId("seletor-de-tema");
   await expect(seletor).toHaveAttribute("role", "radiogroup");
   await expect(seletor).toHaveAttribute("aria-label", "Tema de cor");
-  await expect(seletor.getByRole("radio")).toHaveCount(11);
+  await expect(seletor.getByRole("radio")).toHaveCount(14);
   await expect(seletor.locator(".nome-do-tema")).toHaveText(NOMES);
   for (const [i, id] of IDS.entries()) {
     await expect(p.getByTestId(`tema-${id}`)).toHaveAccessibleName(NOMES[i] as string);
@@ -198,7 +205,7 @@ test("o seletor é um grupo de rádio com 11 bolinhas, nome embaixo e selo no es
     "rgb(74, 74, 74)",
   );
   // o nome também está na dica
-  await expect(seletor.locator(".opcao-de-tema").nth(1)).toHaveAttribute("title", "Tema Taverna");
+  await expect(seletor.locator(".opcao-de-tema").nth(6)).toHaveAttribute("title", "Tema Taverna");
 });
 
 test("teclado: as setas andam pelos temas e escolhem", async ({ mesa }) => {
@@ -207,12 +214,12 @@ test("teclado: as setas andam pelos temas e escolhem", async ({ mesa }) => {
   await abrirAba(p, "preferencias");
   await p.getByTestId("tema-grimorio").focus();
   await p.keyboard.press("ArrowRight");
-  await expect(p.getByTestId("tema-taverna")).toBeChecked();
-  await expect(p.locator("html")).toHaveAttribute("data-tema", "taverna");
+  await expect(p.getByTestId("tema-escuro")).toBeChecked();
+  await expect(p.locator("html")).toHaveAttribute("data-tema", "escuro");
   await p.keyboard.press("ArrowRight");
-  await expect(p.getByTestId("tema-forja")).toBeChecked();
+  await expect(p.getByTestId("tema-claro")).toBeChecked();
   await p.keyboard.press("ArrowLeft");
-  await expect(p.getByTestId("tema-taverna")).toBeChecked();
+  await expect(p.getByTestId("tema-escuro")).toBeChecked();
 });
 
 test("escolher temas novos pelo seletor muda as cores e sobrevive ao recarregar", async ({
@@ -253,7 +260,7 @@ test("quem tinha escuro ou claro guardado continua nele", async ({ mesa }) => {
     await expect(s.pagina.getByTestId(`tema-${id}`)).toBeChecked();
     // os nomes novos aparecem, o id continua o mesmo
     await expect(s.pagina.getByTestId(`tema-${id}`)).toHaveAccessibleName(
-      id === "escuro" ? "Edgerunner" : "Pergaminho",
+      id === "escuro" ? "Masmorra" : "Pergaminho",
     );
   }
 });
@@ -283,7 +290,7 @@ test("o seletor cabe no painel de 300 px sem rolar de lado", async ({ mesa }) =>
     };
   });
   expect(sobra).toEqual({ caixa: true, scroll: true });
-  await expect(seletor.getByRole("radio")).toHaveCount(11);
+  await expect(seletor.getByRole("radio")).toHaveCount(14);
 });
 
 test("as bolinhas dos temas escuros têm a metade de cima viva e todas diferentes (Druida, Leviatã, Licantropo e Paladino se distinguem)", async ({
@@ -292,19 +299,7 @@ test("as bolinhas dos temas escuros têm a metade de cima viva e todas diferente
   const m = await mesa.entrar("mestre");
   const p = m.pagina;
   await abrirAba(p, "preferencias");
-  const ids = [
-    "grimorio",
-    "taverna",
-    "forja",
-    "licantropo",
-    "paladino",
-    "druida",
-    "leviata",
-    "vampiro",
-    "arcana",
-    "escuro",
-    "claro",
-  ];
+  const ids = [...IDS];
   const cores: Record<string, number[]> = {};
   const barras: Record<string, number[]> = {};
   const rgb = (css: string) => (css.match(/[0-9]+/g) ?? []).slice(0, 3).map(Number);
@@ -324,7 +319,7 @@ test("as bolinhas dos temas escuros têm a metade de cima viva e todas diferente
   }
   // cada uma é bem mais clara/viva que a barra quase preta do tema escuro (a do Grimório é #1B1B1B)
   barras.grimorio = [27, 27, 27];
-  for (const id of ["licantropo", "paladino", "druida", "leviata"]) {
+  for (const id of ["licantropo", "paladino", "druida", "leviata", "edgerunner", "arcana"]) {
     expect(distancia(cores[id] as number[], barras.grimorio), id).toBeGreaterThan(60);
   }
 });

@@ -468,6 +468,7 @@ export class Armazenamento {
           break;
         case "mesa.pausada":
         case "mesa.retomada":
+        case "mesa.relogioZerado":
           this.gravarRelogio(estado.relogio);
           break;
         case "modelo.alterado":

@@ -476,3 +476,35 @@ describe("Armazenamento: compêndio do Lote 14", () => {
     expect(banco.carregar()?.compendio).toBeUndefined();
   });
 });
+
+describe("Armazenamento: o marco de zerar o relógio (V1)", () => {
+  it("banco antigo (relógio sem marco) abre com marco ausente; o evento grava o marco e ele sobrevive ao reinício", async () => {
+    const { sql } = await abrirBanco();
+    const banco = new Armazenamento(sql as never);
+    banco.migrar();
+    const base = estadoInicial(semente);
+    banco.salvarTudo(base);
+    // como o banco de antes do V1 guardava o relógio: sem `marcoMs`
+    banco.gravarMeta("relogio", JSON.stringify({ pausada: true, acumuladoMs: 5000 }));
+    const antigo = new Armazenamento(sql as never);
+    antigo.migrar();
+    expect(antigo.carregar()?.relogio).toEqual({ pausada: true, acumuladoMs: 5000 });
+
+    const zerado = { ...base, relogio: { pausada: true, acumuladoMs: 5000, marcoMs: 5000 } };
+    banco.salvarEventos(zerado, [
+      {
+        seq: 1,
+        origem: { usuarioId: "mestre", idPedido: "p" },
+        tipo: "mesa.relogioZerado",
+        dados: { salaMs: 5000 },
+      } as EventoSala,
+    ]);
+    const reaberto = new Armazenamento(sql as never);
+    reaberto.migrar();
+    expect(reaberto.carregar()?.relogio).toEqual({
+      pausada: true,
+      acumuladoMs: 5000,
+      marcoMs: 5000,
+    });
+  });
+});

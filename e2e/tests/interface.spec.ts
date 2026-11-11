@@ -237,7 +237,7 @@ test("menu superior, camadas, dados rápidos e pincel (interface; o que não tem
   await expect(p.getByTestId("barra-ferramentas")).toBeVisible();
 });
 
-test("barra da direita: Chat, Fichas, Notas, Compêndio, Mesa e Preferências (largura fixa, sem texto cortado)", async ({
+test("barra da direita: Chat, Fichas, Notas, Compêndio, Preferências e Mesa (largura fixa, sem texto cortado)", async ({
   mesa,
 }) => {
   test.setTimeout(90_000);
@@ -257,8 +257,8 @@ test("barra da direita: Chat, Fichas, Notas, Compêndio, Mesa e Preferências (l
     "aba-fichas",
     "aba-notas",
     "aba-compendio",
-    "aba-mesa",
     "aba-preferencias",
+    "aba-mesa",
   ]);
   expect(await abas(j1.pagina)).toEqual([
     "aba-chat",

@@ -94,7 +94,7 @@ import {
   type Pacote,
   VERSAO_EXPORTACAO,
 } from "./protocolo.ts";
-import { restanteDoObjeto, tempoDaSala } from "./relogio.ts";
+import { marcoDoRelogio, restanteDoObjeto, tempoDaSala } from "./relogio.ts";
 import {
   type ContextoDeTochas,
   mochilaAjustar,
@@ -243,7 +243,11 @@ export function criarExportacao(estado: Estado, agora: string): Exportacao {
     dados: {
       ...campanha,
       // A campanha restaurada começa com a mesa pausada, no tempo em que foi exportada.
-      relogio: { pausada: true, acumuladoMs: tempoDaSala(estado.relogio, Date.parse(agora)) },
+      relogio: {
+        pausada: true,
+        acumuladoMs: tempoDaSala(estado.relogio, Date.parse(agora)),
+        ...marcoDoRelogio(estado.relogio),
+      },
       notaMestre: estado.notaMestre ?? "",
       assets: (estado.assets ?? []).filter((a) => usados.has(a.hash)),
     },
@@ -499,7 +503,14 @@ export function reduzir(estado: Estado, evento: EventoSala): Estado {
     case "fonte.apagada":
       return { ...base, luzes: base.luzes.filter((x) => x.id !== evento.dados.id) };
     case "mesa.pausada":
-      return { ...base, relogio: { pausada: true, acumuladoMs: evento.dados.salaMs } };
+      return {
+        ...base,
+        relogio: {
+          pausada: true,
+          acumuladoMs: evento.dados.salaMs,
+          ...marcoDoRelogio(base.relogio),
+        },
+      };
     case "mesa.retomada":
       return {
         ...base,
@@ -507,6 +518,20 @@ export function reduzir(estado: Estado, evento: EventoSala): Estado {
           pausada: false,
           acumuladoMs: evento.dados.salaMs,
           ...(evento.dados.desdeReal === undefined ? {} : { desdeReal: evento.dados.desdeReal }),
+          ...marcoDoRelogio(base.relogio),
+        },
+      };
+    case "mesa.relogioZerado":
+      // O tempo da sala não muda (mesmo valor, mesma hora): só o marco da pílula.
+      return {
+        ...base,
+        relogio: {
+          pausada: base.relogio.pausada,
+          acumuladoMs: evento.dados.salaMs,
+          ...(base.relogio.pausada || evento.dados.desdeReal === undefined
+            ? {}
+            : { desdeReal: evento.dados.desdeReal }),
+          marcoMs: evento.dados.salaMs,
         },
       };
     case "modelo.alterado": {
@@ -1636,6 +1661,18 @@ export function processar(
       return aplicado("todos");
     }
 
+    case "mesa.zerarRelogio": {
+      // V1: o marco da pílula. O tempo da sala (e as tochas) fica exatamente como estava.
+      emitir({
+        tipo: "mesa.relogioZerado",
+        dados: {
+          salaMs: tempoDaSala(estado.relogio, agoraMs),
+          ...(estado.relogio.pausada ? {} : { desdeReal: agoraMs }),
+        },
+      });
+      return aplicado();
+    }
+
     case "modelo.criar": {
       const { modelo } = intencao.dados;
       if (estado.modelos.some((m) => m.id === modelo.id)) {
@@ -2141,6 +2178,9 @@ export function eventoPara(
       return mestre ? evento : { ...evento, dados: { salaMs: 0 } };
     case "mesa.retomada":
       return mestre ? evento : { ...evento, dados: { salaMs: 0 } };
+    case "mesa.relogioZerado":
+      // V1: o marco é só do mestre; o jogador não recebe nada.
+      return mestre ? evento : null;
     case "modelo.alterado": {
       if (mestre) return evento;
       const cfg = (depois ?? antes)?.config;

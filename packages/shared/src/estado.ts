@@ -299,6 +299,12 @@ export const RelogioSalaSchema = z.object({
   pausada: z.boolean(),
   acumuladoMs: z.number().nonnegative(),
   desdeReal: z.number().nonnegative().optional(),
+  /**
+   * V1: o marco do "zerar o relógio" da pílula do topo, em tempo da sala. A pílula mostra
+   * `tempoDaSala − marcoMs`; as tochas e tudo o que queima continuam no tempo da sala. Ausente = 0
+   * (estado e arquivo antigos). Só o mestre o recebe.
+   */
+  marcoMs: z.number().nonnegative().optional(),
 });
 export type RelogioSala = z.infer<typeof RelogioSalaSchema>;
 

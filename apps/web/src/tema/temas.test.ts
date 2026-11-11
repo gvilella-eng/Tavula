@@ -6,6 +6,8 @@ import {
   NOMES_DOS_TEMAS,
   nomeDaVariavel,
   TEMAS,
+  TEMAS_CLAROS,
+  TEMAS_PADRAO,
   type Tema,
 } from "./temas";
 
@@ -58,21 +60,25 @@ const PARES: Par[] = [
 ];
 
 describe("temas de cor", () => {
-  it("os 11 temas têm exatamente as mesmas chaves, e todas as chaves de token", () => {
+  it("os 14 temas têm exatamente as mesmas chaves, e todas as chaves de token", () => {
     const esperado = [...CHAVES_DE_TOKEN].sort();
     for (const id of IDS_DOS_TEMAS) expect(Object.keys(TEMAS[id]).sort()).toEqual(esperado);
+    // V1: os três padrão primeiro, depois os escuros com personalidade, depois os claros novos.
     expect(IDS_DOS_TEMAS).toEqual([
       "grimorio",
+      "escuro",
+      "claro",
+      "edgerunner",
+      "vampiro",
+      "licantropo",
       "taverna",
       "forja",
-      "licantropo",
       "paladino",
       "druida",
       "leviata",
-      "vampiro",
       "arcana",
-      "escuro",
-      "claro",
+      "elfico",
+      "celestial",
     ]);
   });
 
@@ -80,8 +86,12 @@ describe("temas de cor", () => {
     for (const id of IDS_DOS_TEMAS) expect(NOMES_DOS_TEMAS[id].length).toBeGreaterThan(0);
     expect(new Set(Object.values(NOMES_DOS_TEMAS)).size).toBe(IDS_DOS_TEMAS.length);
     expect(NOMES_DOS_TEMAS.grimorio).toBe("Grimório");
-    expect(NOMES_DOS_TEMAS.escuro).toBe("Edgerunner");
+    // V1: o id `escuro` passou a se chamar Masmorra; "Edgerunner" é o tema cyberpunk novo (`edgerunner`).
+    expect(NOMES_DOS_TEMAS.escuro).toBe("Masmorra");
+    expect(NOMES_DOS_TEMAS.edgerunner).toBe("Edgerunner");
     expect(NOMES_DOS_TEMAS.claro).toBe("Pergaminho");
+    expect(NOMES_DOS_TEMAS.elfico).toBe("Élfico");
+    expect(NOMES_DOS_TEMAS.celestial).toBe("Celestial");
   });
 
   it("o degradê do painel segue os coeficientes aprovados sobre a barra de cada tema", () => {
@@ -96,8 +106,8 @@ describe("temas de cor", () => {
             .padStart(2, "0"),
         )
         .join("")}`;
-    // O Claro tem o seu próprio degradê (claro, não escuro): só os temas escuros seguem a conta.
-    for (const id of IDS_DOS_TEMAS.filter((i) => i !== "claro")) {
+    // Os claros têm o seu próprio degradê (claro, não escuro): só os temas escuros seguem a conta.
+    for (const id of IDS_DOS_TEMAS.filter((i) => !TEMAS_CLAROS.includes(i))) {
       const t = TEMAS[id];
       expect(quase(t.painelTopo, escalar(t.barra, 1.2)), `${id} topo`).toBe(true);
       expect(quase(t.painelMeio, escalar(t.barra, 0.88)), `${id} meio`).toBe(true);
@@ -140,8 +150,8 @@ describe("temas de cor", () => {
     });
   }
 
-  it("o anel de foco existe nos 3 temas principais e vira a variável --foco", () => {
-    for (const id of ["grimorio", "escuro", "claro"] as const) {
+  it("o anel de foco existe nos temas e vira a variável --foco", () => {
+    for (const id of IDS_DOS_TEMAS) {
       expect(TEMAS[id].foco.length).toBe(7);
     }
     expect(nomeDaVariavel("foco")).toBe("--foco");
@@ -190,5 +200,50 @@ describe("temas de cor", () => {
         }
       }
     }
+  });
+
+  // V1: só Grimório, Masmorra e Pergaminho são discretos; os outros têm a sua identidade e não repetem o acento
+  // dourado do Grimório (nem se confundem entre si pelo acento).
+  it("os temas com personalidade não usam o acento do Grimório nem repetem o de outro tema", () => {
+    const comPersonalidade = IDS_DOS_TEMAS.filter((i) => !TEMAS_PADRAO.includes(i));
+    expect(comPersonalidade).toHaveLength(11);
+    expect(TEMAS_PADRAO).toEqual(["grimorio", "escuro", "claro"]);
+    for (const id of comPersonalidade) {
+      expect(TEMAS[id].acento.toUpperCase(), id).not.toBe(TEMAS.grimorio.acento.toUpperCase());
+      expect(TEMAS[id].acentoForte.toUpperCase(), id).not.toBe(
+        TEMAS.grimorio.acentoForte.toUpperCase(),
+      );
+    }
+    const acentos = IDS_DOS_TEMAS.map((i) => TEMAS[i].acento.toUpperCase());
+    // O Pergaminho repete o dourado do Grimório de propósito (é o par claro dele): só ele.
+    expect(new Set(acentos).size).toBe(IDS_DOS_TEMAS.length - 1);
+  });
+
+  it("Vampiro e Licantropo não têm amarelo no acento nem no destaque", () => {
+    // matiz do hex em graus (amarelo = 40 a 70)
+    const matiz = (hex: string) => {
+      const n = Number.parseInt(hex.slice(1), 16);
+      const [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((c) => c / 255) as [
+        number,
+        number,
+        number,
+      ];
+      const max = Math.max(r, g, b);
+      const d = max - Math.min(r, g, b);
+      if (d === 0) return 0;
+      const h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+      return (h * 60 + 360) % 360;
+    };
+    for (const id of ["vampiro", "licantropo"] as const) {
+      for (const chave of ["acento", "acentoForte", "aviso"] as const) {
+        const h = matiz(TEMAS[id][chave]);
+        expect(h < 40 || h > 70, `${id} ${chave} (matiz ${Math.round(h)})`).toBe(true);
+      }
+    }
+  });
+
+  it("a ordem dos temas é a pedida: padrão, escuros com personalidade, claros novos", () => {
+    expect(IDS_DOS_TEMAS.slice(0, 3)).toEqual([...TEMAS_PADRAO]);
+    expect(IDS_DOS_TEMAS.slice(-2)).toEqual(["elfico", "celestial"]);
   });
 });

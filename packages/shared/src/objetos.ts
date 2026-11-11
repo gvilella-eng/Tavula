@@ -193,9 +193,13 @@ export function relogioParaVisao(
   usuario: Visao,
   agoraMs: number,
 ): Estado["relogio"] {
+  // O marco do "zerar o relógio" (V1) vai só ao mestre.
   return {
     pausada: relogio.pausada,
     acumuladoMs: usuario.papel === "mestre" ? tempoDaSala(relogio, agoraMs) : 0,
+    ...(usuario.papel === "mestre" && relogio.marcoMs !== undefined
+      ? { marcoMs: relogio.marcoMs }
+      : {}),
   };
 }
 

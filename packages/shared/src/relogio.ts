@@ -15,12 +15,30 @@ export function tempoDaSala(relogio: RelogioSala, agoraMs: number): number {
   return relogio.acumuladoMs + Math.max(0, agoraMs - relogio.desdeReal);
 }
 
+/** O marco do "zerar o relógio" (V1) para copiar a um relógio novo: nada quando não há marco. */
+export function marcoDoRelogio(relogio: Pick<RelogioSala, "marcoMs">): { marcoMs?: number } {
+  return relogio.marcoMs === undefined ? {} : { marcoMs: relogio.marcoMs };
+}
+
+/**
+ * O número da pílula do mestre (V1): o tempo da sala menos o marco do último "zerar". Nunca negativo.
+ * Só mostra: as tochas e o resto leem `tempoDaSala`, que o marco não toca.
+ */
+export function tempoDaPilula(relogio: RelogioSala, agoraMs: number): number {
+  return Math.max(0, tempoDaSala(relogio, agoraMs) - (relogio.marcoMs ?? 0));
+}
+
 export function pausarRelogio(relogio: RelogioSala, agoraMs: number): RelogioSala {
-  return { pausada: true, acumuladoMs: tempoDaSala(relogio, agoraMs) };
+  return { pausada: true, acumuladoMs: tempoDaSala(relogio, agoraMs), ...marcoDoRelogio(relogio) };
 }
 
 export function retomarRelogio(relogio: RelogioSala, agoraMs: number): RelogioSala {
-  return { pausada: false, acumuladoMs: relogio.acumuladoMs, desdeReal: agoraMs };
+  return {
+    pausada: false,
+    acumuladoMs: relogio.acumuladoMs,
+    desdeReal: agoraMs,
+    ...marcoDoRelogio(relogio),
+  };
 }
 
 type ComTempo = Pick<ObjetoDeLuz, "estado" | "saldoMs" | "acesaDesdeSala">;

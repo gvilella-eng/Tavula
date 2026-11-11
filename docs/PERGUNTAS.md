@@ -24,6 +24,12 @@ Juntadas durante os Lotes 6 a 14 (2026-11-06 a 10) para fazer ao Vilella no fim.
 - Numa tela baixa (altura da área < 900 px) o painel do token vai embaixo à direita e divide a coluna com a ordem de turno. (assumido) Vale ficar assim? A alternativa é o painel do token embaixo à esquerda, com a ficha menor.
 - Os prints dos lotes 6 a 14 e r1, r2, r2b, r3 foram apagados (só mostravam a interface de cada lote). (assumido) O tour `auditoria` e os `r4` a `r6b` bastam.
 
+## Novas do V1 (2026-11-11)
+- "Masmorra" serve como nome do antigo Edgerunner (id `escuro`)? (assumido: sim)
+- O relógio zerado vale para a mesa inteira, mas só o mestre o vê. Quer que o jogador veja o relógio zerado (um tempo de sessão)? (assumido: não)
+- O "Zerar o relógio" fica num botão de seta ao lado da pílula do topo; prefere clique direito na pílula? (assumido: seta, que também vale no teclado)
+- Quer um "marcar tempo" (vários marcos, como cronômetro de voltas) em vez de só zerar? (assumido: não)
+
 ## Já vinham de antes
 - Camada mapa = imagem do mapa + objetos de cenário? (assumido)
 - Pincel: jogador apaga/seleciona só os próprios desenhos? desenhar é delegável e ligado por padrão? (assumido)

@@ -2201,4 +2201,54 @@ Detalhes e decisões em `docs/REDESIGN.md` ("R6a — como ficou").
 
 ---
 
-## Próximo: ajustes finos de UX/UI do Vilella a partir de `docs/PASSAGEM.md` (o plano R1 a R6 terminou); depois 7b e 12
+## Ajustes V1 — Temas com personalidade, aba Mesa no fim e zerar o relógio (entregue, aguardando o roteiro manual)
+
+Primeiro lote dos ajustes que o Vilella pediu depois de usar a mesa (2026-11-11). Detalhes e decisões em `docs/REDESIGN.md` ("V1 — como ficou").
+
+### O que foi entregue
+
+- 14 temas de cor (eram 11): Grimório, Masmorra (id `escuro`, o antigo "Edgerunner"), Pergaminho; Edgerunner novo (id `edgerunner`: verde neon, roxo e amarelo), Vampiro (vermelho-sangue e preto), Licantropo (vermelho, cinza-chumbo e prata), Taverna, Forja, Paladino, Druida, Leviatã e Arcana, cada um com o acento da sua identidade; Élfico e Celestial, os dois claros novos. O seletor mostra nessa ordem e cabe em 300 px.
+- A aba Mesa é a última (depois de Preferências), só do mestre.
+- "Zerar o relógio" da pílula do mestre: botão de seta ao lado da pílula, menu "Opções do relógio", item "Zerar o relógio" e confirmação. É um marco (`relogio.marcoMs`); a pílula mostra `tempoDaSala − marcoMs` e as tochas não mudam.
+- Estado/protocolo: campo opcional `marcoMs` no `RelogioSala`; intenção `mesa.zerarRelogio` (`mesa.configurar`); evento `mesa.relogioZerado` só para o mestre. Sem migração SQL (o relógio mora em JSON na tabela `meta`; sem o campo vale 0). Exportação continua v12 (campo opcional); exportar leva o marco e importar arquivo antigo vale marco 0. Nenhuma dependência nova.
+
+### Como rodar
+
+- `pnpm verify` (uma vez). E2E novos e alterados: `pnpm --filter @tabletop/e2e test --repeat-each=3 tests/ajustes-v1.spec.ts tests/tema.spec.ts tests/interface.spec.ts`.
+- Prints: `$env:PRINTS_DIR="<pasta>"; pnpm --filter @tabletop/e2e prints v1` (48 prints: 14 temas a 1600×900, 4 a 1280×720, o seletor, a aba Mesa e o menu do relógio em Grimório, Edgerunner e Celestial).
+
+### Verificação
+
+- Unidade: `zerarRelogio.test.ts` (shared; a conta da pílula, migração do relógio sem marco, zerar rodando e pausada, pausar e retomar guardam o marco, só o mestre zera, tochas com o mesmo restante antes e depois, o jogador sem o marco no evento e no snapshot, exportar e importar com e sem o marco); `armazenamento.test.ts` (servidor; banco antigo sem marco e marco que sobrevive ao reinício); `temas.test.ts` (14 temas, ordem, nomes, AA, foco 3:1, bolinhas distintas, acento diferente do Grimório, Vampiro e Licantropo sem amarelo).
+- E2E novos: `ajustes-v1.spec.ts` (5 testes: Edgerunner, Élfico e Celestial aplicam e sobrevivem ao recarregar; aba Mesa última e só do mestre, também recolhida; zerar o relógio com tocha acesa e o jogador sem o marco nos frames; zerar pausada; menu do relógio só pelo teclado).
+- E2E antigos alterados (comportamento mudou de propósito; nada afrouxado): `tema.spec.ts` (11 viram 14 bolinhas, nova ordem e nomes, setas andam Grimório → Masmorra → Pergaminho, cores de fundo dos temas que mudaram, `escuro` agora se chama Masmorra); `interface.spec.ts` (a aba Mesa passou para depois de Preferências).
+- `organizacao.spec.ts` também mudou (a lista de abas do mestre agora termina em Preferências, Mesa); o primeiro `pnpm verify` apontou só esse E2E.
+- `pnpm verify` verde numa rodada (a segunda, depois de corrigir esse E2E): 32 (servidor) + 68 (web) + 561 (shared) de unidade e 218 E2E, sem instável. Repetição 3x de `ajustes-v1`, `tema`, `interface` e `organizacao`: 96 execuções verdes.
+- Prints (48) em `prints-v1`, no scratchpad da sessão. Vistos: Edgerunner, Vampiro, Licantropo, Taverna, Forja, Paladino, Druida, Leviatã, Arcana, Élfico, Celestial, o seletor, a aba Mesa e o menu do relógio; Licantropo, Edgerunner, Élfico e Celestial foram ajustados depois do primeiro olhar (prata mais presente, roxo mais cinza, claros mais coloridos) e os prints refeitos.
+
+### Decisões
+
+- (assumido) Ver a lista em `docs/REDESIGN.md` ("V1 — como ficou", Decisões).
+
+### Desvios do plano
+
+- O brief falava em "o menu da pausa já existe (`menu-pausa`)", mas o `menu-pausa` é o botão que pausa e retoma, sem menu. O item "Zerar o relógio" ganhou um botão de seta ao lado da pílula (`menu-relogio`) com o menu dele.
+
+### Frágil / não verificado
+
+- Os temas foram medidos (contraste) e vistos nos prints, só no Chrome; não foram vistos por quem tem daltonismo.
+- O marco só vai ao mestre; se o jogador um dia vir o relógio, o filtro (`relogioParaVisao` e `eventoPara`) muda.
+- O menu do relógio não foi visto em tela de toque.
+
+### Roteiro manual (pendente)
+
+1. Preferências: o seletor mostra 14 bolinhas na ordem Grimório, Masmorra, Pergaminho, Edgerunner, Vampiro, Licantropo, Taverna, Forja, Paladino, Druida, Leviatã, Arcana, Élfico, Celestial, sem rolar de lado. Quem tinha o antigo Edgerunner guardado cai na Masmorra, igual.
+2. Passe por cada tema com a mesa em jogo (mapa, tokens, uma janela, um menu): nenhum texto ilegível, nenhum tema parecido demais com outro. O Edgerunner é usável (neon só nos destaques).
+3. A aba Mesa é a última à direita de Preferências; entre como jogador: ela não aparece.
+4. Acenda uma tocha, deixe uns minutos passarem, abra a seta ao lado do relógio, "Zerar o relógio" e confirme: o relógio vai a 00:00 e volta a contar; o tempo da tocha não muda. Repita com a mesa pausada (continua pausada em 00:00).
+5. Recarregue a página do mestre depois de zerar: o relógio continua pequeno (o marco foi guardado). Exporte e importe a mesa: o relógio continua zerado.
+6. Como jogador: nada aparece do relógio nem do zerar.
+
+---
+
+## Próximo: ajustes V2 (próximo lote dos ajustes do Vilella); depois 7b e 12

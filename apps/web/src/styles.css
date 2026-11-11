@@ -1981,6 +1981,20 @@ button[aria-disabled="true"]:hover {
   background: var(--aviso-fundo);
   border-color: var(--aviso-borda);
 }
+.menu-relogio {
+  position: relative;
+  display: inline-flex;
+}
+.menu-relogio-gatilho {
+  width: 24px;
+  height: 34px;
+}
+.menu-relogio-lista {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  min-width: 232px;
+}
 .estado-mesa-botao .relogio-sala {
   min-width: 6ch;
   padding: 0;

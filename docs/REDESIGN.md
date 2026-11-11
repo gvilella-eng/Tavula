@@ -705,6 +705,59 @@ mestre vem do estado e da presença que o cliente já tem).
 - Seleção múltipla no mapa; "Entregar" a tocha pelo menu do token; selecionar um token só pelo teclado.
 - Telas menores que 1280×720.
 
+## Ajustes do Vilella (V1–V5)
+
+Depois do redesign (R1 a R6), o Vilella usou a mesa e pediu ajustes (2026-11-11). Cada lote V muda o que o brief pedir, inclusive
+estado, protocolo e sala; a campanha que já existe continua carregando.
+
+## V1 — como ficou (2026-11-11)
+
+Temas com personalidade, aba Mesa no fim e "Zerar o relógio". Detalhes de execução em `docs/ESTADO.md` ("Ajustes V1").
+
+**O que foi feito**
+- **14 temas** (eram 11). Os três discretos ficam no começo do seletor e como estavam: **Grimório**, **Masmorra** e **Pergaminho**. O
+  antigo "Edgerunner" (id `escuro`) passou a se chamar **Masmorra**; o id não mudou, então quem o tinha guardado continua nele. Depois vêm
+  os nove escuros com personalidade e, por último, os dois claros novos.
+- **Edgerunner** (id novo `edgerunner`, cyberpunk): fundo quase preto levemente roxo, superfícies roxo-acinzentadas, acento **verde neon**
+  nos estados ativos, **amarelo** como segundo acento (aviso, pausa, destaque) e roxo nas barras e cabeçalhos. Texto AA; o neon só em
+  preenchimentos e ícones pequenos, nunca em blocos de texto.
+- **Vampiro**: preto quase puro, vinho escuro nas barras, vermelho-sangue vivo no acento. **Sem amarelo** (o aviso é pêssego).
+- **Licantropo**: cinza-chumbo nas superfícies, prata da lua no texto de destaque, no anel de foco e nas bordas, vermelho-escarlate no
+  acento. **Sem amarelo** (o aviso é laranja-cobre).
+- **Taverna** (madeira e cobre, acento cobre), **Forja** (carvão e brasa, acento laranja-brasa), **Paladino** (azul-marinho, acento
+  branco-azulado, dourado no foco e no aviso), **Druida** (verde-musgo, âmbar de folha no aviso), **Leviatã** (azul-abissal, acento
+  turquesa) e **Arcana** (violeta, acento violeta vivo, ciano-místico no foco e nos itens ocultos): cada um com o acento da sua identidade.
+  Nenhum usa o dourado do Grimório.
+- **Élfico** (`elfico`, verde-sálvia claro, acento verde-folha) e **Celestial** (`celestial`, branco-azulado, acento dourado-suave): os dois
+  claros novos, com o mesmo cuidado de contraste do Pergaminho.
+- Ordem no seletor: Grimório, Masmorra, Pergaminho, Edgerunner, Vampiro, Licantropo, Taverna, Forja, Paladino, Druida, Leviatã, Arcana,
+  Élfico, Celestial. O seletor cabe no painel de 300 px sem rolar de lado.
+- Testes dos temas: todas as chaves em todos, AA de todo par de texto e fundo, anel de foco 3:1, bolinhas distintas, degradê do painel
+  nos coeficientes (só os escuros), os temas com personalidade não repetem o acento do Grimório (nem o de outro tema) e Vampiro e
+  Licantropo sem amarelo (matiz). O `index.html` repete as 14 cores de fundo (um teste confere).
+- **Aba Mesa** é a última (depois de Preferências), só do mestre; atalhos e testids iguais.
+- **Zerar o relógio** da pílula do topo (só o mestre): um botão de seta ao lado da pílula abre o menu "Opções do relógio" com o item
+  "Zerar o relógio" e a confirmação "Zerar o relógio da mesa? As tochas não mudam.". É um **marco**: o estado guarda o tempo da sala na
+  hora de zerar (`relogio.marcoMs`) e a pílula mostra `tempoDaSala − marcoMs`. O tempo da sala, as tochas e tudo o que queima ficam como
+  estavam. Pausada continua pausada em 00:00. Intenção `mesa.zerarRelogio` (`mesa.configurar`), evento `mesa.relogioZerado` só para o mestre.
+  Estado e arquivos antigos (sem o marco) valem marco 0; exportar e importar levam o marco.
+
+**Decisões (assumido)**
+- (assumido) "Masmorra" é o novo nome do antigo Edgerunner (o brief deixou o nome em aberto).
+- (assumido) A ordem dos nove escuros com personalidade: Edgerunner, Vampiro, Licantropo, Taverna, Forja, Paladino, Druida, Leviatã, Arcana.
+- (assumido) Vampiro e Licantropo trocam o amarelo do aviso por pêssego e laranja-cobre: o aviso continua legível como aviso e sem amarelo.
+- (assumido) Em Arcana os itens "ocultos do jogador" ficam ciano (o lavanda se confundiria com o acento violeta); em Edgerunner, Vampiro e
+  Paladino o lavanda continua só nos casos em que não bate com o acento.
+- (assumido) Onde o acento é claro (Edgerunner, Paladino, Druida, Leviatã, Licantropo) ou vermelho escuro (Vampiro), `acentoTexto` é escolhido
+  pelo contraste (escuro sobre claro, claro sobre o vermelho do Vampiro).
+- (assumido) O marco é só do mestre e não gera frame para o jogador; o menu do relógio é um botão de seta ao lado da pílula (a pílula
+  continua pausando e retomando com um clique).
+- (assumido) Zerar não muda a versão da exportação (o campo é opcional dentro do `relogio`).
+
+**O que ficou para depois**
+- Os temas não foram vistos por quem tem daltonismo (só o contraste foi medido).
+- Ajustes de gosto nas cores: o Vilella olha e diz.
+
 ## Em aberto
 
 - **O plano R1 a R6 terminou** (R1, R2, R2b, R3, R4 em 2026-11-10; R5a, R5b, R6a e R6b em 2026-11-11). Agora o Vilella faz os ajustes
