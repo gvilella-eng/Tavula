@@ -146,8 +146,15 @@ test("menu superior, camadas, dados rápidos e pincel (interface; o que não tem
   );
   await p.mouse.click(alvo.x, alvo.y);
   await expect(p.getByTestId("painel-token")).toHaveCount(0);
+  expect((await tokensDe(p)).find((t) => t.id === "tok-jogador-1")?.selecionado).toBe(false);
   await escolherCamada(p, "tokens");
   await p.mouse.click(alvo.x, alvo.y);
+  // selecionar só seleciona: o painel do token abre por "Editar token…" ou por dois cliques (R5a)
+  await expect
+    .poll(async () => (await tokensDe(p)).find((t) => t.id === "tok-jogador-1")?.selecionado)
+    .toBe(true);
+  await expect(p.getByTestId("painel-token")).toHaveCount(0);
+  await p.mouse.dblclick(alvo.x, alvo.y);
   await expect(p.getByTestId("painel-token")).toBeVisible();
   // o seletor de camada saiu da barra da esquerda
   await expect(p.getByTestId("barra-ferramentas").getByTestId("camada-tokens")).toHaveCount(0);

@@ -21,8 +21,10 @@ import {
 } from "@tabletop/shared";
 import {
   BookOpen,
+  MapPin,
   MessagesSquare,
   NotebookText,
+  Pin,
   Settings2,
   SlidersHorizontal,
   StickyNote,
@@ -39,6 +41,7 @@ import { AbaChat } from "./AbaChat";
 import { AbaCompendio } from "./AbaCompendio";
 import { AbaFichas } from "./AbaFichas";
 import { AbaMesa, testidDaSecaoDaMesa } from "./AbaMesa";
+import { AvisoPerto } from "./AvisoPerto";
 import { AbaNotas, AbaPreferencias } from "./abas";
 import { caixaDaArea } from "./area";
 import { lerItemArrastado } from "./arrasto";
@@ -65,14 +68,17 @@ import type {
   Ferramenta,
   ImagensDoMapa,
   MapaPixi,
+  MedicaoFixa,
   MedicaoNaTela,
   RetornosDoMapa,
 } from "./mapa/mapaPixi";
+import { NovoToken, type NovoTokenPedido } from "./NovoToken";
 import { OrdemDeTurno } from "./OrdemDeTurno";
 import { PainelDasParedes } from "./PainelDasParedes";
 import { PainelDeFontesDeLuz } from "./PainelDeFontesDeLuz";
 import { PainelDeIluminacao } from "./PainelDeIluminacao";
 import { PainelDoToken } from "./PainelDoToken";
+import { useFecharFora } from "./Popover";
 import { PresencaNoTopo } from "./PresencaNoTopo";
 import { type ConfigDoPincel, PINCEL_PADRAO } from "./pincel";
 import { gravarEncaixePadrao, lerEncaixePadrao } from "./preferencias";
@@ -82,7 +88,6 @@ import { useTempoDaSala } from "./tempo";
 import { useSala } from "./useSala";
 import { ZoomFlutuante } from "./ZoomFlutuante";
 
-const CORES_DE_TOKEN = ["#3cb44b", "#4363d8", "#f58231", "#911eb4", "#e6194b", "#42d4f4"];
 const CHAVE_COMO = "tabletop:chat:como:";
 
 function lerComo(usuarioId: string): string {
@@ -128,6 +133,7 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
     presenca,
     uso,
     aviso,
+    dispensarAviso,
     preparos,
     chatTemMais,
     enviar,
@@ -149,6 +155,15 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
   const [encaixe, setEncaixe] = useState(lerEncaixePadrao);
   const [zoom, setZoom] = useState(1);
   const [medicao, setMedicao] = useState<MedicaoNaTela | null>(null);
+  // Régua (R5a): as medidas fixadas na tela (só de quem mediu).
+  const [reguasFixas, setReguasFixas] = useState<MedicaoFixa[]>([]);
+  // O painel do token só abre por "Editar token…" ou por dois cliques; selecionar só seleciona (R5a).
+  const [painelDoTokenAberto, setPainelDoTokenAberto] = useState(false);
+  // "Novo token": o formulário (nome, cor, tamanho) e, depois dele, o modo de clicar no mapa para pôr.
+  const [formNovoToken, setFormNovoToken] = useState(false);
+  const [tokenParaPor, setTokenParaPor] = useState<NovoTokenPedido | null>(null);
+  // A regra de uma condição aberta por clique no marcador (popover).
+  const [regraAberta, setRegraAberta] = useState<DicaDoMapa | null>(null);
   const [lateralAberta, setLateralAberta] = useState(true);
   const {
     largura: larguraDoPainel,
@@ -188,6 +203,7 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
   // A cena que o mestre olha (e edita) sem mover o grupo: estado local da tela dele. `null` = a do grupo.
   const [cenaVistaId, setCenaVistaId] = useState<string | null>(null);
   const mapa = useRef<MapaPixi | null>(null);
+  const colocarTokenAtual = useRef<((x: number, y: number) => void) | null>(null);
   // As fichas abertas em janelas flutuantes (várias ao mesmo tempo).
   const {
     janelas: janelasDeFicha,
@@ -229,6 +245,33 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
     }
     window.addEventListener("keydown", aoTeclar);
     return () => window.removeEventListener("keydown", aoTeclar);
+  }, []);
+
+  // Esc (R5a): solta a seleção, fecha os menus e a regra aberta e cancela o modo "pôr token". Não age com o
+  // foco num campo de texto nem dentro de uma janela (Esc não fecha janelas, decisão do R3; soltar a seleção
+  // fecharia o painel do token). O mapa cancela os gestos dele por conta própria.
+  useEffect(() => {
+    function aoTeclarEsc(e: KeyboardEvent) {
+      if (e.key !== "Escape" || e.defaultPrevented) return;
+      const alvo = e.target;
+      if (
+        alvo instanceof HTMLElement &&
+        (alvo.isContentEditable ||
+          /^(INPUT|TEXTAREA|SELECT)$/.test(alvo.tagName) ||
+          alvo.closest(".janela") !== null)
+      ) {
+        return;
+      }
+      setSelecionadoId(null);
+      setDesenhoSelecionadoId(null);
+      setMenuDoToken(null);
+      setMenuDaTocha(null);
+      setRegraAberta(null);
+      setDicaDoMapa(null);
+      setTokenParaPor(null);
+    }
+    window.addEventListener("keydown", aoTeclarEsc);
+    return () => window.removeEventListener("keydown", aoTeclarEsc);
   }, []);
 
   const chatDaMesa = estado?.chat;
@@ -373,6 +416,27 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
     usuarioVisto === null &&
     pode(eu, "desenho.criar", permissoes);
 
+  // O painel do token fecha sozinho quando não há mais token selecionado (a próxima seleção não o abre).
+  const haSelecionado = selecionado !== null;
+  useEffect(() => {
+    if (!haSelecionado) setPainelDoTokenAberto(false);
+  }, [haSelecionado]);
+
+  // O modo "pôr token" e o formulário valem só para o mestre, na ferramenta de seleção e na cena em que começaram.
+  const cenaIdAtual = cena?.id;
+  // biome-ignore lint/correctness/useExhaustiveDependencies: a cena trocada cancela o que estava em andamento
+  useEffect(() => {
+    setTokenParaPor(null);
+    setFormNovoToken(false);
+    setRegraAberta(null);
+  }, [cenaIdAtual]);
+  useEffect(() => {
+    if (ferramenta !== "selecionar" || !modoMestre) {
+      setTokenParaPor(null);
+      setFormNovoToken(false);
+    }
+  }, [ferramenta, modoMestre]);
+
   // Sem `desenho.criar` (o mestre desligou) o pincel fecha na hora; fora do pincel não há desenho selecionado.
   useEffect(() => {
     if (ferramenta === "pincel" && !podeDesenhar) setFerramenta("selecionar");
@@ -428,6 +492,13 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
         enviar("desenho.rascunho", { id, desenho }),
       zoom: setZoom,
       medir: setMedicao,
+      reguasFixas: setReguasFixas,
+      colocarToken: (x, y) => colocarTokenAtual.current?.(x, y),
+      editarToken: (id) => {
+        setSelecionadoId(id);
+        setPainelDoTokenAberto(true);
+      },
+      abrirRegra: setRegraAberta,
       criarParedes: (cenaId, segmentos, tipo) =>
         enviar("parede.criar", {
           cenaId,
@@ -556,6 +627,7 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
       podeDesenhar,
       usuarioId: euId ?? "",
       desenhoSelecionadoId,
+      tokenParaPor,
       ehDoGrupo: (t: Token) => {
         if (euMestre) {
           const p = personagens?.find((x) => x.id === t.personagemId);
@@ -591,6 +663,7 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
       podeDesenhar,
       euId,
       desenhoSelecionadoId,
+      tokenParaPor,
       eu,
       permissoes,
       cenaAtivaId,
@@ -665,22 +738,23 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
     if (selecionado && selecionado.camada !== c) setSelecionadoId(null);
   }
 
-  function criarToken() {
-    if (!cena) return;
-    const centro = mapa.current?.centroDaTelaEmMetros() ?? {
-      x: cena.larguraM / 2,
-      y: cena.alturaM / 2,
-    };
-    const { x, y } = encaixarNoGrid(centro, 1, cena.grid.quadradoM);
+  /** "Novo token": abre o formulário (nome, cor, tamanho). O token só nasce no clique no mapa. */
+  function abrirNovoToken() {
+    setTokenParaPor(null);
+    setFormNovoToken(true);
+  }
+
+  /** O clique no mapa do modo "pôr token": cria o token que o formulário descreveu, onde se clicou. */
+  function colocarToken(x: number, y: number) {
+    if (!cena || !tokenParaPor) return;
     const id = `tok-${crypto.randomUUID().slice(0, 8)}`;
-    const cor = CORES_DE_TOKEN[Math.floor(Math.random() * CORES_DE_TOKEN.length)] ?? "#3cb44b";
     enviar("token.criar", {
       cenaId: cena.id,
       token: {
         id,
-        nome: "Novo token",
-        cor,
-        tamanhoQuadrados: 1,
+        nome: tokenParaPor.nome,
+        cor: tokenParaPor.cor,
+        tamanhoQuadrados: tokenParaPor.tamanhoQuadrados,
         x,
         y,
         camada: camadaDoNovoToken(camadaTrabalho),
@@ -689,7 +763,9 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
       },
     });
     setSelecionadoId(id);
+    setTokenParaPor(null);
   }
+  colocarTokenAtual.current = colocarToken;
 
   /** Um item das Fichas foi solto no mapa: o token dele nasce na cena que o mestre vê, onde soltou. */
   function soltarItemNoMapa(dados: string, x: number, y: number) {
@@ -739,6 +815,33 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
   }, [nomeDaCenaDoGrupo]);
 
   const cenaVista = { id: cena?.id ?? estado?.cenaAtivaId ?? "", nome: cena?.nome ?? "" };
+
+  // Jogador sem token na cena (ou o mestre vendo como ele): a visão vem dos tokens dele, então o mapa fica
+  // preto. O estado vazio explica o porquê e o que fazer; some quando o token aparece.
+  const semTokenNaCena = (() => {
+    if (!pronto || !estado || !eu || !cena || !iluminada || modoMestre) return null;
+    if (visao.modo !== "jogador" || visao.fontes.length > 0) return null;
+    const quem = usuarioVisto ?? eu;
+    const meus = estado.personagens.filter((p) => podeEditarPersonagem(p, quem));
+    if (usuarioVisto) {
+      return {
+        titulo: "Sem token nesta cena",
+        texto: `${usuarioVisto.nome} ainda não tem um personagem nesta cena, por isso o mapa fica escuro para ele. A visão vem dos tokens do jogador.`,
+      };
+    }
+    if (meus.length > 0) {
+      const nomes = meus.map((p) => p.nome).join(", ");
+      return {
+        titulo: "Seu personagem não está nesta cena",
+        texto: `O token de ${nomes} não está nesta cena, por isso o mapa fica escuro. Peça ao mestre para levar seu token até aqui ou para mover o grupo.`,
+      };
+    }
+    return {
+      titulo: "Sem token nesta cena",
+      texto:
+        "Você ainda não tem um personagem nesta cena. Peça ao mestre para pôr o seu token no mapa.",
+    };
+  })();
 
   const abas =
     estado && eu
@@ -861,7 +964,7 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
                   aoEscolherCamada={escolherCamada}
                   visaoNoturna={visaoNoturna}
                   aoAlternarVisaoNoturna={() => setVisaoNoturna(!visaoNoturna)}
-                  aoNovoToken={criarToken}
+                  aoNovoToken={abrirNovoToken}
                   aoLimparDesenhos={() => enviar("desenho.limpar", { cenaId: cena.id })}
                   desenhosNaCena={estado.desenhos.filter((d) => d.cenaId === cena.id).length}
                   ordemVisivel={estado.ordemDeTurnoVisivel}
@@ -987,6 +1090,7 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
                 pedirImagem={pedirImagem}
               />
             )}
+            {aviso && <AvisoPerto aviso={aviso} aoDispensar={dispensarAviso} />}
             <ZoomFlutuante
               zoom={zoom}
               aoDefinir={(z) => mapa.current?.definirZoom(z)}
@@ -1000,6 +1104,61 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
                 style={{ left: medicao.x + 14, top: medicao.y + 14 }}
               >
                 {medicao.medida.rotulo}
+              </div>
+            )}
+            {medicao?.solta && (
+              <button
+                type="button"
+                className="regua-fixar"
+                data-testid="regua-fixar"
+                title="Deixa esta medida na tela (Shift ao soltar faz o mesmo). Esc tira."
+                style={{ left: medicao.x + 14, top: medicao.y + 46 }}
+                onClick={() => mapa.current?.fixarRegua()}
+              >
+                <Pin size={13} /> Fixar
+              </button>
+            )}
+            {reguasFixas.map((f) => (
+              <button
+                key={f.id}
+                type="button"
+                className="regua-rotulo regua-fixa"
+                data-testid="regua-fixa-rotulo"
+                title="Clique para tirar esta medida"
+                style={{ left: f.x + 14, top: f.y + 14 }}
+                onClick={() => mapa.current?.removerReguaFixa(f.id)}
+              >
+                <Pin size={12} /> {f.medida.rotulo}
+              </button>
+            ))}
+            {modoMestre && tokenParaPor && (
+              <div className="selo-modo" data-testid="modo-pondo-token-selo" role="status">
+                <span>
+                  <MapPin size={14} /> Clique no mapa para pôr <strong>{tokenParaPor.nome}</strong>
+                  <span className="selo-dica"> · Esc cancela · Alt inverte o encaixe</span>
+                </span>
+                <button
+                  type="button"
+                  data-testid="modo-pondo-token-cancelar"
+                  onClick={() => setTokenParaPor(null)}
+                >
+                  Cancelar
+                </button>
+              </div>
+            )}
+            {modoMestre && formNovoToken && (
+              <NovoToken
+                aoConfirmar={(pedido) => {
+                  setFormNovoToken(false);
+                  setTokenParaPor(pedido);
+                }}
+                aoCancelar={() => setFormNovoToken(false)}
+              />
+            )}
+            {semTokenNaCena && (
+              <div className="estado-vazio-mapa" data-testid="sem-token" role="status">
+                <strong>{semTokenNaCena.titulo}</strong>
+                <p>{semTokenNaCena.texto}</p>
               </div>
             )}
             {estado.ordemDeTurnoVisivel && (
@@ -1056,13 +1215,16 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
                 aoFechar={() => setConfigAberta(false)}
               />
             )}
-            {modoMestre && ferramenta !== "paredes" && selecionado && (
+            {modoMestre && ferramenta !== "paredes" && selecionado && painelDoTokenAberto && (
               <PainelDoToken
                 token={selecionado}
                 jogadores={estado.usuarios.filter((u) => u.papel === "jogador")}
                 enviar={enviar}
                 pedirImagem={pedirImagem}
-                aoFechar={() => setSelecionadoId(null)}
+                aoFechar={() => {
+                  setPainelDoTokenAberto(false);
+                  setSelecionadoId(null);
+                }}
               />
             )}
             {menuDoToken && usuarioVisto === null && (
@@ -1073,17 +1235,27 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
                 y={menuDoToken.y}
                 euMestre={euMestre}
                 enviar={enviar}
+                aoEditar={() => {
+                  setSelecionadoId(menuDoToken.tokenId);
+                  setPainelDoTokenAberto(true);
+                }}
                 aoFechar={() => setMenuDoToken(null)}
               />
             )}
-            {dicaDoMapa && (
+            {regraAberta && (
+              <RegraDaCondicao regra={regraAberta} aoFechar={() => setRegraAberta(null)} />
+            )}
+            {dicaDoMapa && !regraAberta && (
               <div
                 className="dica-condicao"
                 role="tooltip"
-                data-testid="dica-condicao"
+                data-testid={dicaDoMapa.tipo === "tocha" ? "dica-tocha" : "dica-condicao"}
                 style={{
                   left: Math.min(dicaDoMapa.x + 14, caixaDaArea().direita - 300),
-                  top: Math.min(dicaDoMapa.y + 16, caixaDaArea().base - 150),
+                  top: Math.min(
+                    dicaDoMapa.y + (dicaDoMapa.tipo === "tocha" ? 52 : 16),
+                    caixaDaArea().base - 150,
+                  ),
                 }}
               >
                 <strong>{dicaDoMapa.titulo}</strong>
@@ -1156,11 +1328,37 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
           {status}
         </div>
       )}
-      {aviso && (
-        <p className="aviso" role="alert" data-testid="aviso" data-codigo={aviso.codigo ?? ""}>
-          {aviso.texto}
-        </p>
-      )}
+    </div>
+  );
+}
+
+/** A regra de uma condição aberta por clique no marcador: popover que fecha com Esc ou clique fora. */
+function RegraDaCondicao({ regra, aoFechar }: { regra: DicaDoMapa; aoFechar: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useFecharFora(ref, aoFechar);
+  const area = caixaDaArea();
+  return (
+    <div
+      ref={ref}
+      className="regra-condicao"
+      role="dialog"
+      aria-label={`Regra: ${regra.titulo}`}
+      data-testid="regra-condicao"
+      style={{
+        left: Math.max(area.esquerda + 8, Math.min(regra.x + 14, area.direita - 308)),
+        top: Math.max(area.topo + 8, Math.min(regra.y + 16, area.base - 170)),
+      }}
+    >
+      <strong>{regra.titulo}</strong>
+      <p>{regra.texto}</p>
+      <button
+        type="button"
+        className="regra-condicao-fechar"
+        data-testid="regra-condicao-fechar"
+        onClick={aoFechar}
+      >
+        Fechar
+      </button>
     </div>
   );
 }

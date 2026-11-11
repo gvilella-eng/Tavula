@@ -17,6 +17,8 @@ export type TokenVisto = {
   desenhado: boolean;
   /** O anel da vez (ordem de turno) está aceso. */
   emVez: boolean;
+  /** O anel de seleção (dourado) está aceso. */
+  selecionado: boolean;
   /** Os marcadores de condição desenhados na borda (título de cada um). */
   marcas: string[];
 };
@@ -25,6 +27,8 @@ export type GanchoDoMapa = {
   tokens(): TokenVisto[];
   /** Onde está o marcador de condição `indice` do token (posição na página). */
   marcaNaPagina(id: string, indice: number): { x: number; y: number } | null;
+  /** A prévia do modo "pôr token": onde está (metros) ou `null` se não aparece. */
+  previaDoToken(): { x: number; y: number } | null;
   paraTela(x: number, y: number): { x: number; y: number };
   zoom(): number;
   definirZoom(z: number): void;
@@ -124,19 +128,81 @@ export async function arrastarToken(p: Page, id: string, dxM: number, dyM: numbe
   await p.mouse.up();
 }
 
-/** Clica no token (mouse de verdade) para selecioná-lo; abre o painel do token do mestre. */
 /**
- * Seleciona o token com um clique de verdade e confere que foi ESTE o selecionado: logo depois de trocar o
- * mapa da cena, a vista ainda pode se ajustar e o clique cair no token vizinho (tenta de novo).
+ * Clica no token (mouse de verdade) para selecioná-lo, e confere que foi ESTE o selecionado: logo depois
+ * de trocar o mapa da cena, a vista ainda pode se ajustar e o clique cair no token vizinho (tenta de
+ * novo). Desde o R5a selecionar NÃO abre o painel do token.
  */
-export async function selecionarToken(p: Page, id: string) {
+export async function soSelecionarToken(p: Page, id: string) {
   await expect(async () => {
     const alvo = await centrarNoToken(p, id);
     await p.mouse.click(alvo.x, alvo.y);
+    await expect
+      .poll(async () => (await tokenDe(p, id)).selecionado, { timeout: 1_500 })
+      .toBe(true);
+  }).toPass({ timeout: 15_000 });
+}
+
+/**
+ * Abre o painel do token do mestre com dois cliques no token (e confere que é o dele). Desde o R5a o painel
+ * não abre mais ao selecionar.
+ */
+export async function abrirPainelDoToken(p: Page, id: string) {
+  await expect(async () => {
+    const alvo = await centrarNoToken(p, id);
+    await p.mouse.dblclick(alvo.x, alvo.y);
     await expect(p.getByTestId("painel-token")).toHaveAttribute("data-token-id", id, {
       timeout: 1_500,
     });
   }).toPass({ timeout: 15_000 });
+}
+
+/** Seleciona o token e abre o painel dele (o que "selecionar" fazia antes do R5a). */
+export async function selecionarToken(p: Page, id: string) {
+  await soSelecionarToken(p, id);
+  await abrirPainelDoToken(p, id);
+}
+
+/**
+ * "Novo token" pelo caminho novo: formulário (nome, tamanho), Enter, e um clique no mapa (no ponto da
+ * página `alvo`, ou no meio do mapa). Devolve o id do token que a sala criou.
+ */
+export async function criarToken(
+  p: Page,
+  nome: string,
+  opcoes: { tamanho?: number; alvo?: { x: number; y: number } } = {},
+): Promise<string> {
+  const antes = new Set((await tokensDe(p)).map((t) => t.id));
+  await p.getByTestId("novo-token").click();
+  await p.getByTestId("novo-token-nome").fill(nome);
+  if (opcoes.tamanho) {
+    await p.getByTestId("novo-token-tamanho").selectOption(String(opcoes.tamanho));
+  }
+  await p.getByTestId("novo-token-nome").press("Enter");
+  await expect(p.getByTestId("modo-pondo-token-selo")).toBeVisible();
+  let alvo = opcoes.alvo;
+  if (!alvo) {
+    const caixa = await p.getByTestId("mapa").boundingBox();
+    if (!caixa) throw new Error("o mapa não está visível");
+    alvo = { x: caixa.x + caixa.width / 2, y: caixa.y + caixa.height / 2 };
+  }
+  await p.mouse.move(alvo.x, alvo.y);
+  await expect
+    .poll(() =>
+      p.evaluate(() =>
+        (window as unknown as { __tabletop: GanchoDoMapa }).__tabletop.previaDoToken(),
+      ),
+    )
+    .not.toBeNull();
+  await p.mouse.click(alvo.x, alvo.y);
+  let id = "";
+  await expect
+    .poll(async () => {
+      id = (await tokensDe(p)).find((t) => t.nome === nome && !antes.has(t.id))?.id ?? "";
+      return id;
+    })
+    .not.toBe("");
+  return id;
 }
 
 /** Ponto da página onde está o ponto do mundo (metros), com o mapa já posicionado. */

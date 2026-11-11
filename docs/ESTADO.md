@@ -1940,4 +1940,78 @@ relatório do Playwright (`[erro na página]`).
 
 ---
 
-## Próximo: Redesign R5 — Interações e fluxos (Esc solta a seleção, criar token com nome, tocha com dica e menu, condições com menos cliques, régua que fica, avisos perto do clique, ordem de turno compacta, ficha com um clique, estados vazios); depois R6, 7b e 12
+## Redesign R5a — Interações no mapa e nos tokens (entregue, aguardando o roteiro manual)
+
+### O que foi entregue
+
+- **Esc solta a seleção** (`Mesa.tsx`): limpa a seleção, fecha os menus do botão direito, a regra aberta e a dica, e cancela o modo "pôr token"; o mapa (`mapaPixi.ts`) desfaz o arrasto de token e de alça em andamento e apaga a régua. Não age com o foco num campo de texto nem dentro de uma janela, e não fecha janelas.
+- **O painel do token não abre ao selecionar**: abre por "Editar token…" (`menu-token-editar`, menu do botão direito) e por dois cliques no token (só mestre). Segue o token selecionado; fecha quando não há seleção.
+- **Novo token** (`NovoToken.tsx`): janela `novo-token-janela` com nome (`novo-token-nome`, Enter cria), cor (`novo-token-cor-<n>`) e tamanho (`novo-token-tamanho`); depois o **modo de pôr** (selo `modo-pondo-token-selo`, cancelar em `modo-pondo-token-cancelar`) com prévia sob o cursor; o clique envia `token.criar`. Esc, Cancelar, trocar de ferramenta ou de cena cancelam sem frame.
+- **Tocha**: dica na alça (`dica-tocha`), alça e tempo maiores, afastamento do ícone de ponto de luz, e o grupo "Tocha" no menu do token (`menu-token-grupo-tocha`, `menu-token-tocha-alternar-<id>`, `menu-token-tocha-guardar-<id>`) com os mesmos frames de antes.
+- **Condições**: o menu do token mostra as 14 direto como itens de marcar (menu aberto entre as marcações), sem "Condições…" nem "Fechar"; marcadores maiores; a regra abre por clique (`regra-condicao`).
+- **Régua**: botão "Fixar" (`regua-fixar`), Shift ao soltar, medidas fixas (`regua-fixa-rotulo`) que saem com Esc, clique nelas, troca de ferramenta ou de cena. Só da tela.
+- **Aviso perto do clique** (`AvisoPerto.tsx`, `useSala.ts`): dentro da área do mapa, ao lado do ponto da ação (6 a 12 s; um clique dispensa); sem origem, no alto da área.
+- **Jogador sem token**: cartão `sem-token` no meio da área, com texto para "sem personagem" e para "personagem fora da cena".
+- Nada na sala, no protocolo nem na exportação mudou; nenhuma dependência nova.
+
+### Como rodar
+
+- `pnpm verify` (uma vez). E2E novo: `pnpm --filter @tabletop/e2e test --repeat-each=3 tests/interacoes.spec.ts`. Prints: `$env:PRINTS_DIR="<pasta>"; pnpm --filter @tabletop/e2e prints r5a`.
+- Só 1 worker nos E2E (sala compartilhada).
+
+### Verificação
+
+- `e2e/tests/interacoes.spec.ts` (11 testes): Esc solta a seleção e fecha o menu, sem fechar janela nem agir com o foco em campo; Esc no arrasto devolve o token; selecionar não abre o painel, "Editar token…" e dois cliques abrem, e nenhum frame sai; Novo token (nome, cor, tamanho, prévia, Esc/Cancelar sem `token.criar`, criação com os valores pedidos); dica da tocha e ações pelo menu do token com o mesmo frame dos dois cliques (e para o jogador dono); duas condições marcadas sem reabrir e a regra por clique (fecha com Esc e clique fora); régua fixa (Fixar, Shift, Esc, clique, trocar de ferramenta, local); aviso perto do clique (dentro da área, dispensável); jogador sem token (some quando o token aparece) e jogador com personagem fora da cena.
+- Unidade: `duracaoDoAviso` em `useSala.test.ts`.
+- E2E antigos alterados (a disposição mudou de propósito; nenhuma asserção de comportamento afrouxada):
+  - `ajudasMapa.ts`: `selecionarToken` agora seleciona e abre o painel por dois cliques (o que "selecionar" fazia antes); novos `soSelecionarToken`, `abrirPainelDoToken` e `criarToken` (formulário, Enter e clique no mapa); `TokenVisto.selecionado` e `previaDoToken` no gancho.
+  - `mapa.spec.ts`, `fichas.spec.ts`, `cenas.spec.ts`, `assets.spec.ts`: "Novo token" agora passa pelo formulário e pelo clique no mapa (`criarToken`); onde o painel abria ao selecionar, abre por dois cliques; `mapa.spec.ts` confere que selecionar não abre o painel.
+  - `interface.spec.ts`: o clique no token na camada certa seleciona e não abre o painel; dois cliques abrem.
+  - `combate.spec.ts`: o menu do token mostra as condições direto (sem "Condições…" nem "Fechar"; Esc fecha) e o jogador não tem "Editar token…" nem iniciativa.
+  - `cenas.spec.ts` ("preparar"): espera a sala aplicar a imagem ao token antes de preparar de novo (era uma corrida: falhou uma vez na primeira rodada).
+- `pnpm verify` verde numa rodada: 31 (servidor) + 37 (web) + 553 (shared) de unidade e 185 E2E (174 + 11 novos), sem instável. Repetição 3x dos 7 specs novos ou alterados (`interacoes`, `mapa`, `interface`, `combate`, `cenas`, `assets`, `fichas`): 162 execuções (54 testes × 3) verdes, sem instável. Os specs `tochas`, `estrutura`, `janelas`, `paredes` e `luz` (afetados pela alça maior e pelo painel) passaram na rodada única e no verify.
+- Prints (3 temas, 1600×900 e 1280×720) em `prints-r5a`: `<tema>-<largura>-01-novo-token-formulario`, `02-pondo-token`, `03-menu-do-token`, `04-marcadores-e-regra`, `05-dica-da-tocha`, `06-regua-fixa`, `07-aviso-perto-do-clique`, `08-jogador-sem-token` (48 prints).
+
+### Decisões
+
+- (assumido) Dois cliques no token abrem o painel (só mestre); o painel fecha sem seleção.
+- (assumido) "Novo token" cria um por vez; o encaixe segue a preferência (Alt inverte); sem campo de camada.
+- (assumido) Régua: botão "Fixar" e Shift ao soltar; as fixas se acumulam e saem juntas.
+- (assumido) O menu do token não tem "Entregar" a tocha.
+- (assumido) Clicar num marcador abre a regra e não arrasta o token.
+- (assumido) Aviso de 6 a 12 s conforme o tamanho do texto, um clique dispensa; sem origem fica no alto.
+- (assumido) Dica da tocha e menu do token só por mouse.
+- (assumido) Esc no meio do arrasto devolve o token à origem.
+- (assumido) O estado vazio do jogador só aparece com a iluminação dinâmica ligada.
+- (assumido) Em token pequeno cabem menos marcadores (o resto vira "+N").
+
+### Desvios do plano
+
+- Nenhum. A régua já ficava na tela depois de soltar até o próximo gesto (o teste antigo já dizia isso); o que o item pedia, e foi feito, é poder **fixá-la** para medir outra e ter um caminho visível (botão).
+
+### Frágil / não verificado
+
+- Toque (celular) e teclado: dica da alça, menu do token e arrasto só com mouse.
+- Aviso sem origem (a sala avisando) não tem E2E.
+- A origem do aviso é o ponteiro de até 1,5 s antes do envio (ou o campo focado): erro que volta tarde pode aparecer perto do ponto errado.
+- Os prints antigos que usam `menu-token-condicoes` e `menu-token-fechar` (r1, r2, lote-11, auditoria) não rodam mais.
+- Só o Chrome foi testado.
+
+### Roteiro manual (pendente)
+
+1. Selecionar um token: nada abre. Esc solta. Botão direito, "Editar token…" e dois cliques abrem o painel; Esc com o cursor num campo de texto não solta.
+2. "Novo token": nome, cor, tamanho, Enter; a prévia segue o cursor; clique põe; Esc e Cancelar não criam nada.
+3. Acender uma tocha: passar o mouse na alça (dica), dois cliques, botão direito no token (grupo Tocha: apagar, acender, guardar). Pôr um ponto de luz perto do token: a alça não cobre o ícone.
+4. Botão direito num token: marcar várias condições sem reabrir; clicar num marcador abre a regra (Esc ou clique fora fecha).
+5. Régua: medir, "Fixar", medir outra, Shift ao soltar; Esc, clique na medida e trocar de ferramenta a tiram.
+6. Provocar um erro (jogador longe de uma porta): o aviso aparece perto do clique; um clique o dispensa.
+7. Entrar como jogador sem token: cartão explicando; o mestre põe o token e o cartão some.
+8. Os 3 temas nas duas larguras de janela.
+
+### Revisão (antes do commit de fechamento)
+
+- Os 48 prints conferidos (vistos em detalhe: menu do token e modo de pôr no Grimório 1280×720, marcadores e regra no Pergaminho 1600×900, régua fixa e aviso no Edgerunner 1280×720, estado vazio no Pergaminho 1280×720, dica da tocha no Grimório 1600×900 e o formulário no Edgerunner 1280×720): o menu cabe em 1280×720, o aviso aparece ao lado do clique, o cartão vazio fica no centro e legível, a régua mostra a fixa e a solta com "Fixar". Um defeito achado e corrigido: a dica da tocha cobria o tempo da alça (agora abre mais abaixo). (Falta a revisão do Vilella.)
+
+---
+
+## Próximo: Redesign R5b — combate, fichas, compêndio e PDF (ordem de turno compacta com o valor confirmado no Enter, ficha com um clique, "usar o exemplo" no compêndio, importar PDF com um caminho só); depois R6, 7b e 12

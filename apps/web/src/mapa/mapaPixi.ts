@@ -161,6 +161,11 @@ export type OpcoesDoMapa = {
   podeDesenhar: boolean;
   usuarioId: string;
   desenhoSelecionadoId: string | null;
+  /**
+   * Modo "clique no mapa para pôr o token" (R5a): o token que vai nascer (nome, cor e tamanho). Com ele,
+   * uma prévia segue o cursor e o próximo clique chama `colocarToken`.
+   */
+  tokenParaPor: { nome: string; cor: string; tamanhoQuadrados: number } | null;
 };
 
 /** O que o mapa precisa saber das imagens locais (o gerente de assets responde). */
@@ -171,7 +176,11 @@ export type ImagensDoMapa = {
   blob(hash: string): Promise<Blob | null>;
 };
 
-export type MedicaoNaTela = { medida: Medida; x: number; y: number };
+/** A medida em andamento (ou solta, esperando o "fixar") e onde o rótulo fica (px do mapa). */
+export type MedicaoNaTela = { medida: Medida; x: number; y: number; solta: boolean };
+
+/** Uma medida fixada na tela (só de quem mediu), com o rótulo. */
+export type MedicaoFixa = { id: number; medida: Medida; x: number; y: number };
 
 export type RetornosDoMapa = {
   mover: (id: string, x: number, y: number) => void;
@@ -181,6 +190,14 @@ export type RetornosDoMapa = {
   selecionar: (id: string | null) => void;
   zoom: (zoom: number) => void;
   medir: (medicao: MedicaoNaTela | null) => void;
+  /** As medidas fixadas (a lista inteira, a cada mudança de medida ou de vista). */
+  reguasFixas: (medidas: MedicaoFixa[]) => void;
+  /** Modo "pôr token": clicou no mapa; o token nasce ali (metros, já encaixado). */
+  colocarToken: (x: number, y: number) => void;
+  /** Dois cliques num token (ferramenta de seleção): abre o painel dele (só o mestre). */
+  editarToken: (tokenId: string) => void;
+  /** Clique num marcador de condição: abre a regra (popover) na posição da página. */
+  abrirRegra: (regra: DicaDoMapa) => void;
   /** Uma sequência desenhada vira paredes (numa mensagem só). */
   criarParedes: (cenaId: string, segmentos: { a: Ponto; b: Ponto }[], tipo: TipoDeParede) => void;
   /** Arrastou uma ponta da parede. */
@@ -224,7 +241,14 @@ export type RetornosDoMapa = {
 };
 
 /** A dica de um marcador de condição, exaustão ou concentração. */
-export type DicaDoMapa = { titulo: string; texto: string; x: number; y: number };
+export type DicaDoMapa = {
+  titulo: string;
+  texto: string;
+  x: number;
+  y: number;
+  /** `condicao` (marcador no token) ou `tocha` (alça da luz). */
+  tipo: "condicao" | "tocha";
+};
 
 type Ponto = { x: number; y: number };
 
@@ -249,7 +273,16 @@ type MarcaVisual = { ox: number; oy: number; r: number; titulo: string; texto: s
 
 /** Até quantos marcadores cabem na borda; o resto vira um "+N". */
 const MARCAS_VISIVEIS = 6;
-const RAIO_DA_MARCA = 9;
+/** Raio do marcador (px do mundo) e a letra dele; maiores desde o R5a para ler e clicar. */
+const RAIO_DA_MARCA = 13;
+const LETRA_DA_MARCA = 12;
+/** Distância mínima (px do mundo) entre os centros de dois marcadores vizinhos. */
+const DISTANCIA_ENTRE_MARCAS = 19;
+/** A alça da tocha (R5a): raio do círculo, letra do tempo e onde o tempo começa, abaixo do centro. */
+const RAIO_DA_ALCA_TOCHA = 20;
+const LETRA_DO_TEMPO = 15;
+/** A dica da alça da tocha (o que ela faz). */
+const DICA_DA_TOCHA = "Dois cliques: apagar ou acender · Botão direito: mais ações";
 
 type Gesto =
   | { tipo: "pan"; inicio: Ponto; vistaInicial: Ponto }
@@ -364,6 +397,7 @@ export class MapaPixi {
   private cursorDaParede: Ponto | null = null;
   private pontaArrastada: { id: string; ponta: "a" | "b"; pos: Ponto } | null = null;
   private readonly desenhoDaRegua = new Graphics();
+  private readonly desenhoDasFixas = new Graphics();
   /** Desenhos do pincel (Lote 13): acima do véu da luz e da memória do mapa (visíveis no escuro). */
   private readonly desenhoLayer = new CamadaDeDesenho();
   private desenhos: Desenho[] = [];
@@ -395,6 +429,16 @@ export class MapaPixi {
   private gesto: Gesto | null = null;
   private espaco = false;
   private reguaAtual: { a: Ponto; b: Ponto } | null = null;
+  /** A medida atual já foi solta (o botão "fixar" do rótulo aparece). */
+  private reguaSolta = false;
+  /** Medidas fixadas na tela (só de quem mediu): somem com Esc, com um clique nelas ou ao trocar de ferramenta. */
+  private reguasFixadas: { id: number; a: Ponto; b: Ponto }[] = [];
+  private proximaReguaFixa = 1;
+  private fixasAvisadas = false;
+  /** Prévia do token do modo "pôr token" e onde o ponteiro está no mapa (para ela seguir o cursor). */
+  private readonly previaDoToken = new Container();
+  private chaveDaPrevia = "";
+  private ponteiroNoMapa: { p: Ponto; alt: boolean } | null = null;
   private jaCentralizou = false;
   private sujo = true;
   private quadro = 0;
@@ -446,8 +490,11 @@ export class MapaPixi {
       this.desenhoDosPontos,
       this.camadaDeAlcas,
       this.bandeira,
+      this.desenhoDasFixas,
       this.desenhoDaRegua,
+      this.previaDoToken,
     );
+    this.previaDoToken.visible = false;
     this.desenharBandeira();
     this.app.stage.addChild(this.mundo);
     this.ultimoQuadro = performance.now();
@@ -536,7 +583,10 @@ export class MapaPixi {
     this.desenharParedes();
     this.desenharCena();
     this.atualizarMapa();
-    if (outraCena) this.cancelarTraco();
+    if (outraCena) {
+      this.cancelarTraco();
+      this.limparRegua();
+    }
     this.redesenharDesenhos();
     if (gridMudou || outraCena) this.recriarVisuais();
     // Outra cena ou mapa novo (tamanho novo): volta a abrir em 100%, no grupo ou no centro da cena.
@@ -642,6 +692,7 @@ export class MapaPixi {
     if (!this.pronto) return;
     if (trocouFerramenta || !opcoes.podeDesenhar) this.cancelarTraco();
     this.redesenharDesenhos();
+    this.atualizarPrevia();
     if (trocouFerramenta) {
       this.limparRegua();
       this.desenhando = null;
@@ -960,11 +1011,18 @@ export class MapaPixi {
       titulo: i.titulo,
       texto: i.resumo,
     });
-    if (icones.length <= MARCAS_VISIVEIS) {
+    const raioDaMarca = raio + 3;
+    // Os marcadores ficam no arco de baixo da borda (sem cobrir as iniciais): no máximo 150 graus, e
+    // com a distância mínima entre os centros que ainda deixa ler as duas letras. Em token pequeno cabem
+    // menos marcadores; o último vira "+N" (a dica e a regra por clique listam o resto).
+    const passoMinimo =
+      (2 * Math.asin(Math.min(1, DISTANCIA_ENTRE_MARCAS / (2 * raioDaMarca))) * 180) / Math.PI;
+    const cabem = Math.max(2, Math.min(MARCAS_VISIVEIS, Math.floor(150 / passoMinimo) + 1));
+    if (icones.length <= cabem) {
       for (const i of icones) mostrados.push(comoMarca(i));
     } else {
-      for (const i of icones.slice(0, MARCAS_VISIVEIS - 1)) mostrados.push(comoMarca(i));
-      const resto = icones.slice(MARCAS_VISIVEIS - 1);
+      for (const i of icones.slice(0, cabem - 1)) mostrados.push(comoMarca(i));
+      const resto = icones.slice(cabem - 1);
       mostrados.push({
         sigla: `+${resto.length}`,
         cor: "#555f6e",
@@ -972,11 +1030,8 @@ export class MapaPixi {
         texto: resto.map((i) => i.titulo).join(", "),
       });
     }
-    // Os marcadores ficam no arco de baixo da borda (sem cobrir as iniciais): no máximo 150 graus.
-    const passoBase = (2 * Math.asin(Math.min(1, (RAIO_DA_MARCA + 1) / raio)) * 180) / Math.PI + 2;
     const passo =
-      mostrados.length > 1 ? Math.min(Math.max(30, passoBase), 150 / (mostrados.length - 1)) : 0;
-    const raioDaMarca = raio + 3;
+      mostrados.length > 1 ? Math.min(Math.max(passoMinimo, 30), 150 / (mostrados.length - 1)) : 0;
     const marcas: MarcaVisual[] = [];
     mostrados.forEach((m, i) => {
       const graus = 90 - (i - (mostrados.length - 1) / 2) * passo;
@@ -986,12 +1041,12 @@ export class MapaPixi {
       const g = new Graphics()
         .circle(ox, oy, RAIO_DA_MARCA)
         .fill(m.cor)
-        .stroke({ width: 1.5, color: 0xffffff, alpha: 0.9 });
+        .stroke({ width: 2, color: 0xffffff, alpha: 0.95 });
       const t = new Text({
         text: m.sigla,
         style: {
           fill: 0xffffff,
-          fontSize: 10,
+          fontSize: LETRA_DA_MARCA,
           fontWeight: "700",
           fontFamily: "system-ui, sans-serif",
           stroke: { color: 0x000000, width: 2 },
@@ -1531,8 +1586,21 @@ export class MapaPixi {
       const raioPx = v ? (v.token.tamanhoQuadrados * this.quadradoM() * PX_POR_M) / 2 : 20;
       const lado = p.mao % 2 === 0 ? -1 : 1;
       const camada = Math.floor(p.mao / 2);
-      const dx = (lado * (raioPx + 24 / z)) / PX_POR_M;
-      const dy = (camada * 30) / z / PX_POR_M;
+      const dy = (camada * (2 * RAIO_DA_ALCA_TOCHA + 24)) / z / PX_POR_M;
+      // A alça fica ao lado do token; se cair em cima do ícone de um ponto de luz, afasta para o lado
+      // (até três passos) para os dois continuarem à vista e clicáveis.
+      const pontos = this.pontosDaTela();
+      const livre = (dx: number) => {
+        const t = this.paraTela(centro.x + dx, centro.y + dy);
+        return pontos.every((q) => {
+          const u = this.paraTela(q.x, q.y);
+          return Math.hypot(t.x - u.x, t.y - u.y) >= RAIO_DA_ALCA_TOCHA + 10 + 6;
+        });
+      };
+      let dx = (lado * (raioPx + (RAIO_DA_ALCA_TOCHA + 12) / z)) / PX_POR_M;
+      for (let passo = 0; passo < 3 && !livre(dx); passo++) {
+        dx += (lado * (2 * RAIO_DA_ALCA_TOCHA + 8)) / z / PX_POR_M;
+      }
       return { mundo: { x: centro.x + dx, y: centro.y + dy }, lado };
     }
     // No ponto (suporte, fogueira): o ícone fica acima do ponto, lado a lado se houver mais de um.
@@ -1568,7 +1636,7 @@ export class MapaPixi {
 
   /** Desenha uma chama (acesa) ou o contorno apagado, centrada em (0, 0), em pixels da tela. */
   private desenharChama(g: Graphics, acesa: boolean): void {
-    const k = 1.3;
+    const k = 1.6;
     g.moveTo(0, -8 * k)
       .bezierCurveTo(7 * k, -2 * k, 6 * k, 6 * k, 0, 8 * k)
       .bezierCurveTo(-6 * k, 6 * k, -7 * k, -2 * k, 0, -8 * k);
@@ -1588,14 +1656,14 @@ export class MapaPixi {
       text: "",
       style: {
         fill: 0xfff1d0,
-        fontSize: 13,
+        fontSize: LETRA_DO_TEMPO,
         fontWeight: "700",
         fontFamily: "system-ui, sans-serif",
         stroke: { color: 0x000000, width: 4 },
       },
     });
     rotulo.anchor.set(0.5, 0);
-    rotulo.position.set(0, 18);
+    rotulo.position.set(0, RAIO_DA_ALCA_TOCHA + 3);
     container.addChild(corpo, rotulo);
     this.camadaDeAlcas.addChild(container);
     return { luzId, container, corpo, rotulo, chave: "" };
@@ -1627,12 +1695,12 @@ export class MapaPixi {
       alca.container.position.set(mundo.x * PX_POR_M, mundo.y * PX_POR_M);
       alca.container.scale.set((arrastando ? 1.2 : 1) / z);
       const g = alca.corpo.clear();
-      g.circle(0, 0, 16)
+      g.circle(0, 0, RAIO_DA_ALCA_TOCHA)
         .fill({ color: 0x10141a, alpha: 0.94 })
-        .stroke({ width: 2.5, color: acesa ? COR_DA_LUZ : 0x6b7686 });
+        .stroke({ width: 3, color: acesa ? COR_DA_LUZ : 0x6b7686 });
       if (dono && luz.portador.tipo === "mao") {
         // O dono pode arrastar: um pontinho de destaque no canto.
-        g.circle(12, -12, 3.5).fill(ACENTO);
+        g.circle(RAIO_DA_ALCA_TOCHA * 0.75, -RAIO_DA_ALCA_TOCHA * 0.75, 4.5).fill(ACENTO);
       }
       this.desenharChama(g, acesa);
       alca.rotulo.text = rotulo;
@@ -1744,7 +1812,7 @@ export class MapaPixi {
   /** A alça (ou ícone de objeto no ponto) sob o ponto da tela. */
   private alcaEm(p: Ponto): { luz: FonteDeLuz; tela: Ponto } | null {
     let achada: { luz: FonteDeLuz; tela: Ponto } | null = null;
-    let melhor = 15;
+    let melhor = RAIO_DA_ALCA_TOCHA + 1;
     for (const { luz, mundo } of this.alcasDaTela()) {
       const t = this.paraTela(mundo.x, mundo.y);
       const d = Math.hypot(p.x - t.x, p.y - t.y);
@@ -2074,13 +2142,20 @@ export class MapaPixi {
       this.encerrarDesenho();
       return;
     }
-    // Dois cliques na alça da tocha (ou no objeto aceso de um ponto): apaga ou reacende.
-    if (this.opcoes.ferramenta !== "selecionar") return;
+    if (this.opcoes.ferramenta !== "selecionar" || this.opcoes.tokenParaPor) return;
     const r = this.app.canvas.getBoundingClientRect();
-    const alca = this.alcaEm({ x: e.clientX - r.left, y: e.clientY - r.top });
-    if (!alca) return;
-    if (alca.luz.portador.tipo === "mao" && !this.opcoes.podeMexerNaTocha(alca.luz)) return;
-    this.retornos().alternarTocha(alca.luz.id);
+    const p = { x: e.clientX - r.left, y: e.clientY - r.top };
+    // Dois cliques na alça da tocha (ou no objeto aceso de um ponto): apaga ou reacende.
+    const alca = this.alcaEm(p);
+    if (alca) {
+      if (alca.luz.portador.tipo === "mao" && !this.opcoes.podeMexerNaTocha(alca.luz)) return;
+      this.retornos().alternarTocha(alca.luz.id);
+      return;
+    }
+    // Dois cliques num token: abre o painel dele (só o mestre tem esse painel).
+    if (!this.opcoes.euMestre || this.marcaEm(p)) return;
+    const v = this.tokenEm(p);
+    if (v) this.retornos().editarToken(v.token.id);
   };
 
   // --- bandeira do ponto de chegada -------------------------------------------------------------
@@ -2126,29 +2201,88 @@ export class MapaPixi {
 
   // --- régua ----------------------------------------------------------------------------------
 
+  /** Apaga a medida atual e as fixadas (Esc, trocar de ferramenta ou de cena). */
   private limparRegua(): void {
     this.sujo = true;
     this.reguaAtual = null;
+    this.reguaSolta = false;
+    this.reguasFixadas = [];
+    this.desenhoDaRegua.clear();
+    this.desenhoDasFixas.clear();
+    this.retornos().medir(null);
+    if (this.fixasAvisadas) {
+      this.fixasAvisadas = false;
+      this.retornos().reguasFixas([]);
+    }
+  }
+
+  /** Fixa a medida atual na tela (botão "Fixar" ou Shift ao soltar); dá para medir outra em seguida. */
+  fixarRegua(): void {
+    const r = this.reguaAtual;
+    if (!r || (r.a.x === r.b.x && r.a.y === r.b.y)) return;
+    this.reguasFixadas.push({ id: this.proximaReguaFixa++, a: r.a, b: r.b });
+    this.reguaAtual = null;
+    this.reguaSolta = false;
     this.desenhoDaRegua.clear();
     this.retornos().medir(null);
+    this.desenharRegua();
+  }
+
+  /** Tira uma medida fixada (clique no rótulo ou na linha). */
+  removerReguaFixa(id: number): void {
+    this.reguasFixadas = this.reguasFixadas.filter((f) => f.id !== id);
+    this.desenharRegua();
+  }
+
+  /** A medida fixada cuja linha passa perto do ponto da tela (até 8 px), se houver. */
+  private reguaFixadaEm(p: Ponto): number | null {
+    for (const f of this.reguasFixadas) {
+      const a = this.paraTela(f.a.x, f.a.y);
+      const b = this.paraTela(f.b.x, f.b.y);
+      if (distanciaAoSegmento(p, a, b) <= 8) return f.id;
+    }
+    return null;
+  }
+
+  private tracarRegua(g: Graphics, r: { a: Ponto; b: Ponto }): void {
+    const z = this.vista.zoom;
+    const a = { x: r.a.x * PX_POR_M, y: r.a.y * PX_POR_M };
+    const b = { x: r.b.x * PX_POR_M, y: r.b.y * PX_POR_M };
+    g.moveTo(a.x, a.y)
+      .lineTo(b.x, b.y)
+      .stroke({ width: 3 / z, color: ACENTO });
+    g.circle(a.x, a.y, 5 / z).fill(ACENTO);
+    g.circle(b.x, b.y, 5 / z).fill(ACENTO);
   }
 
   private desenharRegua(): void {
     this.sujo = true;
+    this.desenhoDasFixas.clear();
+    if (this.reguasFixadas.length > 0 || this.fixasAvisadas) {
+      const lista = this.reguasFixadas.map((f) => {
+        this.tracarRegua(this.desenhoDasFixas, f);
+        const fim = this.paraTela(f.b.x, f.b.y);
+        return {
+          id: f.id,
+          medida: medirRegua(f.a, f.b, this.quadradoM()),
+          x: fim.x,
+          y: fim.y,
+        };
+      });
+      this.fixasAvisadas = lista.length > 0;
+      this.retornos().reguasFixas(lista);
+    }
     const r = this.reguaAtual;
     if (!r) return;
-    const z = this.vista.zoom;
-    const a = { x: r.a.x * PX_POR_M, y: r.a.y * PX_POR_M };
-    const b = { x: r.b.x * PX_POR_M, y: r.b.y * PX_POR_M };
     this.desenhoDaRegua.clear();
-    this.desenhoDaRegua
-      .moveTo(a.x, a.y)
-      .lineTo(b.x, b.y)
-      .stroke({ width: 3 / z, color: ACENTO });
-    this.desenhoDaRegua.circle(a.x, a.y, 5 / z).fill(ACENTO);
-    this.desenhoDaRegua.circle(b.x, b.y, 5 / z).fill(ACENTO);
+    this.tracarRegua(this.desenhoDaRegua, r);
     const fim = this.paraTela(r.b.x, r.b.y);
-    this.retornos().medir({ medida: medirRegua(r.a, r.b, this.quadradoM()), x: fim.x, y: fim.y });
+    this.retornos().medir({
+      medida: medirRegua(r.a, r.b, this.quadradoM()),
+      x: fim.x,
+      y: fim.y,
+      solta: this.reguaSolta,
+    });
   }
 
   // --- ponteiro e teclado ---------------------------------------------------------------------
@@ -2211,6 +2345,12 @@ export class MapaPixi {
     }
     if (e.button !== 0 || !this.cena) return;
 
+    // Modo "pôr token" (R5a): o clique no mapa põe o token que o formulário descreveu.
+    if (this.opcoes.tokenParaPor && this.opcoes.ferramenta === "selecionar") {
+      this.retornos().colocarToken(...this.pontoDoNovoToken(p, e.altKey));
+      return;
+    }
+
     if (this.opcoes.ferramenta === "pincel") {
       this.apertarComPincel(p, e);
       return;
@@ -2224,8 +2364,15 @@ export class MapaPixi {
     }
 
     if (this.opcoes.ferramenta === "regua") {
+      // Um clique numa medida fixada a tira (em vez de começar outra).
+      const fixada = this.reguaFixadaEm(p);
+      if (fixada !== null) {
+        this.removerReguaFixa(fixada);
+        return;
+      }
       const a = this.pontoDaRegua(this.paraMundo(p), e.altKey);
       this.reguaAtual = { a, b: a };
+      this.reguaSolta = false;
       this.gesto = { tipo: "regua" };
       this.app.canvas.setPointerCapture(e.pointerId);
       this.desenharRegua();
@@ -2251,6 +2398,19 @@ export class MapaPixi {
         this.cena,
       );
       this.retornos().colocarPonto(this.cena.id, this.opcoes.tipoDoNovoPonto, ponto.x, ponto.y);
+      return;
+    }
+
+    // Clique num marcador de condição: abre a regra dela (além da dica no mouse).
+    const marcaClicada = this.marcaEm(p);
+    if (marcaClicada) {
+      this.retornos().abrirRegra({
+        titulo: marcaClicada.titulo,
+        texto: marcaClicada.texto,
+        tipo: "condicao",
+        x: e.clientX,
+        y: e.clientY,
+      });
       return;
     }
 
@@ -2344,12 +2504,68 @@ export class MapaPixi {
     this.atualizarCursor();
   };
 
+  /** Onde o token do modo "pôr token" cairia: encaixado no grid (Alt inverte) e dentro da cena. */
+  private pontoDoNovoToken(p: Ponto, alt: boolean): [number, number] {
+    const t = this.opcoes.tokenParaPor;
+    let alvo = this.paraMundo(p);
+    if (t && this.encaixaAgora(alt)) {
+      alvo = encaixarNoGrid(alvo, t.tamanhoQuadrados, this.quadradoM());
+    }
+    if (this.cena) alvo = limitarNaCena(alvo, this.cena);
+    return [alvo.x, alvo.y];
+  }
+
+  private moverPrevia(e: PointerEvent, p: Ponto): void {
+    if (!this.opcoes.tokenParaPor) return;
+    this.ponteiroNoMapa = { p, alt: e.altKey };
+    this.atualizarPrevia();
+  }
+
+  /** A prévia do token (círculo na cor dele, com as iniciais) segue o cursor enquanto o modo está ligado. */
+  private atualizarPrevia(): void {
+    this.sujo = true;
+    const t = this.opcoes.tokenParaPor;
+    const q = this.ponteiroNoMapa;
+    if (!t || !q || this.opcoes.ferramenta !== "selecionar" || !this.cena) {
+      this.previaDoToken.visible = false;
+      return;
+    }
+    const chave = `${t.nome}|${t.cor}|${t.tamanhoQuadrados}|${this.quadradoM()}`;
+    if (chave !== this.chaveDaPrevia) {
+      this.chaveDaPrevia = chave;
+      for (const filho of this.previaDoToken.removeChildren()) filho.destroy({ children: true });
+      const raio = (t.tamanhoQuadrados * this.quadradoM() * PX_POR_M) / 2 - 3;
+      const corpo = new Graphics()
+        .circle(0, 0, raio)
+        .fill({ color: t.cor, alpha: 0.6 })
+        .stroke({ width: 3, color: 0xffffff, alpha: 0.9 });
+      const iniciais = new Text({
+        text: iniciaisDe(t.nome),
+        style: {
+          fill: 0xffffff,
+          fontSize: Math.max(12, raio * 0.8),
+          fontWeight: "700",
+          fontFamily: "system-ui, sans-serif",
+          stroke: { color: 0x000000, width: 3 },
+        },
+      });
+      iniciais.anchor.set(0.5);
+      this.previaDoToken.addChild(corpo, iniciais);
+    }
+    const [x, y] = this.pontoDoNovoToken(q.p, q.alt);
+    this.previaDoToken.position.set(x * PX_POR_M, y * PX_POR_M);
+    this.previaDoToken.visible = true;
+  }
+
   private pontoDaRegua(m: Ponto, alt: boolean): Ponto {
     return this.encaixaAgora(alt) ? encaixarNoGrid(m, 1, this.quadradoM()) : m;
   }
 
   /** Avisa a tela da dica sob o ponteiro (e que ela acompanha o movimento). */
-  private atualizarDica(e: PointerEvent, marca: MarcaVisual | null): void {
+  private atualizarDica(
+    e: PointerEvent,
+    marca: { titulo: string; texto: string; tipo: DicaDoMapa["tipo"] } | null,
+  ): void {
     if (marca === null) {
       if (this.dicaAberta) {
         this.dicaAberta = false;
@@ -2358,7 +2574,27 @@ export class MapaPixi {
       return;
     }
     this.dicaAberta = true;
-    this.retornos().dica({ titulo: marca.titulo, texto: marca.texto, x: e.clientX, y: e.clientY });
+    this.retornos().dica({
+      titulo: marca.titulo,
+      texto: marca.texto,
+      tipo: marca.tipo,
+      x: e.clientX,
+      y: e.clientY,
+    });
+  }
+
+  /** A dica da alça da tocha sob o ponteiro (só com a ferramenta de seleção): o que ela faz. */
+  private dicaDaAlca(p: Ponto): { titulo: string; texto: string; tipo: "tocha" } | null {
+    if (this.opcoes.ferramenta !== "selecionar") return null;
+    const alca = this.alcaEm(p);
+    if (!alca) return null;
+    const luz = alca.luz;
+    const alheia = luz.portador.tipo === "mao" && !this.opcoes.podeMexerNaTocha(luz);
+    return {
+      titulo: luz.nome,
+      texto: alheia ? "Tocha de outro personagem: só o dono e o mestre mexem nela." : DICA_DA_TOCHA,
+      tipo: "tocha",
+    };
   }
 
   private readonly aoSairDoMapa = () => {
@@ -2366,6 +2602,8 @@ export class MapaPixi {
       this.dicaAberta = false;
       this.retornos().dica(null);
     }
+    this.ponteiroNoMapa = null;
+    this.atualizarPrevia();
   };
 
   private readonly aoMover = (e: PointerEvent) => {
@@ -2377,7 +2615,12 @@ export class MapaPixi {
         this.desenharParedes();
       }
       this.atualizarCursor(this.tokenEm(p), this.sobreABandeira(p), this.alcaEm(p) !== null);
-      this.atualizarDica(e, this.marcaEm(p));
+      const marca = this.marcaEm(p);
+      this.atualizarDica(
+        e,
+        marca ? { titulo: marca.titulo, texto: marca.texto, tipo: "condicao" } : this.dicaDaAlca(p),
+      );
+      this.moverPrevia(e, p);
       return;
     }
     if (g.tipo === "traco" || g.tipo === "desenhoMover" || g.tipo === "borracha") {
@@ -2497,6 +2740,14 @@ export class MapaPixi {
       this.atualizarCursor();
       return;
     }
+    if (g.tipo === "regua") {
+      // Soltou: a medida fica na tela; com Shift ela já vira fixa.
+      this.reguaSolta = true;
+      if (e.shiftKey) this.fixarRegua();
+      else this.desenharRegua();
+      this.atualizarCursor();
+      return;
+    }
     if (g.tipo === "bandeira") {
       const b = this.posicaoDaBandeira;
       if (b && this.cena) this.retornos().chegada(this.cena.id, b.x, b.y);
@@ -2605,6 +2856,7 @@ export class MapaPixi {
     }
     if (e.key === "Escape") {
       this.limparRegua();
+      this.cancelarGestoEmAndamento();
       if (this.desenhando) this.encerrarDesenho();
       else if (this.ferramentaDeParedes() && this.opcoes.paredeSelecionadaId) {
         this.retornos().selecionarParede(null);
@@ -2619,6 +2871,28 @@ export class MapaPixi {
       this.retornos().apagarParede(this.opcoes.paredeSelecionadaId);
     }
   };
+
+  /** Esc: o arrasto de um token ou de uma alça em andamento é desfeito (o token volta de onde saiu). */
+  private cancelarGestoEmAndamento(): void {
+    const g = this.gesto;
+    if (!g) return;
+    if (g.tipo === "token") {
+      g.limitador.cancelar();
+      const v = this.visuais.get(g.id);
+      if (v) {
+        v.alvoX = g.origem.x;
+        v.alvoY = g.origem.y;
+      }
+      if (g.moveu) this.retornos().soltar(g.id, g.origem.x, g.origem.y);
+    } else if (g.tipo === "alca") {
+      this.alcaArrastada = null;
+      this.chaveDosPontos = "";
+    } else if (g.tipo !== "regua") {
+      return;
+    }
+    this.gesto = null;
+    this.atualizarCursor();
+  }
 
   private readonly aoTeclaCima = (e: KeyboardEvent) => {
     if (e.code === "Space") {
@@ -2644,6 +2918,8 @@ export class MapaPixi {
       g?.tipo === "alca"
     )
       cursor = "grabbing";
+    else if (this.opcoes.tokenParaPor && this.opcoes.ferramenta === "selecionar")
+      cursor = "crosshair";
     else if (sobreAlca && this.opcoes.ferramenta === "selecionar") cursor = "grab";
     else if (this.espaco || this.opcoes.ferramenta === "mao") cursor = "grab";
     else if (sobreBandeira && this.opcoes.ferramenta === "selecionar") cursor = "grab";
@@ -2975,9 +3251,16 @@ export class MapaPixi {
           desenhado: v.container.visible,
           /** O anel da vez (ordem de turno) está aceso. */
           emVez: v.anelVez.visible,
+          /** O anel de seleção (dourado) está aceso. */
+          selecionado: v.anel.visible,
           /** Os marcadores de condição desenhados na borda. */
           marcas: v.marcas.map((m) => m.titulo),
         })),
+      /** A prévia do modo "pôr token": onde está (metros) ou `null` se não aparece. */
+      previaDoToken: () =>
+        this.previaDoToken.visible
+          ? { x: this.previaDoToken.x / PX_POR_M, y: this.previaDoToken.y / PX_POR_M }
+          : null,
       /** Onde está o marcador `indice` do token (posição na página), para passar o mouse. */
       marcaNaPagina: (id: string, indice: number) => {
         const v = this.visuais.get(id);

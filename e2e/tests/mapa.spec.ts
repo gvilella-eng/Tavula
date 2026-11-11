@@ -11,6 +11,7 @@ import {
   type Sessao,
   test,
 } from "./ajudas";
+import { abrirPainelDoToken, criarToken } from "./ajudasMapa";
 
 // O canvas não é DOM: o gancho `window.__tabletop` (só no modo e2e) dá as posições dos tokens
 // visíveis e a conversão mundo -> tela, e o mouse de verdade (`page.mouse`) faz as interações.
@@ -23,6 +24,7 @@ type TokenVisto = {
   tamanho: number;
   oculto: boolean;
   camada: string;
+  selecionado: boolean;
 };
 type Gancho = {
   tokens(): TokenVisto[];
@@ -117,7 +119,12 @@ test("arrastar no mestre move no jogador (e o jogador move o próprio); refresh 
   await arrastar(mestre.pagina, "tok-jogador-1", 9, 4.5);
   await esperarPosicao(mestre.pagina, "tok-jogador-1", 20.25, 14.25);
   await esperarPosicao(j1.pagina, "tok-jogador-1", 20.25, 14.25);
-  // selecionar abre o painel do token para o mestre
+  // selecionar só seleciona (R5a): o painel do token abre por dois cliques
+  await expect(mestre.pagina.getByTestId("painel-token")).toHaveCount(0);
+  await expect
+    .poll(async () => (await tokenDe(mestre.pagina, "tok-jogador-1")).selecionado)
+    .toBe(true);
+  await abrirPainelDoToken(mestre.pagina, "tok-jogador-1");
   await expect(mestre.pagina.getByTestId("token-nome")).toHaveValue("Aldric");
 
   // o jogador 1 arrasta o próprio token; o mestre vê o mesmo lugar final
@@ -239,7 +246,7 @@ test("frames do jogador nunca têm o token oculto nem o da camada do mestre", as
 
   // esconder o Ogro (visível): o jogador recebe só token.sumiu { id }
   const pos = await centrarNoToken(mestre.pagina, "tok-ogro");
-  await mestre.pagina.mouse.click(pos.x, pos.y);
+  await mestre.pagina.mouse.dblclick(pos.x, pos.y);
   await expect(mestre.pagina.getByTestId("token-nome")).toHaveValue("Ogro");
   const antes = j1.frames.length;
   await mestre.pagina.getByTestId("token-oculto").click();
@@ -448,11 +455,14 @@ test("o mestre cria, edita e apaga tokens; camada e grid", async ({ mesa }) => {
   await expect(j1.pagina.getByTestId("camada-mestre")).toHaveCount(0);
 
   // novo token na camada de tokens: aparece para o jogador
-  await mestre.pagina.getByTestId("novo-token").click();
-  await expect(mestre.pagina.getByTestId("token-nome")).toHaveValue("Novo token");
+  const idCriado = await criarToken(mestre.pagina, "Novo token");
   await expect.poll(async () => (await idsDe(j1.pagina)).length).toBe(5);
-  const criado = (await tokensDe(mestre.pagina)).find((t) => t.nome === "Novo token");
+  const criado = (await tokensDe(mestre.pagina)).find((t) => t.id === idCriado);
   expect(criado).toBeTruthy();
+  // selecionar não abre o painel; dois cliques abrem
+  await expect(mestre.pagina.getByTestId("painel-token")).toHaveCount(0);
+  await abrirPainelDoToken(mestre.pagina, idCriado);
+  await expect(mestre.pagina.getByTestId("token-nome")).toHaveValue("Novo token");
 
   // editar: nome, tamanho, quem controla
   await mestre.pagina.getByTestId("token-nome").fill("Batedor");
@@ -481,9 +491,10 @@ test("o mestre cria, edita e apaga tokens; camada e grid", async ({ mesa }) => {
 
   // camada do mestre: token novo que o jogador não vê
   await escolherCamada(mestre.pagina, "mestre");
-  await mestre.pagina.getByTestId("novo-token").click();
+  const idDoMestre = await criarToken(mestre.pagina, "Sombra");
   await expect.poll(async () => (await idsDe(mestre.pagina)).length).toBe(8);
   expect((await idsDe(j1.pagina)).length).toBe(5);
+  await abrirPainelDoToken(mestre.pagina, idDoMestre);
 
   // apagar
   await mestre.pagina.getByTestId("token-apagar").click();
@@ -496,7 +507,7 @@ test("o mestre cria, edita e apaga tokens; camada e grid", async ({ mesa }) => {
       (window as unknown as { __tabletop: Gancho }).__tabletop.paraTela(x as number, y as number),
     [t.x, t.y],
   );
-  await mestre.pagina.mouse.click(pos.x, pos.y);
+  await mestre.pagina.mouse.dblclick(pos.x, pos.y);
   await mestre.pagina.getByTestId("token-apagar").click();
   await expect.poll(async () => (await idsDe(j1.pagina)).length).toBe(4);
 

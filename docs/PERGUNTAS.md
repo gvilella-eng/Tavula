@@ -39,7 +39,7 @@ Juntadas durante os Lotes 6 a 14 (2026-11-06 a 10) para fazer ao Vilella no fim.
 - ~~O mestre também precisa estar ao alcance para entregar a tocha?~~ Não: o mestre entrega de longe (2026-11-10, feito).
 - Editar um modelo (ex.: Tocha) muda as tochas já acesas? (assumido: não)
 - Apagar com penalidade maior que o saldo consome a tocha (assumido).
-- Sobreposição de alças e ícones de ponto quando o ponto fica colado ao token (ajuste de interface).
+- ~~Sobreposição de alças e ícones de ponto quando o ponto fica colado ao token (ajuste de interface).~~ Resolvida no R5a (2026-11-11): a alça da tocha, agora maior, se afasta para o lado quando cairia em cima do ícone de um ponto.
 
 ## Lote 8
 - O mestre vê todos os sussurros? (assumido: sim)
@@ -61,7 +61,7 @@ Juntadas durante os Lotes 6 a 14 (2026-11-06 a 10) para fazer ao Vilella no fim.
 - Condições no token, não no personagem (assumido).
 - "Adicionar selecionados" deveria aceitar vários tokens de uma vez? (a seleção múltipla no mapa ainda não existe)
 - O jogador pode refazer a própria iniciativa, ou só o mestre? (assumido: só o mestre)
-- A dica das condições deveria abrir também por clique (tela de toque)?
+- ~~A dica das condições deveria abrir também por clique (tela de toque)?~~ Respondida no R5a (2026-11-11): sim, a regra abre por clique no marcador (popover que fecha com Esc ou clique fora), além da dica no mouse.
 - O nome da entrada na ordem de turno deve seguir a renomeação do token? (assumido: não)
 - Ideias para o 7b: teste de concentração com a CD sugerida; condições que aplicam vantagem ou desvantagem nas rolagens.
 

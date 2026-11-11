@@ -22,6 +22,7 @@ import {
   metaPorNome,
   pngDeRuido,
 } from "./ajudasAssets";
+import { abrirPainelDoToken, criarToken } from "./ajudasMapa";
 
 // Lote 4: personagens e cenas. O sigilo de cena é testado olhando os frames que o jogador recebe
 // (texto e binários); o pré-envio cifrado, pelos pedaços que ele baixa antes e depois da ida.
@@ -86,10 +87,10 @@ async function arrastar(p: Page, id: string, dxM: number, dyM: number) {
   await p.mouse.up();
 }
 
-/** Clica no token (mouse de verdade) para selecioná-lo; abre o painel do token do mestre. */
+/** Dois cliques no token (mouse de verdade): seleciona e abre o painel do token do mestre (R5a). */
 async function selecionarToken(p: Page, id: string) {
   const alvo = await centrarNoToken(p, id);
-  await p.mouse.click(alvo.x, alvo.y);
+  await p.mouse.dblclick(alvo.x, alvo.y);
   await expect(p.getByTestId("painel-token")).toBeVisible();
 }
 
@@ -316,10 +317,8 @@ test("o mestre vê e edita a cena 2 enquanto o grupo continua na 1; os jogadores
     .toEqual(["tok-sentinela-covil", "tok-vigia-covil"]);
 
   // edita a cena 2: token novo (nasce nela), renomeia, grid, chegada
-  await mestre.pagina.getByTestId("novo-token").click();
-  await expect(mestre.pagina.getByTestId("painel-token")).toBeVisible();
-  await mestre.pagina.getByTestId("token-nome").fill("Rato do Covil");
-  await mestre.pagina.getByTestId("token-nome").blur();
+  const idRato = await criarToken(mestre.pagina, "Rato do Covil");
+  await abrirPainelDoToken(mestre.pagina, idRato);
   await expect
     .poll(async () => (await gancho(mestre.pagina)).some((t) => t.nome === "Rato do Covil"))
     .toBe(true);
@@ -552,10 +551,14 @@ test("preparar: os jogadores baixam os pacotes cifrados antes; a troca não baix
   }
 
   // preparar de novo depois de mudar a cena acrescenta só o que falta
-  await p.getByTestId("novo-token").click();
-  await expect(p.getByTestId("painel-token")).toBeVisible();
+  const idRatoNovo = await criarToken(p, "Rato");
+  await abrirPainelDoToken(p, idRatoNovo);
   await imagemDoTokenSelecionado(p, arquivoPng("rato.png", pngDeRuido(160, 160, 24, 4)));
   const rato = await metaPorNome(p, "rato.png");
+  // espera a sala aplicar a imagem ao token antes de preparar de novo (senão o preparo não a conta)
+  await expect
+    .poll(() => mestre.frames.some((q) => q.includes(`"assetHash":"${rato.hash}"`)))
+    .toBe(true);
   await menuDaCena(p, "cena-covil", "preparar");
   await expect(p.getByTestId("cena-progresso-cena-covil")).toContainText("8 arquivos", {
     timeout: 60_000,

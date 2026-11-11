@@ -248,7 +248,7 @@ export function MenuSuperior(p: Props) {
           <Botao
             testid="novo-token"
             nome="Novo token"
-            dica="Cria um token no meio da vista."
+            dica="Pede o nome, a cor e o tamanho; depois você clica no mapa para pôr o token."
             aoClicar={p.aoNovoToken}
           >
             <CirclePlus size={20} />

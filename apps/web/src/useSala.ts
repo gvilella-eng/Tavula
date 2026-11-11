@@ -37,11 +37,47 @@ export type Ocorrencia =
   | { tipo: "binario"; dados: ArrayBuffer }
   | { tipo: "erro"; idPedido: string | null; codigo: CodigoDeErro; mensagem: string };
 
-export type Aviso = { numero: number; texto: string; codigo: CodigoDeErro | null };
+/** De onde veio o aviso: o ponto da página onde a pessoa agiu (`null`: não há, a sala é quem avisa). */
+export type OrigemDoAviso = { x: number; y: number };
+
+export type Aviso = {
+  numero: number;
+  texto: string;
+  codigo: CodigoDeErro | null;
+  origem: OrigemDoAviso | null;
+  /** Quanto tempo o aviso fica na tela (cresce com o tamanho do texto); um clique o dispensa. */
+  duracaoMs: number;
+};
 
 const ATRASO_INICIAL_MS = 500;
 const ATRASO_MAXIMO_MS = 10_000;
-const DURACAO_DO_AVISO_MS = 6_000;
+/** O mínimo que um aviso fica na tela, o que se soma por letra e o teto (aviso não fica para sempre). */
+const AVISO_MINIMO_MS = 6_000;
+const AVISO_POR_LETRA_MS = 55;
+const AVISO_MAXIMO_MS = 12_000;
+/** O ponteiro ainda conta como "onde a pessoa agiu" por este tempo depois do último movimento. */
+const ORIGEM_VALE_MS = 1_500;
+
+/** Quanto tempo um aviso com este texto fica na tela. */
+export function duracaoDoAviso(texto: string): number {
+  const base = 3_500 + texto.length * AVISO_POR_LETRA_MS;
+  return Math.min(AVISO_MAXIMO_MS, Math.max(AVISO_MINIMO_MS, base));
+}
+
+type Ponteiro = { x: number; y: number; t: number };
+
+/** O ponto onde a pessoa agiu (o ponteiro, se mexeu há pouco; senão o campo que está com o foco). */
+function origemDoEnvio(ponteiro: Ponteiro | null): OrigemDoAviso | null {
+  if (ponteiro && Date.now() - ponteiro.t < ORIGEM_VALE_MS) {
+    return { x: ponteiro.x, y: ponteiro.y };
+  }
+  const a = document.activeElement;
+  if (a instanceof HTMLElement && a !== document.body) {
+    const r = a.getBoundingClientRect();
+    if (r.width > 0 && r.height > 0) return { x: r.left + r.width / 2, y: r.bottom };
+  }
+  return null;
+}
 
 /** Backoff exponencial com jitter: 0,5 s, 1 s, 2 s... até 10 s. */
 export function atrasoDaTentativa(tentativa: number, aleatorio = Math.random()): number {
@@ -75,15 +111,31 @@ export function useSala(opcoes: Opcoes) {
   const opcoesAtuais = useRef(opcoes);
   opcoesAtuais.current = opcoes;
   const contadorDeAvisos = useRef(0);
+  // Onde a pessoa agiu por último e de onde saiu cada pedido: o aviso de erro aparece perto disso.
+  const ponteiro = useRef<Ponteiro | null>(null);
+  const origens = useRef(new Map<string, OrigemDoAviso | null>());
 
   useEffect(() => {
     let encerrado = false;
     let tentativa = 0;
     let temporizador: ReturnType<typeof setTimeout> | undefined;
 
-    const avisar = (texto: string, codigo: CodigoDeErro | null) => {
-      setAviso({ numero: ++contadorDeAvisos.current, texto, codigo });
+    const avisar = (texto: string, codigo: CodigoDeErro | null, idPedido: string | null) => {
+      const origem = idPedido === null ? null : (origens.current.get(idPedido) ?? null);
+      setAviso({
+        numero: ++contadorDeAvisos.current,
+        texto,
+        codigo,
+        origem,
+        duracaoMs: duracaoDoAviso(texto),
+      });
     };
+    const lembrar = (e: PointerEvent) => {
+      ponteiro.current = { x: e.clientX, y: e.clientY, t: Date.now() };
+    };
+    window.addEventListener("pointerdown", lembrar, true);
+    window.addEventListener("pointermove", lembrar, true);
+    window.addEventListener("pointerup", lembrar, true);
     const emitir = (o: Ocorrencia) => {
       for (const ouvinte of ouvintes.current) ouvinte(o);
     };
@@ -145,7 +197,7 @@ export function useSala(opcoes: Opcoes) {
           opcoesAtuais.current.aoExportar(m.dados.exportacao);
           break;
         case "erro":
-          avisar(m.dados.mensagem, m.dados.codigo);
+          avisar(m.dados.mensagem, m.dados.codigo, m.dados.idPedido);
           emitir({ tipo: "erro", ...m.dados });
           break;
       }
@@ -186,6 +238,9 @@ export function useSala(opcoes: Opcoes) {
     conectar();
     return () => {
       encerrado = true;
+      window.removeEventListener("pointerdown", lembrar, true);
+      window.removeEventListener("pointermove", lembrar, true);
+      window.removeEventListener("pointerup", lembrar, true);
       clearTimeout(temporizador);
       const ws = socket.current;
       socket.current = null;
@@ -196,9 +251,12 @@ export function useSala(opcoes: Opcoes) {
   // O aviso some sozinho.
   useEffect(() => {
     if (!aviso) return;
-    const t = setTimeout(() => setAviso(null), DURACAO_DO_AVISO_MS);
+    const t = setTimeout(() => setAviso(null), aviso.duracaoMs);
     return () => clearTimeout(t);
   }, [aviso]);
+
+  /** Um clique no aviso o dispensa. */
+  const dispensarAviso = useCallback(() => setAviso(null), []);
 
   /** Envia uma intenção. Devolve o id do pedido, ou `null` se não foi possível enviar. */
   const enviar = useCallback((tipo: string, dados: object): string | null => {
@@ -208,6 +266,12 @@ export function useSala(opcoes: Opcoes) {
     const intencao = IntencaoSchema.safeParse({ v: VERSAO_PROTOCOLO, id, tipo, dados });
     if (!intencao.success) return null;
     ws.send(JSON.stringify(intencao.data));
+    const guardadas = origens.current;
+    guardadas.set(id, origemDoEnvio(ponteiro.current));
+    if (guardadas.size > 64) {
+      const primeira = guardadas.keys().next();
+      if (!primeira.done) guardadas.delete(primeira.value);
+    }
     return id;
   }, []);
 
@@ -237,6 +301,7 @@ export function useSala(opcoes: Opcoes) {
     presenca,
     uso,
     aviso,
+    dispensarAviso,
     preparos,
     chatTemMais,
     enviar,

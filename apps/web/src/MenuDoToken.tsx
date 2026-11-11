@@ -7,9 +7,18 @@ import {
   RESUMO_DA_CONDICAO,
   resumoDaExaustao,
 } from "@tabletop/shared";
-import { Check, HeartPulse, ListPlus, ListX, Sparkles } from "lucide-react";
+import {
+  Backpack,
+  Check,
+  Flame,
+  FlameKindling,
+  ListPlus,
+  ListX,
+  Pencil,
+  Sparkles,
+} from "lucide-react";
 import { useRef, useState } from "react";
-import { dentroDaArea } from "./area";
+import { caixaDaArea, dentroDaArea } from "./area";
 import { useFecharFora } from "./Popover";
 
 type Props = {
@@ -18,27 +27,54 @@ type Props = {
   /** Posição do clique na página. */
   x: number;
   y: number;
-  /** O mestre gerencia a ordem de turno; quem só edita o personagem vê só as condições. */
+  /** O mestre gerencia a ordem de turno e o painel do token; quem só edita o personagem vê o resto. */
   euMestre: boolean;
   enviar: (tipo: string, dados: object) => string | null;
+  /** "Editar token…": seleciona o token e abre o painel dele (só o mestre). */
+  aoEditar: () => void;
   aoFechar: () => void;
 };
 
+/** Altura que o menu pede (px), para caber na área do mapa; o que passar disso rola. */
+function alturaDoMenu(mestre: boolean, tochas: number): number {
+  return 44 + (mestre ? 76 : 0) + (tochas > 0 ? 28 + tochas * 76 : 0) + 28 + 7 * 31 + 66 + 76;
+}
+
 /**
- * Menu do botão direito num token (Lote 11): entrar na iniciativa (mestre) e as condições do 5e, a
- * exaustão e a concentração. Quem pode é o mestre e quem edita o personagem do token (a sala confere);
- * nenhuma regra é aplicada sozinha. As mudanças vão na hora e o menu continua aberto.
+ * Menu do botão direito num token (Lote 11; R5a): para o mestre, "Editar token…" e a iniciativa; para
+ * quem carrega tochas, o grupo "Tocha" (apagar, acender, guardar na mochila); e as condições do 5e
+ * direto como itens de marcar, a exaustão e a concentração. Quem pode é o mestre e quem edita o
+ * personagem do token (a sala confere); nenhuma regra é aplicada sozinha. As condições vão na hora e o
+ * menu continua aberto; Esc ou um clique fora fecha.
  */
-export function MenuDoToken({ estado, tokenId, x, y, euMestre, enviar, aoFechar }: Props) {
+export function MenuDoToken({
+  estado,
+  tokenId,
+  x,
+  y,
+  euMestre,
+  enviar,
+  aoEditar,
+  aoFechar,
+}: Props) {
   const ref = useRef<HTMLDivElement>(null);
   useFecharFora(ref, aoFechar);
-  const [vista, setVista] = useState<"inicio" | "condicoes">(euMestre ? "inicio" : "condicoes");
   const token = estado.tokens.find((t) => t.id === tokenId);
   const [magia, setMagia] = useState(token?.concentracao ?? "");
   if (!token) return null;
   const naOrdem = estado.combate?.entradas.find((e) => e.tokenId === tokenId);
   const ativas = new Set<Condicao>(token.condicoes ?? []);
-  const { left: esquerda, top: topo } = dentroDaArea(x, y, 292, vista === "condicoes" ? 552 : 142);
+  // As tochas na mão do personagem deste token.
+  const tochas = estado.luzes.filter(
+    (l) =>
+      l.portador.tipo === "mao" &&
+      token.personagemId !== undefined &&
+      l.portador.personagemId === token.personagemId,
+  );
+  const area = caixaDaArea();
+  const alturaMaxima = area.base - area.topo - 16;
+  const altura = Math.min(alturaDoMenu(euMestre, tochas.length), alturaMaxima);
+  const { left: esquerda, top: topo } = dentroDaArea(x, y, 292, altura);
 
   function alternar(c: Condicao) {
     const novas = new Set(ativas);
@@ -59,12 +95,24 @@ export function MenuDoToken({ estado, tokenId, x, y, euMestre, enviar, aoFechar 
       role="menu"
       aria-label={`Token: ${token.nome}`}
       data-testid="menu-token"
-      data-vista={vista}
-      style={{ left: esquerda, top: topo }}
+      style={{ left: esquerda, top: topo, maxHeight: alturaMaxima }}
     >
       <div className="nota menu-titulo">{token.nome}</div>
-      {vista === "inicio" && (
+      {euMestre && (
         <>
+          <button
+            type="button"
+            role="menuitem"
+            className="item-menu"
+            data-testid="menu-token-editar"
+            onClick={() => {
+              aoFechar();
+              aoEditar();
+            }}
+          >
+            <Pencil size={16} />
+            <span>Editar token…</span>
+          </button>
           {naOrdem ? (
             <button
               type="button"
@@ -96,114 +144,130 @@ export function MenuDoToken({ estado, tokenId, x, y, euMestre, enviar, aoFechar 
               <span>Entrar na iniciativa</span>
             </button>
           )}
-          <button
-            type="button"
-            role="menuitem"
-            className="item-menu"
-            data-testid="menu-token-condicoes"
-            onClick={() => setVista("condicoes")}
-          >
-            <HeartPulse size={16} />
-            <span>Condições…</span>
-          </button>
         </>
       )}
-      {vista === "condicoes" && (
-        <div className="mt-condicoes" data-testid="menu-token-painel-condicoes">
-          <div className="mt-grade">
-            {CONDICOES.map((c) => (
+      {tochas.length > 0 && (
+        <fieldset className="mt-grupo" data-testid="menu-token-grupo-tocha">
+          <legend className="nota mt-grupo-titulo">Tocha</legend>
+          {tochas.map((luz) => {
+            const acesa = luz.estado === "acesa";
+            return (
+              <div key={luz.id} className="mt-tocha" data-testid={`menu-token-tocha-${luz.id}`}>
+                {tochas.length > 1 && <span className="nota mt-tocha-nome">{luz.nome}</span>}
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="item-menu"
+                  data-testid={`menu-token-tocha-alternar-${luz.id}`}
+                  data-acesa={acesa}
+                  onClick={() => enviar("tocha.alternar", { id: luz.id })}
+                >
+                  {acesa ? <FlameKindling size={16} /> : <Flame size={16} />}
+                  <span>{acesa ? "Apagar a tocha" : "Acender a tocha"}</span>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="item-menu"
+                  data-testid={`menu-token-tocha-guardar-${luz.id}`}
+                  onClick={() => {
+                    aoFechar();
+                    enviar("tocha.guardar", { id: luz.id });
+                  }}
+                >
+                  <Backpack size={16} />
+                  <span>Guardar na mochila</span>
+                </button>
+              </div>
+            );
+          })}
+        </fieldset>
+      )}
+      <fieldset className="mt-condicoes" data-testid="menu-token-painel-condicoes">
+        <legend className="nota mt-grupo-titulo">Condições (um clique liga ou desliga)</legend>
+        <div className="mt-grade">
+          {CONDICOES.map((c) => (
+            <button
+              key={c}
+              type="button"
+              role="menuitemcheckbox"
+              aria-checked={ativas.has(c)}
+              className="item-menu mt-condicao"
+              data-testid={`condicao-${c}`}
+              title={RESUMO_DA_CONDICAO[c]}
+              onClick={() => alternar(c)}
+            >
+              <span className="mt-caixa" aria-hidden>
+                {ativas.has(c) && <Check size={12} />}
+              </span>
+              <span>{NOME_DA_CONDICAO[c]}</span>
+            </button>
+          ))}
+        </div>
+        <div className="mt-bloco">
+          <span className="nota">Exaustão</span>
+          <fieldset className="chips mt-fieldset" aria-label="Nível de exaustão">
+            <button
+              type="button"
+              className="chip"
+              data-testid="exaustao-0"
+              aria-pressed={token.exaustao === undefined}
+              onClick={() => enviar("token.condicoes", { id: tokenId, exaustao: 0 })}
+            >
+              0
+            </button>
+            {NIVEIS_DE_EXAUSTAO.map((n) => (
               <button
-                key={c}
-                type="button"
-                role="menuitemcheckbox"
-                aria-checked={ativas.has(c)}
-                className="item-menu mt-condicao"
-                data-testid={`condicao-${c}`}
-                title={RESUMO_DA_CONDICAO[c]}
-                onClick={() => alternar(c)}
-              >
-                <span className="mt-caixa" aria-hidden>
-                  {ativas.has(c) && <Check size={12} />}
-                </span>
-                <span>{NOME_DA_CONDICAO[c]}</span>
-              </button>
-            ))}
-          </div>
-          <div className="mt-bloco">
-            <span className="nota">Exaustão</span>
-            <fieldset className="chips mt-fieldset" aria-label="Nível de exaustão">
-              <button
+                key={n}
                 type="button"
                 className="chip"
-                data-testid="exaustao-0"
-                aria-pressed={token.exaustao === undefined}
-                onClick={() => enviar("token.condicoes", { id: tokenId, exaustao: 0 })}
+                data-testid={`exaustao-${n}`}
+                aria-pressed={token.exaustao === n}
+                title={resumoDaExaustao(n)}
+                onClick={() => enviar("token.condicoes", { id: tokenId, exaustao: n })}
               >
-                0
+                {n}
               </button>
-              {NIVEIS_DE_EXAUSTAO.map((n) => (
-                <button
-                  key={n}
-                  type="button"
-                  className="chip"
-                  data-testid={`exaustao-${n}`}
-                  aria-pressed={token.exaustao === n}
-                  title={resumoDaExaustao(n)}
-                  onClick={() => enviar("token.condicoes", { id: tokenId, exaustao: n })}
-                >
-                  {n}
-                </button>
-              ))}
-            </fieldset>
-          </div>
-          <div className="mt-bloco">
-            <label className="nota" htmlFor="concentracao-magia">
-              Concentração (nome da magia)
-            </label>
-            <div className="mt-linha">
-              <input
-                id="concentracao-magia"
-                type="text"
-                data-testid="concentracao-input"
-                maxLength={64}
-                placeholder="Bênção"
-                value={magia}
-                onChange={(e) => setMagia(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && marcarConcentracao()}
-              />
-              <button
-                type="button"
-                data-testid="concentracao-aplicar"
-                disabled={magia.trim() === ""}
-                onClick={marcarConcentracao}
-              >
-                <Sparkles size={14} /> Marcar
-              </button>
-              <button
-                type="button"
-                data-testid="concentracao-tirar"
-                disabled={token.concentracao === undefined}
-                onClick={() => {
-                  setMagia("");
-                  enviar("token.condicoes", { id: tokenId, concentracao: null });
-                }}
-              >
-                Tirar
-              </button>
-            </div>
-          </div>
-          <div className="mt-linha mt-rodape">
-            {euMestre && (
-              <button type="button" onClick={() => setVista("inicio")}>
-                Voltar
-              </button>
-            )}
-            <button type="button" data-testid="menu-token-fechar" onClick={aoFechar}>
-              Fechar
+            ))}
+          </fieldset>
+        </div>
+        <div className="mt-bloco mt-ultimo">
+          <label className="nota" htmlFor="concentracao-magia">
+            Concentração (nome da magia)
+          </label>
+          <div className="mt-linha">
+            <input
+              id="concentracao-magia"
+              type="text"
+              data-testid="concentracao-input"
+              maxLength={64}
+              placeholder="Bênção"
+              value={magia}
+              onChange={(e) => setMagia(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && marcarConcentracao()}
+            />
+            <button
+              type="button"
+              data-testid="concentracao-aplicar"
+              disabled={magia.trim() === ""}
+              onClick={marcarConcentracao}
+            >
+              <Sparkles size={14} /> Marcar
+            </button>
+            <button
+              type="button"
+              data-testid="concentracao-tirar"
+              disabled={token.concentracao === undefined}
+              onClick={() => {
+                setMagia("");
+                enviar("token.condicoes", { id: tokenId, concentracao: null });
+              }}
+            >
+              Tirar
             </button>
           </div>
         </div>
-      )}
+      </fieldset>
     </div>
   );
 }

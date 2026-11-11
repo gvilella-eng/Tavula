@@ -7,8 +7,9 @@ ponteiro, não entrou. Onde a fonte é ambígua ou os docs se contradizem, o ite
 Ponteiros: `REDESIGN` = `docs/REDESIGN.md`, `PERGUNTAS` = `docs/PERGUNTAS.md`, `ESTADO` = `docs/ESTADO.md`,
 `PROJETO` = `PROJETO.md` (na raiz), `IDEIAS` = `docs/IDEIAS.md`. Número depois dos dois-pontos é a linha.
 
-Estado dos docs em 2026-11-10: os Redesigns R1, R2, R2b (pausa automática e 11 temas), R3 (janelas flutuantes)
-e R4 (organização do mestre) estão entregues; R4 (organização do mestre) também; R5 em diante não começou (fim do `ESTADO`, "Próximo").
+Estado dos docs em 2026-11-11: os Redesigns R1, R2, R2b (pausa automática e 11 temas), R3 (janelas flutuantes),
+R4 (organização do mestre) e R5a (interações no mapa e nos tokens) estão entregues; o R5b (combate, fichas, compêndio e PDF) e o R6
+não começaram (fim do `ESTADO`, "Próximo").
 
 ## 1. Como subir a mesa para olhar
 
@@ -56,13 +57,15 @@ Tudo em `apps/web/src/`.
   - `AbaChat.tsx`, `AbaFichas.tsx`, `AbaCompendio.tsx`: as abas de chat (com os modelos de rolagem), fichas
     (só pastas e fichas; as notas têm aba própria) e compêndio de magias.
   - `AbaMesa.tsx` (a aba Mesa, só do mestre: índice, papéis, capacidades, campanha, diagnóstico), `PainelDaMesa.tsx` (as seções de regras da mesa e de modelos de luz que ela usa) e `PainelDeIluminacao.tsx` (a janela de iluminação).
-  - `PainelDoToken.tsx`: painel compacto do mestre para o token selecionado (canto inferior esquerdo da área do mapa).
+  - `PainelDoToken.tsx`: painel compacto do mestre para o token selecionado (canto inferior esquerdo da área do mapa). Desde o R5a só abre por "Editar token…" ou por dois cliques no token; selecionar só seleciona.
+  - `NovoToken.tsx`: a janela "Novo token" (nome, cor, tamanho) e, depois dela, o modo de pôr o token com a prévia (a prévia e o clique estão em `mapa/mapaPixi.ts`; o selo e a ligação em `Mesa.tsx`).
+  - `AvisoPerto.tsx`: o aviso de erro dentro da área do mapa, perto de onde a pessoa agiu (a origem é guardada em `useSala.ts`).
   - `janelas/Janela.tsx`, `janelas/pilha.ts`, `janelas/geometria.ts`: a janela flutuante comum (arrastar, minimizar, redimensionar, dentro da área, pilha). Posição e tamanho por janela em `tabletop:pref:janela:<id>` (`preferencias.ts`).
   - `OrdemDeTurno.tsx`: a ordem de turno (uma `Janela`).
   - `FaixaDeCenas.tsx`: faixa de cenas, com prévia do mapa e menu de contexto.
   - `ConfigurarCena.tsx`: nome, mapa, pixels por quadrado e o grid da cena (visível e quadrado em metros).
   - `PainelDasParedes.tsx`, `PainelDeFontesDeLuz.tsx`: paredes e portas; fontes de luz.
-  - `MenuDoToken.tsx`, `MenuDaTocha.tsx`: menus de botão direito no token (iniciativa, condições) e na alça da
+  - `MenuDoToken.tsx`, `MenuDaTocha.tsx`: menus de botão direito no token (Editar token…, iniciativa, grupo Tocha e as condições direto como itens de marcar) e na alça da
     tocha.
   - `SubBarraPincel.tsx`, `DadosRapidos.tsx`, `ZoomFlutuante.tsx`: sub-barra do pincel, grade de dados
     rápidos e controle de zoom no canto inferior direito da área do mapa.
@@ -73,7 +76,7 @@ Tudo em `apps/web/src/`.
 ## 3. Levantamento de usabilidade (22 itens)
 
 Fonte: `REDESIGN:38-87`. Prioridade: A = atrapalha o jogo ou esconde função; B = confunde ou dá trabalho; C =
-acabamento. Lote = o do plano (`REDESIGN:89-117`) que resolve o item. R1, R2, R3 e R4 foram entregues.
+acabamento. Lote = o do plano (`REDESIGN:89-117`) que resolve o item. R1, R2, R3, R4 e R5a foram entregues.
 
 | # | Resumo | Classe | Lote |
 |---|---|---|---|
@@ -83,29 +86,29 @@ acabamento. Lote = o do plano (`REDESIGN:89-117`) que resolve o item. R1, R2, R3
 | 4 | Coisas no lugar errado: Notas em Fichas; Configurações mistura pessoal, regras e tocha; aba Mestre mistura papéis, grid, capacidades e "uso de hoje" | A | R4 (entregue) |
 | 5 | Paredes escondidas (copo, Paredes e portas, tipo, cliques); nada mostra o modo ligado | A | R4 (entregue) |
 | 6 | Modelos de tocha só aparecem rolando Configurações | B | R4 (entregue) |
-| 7 | "+" cria "Novo token" no meio da vista sem perguntar nome nem lugar | B | R5 |
-| 8 | Esc não solta a seleção; painel do token cobre o mapa | B | R3 (painel, entregue: arrasta, minimiza e fecha) e R5 (Esc, e não abrir sozinho) |
-| 9 | Tocha só por gestos sem explicação; alça e tempo pequenos | A | R5 |
-| 10 | Condições: muitos cliques; marcadores pequenos; regra só no mouse | B | R5 |
-| 11 | Régua some ao soltar | C | R5 |
-| 12 | Aviso (toast) no rodapé, longe do clique, some rápido | B | R5 |
-| 13 | Jogador sem token na cena vê tela preta sem explicação | A | R5 |
-| 14 | Ordem de turno do mestre: cinco linhas de controles; número reordena enquanto digita; "Rolar para todos" cinza sem motivo | B | R3 (janela, entregue) e R5 (controles) |
-| 15 | Abrir a ficha exige dois cliques, sem dica | B | R5 |
+| 7 | "+" cria "Novo token" no meio da vista sem perguntar nome nem lugar | B | R5a (entregue) |
+| 8 | Esc não solta a seleção; painel do token cobre o mapa | B | R3 (painel, entregue: arrasta, minimiza e fecha) e R5a (Esc, e não abrir sozinho; entregue) |
+| 9 | Tocha só por gestos sem explicação; alça e tempo pequenos | A | R5a (entregue) |
+| 10 | Condições: muitos cliques; marcadores pequenos; regra só no mouse | B | R5a (entregue) |
+| 11 | Régua some ao soltar | C | R5a (entregue) |
+| 12 | Aviso (toast) no rodapé, longe do clique, some rápido | B | R5a (entregue) |
+| 13 | Jogador sem token na cena vê tela preta sem explicação | A | R5a (entregue) |
+| 14 | Ordem de turno do mestre: cinco linhas de controles; número reordena enquanto digita; "Rolar para todos" cinza sem motivo | B | R3 (janela, entregue) e R5b (controles) |
+| 15 | Abrir a ficha exige dois cliques, sem dica | B | R5b |
 | 16 | Janela da ficha grande e fixa; em tela pequena cobre quase tudo | B | R3 (entregue) |
 | 17 | Lista de presença ocupa 1/4 do painel do chat | B | R2 (entregue) |
-| 18 | Compêndio: o mestre lê ajuda de JSON; falta "usar o exemplo" | B | R5 |
-| 19 | Importar PDF com dois caminhos de nomes diferentes; revisão longa (19 campos amarelos) | C | R5 |
+| 18 | Compêndio: o mestre lê ajuda de JSON; falta "usar o exemplo" | B | R5b |
+| 19 | Importar PDF com dois caminhos de nomes diferentes; revisão longa (19 campos amarelos) | C | R5b |
 | 20 | Tela de entrada sem marca nem personalidade | B | R1 (entregue) |
 | 21 | Pausa pouco visível: botão e relógio iguais pausado e rodando | B | R2 (entregue) |
 | 22 | Nenhum atalho de teclado nas dicas | C | R6 |
 
-Classes: A = 6 (1, 2, 4, 5, 9, 13), B = 13, C = 3 (11, 19, 22).
+Classes: A = 6 (1, 2, 4, 5, 9, 13), B = 13, C = 3 (11, 19, 22). Desde o R5a, 7, 8, 9, 10, 11, 12 e 13 estão resolvidos.
 
 ## 4. Perguntas e suposições esperando o "ok" dele
 
-**Total: 44 abertos em `PERGUNTAS`** (47 numerados; o 9, o 21 e o 24 já estão resolvidos) (a seção "Respondidas em 2026-11-10" não entra, nem o item riscado do
-nome). Mais **55 suposições "(assumido)"** (37 de antes, 7 do R2, 4 do R2b e 7 do R3) que só aparecem no `ESTADO`/`REDESIGN` (parte B). Os que o texto
+**Total: 43 abertos em `PERGUNTAS`** (47 numerados; o 9, o 21, o 24 e o 34 já estão resolvidos) (a seção "Respondidas em 2026-11-10" não entra, nem o item riscado do
+nome). Mais **75 suposições "(assumido)"** (as 63 da parte B, mais as 12 do R5a) que só aparecem no `ESTADO`/`REDESIGN` (parte B). Os que o texto
 marca "(assumido)" valem até ele dizer o contrário.
 
 ### A. Em `PERGUNTAS.md` (47 numerados, 44 abertos)
@@ -154,7 +157,7 @@ Lote 11
 31. Condições no token, não no personagem (assumido) (`PERGUNTAS:57`)
 32. "Adicionar selecionados" deveria aceitar vários tokens? (a seleção múltipla no mapa não existe) (`PERGUNTAS:58`)
 33. O jogador pode refazer a própria iniciativa, ou só o mestre? (assumido: só o mestre) (`PERGUNTAS:59`)
-34. A dica das condições deveria abrir também por clique (tela de toque)? (`PERGUNTAS:60`). Também em `REDESIGN:251`.
+34. ~~A dica das condições deveria abrir também por clique (tela de toque)?~~ Respondida no R5a: a regra abre por clique no marcador (`PERGUNTAS:60`). Não conta no total.
 35. O nome da entrada na ordem de turno deve seguir a renomeação do token? (assumido: não) (`PERGUNTAS:61`)
 
 Lote 13
@@ -174,10 +177,9 @@ Lote 14
 47. Conferir a tradução das 3 magias do exemplo do SRD (`PERGUNTAS:78`)
 
 Fora da contagem, no mesmo arquivo: "A lista de presença ocupa muito espaço com 8 pessoas" (`PERGUNTAS:83`) era
-o item 17 do levantamento (resolvido no R2: avatares no topo); "Sobreposição de alças e ícones de ponto" (`PERGUNTAS:38`) está na seção 5
-(Lote 7); "Ideias para o 7b" (`PERGUNTAS:62`) está na seção 7.
+o item 17 do levantamento (resolvido no R2: avatares no topo); "Sobreposição de alças e ícones de ponto" (`PERGUNTAS:38`) foi resolvida no R5a; "Ideias para o 7b" (`PERGUNTAS:62`) está na seção 7.
 
-### B. Suposições "(assumido)" só no ESTADO/REDESIGN (63)
+### B. Suposições "(assumido)" só no ESTADO/REDESIGN (74)
 
 Não aparecem em `PERGUNTAS`. Resumidas; o texto completo está no ponteiro.
 
@@ -251,7 +253,7 @@ Redesign R2b (`REDESIGN`, "R2b — como ficou")
 
 Redesign R3 (`REDESIGN`, "R3 — como ficou")
 96. Ficha: uma posição e um tamanho guardados por personagem (`ficha:<personagemId>`); a segunda ficha sem posição guardada desloca em cascata
-97. Esc não fecha as janelas (é da seleção, R5); as setas movem a janela com o cabeçalho focado (8 px; Shift, 40 px)
+97. Esc não fecha as janelas (Esc é da seleção, desde o R5a); as setas movem a janela com o cabeçalho focado (8 px; Shift, 40 px)
 98. Só a ficha redimensiona nos dois eixos; ordem de turno e fontes de luz só na altura; o resto não redimensiona
 99. Os dados rápidos deixaram de fechar ao clicar fora (agora fecham pelo X, ou sozinhos depois de rolar); o "recolher" das fontes de luz virou o minimizar comum, sem a opacidade de 70%
 100. Minimizar esconde o corpo sem desmontá-lo; a posição só é guardada depois que a pessoa move ou redimensiona
@@ -260,13 +262,27 @@ Redesign R3 (`REDESIGN`, "R3 — como ficou")
 103. "Ver como" é o quinto grupo do menu; o nome dos grupos fica em letra pequena embaixo dos ícones (não cabe rótulo ao lado nos 48 px com o painel em 320 px)
 104. O botão Paredes e portas fica embaixo do pincel, separado por um filete, e some quando o mestre está vendo como um jogador
 105. O grid da cena tem só "visível" e "quadrado em metros" (o modelo não tem cor de grid) e vale ao Salvar da configuração; quadrado fora de 0,3 a 10 m dá erro no formulário
-106. Esc no modo Paredes só encerra a sequência em andamento; sair do modo é pela barra, V/H/R, a janela ou o selo (Esc soltar a seleção é do R5)
+106. Esc no modo Paredes só encerra a sequência em andamento; sair do modo é pela barra, V/H/R, a janela ou o selo (Esc soltar a seleção ficou no R5a: com o modo Paredes ligado, Esc encerra a sequência e também solta a seleção)
 107. As seis abas do mestre cabem numa linha a partir de 300 px, com os nomes inteiros (folga lateral menor)
 108. Não existe aba guardada entre visitas (o painel abre sempre no Chat), então não houve migração de "Configurações" nem de "Mestre"
 109. Sem controle numérico de largura do painel nas Preferências (fica a alça do R2)
 110. A aba Mesa aparece e some na hora quando o papel de alguém muda
 
-Os itens 49 a 85 são 37; o R2 acrescenta os itens 86 a 92, o R2b os 93 a 96, o R3 os 97 a 103 e o R4 os 104 a 111. Deixei de fora as suposições puramente técnicas (por exemplo, onde mora o compêndio
+Redesign R5a (`REDESIGN`, "R5a — como ficou")
+111. Dois cliques num token abrem o painel dele (só o mestre); antes não faziam nada
+112. O painel do token fecha quando não há token selecionado; a seleção seguinte não o reabre
+113. "Novo token" cria um token por vez (o modo termina no clique); o encaixe segue a preferência (Alt inverte), antes sempre encaixava; o formulário não tem camada
+114. A régua fixa por botão "Fixar" e por Shift ao soltar; as fixas se acumulam e saem juntas com Esc, trocando de ferramenta ou de cena, ou com um clique em cada uma
+115. O menu do token não tem "Entregar" a tocha (continua por arrastar a alça)
+116. Clicar num marcador de condição abre a regra e não arrasta o token
+117. Aviso de 6 a 12 s (3,5 s mais 55 ms por letra, mínimo 6 s), perto do clique, com um clique para dispensar; sem origem, no alto da área
+118. A dica da tocha e o menu do token só por mouse (a alça é desenhada no canvas e não recebe foco)
+119. Esc no meio do arrasto de um token o devolve à origem (envia `token.soltar` com a posição de antes só se ele já andou)
+120. O estado vazio do jogador só aparece com a iluminação dinâmica ligada
+121. Em token pequeno cabem menos marcadores de condição (o resto vira "+N") por causa do tamanho maior
+122. Esc não age com o foco dentro de uma janela (num botão do painel do token, por exemplo); com o foco no mapa e o painel do token aberto, Esc solta a seleção e o painel fecha junto
+
+Os itens 49 a 85 são 37; o R2 acrescenta os itens 86 a 92, o R2b os 93 a 96, o R3 os 97 a 103, o R4 os 104 a 111 e o R5a os 112 a 122. Deixei de fora as suposições puramente técnicas (por exemplo, onde mora o compêndio
 na tabela `meta`, o worker do pdf.js, tipos do Node no teste, idempotência de `desenho.apagar`).
 
 ## 5. Pontos frágeis por lote
@@ -317,7 +333,7 @@ Lote 6
 
 Lote 7
 - Contagem do inflamável usa o relógio do navegador (3 s + 60 ms), a sala confere com 300 ms de tolerância; rede lenta pode recusar. (`ESTADO:1118`)
-- O anel e as alças se sobrepõem quando um ponto com objeto fica a menos de 1 quadrado da mão do token (ajuste de interface; também em `PERGUNTAS:38`, `REDESIGN:252`). (`ESTADO:1119`)
+- ~~O anel e as alças se sobrepõem quando um ponto com objeto fica a menos de 1 quadrado da mão do token~~: a alça da tocha agora se afasta do ícone do ponto (R5a). O anel de acender, desenhado no ponto, não mudou. (`ESTADO:1119`, `PERGUNTAS:38`)
 - Com a sala fora do ar por muito tempo o relógio dela continua: ao voltar, tochas podem ter acabado. (`ESTADO:1120`)
 - O mestre "vendo como" um jogador recebe o tempo que o mestre recebe; a visão filtrada é só de tela. (`ESTADO:1121`)
 - `ponto.acenderInicio` não devolve evento no E2E (transitória); quem testa só envia. (`ESTADO:1123`)
@@ -345,7 +361,7 @@ Lote 10
 - A tela de revisão edita só alguns campos; o resto se corrige depois, na ficha. (`ESTADO:1342`)
 
 Lote 11
-- A dica das condições só aparece com o mouse; em toque não há como lê-la (também em `PERGUNTAS:60`, `REDESIGN:251`). (`ESTADO:1419`)
+- ~~A dica das condições só aparece com o mouse~~: desde o R5a a regra também abre por clique no marcador (serve ao toque, ainda não testado nele). (`ESTADO:1419`, `PERGUNTAS:60`)
 - O painel da ordem tem 364 px e, em 1280 px, cobre parte do mapa (levantamento 14). Desde o R2 abre dentro da área do mapa, no canto superior direito, sem cobrir barras nem zoom; no R3 virou janela (arrasta, minimiza, altura ajustável). (`ESTADO:1420`)
 - `combate.alterado` leva o combate inteiro a cada mudança (até 200 entradas). (`ESTADO:1421`)
 - Ordenação por nome com `Intl.Collator("pt-BR")` testada no Node, não no `wrangler dev` do Vilella com lista grande. (`ESTADO:1422`)
@@ -373,6 +389,14 @@ Redesign R1
 - Texto branco sobre cores de usuário claras (amarelo do mestre) no avatar: contraste baixo; fica para o R6. (`ESTADO:1666`, `REDESIGN:167-168`)
 - Os rótulos desenhados dentro do mapa não seguem o tema; também ficam para o R6. (`ESTADO:1667`, `REDESIGN:168`)
 
+Redesign R5a
+- A dica da alça da tocha e o menu do token só existem para o mouse (botão direito e passar o mouse); não há caminho por teclado nem por foco, e toque (celular) não foi testado. Fica para o R6. (`ESTADO`, "R5a", Frágil)
+- O aviso de erro sem origem (a sala avisando por conta própria) ficou no alto da área e só foi conferido por leitura; os E2E cobrem o aviso com origem. (`ESTADO`, "R5a", Frágil)
+- A origem do aviso é o último ponto do ponteiro até 1,5 s antes do envio, ou o campo com o foco: um erro que volta depois de outra ação do mouse pode aparecer perto do ponto errado. (`ESTADO`, "R5a", Frágil)
+- Clicar num marcador de condição abre a regra e não arrasta o token por ali; quem pega o token pela borda de baixo, onde os marcadores ficam, abre a regra em vez de arrastar. (`REDESIGN`, "R5a — como ficou")
+- Os prints antigos que clicam em `menu-token-condicoes` ou `menu-token-fechar` (r1, r2, lote-11, auditoria) não rodam mais: esses botões saíram. (`ESTADO`, "R5a", Frágil)
+- Entregar a tocha continua só por arrastar a alça até outro token (o menu do token não tem "Entregar"). (`REDESIGN`, "R5a — como ficou")
+
 Redesign R4
 - Os E2E só rodam com 1 worker (sala compartilhada): `--workers` maior dá falhas falsas. (`ESTADO`, "R4", Como rodar)
 - A dica do menu do topo é própria do `MenuSuperior`; a barra de ferramentas esquerda e o resto seguem com `title` nativo (sem dica no foco do teclado). Unificar e pôr os atalhos nas dicas: R6. (`ESTADO`, "R4", Frágil)
@@ -397,8 +421,8 @@ Redesign R2
 - Com 5 abas na largura mínima "Configurações" ocupava quase a linha. Ficou velho: desde o R4 são 6 abas (5 para o jogador) e elas cabem numa linha em 300 px, apertadas. (`ESTADO`, "R4")
 - A lista do "+N" da presença não tem teste de foco por teclado. (`ESTADO:1724`)
 
-Itens de interface que `REDESIGN:251-252` manda para o R5/R6 e que já estão acima: a dica das condições abrir
-por clique (Lote 11), alças de tocha sobrepostas ao ícone de ponto (Lote 7). O terceiro, **seleção múltipla no
+Itens de interface que o "Em aberto" do `REDESIGN` mandava para o R5/R6: a dica das condições abrir por clique
+e as alças de tocha sobrepostas ao ícone de ponto foram resolvidos no R5a. O que sobra, **seleção múltipla no
 mapa**, não existe ainda; aparece em `PERGUNTAS:58` e `PERGUNTAS:69`.
 
 ## 6. Roteiros manuais pendentes
@@ -450,7 +474,7 @@ planejados, mudam de escopo ou ficam com ele):
 - **R4, organização do mestre (entregue)**: menu superior agrupado e com nomes; Paredes vira ferramenta da barra
   esquerda; "Eventos" sai até o 7b; Configurações separadas em Preferências e Mesa; Notas viram aba; grid vai
   para a cena; "uso de hoje" vai para diagnóstico. Resolve 2, 4, 5, 6.
-- **R5, interações e fluxos**: Esc solta a seleção; criar token pede nome e lugar; tocha com dica e menu;
+- **R5, interações e fluxos** (dividido em **R5a**, mapa e tokens, entregue, e **R5b**, combate, fichas, compêndio e PDF, pendente): Esc solta a seleção; criar token pede nome e lugar; tocha com dica e menu;
   condições com menos cliques; régua que fica; avisos perto do clique; ordem de turno compacta com Enter; ficha
   com um clique; estados vazios que orientam. Resolve 7, 8 (parte), 9–15, 18, 19.
 - **R6, polimento**: tela pequena (1280×720), foco e contraste (inclui o avatar e os rótulos do mapa),
@@ -478,7 +502,7 @@ Achadas ao montar esta passagem e já acertadas nos docs de origem:
 - Lista "Só interface" do Lote 4b no `ESTADO`: marcada como histórica; sem função hoje só "Eventos" (7b) e os
   itens Artefato, Tesouro e Handout ("em breve").
 - Roteiro do 4b: o `PERGUNTAS` não o lista mais (não há roteiro escrito).
-- Plano do redesign: o item 8 entra no R5 (Esc) além do R3 (painel); o verify passou a uma rodada.
+- Plano do redesign: o item 8 entra no R5 (Esc, feito no R5a) além do R3 (painel); o verify passou a uma rodada.
 - Título do `PROJETO.md`: Távola (identificadores técnicos seguem `tabletop`).
 - "Em aberto" do `REDESIGN`: R1 e R2 feitos; R3–R6 a combinar.
 

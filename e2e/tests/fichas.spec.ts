@@ -10,7 +10,9 @@ import {
 } from "./ajudas";
 import { arquivoPng, escolherNoSeletor, imagensDoMapa, pngDeRuido } from "./ajudasAssets";
 import {
+  abrirPainelDoToken,
   arrastarToken,
+  criarToken,
   entrarNoMapa,
   esperarPosicao,
   noElementoDoMapa,
@@ -384,11 +386,9 @@ test("token na camada mapa: o jogador vê e não move; o mestre seleciona e move
   const j1 = await entrarNoMapa(mesa, "jogador-1");
 
   await escolherCamada(mestre.pagina, "mapa");
-  await mestre.pagina.getByTestId("novo-token").click();
-  await expect(mestre.pagina.getByTestId("painel-token")).toBeVisible();
+  const idEstatua = await criarToken(mestre.pagina, "Estátua");
+  await abrirPainelDoToken(mestre.pagina, idEstatua);
   await expect(mestre.pagina.getByTestId("token-camada")).toHaveValue("mapa");
-  await mestre.pagina.getByTestId("token-nome").fill("Estátua");
-  await mestre.pagina.getByTestId("token-nome").press("Enter");
   // o mestre o põe sob o controle do jogador 1: ainda assim ele não o move
   await mestre.pagina.getByTestId("token-controla-jogador-1").click();
 

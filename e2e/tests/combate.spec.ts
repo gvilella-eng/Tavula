@@ -266,8 +266,10 @@ test("condição e concentração que o jogador aplica no próprio token aparece
   await expect(j1.pagina.getByTestId("menu-token")).toHaveCount(0);
   await menuDoToken(j1.pagina, "tok-jogador-1");
   await expect(j1.pagina.getByTestId("menu-token")).toBeVisible();
-  // jogador cai direto nas condições (não tem a iniciativa, que é do mestre)
+  // jogador vê direto as condições (não tem "Editar token…" nem a iniciativa, que são do mestre)
   await expect(j1.pagina.getByTestId("menu-token-painel-condicoes")).toBeVisible();
+  await expect(j1.pagina.getByTestId("menu-token-editar")).toHaveCount(0);
+  await expect(j1.pagina.getByTestId("menu-token-iniciativa")).toHaveCount(0);
   await j1.pagina.getByTestId("condicao-caido").click();
   await j1.pagina.getByTestId("condicao-cego").click();
   await j1.pagina.getByTestId("condicao-envenenado").click();
@@ -275,7 +277,9 @@ test("condição e concentração que o jogador aplica no próprio token aparece
   await j1.pagina.getByTestId("concentracao-input").fill("Bênção");
   await j1.pagina.getByTestId("concentracao-aplicar").click();
   await expect(j1.pagina.getByTestId("condicao-caido")).toHaveAttribute("aria-checked", "true");
-  await j1.pagina.getByTestId("menu-token-fechar").click();
+  // o menu ficou aberto durante as marcações; Esc o fecha
+  await expect(j1.pagina.getByTestId("menu-token")).toBeVisible();
+  await j1.pagina.keyboard.press("Escape");
   await expect(j1.pagina.getByTestId("menu-token")).toHaveCount(0);
 
   const esperado = ["Caído", "Cego", "Envenenado", "Exaustão 2", "Concentração: Bênção"];
@@ -319,7 +323,7 @@ test("condição e concentração que o jogador aplica no próprio token aparece
 
   // o mestre tira tudo e o jogador vê
   await menuDoToken(mestre.pagina, "tok-jogador-1");
-  await mestre.pagina.getByTestId("menu-token-condicoes").click();
+  await expect(mestre.pagina.getByTestId("menu-token-painel-condicoes")).toBeVisible();
   // um clique por vez, esperando o marcador soltar: o menu parte do que a sala já mandou, e clicar na
   // frente disso (antes de a rodada de eventos chegar) refazia o marcador (instável)
   for (const c of ["caido", "cego", "envenenado"]) {

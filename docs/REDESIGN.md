@@ -431,10 +431,91 @@ antes (o grid da cena, por exemplo, continua sendo `cena.configurarGrid`, só ed
 - O selo de modo ("Paredes e portas") é só para paredes; outros modos (luz, ponto) seguem sem selo.
 - As posições de janelas e o resto do R5 (Esc, criar token com nome, tocha com dica etc.).
 
+## R5a — como ficou (2026-11-11)
+
+Interações no mapa e nos tokens (o R5 do plano foi dividido: este é o **R5a**; o **R5b** é combate, fichas, compêndio e
+PDF). Nada mudou na sala, no protocolo nem na exportação: nenhum frame novo e nenhum frame de menos (cada ação
+nova usa o mesmo frame de antes). Resolve 7, 8 (o resto), 9, 10, 11, 12 e 13, mais a dica das condições por
+clique e as alças de tocha sobre o ícone de ponto (do "Em aberto").
+
+**O que foi feito**
+- **Esc solta a seleção** (item 8; `Mesa.tsx`): limpa a seleção de tokens e de desenhos, fecha os menus do botão
+  direito (token e tocha), a regra aberta e a dica, e cancela o modo "pôr token". O mapa cancela os gestos dele:
+  régua e medidas fixas, o arrasto de um token (ele volta de onde saiu; só se já andou vai um `token.soltar`
+  com a posição de origem) e o de uma alça de tocha; a sequência de paredes e o traço do pincel já eram
+  assim. Esc **não** age com o foco num campo de texto nem com o foco dentro de uma janela (no painel do token,
+  soltar a seleção fecharia o painel), e **não** fecha janelas (decisão do R3). Com o foco no mapa e o painel
+  aberto, Esc solta a seleção e o painel fecha junto (ele segue a seleção) (assumido).
+- **O painel do token deixou de abrir sozinho** (item 8): selecionar só seleciona. O painel abre por **"Editar
+  token…"** no menu do botão direito (primeiro item, só do mestre) e por **dois cliques no token** (só do
+  mestre; com a ferramenta de seleção). Aberto, ele segue o token selecionado; sem token selecionado
+  (Esc, clique no vazio, apagar) ele fecha, e a seleção seguinte não o abre.
+- **Novo token pede nome e lugar** (item 7; `NovoToken.tsx`): "Novo token" (grupo Mapa) abre uma janela pequena com
+  nome (já focado), cor (seis amostras) e tamanho (1 a 4 quadrados); Enter ou "Pôr no mapa" fecha e liga o **modo de
+  pôr**: uma prévia do token (cor, iniciais e tamanho certos, encaixada no grid) segue o cursor e um selo diz
+  "Clique no mapa para pôr X · Esc cancela · Alt inverte o encaixe". O clique cria o token (`token.criar`, o mesmo
+  frame de antes, na camada de trabalho) e o seleciona. Esc, "Cancelar", trocar de ferramenta ou de cena
+  cancelam sem enviar nada. A janela lembra que dá para **arrastar um personagem da aba Fichas para o mapa**
+  (isso já existia).
+- **Tocha** (item 9; `mapaPixi.ts`, `MenuDoToken.tsx`): passar o mouse na alça mostra uma dica no estilo das do R4
+  ("Dois cliques: apagar ou acender · Botão direito: mais ações"; para a tocha de outro personagem, diz que só
+  o dono e o mestre mexem nela). As ações também estão no menu do botão direito do **token** que a carrega,
+  num grupo **"Tocha"**: "Apagar a tocha"/"Acender a tocha" (o menu fica aberto) e "Guardar na mochila" (fecha),
+  com os mesmos frames (`tocha.alternar`, `tocha.guardar`) dos dois cliques e do menu da alça. **A alça é
+  maior** (círculo de 20 px, chama maior, tempo em 15 px) e, se cair em cima do ícone de um ponto de luz, afasta
+  para o lado (até três passos) para os dois ficarem à vista e clicáveis.
+- **Condições com menos cliques** (item 10): o menu do token mostra as 14 condições direto como itens de marcar
+  (um clique liga ou desliga; o menu fica aberto), com exaustão e concentração logo abaixo; saíram "Condições…" e
+  "Fechar" (Esc ou clique fora fecha). Os **marcadores no token ficaram maiores** (raio de 9 para 13 px, letra de
+  10 para 12) e, em token pequeno, cabem menos antes do "+N". **A regra abre por clique** no marcador (popover
+  "Regra" com o resumo, que fecha com Esc, "Fechar" ou clique fora), além da dica no mouse.
+- **Régua que fica na tela** (item 11): soltar a medida a deixa na tela com um botão **"Fixar"** ao lado do rótulo;
+  Shift ao soltar já fixa. Fixada, ela deixa medir outra; some com **Esc**, com **um clique nela** (na linha ou no
+  rótulo) ou ao **trocar de ferramenta ou de cena**. Só da tela de quem mediu (a régua nunca foi compartilhada).
+- **Aviso perto do clique** (item 12; `AvisoPerto.tsx`, `useSala.ts`): o aviso de erro aparece dentro da área do
+  mapa, logo abaixo (ou acima, se não couber) do ponto onde a pessoa agiu. A origem vem do ponteiro no momento
+  do envio, guardada por id de pedido e ligada ao erro pelo `idPedido` da resposta; sem ponteiro recente, usa o
+  campo com o foco; sem nenhum dos dois (a sala avisando por conta própria) fica no alto, ao centro da área. Fica
+  de 6 s (mínimo) a 12 s, mais tempo quanto maior o texto, e **um clique** (ou o X) o dispensa.
+  `data-testid="aviso"` e `data-codigo` continuam.
+- **Jogador sem token na cena** (item 13): em vez da tela preta, um cartão no meio da área do mapa
+  (`sem-token`): "Você ainda não tem um personagem nesta cena. Peça ao mestre para pôr o seu token no mapa."
+  ou, se o jogador tem personagem cujo token não está na cena, "Seu personagem não está nesta cena" com o
+  nome. A visão não mudou; só explica. Some quando o token aparece. O mestre "vendo como" um jogador sem token
+  vê a versão em terceira pessoa.
+
+**Decisões (assumido)**
+- (assumido) Dois cliques no token abrem o painel; antes dois cliques num token não faziam nada. Fica só para o
+  mestre (o painel é dele).
+- (assumido) O painel do token fecha quando não há mais token selecionado; a seleção seguinte não o reabre.
+- (assumido) "Novo token" cria um token por vez: depois do clique o modo termina (não é uma ferramenta que
+  fica ligada). O encaixe no grid segue a preferência de encaixe (Alt inverte); antes o token novo sempre
+  encaixava.
+- (assumido) O formulário não tem campo para a camada: nasce na camada de trabalho, como antes.
+- (assumido) A fixação da régua é pelo botão "Fixar" (visível) e por Shift ao soltar (atalho); medidas
+  fixas se acumulam (quantas quiser) e saem juntas com Esc ou ao trocar de ferramenta.
+- (assumido) No grupo "Tocha" do menu do token não há "Entregar": entregar continua por arrastar a alça até outro
+  token (a dica da alça fala em "mais ações"; o arrasto segue como era).
+- (assumido) Clicar num marcador de condição abre a regra e **não** arrasta o token (o marcador fica na borda
+  de baixo; arrastar o token pelo corpo continua igual).
+- (assumido) Aviso: duração de 6 s a 12 s (3,5 s mais 55 ms por letra, no mínimo 6 s). Como todo aviso vem de
+  um erro da sala, não há duração diferente para "erro" e "informação".
+- (assumido) A dica da tocha aparece só com o mouse, não por foco de teclado (a alça é desenhada no canvas e
+  não recebe foco); o menu do token também só abre pelo botão direito.
+- (assumido) Esc no meio do arrasto de um token o devolve à origem; o resto das ferramentas ficou como era.
+- (assumido) Estado vazio do jogador: só aparece com a iluminação dinâmica ligada (sem ela o mapa está claro e
+  não há o que explicar).
+
+**O que ficou para depois**
+- Seleção múltipla no mapa (continua não existindo).
+- Menu do token e atalhos de teclado pelo teclado (só botão direito e mouse) e a dica da alça por foco: R6.
+- Aviso sem origem ("sala avisando") só foi conferido por leitura do código e do CSS, não por E2E.
+- "Entregar" a tocha pelo menu do token.
+
 ## Em aberto
 
-- R1, R2, R2b, R3 e R4 feitos (2026-11-10). **Plano aprovado (2026-11-10):** R2 a R6 seguem como planejados, um depois do
-  outro; depois do R6 o Vilella faz os ajustes finos de UX/UI e a reorganização dos itens, a partir de
-  `docs/PASSAGEM.md`.
-- Itens de interface que vieram dos lotes e entram no R5/R6: a dica das condições abrir por clique, alças de
-  tocha sobrepostas ao ícone de ponto, seleção múltipla no mapa.
+- R1, R2, R2b, R3, R4 (2026-11-10) e R5a (2026-11-11) feitos. **Plano aprovado (2026-11-10):** R2 a R6 seguem
+  como planejados, um depois do outro (o R5 foi dividido em R5a e R5b); depois do R6 o Vilella faz os ajustes
+  finos de UX/UI e a reorganização dos itens, a partir de `docs/PASSAGEM.md`.
+- Itens de interface que vieram dos lotes: seleção múltipla no mapa (ainda não existe). A dica das condições por
+  clique e as alças de tocha sobre o ícone de ponto foram resolvidas no R5a.

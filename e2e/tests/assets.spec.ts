@@ -13,6 +13,7 @@ import {
   metaPorNome,
   pngDeRuido,
 } from "./ajudasAssets";
+import { abrirPainelDoToken, criarToken } from "./ajudasMapa";
 
 // Os assets são locais: o servidor só repassa bytes. Aqui cada contexto do Playwright é "outro PC"
 // (cache OPFS próprio). As imagens são geradas no teste; o limite do tile é reduzido por gancho
@@ -35,7 +36,7 @@ async function entrarNoMapa(mesa: Mesa, usuario: string, gancho?: Parameters<Mes
   return s;
 }
 
-/** Clica no token (com o mouse de verdade) para selecioná-lo; abre o painel do token do mestre. */
+/** Dois cliques no token (mouse de verdade): seleciona e abre o painel do token do mestre (R5a). */
 async function selecionarToken(p: Page, id: string) {
   const alvo = await p.evaluate((tid) => {
     const h = (window as unknown as { __tabletop: Gancho }).__tabletop;
@@ -44,7 +45,7 @@ async function selecionarToken(p: Page, id: string) {
     h.centrarEm(t.x, t.y);
     return h.paraTela(t.x, t.y);
   }, id);
-  await p.mouse.click(alvo.x, alvo.y);
+  await p.mouse.dblclick(alvo.x, alvo.y);
   await expect(p.getByTestId("painel-token")).toBeVisible();
 }
 
@@ -417,8 +418,8 @@ test("a sala só repassa pedaço que ela pediu àquele socket: frame forjado som
   const mestre = await entrarNoMapa(mesa, "mestre");
   const j1 = await entrarNoMapa(mesa, "jogador-1");
   const j2 = await entrarNoMapa(mesa, "jogador-2");
-  await mestre.pagina.getByTestId("novo-token").click();
-  await expect(mestre.pagina.getByTestId("painel-token")).toBeVisible();
+  const idRei = await criarToken(mestre.pagina, "Rei");
+  await abrirPainelDoToken(mestre.pagina, idRei);
   await imagemDoTokenSelecionado(mestre.pagina, arquivoPng("rei.png", pngDeRuido(200, 200, 41, 4)));
   const meta = await metaPorNome(mestre.pagina, "rei.png");
   await esperarPronto(j1.pagina, meta.hash);

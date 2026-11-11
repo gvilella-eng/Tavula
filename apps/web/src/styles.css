@@ -340,23 +340,38 @@ textarea {
   font-weight: 600;
 }
 
+/* O aviso fica dentro da área do mapa, perto de onde a pessoa agiu (AvisoPerto.tsx). */
 .aviso {
   position: absolute;
   z-index: 60;
-  bottom: 16px;
-  left: calc(
-    var(--largura-barra) +
-    (100% - var(--largura-barra) - var(--largura-painel-ativa)) /
-    2
-  );
-  transform: translateX(-50%);
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
   margin: 0;
-  max-width: calc(100% - var(--largura-barra) - var(--largura-painel-ativa) - 32px);
-  padding: 8px 14px;
+  width: max-content;
+  max-width: min(360px, calc(100% - 16px));
+  padding: 8px 8px 8px 14px;
   background: var(--cabecalho);
   border: 1px solid var(--acento);
   border-radius: 8px;
   box-shadow: var(--sombra);
+  cursor: pointer;
+}
+.aviso-fechar {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  color: var(--texto-suave);
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+}
+.aviso-fechar:hover {
+  color: var(--texto);
+  background: var(--campo);
 }
 
 /* --- barra de ferramentas ----------------------------------------------------------------- */
@@ -450,6 +465,33 @@ textarea {
   border-radius: 6px;
   pointer-events: none;
   white-space: nowrap;
+}
+.regua-fixar {
+  position: absolute;
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  font-size: 12px;
+  background: var(--painel);
+  border: 1px solid var(--acento);
+  border-radius: 6px;
+  box-shadow: var(--sombra);
+  white-space: nowrap;
+}
+/* A medida fixada é um botão: um clique a tira. */
+.regua-rotulo.regua-fixa {
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid var(--acento-forte);
+  pointer-events: auto;
+  cursor: pointer;
+}
+.regua-rotulo.regua-fixa:hover {
+  border-color: var(--texto);
 }
 
 /* --- painel do token ---------------------------------------------------------------------- */
@@ -3505,6 +3547,31 @@ button:disabled:hover {
 .menu-token .menu-titulo {
   padding: 2px 10px 6px;
 }
+.menu-token {
+  overflow-y: auto;
+}
+.mt-grupo,
+.mt-condicoes {
+  min-width: 0;
+  margin: 4px 0 0;
+  padding: 6px 0 0;
+  border: 0;
+  border-top: 1px solid var(--borda);
+}
+.mt-grupo-titulo {
+  display: block;
+  padding: 0 10px 4px;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.mt-tocha-nome {
+  display: block;
+  padding: 2px 10px 0;
+}
+.mt-ultimo {
+  padding-bottom: 6px;
+}
 .mt-grade {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -3570,6 +3637,28 @@ button:disabled:hover {
 .dica-condicao p {
   margin: 4px 0 0;
   color: var(--texto-suave);
+}
+
+/* A regra de uma condição aberta por clique no marcador (fecha com Esc ou clique fora). */
+.regra-condicao {
+  position: fixed;
+  z-index: 75;
+  width: 300px;
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 1.4;
+  background: var(--painel);
+  border: 1px solid var(--acento);
+  border-radius: 10px;
+  box-shadow: var(--sombra);
+}
+.regra-condicao p {
+  margin: 6px 0 8px;
+  color: var(--texto-suave);
+}
+.regra-condicao-fechar {
+  padding: 3px 10px;
+  font-size: 12px;
 }
 
 /* Condições na aba Principal da ficha */
@@ -4097,4 +4186,81 @@ button:disabled:hover {
 .selo-modo {
   left: 12px;
   transform: none;
+}
+
+/* --- R5a: novo token, modo de pôr, estado vazio ------------------------------------------------ */
+
+.novo-token form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.novo-token label,
+.novo-token fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: var(--texto-suave);
+}
+.novo-token fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.novo-token legend {
+  padding: 0;
+  margin-bottom: 4px;
+}
+.novo-token-nota {
+  margin: 0;
+}
+.novo-token .novo-token-cor-rotulo {
+  position: relative;
+  flex-direction: row;
+  cursor: pointer;
+}
+.novo-token-cor {
+  display: block;
+  width: 26px;
+  height: 26px;
+  border: 2px solid var(--borda);
+  border-radius: 50%;
+}
+.novo-token-cor-rotulo input:checked + .novo-token-cor {
+  border-color: var(--texto);
+  box-shadow: 0 0 0 2px var(--acento);
+}
+.novo-token-cor-rotulo input:focus-visible + .novo-token-cor {
+  outline: 2px solid var(--acento);
+  outline-offset: 3px;
+}
+.selo-modo .selo-dica {
+  color: var(--texto-suave);
+}
+.selo-modo svg {
+  vertical-align: -2px;
+}
+.estado-vazio-mapa {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 20;
+  transform: translate(-50%, -50%);
+  width: min(420px, calc(100% - 48px));
+  padding: 16px 20px;
+  text-align: center;
+  background: var(--painel);
+  border: 1px solid var(--borda);
+  border-radius: 12px;
+  box-shadow: var(--sombra);
+}
+.estado-vazio-mapa strong {
+  font-family: var(--fonte-titulo);
+  font-size: 18px;
+}
+.estado-vazio-mapa p {
+  margin: 8px 0 0;
+  color: var(--texto-suave);
+  line-height: 1.45;
 }
