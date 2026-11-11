@@ -7,8 +7,8 @@ ponteiro, não entrou. Onde a fonte é ambígua ou os docs se contradizem, o ite
 Ponteiros: `REDESIGN` = `docs/REDESIGN.md`, `PERGUNTAS` = `docs/PERGUNTAS.md`, `ESTADO` = `docs/ESTADO.md`,
 `PROJETO` = `PROJETO.md` (na raiz), `IDEIAS` = `docs/IDEIAS.md`. Número depois dos dois-pontos é a linha.
 
-Estado dos docs em 2026-11-10: os Redesigns R1, R2, R2b (pausa automática e 11 temas) e R3 (janelas flutuantes)
-estão entregues; R4 em diante não começou (fim do `ESTADO`, "Próximo").
+Estado dos docs em 2026-11-10: os Redesigns R1, R2, R2b (pausa automática e 11 temas), R3 (janelas flutuantes)
+e R4 (organização do mestre) estão entregues; R4 (organização do mestre) também; R5 em diante não começou (fim do `ESTADO`, "Próximo").
 
 ## 1. Como subir a mesa para olhar
 
@@ -38,7 +38,7 @@ Tudo em `apps/web/src/`.
 - `styles.css`: todo o resto do visual, usando as variáveis CSS dos tokens. Sobraram cores fixas só de
   conteúdo (texto branco no avatar, contorno do ponto da ordem de turno, sigla das condições, roda de cores
   do pincel) (`REDESIGN:132-139`).
-- `SeletorDeTema.tsx`: o seletor de bolinhas (aba Configurações, "Preferências deste navegador"; grupo de rádio, setas).
+- `SeletorDeTema.tsx`: o seletor de bolinhas (aba Preferências, desde o R4; grupo de rádio, setas).
 - `Logo.tsx`: símbolo SVG da mesa redonda com a chama, mais o nome em Space Grotesk. `../public/favicon.svg`:
   o favicon. Título da aba em `index.html`/`App.tsx`.
 - `main.tsx`: importa as fontes (`@fontsource-variable/space-grotesk` e `inter`) e aplica o tema antes da
@@ -49,20 +49,18 @@ Tudo em `apps/web/src/`.
   - `area.ts`: onde fica a área do mapa na página (`caixaDaArea`), para prender menus, dicas e janelas a ela. `larguraDoPainel.ts` e `preferencias.ts`: a largura do painel direito (300 px a 1/4 da janela, `tabletop:pref:larguraDoPainel`).
   - `mapa/Mapa.tsx`, `mapa/mapaPixi.ts`, `mapa/camadaDeLuz.ts`, `mapa/camadaDeDesenho.ts`: o mapa em PixiJS.
     **Não muda com o tema** (`REDESIGN:138-139`).
-  - `MenuSuperior.tsx`: os menus do mestre, dentro do topo (a pausa e o relógio saíram para `EstadoDaMesa.tsx`).
-  - `BarraDeFerramentas.tsx`: barra fixa de 52 px à esquerda (selecionar, mão, régua, dados rápidos, pincel); a sub-barra do pincel abre ao lado dela.
+  - `MenuSuperior.tsx`: os menus do mestre em grupos com nome (Cena, Mapa, Luz, Combate, Ver como), cada botão com dica no mouse e no foco, dentro do topo (a pausa e o relógio estão em `EstadoDaMesa.tsx`).
+  - `BarraDeFerramentas.tsx`: barra fixa de 52 px à esquerda (selecionar, mão, régua, dados rápidos, pincel e, só do mestre, Paredes e portas, que liga o modo; o selo do modo está em `Mesa.tsx`); a sub-barra do pincel abre ao lado dela.
   - `BarraLateral.tsx`: painel direito de cima a baixo, recolhível, com abas de ícone e nome e a alça de largura.
-  - `abas.tsx`: conteúdo de várias abas (notas da mesa e do mestre, pasta local de imagens/Biblioteca,
-    status dos arquivos).
+  - `abas.tsx`: `AbaNotas` (nota da mesa e do mestre) e `AbaPreferencias` (usuário, tema, encaixe, pasta local de imagens, status dos arquivos).
   - `AbaChat.tsx`, `AbaFichas.tsx`, `AbaCompendio.tsx`: as abas de chat (com os modelos de rolagem), fichas
-    (notas e pastas) e compêndio de magias.
-  - `PainelDoMestre.tsx`, `PainelDaMesa.tsx`, `PainelDeIluminacao.tsx`: configurações do mestre, regras da
-    mesa (mãos, penalidade, estágios, modelos de luz) e iluminação.
+    (só pastas e fichas; as notas têm aba própria) e compêndio de magias.
+  - `AbaMesa.tsx` (a aba Mesa, só do mestre: índice, papéis, capacidades, campanha, diagnóstico), `PainelDaMesa.tsx` (as seções de regras da mesa e de modelos de luz que ela usa) e `PainelDeIluminacao.tsx` (a janela de iluminação).
   - `PainelDoToken.tsx`: painel compacto do mestre para o token selecionado (canto inferior esquerdo da área do mapa).
   - `janelas/Janela.tsx`, `janelas/pilha.ts`, `janelas/geometria.ts`: a janela flutuante comum (arrastar, minimizar, redimensionar, dentro da área, pilha). Posição e tamanho por janela em `tabletop:pref:janela:<id>` (`preferencias.ts`).
   - `OrdemDeTurno.tsx`: a ordem de turno (uma `Janela`).
   - `FaixaDeCenas.tsx`: faixa de cenas, com prévia do mapa e menu de contexto.
-  - `ConfigurarCena.tsx`: nome, mapa, pixels por quadrado e grid da cena.
+  - `ConfigurarCena.tsx`: nome, mapa, pixels por quadrado e o grid da cena (visível e quadrado em metros).
   - `PainelDasParedes.tsx`, `PainelDeFontesDeLuz.tsx`: paredes e portas; fontes de luz.
   - `MenuDoToken.tsx`, `MenuDaTocha.tsx`: menus de botão direito no token (iniciativa, condições) e na alça da
     tocha.
@@ -75,16 +73,16 @@ Tudo em `apps/web/src/`.
 ## 3. Levantamento de usabilidade (22 itens)
 
 Fonte: `REDESIGN:38-87`. Prioridade: A = atrapalha o jogo ou esconde função; B = confunde ou dá trabalho; C =
-acabamento. Lote = o do plano (`REDESIGN:89-117`) que resolve o item. R1, R2 e R3 foram entregues.
+acabamento. Lote = o do plano (`REDESIGN:89-117`) que resolve o item. R1, R2, R3 e R4 foram entregues.
 
 | # | Resumo | Classe | Lote |
 |---|---|---|---|
 | 1 | Sem estrutura fixa: menu, ferramentas e painéis flutuam sobre o mapa; em 1280×720 ordem de turno e ficha tomam quase a tela | A | R2 (entregue) |
-| 2 | Ícones do menu superior sem nome e alguns enganam (copo = Iluminação, lua com clique direito escondido, raio "em breve") | A | R4 |
+| 2 | Ícones do menu superior sem nome e alguns enganam (copo = Iluminação, lua com clique direito escondido, raio "em breve") | A | R4 (entregue) |
 | 3 | Abas do painel direito só com ícone; o nome só aparece depois de abrir | B | R2 (entregue) |
-| 4 | Coisas no lugar errado: Notas em Fichas; Configurações mistura pessoal, regras e tocha; aba Mestre mistura papéis, grid, capacidades e "uso de hoje" | A | R4 |
-| 5 | Paredes escondidas (copo, Paredes e portas, tipo, cliques); nada mostra o modo ligado | A | R4 |
-| 6 | Modelos de tocha só aparecem rolando Configurações | B | R4 |
+| 4 | Coisas no lugar errado: Notas em Fichas; Configurações mistura pessoal, regras e tocha; aba Mestre mistura papéis, grid, capacidades e "uso de hoje" | A | R4 (entregue) |
+| 5 | Paredes escondidas (copo, Paredes e portas, tipo, cliques); nada mostra o modo ligado | A | R4 (entregue) |
+| 6 | Modelos de tocha só aparecem rolando Configurações | B | R4 (entregue) |
 | 7 | "+" cria "Novo token" no meio da vista sem perguntar nome nem lugar | B | R5 |
 | 8 | Esc não solta a seleção; painel do token cobre o mapa | B | R3 (painel, entregue: arrasta, minimiza e fecha) e R5 (Esc, e não abrir sozinho) |
 | 9 | Tocha só por gestos sem explicação; alça e tempo pequenos | A | R5 |
@@ -138,7 +136,7 @@ Lote 8
 19. Retrato de quem fala pode ser visto por quem não vê a ficha? (assumido: sim, em mensagem pública) (`PERGUNTAS:82`)
 
 Lote 9
-20. Ficha completa de outro personagem só com `ficha.verOutras` (padrão desligado)? (assumido) (`PERGUNTAS:45`). **Inconsistência real**: a capacidade sumiu da tela do mestre (`PainelDoMestre.tsx:24`, "quem vê a ficha agora é a pasta"), mas ainda libera a ficha completa no código (`packages/shared/src/mapa.ts:81`). Decidir se sai de vez ou volta à tela.
+20. Ficha completa de outro personagem só com `ficha.verOutras` (padrão desligado)? (assumido) (`PERGUNTAS:45`). **Inconsistência real**: a capacidade sumiu da tela do mestre (`AbaMesa.tsx`, `CAPACIDADES_NA_TELA`, "quem vê a ficha agora é a pasta"), mas ainda libera a ficha completa no código (`packages/shared/src/mapa.ts:81`). Decidir se sai de vez ou volta à tela.
 21. ~~Ficha numa janela flutuante~~: já existe (`ficha/JanelaDaFicha.tsx`); arrastar e lembrar a posição por usuário entregue no R3 (`janelas/Janela.tsx`; `PERGUNTAS:46`). Não conta no total.
 22. O jogador pode repor tochas na própria ficha? (assumido: só o mestre aumenta) (`PERGUNTAS:86`)
 23. A importação da ficha deve ler também de dentro de `fichas/`? (assumido: arquivo escolhido) (`PERGUNTAS:87`)
@@ -179,7 +177,7 @@ Fora da contagem, no mesmo arquivo: "A lista de presença ocupa muito espaço co
 o item 17 do levantamento (resolvido no R2: avatares no topo); "Sobreposição de alças e ícones de ponto" (`PERGUNTAS:38`) está na seção 5
 (Lote 7); "Ideias para o 7b" (`PERGUNTAS:62`) está na seção 7.
 
-### B. Suposições "(assumido)" só no ESTADO/REDESIGN (55)
+### B. Suposições "(assumido)" só no ESTADO/REDESIGN (63)
 
 Não aparecem em `PERGUNTAS`. Resumidas; o texto completo está no ponteiro.
 
@@ -259,8 +257,16 @@ Redesign R3 (`REDESIGN`, "R3 — como ficou")
 100. Minimizar esconde o corpo sem desmontá-lo; a posição só é guardada depois que a pessoa move ou redimensiona
 101. Posições padrão: ordem no alto à direita, token embaixo à esquerda, ficha no alto à esquerda (até 60% da largura, 75% da altura), paredes e fontes lado a lado no alto à esquerda, iluminação ao centro, dados ao lado do botão
 102. Seletor de tema: token novo `amostra` por tema para a metade de cima da bolinha; a interface não muda de cor
+103. "Ver como" é o quinto grupo do menu; o nome dos grupos fica em letra pequena embaixo dos ícones (não cabe rótulo ao lado nos 48 px com o painel em 320 px)
+104. O botão Paredes e portas fica embaixo do pincel, separado por um filete, e some quando o mestre está vendo como um jogador
+105. O grid da cena tem só "visível" e "quadrado em metros" (o modelo não tem cor de grid) e vale ao Salvar da configuração; quadrado fora de 0,3 a 10 m dá erro no formulário
+106. Esc no modo Paredes só encerra a sequência em andamento; sair do modo é pela barra, V/H/R, a janela ou o selo (Esc soltar a seleção é do R5)
+107. As seis abas do mestre cabem numa linha a partir de 300 px, com os nomes inteiros (folga lateral menor)
+108. Não existe aba guardada entre visitas (o painel abre sempre no Chat), então não houve migração de "Configurações" nem de "Mestre"
+109. Sem controle numérico de largura do painel nas Preferências (fica a alça do R2)
+110. A aba Mesa aparece e some na hora quando o papel de alguém muda
 
-Os itens 49 a 85 são 37; o R2 acrescenta os itens 86 a 92, o R2b os 93 a 96 e o R3 os 97 a 103. Deixei de fora as suposições puramente técnicas (por exemplo, onde mora o compêndio
+Os itens 49 a 85 são 37; o R2 acrescenta os itens 86 a 92, o R2b os 93 a 96, o R3 os 97 a 103 e o R4 os 104 a 111. Deixei de fora as suposições puramente técnicas (por exemplo, onde mora o compêndio
 na tabela `meta`, o worker do pdf.js, tipos do Node no teste, idempotência de `desenho.apagar`).
 
 ## 5. Pontos frágeis por lote
@@ -367,6 +373,13 @@ Redesign R1
 - Texto branco sobre cores de usuário claras (amarelo do mestre) no avatar: contraste baixo; fica para o R6. (`ESTADO:1666`, `REDESIGN:167-168`)
 - Os rótulos desenhados dentro do mapa não seguem o tema; também ficam para o R6. (`ESTADO:1667`, `REDESIGN:168`)
 
+Redesign R4
+- Os E2E só rodam com 1 worker (sala compartilhada): `--workers` maior dá falhas falsas. (`ESTADO`, "R4", Como rodar)
+- A dica do menu do topo é própria do `MenuSuperior`; a barra de ferramentas esquerda e o resto seguem com `title` nativo (sem dica no foco do teclado). Unificar e pôr os atalhos nas dicas: R6. (`ESTADO`, "R4", Frágil)
+- Os prints antigos (`e2e/prints/r1` a `r3` e os dos lotes) usam testids que não existem mais (`aba-configuracoes`, `lanterna-paredes`): só o `r4` roda. (`ESTADO`, "R4", Frágil)
+- O selo de modo existe só para Paredes e portas; luz e ponto não têm. (`ESTADO`, "R4", Frágil)
+- `PROJETO.md` ainda cita a aba "Configurações" e a aba do mestre em textos de lotes antigos (por exemplo `PROJETO:745`, `PROJETO:1017`, `PROJETO:1236`): hoje são as abas Preferências e Mesa.
+
 Redesign R3
 - Toque (celular) não testado: arrastar e redimensionar as janelas só foram testados com mouse. (`ESTADO`, "R3", Frágil)
 - Com ordem de turno, ficha e painel do token abertos em 1280×720 as três se sobrepõem em parte nas posições padrão; a última clicada fica por cima. (`ESTADO`, "R3", Frágil)
@@ -381,7 +394,7 @@ Redesign R2b
 Redesign R2
 - Ao mudar o tamanho da área (painel, janela) a vista do mapa fica ancorada no canto superior esquerdo; "Centralizar" resolve. (`ESTADO:1723`, `REDESIGN:244`)
 - A pílula do mestre muda de largura entre rodando e pausada, deslocando os avatares ao lado. (`ESTADO:1725`)
-- Com 5 abas na largura mínima "Configurações" ocupa quase a linha; uma aba a mais quebraria para a segunda linha. (`ESTADO:1726`)
+- Com 5 abas na largura mínima "Configurações" ocupava quase a linha. Ficou velho: desde o R4 são 6 abas (5 para o jogador) e elas cabem numa linha em 300 px, apertadas. (`ESTADO`, "R4")
 - A lista do "+N" da presença não tem teste de foco por teclado. (`ESTADO:1724`)
 
 Itens de interface que `REDESIGN:251-252` manda para o R5/R6 e que já estão acima: a dica das condições abrir
@@ -434,7 +447,7 @@ planejados, mudam de escopo ou ficam com ele):
 - **R3, janelas flutuantes (entregue)**: componente único (arrastar, posição e tamanho por usuário, dois cliques
   minimizam, sempre na tela, a última clicada por cima) para ordem de turno, ficha, token, paredes, fontes de
   luz, iluminação e dados rápidos. Resolve 8 (parte), 14 (parte), 16.
-- **R4, organização do mestre**: menu superior agrupado e com nomes; Paredes vira ferramenta da barra
+- **R4, organização do mestre (entregue)**: menu superior agrupado e com nomes; Paredes vira ferramenta da barra
   esquerda; "Eventos" sai até o 7b; Configurações separadas em Preferências e Mesa; Notas viram aba; grid vai
   para a cena; "uso de hoje" vai para diagnóstico. Resolve 2, 4, 5, 6.
 - **R5, interações e fluxos**: Esc solta a seleção; criar token pede nome e lugar; tocha com dica e menu;

@@ -9,6 +9,11 @@ Juntadas durante os Lotes 6 a 14 (2026-11-06 a 10) para fazer ao Vilella no fim.
 - Darion: valem os números do **PDF** (9 tochas; 7 flechas de máximo 20) (feito no `darion.json`).
 - Visão do mestre: a área de visão no escuro do jogador aparece em **cor normal** para o mestre (como já estava).
 
+## Novas do R4 (2026-11-10)
+- O brief do R4 falava em "tamanho, cor, visível" para o grid da cena, mas a cena só tem "visível" e "quadrado em metros" (não há cor de grid no modelo). (assumido) ficou sem cor; se quiser cor, é mudança na sala (novo campo no grid e no protocolo).
+- Os botões do menu do topo mostram nome e o que fazem, mas ainda sem atalho de teclado (não há atalhos para eles). (assumido) atalhos e dicas unificadas na barra esquerda ficam para o R6.
+- Nenhuma pergunta antiga foi respondida pelo R4; a de `ficha.verOutras` segue aberta (só mudou de aba, de Mestre para Mesa).
+
 ## Já vinham de antes
 - Camada mapa = imagem do mapa + objetos de cenário? (assumido)
 - Pincel: jogador apaga/seleciona só os próprios desenhos? desenhar é delegável e ligado por padrão? (assumido)
@@ -41,7 +46,7 @@ Juntadas durante os Lotes 6 a 14 (2026-11-06 a 10) para fazer ao Vilella no fim.
 - Chat fora da exportação da campanha? (assumido)
 
 ## Lote 9
-- Ficha completa de outro personagem só com ficha.verOutras (padrão desligado)? (assumido) Atenção: a capacidade sumiu da tela do mestre (`PainelDoMestre.tsx:24`, "quem vê a ficha agora é a pasta"), mas ainda vale no código (`packages/shared/src/mapa.ts:81`).
+- Ficha completa de outro personagem só com ficha.verOutras (padrão desligado)? (assumido) Atenção: a capacidade sumiu da tela do mestre (`AbaMesa.tsx`, `CAPACIDADES_NA_TELA`, "quem vê a ficha agora é a pasta"; o R4 só mudou a aba de lugar, de Mestre para Mesa), mas ainda vale no código (`packages/shared/src/mapa.ts:81`).
 - Ficha numa janela flutuante sobre o mapa (como nas mesas virtuais): feita no Lote 9 (`JanelaDaFicha.tsx`); arrastar e lembrar a posição por usuário vem no R3.
 
 ## Lote 10

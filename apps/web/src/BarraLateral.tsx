@@ -14,8 +14,12 @@ export type Aba = {
   cheia?: boolean;
 };
 
+/** Pedido de fora para abrir uma aba (e rolar até uma seção dela). `n` muda a cada pedido, para repetir o mesmo. */
+export type PedidoDeAba = { n: number; abaId: string; secaoTestid?: string };
+
 type Props = {
   abas: Aba[];
+  pedido?: PedidoDeAba | null;
   /** Avisa se o painel está aberto, para o mapa ganhar o espaço quando ele recolhe. */
   aoMudarAberta?: (aberta: boolean) => void;
   /** Qual aba está à vista agora (`null`: a barra está recolhida). */
@@ -36,6 +40,7 @@ const PASSO_GRANDE = 64;
  */
 export function BarraLateral({
   abas,
+  pedido,
   aoMudarAberta,
   aoMudarVisivel,
   largura,
@@ -46,6 +51,26 @@ export function BarraLateral({
   const [ativa, setAtiva] = useState("chat");
   const [arrastando, setArrastando] = useState(false);
   const ativaValida = abas.some((a) => a.id === ativa) ? ativa : (abas[0]?.id ?? "");
+
+  // Um pedido de fora (ex.: "Modelos de tocha…" no menu de Luz): abre a aba e depois rola até a seção.
+  const [secaoPendente, setSecaoPendente] = useState<PedidoDeAba | null>(null);
+  const pedidoN = pedido?.n;
+  // biome-ignore lint/correctness/useExhaustiveDependencies: só quando chega um pedido novo
+  useEffect(() => {
+    if (!pedido || !abas.some((a) => a.id === pedido.abaId)) return;
+    setAtiva(pedido.abaId);
+    definirAberta(true);
+    setSecaoPendente(pedido);
+  }, [pedidoN]);
+  useEffect(() => {
+    if (!secaoPendente || !aberta || ativaValida !== secaoPendente.abaId) return;
+    if (secaoPendente.secaoTestid) {
+      document
+        .querySelector(`[data-testid="${secaoPendente.secaoTestid}"]`)
+        ?.scrollIntoView({ block: "start" });
+    }
+    setSecaoPendente(null);
+  }, [secaoPendente, aberta, ativaValida]);
 
   const visivelAgora = aberta ? ativaValida : null;
   // biome-ignore lint/correctness/useExhaustiveDependencies: só avisa quando a aba à vista muda

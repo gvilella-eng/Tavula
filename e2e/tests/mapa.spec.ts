@@ -7,6 +7,7 @@ import {
   expect,
   intencaoCrua,
   type Mesa,
+  menuDaCena,
   type Sessao,
   test,
 } from "./ajudas";
@@ -167,7 +168,7 @@ test("segurar Alt solta o token sem encaixe; a preferência desliga o encaixe", 
   await esperarPosicao(mestre.pagina, "tok-jogador-2", 19.75, 11.75);
   await esperarPosicao(j2.pagina, "tok-jogador-2", 19.75, 11.75);
 
-  await abrirAba(mestre.pagina, "configuracoes");
+  await abrirAba(mestre.pagina, "preferencias");
   await mestre.pagina.getByTestId("pref-encaixe").uncheck();
   await arrastar(mestre.pagina, "tok-jogador-3", 1, 1);
   await esperarPosicao(mestre.pagina, "tok-jogador-3", 21.25, 10.75);
@@ -178,7 +179,7 @@ test("arrastar continuamente por 5 s envia no máximo ~110 token.mover", async (
   const mestre = await entrarNoMapa(mesa, "mestre");
   const j1 = await entrarNoMapa(mesa, "jogador-1");
   // sem encaixe, para cada pixel ser uma posição nova (o pior caso para o limitador)
-  await abrirAba(mestre.pagina, "configuracoes");
+  await abrirAba(mestre.pagina, "preferencias");
   await mestre.pagina.getByTestId("pref-encaixe").uncheck();
 
   const p = mestre.pagina;
@@ -309,7 +310,7 @@ test("o jogador não move token que não controla, nem sem token.moverProprio", 
   await esperarPosicao(mestre.pagina, "tok-jogador-2", 15.75, 9.75);
 
   // o mestre desliga token.moverProprio: o jogador perde até o próprio token
-  await abrirAba(mestre.pagina, "mestre");
+  await abrirAba(mestre.pagina, "mesa");
   await mestre.pagina.getByTestId("perm-padrao-token.moverProprio").click();
   await expect
     .poll(() => j1.frames.some((f) => f.includes('"capacidade":"token.moverProprio"')))
@@ -464,7 +465,15 @@ test("o mestre cria, edita e apaga tokens; camada e grid", async ({ mesa }) => {
   await expect
     .poll(async () => (await tokensDe(j1.pagina)).find((t) => t.id === criado?.id)?.tamanho)
     .toBe(3);
-  // o jogador 1 passa a poder mover esse token (tamanho 3: centro na célula)
+  // o jogador 1 passa a poder mover esse token (tamanho 3: centro na célula); a permissão chega num
+  // evento próprio, depois do nome e do tamanho, então espera por ela antes de arrastar
+  await expect
+    .poll(() =>
+      j1.frames.some(
+        (f) => f.includes(criado?.id ?? "") && f.includes('"controladoPor":["jogador-1"]'),
+      ),
+    )
+    .toBe(true);
   await arrastar(j1.pagina, criado?.id ?? "", 3, 0);
   await expect
     .poll(async () => (await tokenDe(mestre.pagina, criado?.id ?? "")).x)
@@ -491,10 +500,11 @@ test("o mestre cria, edita e apaga tokens; camada e grid", async ({ mesa }) => {
   await mestre.pagina.getByTestId("token-apagar").click();
   await expect.poll(async () => (await idsDe(j1.pagina)).length).toBe(4);
 
-  // grid da cena (aba Mestre): o quadrado vale para todos
-  await abrirAba(mestre.pagina, "mestre");
+  // grid da cena (configuração da cena, desde o R4): o quadrado vale para todos
+  await menuDaCena(mestre.pagina, "cena-1", "configurar");
   await mestre.pagina.getByTestId("grid-quadrado").fill("3");
-  await mestre.pagina.getByTestId("grid-quadrado").blur();
+  await mestre.pagina.getByTestId("cfg-salvar").click();
+  await expect(mestre.pagina.getByTestId("configurar-cena")).toHaveCount(0);
   for (const s of [mestre, j1]) {
     await expect
       .poll(() =>
@@ -504,6 +514,15 @@ test("o mestre cria, edita e apaga tokens; camada e grid", async ({ mesa }) => {
       )
       .toBe(3);
   }
-  await mestre.pagina.getByTestId("grid-visivel").click();
-  await expect(mestre.pagina.getByTestId("grid-visivel")).not.toBeChecked();
+  await menuDaCena(mestre.pagina, "cena-1", "configurar");
+  await expect(mestre.pagina.getByTestId("cfg-grid-visivel")).toBeChecked();
+  await mestre.pagina.getByTestId("cfg-grid-visivel").uncheck();
+  await mestre.pagina.getByTestId("cfg-salvar").click();
+  await expect
+    .poll(() =>
+      mestre.enviados.some(
+        (f) => f.includes("cena.configurarGrid") && f.includes('"visivel":false'),
+      ),
+    )
+    .toBe(true);
 });

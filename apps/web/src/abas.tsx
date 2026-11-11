@@ -5,7 +5,6 @@ import { type ArquivoDaFonte, temSeletorDePasta } from "./assets/fonte";
 import type { Fontes } from "./assets/fontes";
 import type { GerenteDeAssets, StatusDeAsset } from "./assets/gerente";
 import { CampoNota } from "./CampoNota";
-import { SecaoMesa, SecaoObjetosDeLuz } from "./PainelDaMesa";
 import { SeletorDeTema } from "./SeletorDeTema";
 import type { Ocorrencia } from "./useSala";
 
@@ -23,7 +22,7 @@ type PropsNotas = {
 export function AbaNotas({ estado, eu, pronto, enviar, ouvir }: PropsNotas) {
   const podeEditar = pode(eu, "nota.editar", estado.permissoes);
   return (
-    <>
+    <div className="aba-notas" data-testid="aba-notas-conteudo">
       <CampoNota
         testid="nota-mesa"
         rotulo="Nota da mesa (todos veem)"
@@ -48,7 +47,7 @@ export function AbaNotas({ estado, eu, pronto, enviar, ouvir }: PropsNotas) {
           ouvir={ouvir}
         />
       )}
-    </>
+    </div>
   );
 }
 
@@ -60,9 +59,7 @@ const ROTULO_DO_ESTADO: Record<StatusDeAsset["estado"], string> = {
   erro: "erro",
 };
 
-type PropsConfig = {
-  estado: Estado;
-  enviar: Enviar;
+type PropsPreferencias = {
   nome: string;
   papel: Papel;
   encaixe: boolean;
@@ -171,12 +168,11 @@ function Transferencias({ gerente }: { gerente: GerenteDeAssets }) {
 }
 
 /**
- * Trocar de usuário, preferências locais, pasta local de imagens e transferências. O mestre também
- * edita aqui a configuração da mesa e os modelos de objeto de luz.
+ * Aba Preferências (todos): o que é de cada pessoa, no navegador. Trocar de usuário, tema de cor,
+ * encaixe no grid, pasta local de imagens e transferências. O que vale para a sala (regras, modelos de
+ * luz, papéis) está na aba Mesa, só do mestre.
  */
-export function AbaConfiguracoes({
-  estado,
-  enviar,
+export function AbaPreferencias({
   nome,
   papel,
   encaixe,
@@ -184,7 +180,7 @@ export function AbaConfiguracoes({
   aoSair,
   fontes,
   gerente,
-}: PropsConfig) {
+}: PropsPreferencias) {
   return (
     <>
       <p>
@@ -193,7 +189,8 @@ export function AbaConfiguracoes({
       <button type="button" data-testid="trocar-usuario" onClick={aoSair}>
         Trocar usuário
       </button>
-      <h3>Preferências deste navegador</h3>
+      <h3>Neste navegador</h3>
+      <p className="nota">Só vale para você e fica guardado aqui, não vai para a mesa.</p>
       <SeletorDeTema />
       <label className="linha-opcao">
         <input
@@ -204,8 +201,6 @@ export function AbaConfiguracoes({
         />
         Encaixar tokens no grid (segure Alt ao arrastar para soltar sem encaixe)
       </label>
-      {papel === "mestre" && <SecaoMesa config={estado.config} enviar={enviar} />}
-      {papel === "mestre" && <SecaoObjetosDeLuz estado={estado} enviar={enviar} />}
       <PastaLocal fontes={fontes} />
       {gerente && <Transferencias gerente={gerente} />}
     </>

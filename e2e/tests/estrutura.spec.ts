@@ -229,13 +229,14 @@ test("as abas mostram ícone e nome, legíveis na largura mínima (300 px), do m
     chat: "Chat",
     fichas: "Fichas",
     compendio: "Compêndio",
-    configuracoes: "Configurações",
-    mestre: "Mestre",
+    notas: "Notas",
+    mesa: "Mesa",
+    preferencias: "Preferências",
   };
 
   for (const [p, ids] of [
-    [m, ["chat", "fichas", "compendio", "configuracoes", "mestre"]],
-    [j, ["chat", "fichas", "compendio", "configuracoes"]],
+    [m, ["chat", "fichas", "notas", "compendio", "mesa", "preferencias"]],
+    [j, ["chat", "fichas", "notas", "compendio", "preferencias"]],
   ] as const) {
     await p.getByTestId("alca-do-painel").focus();
     await p.keyboard.press("Home");
@@ -254,11 +255,12 @@ test("as abas mostram ícone e nome, legíveis na largura mínima (300 px), do m
     }
   }
   // o jogador só vê as dele
-  await expect(j.getByTestId("aba-mestre")).toHaveCount(0);
+  await expect(j.getByTestId("aba-mesa")).toHaveCount(0);
+  await expect(m.getByTestId("aba-mestre")).toHaveCount(0);
   // a aba escolhida abre e fica marcada
-  await m.getByTestId("aba-mestre").click();
-  await expect(m.getByTestId("aba-mestre")).toHaveAttribute("aria-selected", "true");
-  await expect(m.getByTestId("aba-painel-mestre")).toBeVisible();
+  await m.getByTestId("aba-mesa").click();
+  await expect(m.getByTestId("aba-mesa")).toHaveAttribute("aria-selected", "true");
+  await expect(m.getByTestId("aba-painel-mesa")).toBeVisible();
 });
 
 test("a presença está no topo: um segundo usuário entra e o avatar fica online; quando sai, fica offline", async ({
@@ -472,8 +474,7 @@ test("em 1280×720 tudo o que abre sobre o mapa fica dentro da área, sem cobrir
   await naArea("painel-config-iluminacao");
   await m.getByTestId("config-fechar").click(); // ele cobre o centro do mapa
   await m.getByTestId("painel-fontes-fechar").click(); // abre sobre o mesmo canto das paredes
-  await m.getByTestId("menu-iluminacao").click();
-  await m.getByTestId("lanterna-paredes").click();
+  await m.getByTestId("ferramenta-paredes").click();
   await expect(m.getByTestId("painel-paredes")).toBeVisible();
   await naArea("painel-paredes");
   await m.getByTestId("paredes-fechar").click(); // o clique direito no token só vale fora do modo paredes
@@ -536,7 +537,7 @@ test("recolhido, o painel mostra só os ícones das abas; clicar numa aba abre o
   const trilha = await caixa(m.getByTestId("barra-lateral"));
   expect(Math.round(trilha.width)).toBe(52);
   await expect(m.getByTestId("lateral-recolher")).toHaveCount(0);
-  for (const id of ["chat", "fichas", "compendio", "configuracoes", "mestre"]) {
+  for (const id of ["chat", "fichas", "notas", "compendio", "mesa", "preferencias"]) {
     await expect(m.getByTestId(`aba-painel-${id}`)).toBeHidden();
     await expect(m.getByTestId(`aba-nome-${id}`)).toBeHidden();
     await expect(m.getByTestId(`aba-${id}`)).toBeVisible();

@@ -1,11 +1,11 @@
 import type { Usuario } from "@tabletop/shared";
 import {
-  BrickWall,
   Check,
   CirclePlus,
   Clapperboard,
   Crown,
   Eraser,
+  Eye,
   Flame,
   Flashlight,
   Map as IconeMapa,
@@ -15,11 +15,11 @@ import {
   Moon,
   Pencil,
   SlidersHorizontal,
+  Sun,
   User,
   Users,
-  Zap,
 } from "lucide-react";
-import { type ReactNode, useRef, useState } from "react";
+import { type ReactNode, useId, useRef, useState } from "react";
 import { CAMADAS_DE_TRABALHO, type CamadaDeTrabalho, ROTULO_DA_CAMADA } from "./camadas";
 import { Popover, useFecharFora } from "./Popover";
 
@@ -44,9 +44,8 @@ type Props = {
   aoAlternarFontes: () => void;
   configAberta: boolean;
   aoAlternarConfig: () => void;
-  /** A ferramenta de paredes e portas está ativa? */
-  paredesAtivas: boolean;
-  aoAlternarParedes: () => void;
+  /** Abre a aba Mesa, já na seção dos modelos de tocha e objetos de luz. */
+  aoAbrirModelosDeTocha: () => void;
   /** Jogadores para o "ver como" e quem o mestre está vendo (`null` = ele mesmo). */
   jogadores: Usuario[];
   verComoId: string | null;
@@ -60,36 +59,80 @@ const ICONE_DA_CAMADA: Record<CamadaDeTrabalho, ReactNode> = {
   desenho: <Pencil size={16} />,
 };
 
+/**
+ * Botão do menu do mestre. O nome vai no `aria-label` e a dica (nome e o que faz) aparece ao passar o
+ * mouse e ao receber o foco do teclado. Com a lista do botão aberta, a dica sai da frente.
+ */
 function Botao(props: {
   testid: string;
-  titulo: string;
+  /** O nome do botão (`aria-label` e título da dica). */
+  nome: string;
+  /** O que ele faz, em uma frase (segunda linha da dica). */
+  dica: string;
   ativo?: boolean;
   /** Mostra um pontinho de alerta no ícone (algo importante está desligado). */
   alerta?: boolean;
   gatilho?: boolean;
+  /** A lista ou painel deste botão está aberta: a dica não aparece. */
+  aberto?: boolean;
   aoClicar: () => void;
-  /** Clique direito (o menu de contexto do navegador não abre). */
-  aoClicarDireito?: () => void;
   children: ReactNode;
 }) {
+  const [dicaVisivel, setDicaVisivel] = useState(false);
+  const idDaDica = useId();
   return (
-    <button
-      type="button"
-      className={props.alerta ? "botao-icone com-alerta" : "botao-icone"}
-      data-testid={props.testid}
-      title={props.titulo}
-      aria-label={props.titulo}
-      aria-pressed={props.ativo}
-      data-popover-gatilho={props.gatilho ? "" : undefined}
-      onClick={props.aoClicar}
-      onContextMenu={(e) => {
-        if (!props.aoClicarDireito) return;
-        e.preventDefault();
-        props.aoClicarDireito();
-      }}
+    <span className="menu-botao">
+      <button
+        type="button"
+        className={props.alerta ? "botao-icone com-alerta" : "botao-icone"}
+        data-testid={props.testid}
+        aria-label={props.nome}
+        aria-describedby={idDaDica}
+        aria-pressed={props.ativo}
+        data-popover-gatilho={props.gatilho ? "" : undefined}
+        onClick={() => {
+          setDicaVisivel(false);
+          props.aoClicar();
+        }}
+        onMouseEnter={() => setDicaVisivel(true)}
+        onMouseLeave={() => setDicaVisivel(false)}
+        onFocus={() => setDicaVisivel(true)}
+        onBlur={() => setDicaVisivel(false)}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") setDicaVisivel(false);
+        }}
+      >
+        {props.children}
+      </button>
+      <span
+        id={idDaDica}
+        role="tooltip"
+        className="dica-do-menu"
+        data-testid={`dica-${props.testid}`}
+        hidden={!dicaVisivel || props.aberto}
+      >
+        <strong>{props.nome}</strong>
+        <span>{props.dica}</span>
+      </span>
+    </span>
+  );
+}
+
+/** Um grupo do menu: os botões e, embaixo, o nome do grupo. */
+function Grupo(props: { id: string; nome: string; children: ReactNode }) {
+  return (
+    // biome-ignore lint/a11y/useSemanticElements: grupo de botões com nome; o fieldset é de formulário
+    <div
+      className="menu-grupo"
+      role="group"
+      aria-label={props.nome}
+      data-testid={`menu-grupo-${props.id}`}
     >
-      {props.children}
-    </button>
+      <div className="menu-grupo-botoes">{props.children}</div>
+      <span className="menu-grupo-nome" aria-hidden="true">
+        {props.nome}
+      </span>
+    </div>
   );
 }
 
@@ -160,9 +203,13 @@ function ListaDoMenu(props: {
   );
 }
 
-type PainelAberto = "camadas" | "eventos" | "iluminacao" | "verComo" | null;
+type PainelAberto = "camadas" | "iluminacao" | "verComo" | null;
 
-/** Menu rápido do mestre: vai no topo da mesa, depois do nome da cena (a pausa e o relógio estão em `EstadoDaMesa`). */
+/**
+ * Menu do mestre, no topo da mesa depois do nome da cena (a pausa e o relógio estão em `EstadoDaMesa`).
+ * Grupos com nome: Cena (cenas, camadas), Mapa (novo token), Luz (visão noturna, iluminação), Combate
+ * (ordem de turno) e Ver como. Paredes e portas é ferramenta da barra da esquerda.
+ */
 export function MenuSuperior(p: Props) {
   const [aberto, setAberto] = useState<PainelAberto>(null);
   const [confirmandoLimpar, setConfirmandoLimpar] = useState(false);
@@ -170,140 +217,171 @@ export function MenuSuperior(p: Props) {
     setConfirmandoLimpar(false);
     setAberto(aberto === qual ? null : qual);
   };
+  const vendoComo = p.jogadores.find((j) => j.id === p.verComoId);
 
   return (
     <div className="menu-superior-area">
       <nav className="barra-horizontal" aria-label="Menu do mestre" data-testid="menu-superior">
-        <Botao
-          testid="menu-cenas"
-          titulo="Cenas"
-          ativo={p.faixaAberta}
-          aoClicar={p.aoAlternarFaixa}
-        >
-          <Clapperboard size={20} />
-        </Botao>
-        <Botao
-          testid="menu-camadas"
-          titulo="Camadas"
-          ativo={aberto === "camadas"}
-          gatilho
-          aoClicar={() => alternar("camadas")}
-        >
-          <Layers size={20} />
-        </Botao>
-        <div className="botao-com-lista">
+        <Grupo id="cena" nome="Cena">
+          <Botao
+            testid="menu-cenas"
+            nome="Cenas"
+            dica="Abre a faixa de cenas: trocar de cena, levar o grupo, criar e configurar (nome, mapa e grid)."
+            ativo={p.faixaAberta}
+            aoClicar={p.aoAlternarFaixa}
+          >
+            <Clapperboard size={20} />
+          </Botao>
+          <Botao
+            testid="menu-camadas"
+            nome="Camadas"
+            dica="Escolhe em que camada você trabalha (mapa, tokens, mestre ou desenho) e limpa os desenhos."
+            ativo={aberto === "camadas"}
+            aberto={aberto === "camadas"}
+            gatilho
+            aoClicar={() => alternar("camadas")}
+          >
+            <Layers size={20} />
+          </Botao>
+        </Grupo>
+        <Grupo id="mapa" nome="Mapa">
+          <Botao
+            testid="novo-token"
+            nome="Novo token"
+            dica="Cria um token no meio da vista."
+            aoClicar={p.aoNovoToken}
+          >
+            <CirclePlus size={20} />
+          </Botao>
+        </Grupo>
+        <Grupo id="luz" nome="Luz">
           <Botao
             testid="menu-visao-noturna"
-            titulo="Visão noturna (clique direito: ver como um jogador)"
+            nome="Visão noturna"
+            dica={
+              p.visaoNoturna
+                ? "Ligada: você vê a cena iluminada só pelas fontes de luz. Só na sua tela."
+                : "Desligada: você vê a cena toda clara. Só na sua tela."
+            }
             ativo={p.visaoNoturna}
-            gatilho
             aoClicar={p.aoAlternarVisaoNoturna}
-            aoClicarDireito={() => alternar("verComo")}
           >
             <Moon size={20} />
           </Botao>
-          {aberto === "verComo" && (
-            <ListaDoMenu
-              testid="ver-como"
-              titulo="Ver como"
-              aoFechar={() => setAberto(null)}
-              itens={[
-                {
-                  id: "eu",
-                  rotulo: "Eu mesmo (mestre)",
-                  icone: <Crown size={16} />,
-                  marcado: p.verComoId === null,
-                  aoClicar: () => p.aoVerComo(null),
-                },
-                ...p.jogadores.map((j) => ({
-                  id: j.id,
-                  rotulo: j.nome,
-                  icone: <User size={16} />,
-                  marcado: p.verComoId === j.id,
-                  aoClicar: () => p.aoVerComo(j.id),
-                })),
-              ]}
-            />
-          )}
-        </div>
-        <Botao testid="novo-token" titulo="Novo token" aoClicar={p.aoNovoToken}>
-          <CirclePlus size={20} />
-        </Botao>
-        <Botao
-          testid="menu-eventos"
-          titulo="Eventos (em breve)"
-          ativo={aberto === "eventos"}
-          gatilho
-          aoClicar={() => alternar("eventos")}
-        >
-          <Zap size={20} />
-        </Botao>
-        <div className="botao-com-lista">
-          <Botao
-            testid="menu-iluminacao"
-            titulo={
-              p.iluminacaoDinamica
-                ? "Iluminação"
-                : "Iluminação (a iluminação dinâmica está DESLIGADA nesta cena)"
-            }
-            ativo={aberto === "iluminacao" || p.paredesAtivas}
-            alerta={!p.iluminacaoDinamica}
-            gatilho
-            aoClicar={() => alternar("iluminacao")}
-          >
-            <Flashlight size={20} />
-          </Botao>
-          {aberto === "iluminacao" && (
-            <ListaDoMenu
-              testid="lanterna"
-              titulo="Iluminação"
-              aoFechar={() => setAberto(null)}
-              itens={[
-                {
-                  id: "iluminacao",
-                  rotulo: "Iluminação dinâmica",
-                  icone: <Lightbulb size={16} />,
-                  marcado: p.iluminacaoDinamica,
-                  estado: {
-                    ligado: p.iluminacaoDinamica,
-                    ligadoRotulo: "Ligada",
-                    desligadoRotulo: "Desligada",
+          <span className="botao-com-lista">
+            <Botao
+              testid="menu-iluminacao"
+              nome={p.iluminacaoDinamica ? "Iluminação" : "Iluminação (desligada nesta cena)"}
+              dica={
+                p.iluminacaoDinamica
+                  ? "Liga e desliga a iluminação dinâmica, abre as fontes de luz e os ajustes."
+                  : "A iluminação dinâmica está DESLIGADA nesta cena: os jogadores veem tudo. Abra para ligar."
+              }
+              ativo={aberto === "iluminacao"}
+              aberto={aberto === "iluminacao"}
+              alerta={!p.iluminacaoDinamica}
+              gatilho
+              aoClicar={() => alternar("iluminacao")}
+            >
+              <Lightbulb size={20} />
+            </Botao>
+            {aberto === "iluminacao" && (
+              <ListaDoMenu
+                testid="lanterna"
+                titulo="Iluminação"
+                aoFechar={() => setAberto(null)}
+                itens={[
+                  {
+                    id: "iluminacao",
+                    rotulo: "Iluminação dinâmica",
+                    icone: <Sun size={16} />,
+                    marcado: p.iluminacaoDinamica,
+                    estado: {
+                      ligado: p.iluminacaoDinamica,
+                      ligadoRotulo: "Ligada",
+                      desligadoRotulo: "Desligada",
+                    },
+                    aoClicar: p.aoAlternarIluminacao,
                   },
-                  aoClicar: p.aoAlternarIluminacao,
-                },
-                {
-                  id: "paredes",
-                  rotulo: "Paredes e portas",
-                  icone: <BrickWall size={16} />,
-                  marcado: p.paredesAtivas,
-                  aoClicar: p.aoAlternarParedes,
-                },
-                {
-                  id: "fontes",
-                  rotulo: "Fontes de luz",
-                  icone: <Flame size={16} />,
-                  marcado: p.fontesAbertas,
-                  aoClicar: p.aoAlternarFontes,
-                },
-                {
-                  id: "config",
-                  rotulo: "Configurações de iluminação",
-                  icone: <SlidersHorizontal size={16} />,
-                  marcado: p.configAberta,
-                  aoClicar: p.aoAlternarConfig,
-                },
-              ]}
-            />
-          )}
-        </div>
-        <Botao
-          testid="menu-ordem-turno"
-          titulo="Ordem de turno: mostrar ou esconder para todos"
-          ativo={p.ordemVisivel}
-          aoClicar={p.aoAlternarOrdem}
-        >
-          <ListOrdered size={20} />
-        </Botao>
+                  {
+                    id: "fontes",
+                    rotulo: "Fontes de luz",
+                    icone: <Flame size={16} />,
+                    marcado: p.fontesAbertas,
+                    aoClicar: p.aoAlternarFontes,
+                  },
+                  {
+                    id: "config",
+                    rotulo: "Configurações de iluminação",
+                    icone: <SlidersHorizontal size={16} />,
+                    marcado: p.configAberta,
+                    aoClicar: p.aoAlternarConfig,
+                  },
+                  {
+                    id: "modelos",
+                    rotulo: "Modelos de tocha…",
+                    icone: <Flashlight size={16} />,
+                    dica: "Abre a aba Mesa na seção dos modelos de tocha e objetos de luz",
+                    aoClicar: p.aoAbrirModelosDeTocha,
+                  },
+                ]}
+              />
+            )}
+          </span>
+        </Grupo>
+        <Grupo id="combate" nome="Combate">
+          <Botao
+            testid="menu-ordem-turno"
+            nome="Ordem de turno"
+            dica="Mostra ou esconde a ordem de turno para todos."
+            ativo={p.ordemVisivel}
+            aoClicar={p.aoAlternarOrdem}
+          >
+            <ListOrdered size={20} />
+          </Botao>
+        </Grupo>
+        <Grupo id="ver-como" nome="Ver como">
+          <span className="botao-com-lista">
+            <Botao
+              testid="menu-ver-como"
+              nome="Ver como"
+              dica={
+                vendoComo
+                  ? `Você está vendo a mesa como ${vendoComo.nome}. Escolha outro jogador ou volte a você.`
+                  : "Vê a mesa pelos olhos de um jogador (o que ele enxerga e controla). Só na sua tela."
+              }
+              ativo={p.verComoId !== null}
+              aberto={aberto === "verComo"}
+              gatilho
+              aoClicar={() => alternar("verComo")}
+            >
+              <Eye size={20} />
+            </Botao>
+            {aberto === "verComo" && (
+              <ListaDoMenu
+                testid="ver-como"
+                titulo="Ver como"
+                aoFechar={() => setAberto(null)}
+                itens={[
+                  {
+                    id: "eu",
+                    rotulo: "Eu mesmo (mestre)",
+                    icone: <Crown size={16} />,
+                    marcado: p.verComoId === null,
+                    aoClicar: () => p.aoVerComo(null),
+                  },
+                  ...p.jogadores.map((j) => ({
+                    id: j.id,
+                    rotulo: j.nome,
+                    icone: <User size={16} />,
+                    marcado: p.verComoId === j.id,
+                    aoClicar: () => p.aoVerComo(j.id),
+                  })),
+                ]}
+              />
+            )}
+          </span>
+        </Grupo>
       </nav>
 
       {aberto === "camadas" && (
@@ -387,16 +465,6 @@ export function MenuSuperior(p: Props) {
             A camada vale por cena. Os desenhos ficam sempre por cima, visíveis para todos (também
             no escuro).
           </p>
-        </Popover>
-      )}
-      {aberto === "eventos" && (
-        <Popover
-          testid="painel-eventos"
-          titulo="Eventos"
-          className="popover-menu"
-          aoFechar={() => setAberto(null)}
-        >
-          <p className="nota">Em breve: as automações da mesa (tocha apagando, porta rangendo…).</p>
         </Popover>
       )}
     </div>

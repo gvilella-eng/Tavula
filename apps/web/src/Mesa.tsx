@@ -19,7 +19,14 @@ import {
   visaoNoEscuroDe,
   visaoPara,
 } from "@tabletop/shared";
-import { BookOpen, Crown, MessagesSquare, NotebookText, Settings } from "lucide-react";
+import {
+  BookOpen,
+  MessagesSquare,
+  NotebookText,
+  Settings2,
+  SlidersHorizontal,
+  StickyNote,
+} from "lucide-react";
 import {
   type CSSProperties,
   useEffect,
@@ -31,7 +38,8 @@ import {
 import { AbaChat } from "./AbaChat";
 import { AbaCompendio } from "./AbaCompendio";
 import { AbaFichas } from "./AbaFichas";
-import { AbaConfiguracoes } from "./abas";
+import { AbaMesa, testidDaSecaoDaMesa } from "./AbaMesa";
+import { AbaNotas, AbaPreferencias } from "./abas";
 import { caixaDaArea } from "./area";
 import { lerItemArrastado } from "./arrasto";
 import { CacheOpfs } from "./assets/cache";
@@ -40,7 +48,7 @@ import { ganchosDoTeste, instalarGanchoDeAssets } from "./assets/ganchoE2E";
 import { type Canal, GerenteDeAssets } from "./assets/gerente";
 import { Processador } from "./assets/processador";
 import { BarraDeFerramentas } from "./BarraDeFerramentas";
-import { BarraLateral } from "./BarraLateral";
+import { BarraLateral, type PedidoDeAba } from "./BarraLateral";
 import { type CamadaDeTrabalho, camadaDoNovoToken } from "./camadas";
 import { EstadoDaMesa } from "./EstadoDaMesa";
 import { FaixaDeCenas, type PedirImagem } from "./FaixaDeCenas";
@@ -64,7 +72,6 @@ import { OrdemDeTurno } from "./OrdemDeTurno";
 import { PainelDasParedes } from "./PainelDasParedes";
 import { PainelDeFontesDeLuz } from "./PainelDeFontesDeLuz";
 import { PainelDeIluminacao } from "./PainelDeIluminacao";
-import { PainelDoMestre } from "./PainelDoMestre";
 import { PainelDoToken } from "./PainelDoToken";
 import { PresencaNoTopo } from "./PresencaNoTopo";
 import { type ConfigDoPincel, PINCEL_PADRAO } from "./pincel";
@@ -174,6 +181,8 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
   // Chat: de quem estou falando (vale também para os dados rápidos), a aba à vista e até onde já li.
   const [comoId, setComoId] = useState("");
   const [abaVisivel, setAbaVisivel] = useState<string | null>("chat");
+  // Pedido de abrir uma aba do painel direito (o atalho "Modelos de tocha…" do menu de Luz).
+  const [pedidoDeAba, setPedidoDeAba] = useState<PedidoDeAba | null>(null);
   const [vistoAteSeq, setVistoAteSeq] = useState<number | null>(null);
   const [pedidoDeImagem, setPedidoDeImagem] = useState<PedidoDeImagem | null>(null);
   // A cena que o mestre olha (e edita) sem mover o grupo: estado local da tela dele. `null` = a do grupo.
@@ -766,13 +775,19 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
               <AbaFichas
                 estado={estado}
                 eu={eu}
-                pronto={pronto}
                 enviar={enviar}
-                ouvir={ouvir}
                 imagens={imagens}
                 versaoDasImagens={versaoDosProntos}
                 aoAbrirFicha={abrirFicha}
               />
+            ),
+          },
+          {
+            id: "notas",
+            titulo: "Notas",
+            icone: <StickyNote size={20} />,
+            conteudo: (
+              <AbaNotas estado={estado} eu={eu} pronto={pronto} enviar={enviar} ouvir={ouvir} />
             ),
           },
           {
@@ -792,15 +807,23 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
               />
             ),
           },
+          ...(euMestre
+            ? [
+                {
+                  id: "mesa",
+                  titulo: "Mesa",
+                  icone: <Settings2 size={20} />,
+                  conteudo: <AbaMesa estado={estado} uso={uso} enviar={enviar} />,
+                },
+              ]
+            : []),
           {
-            id: "configuracoes",
-            titulo: "Configurações",
-            icone: <Settings size={20} />,
+            id: "preferencias",
+            titulo: "Preferências",
+            icone: <SlidersHorizontal size={20} />,
             indicador: transferindo,
             conteudo: (
-              <AbaConfiguracoes
-                estado={estado}
-                enviar={enviar}
+              <AbaPreferencias
                 nome={eu.nome}
                 papel={eu.papel}
                 encaixe={encaixe}
@@ -811,18 +834,6 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
               />
             ),
           },
-          ...(euMestre && cena
-            ? [
-                {
-                  id: "mestre",
-                  titulo: "Mestre",
-                  icone: <Crown size={20} />,
-                  conteudo: (
-                    <PainelDoMestre estado={estado} cena={cena} uso={uso} enviar={enviar} />
-                  ),
-                },
-              ]
-            : []),
         ]
       : [];
 
@@ -865,8 +876,13 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
                   aoAlternarFontes={alternarFontes}
                   configAberta={configAberta}
                   aoAlternarConfig={() => setConfigAberta(!configAberta)}
-                  paredesAtivas={ferramenta === "paredes" && modoMestre}
-                  aoAlternarParedes={alternarParedes}
+                  aoAbrirModelosDeTocha={() =>
+                    setPedidoDeAba((antes) => ({
+                      n: (antes?.n ?? 0) + 1,
+                      abaId: "mesa",
+                      secaoTestid: testidDaSecaoDaMesa("luz"),
+                    }))
+                  }
                   jogadores={estado.usuarios.filter((u) => u.papel === "jogador")}
                   verComoId={usuarioVisto?.id ?? null}
                   aoVerComo={(id) => {
@@ -890,6 +906,8 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
           </Topo>
           <BarraDeFerramentas
             ferramenta={ferramenta}
+            podeParedes={modoMestre}
+            aoAlternarParedes={alternarParedes}
             aoEscolher={setFerramenta}
             pincel={pincel}
             aoMudarPincel={setPincel}
@@ -939,6 +957,16 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
                   onClick={() => setVerComoId(null)}
                 >
                   Voltar a mim
+                </button>
+              </div>
+            )}
+            {modoMestre && ferramenta === "paredes" && (
+              <div className="selo-modo" data-testid="modo-paredes-selo" role="status">
+                <span>
+                  Modo <strong>Paredes e portas</strong>
+                </span>
+                <button type="button" data-testid="modo-paredes-sair" onClick={alternarParedes}>
+                  Sair do modo
                 </button>
               </div>
             )}
@@ -1099,6 +1127,7 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
           </div>
           <BarraLateral
             abas={abas}
+            pedido={pedidoDeAba}
             aoMudarAberta={setLateralAberta}
             aoMudarVisivel={setAbaVisivel}
             largura={larguraDoPainel}

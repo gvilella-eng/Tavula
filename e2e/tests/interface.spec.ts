@@ -72,7 +72,7 @@ test("a ordem de turno liga e desliga para todos, inclusive o mestre; só o mest
   await expect(j1.pagina.getByTestId("ordem-de-turno")).toBeVisible();
 
   // entra na exportação
-  await abrirAba(mestre.pagina, "mestre");
+  await abrirAba(mestre.pagina, "mesa");
   const [download] = await Promise.all([
     mestre.pagina.waitForEvent("download"),
     mestre.pagina.getByTestId("exportar").click(),
@@ -117,12 +117,12 @@ test("menu superior, camadas, dados rápidos e pincel (interface; o que não tem
     "menu-camadas",
     "menu-visao-noturna",
     "novo-token",
-    "menu-eventos",
     "menu-iluminacao",
     "menu-ordem-turno",
+    "menu-ver-como",
   ]) {
     await expect(p.getByTestId(id)).toBeVisible();
-    await expect(p.getByTestId(id)).toHaveAttribute("title", /.+/);
+    await expect(p.getByTestId(id)).toHaveAttribute("aria-label", /.+/);
   }
 
   // camadas: 4 (mapa, tokens, mestre, desenho); "Limpar desenhos" desabilitado
@@ -158,16 +158,15 @@ test("menu superior, camadas, dados rápidos e pincel (interface; o que não tem
   await expect(p.getByTestId("menu-visao-noturna")).toHaveAttribute("aria-pressed", "false");
   await p.getByTestId("menu-visao-noturna").click();
   await expect(p.getByTestId("menu-visao-noturna")).toHaveAttribute("aria-pressed", "true");
-  // eventos: painel "em breve"; iluminação (lanterna): uma lista logo abaixo do ícone, no Lote 5
-  await p.getByTestId("menu-eventos").click();
-  await expect(p.getByTestId("painel-eventos")).toContainText("Em breve");
+  // "Eventos" saiu até o 7b (R4); iluminação (lanterna): uma lista logo abaixo do ícone, no Lote 5
+  await expect(p.getByTestId("menu-eventos")).toHaveCount(0);
   await p.getByTestId("menu-iluminacao").click();
   await expect(p.getByTestId("lanterna")).toBeVisible();
   await expect(p.getByTestId("lanterna-iluminacao")).toHaveAttribute("aria-checked", "true");
-  await expect(p.getByTestId("lanterna-paredes")).toBeEnabled();
+  await expect(p.getByTestId("lanterna-paredes")).toHaveCount(0); // paredes é ferramenta da barra (R4)
+  await expect(p.getByTestId("lanterna-modelos")).toBeEnabled(); // R4: atalho para a aba Mesa
   await expect(p.getByTestId("lanterna-fontes")).toBeEnabled(); // Lote 6: painel de fontes de luz
   await expect(p.getByTestId("lanterna-config")).toBeEnabled(); // Lote 6: configurações de iluminação
-  await expect(p.getByTestId("painel-eventos")).toHaveCount(0);
   await p.keyboard.press("Escape");
   await expect(p.getByTestId("lanterna")).toHaveCount(0);
 
@@ -231,7 +230,7 @@ test("menu superior, camadas, dados rápidos e pincel (interface; o que não tem
   await expect(p.getByTestId("barra-ferramentas")).toBeVisible();
 });
 
-test("barra da direita: Chat, Fichas, Compêndio, Configurações e Mestre (largura fixa, sem texto cortado)", async ({
+test("barra da direita: Chat, Fichas, Notas, Compêndio, Mesa e Preferências (largura fixa, sem texto cortado)", async ({
   mesa,
 }) => {
   test.setTimeout(90_000);
@@ -249,18 +248,27 @@ test("barra da direita: Chat, Fichas, Compêndio, Configurações e Mestre (larg
   expect(await abas(mestre.pagina)).toEqual([
     "aba-chat",
     "aba-fichas",
+    "aba-notas",
     "aba-compendio",
-    "aba-configuracoes",
-    "aba-mestre",
+    "aba-mesa",
+    "aba-preferencias",
   ]);
   expect(await abas(j1.pagina)).toEqual([
     "aba-chat",
     "aba-fichas",
+    "aba-notas",
     "aba-compendio",
-    "aba-configuracoes",
+    "aba-preferencias",
   ]);
   // não há mais as abas antigas
-  for (const velha of ["jogadores", "notas", "personagens", "cenas", "biblioteca"]) {
+  for (const velha of [
+    "jogadores",
+    "personagens",
+    "cenas",
+    "biblioteca",
+    "configuracoes",
+    "mestre",
+  ]) {
     await expect(mestre.pagina.getByTestId(`aba-${velha}`)).toHaveCount(0);
   }
 
@@ -279,11 +287,13 @@ test("barra da direita: Chat, Fichas, Compêndio, Configurações e Mestre (larg
   await expect(p.getByTestId("chat-aviso")).toHaveCount(0);
   await expect(p.getByTestId("chat-mensagens")).toContainText("Nenhuma mensagem");
 
-  // Fichas: notas no topo, depois as pastas
-  await abrirAba(p, "fichas");
-  await expect(p.getByTestId("fichas-notas").getByTestId("nota-mesa")).toBeVisible();
-  await expect(p.getByTestId("fichas-notas").getByTestId("nota-mestre")).toBeVisible();
+  // Notas (aba própria desde o R4): a da mesa e a do mestre; as Fichas ficam só com as pastas
+  await abrirAba(p, "notas");
+  await expect(p.getByTestId("aba-painel-notas").getByTestId("nota-mesa")).toBeVisible();
+  await expect(p.getByTestId("aba-painel-notas").getByTestId("nota-mestre")).toBeVisible();
   await expect(j1.pagina.getByTestId("nota-mestre")).toHaveCount(0);
+  await abrirAba(p, "fichas");
+  await expect(p.getByTestId("aba-painel-fichas").getByTestId("nota-mesa")).toHaveCount(0);
   await expect(p.getByTestId("ficha-pasta-pasta-personagens")).toBeVisible();
   await expect(p.getByTestId("ficha-pasta-pasta-npcs")).toBeVisible();
   // "+ Novo": Personagem e NPC funcionam; Artefato, Tesouro e Handout estão desabilitados
@@ -308,8 +318,8 @@ test("barra da direita: Chat, Fichas, Compêndio, Configurações e Mestre (larg
   await expect(p.getByTestId("compendio-exemplo")).toContainText("tabletop-compendio");
   await expect(p.getByTestId("compendio-recarregar")).toBeVisible();
 
-  // Configurações: usuário, preferências, pasta local e transferências
-  await abrirAba(p, "configuracoes");
+  // Preferências: usuário, tema, encaixe, pasta local e transferências
+  await abrirAba(p, "preferencias");
   await expect(p.getByTestId("trocar-usuario")).toBeVisible();
   await expect(p.getByTestId("pref-encaixe")).toBeVisible();
   await expect(p.getByTestId("biblioteca-pasta-estado")).toBeVisible();
@@ -317,13 +327,15 @@ test("barra da direita: Chat, Fichas, Compêndio, Configurações e Mestre (larg
   // o contador conta o cache do navegador (um mapa feito aqui entra, sem nenhuma transferência)
   await expect(p.getByTestId("transferencias-prontas")).toContainText("0 arquivos prontos");
   await definirMapa(p, "cena-1", arquivoPng("contador.png", pngDeRuido(300, 200, 91, 4)));
-  await abrirAba(p, "configuracoes");
+  await abrirAba(p, "preferencias");
   await expect(p.getByTestId("transferencias-prontas")).toContainText("1 arquivo pronto");
   await expect(p.getByTestId("transferencia")).toHaveCount(0);
 
-  // Mestre: papéis, capacidades (sem ficha.verOutras), uso, exportar e importar
-  await abrirAba(p, "mestre");
+  // Mesa (só do mestre): papéis, capacidades (sem ficha.verOutras), uso (no diagnóstico recolhido), exportar e importar
+  await abrirAba(p, "mesa");
   await expect(p.getByTestId("papel-jogador-1")).toBeVisible();
+  await expect(p.getByTestId("uso-hoje")).toBeHidden();
+  await p.getByTestId("mesa-diagnostico-resumo").click();
   await expect(p.getByTestId("uso-hoje")).toBeVisible();
   await expect(p.getByTestId("exportar")).toBeVisible();
   await expect(p.getByTestId("importar-arquivo")).toBeAttached();
@@ -335,7 +347,7 @@ test("barra da direita: Chat, Fichas, Compêndio, Configurações e Mestre (larg
 
   // largura fixa: a barra não muda de tamanho entre as abas e nada passa da borda
   const largurasVistas = new Set<number>();
-  for (const aba of ["chat", "fichas", "compendio", "configuracoes", "mestre"]) {
+  for (const aba of ["chat", "fichas", "notas", "compendio", "mesa", "preferencias"]) {
     await abrirAba(p, aba);
     const caixa = await p.getByTestId("barra-lateral").boundingBox();
     largurasVistas.add(Math.round(caixa?.width ?? 0));

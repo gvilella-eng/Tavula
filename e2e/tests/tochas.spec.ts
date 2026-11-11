@@ -448,8 +448,8 @@ test("o mestre ajusta o tempo e o raio no painel, extingue pela lixeira e config
   await expect(p.getByTestId("luz-tocha-1")).toHaveCount(0);
   await expect.poll(async () => (await alcas(j1.pagina)).length).toBe(0);
 
-  // configurações da mesa e modelos (aba Configurações)
-  await abrirAba(p, "configuracoes");
+  // configurações da mesa e modelos (aba Mesa)
+  await abrirAba(p, "mesa");
   await expect(p.getByTestId("config-mesa")).toBeVisible();
   await p.getByTestId("cfg-maos").fill("3");
   await p.getByTestId("cfg-maos").blur();
@@ -463,7 +463,7 @@ test("o mestre ajusta o tempo e o raio no painel, extingue pela lixeira e config
   await p.getByTestId("modelo-novo").click();
   await expect(p.getByTestId("config-objetos").locator("details")).toHaveCount(4);
   // o jogador não tem essa seção
-  await abrirAba(j1.pagina, "configuracoes");
+  await abrirAba(j1.pagina, "preferencias");
   await expect(j1.pagina.getByTestId("config-mesa")).toHaveCount(0);
   // 3 mãos: a terceira tocha agora cabe (o mestre repõe uma tocha na mochila)
   await ok(p, "mochila.ajustar", { personagemId: ALDRIC, modeloId: TOCHA, delta: 1 });

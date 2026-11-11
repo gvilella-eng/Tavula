@@ -1,4 +1,4 @@
-import { Brush, Dices, Hand, MousePointer2, Ruler } from "lucide-react";
+import { BrickWall, Brush, Dices, Hand, MousePointer2, Ruler } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { DadosRapidos } from "./DadosRapidos";
 import type { Ferramenta } from "./mapa/mapaPixi";
@@ -16,6 +16,9 @@ type Props = {
   aoMudarPincel: (c: ConfigDoPincel) => void;
   podeDesenhar: boolean;
   aoVoltarDesenho: () => void;
+  /** Paredes e portas (só do mestre, fora do "ver como"): liga e desliga o modo. */
+  podeParedes: boolean;
+  aoAlternarParedes: () => void;
 };
 
 const MOTIVO_SEM_PINCEL = "Pincel desligado: o mestre tirou de você a permissão de desenhar.";
@@ -48,7 +51,7 @@ function Botao(props: {
 }
 
 /**
- * Barra fixa à esquerda (52 px, todos): selecionar, mão, régua, dados rápidos e pincel. As sub-barras
+ * Barra fixa à esquerda (52 px): selecionar, mão, régua, dados rápidos e pincel (todos) e paredes e portas (só o mestre). As sub-barras
  * (o pincel) e a grade de dados abrem ao lado dela, sobre o mapa.
  */
 export function BarraDeFerramentas(p: Props) {
@@ -97,6 +100,22 @@ export function BarraDeFerramentas(p: Props) {
         >
           <Brush size={20} />
         </Botao>
+        {p.podeParedes && (
+          <>
+            <hr />
+            <Botao
+              testid="ferramenta-paredes"
+              titulo="Paredes e portas: desenhar as paredes que bloqueiam a luz (clique de novo para sair)"
+              ativo={p.ferramenta === "paredes"}
+              aoClicar={() => {
+                setDadosAbertos(false);
+                p.aoAlternarParedes();
+              }}
+            >
+              <BrickWall size={20} />
+            </Botao>
+          </>
+        )}
       </nav>
       {p.ferramenta === "pincel" && (
         <SubBarraPincel

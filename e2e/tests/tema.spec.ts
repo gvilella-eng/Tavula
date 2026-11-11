@@ -45,7 +45,7 @@ test("trocar o tema muda as cores, sobrevive ao recarregar e não manda nada par
 }) => {
   const m = await mesa.entrar("mestre");
   const p = m.pagina;
-  await abrirAba(p, "configuracoes");
+  await abrirAba(p, "preferencias");
   await expect(p.getByTestId("seletor-de-tema")).toBeVisible();
   await expect(p.getByTestId("tema-grimorio")).toBeChecked();
   await expect(p.locator("body")).toHaveCSS("background-color", FUNDO.grimorio);
@@ -88,21 +88,21 @@ test("trocar o tema muda as cores, sobrevive ao recarregar e não manda nada par
   await expect(p.getByTestId("eu-nome")).toBeVisible();
   await expect(p.locator("html")).toHaveAttribute("data-tema", "claro");
   await expect(p.locator("body")).toHaveCSS("background-color", FUNDO.claro);
-  await abrirAba(p, "configuracoes");
+  await abrirAba(p, "preferencias");
   await expect(p.getByTestId("tema-claro")).toBeChecked();
 });
 
 test("o tema é por navegador: outro usuário continua no dele", async ({ mesa }) => {
   const a = await mesa.entrar("mestre");
   const b = await mesa.entrar("jogador-1");
-  await abrirAba(a.pagina, "configuracoes");
+  await abrirAba(a.pagina, "preferencias");
   await a.pagina.getByTestId("tema-escuro").click();
   await expect(a.pagina.locator("html")).toHaveAttribute("data-tema", "escuro");
   await a.pagina.waitForTimeout(400);
   await expect(b.pagina.locator("html")).toHaveAttribute("data-tema", "grimorio");
   await expect(b.pagina.locator("body")).toHaveCSS("background-color", FUNDO.grimorio);
   // o jogador troca o dele sem mexer no do mestre
-  await abrirAba(b.pagina, "configuracoes");
+  await abrirAba(b.pagina, "preferencias");
   await b.pagina.getByTestId("tema-claro").click();
   await expect(b.pagina.locator("html")).toHaveAttribute("data-tema", "claro");
   await expect(a.pagina.locator("html")).toHaveAttribute("data-tema", "escuro");
@@ -122,7 +122,7 @@ test("nenhuma requisição sai para fora de 127.0.0.1 e as fontes são as empaco
   await expect(s.pagina.getByTestId("logo")).toBeVisible();
   await s.pagina.getByTestId("entrar-mestre").click();
   await expect(s.pagina.getByTestId("status-conexao")).toHaveText("conectado");
-  await abrirAba(s.pagina, "configuracoes");
+  await abrirAba(s.pagina, "preferencias");
   await s.pagina.getByTestId("tema-claro").click();
   await s.pagina.evaluate(() => document.fonts.ready);
   // as duas fontes variáveis carregaram (vieram do próprio servidor)
@@ -174,7 +174,7 @@ test("o seletor é um grupo de rádio com 11 bolinhas, nome embaixo e selo no es
 }) => {
   const m = await mesa.entrar("mestre");
   const p = m.pagina;
-  await abrirAba(p, "configuracoes");
+  await abrirAba(p, "preferencias");
   const seletor = p.getByTestId("seletor-de-tema");
   await expect(seletor).toHaveAttribute("role", "radiogroup");
   await expect(seletor).toHaveAttribute("aria-label", "Tema de cor");
@@ -204,7 +204,7 @@ test("o seletor é um grupo de rádio com 11 bolinhas, nome embaixo e selo no es
 test("teclado: as setas andam pelos temas e escolhem", async ({ mesa }) => {
   const m = await mesa.entrar("mestre");
   const p = m.pagina;
-  await abrirAba(p, "configuracoes");
+  await abrirAba(p, "preferencias");
   await p.getByTestId("tema-grimorio").focus();
   await p.keyboard.press("ArrowRight");
   await expect(p.getByTestId("tema-taverna")).toBeChecked();
@@ -220,7 +220,7 @@ test("escolher temas novos pelo seletor muda as cores e sobrevive ao recarregar"
 }) => {
   const m = await mesa.entrar("mestre");
   const p = m.pagina;
-  await abrirAba(p, "configuracoes");
+  await abrirAba(p, "preferencias");
   for (const id of ["taverna", "forja", "paladino", "vampiro"] as const) {
     await p.getByTestId(`tema-${id}`).click();
     await expect(p.locator("html")).toHaveAttribute("data-tema", id);
@@ -233,7 +233,7 @@ test("escolher temas novos pelo seletor muda as cores e sobrevive ao recarregar"
   await expect(p.getByTestId("eu-nome")).toBeVisible();
   await expect(p.locator("html")).toHaveAttribute("data-tema", "vampiro");
   await expect(p.locator("body")).toHaveCSS("background-color", FUNDO_NOVOS.vampiro as string);
-  await abrirAba(p, "configuracoes");
+  await abrirAba(p, "preferencias");
   await expect(p.getByTestId("tema-vampiro")).toBeChecked();
 });
 
@@ -249,7 +249,7 @@ test("quem tinha escuro ou claro guardado continua nele", async ({ mesa }) => {
     await expect(s.pagina.locator("body")).toHaveCSS("background-color", fundo);
     await s.pagina.getByTestId("entrar-mestre").click();
     await expect(s.pagina.getByTestId("eu-nome")).toBeVisible();
-    await abrirAba(s.pagina, "configuracoes");
+    await abrirAba(s.pagina, "preferencias");
     await expect(s.pagina.getByTestId(`tema-${id}`)).toBeChecked();
     // os nomes novos aparecem, o id continua o mesmo
     await expect(s.pagina.getByTestId(`tema-${id}`)).toHaveAccessibleName(
@@ -269,7 +269,7 @@ test("o seletor cabe no painel de 300 px sem rolar de lado", async ({ mesa }) =>
   const m = await mesa.entrar("mestre");
   const p = m.pagina;
   await p.setViewportSize({ width: 1280, height: 720 });
-  await abrirAba(p, "configuracoes");
+  await abrirAba(p, "preferencias");
   const alca = p.getByTestId("alca-do-painel");
   await alca.focus();
   await p.keyboard.press("Home");
@@ -291,7 +291,7 @@ test("as bolinhas dos temas escuros têm a metade de cima viva e todas diferente
 }) => {
   const m = await mesa.entrar("mestre");
   const p = m.pagina;
-  await abrirAba(p, "configuracoes");
+  await abrirAba(p, "preferencias");
   const ids = [
     "grimorio",
     "taverna",

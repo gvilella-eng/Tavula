@@ -24,7 +24,7 @@ function numeroDe(t: string): number | null {
 }
 
 /**
- * Seção "Mesa" da aba Configurações (só o mestre edita): mãos por personagem, penalidade ao apagar,
+ * Seção "Regras da mesa" da aba Mesa (só o mestre edita): mãos por personagem, penalidade ao apagar,
  * alcance de interação, o que os jogadores veem do tempo e os estágios da luz.
  */
 export function SecaoMesa({ config, enviar }: { config: ConfigDaMesa; enviar: Enviar }) {
@@ -42,8 +42,8 @@ export function SecaoMesa({ config, enviar }: { config: ConfigDaMesa; enviar: En
     mudar({ estagios: { [campo]: n / 100 } });
   };
   return (
-    <section className="secao-mesa" data-testid="config-mesa" aria-label="Mesa">
-      <h3>Mesa</h3>
+    <section className="secao-mesa" data-testid="config-mesa" aria-label="Regras da mesa">
+      <h3>Regras da mesa</h3>
       <div className="linha-par">
         <Campo
           testid="cfg-maos"
@@ -245,7 +245,7 @@ function LinhaDoModelo({ modelo: m, enviar }: { modelo: ModeloDeObjeto; enviar: 
 }
 
 /**
- * Seção "Objetos de luz" da aba Configurações (só o mestre): os modelos de objeto (nome, luz, duração
+ * Seção "Objetos de luz" da aba Mesa (só o mestre): os modelos de objeto (nome, luz, duração
  * ou infinita, ocupa mão, tags) que os personagens carregam na mochila e os pontos acendem.
  */
 export function SecaoObjetosDeLuz({ estado, enviar }: { estado: Estado; enviar: Enviar }) {
@@ -263,7 +263,7 @@ export function SecaoObjetosDeLuz({ estado, enviar }: { estado: Estado; enviar: 
   }
   return (
     <section className="secao-objetos" data-testid="config-objetos" aria-label="Objetos de luz">
-      <h3>Objetos de luz</h3>
+      <h3>Modelos de tocha e objetos de luz</h3>
       <p className="nota">
         Modelos de tocha, lanterna, fogueira... Os personagens carregam na mochila (quantidade) e os
         pontos do mapa acendem. Mudar o modelo não muda os objetos que já existem.

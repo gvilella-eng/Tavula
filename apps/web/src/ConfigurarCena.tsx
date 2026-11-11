@@ -10,11 +10,12 @@ type Props = {
   aoFechar: () => void;
 };
 
-/** Configurar a cena: nome, mapa (a imagem entra aqui), pixels por quadrado e grid visível. */
+/** Configurar a cena: nome, mapa (a imagem entra aqui), pixels por quadrado e o grid (quadrado em metros e visível). */
 export function ConfigurarCena({ cena, enviar, pedirImagem, aoFechar }: Props) {
   const [nome, setNome] = useState(cena.nome);
   const [px, setPx] = useState(String(cena.mapa?.pxPorQuadrado ?? PX_POR_QUADRADO_PADRAO));
   const [gridVisivel, setGridVisivel] = useState(cena.grid.visivel);
+  const [quadradoM, setQuadradoM] = useState(String(cena.grid.quadradoM));
   // `undefined`: não mexe; `null`: tira o mapa; texto: o mapa novo (já processado e registrado).
   const [novoMapa, setNovoMapa] = useState<string | null | undefined>(undefined);
   const [erro, setErro] = useState<string | null>(null);
@@ -37,14 +38,23 @@ export function ConfigurarCena({ cena, enviar, pedirImagem, aoFechar }: Props) {
       setErro("Pixels por quadrado: entre 10 e 1000.");
       return;
     }
+    const quadradoNumero = Number(quadradoM);
+    if (!(quadradoNumero >= 0.3 && quadradoNumero <= 10)) {
+      setErro("Quadrado do grid: entre 0,3 e 10 metros.");
+      return;
+    }
     const limpo = nome.trim();
     if (!limpo) {
       setErro("A cena precisa de um nome.");
       return;
     }
     if (limpo !== cena.nome) enviar("cena.editar", { cenaId: cena.id, nome: limpo });
-    if (gridVisivel !== cena.grid.visivel) {
-      enviar("cena.configurarGrid", { cenaId: cena.id, visivel: gridVisivel });
+    if (gridVisivel !== cena.grid.visivel || quadradoNumero !== cena.grid.quadradoM) {
+      enviar("cena.configurarGrid", {
+        cenaId: cena.id,
+        ...(gridVisivel !== cena.grid.visivel ? { visivel: gridVisivel } : {}),
+        ...(quadradoNumero !== cena.grid.quadradoM ? { quadradoM: quadradoNumero } : {}),
+      });
     }
     if (novoMapa === null) {
       if (cena.mapa) enviar("cena.definirMapa", { cenaId: cena.id, assetHash: null });
@@ -133,15 +143,30 @@ export function ConfigurarCena({ cena, enviar, pedirImagem, aoFechar }: Props) {
             onChange={(e) => setPx(e.target.value)}
           />
         </label>
-        <label className="linha-opcao">
-          <input
-            type="checkbox"
-            data-testid="cfg-grid-visivel"
-            checked={gridVisivel}
-            onChange={(e) => setGridVisivel(e.target.checked)}
-          />
-          Grid visível
-        </label>
+        <fieldset className="quem-controla" data-testid="cfg-grid">
+          <legend>Grid da cena</legend>
+          <label className="linha-opcao">
+            <input
+              type="checkbox"
+              data-testid="cfg-grid-visivel"
+              checked={gridVisivel}
+              onChange={(e) => setGridVisivel(e.target.checked)}
+            />
+            Grid visível
+          </label>
+          <label className="campo-coluna">
+            Quadrado (metros)
+            <input
+              type="number"
+              min={0.3}
+              max={10}
+              step={0.25}
+              data-testid="grid-quadrado"
+              value={quadradoM}
+              onChange={(e) => setQuadradoM(e.target.value)}
+            />
+          </label>
+        </fieldset>
         {erro && (
           <p className="nota erro" role="alert" data-testid="cfg-erro">
             {erro}

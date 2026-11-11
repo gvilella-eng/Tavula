@@ -462,8 +462,7 @@ test("paredes, fontes de luz, iluminação e dados rápidos abrem dentro da áre
   await p.getByTestId("menu-iluminacao").click();
   await p.getByTestId("lanterna-config").click();
   await expect(janela(p, "iluminacao")).toBeVisible();
-  await p.getByTestId("menu-iluminacao").click();
-  await p.getByTestId("lanterna-paredes").click();
+  await p.getByTestId("ferramenta-paredes").click();
   await expect(janela(p, "paredes")).toBeVisible();
   await p.getByTestId("ferramenta-dados").click();
   await expect(janela(p, "dados")).toBeVisible();

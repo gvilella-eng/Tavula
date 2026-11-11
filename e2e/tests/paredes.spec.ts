@@ -104,8 +104,7 @@ test("o mestre desenha um corredor com porta pela interface", async ({ mesa }) =
   const mestre = await entrarNoMapa(mesa, "mestre");
   const p = mestre.pagina;
   const antes = (await gancho(p)).paredes.length;
-  await p.getByTestId("menu-iluminacao").click();
-  await p.getByTestId("lanterna-paredes").click();
+  await p.getByTestId("ferramenta-paredes").click();
   await expect(p.getByTestId("painel-paredes")).toBeVisible();
 
   await p.evaluate(() =>
@@ -291,7 +290,7 @@ test("visão noturna e 'ver como o jogador X' mudam a tela do mestre", async ({ 
   // o mestre vê a porta secreta e todos os tokens; como o jogador 1, só o que ele recebe
   expect((await portasDe(p)).some((q) => q.tipo === "secreta")).toBe(true);
   const todos = (await tokensDe(p)).length;
-  await p.getByTestId("menu-visao-noturna").click({ button: "right" });
+  await p.getByTestId("menu-ver-como").click();
   await p.getByTestId("ver-como-jogador-1").click();
   await expect(p.getByTestId("ver-como-selo")).toBeVisible();
   await expect.poll(async () => (await gancho(p)).visao.modo).toBe("jogador");
@@ -301,7 +300,7 @@ test("visão noturna e 'ver como o jogador X' mudam a tela do mestre", async ({ 
   );
   expect((await tokensDe(p)).length).toBeLessThan(todos);
 
-  await p.getByTestId("menu-visao-noturna").click({ button: "right" });
+  await p.getByTestId("menu-ver-como").click();
   await p.getByTestId("ver-como-eu").click();
   await expect(p.getByTestId("ver-como-selo")).toHaveCount(0);
   await expect.poll(async () => (await gancho(p)).visao.modo).toBe("noturna");

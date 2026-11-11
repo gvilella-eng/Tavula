@@ -515,7 +515,7 @@ test("exportar → zerar → importar: o mapa e as imagens voltam só como metad
     .poll(() => mestre.frames.some((f) => f.includes("token.editado") && f.includes(brasao.hash)))
     .toBe(true);
 
-  await abrirAba(mestre.pagina, "mestre");
+  await abrirAba(mestre.pagina, "mesa");
   const exportar = async () => {
     const [download] = await Promise.all([
       mestre.pagina.waitForEvent("download"),

@@ -24,22 +24,18 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Avatar } from "./Avatar";
-import { AbaNotas } from "./abas";
 import { lerItemArrastado, TIPO_DE_ARRASTO_DA_FICHA } from "./arrasto";
 import type { AbaDaFicha } from "./ficha/janelas";
 import { useImportadorDePdf } from "./ficha/useImportadorDePdf";
 import type { ImagensDoMapa } from "./mapa/mapaPixi";
 import { Popover } from "./Popover";
-import type { Ocorrencia } from "./useSala";
 
 type Enviar = (tipo: string, dados: object) => string | null;
 
 type Props = {
   estado: Estado;
   eu: Usuario;
-  pronto: boolean;
   enviar: Enviar;
-  ouvir: (fn: (o: Ocorrencia) => void) => () => void;
   imagens: ImagensDoMapa | null;
   versaoDasImagens: number;
   /** Abre a janela da ficha (duplo clique no item; o item recém-criado abre em Configurar). */
@@ -416,20 +412,11 @@ function SecaoDaPasta({
 }
 
 /**
- * Aba Fichas (o "diário"): no topo as notas (da mesa e do mestre), depois as pastas, sem subpastas.
+ * Aba Fichas (o "diário"): as pastas, sem subpastas (as notas têm aba própria desde o R4).
  * A pasta define quem vê (o mestre muda); quem edita é do item. Arrastar pela alça leva o item para
  * outra pasta ou para o mapa (só o mestre).
  */
-export function AbaFichas({
-  estado,
-  eu,
-  pronto,
-  enviar,
-  ouvir,
-  imagens,
-  versaoDasImagens,
-  aoAbrirFicha,
-}: Props) {
+export function AbaFichas({ estado, eu, enviar, imagens, versaoDasImagens, aoAbrirFicha }: Props) {
   const euMestre = eu.papel === "mestre";
   const jogadores = estado.usuarios.filter((u) => u.papel === "jogador");
   const [recolhidas, setRecolhidas] = useState<Set<string>>(new Set());
@@ -509,11 +496,6 @@ export function AbaFichas({
   return (
     <div className="aba-fichas" data-testid="aba-fichas-conteudo">
       {importadorDePdf.elementos}
-      <section className="fichas-notas" data-testid="fichas-notas">
-        <h3>Notas</h3>
-        <AbaNotas estado={estado} eu={eu} pronto={pronto} enviar={enviar} ouvir={ouvir} />
-      </section>
-
       <section className="fichas-pastas">
         <div className="fichas-barra">
           <h3>Pastas</h3>

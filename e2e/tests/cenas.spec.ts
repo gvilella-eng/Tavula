@@ -323,9 +323,10 @@ test("o mestre vê e edita a cena 2 enquanto o grupo continua na 1; os jogadores
   await expect
     .poll(async () => (await gancho(mestre.pagina)).some((t) => t.nome === "Rato do Covil"))
     .toBe(true);
-  await abrirAba(mestre.pagina, "mestre");
+  await menuDaCena(mestre.pagina, "cena-covil", "configurar");
   await mestre.pagina.getByTestId("grid-quadrado").fill("2");
-  await mestre.pagina.getByTestId("grid-quadrado").blur();
+  await mestre.pagina.getByTestId("cfg-salvar").click();
+  await expect(mestre.pagina.getByTestId("configurar-cena")).toHaveCount(0);
   // duplo clique no nome renomeia
   await mestre.pagina.getByTestId("cena-nome-cena-covil").dblclick();
   await mestre.pagina.getByTestId("cena-nome-editar-cena-covil").fill("Covil dos Ratos");

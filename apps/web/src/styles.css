@@ -527,7 +527,7 @@ textarea {
 }
 .abas {
   flex: 0 0 auto;
-  padding: 8px 8px 0;
+  padding: 8px 6px 0;
   border-bottom: 1px solid var(--borda-barra);
 }
 .abas-lista {
@@ -542,7 +542,8 @@ textarea {
   flex-direction: column;
   align-items: center;
   gap: 3px;
-  padding: 6px 4px 7px;
+  /* 2 px dos lados: as seis abas do mestre cabem numa linha a partir de 300 px. */
+  padding: 6px 2px 7px;
   font-size: 11px;
   font-weight: 600;
   line-height: 1.15;
@@ -1433,16 +1434,11 @@ button:disabled:hover {
 
 /* --- fichas --------------------------------------------------------------------------------- */
 
-.fichas-notas {
-  padding-bottom: 6px;
-  border-bottom: 1px solid var(--borda);
-}
-.fichas-notas h3,
 .fichas-barra h3 {
   margin: 0 0 4px;
 }
-.fichas-notas textarea {
-  min-height: 56px;
+.aba-notas textarea {
+  min-height: 160px;
 }
 .fichas-barra {
   display: flex;
@@ -1450,7 +1446,6 @@ button:disabled:hover {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  margin-top: 12px;
 }
 .fichas-barra h3 {
   white-space: nowrap;
@@ -1722,6 +1717,7 @@ button:disabled:hover {
   margin-left: auto;
   color: var(--acento-forte);
 }
+.selo-modo,
 .selo-ver-como {
   position: absolute;
   bottom: 12px;
@@ -3981,4 +3977,124 @@ button:disabled:hover {
 }
 .descricao-da-magia .campos-da-magia div {
   grid-template-columns: 6.5em minmax(0, 1fr);
+}
+
+/* --- menu do mestre em grupos, dicas e aba Mesa (R4) ------------------------------------------- */
+
+.barra-horizontal {
+  gap: 0;
+}
+.menu-grupo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 0 8px;
+}
+.menu-grupo + .menu-grupo {
+  border-left: 1px solid var(--borda-barra);
+}
+.menu-grupo-botoes {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.menu-grupo-nome {
+  font-size: 10px;
+  line-height: 1;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--texto-suave);
+}
+.menu-grupo .menu-grupo-botoes .botao-icone {
+  width: 32px;
+  height: 28px;
+}
+.menu-botao {
+  position: relative;
+  display: flex;
+}
+.dica-do-menu {
+  position: absolute;
+  top: calc(100% + 18px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: max-content;
+  max-width: 240px;
+  padding: 7px 10px;
+  font-size: 12px;
+  line-height: 1.35;
+  text-align: left;
+  color: var(--texto-suave);
+  background: var(--painel);
+  border: 1px solid var(--borda);
+  border-radius: var(--raio);
+  box-shadow: var(--sombra);
+  pointer-events: none;
+}
+.dica-do-menu[hidden] {
+  display: none;
+}
+.dica-do-menu strong {
+  font-size: 13px;
+  color: var(--texto);
+}
+.menu-grupo .menu-lista {
+  top: calc(100% + 18px);
+}
+.indice-da-mesa {
+  position: sticky;
+  top: -12px;
+  z-index: 3;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 0 -14px 8px;
+  padding: 8px 14px;
+  background: var(--barra);
+  border-bottom: 1px solid var(--borda-barra);
+}
+.secao-da-mesa {
+  display: block;
+  margin-bottom: 18px;
+  scroll-margin-top: 84px;
+}
+.aba-mesa .secao-da-mesa > h3,
+.aba-mesa .secao-da-mesa > section > h3 {
+  margin-top: 0;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--borda);
+}
+.secao-da-mesa.diagnostico > summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--texto-suave);
+}
+.aba-mesa .secao-da-mesa > .secao-mesa > h3,
+.aba-mesa .secao-da-mesa > .secao-objetos > h3 {
+  margin: 0;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--borda);
+}
+.area-mapa .selo-modo button {
+  padding: 2px 8px;
+  font-size: 12px;
+}
+.aba-notas {
+  display: flex;
+  flex-direction: column;
+}
+.aba-mesa input[type="file"] {
+  display: block;
+  max-width: 100%;
+  margin-top: 4px;
+}
+.selo-modo {
+  left: 12px;
+  transform: none;
 }

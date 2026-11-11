@@ -341,7 +341,7 @@ test("o mestre desliga desenho.criar e o jogador perde o pincel na hora (a sala 
   await abrirPincel(p);
   // R2: a barra fica à vista e a sub-barra abre ao lado dela; o botão do pincel fica apertado
   await expect(p.getByTestId("ferramenta-pincel")).toHaveAttribute("aria-pressed", "true");
-  await abrirAba(mestre.pagina, "mestre");
+  await abrirAba(mestre.pagina, "mesa");
   const caixa = mestre.pagina.getByTestId("perm-padrao-desenho.criar");
   await expect(caixa).toBeChecked();
   await caixa.click();

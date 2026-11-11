@@ -114,7 +114,7 @@ esquema de 2026-11-10), prints nos **3 temas**, revisão e commit. Nada muda nas
   visível; "Eventos" sai até o 7b; Configurações separadas em **Preferências** (pessoais: tema, encaixe,
   painel) e **Mesa** (regras, modelos de luz, papéis, permissões); Notas viram aba própria; o grid vai para a
   configuração da cena; o "uso de hoje" vai para um canto de diagnóstico. Resolve 2, 4, 5, 6.
-- **R5. Interações e fluxos.** Esc solta a seleção; criar token pede nome e lugar (ou arrasta da ficha);
+- **R5. Interações e fluxos** (dividido em dois na execução, 2026-11-11: **R5a**, mapa e tokens: 7, 8, 9–13; **R5b**, combate, fichas, compêndio e PDF: 14, 15, 18, 19). Esc solta a seleção; criar token pede nome e lugar (ou arrasta da ficha);
   tocha com dica e ações no menu do token; condições com menos cliques; régua que pode ficar na tela; avisos
   perto do clique; ordem de turno compacta, com o valor confirmado no Enter; ficha abre com um clique;
   estados vazios que orientam (jogador sem token, compêndio com "usar o exemplo do SRD"). Resolve 7, 8 (parte),
@@ -363,9 +363,77 @@ preferência de cada navegador e nenhum frame vai para a sala (E2E confere).
   padrão (não cabem lado a lado); a última clicada fica por cima.
 - Na ficha a 520 px, Raça, Antecedente e Alinhamento cortam o texto dentro do campo ("Elfo da f"): R6.
 
+## R4 — como ficou (2026-11-10)
+
+Organização do mestre. Nada mudou nas regras, na sala, no protocolo nem na exportação: são os mesmos frames de
+antes (o grid da cena, por exemplo, continua sendo `cena.configurarGrid`, só editado em outro lugar).
+
+**O que foi feito**
+- **Menu superior em grupos com nome** (item 2; `MenuSuperior.tsx`): **Cena** (Cenas, Camadas), **Mapa** (Novo
+  token), **Luz** (Visão noturna, Iluminação), **Combate** (Ordem de turno) e **Ver como**. Separador fino entre os
+  grupos e o nome do grupo em letra pequena embaixo dos ícones. Cabe nos 48 px do topo, em 1280×720 com o painel
+  no padrão, sem cobrir a presença nem a pausa (E2E mede).
+- **Dica em todo botão** (nome em negrito e uma frase do que faz), no mouse e no foco do teclado
+  (`role="tooltip"`, ligada por `aria-describedby`); o `aria-label` é o nome. Sai ao clicar, ao perder o foco ou
+  com Esc, e não aparece enquanto a lista do próprio botão está aberta.
+- **Ícones que dizem o que são**: Iluminação virou a lâmpada (era o "copo"/lanterna); a lua só liga a visão
+  noturna (sem o clique direito escondido); **"Ver como" ganhou botão próprio** (olho) que abre a lista "Eu mesmo
+  (mestre)" e os jogadores, e fica apertado enquanto se vê como alguém.
+- **"Eventos (em breve)" saiu** (botão, painel e o que só existia para ele). Volta com o 7b.
+- **Menu de Iluminação**: perdeu "Paredes e portas" e ganhou **"Modelos de tocha…"**, que abre a aba Mesa e
+  rola até a seção de luz, mesmo com o painel recolhido.
+- **Paredes e portas viraram ferramenta da barra esquerda** (item 5; só do mestre, fora do "ver como"): o botão
+  liga o modo e abre a janela `paredes` (R3) com o tipo. **O modo fica visível**: botão apertado, cursor de mira
+  (já existia) e um selo "Modo Paredes e portas" com o botão "Sair do modo" na área do mapa, no estilo do selo
+  "Vendo como". Trocar de ferramenta (barra ou V, H, R), apertar o botão de novo, fechar a janela ou "Sair do
+  modo" saem do modo.
+- **Abas do painel direito** (itens 4 e 6): mestre vê **Chat, Fichas, Notas, Compêndio, Mesa, Preferências**;
+  jogador, **Chat, Fichas, Notas, Compêndio, Preferências**. A aba Mestre e a aba Configurações deixaram de
+  existir.
+  - **Preferências** (todos): trocar de usuário, tema de cor, encaixe no grid, pasta local de imagens e
+    transferências. A largura do painel continua pela alça da borda (não há campo).
+  - **Mesa** (só mestre, `AbaMesa.tsx`): índice curto no alto (Regras, Luz, Papéis, Permissões, Campanha,
+    Diagnóstico; fica grudado ao rolar) e seções com título: regras da mesa (mãos, penalidade, alcance, tempo
+    para jogadores, estágios), modelos de tocha e objetos de luz, papéis dos usuários, capacidades dos
+    jogadores (padrão e exceções), campanha (exportar e importar) e, **recolhido** no fim, o diagnóstico com o
+    "uso de hoje".
+  - **Notas** (todos): "Nota da mesa (todos veem)" e, só para o mestre, "Nota do mestre (só mestres veem)".
+    A aba Fichas ficou só com as pastas e as fichas.
+- **Grid na configuração da cena** (`ConfigurarCena.tsx`): bloco "Grid da cena" com "Grid visível" e
+  "Quadrado (metros)"; vale ao Salvar, junto com o resto da configuração. Saiu da aba Mestre.
+- `BarraLateral` aceita um pedido de fora para abrir uma aba e rolar até uma seção (`PedidoDeAba`).
+
+**Decisões (assumido)**
+- (assumido) "Ver como" é o quinto grupo do menu, com o nome do grupo igual ao do botão.
+- (assumido) Os grupos têm o nome em letra pequena embaixo (não cabe rótulo ao lado de cada ícone nos 48 px
+  com o painel em 320 px); o que cada botão faz fica na dica.
+- (assumido) A visão noturna e as demais preferências de tela do mestre continuam só da tela dele.
+- (assumido) O botão de Paredes fica numa seção própria da barra, embaixo do pincel, separada por um filete, e
+  some quando o mestre está vendo como um jogador.
+- (assumido) Esc dentro do modo Paredes continua encerrando a sequência de paredes em andamento (como antes) e
+  não sai do modo; Esc soltar a seleção é do R5.
+- (assumido) O grid da cena tem só "visível" e "quadrado em metros": o modelo da cena não tem cor de grid, então
+  não há campo de cor.
+- (assumido) O grid da cena passou a valer ao Salvar da configuração (antes aplicava a cada campo). Valor do
+  quadrado fora de 0,3 a 10 m mostra erro no próprio formulário.
+- (assumido) Nas Preferências não há controle numérico de largura do painel (só a alça do R2).
+- (assumido) As seis abas do mestre cabem numa linha a partir de 300 px, com os nomes inteiros (2 px de folga
+  lateral em cada aba, em vez de 4). O agente tinha deixado quebrar em 4 + 2 (e 5 + 1 em 1280×720); a revisão apertou.
+- (assumido) Não existe preferência de "aba aberta" guardada; o painel sempre abre no Chat. Por isso não houve
+  migração de aba guardada ("Configurações" ou "Mestre").
+- (assumido) O jogador que vira mestre ganha a aba Mesa na hora (e perde ao ser rebaixado).
+- (assumido) "Modelos de tocha…" também abre o painel se estava recolhido.
+
+**O que ficou para depois**
+- Atalhos de teclado nas dicas do topo (R6).
+- Dica do menu do topo só existe nos botões do menu do mestre; a barra esquerda segue com `title` nativo (R6
+  pode unificar).
+- O selo de modo ("Paredes e portas") é só para paredes; outros modos (luz, ponto) seguem sem selo.
+- As posições de janelas e o resto do R5 (Esc, criar token com nome, tocha com dica etc.).
+
 ## Em aberto
 
-- R1, R2, R2b e R3 feitos (2026-11-10). **Plano aprovado (2026-11-10):** R2 a R6 seguem como planejados, um depois do
+- R1, R2, R2b, R3 e R4 feitos (2026-11-10). **Plano aprovado (2026-11-10):** R2 a R6 seguem como planejados, um depois do
   outro; depois do R6 o Vilella faz os ajustes finos de UX/UI e a reorganização dos itens, a partir de
   `docs/PASSAGEM.md`.
 - Itens de interface que vieram dos lotes e entram no R5/R6: a dica das condições abrir por clique, alças de

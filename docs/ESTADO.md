@@ -1865,4 +1865,79 @@ relatório do Playwright (`[erro na página]`).
 
 ---
 
-## Próximo: Redesign R4 — Organização do mestre (menu superior agrupado e com nomes, Paredes na barra de ferramentas, Preferências e Mesa separadas, Notas como aba); depois R5, R6, 7b e 12
+## Redesign R4 — Organização do mestre (entregue, aguardando o roteiro manual)
+
+### O que foi entregue
+
+- **Menu superior em grupos com nome** (`MenuSuperior.tsx`): Cena (Cenas, Camadas), Mapa (Novo token), Luz (Visão noturna, Iluminação), Combate (Ordem de turno) e Ver como. Separador fino entre os grupos e o nome do grupo embaixo dos ícones; cabe nos 48 px do topo em 1280×720, sem cobrir presença nem pausa.
+- **Dica em todo botão** (nome e o que faz) no mouse e no foco do teclado, `aria-label` com o nome e `aria-describedby` na dica (`data-testid="dica-<testid do botão>"`).
+- **Ícones que dizem o que são**: a Iluminação virou a lâmpada; a lua só liga a visão noturna; **"Ver como"** tem botão próprio (olho, `menu-ver-como`) com a lista "Eu mesmo (mestre)" e os jogadores. O clique direito na lua não abre mais nada.
+- **"Eventos" saiu** (botão e painel). O menu de Iluminação perdeu "Paredes e portas" e ganhou **"Modelos de tocha…"** (`lanterna-modelos`), que abre a aba Mesa na seção de luz (rola até ela, mesmo com o painel recolhido).
+- **Paredes e portas é ferramenta da barra esquerda** (`ferramenta-paredes`, só do mestre fora do "ver como"): liga o modo e abre a janela `paredes`; botão apertado, cursor de mira e selo "Modo Paredes e portas" com "Sair do modo" (`modo-paredes-selo`, `modo-paredes-sair`) na área do mapa. Sai ao trocar de ferramenta, apertar de novo, fechar a janela ou "Sair do modo".
+- **Abas do painel direito**: mestre, Chat, Fichas, Notas, Compêndio, Mesa, Preferências; jogador, Chat, Fichas, Notas, Compêndio, Preferências (`aba-notas`, `aba-mesa`, `aba-preferencias`). As abas Configurações e Mestre deixaram de existir. **Notas** (`AbaNotas`, todos): a da mesa e, para o mestre, a do mestre; Fichas ficou só com pastas e fichas. **Preferências** (`AbaPreferencias`, todos): usuário, tema, encaixe, pasta local e transferências. **Mesa** (`AbaMesa.tsx`, só mestre): índice no alto (grudado) e seções Regras, Luz (modelos de tocha e objetos de luz), Papéis, Permissões, Campanha e Diagnóstico (recolhido, com o "uso de hoje").
+- **Grid na configuração da cena** (`ConfigurarCena.tsx`): "Grid visível" e "Quadrado (metros)", gravados no Salvar com o mesmo frame de sempre (`cena.configurarGrid`).
+- `BarraLateral` aceita um pedido de fora para abrir uma aba e rolar até uma seção (`PedidoDeAba`).
+
+### Como rodar
+
+- `pnpm verify` (uma vez). E2E novo: `pnpm --filter @tabletop/e2e test --repeat-each=3 tests/organizacao.spec.ts` (e os alterados, abaixo). Prints: `$env:PRINTS_DIR="<pasta>"; pnpm --filter @tabletop/e2e prints r4`.
+- **Não use `--workers` maior que 1** nos E2E: as sessões dividem uma sala só e os testes se atrapalham (achei isso ao repetir com 3 a 5 workers: falhas falsas de grid, nota e parede).
+
+### Verificação
+
+- `e2e/tests/organizacao.spec.ts` (10 testes): grupos com nome e dica no mouse e no foco, `aria-label`, cabe no topo de 48 px sem cobrir presença e pausa; "Ver como" pelo botão (e o clique direito na lua sem efeito); "Eventos" não existe e o menu de luz não tem Paredes; ferramenta Paredes (botão apertado, selo, janela, cursor de mira, desenha uma parede, sai ao trocar de ferramenta, ao apertar de novo, ao fechar a janela e pelo "Sair do modo"); o jogador não vê Paredes nem a aba Mesa e as abas de cada papel; Notas como aba própria (mestre vê as duas, jogador só a da mesa; Fichas sem notas; a nota continua chegando a todos); Preferências × Mesa (o que cada uma tem e não tem, índice, diagnóstico recolhido); grid pela configuração da cena (valor inválido, mesmo frame, todos veem); "Modelos de tocha…" abre a Mesa na seção de luz (também com o painel recolhido); as seis abas em 300 px (nome inteiro, dentro do painel, sem rolar de lado).
+- E2E antigos alterados (a disposição mudou de propósito; nenhuma asserção de comportamento foi afrouxada):
+  - `interface.spec.ts`: menu do mestre (agora confere `aria-label` em vez de `title`, inclui "Ver como", e "Eventos" passou a **não existir**; `lanterna-paredes` passou a não existir e `lanterna-modelos` existe); abas da direita (as 6 e as 5, sem as antigas); notas na aba Notas e Fichas sem notas; o conteúdo antes de "Configurações" agora é "Preferências" e o de "Mestre" é "Mesa", com o `uso-hoje` aberto pelo diagnóstico recolhido; o teste da largura fixa percorre as 6 abas; exportação abre a aba Mesa.
+  - `estrutura.spec.ts`: os nomes e ids das abas em 300 px e recolhidas; "aba Mestre" virou "aba Mesa"; paredes pela ferramenta.
+  - `paredes.spec.ts`: o corredor com porta liga o modo pela ferramenta; "ver como" pelo botão em vez do clique direito.
+  - `janelas.spec.ts`: a janela de paredes abre pela ferramenta.
+  - `mapa.spec.ts`: encaixe (Preferências), permissão (Mesa) e o grid (configuração da cena; agora a visibilidade também confere o frame enviado, não só a caixa marcada).
+  - `cenas.spec.ts`: o grid da cena 2 pela configuração da cena.
+  - `sala.spec.ts`: notas na aba Notas; papéis, permissões e exportação na aba Mesa; "trocar usuário" em Preferências.
+  - `assets.spec.ts`, `desenho.spec.ts`: exportar e capacidade na aba Mesa.
+  - `tema.spec.ts`: o seletor de tema em Preferências.
+  - `tochas.spec.ts`: regras e modelos na aba Mesa; o jogador abre as Preferências e confere que lá não há `config-mesa`.
+- `pnpm verify` verde numa rodada: 31 (servidor) + 35 (web) + 553 (shared) de unidade e 174 E2E (164 + 10 novos), sem instável (o `estrutura.spec.ts` "a alça também funciona pelo teclado" não reapareceu). Repetição 3x dos 12 specs tocados: 345 execuções (115 testes × 3) dos `organizacao`, `interface`, `sala`, `mapa`, `cenas`, `paredes`, `janelas`, `estrutura`, `tochas`, `assets`, `desenho` e `tema`: 344 verdes e 1 instável (`mapa.spec.ts` "o mestre cria, edita e apaga tokens; camada e grid": o jogador 1 arrastava o token antes de a sala lhe mandar a permissão de controlá-lo, que chega num evento próprio depois do nome e do tamanho; corrigido na causa, esperando o frame da permissão, e `mapa.spec.ts` repetido 3x de novo: 27 verdes; `organizacao.spec.ts` repetido de novo depois dos últimos ajustes de CSS: 30 verdes).
+- Prints (3 temas, 1600×900 e 1280×720) em `prints-r4`: `<tema>-<largura>-01-topo-com-dica` (e `01-topo-recorte`), `02-ver-como`, `03-menu-de-luz`, `04-modo-paredes`, `05-aba-notas`, `06-aba-mesa-alto`, `07-aba-mesa-luz`, `07b-aba-mesa-papeis`, `08-aba-preferencias`, `09-configurar-cena-grid`, `10-painel-300-mestre`, `10b-painel-300-mesa`, `11-jogador-notas`, `12-jogador-painel-300` (84 prints).
+
+### Decisões
+
+- (assumido) "Ver como" é o quinto grupo do menu; o nome dos grupos fica em letra pequena embaixo (não cabe rótulo ao lado de cada ícone nos 48 px).
+- (assumido) O botão Paredes fica embaixo do pincel, separado por um filete, e some no "ver como".
+- (assumido) O grid da cena tem só "visível" e "quadrado em metros" (o modelo não tem cor do grid) e vale ao Salvar da configuração; quadrado fora de 0,3 a 10 m dá erro no formulário.
+- (assumido) Esc no modo Paredes só encerra a sequência em andamento (como antes); sair do modo é pela barra, pelas teclas V/H/R, pela janela ou pelo selo. Esc soltar a seleção é do R5.
+- (assumido) As seis abas cabem numa linha a partir de 300 px, com os nomes inteiros (na revisão a folga lateral de cada aba caiu de 4 para 2 px; antes quebravam em 4 + 2, e em 5 + 1 em 1280×720).
+- (assumido) Não existe aba guardada entre visitas (o painel sempre abre no Chat), então não houve migração de "Configurações" nem de "Mestre".
+- (assumido) Sem controle numérico de largura do painel nas Preferências (fica a alça do R2).
+- (assumido) A aba Mesa aparece e some na hora quando o papel muda.
+
+### Desvios do plano
+
+- Nenhum. Nada mudou na sala, no protocolo nem na exportação; nenhuma dependência nova.
+
+### Frágil / não verificado
+
+- Os E2E não aceitam mais de um worker (sala compartilhada); o config já fixa 1, mas vale lembrar ao repetir com `--workers`.
+- A dica do menu do topo é um componente só do `MenuSuperior`; a barra esquerda segue com `title` nativo (sem dica no foco do teclado). Unificar é do R6.
+- Os prints antigos (`e2e/prints/r1`, `r2`, `r2b`, `r3` e os dos lotes) usam o `aba-configuracoes` e o `lanterna-paredes` que não existem mais: não rodam como estão. Só o `r4` está em dia.
+- O selo de modo existe só para Paredes (luz e ponto não têm selo).
+- Só o Chrome foi testado.
+
+### Roteiro manual (pendente)
+
+1. Como mestre, olhar o topo: cinco grupos (Cena, Mapa, Luz, Combate, Ver como). Passar o mouse e tabular por todos os botões: cada um mostra a dica com nome e o que faz.
+2. "Ver como": abrir pelo botão do olho, escolher um jogador (selo "Vendo como", a barra perde o botão Paredes), voltar a "Eu mesmo (mestre)". A lua só liga e desliga a visão noturna; o clique direito nela não faz nada.
+3. Iluminação (lâmpada): "Iluminação dinâmica", "Fontes de luz", "Configurações de iluminação" e "Modelos de tocha…". O último abre a aba Mesa já na seção de luz; testar com o painel recolhido.
+4. Barra esquerda, botão Paredes e portas: liga o modo (botão apertado, selo, janela com o tipo, mira); desenhar uma parede e uma porta; sair por outra ferramenta, pelo botão, pelo X da janela e por "Sair do modo".
+5. Abas: Notas (as duas, e a do jogador só com a da mesa); Fichas só com pastas; Preferências (tema, encaixe, pasta, transferências, trocar usuário); Mesa (índice no alto, regras, modelos, papéis, permissões, campanha, diagnóstico recolhido com o "uso de hoje").
+6. Cenas, configurar uma cena: "Grid visível" e "Quadrado (metros)" gravam ao Salvar e os jogadores veem o novo grid.
+7. Painel direito em 300 px: as seis abas legíveis numa linha.
+8. Os 3 temas nas duas larguras de janela.
+
+### Revisão (antes do commit de fechamento)
+
+- Os 84 prints (3 temas × 1600×900 e 1280×720) conferidos: o topo cabe em uma linha com grupos, dicas legíveis e a presença e a pausa livres; a lista do "Ver como" abre sob o botão; o modo Paredes mostra o botão apertado, a janela e o selo; Notas, Mesa (índice e seções), Preferências, a configuração da cena com o grid e a mesa do jogador (5 abas) estão nos 3 temas; com o painel em 300 px as abas cabem numa linha sem cortar (depois do ajuste da revisão). Dois defeitos achados e corrigidos antes de entregar: o selo do modo Paredes encostava no zoom em 1280×720 (foi para o canto inferior esquerdo da área) e o atalho "Modelos de tocha…" rolava a seção para baixo do índice grudado (ganhou margem de rolagem). Visto e **não** tocado: no seletor de tema, com o painel em 360 px, o nome "Pergaminho" quebra em duas linhas na última bolinha sozinha (vem do R2b). (Falta a revisão do Vilella.)
+
+---
+
+## Próximo: Redesign R5 — Interações e fluxos (Esc solta a seleção, criar token com nome, tocha com dica e menu, condições com menos cliques, régua que fica, avisos perto do clique, ordem de turno compacta, ficha com um clique, estados vazios); depois R6, 7b e 12
