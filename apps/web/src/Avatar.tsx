@@ -1,3 +1,4 @@
+import { corDoTextoSobre } from "./contrasteDeCor";
 import type { ImagensDoMapa } from "./mapa/mapaPixi";
 import { useImagem } from "./useImagem";
 
@@ -24,7 +25,7 @@ export function Avatar({ imagens, versao, hash, nome, cor, redondo, className }:
   return (
     <span
       className={`avatar-item ${redondo ? "redondo" : ""} ${className ?? ""}`}
-      style={{ background: cor }}
+      style={{ background: cor, color: corDoTextoSobre(cor) }}
       data-com-imagem={url !== null}
     >
       {url ? <img src={url} alt="" /> : <span aria-hidden="true">{iniciais(nome)}</span>}

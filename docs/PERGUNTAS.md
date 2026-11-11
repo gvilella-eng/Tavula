@@ -11,8 +11,13 @@ Juntadas durante os Lotes 6 a 14 (2026-11-06 a 10) para fazer ao Vilella no fim.
 
 ## Novas do R4 (2026-11-10)
 - O brief do R4 falava em "tamanho, cor, visível" para o grid da cena, mas a cena só tem "visível" e "quadrado em metros" (não há cor de grid no modelo). (assumido) ficou sem cor; se quiser cor, é mudança na sala (novo campo no grid e no protocolo).
-- Os botões do menu do topo mostram nome e o que fazem, mas ainda sem atalho de teclado (não há atalhos para eles). (assumido) atalhos e dicas unificadas na barra esquerda ficam para o R6.
+- Os botões do menu do topo mostram nome e o que fazem, mas ainda sem atalho de teclado (não há atalhos para eles). (assumido) atalhos e dicas unificadas na barra esquerda ficam para o R6. **Respondido no R6a:** a dica é uma só, com os atalhos que já existiam (não há atalho para os botões do topo).
 - Nenhuma pergunta antiga foi respondida pelo R4; a de `ficha.verOutras` segue aberta (só mudou de aba, de Mestre para Mesa).
+
+## Novas do R6a (2026-11-11)
+- Atalho para o menu do topo e para outros botões: não inventei nenhum além de Shift+F10 / tecla de menu (menu do token). Se quiser atalhos para Cenas, Ordem de turno etc., é decisão de produto. (assumido) sem atalho.
+- O jogador não seleciona tokens; (assumido) Shift+F10 abre o menu do token que ele controla.
+- Selecionar um token só pelo teclado não existe (o mestre seleciona com o mouse). Vale um atalho (por exemplo Tab entre tokens)? (assumido) não neste lote.
 
 ## Já vinham de antes
 - Camada mapa = imagem do mapa + objetos de cenário? (assumido)

@@ -76,7 +76,7 @@ Tudo em `apps/web/src/`.
 ## 3. Levantamento de usabilidade (22 itens)
 
 Fonte: `REDESIGN:38-87`. Prioridade: A = atrapalha o jogo ou esconde função; B = confunde ou dá trabalho; C =
-acabamento. Lote = o do plano (`REDESIGN:89-117`) que resolve o item. R1, R2, R3, R4, R5a e R5b foram entregues.
+acabamento. Lote = o do plano (`REDESIGN:89-117`) que resolve o item. R1, R2, R3, R4, R5a, R5b e R6a foram entregues.
 
 | # | Resumo | Classe | Lote |
 |---|---|---|---|
@@ -101,9 +101,9 @@ acabamento. Lote = o do plano (`REDESIGN:89-117`) que resolve o item. R1, R2, R3
 | 19 | Importar PDF com dois caminhos de nomes diferentes; revisão longa (19 campos amarelos) | C | R5b (entregue) |
 | 20 | Tela de entrada sem marca nem personalidade | B | R1 (entregue) |
 | 21 | Pausa pouco visível: botão e relógio iguais pausado e rodando | B | R2 (entregue) |
-| 22 | Nenhum atalho de teclado nas dicas | C | R6 |
+| 22 | Nenhum atalho de teclado nas dicas | C | R6a (entregue) |
 
-Classes: A = 6 (1, 2, 4, 5, 9, 13), B = 13, C = 3 (11, 19, 22). Desde o R5a, 7, 8, 9, 10, 11, 12 e 13 estão resolvidos; desde o R5b, 14, 15, 18 e 19. Só falta o 22 (R6).
+Classes: A = 6 (1, 2, 4, 5, 9, 13), B = 13, C = 3 (11, 19, 22). Desde o R5a, 7, 8, 9, 10, 11, 12 e 13 estão resolvidos; desde o R5b, 14, 15, 18 e 19. O 22 foi resolvido no R6a: os 22 itens estão entregues.
 
 ## 4. Perguntas e suposições esperando o "ok" dele
 
@@ -399,17 +399,25 @@ Lote 14
 
 Redesign R1
 - Selo "Mestre" preso ao id `mestre` (também em `REDESIGN:167`). (`ESTADO:1665`)
-- Texto branco sobre cores de usuário claras (amarelo do mestre) no avatar: contraste baixo; fica para o R6. (`ESTADO:1666`, `REDESIGN:167-168`)
-- Os rótulos desenhados dentro do mapa não seguem o tema; também ficam para o R6. (`ESTADO:1667`, `REDESIGN:168`)
+- ~~Texto branco sobre cores de usuário claras (amarelo do mestre) no avatar~~: resolvido no R6a (texto branco ou preto pela luminância da cor, AA; `contrasteDeCor.ts`). (`ESTADO:1666`, `REDESIGN:167-168`)
+- ~~Os rótulos desenhados dentro do mapa não seguem o tema~~: decidido no R6a (assumido): continuam independentes do tema (o mapa é conteúdo) e têm contorno; conferidos sobre mapa claro e escuro. (`ESTADO:1667`, `REDESIGN:168`)
+
+Redesign R6a
+- Espaço só deixa de arrastar a vista num botão em foco pelo teclado (`:focus-visible`); botão focado com o mouse continua com o Espaço do mapa. Conferido só no Chrome. (`ESTADO`, "R6a", Frágil)
+- O jogador não seleciona tokens: o Shift+F10 dele abre o menu do primeiro token que controla na cena (assumido). (`REDESIGN`, "R6a — como ficou")
+- A tecla de menu e o menu nativo do navegador: o menu nativo é suprimido por 700 ms depois que abrimos o nosso; só testado com Shift+F10 e ContextMenu enviados pelo Playwright, não com um teclado real. (`ESTADO`, "R6a", Frágil)
+- O mapa (canvas) agora recebe foco (`tabIndex=0`): Tab passa por ele; o anel aparece só no foco por teclado. (`REDESIGN`, "R6a — como ficou")
+- Os rótulos do mapa continuam fixos (claro com contorno preto), independentes do tema; mapa de cor intermediária não foi visto. (`ESTADO`, "R6a", Frágil)
+- Os prints antigos continuam quebrados (R6b); só `r4`, `r5a`, `r5b` e `r6a` rodam.
 
 Redesign R5b
-- A dica do item das Fichas ("Abrir a ficha") é o `title` nativo do navegador, não o estilo das dicas do R4. (`ESTADO`, "R5b", Frágil)
+- ~~A dica do item das Fichas é o `title` nativo~~: resolvido no R6a (dica comum). (`ESTADO`, "R5b", Frágil)
 - O "Usar o exemplo" que grava `compendio/magias.json` só foi testado com a "pasta" dos testes (a `Memoria`), não com a pasta real do Chrome (File System Access). (`ESTADO`, "R5b", Frágil)
 - O item das Fichas agora é arrastável pelo nome (botão `draggable`): testado no Chrome; Firefox e Safari tratam botão arrastável de outro jeito. (`ESTADO`, "R5b", Frágil)
 - Os prints antigos que usam `ordem-*` com o combate já em andamento (Montar vem recolhida) e os que clicam em "Confirmar importação" (agora "Criar a ficha" / "Substituir a ficha de X") podem não rodar mais (R6). (`ESTADO`, "R5b", Frágil)
 
 Redesign R5a
-- A dica da alça da tocha e o menu do token só existem para o mouse (botão direito e passar o mouse); não há caminho por teclado nem por foco, e toque (celular) não foi testado. Fica para o R6. (`ESTADO`, "R5a", Frágil)
+- ~~O menu do token só existe para o mouse~~: desde o R6a abre com Shift+F10 ou a tecla de menu (a tocha vale por ele). A dica da alça da tocha continua só no mouse (a alça é do canvas e não recebe foco), e toque (celular) não foi testado. (`ESTADO`, "R5a", Frágil)
 - O aviso de erro sem origem (a sala avisando por conta própria) ficou no alto da área e só foi conferido por leitura; os E2E cobrem o aviso com origem. (`ESTADO`, "R5a", Frágil)
 - A origem do aviso é o último ponto do ponteiro até 1,5 s antes do envio, ou o campo com o foco: um erro que volta depois de outra ação do mouse pode aparecer perto do ponto errado. (`ESTADO`, "R5a", Frágil)
 - Clicar num marcador de condição abre a regra e não arrasta o token por ali; quem pega o token pela borda de baixo, onde os marcadores ficam, abre a regra em vez de arrastar. (`REDESIGN`, "R5a — como ficou")
@@ -418,7 +426,7 @@ Redesign R5a
 
 Redesign R4
 - Os E2E só rodam com 1 worker (sala compartilhada): `--workers` maior dá falhas falsas. (`ESTADO`, "R4", Como rodar)
-- A dica do menu do topo é própria do `MenuSuperior`; a barra de ferramentas esquerda e o resto seguem com `title` nativo (sem dica no foco do teclado). Unificar e pôr os atalhos nas dicas: R6. (`ESTADO`, "R4", Frágil)
+- ~~A dica do menu do topo é própria do `MenuSuperior`~~: resolvido no R6a (uma dica só, `BotaoComDica`, com atalho). Ainda com `title` nativo: botões menores de fichas, fontes de luz, editor do item, ordem de turno, chat, faixa de cenas, cores do pincel e a alça do item das Fichas. (`ESTADO`, "R4", Frágil)
 - Os prints antigos (`e2e/prints/r1` a `r3` e os dos lotes) usam testids que não existem mais (`aba-configuracoes`, `lanterna-paredes`): só o `r4` roda. (`ESTADO`, "R4", Frágil)
 - O selo de modo existe só para Paredes e portas; luz e ponto não têm. (`ESTADO`, "R4", Frágil)
 - `PROJETO.md` ainda cita a aba "Configurações" e a aba do mestre em textos de lotes antigos (por exemplo `PROJETO:745`, `PROJETO:1017`, `PROJETO:1236`): hoje são as abas Preferências e Mesa.
@@ -438,7 +446,7 @@ Redesign R2
 - Ao mudar o tamanho da área (painel, janela) a vista do mapa fica ancorada no canto superior esquerdo; "Centralizar" resolve. (`ESTADO:1723`, `REDESIGN:244`)
 - A pílula do mestre muda de largura entre rodando e pausada, deslocando os avatares ao lado. (`ESTADO:1725`)
 - Com 5 abas na largura mínima "Configurações" ocupava quase a linha. Ficou velho: desde o R4 são 6 abas (5 para o jogador) e elas cabem numa linha em 300 px, apertadas. (`ESTADO`, "R4")
-- A lista do "+N" da presença não tem teste de foco por teclado. (`ESTADO:1724`)
+- ~~A lista do "+N" da presença não tem teste de foco por teclado~~: coberta no R6a (`teclado.spec.ts`). (`ESTADO:1724`)
 
 Itens de interface que o "Em aberto" do `REDESIGN` mandava para o R5/R6: a dica das condições abrir por clique
 e as alças de tocha sobrepostas ao ícone de ponto foram resolvidos no R5a. O que sobra, **seleção múltipla no

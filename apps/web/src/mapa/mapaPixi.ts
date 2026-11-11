@@ -52,6 +52,7 @@ import {
 import "pixi.js/advanced-blend-modes";
 import { Application, Container, Graphics, Rectangle, Sprite, Text, Texture } from "pixi.js";
 import type { CamadaDeTrabalho } from "../camadas";
+import { corDoTextoSobre, haloDoTexto } from "../contrasteDeCor";
 import type { ConfigDoPincel } from "../pincel";
 import { CamadaDeDesenho, type DesenhoNaTela } from "./camadaDeDesenho";
 import { CamadaDeLuz } from "./camadaDeLuz";
@@ -831,6 +832,13 @@ export class MapaPixi {
     return this.paraMundo({ x: clientX - r.left, y: clientY - r.top });
   }
 
+  /** Ponto do mundo (metros) na página (clientX/clientY): onde abrir um menu junto de um token pelo teclado. */
+  pontoDoMundoNaPagina(xM: number, yM: number): Ponto {
+    const r = this.app.canvas.getBoundingClientRect();
+    const p = this.paraTela(xM, yM);
+    return { x: r.left + p.x, y: r.top + p.y };
+  }
+
   /** Metros do mundo no centro da tela (para criar o token novo à vista). */
   centroDaTelaEmMetros(): Ponto {
     return this.paraMundo({ x: this.largura() / 2, y: this.altura() / 2 });
@@ -942,14 +950,16 @@ export class MapaPixi {
       figura.mask = mascara;
       imagem.addChild(mascara, figura);
     }
+    // As iniciais seguem a cor do token (texto claro ou escuro, com o halo contrário): o amarelo não pode ter branco.
+    const textoDasIniciais = corDoTextoSobre(token.cor);
     const iniciais = new Text({
       text: iniciaisDe(token.nome),
       style: {
-        fill: 0xffffff,
+        fill: textoDasIniciais,
         fontSize: Math.max(12, raio * 0.8),
         fontWeight: "700",
         fontFamily: "system-ui, sans-serif",
-        stroke: { color: 0x000000, width: 3 },
+        stroke: { color: haloDoTexto(textoDasIniciais), width: 3 },
       },
     });
     iniciais.anchor.set(0.5);
@@ -2832,9 +2842,26 @@ export class MapaPixi {
     );
   }
 
+  /**
+   * Espaço é "arrastar a vista", mas num botão em foco pelo teclado (Tab) é o que ativa o botão (R6a): o mapa
+   * não o rouba. Botão focado com o mouse (`:focus-visible` falso) e o próprio mapa continuam arrastando.
+   */
+  private espacoEDeUmControle(): boolean {
+    const a = document.activeElement;
+    return (
+      a instanceof HTMLElement &&
+      a !== document.body &&
+      a !== this.host &&
+      a.matches(
+        "button, summary, a[href], [role='button'], [role='menuitem'], [role='menuitemcheckbox'], [role='tab'], input[type='checkbox'], input[type='radio']",
+      ) &&
+      a.matches(":focus-visible")
+    );
+  }
+
   private readonly aoTeclaBaixo = (e: KeyboardEvent) => {
     if (this.digitando()) return;
-    if (e.code === "Space") {
+    if (e.code === "Space" && !this.espacoEDeUmControle()) {
       this.espaco = true;
       e.preventDefault();
       this.atualizarCursor();

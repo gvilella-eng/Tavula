@@ -56,12 +56,18 @@ button {
 button:hover {
   border-color: var(--acento-forte);
 }
-button:focus-visible,
-input:focus-visible,
-select:focus-visible,
-textarea:focus-visible {
-  outline: 2px solid var(--acento);
-  outline-offset: 1px;
+/* Anel de foco do teclado (R6a): um só em toda a interface, na cor `--foco` de cada tema (3:1 contra as superfícies, conferido em `temas.test.ts`). Specificidade zero: quem precisa de outro recuo o redefine. */
+:where(
+  button,
+  input,
+  select,
+  textarea,
+  summary,
+  a[href],
+  [tabindex]:not([tabindex="-1"])
+):focus-visible {
+  outline: 2px solid var(--foco);
+  outline-offset: 2px;
 }
 button.perigo {
   color: var(--perigo);
@@ -160,7 +166,6 @@ textarea {
   font-weight: 700;
   font-size: 20px;
   color: #fff;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
 }
 .cartao-de-usuario-nome {
   font-weight: 600;
@@ -218,8 +223,8 @@ textarea {
   cursor: pointer;
 }
 .opcao-de-tema:has(input:focus-visible) {
-  outline: 2px solid var(--acento);
-  outline-offset: 1px;
+  outline: 2px solid var(--foco);
+  outline-offset: 2px;
 }
 .nome-do-tema {
   max-width: 100%;
@@ -302,6 +307,10 @@ textarea {
   inset: 0;
   overflow: hidden;
   background: var(--fundo-mesa);
+}
+.mapa:focus-visible {
+  outline: 2px solid var(--foco);
+  outline-offset: -3px;
 }
 .mapa canvas {
   display: block;
@@ -1048,8 +1057,7 @@ button[aria-disabled="true"]:hover {
 }
 .cor-pincel[aria-pressed="true"] {
   border-color: var(--acento-forte);
-  outline: 2px solid var(--acento);
-  outline-offset: 1px;
+  box-shadow: 0 0 0 2px var(--acento);
 }
 .em-breve {
   font-size: 10px;
@@ -1340,7 +1348,6 @@ button[aria-disabled="true"]:hover {
   font-size: 12px;
   font-weight: 700;
   color: #fff;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
 }
 .presenca-item .avatar {
   width: 30px;
@@ -1596,7 +1603,6 @@ button[aria-disabled="true"]:hover {
   border-radius: 8px;
   color: #fff;
   font-weight: 700;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
 }
 .avatar-item.redondo {
   border-radius: 50%;
@@ -2463,7 +2469,7 @@ button[aria-disabled="true"]:hover {
   cursor: grabbing;
 }
 .janela-cabecalho:focus-visible {
-  outline: 2px solid var(--acento-forte);
+  outline: 2px solid var(--foco);
   outline-offset: -2px;
 }
 .janela[data-minimizada="true"] .janela-cabecalho {
@@ -3589,10 +3595,15 @@ button[aria-disabled="true"]:hover {
 .dica-flutuante {
   position: fixed;
   z-index: 80;
-  max-width: 240px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: max-content;
+  max-width: 260px;
   padding: 6px 10px;
   font-size: 12px;
   line-height: 1.35;
+  text-align: left;
   color: var(--texto);
   background: var(--painel);
   border: 1px solid var(--borda);
@@ -3602,6 +3613,41 @@ button[aria-disabled="true"]:hover {
 }
 .dica-flutuante[hidden] {
   display: none;
+}
+.dica-nome {
+  font-size: 13px;
+}
+.dica-texto {
+  color: var(--texto-suave);
+}
+.dica-ponto {
+  color: var(--texto-suave);
+}
+.teclas {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+}
+.teclas-ou,
+.teclas-mais {
+  color: var(--texto-suave);
+  font-size: 11px;
+}
+kbd {
+  display: inline-block;
+  min-width: 18px;
+  padding: 0 5px;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 17px;
+  text-align: center;
+  color: var(--texto);
+  background: var(--campo);
+  border: 1px solid var(--borda);
+  border-bottom-width: 2px;
+  border-radius: 4px;
 }
 .ot-solta {
   display: flex;
@@ -4191,35 +4237,6 @@ button[aria-disabled="true"]:hover {
   position: relative;
   display: flex;
 }
-.dica-do-menu {
-  position: absolute;
-  top: calc(100% + 18px);
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 60;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  width: max-content;
-  max-width: 240px;
-  padding: 7px 10px;
-  font-size: 12px;
-  line-height: 1.35;
-  text-align: left;
-  color: var(--texto-suave);
-  background: var(--painel);
-  border: 1px solid var(--borda);
-  border-radius: var(--raio);
-  box-shadow: var(--sombra);
-  pointer-events: none;
-}
-.dica-do-menu[hidden] {
-  display: none;
-}
-.dica-do-menu strong {
-  font-size: 13px;
-  color: var(--texto);
-}
 .menu-grupo .menu-lista {
   top: calc(100% + 18px);
 }
@@ -4319,7 +4336,7 @@ button[aria-disabled="true"]:hover {
   box-shadow: 0 0 0 2px var(--acento);
 }
 .novo-token-cor-rotulo input:focus-visible + .novo-token-cor {
-  outline: 2px solid var(--acento);
+  outline: 2px solid var(--foco);
   outline-offset: 3px;
 }
 .selo-modo .selo-dica {
@@ -4350,4 +4367,31 @@ button[aria-disabled="true"]:hover {
   margin: 8px 0 0;
   color: var(--texto-suave);
   line-height: 1.45;
+}
+
+/* --- atalhos do teclado (R6a) -------------------------------------------------------------- */
+
+.lista-de-atalhos h4 {
+  margin: 12px 0 4px;
+  font-size: 12px;
+  color: var(--texto-suave);
+}
+.lista-de-atalhos dl {
+  margin: 0;
+}
+.atalho-linha {
+  display: grid;
+  grid-template-columns: minmax(96px, 38%) 1fr;
+  gap: 8px;
+  align-items: start;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--borda);
+}
+.atalho-linha dt,
+.atalho-linha dd {
+  margin: 0;
+}
+.atalho-linha dd {
+  color: var(--texto-suave);
+  font-size: 12px;
 }

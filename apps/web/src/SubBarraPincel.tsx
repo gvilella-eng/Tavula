@@ -11,6 +11,7 @@ import {
   Undo2,
 } from "lucide-react";
 import type { ReactNode } from "react";
+import { BotaoComDica } from "./BotaoComDica";
 import { CORES_DO_PINCEL, type ConfigDoPincel, ESPESSURAS_DO_PINCEL } from "./pincel";
 
 const FORMAS: { id: FormaDeDesenho; titulo: string; icone: ReactNode }[] = [
@@ -51,78 +52,80 @@ export function SubBarraPincel({ config, aoMudar, aoFechar, aoDesfazer }: Props)
       aria-label="Pincel"
       data-testid="sub-barra-pincel"
     >
-      <button
-        type="button"
+      <BotaoComDica
+        testid="pincel-fechar"
         className="botao-icone"
-        data-testid="pincel-fechar"
-        title="Voltar às ferramentas"
+        nome="Voltar às ferramentas"
+        lado="direita"
         aria-label="Voltar às ferramentas"
         onClick={aoFechar}
       >
         <ArrowLeft size={20} />
-      </button>
-      <button
-        type="button"
+      </BotaoComDica>
+      <BotaoComDica
+        testid="pincel-desfazer"
         className="botao-icone"
-        data-testid="pincel-desfazer"
-        title="Voltar: apaga o meu desenho mais recente desta cena"
+        nome="Voltar"
+        dica="Apaga o meu desenho mais recente desta cena."
+        lado="direita"
         aria-label="Voltar: apaga o meu desenho mais recente desta cena"
         onClick={aoDesfazer}
       >
         <Undo2 size={20} />
-      </button>
-      <button
-        type="button"
+      </BotaoComDica>
+      <BotaoComDica
+        testid="pincel-selecionar"
         className="botao-icone"
-        data-testid="pincel-selecionar"
-        title="Selecionar: mover e apagar desenhos (Delete apaga o selecionado)"
+        nome="Selecionar"
+        dica="Seleciona desenhos para mover ou apagar."
+        atalho="apagar"
+        lado="direita"
         aria-label="Selecionar desenhos"
         aria-pressed={modo === "selecionar"}
         onClick={() => aoMudar({ ...config, modo: "selecionar" })}
       >
         <MousePointer2 size={20} />
-      </button>
-      <button
-        type="button"
+      </BotaoComDica>
+      <BotaoComDica
+        testid="pincel-borracha"
         className="botao-icone"
-        data-testid="pincel-borracha"
-        title="Borracha: apaga o desenho inteiro que tocar"
+        nome="Borracha"
+        dica="Apaga o desenho inteiro que tocar."
+        lado="direita"
         aria-label="Borracha"
         aria-pressed={modo === "borracha"}
         onClick={() => aoMudar({ ...config, modo: "borracha" })}
       >
         <Eraser size={20} />
-      </button>
+      </BotaoComDica>
       <hr />
       {FORMAS.map((f) => (
-        <button
+        <BotaoComDica
           key={f.id}
-          type="button"
+          testid={`pincel-forma-${f.id}`}
           className="botao-icone"
-          data-testid={`pincel-forma-${f.id}`}
-          title={f.titulo}
+          nome={f.titulo}
+          lado="direita"
           aria-label={f.titulo}
           aria-pressed={modo === "formas" && forma === f.id}
           onClick={() => aoMudar({ ...config, modo: "formas", forma: f.id })}
         >
           {f.icone}
-        </button>
+        </BotaoComDica>
       ))}
-      <button
-        type="button"
+      <BotaoComDica
+        testid="pincel-preenchido"
         className="botao-icone"
-        data-testid="pincel-preenchido"
-        title={
-          fechada ? "Preenchido (retângulo e círculo)" : "Preenchido: escolha retângulo ou círculo"
-        }
+        nome="Preenchido"
+        dica="Preenche o retângulo e o círculo."
+        motivo={fechada ? null : "Escolha retângulo ou círculo para preencher"}
+        lado="direita"
         aria-label="Preenchido"
         aria-pressed={preenchido}
-        aria-disabled={!fechada}
-        disabled={!fechada}
         onClick={() => aoMudar({ ...config, preenchido: !preenchido })}
       >
         <PaintBucket size={20} />
-      </button>
+      </BotaoComDica>
       <hr />
       <fieldset className="cores-pincel">
         <legend className="so-leitor">Cor</legend>

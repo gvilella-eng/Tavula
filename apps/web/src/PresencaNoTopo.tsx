@@ -1,6 +1,8 @@
 import type { Presenca, Usuario } from "@tabletop/shared";
-import { useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { iniciais } from "./Avatar";
+import { BotaoComDica } from "./BotaoComDica";
+import { corDoTextoSobre } from "./contrasteDeCor";
 import { useFecharFora } from "./Popover";
 
 type Props = {
@@ -37,7 +39,7 @@ function Item({
       data-estado={estado}
       title={dica}
     >
-      <span className="avatar" style={{ background: u.cor }}>
+      <span className="avatar" style={{ background: u.cor, color: corDoTextoSobre(u.cor) }}>
         {iniciais(u.nome)}
         <span className="ponto-estado" aria-hidden="true" />
       </span>
@@ -64,6 +66,7 @@ function Item({
  */
 export function PresencaNoTopo({ usuarios, presenca, euId }: Props) {
   const [aberta, setAberta] = useState(false);
+  const idDaLista = useId();
   const ref = useRef<HTMLDivElement>(null);
   useFecharFora(ref, () => setAberta(false));
   const estadoDe = (u: Usuario): Presenca => presenca[u.id] ?? "offline";
@@ -92,20 +95,23 @@ export function PresencaNoTopo({ usuarios, presenca, euId }: Props) {
       </ul>
       {outros.length > 0 && (
         <>
-          <button
-            type="button"
+          <BotaoComDica
             className="presenca-mais"
-            data-testid="presenca-mais"
+            testid="presenca-mais"
             data-popover-gatilho=""
-            title={`Mais ${outros.length} na mesa: ver a lista`}
+            nome={`Mais ${outros.length} na mesa`}
+            dica="Abre a lista de quem está na mesa."
+            semDica={aberta}
             aria-expanded={aberta}
+            aria-controls={idDaLista}
             onClick={() => setAberta(!aberta)}
           >
             +{outros.length}
-          </button>
+          </BotaoComDica>
           {/* Sempre montada (os estados continuam lidos por leitores de tela); só aparece ao abrir. */}
           <ul
             className="presenca-lista"
+            id={idDaLista}
             data-testid="presenca-lista"
             aria-label="Os outros na mesa"
             hidden={!aberta}

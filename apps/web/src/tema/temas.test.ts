@@ -115,6 +115,38 @@ describe("temas de cor", () => {
     });
   }
 
+  // R6a: o anel de foco do teclado (`--foco`) é elemento de interface, não texto: WCAG 1.4.11 pede 3:1 contra o que
+  // está em volta. Confere contra toda superfície onde um controle pode receber foco, em todos os temas.
+  const SUPERFICIES_DO_FOCO: (keyof Tema)[] = [
+    "fundoMesa",
+    "fundo",
+    "barra",
+    "painelTopo",
+    "painelMeio",
+    "painelFim",
+    "painel",
+    "cabecalho",
+    "campo",
+  ];
+  for (const id of IDS_DOS_TEMAS) {
+    it(`o anel de foco tem 3:1 contra toda superfície do tema ${id}`, () => {
+      const tema = TEMAS[id];
+      expect(tema.foco).toMatch(/^#[0-9A-Fa-f]{6}$/);
+      const ruins = SUPERFICIES_DO_FOCO.map((f) => ({
+        f,
+        c: contraste(tema.foco, tema[f]),
+      })).filter((p) => p.c < 3);
+      expect(ruins.map((p) => `foco sobre ${p.f}: ${p.c.toFixed(2)}`)).toEqual([]);
+    });
+  }
+
+  it("o anel de foco existe nos 3 temas principais e vira a variável --foco", () => {
+    for (const id of ["grimorio", "escuro", "claro"] as const) {
+      expect(TEMAS[id].foco.length).toBe(7);
+    }
+    expect(nomeDaVariavel("foco")).toBe("--foco");
+  });
+
   it("as barras se distinguem do fundo da mesa", () => {
     for (const id of IDS_DOS_TEMAS) {
       expect(TEMAS[id].barra).not.toBe(TEMAS[id].fundoMesa);

@@ -1,5 +1,14 @@
 import { PanelRightClose, PanelRightOpen } from "lucide-react";
-import { type KeyboardEvent, type PointerEvent, type ReactNode, useEffect, useState } from "react";
+import {
+  type KeyboardEvent,
+  type PointerEvent,
+  type ReactNode,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+import { BotaoComDica } from "./BotaoComDica";
+import { Dica, useDica } from "./Dica";
 
 export type Aba = {
   id: string;
@@ -50,6 +59,8 @@ export function BarraLateral({
   const [aberta, setAberta] = useState(true);
   const [ativa, setAtiva] = useState("chat");
   const [arrastando, setArrastando] = useState(false);
+  const alcaRef = useRef<HTMLDivElement>(null);
+  const dicaDaAlca = useDica();
   const ativaValida = abas.some((a) => a.id === ativa) ? ativa : (abas[0]?.id ?? "");
 
   // Um pedido de fora (ex.: "Modelos de tocha…" no menu de Luz): abre a aba e depois rola até a seção.
@@ -117,17 +128,17 @@ export function BarraLateral({
   }
 
   const botaoRecolher = (
-    <button
-      type="button"
+    <BotaoComDica
       className="botao-icone lateral-recolher"
-      data-testid="lateral-recolher"
-      title={aberta ? "Recolher o painel" : "Abrir o painel"}
+      testid="lateral-recolher"
+      nome={aberta ? "Recolher o painel" : "Abrir o painel"}
+      lado="esquerda"
       aria-label={aberta ? "Recolher o painel" : "Abrir o painel"}
       aria-expanded={aberta}
       onClick={() => definirAberta(!aberta)}
     >
       {aberta ? <PanelRightClose size={20} /> : <PanelRightOpen size={20} />}
-    </button>
+    </BotaoComDica>
   );
 
   return (
@@ -148,25 +159,49 @@ export function BarraLateral({
           aria-valuemin={limites.min}
           aria-valuemax={limites.max}
           tabIndex={0}
+          ref={alcaRef}
           data-testid="alca-do-painel"
-          title="Arraste para ajustar a largura (ou use as setas)"
-          onPointerDown={aoApertarAlca}
+          aria-describedby={dicaDaAlca.id}
+          onMouseEnter={dicaDaAlca.mostrar}
+          onMouseLeave={dicaDaAlca.esconder}
+          onFocus={dicaDaAlca.mostrar}
+          onBlur={dicaDaAlca.esconder}
+          onPointerDown={(e) => {
+            dicaDaAlca.esconder();
+            aoApertarAlca(e);
+          }}
           onPointerMove={aoMoverAlca}
           onPointerUp={aoSoltarAlca}
           onPointerCancel={aoSoltarAlca}
-          onKeyDown={aoTeclarAlca}
+          onKeyDown={(e) => {
+            dicaDaAlca.aoTeclar(e);
+            aoTeclarAlca(e);
+          }}
+        />
+      )}
+      {aberta && (
+        <Dica
+          alvo={alcaRef}
+          id={dicaDaAlca.id}
+          visivel={dicaDaAlca.visivel}
+          testid="dica-alca-do-painel"
+          nome="Ajustar a largura"
+          texto="Arraste a borda do painel."
+          atalho="painelLargura"
+          lado="esquerda"
         />
       )}
       <nav className="abas" aria-label="Abas">
         <div className="abas-lista" role="tablist">
           {abas.map((a) => (
-            <button
+            <BotaoComDica
               key={a.id}
-              type="button"
               role="tab"
               className="aba-lateral"
-              data-testid={`aba-${a.id}`}
-              title={a.titulo}
+              testid={`aba-${a.id}`}
+              nome={a.titulo}
+              semDica={aberta}
+              lado="esquerda"
               aria-label={a.titulo}
               aria-selected={aberta && ativaValida === a.id}
               onClick={() => {
@@ -189,7 +224,7 @@ export function BarraLateral({
                   {a.selo > 99 ? "99+" : a.selo}
                 </span>
               )}
-            </button>
+            </BotaoComDica>
           ))}
         </div>
       </nav>

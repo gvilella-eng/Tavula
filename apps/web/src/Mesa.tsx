@@ -187,9 +187,12 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
     null,
   );
   // O menu do botão direito no token (posição na página) e a dica do marcador de condição sob o mouse.
-  const [menuDoToken, setMenuDoToken] = useState<{ tokenId: string; x: number; y: number } | null>(
-    null,
-  );
+  const [menuDoToken, setMenuDoToken] = useState<{
+    tokenId: string;
+    x: number;
+    y: number;
+    teclado?: boolean;
+  } | null>(null);
   const [dicaDoMapa, setDicaDoMapa] = useState<DicaDoMapa | null>(null);
   // "Ver como o jogador X" (só da tela do mestre): `null` = ele mesmo.
   const [verComoId, setVerComoId] = useState<string | null>(null);
@@ -406,6 +409,54 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
     combateVisto?.entradas.find((e) => e.id === combateVisto.atualId)?.tokenId ?? null;
   const selecionado =
     estado?.tokens.find((t) => t.id === selecionadoId && t.cenaId === cena?.id) ?? null;
+  // Menu do token pelo teclado (R6a): com um token selecionado e o foco no mapa (ou em nada), Shift+F10 ou a tecla
+  // de menu abre o mesmo menu do botão direito junto do token, e o foco vai para o primeiro item. Quem pode abrir
+  // é a mesma regra do botão direito: o mestre sempre, o jogador no token que controla.
+  const menuDoTokenAberto = menuDoToken !== null;
+  const cenaDoMenuId = cena?.id;
+  useEffect(() => {
+    let abriuNoTeclado = 0;
+    function aoTeclarMenu(e: KeyboardEvent) {
+      const porF10 = e.key === "F10" && e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey;
+      if (!porF10 && e.key !== "ContextMenu") return;
+      const alvo = e.target;
+      const noMapa =
+        alvo === document.body ||
+        (alvo instanceof HTMLElement && alvo.matches("[data-testid='mapa']"));
+      if (!noMapa || menuDoTokenAberto || usuarioVisto !== null) return;
+      const quem = euAtual.current;
+      const sala = estadoAtual.current;
+      const m = mapa.current;
+      if (!quem || !sala || !m) return;
+      // O jogador não seleciona tokens (só o mestre): para ele a tecla abre o menu do token que ele controla na
+      // cena (o primeiro, se forem vários) (assumido).
+      const alvoDoMenu =
+        selecionado ??
+        (quem.papel === "mestre"
+          ? null
+          : (sala.tokens.find(
+              (t) => t.cenaId === cenaDoMenuId && controlaToken(t, quem, sala.personagens),
+            ) ?? null));
+      if (!alvoDoMenu) return;
+      if (quem.papel !== "mestre" && !controlaToken(alvoDoMenu, quem, sala.personagens)) return;
+      e.preventDefault();
+      abriuNoTeclado = performance.now();
+      const p = m.pontoDoMundoNaPagina(alvoDoMenu.x, alvoDoMenu.y);
+      document.querySelector<HTMLElement>("[data-testid='mapa']")?.focus({ preventScroll: true });
+      setMenuDaTocha(null);
+      setMenuDoToken({ tokenId: alvoDoMenu.id, x: p.x + 28, y: p.y, teclado: true });
+    }
+    // A tecla de menu também dispara o menu nativo do navegador: some quando fomos nós a abrir o nosso.
+    function aoMenuNativo(e: MouseEvent) {
+      if (performance.now() - abriuNoTeclado < 700) e.preventDefault();
+    }
+    window.addEventListener("keydown", aoTeclarMenu);
+    window.addEventListener("contextmenu", aoMenuNativo);
+    return () => {
+      window.removeEventListener("keydown", aoTeclarMenu);
+      window.removeEventListener("contextmenu", aoMenuNativo);
+    };
+  }, [menuDoTokenAberto, selecionado, usuarioVisto, cenaDoMenuId]);
   const paredeSelecionada =
     estado?.paredes.find((x) => x.id === paredeSelecionadaId && x.cenaId === cena?.id) ?? null;
   const pronto = status === "conectado" && estado !== null;
@@ -1235,6 +1286,7 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
                 y={menuDoToken.y}
                 euMestre={euMestre}
                 enviar={enviar}
+                teclado={menuDoToken.teclado === true}
                 aoEditar={() => {
                   setSelecionadoId(menuDoToken.tokenId);
                   setPainelDoTokenAberto(true);

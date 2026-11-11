@@ -9,6 +9,8 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
+import { BotaoComDica } from "../BotaoComDica";
+import { Dica, useDica } from "../Dica";
 import { gravarJanela, lerJanela, type PreferenciaDeJanela } from "../preferencias";
 import { limitarNaArea, limitarTamanho, noCanto, type Padrao, type Tam } from "./geometria";
 import { BASE_DO_Z, sairDaPilha, trazerParaFrente, usePosicaoNaPilha } from "./pilha";
@@ -194,6 +196,8 @@ function JanelaNaArea({ alvo, ...p }: Props & { alvo: HTMLElement }) {
     gravarJanela(id, prefAtual.current);
   }
   const alternar = () => atualizar({ minimizada: !minimizada }, true);
+  const cabecalho = useRef<HTMLElement>(null);
+  const dicaDoCabecalho = useDica();
   const ehControle = (e: { target: EventTarget }) =>
     (e.target as Element).closest("button, input, select, textarea, a") !== null;
 
@@ -244,13 +248,21 @@ function JanelaNaArea({ alvo, ...p }: Props & { alvo: HTMLElement }) {
     >
       <div className={`janela-miolo ${p.classe ?? ""}`} data-testid={p.testid} {...p.dados}>
         <header
+          ref={cabecalho}
           className="janela-cabecalho"
           role="toolbar"
           aria-label={`${nome}: arraste para mover, ou use as setas`}
           tabIndex={0}
           data-testid={p.testidDoCabecalho ?? `janela-${id}-cabecalho`}
-          title="Arraste para mover; dois cliques minimizam ou restauram"
+          aria-describedby={dicaDoCabecalho.id}
+          onMouseOver={(e) =>
+            ehControle(e) ? dicaDoCabecalho.esconder() : dicaDoCabecalho.mostrar()
+          }
+          onMouseLeave={dicaDoCabecalho.esconder}
+          onFocus={(e) => e.target === e.currentTarget && dicaDoCabecalho.mostrar()}
+          onBlur={dicaDoCabecalho.esconder}
           onPointerDown={(e) => {
+            dicaDoCabecalho.esconder();
             // Botões e campos do cabeçalho não arrastam.
             if (ehControle(e)) return;
             iniciar("mover", e);
@@ -261,7 +273,10 @@ function JanelaNaArea({ alvo, ...p }: Props & { alvo: HTMLElement }) {
           onDoubleClick={(e) => {
             if (!ehControle(e)) alternar();
           }}
-          onKeyDown={aoTeclar}
+          onKeyDown={(e) => {
+            dicaDoCabecalho.aoTeclar(e);
+            aoTeclar(e);
+          }}
         >
           <div className="janela-titulo">
             {p.cabecalho ?? (
@@ -272,29 +287,37 @@ function JanelaNaArea({ alvo, ...p }: Props & { alvo: HTMLElement }) {
             )}
           </div>
           {p.acoes}
-          <button
-            type="button"
+          <BotaoComDica
             className="botao-icone pequeno"
-            data-testid={`janela-${id}-minimizar`}
-            title={minimizada ? "Restaurar" : "Minimizar"}
+            testid={`janela-${id}-minimizar`}
+            nome={minimizada ? "Restaurar" : "Minimizar"}
+            dica={minimizada ? "Mostra a janela inteira de novo." : "Deixa só a barra do título."}
             aria-label={`${minimizada ? "Restaurar" : "Minimizar"} ${nome}`}
             onClick={alternar}
           >
             {minimizada ? <Maximize2 size={14} /> : <Minus size={16} />}
-          </button>
+          </BotaoComDica>
           {p.aoFechar && (
-            <button
-              type="button"
+            <BotaoComDica
               className="botao-icone pequeno"
-              data-testid={p.testidDoFechar ?? `janela-${id}-fechar`}
-              title="Fechar"
+              testid={p.testidDoFechar ?? `janela-${id}-fechar`}
+              nome="Fechar"
               aria-label={p.rotuloDoFechar ?? `Fechar ${nome}`}
               onClick={p.aoFechar}
             >
               <X size={16} />
-            </button>
+            </BotaoComDica>
           )}
         </header>
+        <Dica
+          alvo={cabecalho}
+          id={dicaDoCabecalho.id}
+          visivel={dicaDoCabecalho.visivel}
+          testid={`dica-janela-${id}-cabecalho`}
+          nome="Mover a janela"
+          texto="Arraste pelo cabeçalho. Dois cliques minimizam ou restauram."
+          atalho="janelaMover"
+        />
 
         <div
           className={`janela-conteudo${p.corpoLivre ? "" : " janela-corpo"} ${p.classeDoCorpo ?? ""}`}

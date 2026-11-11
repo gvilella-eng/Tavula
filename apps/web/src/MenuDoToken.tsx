@@ -20,6 +20,7 @@ import {
 import { useRef, useState } from "react";
 import { caixaDaArea, dentroDaArea } from "./area";
 import { useFecharFora } from "./Popover";
+import { useMenuPorTeclado } from "./useMenuPorTeclado";
 
 type Props = {
   estado: Estado;
@@ -30,6 +31,8 @@ type Props = {
   /** O mestre gerencia a ordem de turno e o painel do token; quem só edita o personagem vê o resto. */
   euMestre: boolean;
   enviar: (tipo: string, dados: object) => string | null;
+  /** Aberto pelo teclado (Shift+F10 ou a tecla de menu): o foco vai para o primeiro item. */
+  teclado?: boolean;
   /** "Editar token…": seleciona o token e abre o painel dele (só o mestre). */
   aoEditar: () => void;
   aoFechar: () => void;
@@ -54,11 +57,13 @@ export function MenuDoToken({
   y,
   euMestre,
   enviar,
+  teclado,
   aoEditar,
   aoFechar,
 }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   useFecharFora(ref, aoFechar);
+  const aoTeclarNoMenu = useMenuPorTeclado(ref, teclado === true);
   const token = estado.tokens.find((t) => t.id === tokenId);
   const [magia, setMagia] = useState(token?.concentracao ?? "");
   if (!token) return null;
@@ -96,6 +101,7 @@ export function MenuDoToken({
       aria-label={`Token: ${token.nome}`}
       data-testid="menu-token"
       style={{ left: esquerda, top: topo, maxHeight: alturaMaxima }}
+      onKeyDown={aoTeclarNoMenu}
     >
       <div className="nota menu-titulo">{token.nome}</div>
       {euMestre && (

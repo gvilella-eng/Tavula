@@ -40,6 +40,7 @@ export const CHAVES_DE_TOKEN = [
   "acentoTexto", // texto sobre o destaque
   "acentoSuave", // fundo suave de destaque
   "acentoForte", // texto e ícone em destaque
+  "foco", // anel de foco do teclado (`:focus-visible`): 3:1 contra toda superfície
   "perigo", // perigo e dano (texto e preenchimento)
   "perigoTexto", // texto sobre o perigo
   "perigoFundo", // fundo opaco de cartão de falha crítica
@@ -82,6 +83,7 @@ export const TEMAS: Record<IdDoTema, Tema> = {
     acentoTexto: "#1E150B",
     acentoSuave: "rgba(226, 174, 79, 0.18)",
     acentoForte: "#F0C46E",
+    foco: "#F0C46E",
     perigo: "#EE8A55",
     perigoTexto: "#1E0F08",
     perigoFundo: "#4A2323",
@@ -119,6 +121,7 @@ export const TEMAS: Record<IdDoTema, Tema> = {
     acentoTexto: "#1E150B",
     acentoSuave: "rgba(226, 174, 79, 0.18)",
     acentoForte: "#F0C46E",
+    foco: "#F0C46E",
     perigo: "#EE8A55",
     perigoTexto: "#1E0F08",
     perigoFundo: "#4A2418",
@@ -156,6 +159,7 @@ export const TEMAS: Record<IdDoTema, Tema> = {
     acentoTexto: "#1E150B",
     acentoSuave: "rgba(226, 174, 79, 0.18)",
     acentoForte: "#F0C46E",
+    foco: "#F0C46E",
     perigo: "#EE8A55",
     perigoTexto: "#1E0F08",
     perigoFundo: "#502725",
@@ -193,6 +197,7 @@ export const TEMAS: Record<IdDoTema, Tema> = {
     acentoTexto: "#1E150B",
     acentoSuave: "rgba(226, 174, 79, 0.18)",
     acentoForte: "#F0C46E",
+    foco: "#F0C46E",
     perigo: "#EE8A55",
     perigoTexto: "#1E0F08",
     perigoFundo: "#4D292E",
@@ -230,6 +235,7 @@ export const TEMAS: Record<IdDoTema, Tema> = {
     acentoTexto: "#1E150B",
     acentoSuave: "rgba(226, 174, 79, 0.18)",
     acentoForte: "#F0C46E",
+    foco: "#F0C46E",
     perigo: "#EE8A55",
     perigoTexto: "#1E0F08",
     perigoFundo: "#482533",
@@ -267,6 +273,7 @@ export const TEMAS: Record<IdDoTema, Tema> = {
     acentoTexto: "#1E150B",
     acentoSuave: "rgba(226, 174, 79, 0.18)",
     acentoForte: "#F0C46E",
+    foco: "#F0C46E",
     perigo: "#EE8A55",
     perigoTexto: "#1E0F08",
     perigoFundo: "#4A2A26",
@@ -304,6 +311,7 @@ export const TEMAS: Record<IdDoTema, Tema> = {
     acentoTexto: "#1E150B",
     acentoSuave: "rgba(226, 174, 79, 0.18)",
     acentoForte: "#F0C46E",
+    foco: "#F0C46E",
     perigo: "#EE8A55",
     perigoTexto: "#1E0F08",
     perigoFundo: "#46292C",
@@ -341,6 +349,7 @@ export const TEMAS: Record<IdDoTema, Tema> = {
     acentoTexto: "#1E150B",
     acentoSuave: "rgba(226, 174, 79, 0.18)",
     acentoForte: "#F0C46E",
+    foco: "#F0C46E",
     perigo: "#EE8A55",
     perigoTexto: "#1E0F08",
     perigoFundo: "#552225",
@@ -378,6 +387,7 @@ export const TEMAS: Record<IdDoTema, Tema> = {
     acentoTexto: "#1E150B",
     acentoSuave: "rgba(226, 174, 79, 0.18)",
     acentoForte: "#F0C46E",
+    foco: "#F0C46E",
     perigo: "#EE8A55",
     perigoTexto: "#1E0F08",
     perigoFundo: "#4F232F",
@@ -415,6 +425,7 @@ export const TEMAS: Record<IdDoTema, Tema> = {
     acentoTexto: "#0B1424",
     acentoSuave: "rgba(91, 155, 240, 0.18)",
     acentoForte: "#8DBBF6",
+    foco: "#8DBBF6",
     perigo: "#F08A72",
     perigoTexto: "#1F0A06",
     perigoFundo: "#3E1E19",
@@ -452,6 +463,7 @@ export const TEMAS: Record<IdDoTema, Tema> = {
     acentoTexto: "#231E19",
     acentoSuave: "rgba(226, 174, 79, 0.24)",
     acentoForte: "#8A5D10",
+    foco: "#8A5D10",
     perigo: "#A83A15",
     perigoTexto: "#FFFFFF",
     perigoFundo: "#FDEBE3",

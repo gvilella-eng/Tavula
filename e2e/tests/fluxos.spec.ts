@@ -235,14 +235,20 @@ test("fichas: um clique no item abre a ficha; dois cliques abrem uma só; Enter 
   const janelas = p.getByTestId("janela-ficha");
   const item = p.getByTestId("ficha-abrir-pers-aldric");
 
-  // a dica diz o que fazer
-  await expect(item).toHaveAttribute("title", /Abrir a ficha/);
-  await expect(item).toHaveAttribute("title", /arraste para o mapa/);
+  // a dica diz o que fazer (R6a: a dica comum, no hover e no foco, não o title nativo)
+  await expect(item).not.toHaveAttribute("title", /.+/);
+  await item.hover();
+  const dicaItem = p.getByTestId("dica-ficha-abrir-pers-aldric");
+  await expect(dicaItem).toBeVisible();
+  await expect(dicaItem).toContainText("Abrir a ficha");
+  await expect(dicaItem).toContainText("Arraste para o mapa");
+  await p.mouse.move(700, 500);
   await abrirAba(j1.pagina, "fichas");
-  await expect(j1.pagina.getByTestId("ficha-abrir-pers-aldric")).toHaveAttribute(
-    "title",
-    "Abrir a ficha",
-  );
+  await j1.pagina.getByTestId("ficha-abrir-pers-aldric").hover();
+  const dicaJogador = j1.pagina.getByTestId("dica-ficha-abrir-pers-aldric");
+  await expect(dicaJogador).toBeVisible();
+  await expect(dicaJogador).toContainText("Abrir a ficha");
+  await expect(dicaJogador).not.toContainText("Arraste");
 
   // um clique abre (e não manda nada para a sala)
   const antes = mestre.enviados.length;

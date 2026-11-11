@@ -80,11 +80,14 @@ export function Mapa({
   }, [imagens, versaoDasImagens]);
 
   return (
-    // biome-ignore lint/a11y/noStaticElementInteractions: o mapa é um canvas; o arrasto das Fichas só precisa de dragover e drop
     <div
       ref={host}
       className="mapa"
       data-testid="mapa"
+      role="application"
+      // biome-ignore lint/a11y/noNoninteractiveTabindex: o mapa é um canvas; recebe foco (R6a) para o atalho do menu do token e para devolver o foco quando o menu fecha
+      tabIndex={0}
+      aria-label="Mapa da cena. Com um token selecionado, Shift+F10 ou a tecla de menu abre o menu dele."
       onDragOver={(e) => {
         if (e.dataTransfer.types.includes(TIPO_DE_ARRASTO_DA_FICHA)) e.preventDefault();
       }}

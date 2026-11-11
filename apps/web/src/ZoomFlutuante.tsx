@@ -1,4 +1,5 @@
 import { LocateFixed, Minus, Plus } from "lucide-react";
+import { BotaoComDica } from "./BotaoComDica";
 import { ZOOM_MAX, ZOOM_MIN } from "./mapa/mapaPixi";
 
 type Props = {
@@ -17,16 +18,15 @@ export function ZoomFlutuante({ zoom, aoDefinir, aoPasso, aoCentralizar }: Props
   const posicao = Math.round(((Math.log(zoom) - LOG_MIN) / (LOG_MAX - LOG_MIN)) * PASSOS);
   return (
     <div className="zoom-flutuante" data-testid="zoom-flutuante">
-      <button
-        type="button"
+      <BotaoComDica
+        testid="zoom-menos"
         className="botao-icone"
-        data-testid="zoom-menos"
-        title="Afastar"
+        nome="Afastar"
         aria-label="Afastar"
         onClick={() => aoPasso(0.8)}
       >
         <Minus size={18} />
-      </button>
+      </BotaoComDica>
       <input
         type="range"
         className="trilho-zoom"
@@ -39,29 +39,27 @@ export function ZoomFlutuante({ zoom, aoDefinir, aoPasso, aoCentralizar }: Props
           aoDefinir(Math.exp(LOG_MIN + (Number(e.target.value) / PASSOS) * (LOG_MAX - LOG_MIN)))
         }
       />
-      <button
-        type="button"
+      <BotaoComDica
+        testid="zoom-mais"
         className="botao-icone"
-        data-testid="zoom-mais"
-        title="Aproximar"
+        nome="Aproximar"
         aria-label="Aproximar"
         onClick={() => aoPasso(1.25)}
       >
         <Plus size={18} />
-      </button>
+      </BotaoComDica>
       <span className="zoom-nivel" data-testid="zoom-nivel">
         {Math.round(zoom * 100)}%
       </span>
-      <button
-        type="button"
+      <BotaoComDica
+        testid="zoom-centralizar"
         className="botao-icone"
-        data-testid="zoom-centralizar"
-        title="Centralizar o mapa"
+        nome="Centralizar o mapa"
         aria-label="Centralizar o mapa"
         onClick={aoCentralizar}
       >
         <LocateFixed size={18} />
-      </button>
+      </BotaoComDica>
     </div>
   );
 }

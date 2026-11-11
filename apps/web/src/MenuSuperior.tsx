@@ -19,7 +19,8 @@ import {
   User,
   Users,
 } from "lucide-react";
-import { type ReactNode, useId, useRef, useState } from "react";
+import { type ReactNode, useRef, useState } from "react";
+import { BotaoComDica } from "./BotaoComDica";
 import { CAMADAS_DE_TRABALHO, type CamadaDeTrabalho, ROTULO_DA_CAMADA } from "./camadas";
 import { Popover, useFecharFora } from "./Popover";
 
@@ -60,7 +61,7 @@ const ICONE_DA_CAMADA: Record<CamadaDeTrabalho, ReactNode> = {
 };
 
 /**
- * Botão do menu do mestre. O nome vai no `aria-label` e a dica (nome e o que faz) aparece ao passar o
+ * Botão do menu do mestre: o nome vai no `aria-label` e na dica (nome e o que faz), que aparece ao passar o
  * mouse e ao receber o foco do teclado. Com a lista do botão aberta, a dica sai da frente.
  */
 function Botao(props: {
@@ -78,42 +79,21 @@ function Botao(props: {
   aoClicar: () => void;
   children: ReactNode;
 }) {
-  const [dicaVisivel, setDicaVisivel] = useState(false);
-  const idDaDica = useId();
   return (
     <span className="menu-botao">
-      <button
-        type="button"
+      <BotaoComDica
+        testid={props.testid}
         className={props.alerta ? "botao-icone com-alerta" : "botao-icone"}
-        data-testid={props.testid}
+        nome={props.nome}
+        dica={props.dica}
+        semDica={props.aberto}
         aria-label={props.nome}
-        aria-describedby={idDaDica}
         aria-pressed={props.ativo}
         data-popover-gatilho={props.gatilho ? "" : undefined}
-        onClick={() => {
-          setDicaVisivel(false);
-          props.aoClicar();
-        }}
-        onMouseEnter={() => setDicaVisivel(true)}
-        onMouseLeave={() => setDicaVisivel(false)}
-        onFocus={() => setDicaVisivel(true)}
-        onBlur={() => setDicaVisivel(false)}
-        onKeyDown={(e) => {
-          if (e.key === "Escape") setDicaVisivel(false);
-        }}
+        onClick={props.aoClicar}
       >
         {props.children}
-      </button>
-      <span
-        id={idDaDica}
-        role="tooltip"
-        className="dica-do-menu"
-        data-testid={`dica-${props.testid}`}
-        hidden={!dicaVisivel || props.aberto}
-      >
-        <strong>{props.nome}</strong>
-        <span>{props.dica}</span>
-      </span>
+      </BotaoComDica>
     </span>
   );
 }

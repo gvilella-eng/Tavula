@@ -597,9 +597,60 @@ antes. Resolve 14 (o resto), 15, 18 e 19.
 - Os prints antigos que usam `ordem-*` com o combate em andamento (Montar vem recolhida) ou o texto "Confirmar
   importação" ficam para o R6.
 
+## R6a — como ficou (2026-11-11)
+
+Teclado, dicas com atalho, foco e contraste (o R6 do plano foi dividido: este é o **R6a**; o **R6b** é tela pequena, frágeis
+restantes, transições e a revisão final dos prints). Nada mudou na sala, no protocolo nem na exportação: nenhum frame novo
+(o menu do token pelo teclado manda os mesmos frames do clique). Resolve o item 22 e os frágeis de teclado, foco e contraste
+dos R anteriores.
+
+**O que foi feito**
+- **Uma dica só, com atalho** (item 22; `Dica.tsx`, `BotaoComDica.tsx`): o `BotaoComDica` virou a única dica da interface. Vale no
+  mouse e no foco do teclado, tem nome em negrito, o que faz e o atalho em `<kbd>` ("Régua · R"), mostra o motivo de um
+  botão desabilitado, liga-se por `aria-describedby` (e `aria-keyshortcuts`) e sai com Esc, ao clicar e ao perder o foco. É um
+  portal no `body`, com posição fixa e lado (baixo, direita ou esquerda). O `Botao` do `MenuSuperior` (R4) passou a usá-la.
+  Passaram do `title` nativo para ela: a barra esquerda e a sub-barra do pincel, o zoom, o cabeçalho e os botões das
+  janelas (Minimizar, Fechar), o item e o "Mais ações" das Fichas, o "+N" da presença, o recolher do painel, as abas
+  (só com o painel recolhido) e a alça de largura do painel. Os `data-testid` dos botões continuam; a dica é `dica-<testid>`.
+- **Tabela única de atalhos** (`atalhos.ts`): só o que existe no código (V, H, R; Espaço; Esc; Delete/Backspace; Alt; Shift
+  na régua e no dado; setas na janela e na alça do painel; Enter e Shift+Enter no chat; Enter e Esc na iniciativa) mais o do
+  item 2. Gera as dicas e a lista **"Atalhos do teclado"** da aba Preferências (`ListaDeAtalhos.tsx`, por grupo).
+- **Menu do token pelo teclado** (item 2; `Mesa.tsx`, `MenuDoToken.tsx`, `useMenuPorTeclado.ts`): com um token selecionado e
+  o foco no mapa (ou em nada), **Shift+F10 ou a tecla de menu** abre o menu do token junto dele e o foco vai ao primeiro item.
+  As setas andam pelos itens (Home e End também, menos dentro do campo de texto), Enter e Espaço ativam, Esc fecha e devolve
+  o foco ao mapa. As ações da tocha estão nesse menu, então a tocha também vale pelo teclado. O mapa passou a receber foco
+  (`tabIndex=0`, `role="application"`, rótulo que cita o atalho) e tem anel de foco.
+- **Foco visível** (`styles.css`, `temas.ts`): um anel só para todo controle (`button`, campos, `summary`, links, `[tabindex]`),
+  2 px na cor do token novo `--foco` (igual ao `acentoForte` de cada tema, nos 11), com `:focus-visible`. O cabeçalho da janela, a
+  alça do painel, o seletor de tema, as cores do novo token e o mapa têm o recuo próprio. O `temas.test.ts` confere 3:1 do
+  `foco` contra todas as superfícies, nos 11 temas.
+- **Contraste** (`contrasteDeCor.ts`): o texto das iniciais sobre a cor de um usuário ou de um token é branco ou preto, o que
+  der mais contraste (sempre AA; teste de unidade sobre uma grade de cores). Vale no avatar, na presença, na tela de entrada,
+  na condição da ficha e nas iniciais do token no mapa (com o halo contrário). Os rótulos desenhados no mapa já tinham
+  contorno; continuam independentes do tema (o mapa é conteúdo) e foram conferidos sobre mapa claro e escuro.
+- **Espaço no botão**: Espaço arrasta a vista, mas num botão focado pelo teclado ele ativa o botão (antes o mapa o roubava
+  de qualquer botão em foco).
+- **Jogador**: como só o mestre seleciona tokens, para o jogador a tecla abre o menu do token que ele controla na cena.
+
+**Decisões (assumido)**
+- (assumido) A lista de atalhos fica na aba Preferências, sempre visível, no fim.
+- (assumido) O mapa (canvas) recebe foco com `tabIndex=0` e rótulo; é o "foco no mapa" do atalho e para onde o foco volta.
+- (assumido) O token do anel de foco é `--foco`, com o mesmo valor do `acentoForte`.
+- (assumido) Texto de iniciais: branco ou preto puro (o preto suave não garante 4,5:1 sobre qualquer cor).
+- (assumido) Rótulos do mapa independentes do tema, legíveis por contorno.
+- (assumido) Jogador: Shift+F10 abre o menu do primeiro token que controla na cena (ele não seleciona tokens).
+- (assumido) Espaço ativa o botão só quando o foco chegou nele pelo teclado; botão focado com o mouse continua deixando o Espaço arrastar.
+- (assumido) Esc com o menu aberto continua soltando a seleção (regra do R5a); o foco volta ao mapa.
+
+**O que ficou para depois**
+- A dica da alça da tocha por foco: a alça é só do canvas (não recebe foco). A tocha pelo teclado vale pelo menu do token.
+- Ainda com `title` nativo: campos e botões menores das fichas, do painel de fontes de luz, do editor do item, da ordem de turno,
+  do chat, da faixa de cenas, as cores do pincel e a alça do item das Fichas.
+- Selecionar um token só pelo teclado (não há; o atalho parte de um token já selecionado).
+
 ## Em aberto
 
-- R1, R2, R2b, R3, R4 (2026-11-10), R5a e R5b (2026-11-11) feitos. **Plano aprovado (2026-11-10):** R2 a R6 seguem
+- R1, R2, R2b, R3, R4 (2026-11-10), R5a, R5b e R6a (2026-11-11) feitos. **Plano aprovado (2026-11-10):** R2 a R6 seguem
   como planejados, um depois do outro (o R5 foi dividido em R5a e R5b); depois do R6 o Vilella faz os ajustes
   finos de UX/UI e a reorganização dos itens, a partir de `docs/PASSAGEM.md`.
 - Itens de interface que vieram dos lotes: seleção múltipla no mapa (ainda não existe). A dica das condições por

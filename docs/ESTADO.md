@@ -2080,6 +2080,59 @@ relatório do Playwright (`[erro na página]`).
 
 - Os 60 prints foram gerados e uma amostra conferida (ordem do mestre aberta e recolhida e dica de botão desabilitado nos 3 temas em 1280×720, ordem do jogador, compêndio vazio do mestre e do jogador, compêndio com exemplo e atribuição, revisão do PDF em 1280×720 e 1600×900): Montar cabe na janela, a dica do botão desabilitado legível (cobre o botão vizinho por um instante, aceitável), seções recolhidas com resumo, destino e contagem no alto. Nada cortado ou sobreposto de forma feia. (Falta a revisão do Vilella.)
 
+## Redesign R6a — Teclado, dicas com atalho, foco e contraste (entregue, aguardando o roteiro manual)
+
+Detalhes e decisões em `docs/REDESIGN.md` ("R6a — como ficou").
+
+### O que foi entregue
+
+- Uma dica só (`Dica.tsx`, `BotaoComDica.tsx`), no mouse e no foco, com o atalho em `<kbd>`, motivo de desabilitado e `aria-describedby`; barra esquerda, sub-barra do pincel, zoom, janelas, Fichas, "+N", recolher e abas deixaram o `title` nativo.
+- Tabela única de atalhos (`atalhos.ts`) que gera as dicas e a lista "Atalhos do teclado" nas Preferências.
+- Menu do token por Shift+F10 ou tecla de menu (setas, Enter, Espaço, Esc, foco devolvido ao mapa); o mapa recebe foco.
+- Anel de foco único (`--foco`, token novo nos 11 temas, 3:1 no `temas.test.ts`).
+- Texto das iniciais branco ou preto pela cor (`contrasteDeCor.ts`), no avatar, na presença, na entrada, na condição da ficha e no token do mapa.
+- Espaço ativa o botão focado pelo teclado (antes o mapa o roubava).
+- Nada na sala, no protocolo nem na exportação mudou; nenhuma dependência nova.
+
+### Como rodar
+
+- `pnpm verify` (uma vez). E2E novos: `pnpm --filter @tabletop/e2e test --repeat-each=3 tests/teclado.spec.ts tests/fluxos.spec.ts`. Prints: `$env:PRINTS_DIR="<pasta>"; pnpm --filter @tabletop/e2e prints r6a`.
+- Só 1 worker nos E2E (sala compartilhada).
+
+### Verificação
+
+- `e2e/tests/teclado.spec.ts` (11 testes): dica no mouse e no foco por Tab com o atalho (topo, barra esquerda, zoom, cabeçalho e botões da janela); lista de atalhos igual à tabela; Shift+F10 abre o menu do token, setas, Home/End, Enter e Espaço marcam condições (mesmo frame do clique) e Esc devolve o foco; sem token selecionado e com o foco no chat a tecla não abre; o jogador abre o do próprio token; tocha apagada e acesa e guardada só pelo teclado (frames de sempre); "+N" da presença por Enter, Espaço e Esc; anel de foco nos 3 temas em 11 controles; contraste AA dos avatares.
+- Unidade: `atalhos.test.ts`, `contrasteDeCor.test.ts` (grade de cores AA) e, em `temas.test.ts`, o 3:1 do anel de foco nos 11 temas.
+- E2E antigo alterado (disposição mudou de propósito; nada afrouxado): `fluxos.spec.ts`, no teste do item das Fichas: a dica "Abrir a ficha (arraste para o mapa…)" deixou de ser o atributo `title` e virou a dica comum (`dica-ficha-abrir-<id>`, no hover); confere o mesmo texto para mestre e jogador. Os E2E da dica do topo (`organizacao.spec.ts`) e dos motivos (`fluxos.spec.ts`) passaram sem mudança.
+- `pnpm verify` verde na primeira rodada: 31 (servidor) + 59 (web) + 553 (shared) de unidade e 207 E2E (196 + 11 novos), sem instável. Repetição 3x de `teclado` e `fluxos`: 66 execuções verdes.
+- Prints (3 temas, 1600×900 e 1280×720) na pasta prints-r6a do scratchpad da sessão.
+
+### Decisões
+
+- (assumido) Lista de atalhos nas Preferências; mapa com `tabIndex=0`; `--foco` igual ao `acentoForte`; texto de iniciais branco ou preto puro; rótulos do mapa independentes do tema; jogador abre o menu do primeiro token que controla; Espaço ativa o botão só quando o foco veio do teclado; Esc com o menu aberto segue soltando a seleção.
+
+### Desvios do plano
+
+- A dica da alça da tocha por foco ficou de fora (a alça é do canvas); a tocha pelo teclado vale pelo menu do token.
+- A tabela só tem atalhos que já existiam, mais o do menu do token; nenhum botão do topo ganhou atalho.
+
+### Frágil / não verificado
+
+- Só o Chrome foi testado; o menu nativo do navegador na tecla de menu foi suprimido por tempo (700 ms) e só conferido com teclas do Playwright.
+- Ainda com `title` nativo: campos e botões menores das fichas, fontes de luz, editor do item, ordem de turno, chat, faixa de cenas, cores do pincel e a alça do item das Fichas.
+- Rótulos do mapa fixos (claro com contorno preto): vistos sobre mapa claro e escuro, não sobre cores intermediárias.
+- Os prints antigos continuam quebrados (R6b).
+
+### Roteiro manual (pendente)
+
+1. Tab pelo topo, pela barra esquerda e pelo zoom: cada botão mostra a dica com o atalho; Esc a esconde.
+2. Preferências: a lista "Atalhos do teclado" bate com o que funciona (V, H, R, Espaço, Esc, Delete, Alt, Shift).
+3. Selecionar um token com o mouse, focar o mapa (clique ou Tab) e apertar Shift+F10 (e a tecla de menu, se houver): o menu abre junto do token; setas, Enter, Espaço, Esc.
+4. Tocha acesa: apagar, acender e guardar pelo menu do teclado.
+5. Como jogador, Shift+F10 abre o menu do próprio token.
+6. O anel de foco aparece nos 3 temas em abas, janelas, "+N" e mapa; Espaço num botão focado por Tab o aciona, e com o mouse no mapa ainda arrasta a vista.
+7. Avatares do mestre (amarelo) e de tokens claros com texto escuro legível.
+
 ---
 
-## Próximo: Redesign R6 — polimento (tela pequena, foco e contraste, atalhos nas dicas, transições, conserto dos prints antigos e revisão final dos prints nos 3 temas); depois os ajustes do Vilella, 7b e 12
+## Próximo: Redesign R6b — polimento final (tela pequena, frágeis restantes, transições discretas, conserto dos prints antigos e revisão final de todos os prints nos 3 temas); depois os ajustes do Vilella, 7b e 12

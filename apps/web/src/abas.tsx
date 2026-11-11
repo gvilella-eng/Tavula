@@ -5,6 +5,7 @@ import { type ArquivoDaFonte, temSeletorDePasta } from "./assets/fonte";
 import type { Fontes } from "./assets/fontes";
 import type { GerenteDeAssets, StatusDeAsset } from "./assets/gerente";
 import { CampoNota } from "./CampoNota";
+import { ListaDeAtalhos } from "./ListaDeAtalhos";
 import { SeletorDeTema } from "./SeletorDeTema";
 import type { Ocorrencia } from "./useSala";
 
@@ -169,7 +170,7 @@ function Transferencias({ gerente }: { gerente: GerenteDeAssets }) {
 
 /**
  * Aba Preferências (todos): o que é de cada pessoa, no navegador. Trocar de usuário, tema de cor,
- * encaixe no grid, pasta local de imagens e transferências. O que vale para a sala (regras, modelos de
+ * encaixe no grid, pasta local de imagens, transferências e a lista de atalhos do teclado. O que vale para a sala (regras, modelos de
  * luz, papéis) está na aba Mesa, só do mestre.
  */
 export function AbaPreferencias({
@@ -203,6 +204,7 @@ export function AbaPreferencias({
       </label>
       <PastaLocal fontes={fontes} />
       {gerente && <Transferencias gerente={gerente} />}
+      <ListaDeAtalhos />
     </>
   );
 }

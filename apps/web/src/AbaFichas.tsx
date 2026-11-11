@@ -25,6 +25,7 @@ import {
 import { type DragEvent, useEffect, useRef, useState } from "react";
 import { Avatar } from "./Avatar";
 import { lerItemArrastado, TIPO_DE_ARRASTO_DA_FICHA } from "./arrasto";
+import { BotaoComDica } from "./BotaoComDica";
 import type { AbaDaFicha } from "./ficha/janelas";
 import { useImportadorDePdf } from "./ficha/useImportadorDePdf";
 import type { ImagensDoMapa } from "./mapa/mapaPixi";
@@ -177,11 +178,11 @@ function Item({ p, eu, imagens, versao, aoAbrir, aoImportarPdf }: PropsItem) {
       ) : (
         <span className="alca desligada" aria-hidden="true" />
       )}
-      <button
-        type="button"
+      <BotaoComDica
         className="ficha-abrir"
-        data-testid={`ficha-abrir-${p.id}`}
-        title={euMestre ? "Abrir a ficha (arraste para o mapa para pôr o token)" : "Abrir a ficha"}
+        testid={`ficha-abrir-${p.id}`}
+        nome="Abrir a ficha"
+        dica={euMestre ? "Arraste para o mapa para pôr o token." : undefined}
         draggable={euMestre || undefined}
         onDragStart={euMestre ? iniciarArrasto : undefined}
         onClick={aoAbrir}
@@ -203,21 +204,22 @@ function Item({ p, eu, imagens, versao, aoAbrir, aoImportarPdf }: PropsItem) {
           </span>
         )}
         {!euMestre && podeEditarPersonagem(p, eu) && <span className="selo">seu</span>}
-      </button>
+      </BotaoComDica>
       {podeEditarPersonagem(p, eu) && (
         <span className="ficha-item-menu">
-          <button
-            type="button"
+          <BotaoComDica
             className="botao-icone pequeno"
             data-popover-gatilho=""
-            data-testid={`ficha-menu-${p.id}`}
+            testid={`ficha-menu-${p.id}`}
+            nome="Mais ações"
+            dica="Importar PDF, exportar e outras ações deste item."
+            semDica={menu}
             aria-expanded={menu}
-            title="Mais ações deste item"
             aria-label={`Mais ações de ${p.nome}`}
             onClick={() => setMenu(!menu)}
           >
             <MoreHorizontal size={16} />
-          </button>
+          </BotaoComDica>
           {menu && (
             <Popover
               testid={`ficha-menu-itens-${p.id}`}

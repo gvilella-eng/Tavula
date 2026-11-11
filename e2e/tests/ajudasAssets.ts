@@ -64,6 +64,30 @@ export function pngDeRuido(largura: number, altura: number, semente: number, lad
   ]);
 }
 
+/** PNG de uma cor só (`rgb`), do tamanho pedido: um mapa claro ou escuro para ver os rótulos sobre ele. */
+export function pngDeCor(largura: number, altura: number, rgb: [number, number, number]): Buffer {
+  const tamanhoDaLinha = largura * 3 + 1;
+  const linhas = Buffer.alloc(tamanhoDaLinha * altura);
+  for (let y = 0; y < altura; y++) {
+    for (let px = 0; px < largura; px++) {
+      const i = y * tamanhoDaLinha + 1 + px * 3;
+      linhas[i] = rgb[0];
+      linhas[i + 1] = rgb[1];
+      linhas[i + 2] = rgb[2];
+    }
+  }
+  const cabecalho = Buffer.alloc(13);
+  cabecalho.writeUInt32BE(largura, 0);
+  cabecalho.writeUInt32BE(altura, 4);
+  cabecalho.set([8, 2, 0, 0, 0], 8);
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    bloco("IHDR", cabecalho),
+    bloco("IDAT", deflateSync(linhas)),
+    bloco("IEND", Buffer.alloc(0)),
+  ]);
+}
+
 export type ArquivoDeTeste = { name: string; mimeType: string; buffer: Buffer };
 
 export const arquivoPng = (name: string, buffer: Buffer): ArquivoDeTeste => ({

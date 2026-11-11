@@ -8,6 +8,7 @@ import {
   type UsuarioDaEntrada,
   usuarioDaSessao,
 } from "./api";
+import { corDoTextoSobre } from "./contrasteDeCor";
 import { Logo } from "./Logo";
 import { Mesa } from "./Mesa";
 
@@ -53,7 +54,11 @@ function TelaDeEntrada({ aoEntrar }: { aoEntrar: (u: UsuarioDaEntrada) => void }
               data-testid={`entrar-${u.id}`}
               onClick={() => escolher(u)}
             >
-              <span className="avatar-entrada" style={{ background: u.cor }} aria-hidden="true">
+              <span
+                className="avatar-entrada"
+                style={{ background: u.cor, color: corDoTextoSobre(u.cor) }}
+                aria-hidden="true"
+              >
                 {iniciais(u.nome)}
               </span>
               <span className="cartao-de-usuario-nome">{u.nome}</span>

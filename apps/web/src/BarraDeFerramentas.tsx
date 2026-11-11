@@ -1,5 +1,7 @@
 import { BrickWall, Brush, Dices, Hand, MousePointer2, Ruler } from "lucide-react";
 import { type ReactNode, useState } from "react";
+import type { IdDoAtalho } from "./atalhos";
+import { BotaoComDica } from "./BotaoComDica";
 import { DadosRapidos } from "./DadosRapidos";
 import type { Ferramenta } from "./mapa/mapaPixi";
 import type { ConfigDoPincel } from "./pincel";
@@ -25,7 +27,10 @@ const MOTIVO_SEM_PINCEL = "Pincel desligado: o mestre tirou de você a permissã
 
 function Botao(props: {
   testid: string;
-  titulo: string;
+  nome: string;
+  /** O que ele faz (segunda linha da dica). */
+  dica?: string | undefined;
+  atalho?: IdDoAtalho | undefined;
   ativo?: boolean;
   gatilho?: boolean;
   /** Sem permissão: continua visível (com o motivo no clique), mas apagado. */
@@ -34,19 +39,21 @@ function Botao(props: {
   children: ReactNode;
 }) {
   return (
-    <button
-      type="button"
+    <BotaoComDica
+      testid={props.testid}
       className="botao-icone"
-      data-testid={props.testid}
-      title={props.titulo}
-      aria-label={props.titulo}
+      nome={props.nome}
+      dica={props.dica}
+      atalho={props.atalho}
+      lado="direita"
+      aria-label={props.nome}
       aria-pressed={props.ativo}
       aria-disabled={props.indisponivel || undefined}
       data-popover-gatilho={props.gatilho ? "" : undefined}
       onClick={props.aoClicar}
     >
       {props.children}
-    </button>
+    </BotaoComDica>
   );
 }
 
@@ -58,10 +65,30 @@ export function BarraDeFerramentas(p: Props) {
   const [dadosAbertos, setDadosAbertos] = useState(false);
   const [semPermissao, setSemPermissao] = useState(false);
 
-  const ferramentas: { id: Ferramenta; titulo: string; icone: ReactNode }[] = [
-    { id: "selecionar", titulo: "Selecionar e mover (V)", icone: <MousePointer2 size={20} /> },
-    { id: "mao", titulo: "Mão: arrastar o mapa (H)", icone: <Hand size={20} /> },
-    { id: "regua", titulo: "Régua (R)", icone: <Ruler size={20} /> },
+  const ferramentas: {
+    id: "selecionar" | "mao" | "regua";
+    nome: string;
+    dica: string;
+    icone: ReactNode;
+  }[] = [
+    {
+      id: "selecionar",
+      nome: "Selecionar e mover",
+      dica: "Seleciona tokens e os move; dois cliques abrem o painel do token.",
+      icone: <MousePointer2 size={20} />,
+    },
+    {
+      id: "mao",
+      nome: "Mão",
+      dica: "Arrasta o mapa. Com qualquer ferramenta, segure Espaço.",
+      icone: <Hand size={20} />,
+    },
+    {
+      id: "regua",
+      nome: "Régua",
+      dica: "Mede a distância no mapa. Shift ao soltar deixa a medida na tela.",
+      icone: <Ruler size={20} />,
+    },
   ];
   return (
     <div className="barra-esquerda-area" data-testid="barra-esquerda">
@@ -70,7 +97,9 @@ export function BarraDeFerramentas(p: Props) {
           <Botao
             key={f.id}
             testid={`ferramenta-${f.id}`}
-            titulo={f.titulo}
+            nome={f.nome}
+            dica={f.dica}
+            atalho={f.id}
             ativo={p.ferramenta === f.id}
             aoClicar={() => p.aoEscolher(f.id)}
           >
@@ -80,7 +109,8 @@ export function BarraDeFerramentas(p: Props) {
         <hr />
         <Botao
           testid="ferramenta-dados"
-          titulo="Dados rápidos"
+          nome="Dados rápidos"
+          dica="Rola dados no chat. Shift ao clicar rola oculto (mestre)."
           ativo={dadosAbertos}
           gatilho
           aoClicar={() => setDadosAbertos(!dadosAbertos)}
@@ -89,7 +119,10 @@ export function BarraDeFerramentas(p: Props) {
         </Botao>
         <Botao
           testid="ferramenta-pincel"
-          titulo={p.podeDesenhar ? "Pincel" : MOTIVO_SEM_PINCEL}
+          nome={p.podeDesenhar ? "Pincel" : MOTIVO_SEM_PINCEL}
+          dica={
+            p.podeDesenhar ? "Desenha formas e traços para todos; borracha e seleção." : undefined
+          }
           ativo={p.ferramenta === "pincel"}
           indisponivel={!p.podeDesenhar}
           aoClicar={() => {
@@ -105,7 +138,8 @@ export function BarraDeFerramentas(p: Props) {
             <hr />
             <Botao
               testid="ferramenta-paredes"
-              titulo="Paredes e portas: desenhar as paredes que bloqueiam a luz (clique de novo para sair)"
+              nome="Paredes e portas"
+              dica="Desenha as paredes que bloqueiam a luz. Clique de novo para sair."
               ativo={p.ferramenta === "paredes"}
               aoClicar={() => {
                 setDadosAbertos(false);

@@ -15,6 +15,7 @@ import {
   type Token,
 } from "@tabletop/shared";
 import { Dices, Plus, Trash2 } from "lucide-react";
+import { corDoTextoSobre } from "../contrasteDeCor";
 import { CampoNumero, CampoTexto } from "./campos";
 import type { Rolador } from "./rolador";
 
@@ -651,7 +652,11 @@ function Condicoes({ token }: PropsDaAba) {
               data-testid={`fh-condicao-${i.chave}`}
               title={i.resumo}
             >
-              <span className="fh-condicao-sigla" style={{ background: i.cor }} aria-hidden>
+              <span
+                className="fh-condicao-sigla"
+                style={{ background: i.cor, color: corDoTextoSobre(i.cor) }}
+                aria-hidden
+              >
                 {i.sigla}
               </span>
               <span className="fh-condicao-texto">{i.titulo}</span>

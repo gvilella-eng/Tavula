@@ -1,70 +1,54 @@
-import {
-  type ButtonHTMLAttributes,
-  type ReactNode,
-  useCallback,
-  useId,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from "react";
-import { createPortal } from "react-dom";
+import { type ButtonHTMLAttributes, type ReactNode, useRef } from "react";
+import { ATALHOS, type IdDoAtalho, teclasParaAria } from "./atalhos";
+import { Dica, useDica } from "./Dica";
 
 type Props = Omit<ButtonHTMLAttributes<HTMLButtonElement>, "title" | "disabled"> & {
   /** O `data-testid` do botão (a dica leva o mesmo com o prefixo `dica-`). */
   testid: string;
+  /** O nome do botão, em negrito na primeira linha da dica. Sem ele, `dica` é a primeira linha. */
+  nome?: string | undefined;
   /** O que o botão faz (dica no mouse e no foco do teclado). */
-  dica?: string;
+  dica?: string | undefined;
+  /** O atalho do teclado (da tabela `atalhos.ts`): aparece na dica, com `<kbd>`, e em `aria-keyshortcuts`. */
+  atalho?: IdDoAtalho | undefined;
   /**
    * Por que o botão não age agora. Com motivo o botão fica desabilitado (`aria-disabled`, o clique é ignorado)
    * e o motivo vira a dica e a descrição para leitor de tela. O `disabled` nativo não deixa a dica aparecer.
    */
   motivo?: string | null;
+  /** Esconde a dica (por exemplo, a lista ou o painel do botão está aberto). */
+  semDica?: boolean | undefined;
+  /** Onde a dica aparece em relação ao botão. */
+  lado?: "baixo" | "direita" | "esquerda" | undefined;
   children: ReactNode;
 };
 
-type Lugar = { x: number; y: number };
-
 /**
- * Botão com dica que também explica o motivo de estar desabilitado (R5b). A dica aparece ao passar o mouse e
- * ao receber o foco, sai ao clicar, ao perder o foco e com Esc, e é ligada ao botão por `aria-describedby`.
+ * O botão com dica da interface toda (R5b, unificado no R6a): a dica aparece ao passar o mouse e ao receber o
+ * foco do teclado, sai ao clicar, ao perder o foco e com Esc, leva o atalho quando há e é ligada ao botão por
+ * `aria-describedby`. Explica também o motivo de estar desabilitado.
  */
 export function BotaoComDica({
   testid,
+  nome,
   dica,
+  atalho,
   motivo,
+  semDica,
+  lado,
   onClick,
   onKeyDown,
+  onDragStart,
   children,
+  "aria-disabled": ariaDesabilitado,
   ...resto
 }: Props) {
-  const idDaDica = useId();
   const botao = useRef<HTMLButtonElement>(null);
-  const balao = useRef<HTMLSpanElement>(null);
-  const [visivel, setVisivel] = useState(false);
-  const [lugar, setLugar] = useState<Lugar | null>(null);
+  const d = useDica();
   const desabilitado = typeof motivo === "string" && motivo !== "";
   const texto = desabilitado ? motivo : dica;
-
-  const posicionar = useCallback(() => {
-    const b = botao.current;
-    const d = balao.current;
-    if (!b || !d) return;
-    const r = b.getBoundingClientRect();
-    const largura = d.offsetWidth;
-    const altura = d.offsetHeight;
-    const x = Math.min(
-      Math.max(8, r.left + r.width / 2 - largura / 2),
-      window.innerWidth - largura - 8,
-    );
-    const abaixo = r.bottom + 6;
-    const y = abaixo + altura > window.innerHeight - 8 ? Math.max(8, r.top - altura - 6) : abaixo;
-    setLugar({ x, y });
-  }, []);
-
-  useLayoutEffect(() => {
-    if (visivel) posicionar();
-    else setLugar(null);
-  }, [visivel, posicionar]);
+  const titulo = desabilitado ? undefined : nome;
+  const temDica = Boolean(texto ?? titulo);
 
   return (
     <>
@@ -73,47 +57,45 @@ export function BotaoComDica({
         ref={botao}
         type={resto.type ?? "button"}
         data-testid={testid}
-        aria-disabled={desabilitado || undefined}
-        aria-describedby={texto ? idDaDica : undefined}
+        aria-disabled={desabilitado || ariaDesabilitado || undefined}
+        aria-describedby={temDica ? d.id : undefined}
+        aria-keyshortcuts={atalho ? teclasParaAria(ATALHOS[atalho].teclas) : undefined}
         onClick={(e) => {
-          setVisivel(false);
+          d.esconder();
           if (desabilitado) {
             e.preventDefault();
             return;
           }
           onClick?.(e);
         }}
-        onMouseEnter={() => setVisivel(true)}
+        onMouseEnter={d.mostrar}
         // O botão pode ficar desabilitado com o mouse já em cima (acabou de ser clicado): mexer o mouse mostra o motivo.
-        onMouseMove={desabilitado && !visivel ? () => setVisivel(true) : undefined}
-        onMouseLeave={() => setVisivel(false)}
-        onFocus={() => setVisivel(true)}
-        onBlur={() => setVisivel(false)}
+        onMouseMove={desabilitado && !d.visivel ? d.mostrar : undefined}
+        onMouseLeave={d.esconder}
+        onFocus={d.mostrar}
+        onBlur={d.esconder}
+        onDragStart={(e) => {
+          d.esconder();
+          onDragStart?.(e);
+        }}
         onKeyDown={(e) => {
-          if (e.key === "Escape") setVisivel(false);
+          d.aoTeclar(e);
           onKeyDown?.(e);
         }}
       >
         {children}
       </button>
-      {texto &&
-        createPortal(
-          <span
-            ref={balao}
-            id={idDaDica}
-            role="tooltip"
-            className="dica-flutuante"
-            data-testid={`dica-${testid}`}
-            data-motivo={desabilitado || undefined}
-            hidden={!visivel}
-            style={
-              lugar ? { left: lugar.x, top: lugar.y } : { left: 0, top: 0, visibility: "hidden" }
-            }
-          >
-            {texto}
-          </span>,
-          document.body,
-        )}
+      <Dica
+        alvo={botao}
+        id={d.id}
+        visivel={d.visivel && !semDica}
+        testid={`dica-${testid}`}
+        nome={desabilitado ? undefined : titulo}
+        texto={texto ?? undefined}
+        atalho={desabilitado ? undefined : atalho}
+        motivo={desabilitado}
+        lado={lado}
+      />
     </>
   );
 }
