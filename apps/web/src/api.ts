@@ -1,8 +1,12 @@
 import {
+  assinarMensagem,
+  type ChavePrivada,
+  type ChavePublica,
   derivarSenha,
   gerarIdDeMesa,
   type ListaDeContas,
   mensagemDeErroDeConta,
+  mensagemParaAssinar,
   normalizarLogin,
   type ResumoDaMesa,
   type SituacaoDaMesa,
@@ -140,21 +144,31 @@ async function postar(url: string, corpo: object): Promise<Response> {
   return r;
 }
 
-/** Cria uma mesa com a conta do mestre e devolve o id dela. A senha é esticada aqui (PBKDF2) e nunca sai do navegador; o id é sorteado aqui porque entra no sal. */
+/** A mesa criada e, uma única vez, o código de recuperação do mestre (o servidor guarda só o hash dele). */
+export type MesaCriada = ResumoDaMesa & { codigo?: string };
+
+/**
+ * Cria uma mesa com a conta do mestre e devolve o id dela. A senha é esticada aqui (PBKDF2) e nunca sai do
+ * navegador; o id é sorteado aqui porque entra no sal. `chave` (C3): chamada com o id, gera o par de chaves,
+ * grava a privada na pasta e devolve só a pública, que vai ao servidor.
+ */
 export async function criarMesa(
   nome: string,
   mestre: { login: string; nome: string; senha: string },
-): Promise<ResumoDaMesa> {
+  chave?: (mesaId: string) => Promise<ChavePublica>,
+): Promise<MesaCriada> {
   for (let tentativa = 0; ; tentativa++) {
     const id = gerarIdDeMesa();
     const derivada = await derivarSenha(mestre.senha, id, mestre.login);
+    const chavePublica = chave ? await chave(id) : undefined;
     try {
       const r = await postar("/api/mesas", {
         id,
         nome,
         mestre: { login: normalizarLogin(mestre.login), nome: mestre.nome, derivada },
+        ...(chavePublica ? { chavePublica } : {}),
       });
-      return (await r.json()) as ResumoDaMesa;
+      return (await r.json()) as MesaCriada;
     } catch (e) {
       // O id já existia (quase impossível): sorteia outro.
       if (e instanceof ErroDeConta && e.codigo === "id_em_uso" && tentativa < 3) continue;
@@ -251,13 +265,74 @@ export async function trocarSenha(
 export async function criarContaDoMestre(
   mesaId: string,
   dados: { login: string; nome: string; senha: string },
-): Promise<void> {
+): Promise<{ codigo?: string }> {
   const derivada = await derivarSenha(dados.senha, mesaId, dados.login);
-  await postar(daMesa(mesaId, "conta/mestre-inicial"), {
+  const r = await postar(daMesa(mesaId, "conta/mestre-inicial"), {
     login: normalizarLogin(dados.login),
     nome: dados.nome,
     derivada,
   });
+  return (await r.json()) as { codigo?: string };
+}
+
+// --- Chave da pasta e código de recuperação do mestre (C3) --------------------------------------------
+
+/** Registra ou troca a chave pública da pasta (só a pública vai; o mestre confirma com a senha atual). */
+export async function registrarChaveDaPasta(
+  mesaId: string,
+  login: string,
+  senha: string,
+  chavePublica: ChavePublica,
+): Promise<void> {
+  await postar(daMesa(mesaId, "conta/chave"), {
+    senha: await derivarSenha(senha, mesaId, login),
+    chavePublica,
+  });
+}
+
+/** Gera um código de recuperação novo (o anterior morre). O texto só vem nesta resposta. */
+export async function gerarNovoCodigo(
+  mesaId: string,
+  login: string,
+  senha: string,
+): Promise<string> {
+  const r = await postar(daMesa(mesaId, "conta/codigo"), {
+    senha: await derivarSenha(senha, mesaId, login),
+  });
+  return ((await r.json()) as { codigo: string }).codigo;
+}
+
+/** Recupera o acesso do mestre com a chave da pasta: o desafio do servidor é assinado aqui e a privada nunca viaja. */
+export async function recuperarPelaPasta(
+  mesaId: string,
+  login: string,
+  novaSenha: string,
+  privada: ChavePrivada,
+): Promise<void> {
+  const d = await postar(daMesa(mesaId, "conta/recuperar/desafio"), {});
+  const { nonce } = (await d.json()) as { nonce: string };
+  const assinatura = await assinarMensagem(privada, mensagemParaAssinar(mesaId, nonce));
+  await postar(daMesa(mesaId, "conta/recuperar/pasta"), {
+    login: normalizarLogin(login),
+    nonce,
+    assinatura,
+    derivada: await derivarSenha(novaSenha, mesaId, login),
+  });
+}
+
+/** Recupera o acesso do mestre com o código anotado. Devolve o código novo (o usado morreu). */
+export async function recuperarPeloCodigo(
+  mesaId: string,
+  login: string,
+  codigo: string,
+  novaSenha: string,
+): Promise<string> {
+  const r = await postar(daMesa(mesaId, "conta/recuperar/codigo"), {
+    login: normalizarLogin(login),
+    codigo,
+    derivada: await derivarSenha(novaSenha, mesaId, login),
+  });
+  return ((await r.json()) as { codigo: string }).codigo;
 }
 
 /** As contas da mesa, como o mestre as vê. */

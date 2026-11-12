@@ -263,6 +263,9 @@ export const CODIGOS_DE_ERRO_DE_CONTA = [
   "id_em_uso",
   "sem_pedido",
   "mesa_sem_mestre",
+  "recuperacao_invalida",
+  "login_nao_confere",
+  "origem_invalida",
 ] as const;
 export type CodigoDeErroDeConta = (typeof CODIGOS_DE_ERRO_DE_CONTA)[number];
 
@@ -317,6 +320,13 @@ export function mensagemDeErroDeConta(codigo: string, minutos?: number): string 
       return "Não há pedido de redefinição dessa conta.";
     case "mesa_sem_mestre":
       return "Esta mesa ainda não tem mestre para aceitar pedidos.";
+    case "recuperacao_invalida":
+      // Igual para pasta errada, sem chave, sem código, assinatura ruim ou código errado: não diz o que a mesa tem.
+      return "Não foi possível recuperar o acesso com isso. Confira e tente de novo.";
+    case "login_nao_confere":
+      return "Esse não é o login do mestre desta mesa.";
+    case "origem_invalida":
+      return "Pedido recusado: ele não veio desta página.";
   }
   return "Não foi possível concluir. Tente de novo.";
 }
@@ -343,6 +353,8 @@ export type ContaParaMestre = z.infer<typeof ContaParaMestreSchema>;
 
 export const ListaDeContasSchema = z.object({
   contas: z.array(ContaParaMestreSchema),
+  /** Só o mestre vê: a mesa tem chave da pasta e código de recuperação? (nunca a chave nem o hash). */
+  protecao: z.object({ temChave: z.boolean(), temCodigo: z.boolean() }),
   /** As vagas de jogador ainda sem conta ativa. */
   vagasLivres: z.array(z.object({ id: z.string(), nome: z.string() })),
 });

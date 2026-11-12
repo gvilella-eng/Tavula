@@ -107,6 +107,8 @@ test("criar mesa com conta: o mestre entra, o cookie é da mesa e HttpOnly, sair
 
   const id = await criarMesaComConta(p, { mesa: "Mesa com dono", login: "Vila", nome: "Vilela" });
   await expect(p.getByTestId("inicio-criada")).toContainText("Mesa com dono");
+  // C3: o código de recuperação aparece uma vez e a mesa só abre depois de "Anotei o código"
+  await p.getByTestId("codigo-anotei").check();
   await p.getByTestId("inicio-abrir-mesa").click();
   await expect(p).toHaveURL(new RegExp(`/m/${id}$`));
   // direto na mesa, como mestre, com o nome que ele escolheu
@@ -194,6 +196,9 @@ test("a mesa legada pede a conta do mestre só de uma requisição local, e uma 
   );
   await p.getByTestId("mestre-inicial-confirmar").fill(SENHA);
   await p.getByTestId("mestre-inicial-criar").click();
+  // C3: a conta do mestre da legada nasce com o código de recuperação, mostrado antes de entrar
+  await p.getByTestId("codigo-anotei").check();
+  await p.getByTestId("codigo-continuar").click();
   await naMesa(p);
   await expect(p.getByTestId("eu-nome")).toHaveText("Dono da Mesa");
   await abrirAba(p, "fichas");
@@ -231,6 +236,8 @@ test("o jogador pede, o mestre vê o aviso, aceita numa vaga com ficha, e o joga
   await mp.getByTestId("mestre-inicial-senha").fill(SENHA);
   await mp.getByTestId("mestre-inicial-confirmar").fill(SENHA);
   await mp.getByTestId("mestre-inicial-criar").click();
+  await mp.getByTestId("codigo-anotei").check();
+  await mp.getByTestId("codigo-continuar").click();
   await naMesa(mp);
   await expect(mp.getByTestId("aviso-de-contas")).toHaveCount(0);
 

@@ -167,6 +167,39 @@ export class PastaLocal implements FonteDeAssets {
   }
 
   /**
+   * Abre o seletor sem lembrar a escolha (C3): quem escolhe só decide depois se a pasta serve à mesa (a pasta
+   * de outra mesa não pode virar a pasta de imagens desta). `null` se a pessoa cancelou.
+   */
+  static async escolherSemLembrar(): Promise<PastaLocal | null> {
+    const abrir = (
+      window as unknown as {
+        showDirectoryPicker(o: { mode: "readwrite"; id: string }): Promise<PastaComPermissao>;
+      }
+    ).showDirectoryPicker;
+    try {
+      return new PastaLocal(await abrir.call(window, { mode: "readwrite", id: "tabletop" }));
+    } catch (e) {
+      if ((e as Error).name === "AbortError") return null;
+      throw e;
+    }
+  }
+
+  /** Faz desta a pasta de imagens da mesa (a mesma pasta guarda a chave do mestre). */
+  async lembrarPara(mesaId: string): Promise<void> {
+    await gravarChave("pasta", chaveDaPasta(mesaId), this.pasta);
+  }
+
+  /** O texto de um arquivo da raiz da pasta, ou `null` se não existe. */
+  async lerTexto(nome: string): Promise<string | null> {
+    return (await (await this.abrirPorCaminho([nome]))?.text()) ?? null;
+  }
+
+  /** Grava (ou substitui) um arquivo de texto na raiz da pasta. */
+  async gravarTexto(nome: string, texto: string): Promise<void> {
+    await this.gravar([], nome, new Blob([texto], { type: "application/json" }), true);
+  }
+
+  /**
    * A pasta lembrada desta mesa de uma visita anterior (a permissão pode precisar ser pedida de novo).
    * A mesa legada (a campanha de antes do C1) herda a pasta que já estava escolhida, sem pedir de novo: a
    * chave antiga é copiada para a chave da mesa e fica onde estava (só se acrescenta).

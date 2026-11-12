@@ -9,8 +9,17 @@ import {
   TAMANHO_MAXIMO_DO_NOME_DE_EXIBICAO,
 } from "@tabletop/shared";
 import { type FormEvent, useEffect, useState } from "react";
-import { comRetentativa, criarMesa, listarMesasDoServidor } from "./api";
+import { comRetentativa, criarMesa, listarMesasDoServidor, type MesaCriada } from "./api";
 import { CampoDeConta } from "./contas/CampoDeConta";
+import { CodigoDeRecuperacao } from "./contas/CodigoDeRecuperacao";
+import {
+  conferirPastaLivreParaMesa,
+  escolherPastaDoMestre,
+  navegadorEscolhePasta,
+  type PastaDoMestre,
+  prepararChave,
+  TEXTO_SO_CHROME_E_EDGE,
+} from "./contas/pastaDoMestre";
 import { IdDaMesa } from "./IdDaMesa";
 import { Logo } from "./Logo";
 import { lembrarMesa, lerMesasLembradas, ordenarMesasPorUso } from "./mesasLocais";
@@ -72,7 +81,66 @@ function EntrarNumaMesa() {
   );
 }
 
-type Criada = { id: string; nome: string };
+type Criada = MesaCriada & { comPasta: boolean };
+
+/** Escolher (ou criar) a pasta da mesa: ela guarda a chave do mestre e as imagens. Opcional. */
+function EscolhaDaPasta({
+  pasta,
+  aoEscolher,
+}: {
+  pasta: PastaDoMestre | null;
+  aoEscolher: (p: PastaDoMestre | null) => void;
+}) {
+  const [erro, setErro] = useState<string | null>(null);
+  const possivel = navegadorEscolhePasta();
+
+  async function escolher() {
+    setErro(null);
+    try {
+      const nova = await escolherPastaDoMestre();
+      if (!nova) return;
+      // Uma pasta que já guarda a chave de outra mesa não serve: gravar por cima apagaria a prova de mestre dela.
+      await conferirPastaLivreParaMesa(nova, "");
+      aoEscolher(nova);
+    } catch (e) {
+      aoEscolher(null);
+      setErro((e as Error).message);
+    }
+  }
+
+  return (
+    <div className="escolha-da-pasta" data-testid="inicio-criar-pasta-bloco">
+      <strong>Pasta da mesa</strong>
+      <p className="nota">
+        A pasta guarda a chave que prova que você é o mestre (para recuperar o acesso se esquecer a
+        senha) e as imagens da mesa. Escolha uma pasta existente ou crie uma nova no seletor. A
+        chave nunca sai do seu computador.
+      </p>
+      {possivel ? (
+        <div className="linha-botoes">
+          <button type="button" data-testid="inicio-criar-pasta" onClick={escolher}>
+            {pasta ? "Trocar a pasta" : "Escolher a pasta"}
+          </button>
+          {pasta && (
+            <span className="nota" data-testid="inicio-criar-pasta-nome">
+              Pasta: {pasta.nome}
+            </span>
+          )}
+        </div>
+      ) : (
+        <p className="nota" data-testid="inicio-criar-pasta-indisponivel">
+          {TEXTO_SO_CHROME_E_EDGE} Sem ela, a mesa nasce sem a chave; o código de recuperação vale
+          do mesmo jeito.
+        </p>
+      )}
+      {erro && (
+        <p className="nota erro" role="alert" data-testid="inicio-criar-pasta-erro">
+          {erro}
+        </p>
+      )}
+    </div>
+  );
+}
 
 function CriarMesa() {
   const [nome, setNome] = useState("");
@@ -83,6 +151,8 @@ function CriarMesa() {
   const [erro, setErro] = useState<string | null>(null);
   const [criando, setCriando] = useState(false);
   const [criada, setCriada] = useState<Criada | null>(null);
+  const [pasta, setPasta] = useState<PastaDoMestre | null>(null);
+  const [anotado, setAnotado] = useState(false);
 
   async function aoEnviar(e: FormEvent) {
     e.preventDefault();
@@ -102,9 +172,24 @@ function CriarMesa() {
     setErro(null);
     setCriando(true);
     try {
-      const mesa = await criarMesa(nome, { login, nome: nomeDoMestre, senha });
+      // A chave é gerada aqui e a privada vai para a pasta ANTES de a mesa existir (a pública é a única coisa que
+      // o servidor recebe): assim a mesa nunca fica com uma chave registrada sem arquivo.
+      const mesa = await criarMesa(
+        nome,
+        { login, nome: nomeDoMestre, senha },
+        pasta
+          ? async (id) => {
+              const chave = await prepararChave(pasta, { id, nome: nome.trim() });
+              await chave.gravar();
+              return chave.publica;
+            }
+          : undefined,
+      );
+      if (pasta) await pasta.lembrarPara(mesa.id).catch(() => {});
       lembrarMesa(mesa.id, mesa.nome);
-      setCriada(mesa);
+      setAnotado(false);
+      setCriada({ ...mesa, comPasta: pasta !== null });
+      setPasta(null);
       setNome("");
       setLogin("");
       setNomeDoMestre("");
@@ -125,16 +210,35 @@ function CriarMesa() {
           <strong>{criada.nome}</strong>. Dite ou mande este id para quem vai jogar:
         </p>
         <IdDaMesa id={criada.id} prefixo="inicio-criada" grande />
+        <p className="nota" data-testid="inicio-criada-pasta">
+          {criada.comPasta
+            ? "A chave do mestre foi gravada no arquivo tavola-mestre.json da pasta. Não compartilhe esse arquivo."
+            : "Esta mesa ficou sem a chave da pasta. Dá para protegê-la depois, na aba Mesa, em Contas."}
+        </p>
+        {criada.codigo && (
+          <CodigoDeRecuperacao
+            codigo={criada.codigo}
+            mesaNome={criada.nome}
+            anotado={anotado}
+            aoMudarAnotei={setAnotado}
+          />
+        )}
         <div className="linha-botoes">
           <button
             type="button"
             className="primario"
+            disabled={!!criada.codigo && !anotado}
             data-testid="inicio-abrir-mesa"
             onClick={() => irPara(caminhoDaMesa(criada.id))}
           >
             Abrir a mesa
           </button>
-          <button type="button" data-testid="inicio-criar-outra" onClick={() => setCriada(null)}>
+          <button
+            type="button"
+            disabled={!!criada.codigo && !anotado}
+            data-testid="inicio-criar-outra"
+            onClick={() => setCriada(null)}
+          >
             Criar outra
           </button>
         </div>
@@ -189,6 +293,7 @@ function CriarMesa() {
         autoComplete="new-password"
         maxLength={TAMANHO_MAXIMO_DA_SENHA}
       />
+      <EscolhaDaPasta pasta={pasta} aoEscolher={setPasta} />
       {erro && (
         <p className="nota erro" role="alert" data-testid="inicio-criar-erro">
           {erro}

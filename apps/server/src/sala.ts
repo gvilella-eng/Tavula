@@ -3,10 +3,14 @@ import {
   assetVisivelPara,
   type CodigoDeErro,
   CorpoAceitarSchema,
+  CorpoChaveSchema,
+  CorpoCodigoSchema,
   CorpoEntrarSchema,
   CorpoEsqueciSchema,
   CorpoMestreInicialSchema,
   CorpoPedirSchema,
+  CorpoRecuperarCodigoSchema,
+  CorpoRecuperarPastaSchema,
   CorpoRedefinirSchema,
   CorpoTrocarSenhaSchema,
   CorpoTrocarVagaSchema,
@@ -138,6 +142,9 @@ const STATUS_DO_ERRO_DE_CONTA: Record<string, number> = {
   sem_pedido: 409,
   mesa_sem_mestre: 409,
   conta_inexistente: 404,
+  recuperacao_invalida: 401,
+  login_nao_confere: 403,
+  origem_invalida: 403,
 };
 const TAMANHO_MAXIMO_DO_CORPO = 4096;
 /** Cores das vagas novas (as de conteúdo de uma mesa; não são do tema da interface). */
@@ -256,6 +263,7 @@ export class Sala extends DurableObject<Env> {
       seguro?: unknown;
       mesaId?: unknown;
       mestre?: unknown;
+      chavePublica?: unknown;
     } = {};
     try {
       corpo = (await request.json()) as typeof corpo;
@@ -265,6 +273,7 @@ export class Sala extends DurableObject<Env> {
     const mestre = corpo.mestre ? MestreDaMesaNovaSchema.safeParse(corpo.mestre) : null;
     if (corpo.mestre && !mestre?.success) return json({ erro: "corpo_invalido" }, 400);
     let cookie: string | null = null;
+    let codigo: string | null = null;
     let falhou = false;
     await this.ctx.blockConcurrencyWhile(async () => {
       const { estado } = criarMesaNova(this.banco);
@@ -282,6 +291,21 @@ export class Sala extends DurableObject<Env> {
         falhou = true;
         return;
       }
+      // C3: a chave pública da pasta (se veio) e o código de recuperação, mostrado uma vez na resposta.
+      if (corpo.chavePublica !== undefined && corpo.chavePublica !== null) {
+        const k = await this.contas.registrarChave(
+          conta.valor.id,
+          corpo.chavePublica,
+          null,
+          "local",
+          agora,
+        );
+        if (!k.ok) {
+          falhou = true;
+          return;
+        }
+      }
+      codigo = await this.contas.gerarCodigo(conta.valor.id);
       this.aplicarUsuarios(
         this.estado.usuarios.map((u) => (u.id === vaga.id ? { ...u, nome } : u)),
       );
@@ -289,7 +313,7 @@ export class Sala extends DurableObject<Env> {
       cookie = cookieDeSessao(token, String(corpo.mesaId ?? ""), corpo.seguro === true);
     });
     if (falhou) return json({ erro: "falha_ao_criar" }, 500);
-    return json({ ok: true, cookie });
+    return json({ ok: true, cookie, codigo });
   }
 
   // --- Quem é quem ------------------------------------------------------------------------------
@@ -580,6 +604,61 @@ export class Sala extends DurableObject<Env> {
 
     if (acao === "mestre-inicial") return this.criarMestreInicial(request, agora, mesaId, seguro);
 
+    // --- C3: chave da pasta e código de recuperação ---------------------------------------------------
+
+    if (acao === "chave") {
+      const quem = await this.exigirMestre(request);
+      if (quem instanceof Response) return quem;
+      const c = await this.lerCorpo(request, CorpoChaveSchema);
+      if (!c.ok) return c.resposta;
+      const r = await this.contas.registrarChave(
+        quem.conta?.id ?? "",
+        c.valor.chavePublica,
+        c.valor.senha,
+        ip,
+        agora,
+      );
+      if (!r.ok) return erroDeConta(r);
+      return json({ ok: true });
+    }
+
+    if (acao === "codigo") {
+      const quem = await this.exigirMestre(request);
+      if (quem instanceof Response) return quem;
+      const c = await this.lerCorpo(request, CorpoCodigoSchema);
+      if (!c.ok) return c.resposta;
+      const r = await this.contas.gerarNovoCodigo(quem.conta?.id ?? "", c.valor.senha, ip, agora);
+      if (!r.ok) return erroDeConta(r);
+      return json({ ok: true, codigo: r.valor.codigo });
+    }
+
+    if (acao === "recuperar/desafio") {
+      const r = this.contas.emitirDesafio(ip, agora);
+      if (!r.ok) return erroDeConta(r);
+      return json(r.valor);
+    }
+
+    if (acao === "recuperar/pasta") {
+      const c = await this.lerCorpo(request, CorpoRecuperarPastaSchema);
+      if (!c.ok) return c.resposta;
+      const r = await this.contas.recuperarPelaPasta({ ...c.valor, mesaId }, ip, agora);
+      if (!r.ok) return erroDeConta(r);
+      this.fecharSockets((i) => i.contaId === r.valor.conta.id, "acesso recuperado");
+      return this.comCookies(json({ ok: true }), [cookieDeSessao(r.valor.token, mesaId, seguro)]);
+    }
+
+    if (acao === "recuperar/codigo") {
+      const c = await this.lerCorpo(request, CorpoRecuperarCodigoSchema);
+      if (!c.ok) return c.resposta;
+      const r = await this.contas.recuperarPeloCodigo(c.valor, ip, agora);
+      if (!r.ok) return erroDeConta(r);
+      this.fecharSockets((i) => i.contaId === r.valor.conta.id, "acesso recuperado");
+      // O código novo vai só nesta resposta (mostrado uma vez).
+      return this.comCookies(json({ ok: true, codigo: r.valor.codigoNovo }), [
+        cookieDeSessao(r.valor.token, mesaId, seguro),
+      ]);
+    }
+
     return new Response("Não encontrado", { status: 404 });
   }
 
@@ -608,7 +687,9 @@ export class Sala extends DurableObject<Env> {
     if (!r.ok) return erroDeConta(r);
     this.aplicarUsuarios(this.estado.usuarios.map((u) => (u.id === vaga.id ? { ...u, nome } : u)));
     const token = await this.contas.abrirSessaoDe(r.valor.id, agora);
-    return this.comCookies(json({ ok: true }), [cookieDeSessao(token, mesaId, seguro)]);
+    // O código de recuperação da mesa legada nasce com a conta do mestre: mostrado uma vez.
+    const codigo = await this.contas.gerarCodigo(r.valor.id);
+    return this.comCookies(json({ ok: true, codigo }), [cookieDeSessao(token, mesaId, seguro)]);
   }
 
   /** O mestre (conta de mestre com sessão válida), ou a resposta de erro. */

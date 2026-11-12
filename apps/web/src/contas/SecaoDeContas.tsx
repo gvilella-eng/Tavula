@@ -9,6 +9,7 @@ import {
   removerConta,
   trocarVagaDaConta,
 } from "../api";
+import { ProtecaoDoMestre } from "./ProtecaoDoMestre";
 
 const ROTULO_DO_STATUS = { pendente: "Pendente", ativa: "Ativa", recusada: "Recusada" } as const;
 
@@ -204,7 +205,15 @@ function LinhaDeConta({
  * Recusar), os pedidos de redefinição de senha e a lista de contas (nome, login, vaga, status, último
  * acesso, trocar de vaga e remover). Tudo vem de uma rota própria; nunca há sal, hash nem token aqui.
  */
-export function SecaoDeContas({ mesaId, aviso }: { mesaId: string; aviso: AvisoDeContas | null }) {
+export function SecaoDeContas({
+  mesaId,
+  mesaNome,
+  aviso,
+}: {
+  mesaId: string;
+  mesaNome: string;
+  aviso: AvisoDeContas | null;
+}) {
   const [lista, setLista] = useState<ListaDeContas | null>(null);
   const [erro, setErro] = useState<string | null>(null);
 
@@ -232,6 +241,7 @@ export function SecaoDeContas({ mesaId, aviso }: { mesaId: string; aviso: AvisoD
   const pendentes = lista?.contas.filter((c) => c.status === "pendente") ?? [];
   const redefinicoes = lista?.contas.filter((c) => c.redefinicaoPedida) ?? [];
   const outras = lista?.contas.filter((c) => c.status !== "pendente") ?? [];
+  const loginDoMestre = lista?.contas.find((c) => c.papel === "mestre")?.login;
 
   return (
     <section className="secao-de-contas" data-testid="contas">
@@ -308,6 +318,17 @@ export function SecaoDeContas({ mesaId, aviso }: { mesaId: string; aviso: AvisoD
               />
             ))}
           </ul>
+
+          {loginDoMestre && (
+            <ProtecaoDoMestre
+              mesaId={mesaId}
+              mesaNome={mesaNome}
+              login={loginDoMestre}
+              temChave={lista.protecao.temChave}
+              temCodigo={lista.protecao.temCodigo}
+              aoMudar={recarregar}
+            />
+          )}
         </>
       )}
     </section>

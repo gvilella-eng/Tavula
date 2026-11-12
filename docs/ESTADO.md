@@ -2796,4 +2796,41 @@ Detalhes em `docs/REDESIGN.md` ("B1 — como ficou"). O Vilella deixou o lote se
 
 ---
 
-## Próximo: C3 (pasta do mestre com chave e código de recuperação), bugs que sobrarem, tour; depois 7b e 12
+## Mesas C3 — pasta do mestre com chave e código de recuperação (entregue, aguardando o roteiro manual)
+
+### O que foi entregue
+
+- Chave ECDSA na pasta da mesa (`tavola-mestre.json`), só a pública no servidor; código de recuperação (SHA-256 no servidor), mostrado uma vez; recuperação do mestre pela pasta e pelo código; "Proteger com a pasta da mesa", "Trocar a chave da pasta" e "Gerar novo código" na aba Mesa, Contas. Reforços: Origin no WebSocket e nos POSTs; bloqueio de login inexistente igual ao de conta real.
+
+### Como rodar
+
+- O `pnpm dev` do Vilella recarrega sozinho: a migração 11 só acrescenta duas colunas em `contas` e a tabela `desafios`. As variáveis e o proxy não mudaram.
+- Para proteger a campanha de hoje (legada): entrar (ou criar a conta do mestre: aparece o código, anotar e marcar "Anotei o código"), aba Mesa, Contas, "Proteger com a pasta da mesa" (senha atual, escolher a pasta das imagens), e "Gerar novo código" se quiser um código novo.
+- `pnpm verify` (uma vez). Prints: `$env:PRINTS_DIR="<pasta>"; pnpm --filter @tabletop/e2e prints c3`.
+
+### Verificação
+
+- Unidade: `packages/shared/src/recuperacao.test.ts`, `apps/server/src/recuperacao.test.ts` (assinatura certa, nonce de uso único e vencido, pasta de outra mesa, código certo, errado e usado, limites, login inexistente, migração 11, varredura de frames), `origem.test.ts`.
+- E2E novo: `e2e/tests/recuperacao.spec.ts` (6 cenários).
+- E2E antigos alterados: `contas.spec.ts` e `mesas.spec.ts` (o código de recuperação aparece ao criar a mesa e ao criar a conta do mestre da legada: marcar "Anotei o código" antes de abrir a mesa ou continuar).
+
+### Decisões
+
+- (assumido) Ver REDESIGN, "C3 — como ficou", Decisões.
+
+### Frágil / não verificado
+
+- A pasta real (File System Access) não foi exercitada pelo E2E: os testes usam uma pasta de teste (`window.__tabletopPastas`, só no modo e2e). Falta o roteiro manual no Chrome.
+- O `Origin` atrás do proxy do Vite depende de o `Host` ou do loopback; na internet vale só o mesmo host.
+- Se a gravação do arquivo falhar depois de o servidor aceitar a chave nova (Proteger e Trocar), a mesa fica com uma chave cuja privada não existe: repetir "Trocar a chave da pasta".
+
+### Roteiro manual (pendente)
+
+1. Criar uma mesa nova escolhendo uma pasta no Chrome: conferir o `tavola-mestre.json`, o código e o "Anotei o código".
+2. Sair, "Sou o mestre e esqueci a senha", pela pasta; depois pelo código (conferir o código novo).
+3. Tentar a pasta de outra mesa.
+4. Na campanha de hoje: criar a conta do mestre, anotar o código e "Proteger com a pasta da mesa".
+
+---
+
+## Próximo: bugs que sobrarem, tela inicial e contas (acabamentos), tour; depois 7b e 12

@@ -56,7 +56,9 @@ export class Diretorio extends DurableObject<Env> {
       id: idBruto,
       mestre,
       seguro,
+      chavePublica,
     } = (await request.json()) as {
+      chavePublica?: unknown;
       nome?: unknown;
       ip?: unknown;
       id?: unknown;
@@ -85,7 +87,13 @@ export class Diretorio extends DurableObject<Env> {
     const r = await sala.fetch(
       new Request("https://sala/criar", {
         method: "POST",
-        body: JSON.stringify({ nome, mesaId: mesa.id, mestre, seguro: seguro === true }),
+        body: JSON.stringify({
+          nome,
+          mesaId: mesa.id,
+          mestre,
+          chavePublica,
+          seguro: seguro === true,
+        }),
       }),
     );
     if (!r.ok) {
@@ -93,8 +101,11 @@ export class Diretorio extends DurableObject<Env> {
       return json({ erro: "falha_ao_criar" }, 500);
     }
     // O cookie da sessão do mestre vai só até o Worker (que o põe no cabeçalho e o tira do corpo).
-    const { cookie } = (await r.json()) as { cookie?: string | null };
-    return json({ id: mesa.id, nome, cookie: cookie ?? null }, 201);
+    const { cookie, codigo } = (await r.json()) as {
+      cookie?: string | null;
+      codigo?: string | null;
+    };
+    return json({ id: mesa.id, nome, cookie: cookie ?? null, codigo: codigo ?? null }, 201);
   }
 
   private async renomear(id: string, request: Request): Promise<Response> {

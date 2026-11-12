@@ -218,6 +218,22 @@ const MIGRACOES: Migracao[] = [
     )`);
     sql.exec("CREATE INDEX IF NOT EXISTS limites_ip_busca ON limites_ip (tipo, ip, em)");
   },
+  // C3: a chave pública do mestre (JWK, nunca a privada), o SHA-256 do código de recuperação e os desafios
+  // (nonces de uso único) da recuperação pela pasta. Aditiva e idempotente: o SQLite não tem "ADD COLUMN IF NOT
+  // EXISTS", então a coluna só é criada quando falta. Nada disso entra no estado, em frame algum nem na exportação.
+  (sql) => {
+    const colunas = new Set(
+      (sql.exec("PRAGMA table_info(contas)").toArray() as { name: string }[]).map((c) => c.name),
+    );
+    if (!colunas.has("chave_publica")) sql.exec("ALTER TABLE contas ADD COLUMN chave_publica TEXT");
+    if (!colunas.has("codigo_hash")) sql.exec("ALTER TABLE contas ADD COLUMN codigo_hash TEXT");
+    sql.exec(`CREATE TABLE IF NOT EXISTS desafios (
+      nonce TEXT PRIMARY KEY,
+      criado_em INTEGER NOT NULL,
+      expira INTEGER NOT NULL
+    )`);
+    sql.exec("CREATE INDEX IF NOT EXISTS desafios_expira ON desafios (expira)");
+  },
 ];
 
 /** Um arquivo pré-enviado de uma cena. */

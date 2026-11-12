@@ -1,6 +1,7 @@
 import {
   erroDaSenha,
   loginValido,
+  NOME_DO_ARQUIVO_DA_CHAVE,
   nomeDeExibicaoValido,
   type SituacaoDaMesa,
   TAMANHO_MAXIMO_DA_SENHA,
@@ -19,6 +20,8 @@ import {
   esqueciASenha,
   listarUsuarios,
   pedirParaEntrar,
+  recuperarPelaPasta,
+  recuperarPeloCodigo,
   situacaoDaMesa,
   type UsuarioDaEntrada,
   usuarioDaSessao,
@@ -27,6 +30,13 @@ import { corDoTextoSobre } from "../contrasteDeCor";
 import { Logo } from "../Logo";
 import { irPara } from "../rotas";
 import { CampoDeConta } from "./CampoDeConta";
+import { TelaDoCodigo } from "./CodigoDeRecuperacao";
+import {
+  escolherPastaDoMestre,
+  lerChaveDaPasta,
+  navegadorEscolhePasta,
+  TEXTO_SO_CHROME_E_EDGE,
+} from "./pastaDoMestre";
 
 type Visao = "entrar" | "pedir" | "esqueci" | "redefinir" | "mestre";
 
@@ -386,24 +396,266 @@ function FormRedefinir({
   );
 }
 
-/** O lugar do mestre que esqueceu a senha: a recuperação dele (pasta e código) é do C3. */
-function MestreEsqueci({ aoEscolher }: { aoEscolher: (v: Visao) => void }) {
+/**
+ * "Sou o mestre e esqueci a senha" (C3): duas saídas, a pasta da mesa (a chave assina um desafio do servidor) ou
+ * o código de recuperação anotado. Nas duas a senha nova nasce aqui (PBKDF2) e a chave privada nunca viaja.
+ */
+function MestreEsqueci({
+  mesa,
+  aoEntrar,
+  aoEscolher,
+}: {
+  mesa: DadosDaMesa;
+  aoEntrar: (u: UsuarioDaEntrada) => void;
+  aoEscolher: (v: Visao) => void;
+}) {
+  const [modo, setModo] = useState<"pasta" | "codigo" | null>(null);
+  // Concluída: o usuário já tem sessão; `codigo` é o código novo quando a saída foi o código (mostrado uma vez).
+  const [pronto, setPronto] = useState<{ u: UsuarioDaEntrada; codigo?: string } | null>(null);
+
+  if (pronto?.codigo) {
+    return (
+      <TelaDoCodigo
+        codigo={pronto.codigo}
+        mesaNome={mesa.nome}
+        rotuloDoBotao="Entrar na mesa"
+        aoContinuar={() => aoEntrar(pronto.u)}
+      />
+    );
+  }
+  if (pronto) {
+    return (
+      <div className="entrada-form" data-testid="mestre-recuperado">
+        <h2 className="entrada-subtitulo">Acesso recuperado</h2>
+        <p className="entrada-aviso" role="status" data-testid="mestre-recuperado-texto">
+          A senha nova já vale e as outras sessões do mestre foram encerradas.
+        </p>
+        <div className="linha-botoes">
+          <button
+            type="button"
+            className="primario"
+            data-testid="mestre-recuperado-entrar"
+            onClick={() => aoEntrar(pronto.u)}
+          >
+            Entrar na mesa
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="entrada-form" data-testid="entrada-mestre-esqueci">
       <h2 className="entrada-subtitulo">Sou o mestre e esqueci a senha</h2>
-      <p className="entrada-aviso" data-testid="mestre-esqueci-texto">
-        Em breve: a recuperação da conta do mestre ainda não existe.
+      {modo === null && (
+        <div className="opcoes-de-recuperacao" data-testid="mestre-opcoes">
+          <p className="nota">Escolha como provar que você é o mestre desta mesa.</p>
+          <button type="button" data-testid="mestre-opcao-pasta" onClick={() => setModo("pasta")}>
+            Pela pasta da mesa
+          </button>
+          <button type="button" data-testid="mestre-opcao-codigo" onClick={() => setModo("codigo")}>
+            Pelo código de recuperação
+          </button>
+        </div>
+      )}
+      {modo === "pasta" && (
+        <RecuperarPelaPasta mesa={mesa} aoPronto={setPronto} aoVoltar={() => setModo(null)} />
+      )}
+      {modo === "codigo" && (
+        <RecuperarPeloCodigo mesa={mesa} aoPronto={setPronto} aoVoltar={() => setModo(null)} />
+      )}
+      {modo === null && (
+        <div className="linha-botoes">
+          <button
+            type="button"
+            data-testid="mestre-esqueci-voltar"
+            onClick={() => aoEscolher("entrar")}
+          >
+            Voltar
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+type Pronto = (r: { u: UsuarioDaEntrada; codigo?: string }) => void;
+
+function RecuperarPelaPasta({
+  mesa,
+  aoPronto,
+  aoVoltar,
+}: {
+  mesa: DadosDaMesa;
+  aoPronto: Pronto;
+  aoVoltar: () => void;
+}) {
+  const [login, setLogin] = useState("");
+  const [senha, setSenha] = useState("");
+  const [confirmar, setConfirmar] = useState("");
+  const { erro, setErro, enviando, enviar } = useEnvio();
+
+  /** Escolher a pasta precisa de um clique: o seletor abre aqui, com os campos já conferidos. */
+  async function aoEnviar(e: FormEvent) {
+    e.preventDefault();
+    const falta = erroDosCampos({ login, senha, confirmar });
+    if (falta) {
+      setErro(falta);
+      return;
+    }
+    await enviar(async () => {
+      const pasta = await escolherPastaDoMestre();
+      if (!pasta) return; // cancelou o seletor
+      const arquivo = await lerChaveDaPasta(pasta);
+      if (!arquivo) throw new Error(`Não achei o ${NOME_DO_ARQUIVO_DA_CHAVE} nesta pasta.`);
+      // A pasta errada é recusada antes de pedir o desafio.
+      if (arquivo.mesaId !== mesa.id) throw new Error("Esta pasta é de outra mesa.");
+      await recuperarPelaPasta(mesa.id, login, senha, arquivo.chavePrivada);
+      const u = await usuarioDaSessao(mesa.id);
+      if (!u) throw new Error("Não foi possível abrir a sessão. Tente de novo.");
+      aoPronto({ u });
+    });
+  }
+
+  return (
+    <form className="entrada-form" onSubmit={aoEnviar} data-testid="entrada-form-mestre-pasta">
+      <p className="nota">
+        Escolha a pasta onde está o {NOME_DO_ARQUIVO_DA_CHAVE} desta mesa. O arquivo fica no seu
+        computador: o navegador só assina um desafio do servidor com ele.
       </p>
+      {!navegadorEscolhePasta() && <p className="nota erro">{TEXTO_SO_CHROME_E_EDGE}</p>}
+      <CampoDeConta
+        testid="mestre-pasta-login"
+        rotulo="Login do mestre"
+        valor={login}
+        aoMudar={setLogin}
+        autoComplete="username"
+        maxLength={TAMANHO_MAXIMO_DO_LOGIN + 8}
+      />
+      <CampoDeConta
+        testid="mestre-pasta-senha"
+        rotulo="Nova senha (pelo menos 5 caracteres)"
+        tipo="password"
+        valor={senha}
+        aoMudar={setSenha}
+        autoComplete="new-password"
+        maxLength={TAMANHO_MAXIMO_DA_SENHA}
+      />
+      <CampoDeConta
+        testid="mestre-pasta-confirmar"
+        rotulo="Confirme a nova senha"
+        tipo="password"
+        valor={confirmar}
+        aoMudar={setConfirmar}
+        autoComplete="new-password"
+        maxLength={TAMANHO_MAXIMO_DA_SENHA}
+      />
+      <Erro texto={erro} testid="mestre-pasta-erro" />
       <div className="linha-botoes">
         <button
-          type="button"
-          data-testid="mestre-esqueci-voltar"
-          onClick={() => aoEscolher("entrar")}
+          type="submit"
+          className="primario"
+          disabled={enviando}
+          data-testid="mestre-pasta-enviar"
         >
+          Escolher a pasta e recuperar
+        </button>
+        <button type="button" data-testid="mestre-pasta-voltar" onClick={aoVoltar}>
           Voltar
         </button>
       </div>
-    </div>
+    </form>
+  );
+}
+
+function RecuperarPeloCodigo({
+  mesa,
+  aoPronto,
+  aoVoltar,
+}: {
+  mesa: DadosDaMesa;
+  aoPronto: Pronto;
+  aoVoltar: () => void;
+}) {
+  const [login, setLogin] = useState("");
+  const [codigo, setCodigo] = useState("");
+  const [senha, setSenha] = useState("");
+  const [confirmar, setConfirmar] = useState("");
+  const { erro, setErro, enviando, enviar } = useEnvio();
+
+  async function aoEnviar(e: FormEvent) {
+    e.preventDefault();
+    const falta = erroDosCampos({ login, senha, confirmar });
+    if (falta) {
+      setErro(falta);
+      return;
+    }
+    if (codigo.trim() === "") {
+      setErro("Escreva o código de recuperação.");
+      return;
+    }
+    await enviar(async () => {
+      const novo = await recuperarPeloCodigo(mesa.id, login, codigo, senha);
+      const u = await usuarioDaSessao(mesa.id);
+      if (!u) throw new Error("Não foi possível abrir a sessão. Tente de novo.");
+      aoPronto({ u, codigo: novo });
+    });
+  }
+
+  return (
+    <form className="entrada-form" onSubmit={aoEnviar} data-testid="entrada-form-mestre-codigo">
+      <p className="nota">
+        O código vale uma vez só: depois de usado, um código novo aparece para você anotar.
+      </p>
+      <CampoDeConta
+        testid="mestre-codigo-login"
+        rotulo="Login do mestre"
+        valor={login}
+        aoMudar={setLogin}
+        autoComplete="username"
+        maxLength={TAMANHO_MAXIMO_DO_LOGIN + 8}
+      />
+      <CampoDeConta
+        testid="mestre-codigo-codigo"
+        rotulo="Código de recuperação"
+        valor={codigo}
+        aoMudar={setCodigo}
+        autoComplete="off"
+        maxLength={40}
+      />
+      <CampoDeConta
+        testid="mestre-codigo-senha"
+        rotulo="Nova senha (pelo menos 5 caracteres)"
+        tipo="password"
+        valor={senha}
+        aoMudar={setSenha}
+        autoComplete="new-password"
+        maxLength={TAMANHO_MAXIMO_DA_SENHA}
+      />
+      <CampoDeConta
+        testid="mestre-codigo-confirmar"
+        rotulo="Confirme a nova senha"
+        tipo="password"
+        valor={confirmar}
+        aoMudar={setConfirmar}
+        autoComplete="new-password"
+        maxLength={TAMANHO_MAXIMO_DA_SENHA}
+      />
+      <Erro texto={erro} testid="mestre-codigo-erro" />
+      <div className="linha-botoes">
+        <button
+          type="submit"
+          className="primario"
+          disabled={enviando}
+          data-testid="mestre-codigo-enviar"
+        >
+          Recuperar o acesso
+        </button>
+        <button type="button" data-testid="mestre-codigo-voltar" onClick={aoVoltar}>
+          Voltar
+        </button>
+      </div>
+    </form>
   );
 }
 
@@ -420,6 +672,8 @@ function CriarContaDoMestre({
   const [senha, setSenha] = useState("");
   const [confirmar, setConfirmar] = useState("");
   const { erro, setErro, enviando, enviar } = useEnvio();
+  // O código de recuperação nasce com a conta do mestre e aparece uma vez, antes de entrar na mesa (C3).
+  const [comCodigo, setComCodigo] = useState<{ codigo: string; u: UsuarioDaEntrada } | null>(null);
 
   async function aoEnviar(e: FormEvent) {
     e.preventDefault();
@@ -429,11 +683,23 @@ function CriarContaDoMestre({
       return;
     }
     await enviar(async () => {
-      await criarContaDoMestre(mesa.id, { login, nome, senha });
+      const r = await criarContaDoMestre(mesa.id, { login, nome, senha });
       const u = await usuarioDaSessao(mesa.id);
       if (!u) throw new Error("Não foi possível abrir a sessão. Tente de novo.");
-      aoEntrar(u);
+      if (r.codigo) setComCodigo({ codigo: r.codigo, u });
+      else aoEntrar(u);
     });
+  }
+
+  if (comCodigo) {
+    return (
+      <TelaDoCodigo
+        codigo={comCodigo.codigo}
+        mesaNome={mesa.nome}
+        rotuloDoBotao="Entrar na mesa"
+        aoContinuar={() => aoEntrar(comCodigo.u)}
+      />
+    );
   }
 
   return (
@@ -628,7 +894,9 @@ export function EntradaDaMesa({
           {visao === "redefinir" && (
             <FormRedefinir mesa={mesa} aoEntrar={aoEntrar} aoEscolher={setVisao} />
           )}
-          {visao === "mestre" && <MestreEsqueci aoEscolher={setVisao} />}
+          {visao === "mestre" && (
+            <MestreEsqueci mesa={mesa} aoEntrar={aoEntrar} aoEscolher={setVisao} />
+          )}
         </div>
       )}
       {situacao?.modoTeste && <EntradaDeTeste mesa={mesa} aoEntrar={aoEntrar} />}

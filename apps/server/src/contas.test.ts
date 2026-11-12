@@ -144,7 +144,7 @@ describe("migração das contas", () => {
 
     const reaberto = new Armazenamento(sql as never);
     reaberto.migrar();
-    expect(reaberto.lerMeta("versao_esquema")).toBe("10");
+    expect(reaberto.lerMeta("versao_esquema")).toBe("11");
     expect(tabelas()).toEqual(expect.arrayContaining(["contas", "sessoes", "limites_ip"]));
     expect(sql.exec("SELECT COUNT(*) AS n FROM contas").toArray()).toEqual([{ n: 0 }]);
     expect(reaberto.lerMeta("marca")).toBe("campanha-real");

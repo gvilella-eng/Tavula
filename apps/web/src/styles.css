@@ -4641,3 +4641,63 @@ kbd {
 .trocar-senha-titulo {
   margin-bottom: 0;
 }
+
+/* --- código de recuperação e proteção do mestre (C3) ------------------------------------------------- */
+
+.codigo-de-recuperacao {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.codigo-de-recuperacao-titulo {
+  margin: 0;
+}
+.codigo-de-recuperacao-valor {
+  display: block;
+  padding: 14px 12px;
+  font-family: var(--fonte-titulo);
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-align: center;
+  color: var(--acento);
+  background: var(--campo);
+  border: 2px solid var(--acento);
+  border-radius: 8px;
+  user-select: all;
+  overflow-wrap: anywhere;
+}
+.codigo-anotei {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.escolha-da-pasta {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  background: var(--cabecalho);
+  border: 1px solid var(--borda);
+  border-radius: 8px;
+}
+.protecao-do-mestre {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.protecao-do-mestre .campo-de-conta {
+  max-width: 280px;
+}
+.opcoes-de-recuperacao {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+@media (max-width: 720px) {
+  .codigo-de-recuperacao-valor {
+    font-size: 19px;
+  }
+}

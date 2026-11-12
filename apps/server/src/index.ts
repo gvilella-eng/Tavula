@@ -1,4 +1,5 @@
 import {
+  ChavePublicaSchema,
   ehIdDeMesa,
   MestreDaMesaNovaSchema,
   mensagemDeErroDeConta,
@@ -6,6 +7,7 @@ import {
   nomeDeMesaValido,
   normalizarIdDeMesa,
 } from "@tabletop/shared";
+import { origemPermitida } from "./origem";
 import {
   CABECALHO_IP,
   CABECALHO_LOCAL,
@@ -64,9 +66,10 @@ function caminhoInterno(metodo: string, rota: string): string | null {
     return `/api/${rota}`;
   }
   if (metodo === "POST" && ["entrar", "sair"].includes(rota)) return `/api/${rota}`;
-  const conta = /^conta\/(entrar|pedir|sair|esqueci|redefinir|trocar-senha|mestre-inicial)$/.exec(
-    rota,
-  );
+  const conta =
+    /^conta\/(entrar|pedir|sair|esqueci|redefinir|trocar-senha|mestre-inicial|chave|codigo|recuperar\/desafio|recuperar\/pasta|recuperar\/codigo)$/.exec(
+      rota,
+    );
   if (metodo === "POST" && conta) {
     // `conta/sair` é o mesmo que `sair`: a sessão cai e os cookies saem.
     return conta[1] === "sair" ? "/api/sair" : `/api/conta/${conta[1]}`;
@@ -92,6 +95,19 @@ export default {
 
     if (pathname === "/saude") return new Response("ok");
 
+    // C3: Origin. No upgrade do WebSocket e em todo POST de /api/ a origem tem de ser a do próprio servidor
+    // (ou a do Vite, que repassa o Host); sem o cabeçalho, aceita (clientes que não o mandam).
+    if (
+      pathname.startsWith("/api/") &&
+      (request.method === "POST" || pedeWebSocket(request)) &&
+      !origemPermitida(request.headers.get("Origin"), url)
+    ) {
+      return json(
+        { erro: "origem_invalida", mensagem: mensagemDeErroDeConta("origem_invalida") },
+        403,
+      );
+    }
+
     // --- Diretório de mesas -------------------------------------------------------------------
 
     if (pathname === "/api/mesas" && request.method === "POST") {
@@ -105,6 +121,7 @@ export default {
       // que o navegador sorteou (o id entra no sal da senha). Só em MODO=teste dá para criar sem conta.
       let mestre: unknown;
       let id: string | undefined;
+      let chavePublica: unknown;
       if (corpo?.mestre !== undefined) {
         const m = MestreDaMesaNovaSchema.safeParse(corpo.mestre);
         if (!m.success || typeof corpo.id !== "string" || !ehIdDeMesa(corpo.id)) {
@@ -115,6 +132,16 @@ export default {
         }
         mestre = m.data;
         id = corpo.id;
+        if (corpo.chavePublica !== undefined) {
+          const k = ChavePublicaSchema.safeParse(corpo.chavePublica);
+          if (!k.success) {
+            return json(
+              { erro: "corpo_invalido", mensagem: mensagemDeErroDeConta("corpo_invalido") },
+              400,
+            );
+          }
+          chavePublica = k.data;
+        }
       } else if (env.MODO !== "teste") {
         return json(
           { erro: "mestre_obrigatorio", mensagem: mensagemDeErroDeConta("mestre_obrigatorio") },
@@ -124,7 +151,7 @@ export default {
       const r = await diretorio().fetch(
         new Request("https://diretorio/mesas", {
           method: "POST",
-          body: JSON.stringify({ nome, ip, id, mestre, seguro }),
+          body: JSON.stringify({ nome, ip, id, mestre, seguro, chavePublica }),
         }),
       );
       if (!r.ok) {
@@ -133,8 +160,17 @@ export default {
         }
         return r;
       }
-      const criada = (await r.json()) as { id: string; nome: string; cookie?: string | null };
-      const saida = json({ id: criada.id, nome: criada.nome }, 201);
+      const criada = (await r.json()) as {
+        id: string;
+        nome: string;
+        cookie?: string | null;
+        codigo?: string | null;
+      };
+      // O código de recuperação vai só nesta resposta (mostrado uma vez); o servidor guarda só o hash dele.
+      const saida = json(
+        { id: criada.id, nome: criada.nome, ...(criada.codigo ? { codigo: criada.codigo } : {}) },
+        201,
+      );
       if (criada.cookie) saida.headers.append("Set-Cookie", criada.cookie);
       return saida;
     }

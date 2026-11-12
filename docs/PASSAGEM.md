@@ -661,3 +661,9 @@ Continua em aberto, por ser decisão e não erro de doc: `ficha.verOutras` (seç
 - Frágil: fechar socket com 4001 faz o cliente perguntar `eu`; se a rota mudar, ele não volta à entrada (`useSala.ts`).
 - Os E2E de conta usam derivação real (600.000 iterações): cada login leva cerca de 1 s.
 - Suposições novas (assumido): ver `REDESIGN`, "C2 — como ficou".
+
+## C3: chave da pasta e código de recuperação (2026-11-12)
+
+- Onde mexer: `packages/shared/src/recuperacao.ts` (código, ECDSA, esquemas), `apps/server/src/contas.ts` (`registrarChave`, `gerarCodigo`, `emitirDesafio`, `recuperarPelaPasta`, `recuperarPeloCodigo`, `limite`), `apps/server/src/origem.ts` (Origin), migração 11 em `armazenamento.ts`, rotas `conta/chave|codigo|recuperar/*` na `Sala` e em `index.ts`; web em `contas/pastaDoMestre.ts`, `CodigoDeRecuperacao.tsx`, `ProtecaoDoMestre.tsx`, `EntradaDaMesa.tsx`, `TelaInicial.tsx`.
+- Frágil: a pasta de teste (`window.__tabletopPastas`) só existe no modo e2e; o arquivo `tavola-mestre.json` é a prova de mestre (quem o tem recupera a mesa); o código de recuperação só aparece uma vez; o Origin aceita loopback em pedido local.
+- Suposições: ver REDESIGN, "C3 — como ficou".

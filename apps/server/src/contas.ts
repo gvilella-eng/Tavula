@@ -2,15 +2,26 @@ import {
   base64UrlParaBytes,
   bloqueioDoIp,
   bytesParaBase64Url,
+  type ChavePublica,
+  ChavePublicaSchema,
   type CodigoDeErroDeConta,
   type ContaParaMestre,
+  chavePublicaValida,
+  DESAFIO_VALE_MS,
+  DESAFIOS_POR_IP_POR_HORA,
   ESQUECI_POR_IP_POR_HORA,
+  gerarCodigoDeRecuperacao,
+  gerarParDeChaves,
   JANELA_DO_IP_MS,
   JANELA_POR_HORA_MS,
   type ListaDeContas,
+  MAXIMO_DE_DESAFIOS_ABERTOS,
   MAXIMO_DE_PEDIDOS_PENDENTES,
   MAXIMO_DE_SESSOES_POR_CONTA,
+  mensagemParaAssinar,
   minutosAte,
+  normalizarCodigoDeRecuperacao,
+  normalizarLogin,
   type PapelDeConta,
   PEDIDOS_POR_IP_POR_HORA,
   PEDIR_DE_NOVO_APOS_RECUSA_MS,
@@ -20,6 +31,7 @@ import {
   type StatusDeConta,
   sessaoPrecisaRenovar,
   type Usuario,
+  verificarAssinatura,
 } from "@tabletop/shared";
 
 /**
@@ -64,6 +76,9 @@ type Linha = {
   falhas: number;
   bloqueios: number;
   bloqueada_ate: number;
+  /** C3: a chave pública do mestre (JWK em JSON) e o SHA-256 do código de recuperação. Segredos da sala. */
+  chave_publica: string | null;
+  codigo_hash: string | null;
 };
 
 const publica = (l: Linha): ContaPublica => ({
@@ -99,6 +114,19 @@ export async function hashDoToken(token: string): Promise<string> {
   return bytesParaBase64Url(await sha256(codificador.encode(token)));
 }
 
+/** O que a sala guarda do código de recuperação: `SHA-256(código canônico)` em base64url (o código tem entropia alta, sem PBKDF2). */
+export async function hashDoCodigo(codigoCanonico: string): Promise<string> {
+  return bytesParaBase64Url(await sha256(codificador.encode(codigoCanonico)));
+}
+
+function safeJson(texto: string): unknown {
+  try {
+    return JSON.parse(texto);
+  } catch {
+    return null;
+  }
+}
+
 /** Compara dois textos sem parar no primeiro byte diferente (o tempo não depende de onde eles diferem). */
 export function iguaisEmTempoConstante(a: string, b: string): boolean {
   const x = codificador.encode(a);
@@ -115,8 +143,25 @@ const sortearBytes = (n: number) => crypto.getRandomValues(new Uint8Array(n));
 const SAL_DE_MENTIRA = new Uint8Array(16);
 const HASH_DE_MENTIRA = bytesParaBase64Url(new Uint8Array(32).fill(7));
 
+/**
+ * Uma chave pública de mentira (de uma privada que ninguém guarda): quando a mesa não tem chave, a conferência
+ * da assinatura roda contra ela, para o tempo da resposta não dizer se a mesa tem chave.
+ */
+let chaveDeMentira: Promise<ChavePublica> | null = null;
+const obterChaveDeMentira = () => {
+  chaveDeMentira ??= gerarParDeChaves().then((p) => p.publica);
+  return chaveDeMentira;
+};
+
 const HORA = JANELA_POR_HORA_MS;
 const UM_DIA = 24 * HORA;
+
+/** Um limite de falhas com espera crescente (1, 5, 15, 60 min), guardado em `limites_ip` (tipo + chave + instante). */
+type LimiteNomeado = {
+  espera(agora: number): number;
+  registrar(agora: number): number;
+  zerar(): void;
+};
 
 export class ContasDaMesa {
   constructor(
@@ -198,8 +243,10 @@ export class ContasDaMesa {
     const ocupadas = new Set(
       contas.filter((c) => c.status === "ativa" && c.vagaId).map((c) => c.vagaId),
     );
+    const mestre = this.mestreAtivo();
     return {
       contas,
+      protecao: { temChave: !!mestre?.chave_publica, temCodigo: !!mestre?.codigo_hash },
       vagasLivres: vagas
         .filter((u) => u.papel === "jogador" && !ocupadas.has(u.id))
         .map((u) => ({ id: u.id, nome: u.nome })),
@@ -236,10 +283,58 @@ export class ContasDaMesa {
     return ate ? minutosAte(ate, agora) : 0;
   }
 
-  /** Apaga o que já não serve: sessões vencidas e registros de IP com mais de um dia. */
+  /** Apaga o que já não serve: sessões vencidas, desafios vencidos e registros de limite com mais de um dia. */
   limpar(agora: number): void {
     this.sql.exec("DELETE FROM sessoes WHERE expira <= ?", agora);
     this.sql.exec("DELETE FROM limites_ip WHERE em <= ?", agora - UM_DIA);
+    this.sql.exec("DELETE FROM desafios WHERE expira <= ?", agora);
+  }
+
+  /**
+   * Falhas com espera crescente para uma `chave` de um `tipo` (o login que não existe, a recuperação da mesa).
+   * Cada falha é uma linha `tipo`; ao bloquear, as falhas somem e fica uma linha `tipo:bloqueio` cujo
+   * instante é o fim da espera (quantas linhas de bloqueio há = o degrau da próxima espera).
+   */
+  private limite(tipo: string, chave: string): LimiteNomeado {
+    const bloqueio = `${tipo}:bloqueio`;
+    return {
+      espera: (agora) => {
+        const ate = (
+          this.sql
+            .exec("SELECT MAX(em) AS m FROM limites_ip WHERE tipo = ? AND ip = ?", bloqueio, chave)
+            .toArray()[0] as { m: number | null }
+        ).m;
+        return ate && ate > agora ? minutosAte(ate, agora) : 0;
+      },
+      registrar: (agora) => {
+        const falhas = this.contar(
+          "SELECT COUNT(*) AS n FROM limites_ip WHERE tipo = ? AND ip = ?",
+          tipo,
+          chave,
+        );
+        const bloqueios = this.contar(
+          "SELECT COUNT(*) AS n FROM limites_ip WHERE tipo = ? AND ip = ?",
+          bloqueio,
+          chave,
+        );
+        const r = registrarFalhaDaConta({ falhas, bloqueios }, agora);
+        if (r.bloqueadaAte) {
+          this.sql.exec("DELETE FROM limites_ip WHERE tipo = ? AND ip = ?", tipo, chave);
+          this.registrarDoIp(bloqueio, chave, r.bloqueadaAte);
+          return minutosAte(r.bloqueadaAte, agora);
+        }
+        this.registrarDoIp(tipo, chave, agora);
+        return 0;
+      },
+      zerar: () => {
+        this.sql.exec(
+          "DELETE FROM limites_ip WHERE tipo IN (?, ?) AND ip = ?",
+          tipo,
+          bloqueio,
+          chave,
+        );
+      },
+    };
   }
 
   // --- senha -----------------------------------------------------------------------------------
@@ -258,9 +353,16 @@ export class ContasDaMesa {
   }
 
   /** Conta uma senha errada: contra a conta (espera crescente) e contra o IP. Devolve a espera da conta, se bloqueou agora. */
-  private registrarSenhaErrada(conta: Linha | null, ip: string, agora: number): number {
+  private registrarSenhaErrada(
+    conta: Linha | null,
+    ip: string,
+    agora: number,
+    loginNorm?: string,
+  ): number {
     this.registrarDoIp("falha", ip, agora);
-    if (!conta) return 0;
+    // Login que não existe: as falhas contam por login normalizado, com a mesma espera crescente, para que a
+    // mensagem de espera apareça igual e a resposta não diga se a conta existe.
+    if (!conta) return loginNorm ? this.limite("login", loginNorm).registrar(agora) : 0;
     const r = registrarFalhaDaConta({ falhas: conta.falhas, bloqueios: conta.bloqueios }, agora);
     this.sql.exec(
       "UPDATE contas SET falhas = ?, bloqueios = ?, bloqueada_ate = ? WHERE id = ?",
@@ -444,12 +546,17 @@ export class ContasDaMesa {
     this.limpar(agora);
     const esperaIp = this.esperaDoIp(ip, agora);
     if (esperaIp) return falha("ip_bloqueado", esperaIp);
-    const conta = this.porLogin(dados.login.trim().toLowerCase());
+    const loginNorm = dados.login.trim().toLowerCase();
+    const conta = this.porLogin(loginNorm);
     if (conta && conta.bloqueada_ate > agora) {
       return falha("bloqueada", minutosAte(conta.bloqueada_ate, agora));
     }
+    if (!conta) {
+      const esperaDoLogin = this.limite("login", loginNorm).espera(agora);
+      if (esperaDoLogin) return falha("bloqueada", esperaDoLogin);
+    }
     if (!(await this.confere(conta, dados.derivada)) || !conta) {
-      const espera = this.registrarSenhaErrada(conta, ip, agora);
+      const espera = this.registrarSenhaErrada(conta, ip, agora, loginNorm);
       return espera ? falha("bloqueada", espera) : falha("credenciais");
     }
     // Senha certa: zera a contagem; só então se diz em que pé está o pedido (quem erra a senha não descobre).
@@ -569,6 +676,203 @@ export class ContasDaMesa {
     return certo(null);
   }
 
+  // --- chave da pasta e código de recuperação (C3) -------------------------------------------------------
+
+  /** A conta do mestre (a mesa tem uma só). */
+  private mestreAtivo(): Linha | null {
+    return (
+      this.linhas("SELECT * FROM contas WHERE papel = 'mestre' AND status = 'ativa' LIMIT 1")[0] ??
+      null
+    );
+  }
+
+  /** Confere a senha atual de uma conta já logada; errar conta como no login (conta e IP). `null` = confere. */
+  private async conferirSenhaAtual(
+    conta: Linha,
+    derivada: string,
+    ip: string,
+    agora: number,
+  ): Promise<Falha | null> {
+    if (conta.bloqueada_ate > agora)
+      return falha("bloqueada", minutosAte(conta.bloqueada_ate, agora));
+    const esperaIp = this.esperaDoIp(ip, agora);
+    if (esperaIp) return falha("ip_bloqueado", esperaIp);
+    if (!(await this.confere(conta, derivada))) {
+      const espera = this.registrarSenhaErrada(conta, ip, agora);
+      return espera ? falha("bloqueada", espera) : falha("senha_atual_incorreta");
+    }
+    return null;
+  }
+
+  /** Um código novo para a conta (o anterior morre): o texto só existe aqui e na resposta; no banco fica o SHA-256. */
+  async gerarCodigo(contaId: string): Promise<string> {
+    const codigo = gerarCodigoDeRecuperacao(this.sortear);
+    const canonico = normalizarCodigoDeRecuperacao(codigo) as string;
+    this.sql.exec(
+      "UPDATE contas SET codigo_hash = ? WHERE id = ?",
+      await hashDoCodigo(canonico),
+      contaId,
+    );
+    return codigo;
+  }
+
+  /** "Gerar novo código": o mestre logado, com a senha atual. */
+  async gerarNovoCodigo(
+    contaId: string,
+    derivada: string,
+    ip: string,
+    agora: number,
+  ): Promise<Resultado<{ codigo: string }>> {
+    const conta = this.porId(contaId);
+    if (conta?.papel !== "mestre") return falha("sem_permissao");
+    const erro = await this.conferirSenhaAtual(conta, derivada, ip, agora);
+    if (erro) return erro;
+    this.zerarFalhas(conta.id);
+    return certo({ codigo: await this.gerarCodigo(conta.id) });
+  }
+
+  /** Registra (ou troca) a chave pública do mestre. A troca invalida a antiga. Só a pública chega aqui. */
+  async registrarChave(
+    contaId: string,
+    chave: unknown,
+    derivada: string | null,
+    ip: string,
+    agora: number,
+  ): Promise<Resultado<null>> {
+    const conta = this.porId(contaId);
+    if (conta?.papel !== "mestre") return falha("sem_permissao");
+    if (derivada !== null) {
+      const erro = await this.conferirSenhaAtual(conta, derivada, ip, agora);
+      if (erro) return erro;
+      this.zerarFalhas(conta.id);
+    }
+    const r = ChavePublicaSchema.safeParse(chave);
+    if (!r.success || !(await chavePublicaValida(r.data))) return falha("corpo_invalido");
+    this.sql.exec(
+      "UPDATE contas SET chave_publica = ? WHERE id = ?",
+      JSON.stringify(r.data),
+      contaId,
+    );
+    return certo(null);
+  }
+
+  /** Um desafio para a recuperação pela pasta: nonce aleatório de 32 bytes, 5 minutos, uso único. Sempre emite (não diz se há chave). */
+  emitirDesafio(ip: string, agora: number): Resultado<{ nonce: string; expira: number }> {
+    this.limpar(agora);
+    if (this.contarDoIp("desafio", ip, agora - HORA) >= DESAFIOS_POR_IP_POR_HORA) {
+      return falha("muitos_pedidos");
+    }
+    this.registrarDoIp("desafio", ip, agora);
+    const nonce = bytesParaBase64Url(this.sortear(32));
+    this.sql.exec(
+      "INSERT INTO desafios (nonce, criado_em, expira) VALUES (?, ?, ?)",
+      nonce,
+      agora,
+      agora + DESAFIO_VALE_MS,
+    );
+    // Os mais antigos caem quando há demais abertos (a tabela não cresce sem fim).
+    this.sql.exec(
+      `DELETE FROM desafios WHERE nonce NOT IN (SELECT nonce FROM desafios ORDER BY criado_em DESC, rowid DESC LIMIT ?)`,
+      MAXIMO_DE_DESAFIOS_ABERTOS,
+    );
+    return certo({ nonce, expira: agora + DESAFIO_VALE_MS });
+  }
+
+  /** Gasta o nonce (síncrono: sem `await` entre ler e apagar, dois pedidos não gastam o mesmo). `true` se valia. */
+  private consumirDesafio(nonce: string, agora: number): boolean {
+    const linha = this.sql
+      .exec("SELECT expira FROM desafios WHERE nonce = ?", nonce)
+      .toArray()[0] as { expira: number } | undefined;
+    this.sql.exec("DELETE FROM desafios WHERE nonce = ?", nonce);
+    return !!linha && linha.expira > agora;
+  }
+
+  /** Os limites da recuperação: por IP (o das falhas do C2) e por mesa (espera crescente). Devolve a espera em minutos. */
+  private esperaDaRecuperacao(ip: string, agora: number): Falha | null {
+    const esperaIp = this.esperaDoIp(ip, agora);
+    if (esperaIp) return falha("ip_bloqueado", esperaIp);
+    const esperaMesa = this.limite("recuperar", "mesa").espera(agora);
+    return esperaMesa ? falha("bloqueada", esperaMesa) : null;
+  }
+
+  private falhaDeRecuperacao(ip: string, agora: number): Falha {
+    this.registrarDoIp("falha", ip, agora);
+    const espera = this.limite("recuperar", "mesa").registrar(agora);
+    return espera ? falha("bloqueada", espera) : falha("recuperacao_invalida");
+  }
+
+  /** Troca a senha do mestre, derruba todas as sessões dele e abre uma nova. */
+  private async retomarMestre(
+    mestre: Linha,
+    derivada: string,
+    agora: number,
+  ): Promise<{ conta: ContaPublica; token: string }> {
+    const { sal, hash } = await this.novaSenha(derivada);
+    this.sql.exec(
+      "UPDATE contas SET sal = ?, hash = ?, falhas = 0, bloqueios = 0, bloqueada_ate = 0 WHERE id = ?",
+      sal,
+      hash,
+      mestre.id,
+    );
+    this.derrubarSessoes(mestre.id);
+    this.limite("recuperar", "mesa").zerar();
+    return { conta: publica(mestre), token: await this.abrirSessao(mestre.id, agora) };
+  }
+
+  /**
+   * Recuperar pela pasta: o navegador assinou `tavola-recuperar:<mesa>:<nonce>` com a chave privada da pasta.
+   * O nonce é gasto antes de tudo (certa ou errada, a assinatura não vale duas vezes). Sem chave na mesa, a
+   * conferência roda contra uma chave de mentira: a resposta e o tempo são os mesmos.
+   */
+  async recuperarPelaPasta(
+    dados: { mesaId: string; login: string; nonce: string; assinatura: string; derivada: string },
+    ip: string,
+    agora: number,
+  ): Promise<Resultado<{ conta: ContaPublica; token: string }>> {
+    this.limpar(agora);
+    const bloqueio = this.esperaDaRecuperacao(ip, agora);
+    if (bloqueio) return bloqueio;
+    const valia = this.consumirDesafio(dados.nonce, agora);
+    const mestre = this.mestreAtivo();
+    let real: ChavePublica | null = null;
+    if (mestre?.chave_publica) {
+      const lida = ChavePublicaSchema.safeParse(safeJson(mestre.chave_publica));
+      real = lida.success ? lida.data : null;
+    }
+    const conferiu = await verificarAssinatura(
+      real ?? (await obterChaveDeMentira()),
+      mensagemParaAssinar(dados.mesaId, dados.nonce),
+      dados.assinatura,
+    );
+    if (!mestre || !real || !valia || !conferiu) return this.falhaDeRecuperacao(ip, agora);
+    if (normalizarLogin(dados.login) !== mestre.login_norm) return falha("login_nao_confere");
+    return certo(await this.retomarMestre(mestre, dados.derivada, agora));
+  }
+
+  /** Recuperar pelo código: o código morre e um novo é devolvido na hora (para mostrar uma vez). */
+  async recuperarPeloCodigo(
+    dados: { login: string; codigo: string; derivada: string },
+    ip: string,
+    agora: number,
+  ): Promise<Resultado<{ conta: ContaPublica; token: string; codigoNovo: string }>> {
+    this.limpar(agora);
+    const bloqueio = this.esperaDaRecuperacao(ip, agora);
+    if (bloqueio) return bloqueio;
+    const mestre = this.mestreAtivo();
+    const canonico = normalizarCodigoDeRecuperacao(dados.codigo);
+    const calculado = await hashDoCodigo(canonico ?? "invalido");
+    const guardado = mestre?.codigo_hash ?? HASH_DE_MENTIRA;
+    const confere = iguaisEmTempoConstante(calculado, guardado);
+    if (!mestre?.codigo_hash || !canonico || !confere) {
+      return this.falhaDeRecuperacao(ip, agora);
+    }
+    if (normalizarLogin(dados.login) !== mestre.login_norm) return falha("login_nao_confere");
+    const r = await this.retomarMestre(mestre, dados.derivada, agora);
+    // O código usado morre; o novo substitui na hora.
+    this.sql.exec("UPDATE contas SET codigo_hash = NULL WHERE id = ?", mestre.id);
+    return certo({ ...r, codigoNovo: await this.gerarCodigo(mestre.id) });
+  }
+
   // --- o que o mestre faz ------------------------------------------------------------------------------
 
   /** Aceita um pedido: a conta fica ativa, ligada à vaga. Quem chama confere antes que a vaga é de jogador e está livre. */
@@ -638,6 +942,7 @@ export class ContasDaMesa {
   apagarTudo(): void {
     this.sql.exec("DELETE FROM sessoes");
     this.sql.exec("DELETE FROM limites_ip");
+    this.sql.exec("DELETE FROM desafios");
     this.sql.exec("DELETE FROM contas");
   }
 }

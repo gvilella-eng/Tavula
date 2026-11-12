@@ -1132,6 +1132,27 @@ Segundo lote do marco "Mesas e contas" (PROJETO 4.14): contas por mesa, pedidos 
 - Pasta do mestre com chave e código de recuperação (C3), inclusive "Sou o mestre e esqueci a senha" (hoje só "em breve").
 - Mais de um mestre por mesa com conta, e promover um jogador a mestre pelo papel da conta (hoje o papel da conta é fixo na criação).
 
+## C3 — como ficou (2026-11-12)
+
+Terceiro lote do marco "Mesas e contas" (PROJETO 4.14): pasta do mestre com chave, código de recuperação, recuperação do mestre e dois reforços do C2.
+
+**O que foi feito**
+- `packages/shared/src/recuperacao.ts` (código, chave ECDSA, assinar e verificar com WebCrypto, esquemas dos corpos), `apps/server/src/origem.ts`, migração 11, `ContasDaMesa` com chave, código, desafio e as duas recuperações, rotas novas na `Sala` e no Worker.
+- Web: `contas/pastaDoMestre.ts`, `CodigoDeRecuperacao.tsx`, `ProtecaoDoMestre.tsx`, "Sou o mestre e esqueci a senha" com as duas saídas, escolha de pasta ao criar a mesa, código antes de abrir a mesa nova e antes de entrar na legada.
+
+**Decisões (assumido)**
+- (assumido) A pasta é a mesma das imagens; ela é opcional ao criar a mesa. Gravar a chave exige pasta sem a chave de outra mesa.
+- (assumido) Ao criar a mesa a privada vai para a pasta antes de o servidor receber a pública; em "Proteger" e "Trocar", o servidor aceita primeiro (confere a senha) e só então o arquivo é gravado.
+- (assumido) A recuperação pede também o login do mestre (o sal da derivação o leva); login errado só avisa depois de provar o acesso e não gasta o código.
+- (assumido) O limite por mesa (5 erros, 1/5/15/60 min) vale para pasta e código juntos e permite que quem erra à toa trave a recuperação por até uma hora.
+- (assumido) A mensagem assinada é a do brief (sem a senha nova dentro).
+- (assumido) Origin: sem o cabeçalho, aceita; em pedido local (loopback) aceita qualquer origem de loopback (o Vite pode reescrever o Host).
+- (assumido) A falha de login inexistente é lembrada por um dia.
+
+**O que ficou para depois**
+- Gravar a chave já ao criar a conta do mestre da legada (hoje: Contas, "Proteger com a pasta da mesa").
+- A pasta de imagens aberta só enxerga a chave nova depois de recarregar.
+
 ## Em aberto
 
 - **O plano R1 a R6 terminou** (R1, R2, R2b, R3, R4 em 2026-11-10; R5a, R5b, R6a e R6b em 2026-11-11). Agora o Vilella faz os ajustes

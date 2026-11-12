@@ -83,6 +83,7 @@ test("criar uma mesa mostra o id grande, copia o id e o link e abre uma mesa vaz
       `${new URL(p.url()).origin}/m/${id}`,
     );
 
+    await p.getByTestId("codigo-anotei").check();
     await p.getByTestId("inicio-abrir-mesa").click();
     await expect(p).toHaveURL(new RegExp(`/m/${id}$`));
     // a sessão da conta já está aberta: entra direto na mesa vazia, como mestre

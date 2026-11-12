@@ -202,7 +202,7 @@ export function AbaMesa({ mesa, aoRenomear, estado, uso, avisoDeContas, enviar }
       </section>
 
       <div data-testid={testidDaSecaoDaMesa("contas")} className="secao-da-mesa">
-        <SecaoDeContas mesaId={mesa.id} aviso={avisoDeContas} />
+        <SecaoDeContas mesaId={mesa.id} mesaNome={mesa.nome} aviso={avisoDeContas} />
       </div>
 
       <section data-testid={testidDaSecaoDaMesa("permissoes")} className="secao-da-mesa">
