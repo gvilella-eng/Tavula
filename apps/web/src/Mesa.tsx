@@ -43,6 +43,7 @@ import { AbaFichas } from "./AbaFichas";
 import { AbaMesa, testidDaSecaoDaMesa } from "./AbaMesa";
 import { AvisoPerto } from "./AvisoPerto";
 import { AbaPreferencias } from "./abas";
+import type { DadosDaMesa } from "./api";
 import { caixaDaArea } from "./area";
 import { lerItemArrastado } from "./arrasto";
 import { CacheOpfs } from "./assets/cache";
@@ -86,6 +87,7 @@ import { useFecharFora } from "./Popover";
 import { PresencaNoTopo } from "./PresencaNoTopo";
 import { type ConfigDoPincel, PINCEL_PADRAO } from "./pincel";
 import { gravarEncaixePadrao, lerEncaixePadrao } from "./preferencias";
+import { tituloDaMesa } from "./rotas";
 import { SeletorDeImagem } from "./SeletorDeImagem";
 import { Topo } from "./Topo";
 import { useTempoDaSala } from "./tempo";
@@ -117,7 +119,16 @@ function baixarExportacao(exportacao: Exportacao) {
 const semAssinatura = () => () => {};
 const versaoZero = () => 0;
 
-type Props = { aoSair: () => void; aoPerderSessao: () => void };
+type Props = {
+  /** A mesa (id, nome e se é a legada) a que esta tela está ligada. */
+  mesa: DadosDaMesa;
+  aoSair: () => void;
+  aoPerderSessao: () => void;
+  /** Vai para a tela inicial (`/`). */
+  aoTrocarDeMesa: () => void;
+  /** O mestre mudou o nome da mesa (o título da aba e a lista local acompanham). */
+  aoRenomear: (nome: string) => void;
+};
 
 type PedidoDeImagem = {
   titulo: string;
@@ -129,7 +140,7 @@ type PedidoDeImagem = {
  * A mesa: quatro regiões fixas (topo, ferramentas, painel direito e, no meio, a área do mapa). Tudo o
  * que abre sobre o mapa fica dentro da área dele, sem cobrir as barras (REDESIGN.md, R2).
  */
-export function Mesa({ aoSair, aoPerderSessao }: Props) {
+export function Mesa({ mesa, aoSair, aoPerderSessao, aoTrocarDeMesa, aoRenomear }: Props) {
   const {
     status,
     estado,
@@ -147,6 +158,7 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
     conectado,
     ouvir,
   } = useSala({
+    mesaId: mesa.id,
     aoExportar: baixarExportacao,
     aoPerderSessao,
   });
@@ -263,7 +275,7 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
   // Arquivos locais (PROJETO.md 4.3): fontes (pasta, soltos), processador (worker) e o gerente
   // (cache OPFS, pedidos, envio). O gerente nasce quando sei quem sou.
   const processador = useMemo(() => new Processador(), []);
-  const fontes = useMemo(() => new Fontes(), []);
+  const fontes = useMemo(() => new Fontes(mesa.id, mesa.legada), [mesa.id, mesa.legada]);
   const [gerente, setGerente] = useState<GerenteDeAssets | null>(null);
   const canal = useRef<Canal>({ conectado, enviar, enviarBinario, bufferizado });
   canal.current = { conectado, enviar, enviarBinario, bufferizado };
@@ -943,14 +955,16 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
     gravarEncaixePadrao(v);
   }
 
-  // Título da aba: "Távola" e, com a mesa aberta, o nome da cena do grupo.
+  // Título da aba: "Távola · nome da mesa" e, com a mesa aberta, o nome da cena do grupo.
   const nomeDaCenaDoGrupo = cenaDoGrupo?.nome;
+  const nomeDaMesa = mesa.nome;
   useEffect(() => {
-    document.title = nomeDaCenaDoGrupo ? `Távola · ${nomeDaCenaDoGrupo}` : "Távola";
+    const titulo = tituloDaMesa(nomeDaMesa);
+    document.title = nomeDaCenaDoGrupo ? `${titulo} · ${nomeDaCenaDoGrupo}` : titulo;
     return () => {
-      document.title = "Távola";
+      document.title = titulo;
     };
-  }, [nomeDaCenaDoGrupo]);
+  }, [nomeDaCenaDoGrupo, nomeDaMesa]);
 
   const cenaVista = { id: cena?.id ?? estado?.cenaAtivaId ?? "", nome: cena?.nome ?? "" };
 
@@ -1053,6 +1067,7 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
                 encaixe={encaixe}
                 aoMudarEncaixe={mudarEncaixe}
                 aoSair={aoSair}
+                aoTrocarDeMesa={aoTrocarDeMesa}
                 fontes={fontes}
                 gerente={gerente}
               />
@@ -1065,7 +1080,15 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
                   id: "mesa",
                   titulo: "Mesa",
                   icone: <Settings2 size={20} />,
-                  conteudo: <AbaMesa estado={estado} uso={uso} enviar={enviar} />,
+                  conteudo: (
+                    <AbaMesa
+                      mesa={mesa}
+                      aoRenomear={aoRenomear}
+                      estado={estado}
+                      uso={uso}
+                      enviar={enviar}
+                    />
+                  ),
                 },
               ]
             : []),

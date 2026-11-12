@@ -107,6 +107,8 @@ Decidido pelo Vilella (2026-11-11), para levar ao PROJETO quando o marco for pla
 - **Toda entrada passa pelo mestre**: não existe convite que dispense a aprovação, nem um link ligado a uma
   vaga.
 
+Planejado em 2026-11-12 como marco C1–C3 (PROJETO 4.14). O C1 (várias mesas, ids, tela inicial) está entregue.
+
 ## Descartadas (não propor de novo)
 
 - **Imagens no servidor** (R2 ou similar): imagens locais são a premissa e o diferencial do projeto.

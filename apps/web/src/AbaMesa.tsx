@@ -3,12 +3,17 @@ import {
   type Estado,
   type Papel,
   ROTULO_DA_CAPACIDADE,
+  TAMANHO_MAXIMO_DO_NOME_DA_MESA,
   type Uso,
 } from "@tabletop/shared";
 import { type ChangeEvent, useState } from "react";
+import { type DadosDaMesa, renomearMesa } from "./api";
+import { IdDaMesa } from "./IdDaMesa";
 import { SecaoMesa, SecaoObjetosDeLuz } from "./PainelDaMesa";
 
 type Props = {
+  mesa: DadosDaMesa;
+  aoRenomear: (nome: string) => void;
   estado: Estado;
   uso: Uso | null;
   enviar: (tipo: string, dados: object) => string | null;
@@ -41,11 +46,72 @@ type Excecao = "herdar" | "sim" | "nao";
 /** `ficha.verOutras` continua no tipo (importação antiga), mas quem vê a ficha agora é a pasta. */
 const CAPACIDADES_NA_TELA = CAPACIDADES_DELEGAVEIS.filter((c) => c !== "ficha.verOutras");
 
+/** O nome e o id desta mesa: o id para ditar ou mandar, e o nome que o mestre pode mudar. */
+function SecaoDaIdentificacao({
+  mesa,
+  aoRenomear,
+}: {
+  mesa: DadosDaMesa;
+  aoRenomear: (nome: string) => void;
+}) {
+  const [nome, setNome] = useState(mesa.nome);
+  const [erro, setErro] = useState<string | null>(null);
+  const [salvando, setSalvando] = useState(false);
+  const mudou = nome.trim() !== "" && nome.trim() !== mesa.nome;
+
+  async function salvar() {
+    if (!mudou || salvando) return;
+    setErro(null);
+    setSalvando(true);
+    try {
+      const salvo = await renomearMesa(mesa.id, nome);
+      setNome(salvo);
+      aoRenomear(salvo);
+    } catch (falha) {
+      setErro((falha as Error).message);
+    } finally {
+      setSalvando(false);
+    }
+  }
+
+  return (
+    <section className="secao-da-mesa secao-da-identificacao" data-testid="mesa-identificacao">
+      <h3>Esta mesa</h3>
+      <form
+        className="linha-botoes"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void salvar();
+        }}
+      >
+        <input
+          type="text"
+          aria-label="Nome da mesa"
+          maxLength={TAMANHO_MAXIMO_DO_NOME_DA_MESA}
+          value={nome}
+          data-testid="mesa-nome"
+          onChange={(e) => setNome(e.target.value)}
+        />
+        <button type="submit" disabled={!mudou || salvando} data-testid="mesa-nome-salvar">
+          Salvar nome
+        </button>
+      </form>
+      {erro && (
+        <p className="nota erro" role="alert" data-testid="mesa-nome-erro">
+          {erro}
+        </p>
+      )}
+      <p className="nota">Quem tem este id ou o link entra na mesa.</p>
+      <IdDaMesa id={mesa.id} prefixo="mesa" />
+    </section>
+  );
+}
+
 /**
  * Aba Mesa (só o mestre): tudo o que vale para a sala. Regras, modelos de luz, papéis dos usuários,
  * capacidades dos jogadores, campanha (exportar e importar) e, recolhido no fim, o diagnóstico.
  */
-export function AbaMesa({ estado, uso, enviar }: Props) {
+export function AbaMesa({ mesa, aoRenomear, estado, uso, enviar }: Props) {
   const jogadores = estado.usuarios.filter((u) => u.papel === "jogador");
   const [alvo, setAlvo] = useState<string>("");
   const alvoValido = jogadores.some((u) => u.id === alvo) ? alvo : (jogadores[0]?.id ?? "");
@@ -83,6 +149,8 @@ export function AbaMesa({ estado, uso, enviar }: Props) {
 
   return (
     <div className="painel-mestre aba-mesa" data-testid="painel-mestre">
+      <SecaoDaIdentificacao mesa={mesa} aoRenomear={aoRenomear} />
+
       <nav className="indice-da-mesa" aria-label="Seções da mesa" data-testid="mesa-indice">
         {SECOES_DA_MESA.map((s) => (
           <button

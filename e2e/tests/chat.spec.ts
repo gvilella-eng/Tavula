@@ -13,7 +13,7 @@ async function anteriores(pagina: Page, antesDoSeq: number): Promise<string | nu
   return pagina.evaluate(
     (antes) =>
       new Promise<string | null>((resolve) => {
-        const ws = new WebSocket(`ws://${location.host}/ws`);
+        const ws = new WebSocket(`ws://${location.host}/api/m/t3st-m3sa-e2e7/ws`);
         const fim = setTimeout(() => {
           ws.close();
           resolve(null);
@@ -50,7 +50,7 @@ async function encher(pagina: Page, quantidade: number, prefixo: string) {
           { length: sockets },
           (_, s) =>
             new Promise<void>((resolve) => {
-              const ws = new WebSocket(`ws://${location.host}/ws`);
+              const ws = new WebSocket(`ws://${location.host}/api/m/t3st-m3sa-e2e7/ws`);
               ws.onopen = () => {
                 for (let i = 0; i < 10 && s * 10 + i < (n as number); i++) {
                   const numero = s * 10 + i + 1;
@@ -395,7 +395,7 @@ test("limite de 10 mensagens por segundo por conexão: o resto é recusado com a
   const resultado = await j1.pagina.evaluate(
     () =>
       new Promise<{ erros: string[]; eventos: number }>((resolve) => {
-        const ws = new WebSocket(`ws://${location.host}/ws`);
+        const ws = new WebSocket(`ws://${location.host}/api/m/t3st-m3sa-e2e7/ws`);
         const erros: string[] = [];
         let eventos = 0;
         ws.onopen = () => {

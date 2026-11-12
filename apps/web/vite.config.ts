@@ -15,8 +15,8 @@ export default defineConfig(({ mode }) => {
       port: portaWeb,
       strictPort: true,
       proxy: {
-        "/ws": { target: `ws://${alvo}`, ws: true },
-        "/api": { target: `http://${alvo}` },
+        // A sala fala por `/api/m/<id>/...`, inclusive o WebSocket em `/api/m/<id>/ws` (C1).
+        "/api": { target: `http://${alvo}`, ws: true },
         "/teste": { target: `http://${alvo}` },
       },
     },

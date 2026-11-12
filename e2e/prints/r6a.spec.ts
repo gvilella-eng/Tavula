@@ -1,7 +1,14 @@
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import type { Page } from "@playwright/test";
-import { test as base, enviarCru, expect, intencaoCrua, Mesa } from "../tests/ajudas";
+import {
+  test as base,
+  CAMINHO_DA_MESA,
+  enviarCru,
+  expect,
+  intencaoCrua,
+  Mesa,
+} from "../tests/ajudas";
 import { arquivoPng, definirMapa, pngDeCor } from "../tests/ajudasAssets";
 import { entrarNoMapa, soSelecionarToken, tokenDe } from "../tests/ajudasMapa";
 
@@ -198,7 +205,7 @@ for (const tema of TEMAS) {
   base(`entrada ${tema}`, async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 720 });
     await page.addInitScript((t) => localStorage.setItem("tabletop:pref:tema", t), tema);
-    await page.goto("/");
+    await page.goto(CAMINHO_DA_MESA);
     await expect(page.getByTestId("entrar-mestre")).toBeVisible();
     await foto(page, `${tema}-1280x720-00-entrada-avatares`);
   });

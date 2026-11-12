@@ -7,6 +7,13 @@ import {
   type Page,
 } from "@playwright/test";
 
+/**
+ * A mesa legada em `MODO=teste` (o DO "campanha", semeado com o exemplo): o id é fixo, o mesmo de
+ * `ID_DA_MESA_LEGADA_DE_TESTE` em packages/shared/src/mesas.ts (a unidade confere o formato).
+ */
+export const ID_DA_MESA = "t3st-m3sa-e2e7";
+export const CAMINHO_DA_MESA = `/m/${ID_DA_MESA}`;
+
 export const USUARIOS = [
   "mestre",
   "jogador-1",
@@ -106,7 +113,7 @@ export class Mesa {
         (window as unknown as { __tabletopE2E?: unknown }).__tabletopE2E = g;
       }, gancho);
     }
-    await sessao.pagina.goto("/");
+    await sessao.pagina.goto(CAMINHO_DA_MESA);
     await sessao.pagina.getByTestId(`entrar-${usuarioId}`).click();
     await expect(sessao.pagina.getByTestId("status-conexao")).toHaveText("conectado");
     await expect(sessao.pagina.getByTestId("eu-nome")).toBeVisible();
@@ -173,7 +180,7 @@ export async function enviarCru(
   return pagina.evaluate(
     (t) =>
       new Promise((resolve) => {
-        const ws = new WebSocket(`ws://${location.host}/ws`);
+        const ws = new WebSocket(`ws://${location.host}/api/m/t3st-m3sa-e2e7/ws`);
         const fim = setTimeout(() => {
           ws.close();
           resolve(null);

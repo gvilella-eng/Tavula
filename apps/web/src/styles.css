@@ -182,6 +182,137 @@ textarea {
   background: var(--acento);
 }
 
+/* --- tela inicial e id da mesa (C1) ------------------------------------------------------- */
+
+.entrada-mesa {
+  margin: 10px 0 0;
+  max-width: 100%;
+  font-family: var(--fonte-titulo);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--acento);
+  overflow-wrap: anywhere;
+  text-align: center;
+}
+.entrada-trocar-de-mesa {
+  margin-top: 22px;
+}
+.inicio {
+  max-width: 920px;
+  margin: 0 auto;
+  height: 100vh;
+  padding: 6vh 24px 32px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  overflow-y: auto;
+  background: radial-gradient(ellipse at 50% 0%, var(--acento-suave), transparent 60%);
+}
+.inicio-grade {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  align-items: start;
+}
+.cartao-inicio {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding: 18px;
+  background: var(--painel);
+  border: 1px solid var(--borda);
+  border-radius: 14px;
+  box-shadow: var(--sombra);
+}
+.cartao-inicio.largo {
+  grid-column: 1 / -1;
+}
+.cartao-inicio h2 {
+  margin: 0;
+  font-size: 18px;
+}
+.cartao-inicio input[type="text"] {
+  width: 100%;
+  padding: 8px 10px;
+}
+.inicio-lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 10px;
+}
+.cartao-de-mesa {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 10px 12px;
+  text-align: left;
+  background: var(--cabecalho);
+  border-radius: 10px;
+}
+.cartao-de-mesa:hover {
+  border-color: var(--acento);
+}
+.cartao-de-mesa-nome {
+  max-width: 100%;
+  font-weight: 600;
+  font-size: 15px;
+  overflow-wrap: anywhere;
+}
+.cartao-de-mesa-id {
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-size: 12px;
+  color: var(--texto-suave);
+}
+.cartao-de-mesa-quando {
+  font-size: 12px;
+  color: var(--texto-suave);
+}
+.id-da-mesa {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.id-da-mesa-valor {
+  display: block;
+  padding: 6px 10px;
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-size: 14px;
+  letter-spacing: 0.04em;
+  background: var(--campo);
+  border: 1px solid var(--borda);
+  border-radius: 6px;
+  user-select: all;
+  overflow-wrap: anywhere;
+}
+.id-da-mesa-valor.grande {
+  padding: 14px 12px;
+  font-family: var(--fonte-titulo);
+  font-size: 34px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-align: center;
+  color: var(--acento);
+}
+.secao-da-identificacao input[type="text"] {
+  flex: 1 1 140px;
+  min-width: 0;
+}
+@media (max-width: 720px) {
+  .inicio-grade {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .id-da-mesa-valor.grande {
+    font-size: 26px;
+  }
+}
+
 /* --- seletor de tema ---------------------------------------------------------------------- */
 
 .seletor-de-tema {

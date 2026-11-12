@@ -1080,6 +1080,32 @@ Primeiro lote de bugs, depois dos V1 a V5: o importador do PDF do Rendan e três
 - Tradução dos nomes de itens, magias e ataques da ficha impressa (ficam em inglês), "preparada" (o PDF não traz) e os tipos de dano cortados do PDF.
 - Classe e subclasse de quem é multiclasse com o campo cortado.
 
+## C1 — como ficou (2026-11-12)
+
+Primeiro lote do marco "Mesas e contas" (PROJETO 4.14): várias mesas no mesmo servidor, id amigável e a tela inicial.
+
+**O que foi feito**
+- `packages/shared/src/mesas.ts`: `gerarIdDeMesa`, `normalizarIdDeMesa`, `ehIdDeMesa`, `nomeDeMesaValido`, `estadoDeMesaNova` e as constantes da mesa legada.
+- Servidor: `Diretorio` (`diretorio.ts`, `registroDeMesas.ts`), `inicializacao.ts` (`carregarOuSemear`, `criarMesaNova`), `Sala` com `POST /criar` e 404 enquanto não criada, Worker com as rotas `/api/mesas` e `/api/m/<id>/...`, cookie por mesa (`tabletop_sessao`), migração de DO `v2`.
+- Web: `rotas.ts`, `TelaInicial.tsx`, `IdDaMesa.tsx`, `mesasLocais.ts`, `App.tsx` com `/` e `/m/<id>`, bloco "Esta mesa" no alto da aba Mesa, "Trocar de mesa", título da aba, pasta de imagens por mesa.
+- Nada na mesa legada (o DO "campanha") é copiado, movido, apagado nem reescrito.
+
+**Decisões (assumido)**
+- (assumido) A mesa legada se chama "Campanha" no diretório (o mestre pode renomear).
+- (assumido) Limite de 5 mesas por hora por IP; em `MODO=teste` o freio não vale.
+- (assumido) `GET /api/mesas` fora do `LISTAR_MESAS=1` responde 404 (some, em vez de 403).
+- (assumido) `GET /api/mesas/<id>` devolve também `legada`, para a tela saber que deve herdar a pasta de imagens de antes.
+- (assumido) O cookie ganhou outro nome (`tabletop_sessao`): o `tabletop_usuario` de antes (`Path=/`) valeria em toda mesa. Quem já estava logado escolhe o usuário de novo, uma vez.
+- (assumido) Renomear é uma rota (`POST /api/m/<id>/renomear`), não uma intenção da sala: o nome é do diretório. Os outros navegadores só veem o nome novo ao recarregar.
+- (assumido) O nome e o id ficam na aba Mesa (só do mestre): o jogador recebe o link do mestre.
+- (assumido) A memória do mapa (IndexedDB, por usuário e cena) não é separada por mesa: os ids de cena de mesas diferentes quase nunca coincidem.
+- (assumido) Título da aba: "Távola · nome da mesa" (e " · cena" com a mesa aberta).
+- (assumido) A tela inicial lembra até 30 mesas por navegador.
+
+**O que ficou para depois**
+- Contas, pedidos de entrada, sessões e redefinição (C2); pasta do mestre com chave e código de recuperação (C3).
+- Apagar ou esconder uma mesa da lista do servidor (a lista local do navegador tem `esquecerMesa`, ainda sem botão).
+
 ## Em aberto
 
 - **O plano R1 a R6 terminou** (R1, R2, R2b, R3, R4 em 2026-11-10; R5a, R5b, R6a e R6b em 2026-11-11). Agora o Vilella faz os ajustes

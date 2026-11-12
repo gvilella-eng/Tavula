@@ -4,11 +4,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "wrangler dev",
+    "dev": "wrangler dev --var LISTAR_MESAS:1",
     "types": "wrangler types",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "dev:e2e": "wrangler dev --port 8788 --persist-to ../../e2e/.estado-sala --var MODO:teste"
+    "dev:e2e": "wrangler dev --port 8788 --persist-to ../../e2e/.estado-sala --var MODO:teste --var LISTAR_MESAS:1"
   },
   "dependencies": {
     "@tabletop/shared": "workspace:*"

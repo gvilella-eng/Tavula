@@ -85,12 +85,14 @@ export function atrasoDaTentativa(tentativa: number, aleatorio = Math.random()):
   return Math.round(base * (0.75 + aleatorio * 0.5));
 }
 
-function urlDaSala(): string {
+function urlDaSala(mesaId: string): string {
   const protocolo = location.protocol === "https:" ? "wss:" : "ws:";
-  return `${protocolo}//${location.host}/ws`;
+  return `${protocolo}//${location.host}/api/m/${mesaId}/ws`;
 }
 
 type Opcoes = {
+  /** A mesa (id canônico) a que esta conexão pertence. */
+  mesaId: string;
   aoExportar: (exportacao: Exportacao) => void;
   aoPerderSessao: () => void;
 };
@@ -110,6 +112,7 @@ export function useSala(opcoes: Opcoes) {
   const ouvintes = useRef(new Set<(o: Ocorrencia) => void>());
   const opcoesAtuais = useRef(opcoes);
   opcoesAtuais.current = opcoes;
+  const { mesaId } = opcoes;
   const contadorDeAvisos = useRef(0);
   // Onde a pessoa agiu por último e de onde saiu cada pedido: o aviso de erro aparece perto disso.
   const ponteiro = useRef<Ponteiro | null>(null);
@@ -204,7 +207,7 @@ export function useSala(opcoes: Opcoes) {
     }
 
     function conectar() {
-      const ws = new WebSocket(urlDaSala());
+      const ws = new WebSocket(urlDaSala(mesaId));
       socket.current = ws;
       ws.binaryType = "arraybuffer";
       // Socket descartado (desmontagem ou StrictMode montando duas vezes) não pode mexer no estado:
@@ -226,7 +229,7 @@ export function useSala(opcoes: Opcoes) {
         socket.current = null;
         setStatus("reconectando");
         // Se a sessão acabou (cookie apagado), voltar para a tela de entrada em vez de insistir.
-        fetch("/api/eu")
+        fetch(`/api/m/${mesaId}/eu`)
           .then((r) => {
             if (r.status === 401 && !encerrado) opcoesAtuais.current.aoPerderSessao();
           })
@@ -246,7 +249,7 @@ export function useSala(opcoes: Opcoes) {
       socket.current = null;
       ws?.close();
     };
-  }, []);
+  }, [mesaId]);
 
   // O aviso some sozinho.
   useEffect(() => {

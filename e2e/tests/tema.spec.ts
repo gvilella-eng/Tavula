@@ -1,4 +1,4 @@
-import { abrirAba, expect, test, USUARIOS } from "./ajudas";
+import { abrirAba, CAMINHO_DA_MESA, expect, test, USUARIOS } from "./ajudas";
 
 // Redesign R1: marca Távola, tela de entrada nova, temas de cor por navegador e nenhuma requisição de
 // rede para fora (as fontes são empacotadas).
@@ -17,8 +17,8 @@ const PAINEL = {
 test("a tela de entrada tem a marca Távola, a frase, o selo do mestre e os 8 usuários", async ({
   page,
 }) => {
-  await page.goto("/");
-  await expect(page).toHaveTitle("Távola");
+  await page.goto(CAMINHO_DA_MESA);
+  await expect(page).toHaveTitle("Távola · Campanha");
   await expect(page.getByTestId("logo")).toBeVisible();
   await expect(page.getByTestId("logo")).toContainText("Távola");
   await expect(page.getByText("Quem senta à mesa hoje?")).toBeVisible();
@@ -118,7 +118,7 @@ test("nenhuma requisição sai para fora de 127.0.0.1 e as fontes são as empaco
     if (u.protocol === "data:" || u.protocol === "blob:") return;
     if (u.hostname !== "127.0.0.1") externas.push(r.url());
   });
-  await s.pagina.goto("/");
+  await s.pagina.goto(CAMINHO_DA_MESA);
   await expect(s.pagina.getByTestId("logo")).toBeVisible();
   await s.pagina.getByTestId("entrar-mestre").click();
   await expect(s.pagina.getByTestId("status-conexao")).toHaveText("conectado");
@@ -252,7 +252,7 @@ test("quem tinha escuro ou claro guardado continua nele", async ({ mesa }) => {
   ] as const) {
     const s = await mesa.abrir();
     await s.pagina.addInitScript((v) => localStorage.setItem("tabletop:pref:tema", v), id);
-    await s.pagina.goto("/");
+    await s.pagina.goto(CAMINHO_DA_MESA);
     await expect(s.pagina.locator("html")).toHaveAttribute("data-tema", id);
     await expect(s.pagina.locator("body")).toHaveCSS("background-color", fundo);
     await s.pagina.getByTestId("entrar-mestre").click();
@@ -269,7 +269,7 @@ test("quem tinha escuro ou claro guardado continua nele", async ({ mesa }) => {
 test("um valor guardado que não é tema é ignorado (cai no Grimório)", async ({ mesa }) => {
   const s = await mesa.abrir();
   await s.pagina.addInitScript(() => localStorage.setItem("tabletop:pref:tema", "inexistente"));
-  await s.pagina.goto("/");
+  await s.pagina.goto(CAMINHO_DA_MESA);
   await expect(s.pagina.locator("html")).toHaveAttribute("data-tema", "grimorio");
 });
 

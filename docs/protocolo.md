@@ -12,22 +12,28 @@ personagem, a camada `mapa` e a ordem de turno, tudo **sem mudar o número do pr
 
 ### Conexão e autenticação (dev)
 
-- O front usa a mesma origem para tudo; o Vite faz proxy de `/ws`, `/api` e `/teste` para o Worker.
-- A identidade vem do cookie `tabletop_usuario` (interface `Autenticacao`, implementação
-  `AutenticacaoDev`). Em dev, quem escolhe o mestre na tela de entrada é mestre.
+- O front usa a mesma origem para tudo; o Vite faz proxy de `/api` (com `ws: true`) e `/teste` para o Worker.
+- A identidade vem do cookie `tabletop_sessao`, **por mesa** (`Path=/api/m/<id>`; C1, 2026-11-12; interface `Autenticacao`,
+  implementação `AutenticacaoDev`). O `tabletop_usuario` de antes não vale mais. Em dev, quem escolhe o mestre na tela de entrada é mestre.
 - Rotas HTTP do Worker:
 
 | Rota | O que faz |
 |---|---|
 | `GET /saude` | `ok` |
-| `GET /api/usuarios` | lista `{ id, nome, cor }` para a tela de entrada |
-| `POST /api/entrar` `{ usuarioId }` | valida o usuário e grava o cookie (404 se não existe) |
-| `POST /api/sair` | apaga o cookie (204) |
-| `GET /api/eu` | usuário da sessão (`{ id, nome, cor }`) ou 401 |
-| `GET /ws` (Upgrade) | WebSocket da sala; sem usuário válido: 401 |
+| `POST /api/mesas` `{ nome }` | cria a mesa (nome de 1 a 60 caracteres, `application/json`) e devolve `{ id, nome }` (201); 400, 415, 429 (limite por IP) |
+| `GET /api/mesas/<id>` | `{ id, nome, legada }` ou 404 `{ erro: "mesa_inexistente" }` |
+| `GET /api/mesas` | lista as mesas; **só com `LISTAR_MESAS=1`** (`dev` e `dev:e2e`), senão 404 |
+| `GET /api/m/<id>/usuarios` | lista `{ id, nome, cor }` para a tela de entrada |
+| `POST /api/m/<id>/entrar` `{ usuarioId }` | valida o usuário e grava o cookie da mesa (404 se não existe) |
+| `POST /api/m/<id>/sair` | apaga o cookie da mesa (204) |
+| `GET /api/m/<id>/eu` | usuário da sessão nesta mesa (`{ id, nome, cor }`) ou 401 |
+| `POST /api/m/<id>/renomear` `{ nome }` | muda o nome da mesa; só o mestre (403 aos outros, 401 sem sessão) |
+| `GET /api/m/<id>/ws` (Upgrade) | WebSocket da sala; sem usuário válido: 401 |
+| qualquer `/api/m/<id>/...` com id que não existe | 404 `{ erro: "mesa_inexistente" }` |
 | `POST /teste/zerar`, `POST /teste/reiniciar-sala` | **só com `MODO=teste`** (script `dev:e2e`); fora disso 404 |
 
-- A sala (Durable Object `Sala`, `idFromName("campanha")`) usa a WebSocket Hibernation API. Quem é
+- Cada mesa é um Durable Object `Sala`: a legada é `idFromName("campanha")` e as outras `idFromName("mesa:<id>")`; o
+  diretório (`Diretorio`) liga o id amigável ao nome do DO (PROJETO 4.14). A sala usa a WebSocket Hibernation API. Quem é
   cada socket fica no `serializeAttachment` (`usuarioId`, `conexaoId`).
 - Ao conectar, a sala manda `snapshot`, `presenca` e (se mestre) `uso`.
 

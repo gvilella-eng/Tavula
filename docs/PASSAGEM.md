@@ -28,6 +28,7 @@ restantes, transições e revisão final). O **V1** (temas com personalidade, ab
 
 - `pnpm dev` na raiz sobe a sala (wrangler, `127.0.0.1:8787`) e a web (Vite, `127.0.0.1:5173`). Abra
   `http://127.0.0.1:5173`. Fica rodando no terminal enquanto se joga (`PROJETO:787-790`, `ESTADO:23-40`).
+- **C1 (2026-11-12):** a mesa agora é `/m/<id>`; a tela inicial `/` lista as mesas. O id da campanha de sempre aparece lá (cartão "Campanha"). Reinicie o `pnpm dev` depois do C1.
 - O banco da campanha fica em `apps/server/.wrangler/state` (fora do git). **Apagar essa pasta zera a
   campanha** (`ESTADO:34`, `PROJETO:799`). O PROJETO escreve só `.wrangler/state`; o ESTADO dá o caminho
   completo.
@@ -643,3 +644,10 @@ Continua em aberto, por ser decisão e não erro de doc: `ficha.verOutras` (seç
 - `AbaCompendio.tsx`: `useAlvoDaFicha` segue a ficha em foco (`useFichasNaPilha` em `janelas/pilha.ts`); a escolha à mão vale até o foco mudar (reset durante o render).
 - Aviso das fichas: `JanelaDaFicha` recebe `avisar` (o toast `AvisoPerto`, testid `aviso`); o `ficha-aviso` não existe mais. `AvisoPerto` tem `role="status"` sem código de erro e `alert` com código (o `biome-ignore` de `noStaticElementInteractions` é por isso).
 - Conjuração do NPC: `.npc-conj-chips` ocupa a linha toda (`ficha.css`). Ver `REDESIGN`, "B1".
+
+## C1 (2026-11-12): várias mesas, ids amigáveis e a tela inicial
+
+- Mapa: ids em `packages/shared/src/mesas.ts`; diretório em `apps/server/src/diretorio.ts` e `registroDeMesas.ts`; inicialização do DO em `inicializacao.ts`; rotas no `index.ts` do Worker; web em `rotas.ts`, `TelaInicial.tsx`, `IdDaMesa.tsx`, `App.tsx`.
+- Frágil: a mesa legada é o DO `"campanha"` (`ctx.id.name`); a migração de DO `v2` do `wrangler.jsonc` só acrescenta (nunca edite a `v1`). A lista de mesas depende de `LISTAR_MESAS=1` (`--var` nos scripts `dev` e `dev:e2e` do servidor).
+- Suposições novas (assumido): ver `REDESIGN`, "C1 — como ficou". O cookie é `tabletop_sessao` por mesa; o renomear é uma rota; a memória do mapa não é por mesa.
+- Os E2E abrem `/m/t3st-m3sa-e2e7` (`CAMINHO_DA_MESA` em `e2e/tests/ajudas.ts`); WebSocket cru: `/api/m/t3st-m3sa-e2e7/ws`.

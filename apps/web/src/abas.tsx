@@ -22,6 +22,7 @@ type PropsPreferencias = {
   encaixe: boolean;
   aoMudarEncaixe: (v: boolean) => void;
   aoSair: () => void;
+  aoTrocarDeMesa: () => void;
   fontes: Fontes;
   gerente: GerenteDeAssets | null;
 };
@@ -133,6 +134,7 @@ export function AbaPreferencias({
   encaixe,
   aoMudarEncaixe,
   aoSair,
+  aoTrocarDeMesa,
   fontes,
   gerente,
 }: PropsPreferencias) {
@@ -142,9 +144,14 @@ export function AbaPreferencias({
       <p>
         Você é <strong>{nome}</strong> ({papel}).
       </p>
-      <button type="button" data-testid="trocar-usuario" onClick={aoSair}>
-        Trocar usuário
-      </button>
+      <div className="linha-botoes">
+        <button type="button" data-testid="trocar-usuario" onClick={aoSair}>
+          Trocar usuário
+        </button>
+        <button type="button" data-testid="trocar-de-mesa" onClick={aoTrocarDeMesa}>
+          Trocar de mesa
+        </button>
+      </div>
       <h3>Neste navegador</h3>
       <p className="nota">Só vale para você e fica guardado aqui, não vai para a mesa.</p>
       <SeletorDeTema />

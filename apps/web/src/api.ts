@@ -1,3 +1,4 @@
+import type { ResumoDaMesa } from "@tabletop/shared";
 import { atrasoDaTentativa } from "./useSala";
 
 export type UsuarioDaEntrada = { id: string; nome: string; cor: string };
@@ -43,22 +44,34 @@ export async function comRetentativa<T>(
   }
 }
 
-export async function listarUsuarios(): Promise<UsuarioDaEntrada[]> {
-  const r = await pedir("/api/usuarios");
+/** A mesa não existe (id que ninguém criou). */
+export class MesaInexistente extends Error {
+  constructor() {
+    super("Essa mesa não existe.");
+  }
+}
+
+/** Tudo o que é da sala fica sob `/api/m/<id>` (C1). */
+const daMesa = (mesaId: string, rota: string) => `/api/m/${mesaId}/${rota}`;
+
+export async function listarUsuarios(mesaId: string): Promise<UsuarioDaEntrada[]> {
+  const r = await pedir(daMesa(mesaId, "usuarios"));
+  if (r.status === 404) throw new MesaInexistente();
   if (!r.ok) throw new Error("Não foi possível listar os usuários.");
   return (await r.json()) as UsuarioDaEntrada[];
 }
 
-/** Usuário da sessão atual, ou `null` se ninguém entrou. */
-export async function usuarioDaSessao(): Promise<UsuarioDaEntrada | null> {
-  const r = await pedir("/api/eu");
+/** Usuário da sessão atual nesta mesa, ou `null` se ninguém entrou. */
+export async function usuarioDaSessao(mesaId: string): Promise<UsuarioDaEntrada | null> {
+  const r = await pedir(daMesa(mesaId, "eu"));
   if (r.status === 401) return null;
+  if (r.status === 404) throw new MesaInexistente();
   if (!r.ok) throw new Error("A sala não respondeu.");
   return (await r.json()) as UsuarioDaEntrada;
 }
 
-export async function entrar(usuarioId: string): Promise<void> {
-  const r = await pedir("/api/entrar", {
+export async function entrar(mesaId: string, usuarioId: string): Promise<void> {
+  const r = await pedir(daMesa(mesaId, "entrar"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ usuarioId }),
@@ -66,6 +79,52 @@ export async function entrar(usuarioId: string): Promise<void> {
   if (!r.ok) throw new Error("Não foi possível entrar.");
 }
 
-export async function sair(): Promise<void> {
-  await fetch("/api/sair", { method: "POST" });
+export async function sair(mesaId: string): Promise<void> {
+  await fetch(daMesa(mesaId, "sair"), { method: "POST" });
+}
+
+/** O que a tela sabe de uma mesa. `legada`: é a campanha de sempre (a pasta de imagens já escolhida vale). */
+export type DadosDaMesa = ResumoDaMesa & { legada: boolean };
+
+/** A mesa pelo id (já na forma canônica), ou `null` se não existe. */
+export async function consultarMesa(id: string): Promise<DadosDaMesa | null> {
+  const r = await pedir(`/api/mesas/${id}`);
+  if (r.status === 404) return null;
+  if (!r.ok) throw new Error("Não foi possível consultar a mesa.");
+  return (await r.json()) as DadosDaMesa;
+}
+
+/** Cria uma mesa e devolve o id dela. Erros com mensagem pronta para a tela. */
+export async function criarMesa(nome: string): Promise<ResumoDaMesa> {
+  const r = await pedir("/api/mesas", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ nome }),
+  });
+  if (r.status === 429) {
+    throw new Error("Você criou mesas demais por agora. Tente de novo daqui a uma hora.");
+  }
+  if (r.status === 400) throw new Error("O nome da mesa precisa ter de 1 a 60 caracteres.");
+  if (!r.ok) throw new Error("Não foi possível criar a mesa.");
+  return (await r.json()) as ResumoDaMesa;
+}
+
+/** A lista de mesas do servidor, ou `null` se ele não lista (na internet não lista: ninguém descobre as mesas dos outros). */
+export async function listarMesasDoServidor(): Promise<DadosDaMesa[] | null> {
+  const r = await pedir("/api/mesas");
+  if (!r.ok) return null;
+  return (await r.json()) as DadosDaMesa[];
+}
+
+/** Muda o nome da mesa (só o mestre; a sala confere). */
+export async function renomearMesa(mesaId: string, nome: string): Promise<string> {
+  const r = await pedir(daMesa(mesaId, "renomear"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ nome }),
+  });
+  if (r.status === 403) throw new Error("Só o mestre muda o nome da mesa.");
+  if (r.status === 400) throw new Error("O nome da mesa precisa ter de 1 a 60 caracteres.");
+  if (!r.ok) throw new Error("Não foi possível mudar o nome.");
+  return ((await r.json()) as ResumoDaMesa).nome;
 }

@@ -6,7 +6,14 @@
   "send_metrics": false,
   "dev": { "ip": "127.0.0.1", "port": 8787 },
   "durable_objects": {
-    "bindings": [{ "name": "SALA", "class_name": "Sala" }]
+    "bindings": [
+      { "name": "SALA", "class_name": "Sala" },
+      { "name": "DIRETORIO", "class_name": "Diretorio" }
+    ]
   },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Sala"] }]
+  // As migrações só acrescentam: a v1 (Sala) nunca muda; a v2 traz o diretório de mesas (C1).
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["Sala"] },
+    { "tag": "v2", "new_sqlite_classes": ["Diretorio"] }
+  ]
 }

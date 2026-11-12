@@ -51,7 +51,7 @@ export async function ligarVerOutras(mestre: Page, valor: boolean) {
   await mestre.evaluate(
     (v) =>
       new Promise<void>((resolve) => {
-        const ws = new WebSocket(`ws://${location.host}/ws`);
+        const ws = new WebSocket(`ws://${location.host}/api/m/t3st-m3sa-e2e7/ws`);
         ws.onopen = () => {
           ws.send(
             JSON.stringify({
@@ -104,7 +104,7 @@ export async function criarHandoutPelaSala(p: Page, extra: object = {}): Promise
   const resposta = await p.evaluate(
     ({ intencao, handoutId }) =>
       new Promise<string | null>((resolve) => {
-        const ws = new WebSocket(`ws://${location.host}/ws`);
+        const ws = new WebSocket(`ws://${location.host}/api/m/t3st-m3sa-e2e7/ws`);
         const fim = setTimeout(() => {
           ws.close();
           resolve(null);

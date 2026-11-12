@@ -110,7 +110,7 @@ mestre** (só mestres). Protocolo completo em `docs/protocolo.md`.
   mensagens da sala, exportação, `capacidadeDaIntencao`), `nucleo.ts` (`processar`, `reduzir`,
   `visaoPara`, `eventoPara`, `criarExportacao`, `lerExportacao`), `semente.ts`, `uso.ts`.
 - **`apps/server`**: Worker com rotas (`/saude`, `/api/usuarios`, `/api/entrar`, `/api/sair`, `/api/eu`,
-  `/ws`) e `Autenticacao`/`AutenticacaoDev` (cookie `tabletop_usuario`); Durable Object `Sala`
+  `/ws`; desde o C1 tudo sob `/api/m/<id>`, ver "Mesas C1") e `Autenticacao`/`AutenticacaoDev` (cookie `tabletop_sessao`, por mesa); Durable Object `Sala`
   (`sala.ts`), `Armazenamento` (SQLite com migrações versionadas) e `Agendador` (fila no SQLite + um
   único `setAlarm`).
 - **`apps/web`**: tela de entrada, mesa (papel, presença, nota da mesa, nota do mestre), painel do
@@ -2699,4 +2699,51 @@ Detalhes em `docs/REDESIGN.md` ("B1 — como ficou"). O Vilella deixou o lote se
 
 ---
 
-## Próximo: bugs que sobrarem; depois tela inicial e contas, tour; depois 7b e 12
+## Mesas C1 — várias mesas, ids amigáveis e a tela inicial (entregue, aguardando o roteiro manual)
+
+### O que foi entregue
+
+- Várias mesas no mesmo servidor, cada uma com id amigável (`k7m2-qx9p-4tdn`), e a tela inicial em `/` (entrar por id ou link, criar mesa, "Mesas neste computador"). A mesa é `/m/<id>`.
+- A campanha de hoje é a **mesa legada**: continua no Durable Object `"campanha"`, sem copiar, mover ou reescrever nada.
+- Uma mesa nova nasce vazia (cena em branco, o mestre e as vagas "Jogador 1" a "Jogador 4").
+- Dentro da mesa: nome e id (com copiar) no alto da aba Mesa, o mestre renomeia; "Trocar de mesa" em Preferências; título da aba com o nome; pasta de imagens por mesa (a legada herda a de antes).
+- Cookie de sessão por mesa; WebSocket em `/api/m/<id>/ws`. Detalhes: PROJETO 4.14, `protocolo.md`, REDESIGN "C1".
+
+### Como rodar
+
+- **Reinicie o `pnpm dev`** (a migração `v2` do DO, o binding novo e a variável `LISTAR_MESAS` só entram num `wrangler dev` novo). A campanha continua no mesmo lugar. O id da campanha aparece na tela inicial, em "Mesas neste computador" (cartão "Campanha").
+- `pnpm verify` (uma vez). Prints: `$env:PRINTS_DIR="<pasta>"; pnpm --filter @tabletop/e2e prints c1`.
+
+### Verificação
+
+- Unidade: `packages/shared/src/mesas.test.ts` (ids, nome, mesa nova vazia), `apps/server/src/mesas.test.ts` (diretório idempotente, legada uma vez só, limite por IP, DO não criado não se auto-semeia, mesa nova vazia, estado antigo da campanha carrega sem mudar nada), `autenticacao.test.ts` (cookie por mesa), `apps/web/src/rotas.test.ts` e `mesasLocais.test.ts`.
+- E2E novos: `e2e/tests/mesas.spec.ts` (tela inicial, criar e copiar, id digitado e link colado, id inexistente, duas mesas isoladas, lista local, renomear, validação da API).
+- E2E antigos alterados: o `goto("/")` e o `entrar-<id>` do helper central (`ajudas.ts`) passam a abrir `/m/t3st-m3sa-e2e7` (`CAMINHO_DA_MESA`); os WebSockets crus (`/ws`) de `ajudasFicha.ts`, `assets`, `chat`, `compendio`, `desenho` e `tochas` e o `/ws` de `sala.spec.ts` passam a `/api/m/<id>/ws`; `sala.spec.ts`, `tema.spec.ts` abrem a mesa pelo caminho novo; `tema.spec.ts` espera o título "Távola · Campanha" na escolha de usuário (o título agora leva o nome da mesa).
+
+### Decisões
+
+- (assumido) Ver REDESIGN, "C1 — como ficou", Decisões.
+
+### Desvios do plano
+
+- Nenhum.
+
+### Frágil / não verificado
+
+- O `ctx.id.name` do Durable Object decide quem é a legada: se um dia uma versão do workerd não o preenchesse, a mesa legada **ainda carregaria** (o estado existe), só uma legada nova e vazia não seria semeada.
+- A lista de mesas do servidor só existe com `LISTAR_MESAS=1`; fora dele (internet) a tela usa a lista deste navegador.
+- O limite de mesas por IP (5 por hora) só tem teste de unidade; os E2E não o exercitam.
+- O nome novo da mesa só chega a quem já está dentro quando recarrega.
+
+### Roteiro manual (pendente)
+
+1. Reinicie o `pnpm dev`, abra `http://127.0.0.1:5173`: a tela inicial mostra o cartão "Campanha" com o id dela; abra-o, escolha o Mestre e confira que a campanha está como estava (cenas, tokens, fichas, chat).
+2. Aba Mesa → "Esta mesa": copie o id e o link; o link, colado em outra aba, abre a mesa.
+3. Crie uma mesa ("Criar mesa"): o id grande aparece; "Abrir a mesa", escolha o Mestre: a mesa vem vazia. Volte por "Trocar de mesa".
+4. Entre como Mestre numa mesa e abra outra: ela pede o usuário de novo (o cookie é por mesa).
+5. Cole o id em maiúsculas, com espaços, e o link inteiro em "Entrar numa mesa".
+6. Pasta de imagens: na campanha ela continua escolhida; numa mesa nova pede a pasta.
+
+---
+
+## Próximo: C2 (contas por mesa, pedidos de entrada, sessões e redefinição); depois C3 (pasta do mestre com chave), bugs que sobrarem, tour; depois 7b e 12

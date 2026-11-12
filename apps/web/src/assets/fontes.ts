@@ -17,6 +17,12 @@ export class Fontes {
   readonly soltos = new ArquivosSoltos();
   readonly memoria: Memoria | null = import.meta.env.MODE === "e2e" ? new Memoria() : null;
   private pasta: PastaLocal | null = null;
+
+  /** `mesaId`: a pasta escolhida é por mesa; `legada`: a mesa herda a pasta de antes do C1. */
+  constructor(
+    private readonly mesaId: string,
+    private readonly legada: boolean,
+  ) {}
   private estadoDaPasta: EstadoDaPasta = "nenhuma";
   private versao = 0;
   private readonly ouvintes = new Set<() => void>();
@@ -43,7 +49,7 @@ export class Fontes {
   /** Recupera a pasta de uma visita anterior. A permissão pode exigir um clique (reautorizar). */
   async iniciar(): Promise<void> {
     try {
-      this.pasta = await PastaLocal.lembrada();
+      this.pasta = await PastaLocal.lembrada(this.mesaId, this.legada);
     } catch {
       this.pasta = null;
     }
@@ -61,7 +67,7 @@ export class Fontes {
   }
 
   async escolherPasta(): Promise<void> {
-    this.pasta = await PastaLocal.escolher();
+    this.pasta = await PastaLocal.escolher(this.mesaId);
     await this.conferirPermissao();
   }
 

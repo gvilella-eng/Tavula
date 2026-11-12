@@ -439,7 +439,7 @@ test("o rascunho respeita o limite de frequência da sala e só vai a quem receb
   await j1.pagina.evaluate(
     () =>
       new Promise<void>((resolve) => {
-        const ws = new WebSocket(`ws://${location.host}/ws`);
+        const ws = new WebSocket(`ws://${location.host}/api/m/t3st-m3sa-e2e7/ws`);
         ws.onopen = () => {
           for (let i = 0; i < 60; i++) {
             ws.send(

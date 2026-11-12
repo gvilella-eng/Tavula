@@ -36,6 +36,7 @@ import {
 import semente from "../../../fixtures/campanha.seed.json";
 import { Agendador } from "./agendador";
 import { Armazenamento, type UsoDoDia } from "./armazenamento";
+import { carregarOuSemear, criarMesaNova } from "./inicializacao";
 import { Transferencias } from "./transferencias";
 
 /** O valor do cabeçalho Upgrade não diferencia maiúsculas ("websocket", "WebSocket"). */
@@ -82,6 +83,8 @@ function json(corpo: unknown, status = 200): Response {
  */
 export class Sala extends DurableObject<Env> {
   private estado!: Estado;
+  /** Há estado nesta mesa? `false` num Durable Object de mesa que o diretório ainda não criou. */
+  private criada = false;
   private readonly banco: Armazenamento;
   private readonly agenda: Agendador;
   private uso: UsoDoDia = { dia: "", mensagens: 0, conexoes: 0 };
@@ -126,28 +129,44 @@ export class Sala extends DurableObject<Env> {
       agora: () => Date.now(),
     });
     void ctx.blockConcurrencyWhile(async () => {
-      this.banco.migrar();
-      let carregado = this.banco.carregar();
-      if (!carregado) {
-        carregado = estadoInicial(semente);
-        this.banco.salvarTudo(carregado);
-      }
-      this.estado = { ...carregado, retratosDoChat: this.banco.retratosDoChat() };
-      this.iniciarRelogio();
-      // Ao acordar: objeto que acabou enquanto a sala dormia sai agora; o resto volta à fila.
-      await this.rodarTempo([]);
-      // Sem nenhum mestre conectado ao acordar (processo reiniciado): a mesa não corre sozinha.
-      await this.pausarSeSemMestre();
-      this.uso = this.banco.lerUso() ?? { dia: diaUtc(new Date()), mensagens: 0, conexoes: 0 };
-      // Ao acordar: conexão que não existe mais não tem cópia de nada.
-      this.banco.limparPosseOrfa(this.conexoesAbertas().map((c) => c.conexaoId));
+      // Só a mesa legada (o DO "campanha") nasce da semente de exemplo; uma mesa do diretório só passa a
+      // existir quando o diretório manda `POST /criar` (antes disso responde 404 e não se auto-semeia).
+      const carregado = carregarOuSemear(this.banco, ctx.id.name, semente);
+      if (carregado) await this.iniciar(carregado);
     });
+  }
+
+  /** Estado em memória pronto, relógio e filas em dia. Roda ao acordar uma mesa que já existe e ao criar uma nova. */
+  private async iniciar(carregado: Estado): Promise<void> {
+    this.estado = { ...carregado, retratosDoChat: this.banco.retratosDoChat() };
+    this.criada = true;
+    this.iniciarRelogio();
+    // Ao acordar: objeto que acabou enquanto a sala dormia sai agora; o resto volta à fila.
+    await this.rodarTempo([]);
+    // Sem nenhum mestre conectado ao acordar (processo reiniciado): a mesa não corre sozinha.
+    await this.pausarSeSemMestre();
+    this.uso = this.banco.lerUso() ?? { dia: diaUtc(new Date()), mensagens: 0, conexoes: 0 };
+    // Ao acordar: conexão que não existe mais não tem cópia de nada.
+    this.banco.limparPosseOrfa(this.conexoesAbertas().map((c) => c.conexaoId));
+  }
+
+  /** `POST /criar {nome}` (só o diretório manda): dá à mesa o estado vazio. Repetir não muda nada. */
+  private async criar(): Promise<Response> {
+    if (this.criada) return json({ ok: true, jaExistia: true });
+    await this.ctx.blockConcurrencyWhile(async () => {
+      const { estado } = criarMesaNova(this.banco);
+      await this.iniciar(estado);
+    });
+    return json({ ok: true });
   }
 
   // --- HTTP -----------------------------------------------------------------------------------
 
   override async fetch(request: Request): Promise<Response> {
     const { pathname } = new URL(request.url);
+    // O Worker só repassa para cá depois de achar a mesa no diretório; o diretório é quem manda criar.
+    if (pathname === "/criar" && request.method === "POST") return this.criar();
+    if (!this.criada) return json({ erro: "mesa_inexistente" }, 404);
 
     if (pathname === "/api/usuarios" && request.method === "GET") {
       return json(this.estado.usuarios.map(({ id, nome, cor }) => ({ id, nome, cor })));
@@ -155,6 +174,11 @@ export class Sala extends DurableObject<Env> {
     if (pathname === "/api/eu" && request.method === "GET") {
       const u = this.estado.usuarios.find((x) => x.id === request.headers.get(CABECALHO_USUARIO));
       return u ? json({ id: u.id, nome: u.nome, cor: u.cor }) : new Response(null, { status: 401 });
+    }
+    if (pathname === "/papel" && request.method === "GET") {
+      // Interna: o Worker pergunta o papel de quem fez o pedido (renomear a mesa é do mestre).
+      const u = this.estado.usuarios.find((x) => x.id === request.headers.get(CABECALHO_USUARIO));
+      return u ? json({ papel: u.papel }) : new Response(null, { status: 401 });
     }
     if (pathname === "/api/entrar" && request.method === "POST") return this.entrar(request);
     if (pathname === "/ws") return this.abrirSocket(request);
@@ -469,6 +493,7 @@ export class Sala extends DurableObject<Env> {
   // --- Alarme (agendador único) ---------------------------------------------------------------
 
   override async alarm(): Promise<void> {
+    if (!this.criada) return;
     const vencidos = this.agenda.tomarVencidos(Date.now());
     const marcos: string[] = [];
     for (const v of vencidos) {

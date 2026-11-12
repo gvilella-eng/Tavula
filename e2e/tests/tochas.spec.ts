@@ -45,7 +45,7 @@ async function mandar(p: Page, tipo: string, dados: object) {
   await p.evaluate(
     ([t, d]) =>
       new Promise<void>((resolve) => {
-        const ws = new WebSocket(`ws://${location.host}/ws`);
+        const ws = new WebSocket(`ws://${location.host}/api/m/t3st-m3sa-e2e7/ws`);
         ws.onopen = () => {
           ws.send(JSON.stringify({ v: 1, id: `teste-${Math.random()}`, tipo: t, dados: d }));
           setTimeout(() => {

@@ -248,7 +248,7 @@ test("'Como:' só de personagem que eu edito; compêndio e arquivo são do mestr
   const resultado = await j1.pagina.evaluate(
     ([m]) =>
       new Promise<{ erros: string[] }>((resolve) => {
-        const ws = new WebSocket(`ws://${location.host}/ws`);
+        const ws = new WebSocket(`ws://${location.host}/api/m/t3st-m3sa-e2e7/ws`);
         const erros: string[] = [];
         ws.onopen = () => {
           for (let i = 0; i < 15; i++) {

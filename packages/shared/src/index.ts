@@ -21,6 +21,7 @@ export * from "./limitador.ts";
 export * from "./luz.ts";
 export * from "./mapa.ts";
 export * from "./memoria.ts";
+export * from "./mesas.ts";
 export * from "./nucleo.ts";
 export * from "./objetos.ts";
 export * from "./paredes.ts";

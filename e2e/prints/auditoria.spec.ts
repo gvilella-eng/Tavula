@@ -6,6 +6,7 @@ import type { APIRequestContext, Locator, Page } from "@playwright/test";
 import {
   abrirAba,
   test as base,
+  CAMINHO_DA_MESA,
   enviarCru,
   expect,
   intencaoCrua,
@@ -525,7 +526,7 @@ async function montar(mesa: Mesa, request: APIRequestContext): Promise<Campanha>
 /** 00-09: entrada, mesa ao entrar, estados vazios e aviso (mesa recém-criada). */
 async function parteEntrada(grande: Mesa) {
   const pg = await grande.abrir();
-  await pg.pagina.goto("/");
+  await pg.pagina.goto(CAMINHO_DA_MESA);
   await expect(pg.pagina.getByTestId("lista-usuarios")).toBeVisible();
   await foto(pg.pagina, "00-entrada-escolher-usuario");
 

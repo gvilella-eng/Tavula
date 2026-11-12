@@ -371,7 +371,7 @@ test("anunciar que tem um asset que não vê não faz o jogador servir esse arqu
     const w = window as unknown as { __espiao: string[]; __espiaoAberto: boolean };
     w.__espiao = [];
     w.__espiaoAberto = false;
-    const ws = new WebSocket(`ws://${location.host}/ws`);
+    const ws = new WebSocket(`ws://${location.host}/api/m/t3st-m3sa-e2e7/ws`);
     ws.binaryType = "arraybuffer";
     ws.onopen = () => {
       for (const t of textos) ws.send(t);
@@ -428,7 +428,7 @@ test("a sala só repassa pedaço que ela pediu àquele socket: frame forjado som
 
   // o jogador 1 tenta empurrar um pedaço falso do asset para todos (e um binário qualquer)
   await j1.pagina.evaluate(async (hash) => {
-    const ws = new WebSocket(`ws://${location.host}/ws`);
+    const ws = new WebSocket(`ws://${location.host}/api/m/t3st-m3sa-e2e7/ws`);
     await new Promise((r) => {
       ws.onopen = r;
     });

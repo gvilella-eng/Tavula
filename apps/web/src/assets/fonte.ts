@@ -131,6 +131,11 @@ type PastaComPermissao = FileSystemDirectoryHandle & {
   values(): AsyncIterable<FileSystemHandle>;
 };
 
+/** A pasta de imagens é uma por mesa (C1): cada mesa guarda a sua no IndexedDB. */
+const chaveDaPasta = (mesaId: string) => `handle:${mesaId}`;
+/** A chave de antes do C1, quando a pasta era uma só. */
+const CHAVE_ANTIGA_DA_PASTA = "handle";
+
 const PASTAS_IGNORADAS = new Set(["recebidos", "backup", "node_modules", ".git"]);
 const PROFUNDIDADE_MAXIMA = 4;
 
@@ -149,21 +154,29 @@ export class PastaLocal implements FonteDeAssets {
     return this.pasta.name;
   }
 
-  /** Abre o seletor do navegador (exige gesto do usuário) e lembra a pasta escolhida. */
-  static async escolher(): Promise<PastaLocal> {
+  /** Abre o seletor do navegador (exige gesto do usuário) e lembra a pasta escolhida para esta mesa. */
+  static async escolher(mesaId: string): Promise<PastaLocal> {
     const abrir = (
       window as unknown as {
         showDirectoryPicker(o: { mode: "readwrite"; id: string }): Promise<PastaComPermissao>;
       }
     ).showDirectoryPicker;
     const pasta = await abrir.call(window, { mode: "readwrite", id: "tabletop" });
-    await gravarChave("pasta", "handle", pasta);
+    await gravarChave("pasta", chaveDaPasta(mesaId), pasta);
     return new PastaLocal(pasta);
   }
 
-  /** A pasta lembrada de uma visita anterior (a permissão pode precisar ser pedida de novo). */
-  static async lembrada(): Promise<PastaLocal | null> {
-    const pasta = await lerChave<PastaComPermissao>("pasta", "handle");
+  /**
+   * A pasta lembrada desta mesa de uma visita anterior (a permissão pode precisar ser pedida de novo).
+   * A mesa legada (a campanha de antes do C1) herda a pasta que já estava escolhida, sem pedir de novo: a
+   * chave antiga é copiada para a chave da mesa e fica onde estava (só se acrescenta).
+   */
+  static async lembrada(mesaId: string, legada: boolean): Promise<PastaLocal | null> {
+    let pasta = await lerChave<PastaComPermissao>("pasta", chaveDaPasta(mesaId));
+    if (!pasta && legada) {
+      pasta = await lerChave<PastaComPermissao>("pasta", CHAVE_ANTIGA_DA_PASTA);
+      if (pasta) await gravarChave("pasta", chaveDaPasta(mesaId), pasta);
+    }
     return pasta ? new PastaLocal(pasta) : null;
   }
 

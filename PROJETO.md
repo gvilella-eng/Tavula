@@ -497,6 +497,8 @@ Tela de entrada que lista os usuários da campanha (definidos em `campanha.seed.
 escolhido vai num cookie e a sala confia nele **em modo dev**. Tudo passa por uma interface
 `Autenticacao`, para que no futuro seja trocada por login real sem mexer no resto.
 
+(C1, 2026-11-12: desde as mesas, o cookie vale por mesa e as rotas ficam sob `/api/m/<id>`; ver 4.14.)
+
 Papéis e capacidades valem desde o lote 1, mas só viram segurança de verdade com login real: em dev,
 quem escolhe o usuário mestre na tela de entrada é mestre.
 
@@ -831,6 +833,69 @@ Base do Lote 4b. **Em definição:** o que cada ícone do menu superior abre o V
   retrato (avatar) e o token padrão; na cena, o mapa. A aba Biblioteca some como aba própria.
 
 ---
+
+### 4.14 Mesas e contas (marco C1–C3, decidido pelo Vilella em 2026-11-11 e 2026-11-12)
+
+O Vilella decidiu: **tudo fica local, nada vai para servidor**. O código é feito **como se um dia os jogadores
+entrassem pela internet**: nada de atalho inseguro "porque é local". Sem termos de uso (assumido). Vale para o
+que as seções 4.6 (autenticação em desenvolvimento) e 4.2 (protocolo) dizem de uma sala só: elas ficam como
+base, e esta seção manda onde conflitar. Propostas e riscos: `docs/IDEIAS.md`, "Tela inicial, criar mesa e contas
+por mesa".
+
+**Ordem do marco**
+1. **C1** (entregue em 2026-11-12): tela inicial, várias mesas no mesmo servidor, id amigável, a campanha de hoje
+   vira a primeira mesa. Ainda **sem contas**: dentro da mesa a escolha de usuário de hoje continua.
+2. **C2**: contas por mesa, com senha, pedido de entrada aprovado pelo mestre, sessões, limite de tentativas e
+   redefinição aprovada pelo mestre (completa esta seção).
+3. **C3**: pasta do mestre com chave (WebCrypto) e código de recuperação (completa esta seção).
+
+**Decisões do Vilella (valem para o marco inteiro)**
+- **Id da mesa**: 12 caracteres aleatórios de um alfabeto sem ambíguos (minúsculas e dígitos, sem `0 o 1 l i`; 31
+  símbolos, cerca de 59 bits), agrupados de 4 em 4 com hífen: `k7m2-qx9p-4tdn`. Gerado com
+  `crypto.getRandomValues`, sem viés.
+- **Toda entrada passa pelo mestre** (C2): não existe convite que dispense a aprovação, nem link ligado a uma vaga.
+- **Código de recuperação do mestre** (C3): sim, além da pasta local; mostrado uma vez na criação da mesa.
+- **Senha** (C2): o servidor guarda só o hash; o estiramento caro roda no navegador e a sala guarda um hash rápido
+  com sal; limite de tentativas por mesa e por IP.
+
+**C1: como ficou**
+- **Diretório** (Durable Object `Diretorio`, único, `idFromName("diretorio")`, SQLite): a lista
+  `{ id, doNome, nome, criadaEm, legada }`. Entra pela migração de DO `v2` (`new_sqlite_classes: ["Diretorio"]`) no
+  `wrangler.jsonc`; a `v1` não muda. Só o Worker fala com ele.
+- **Mesa legada**: o DO `"campanha"` (`nomeDaSala()`) **continua com esse nome** e é a primeira mesa do diretório
+  (`doNome: "campanha"`, nome "Campanha" (assumido), um id amigável gerado uma vez e gravado). Nada é copiado,
+  movido, apagado nem reescrito: o DO só é carregado como antes. Em `MODO=teste` o id é fixo
+  (`ID_DA_MESA_LEGADA_DE_TESTE`, `t3st-m3sa-e2e7`).
+- **Mesa nova**: `doNome = "mesa:" + id`. O DO só existe de verdade quando o diretório manda `POST /criar`; nasce
+  **vazio** (uma cena em branco, o mestre e as vagas "Jogador 1" a "Jogador 4", sem fichas nem tokens). Um DO de
+  mesa que nunca foi criado responde 404 e **não se auto-semeia**: só a legada (`ctx.id.name === "campanha"`)
+  nasce da semente de exemplo (`fixtures/campanha.seed.json`, que segue sendo o início da legada e dos E2E).
+- **Rotas do Worker**:
+  - `POST /api/mesas {nome}` cria (nome de 1 a 60 caracteres, corpo `application/json`) e devolve `{ id, nome }`.
+    No C1 qualquer um cria (o C2 põe a conta do mestre aqui). Limite por IP (`CF-Connecting-IP`, sem ele "local"):
+    5 mesas por hora (assumido); em `MODO=teste` o freio não vale.
+  - `GET /api/mesas/<id>` devolve `{ id, nome, legada }` ou 404 `{ erro: "mesa_inexistente" }`.
+  - `GET /api/mesas` lista as mesas **só com a variável `LISTAR_MESAS=1`** (o `dev` e o `dev:e2e` do servidor a
+    passam por `--var`); sem ela 404: na internet ninguém descobre as mesas dos outros.
+  - `/api/m/<id>/usuarios`, `eu`, `entrar`, `sair`, `renomear` e o WebSocket `/api/m/<id>/ws`. O Worker
+    normaliza o id, acha o `doNome` no diretório e repassa; id que não existe: 404 `mesa_inexistente`.
+  - As rotas antigas sem id (`/api/eu`, `/ws`...) deixaram de existir. `/teste/*` (só `MODO=teste`) vale para a legada.
+  - `POST /api/m/<id>/renomear {nome}`: só o mestre (a sala confere o papel); o diretório grava o nome.
+- **Sessão de desenvolvimento**: o cookie agora se chama `tabletop_sessao` e vale **por mesa** (`Path=/api/m/<id>`). O
+  `tabletop_usuario` de antes (`Path=/`) nunca mais é lido (é apagado no "sair"). O cabeçalho de usuário que o
+  Worker põe é sempre sobrescrito (e removido quando não há sessão).
+- **Web**: roteador mínimo sem biblioteca (`history.pushState` e `popstate`; `apps/web/src/rotas.ts`). `/` é a tela
+  inicial (entrar pelo id ou link, criar mesa, "Mesas neste computador": a lista do servidor se ele lista, senão as
+  mesas que este navegador abriu, em `localStorage` `tabletop:mesas`). `/m/<id>` é a mesa (escolha de usuário e depois
+  a Mesa); id inválido ou inexistente mostra a mensagem e "Voltar ao início". O nome e o id ficam no alto da aba
+  **Mesa** (só o mestre) com "Copiar id", "Copiar link" e o campo do nome; "Trocar de mesa" fica em Preferências ao
+  lado de "Trocar usuário" (e na tela de escolha de usuário); o título da aba é "Távola · nome da mesa".
+- **Pasta local das imagens por mesa**: o handle fica no IndexedDB `tabletop-assets`, repositório `pasta`, na chave
+  `handle:<id da mesa>`. A mesa legada, na primeira vez, **copia** a chave antiga `handle` para a chave dela (a antiga
+  fica onde estava): sem pedir a pasta de novo. Os assets (por hash) e as preferências de tela seguem comuns.
+
+**C2 e C3**: a completar nos lotes deles (contas, pedidos, sessões, limite de tentativas, redefinição; pasta do
+mestre com chave e código de recuperação).
 
 ## 5. Estrutura do repositório
 

@@ -1,9 +1,18 @@
 import { readFileSync } from "node:fs";
-import { abrirAba, enviarCru, expect, intencaoCrua, test, USUARIOS } from "./ajudas";
+import {
+  abrirAba,
+  CAMINHO_DA_MESA,
+  enviarCru,
+  expect,
+  ID_DA_MESA,
+  intencaoCrua,
+  test,
+  USUARIOS,
+} from "./ajudas";
 import { abrirHandout, criarHandoutPelaSala, mandar } from "./ajudasFicha";
 
 test("a tela de entrada lista os 8 usuários e entrar abre a mesa", async ({ page }) => {
-  await page.goto("/");
+  await page.goto(CAMINHO_DA_MESA);
   for (const id of USUARIOS) await expect(page.getByTestId(`entrar-${id}`)).toBeVisible();
 
   await page.getByTestId("entrar-jogador-3").click();
@@ -22,7 +31,9 @@ test("a tela de entrada lista os 8 usuários e entrar abre a mesa", async ({ pag
 });
 
 test("/ws sem usuário válido responde 401", async ({ request }) => {
-  const r = await request.get("/ws", { headers: { Upgrade: "websocket", Connection: "Upgrade" } });
+  const r = await request.get(`/api/m/${ID_DA_MESA}/ws`, {
+    headers: { Upgrade: "websocket", Connection: "Upgrade" },
+  });
   expect(r.status()).toBe(401);
 });
 
