@@ -1202,6 +1202,39 @@ Um pedido do Vilella: conjurar com espaço de nível maior, dano a mais por nív
 - Truques que sobem pelo nível do personagem e conjurar como ritual (anotados em `docs/IDEIAS.md`).
 - Contar dardos, alvos e raios por nível.
 
+## V7 — como ficou (2026-11-12)
+
+Um pedido do Vilella: "qualquer coisa que envolva Jogador 1, Jogador 2… deve desaparecer; quem vai entrando na mesa vai assumindo esse papel". O lote foi feito sem ninguém para perguntar: o que o brief não dizia foi assumido e está marcado.
+
+**O que foi feito**
+- **Membro da mesa** é o mestre e quem tem conta ativa. A sala deriva a lista e a manda em cada snapshot (`estado.membros`, campo opcional, nunca gravado nem exportado). Sem o campo, todos contam como membros (estado de teste, cliente velho). Ajudantes em `packages/shared/src/membros.ts`: `membrosDaMesa`, `jogadoresDaMesa`, `fichasSemMembro`, `derivarMembros`, `planejarAceite`, `vagaTemDono`.
+- **Listas e seletores só com membros:** Papéis dos usuários, exceções de permissão (sem jogador, a seção diz "Nenhum jogador na mesa ainda"), "Quem vê" e "Mostrar agora" do handout, "Quem controla" da ficha e do token, exceções de visão do token, "Ver como" do mestre, o `/w` do chat, as bolinhas do topo e a contagem do preparo de cena. Quem está fora continua valendo para sussurro (a sala aceita; ele vê quando entrar).
+- **Referências a vaga escondida mostram o nome dela** (por exemplo "Visível para: Jogador 3" num handout); só deixam de ser oferecidas nos seletores.
+- **Mesa nova nasce só com o mestre** (`USUARIOS_DA_MESA_NOVA`). A Campanha real não perde vaga nenhuma.
+- **Aceitar um pedido:** sai o seletor "Entra na vaga"; entra **"Ficha dele"**, opcional ("Nenhuma" e as fichas de personagem que nenhum membro controla).
+  - Nenhuma: usuário novo com o nome da pessoa e a próxima cor livre (id `jogador-N` interno).
+  - Ficha de uma vaga escondida: a conta fica ligada **àquela vaga**, que ganha o nome da pessoa (tokens, permissões e histórico seguem).
+  - Ficha sem dono: usuário novo, que vira dono da ficha (intenção `personagem.editar` feita pelo mestre).
+  - Limite de 12 jogadores cheio: reaproveita uma vaga escondida que não é dona de nada (nem ficha, nem token, nem exceção de permissão); sem nenhuma, recusa.
+- **Mesa → Contas:** sai o seletor "Vaga" de cada conta (a rota `vaga` deixa de existir). Remover a conta esconde o usuário; fichas e tokens ficam para o próximo aceite herdar.
+- **Textos:** "vaga" e "Jogador N" saíram da interface (contas, tour, mensagens de erro).
+- **MODO=teste:** o login solto numa vaga a torna membro (`meta.presentes_teste`, marcado em `entrar`, ao abrir o socket e depois do `/teste/zerar`). A vaga em que ninguém entrou fica escondida, como na vida real.
+
+**Decisões (assumido)**
+- (assumido) "Membro" não depende de estar logado agora: conta ativa já basta.
+- (assumido) Ficha "de todos" (`editores: todos`) não é candidata a "Ficha dele": todos já a controlam.
+- NPC também não é candidato (revisão do lote): `fichasSemMembro` e `planejarAceite` usam `ehNpc`. Uma ficha sem
+  dono só aparece se a apresentação dela for "personagem"; sem apresentação escolhida, a ficha sem dono conta como NPC.
+- (assumido) A ficha sem dono recebe só o novo dono em `editores`; os tokens dela seguem a ficha (quem edita o personagem controla o token).
+- (assumido) O aceite com uma ficha que algum membro já controla é recusado (`vaga_invalida`, "Essa ficha já tem dono ou a mesa está cheia.").
+- (assumido) A conta pendente ou recusada não é membro.
+- (assumido) `ListaDeContas.vagasLivres` continua na resposta (aditivo, sem uso na tela); `CorpoAceitar` ignora o campo `vaga` antigo.
+- (assumido) A tela de escolha de usuário de teste (`/api/usuarios`, só com MODO=teste) continua listando todas as vagas.
+
+**O que ficou para depois**
+- Um jeito de o mestre ver e apagar as vagas escondidas (hoje elas ficam para sempre, só invisíveis).
+- Trocar a ficha de um jogador pelo aceite não existe: se o mestre quiser dar outra ficha, edita "Quem controla" na ficha.
+
 ## Em aberto
 
 - **O plano R1 a R6 terminou** (R1, R2, R2b, R3, R4 em 2026-11-10; R5a, R5b, R6a e R6b em 2026-11-11). Agora o Vilella faz os ajustes

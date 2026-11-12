@@ -282,7 +282,8 @@ test("barra da direita: Chat, Fichas, Compêndio, Preferências e Mesa (largura 
   await expect(p.getByTestId("aba-painel-chat")).toBeVisible();
   await expect(p.getByTestId("presenca-estado-mestre")).toHaveText("online");
   await expect(p.getByTestId("presenca-estado-jogador-1")).toHaveText("online");
-  await expect(p.getByTestId("presenca-estado-jogador-5")).toHaveText("offline");
+  // V7: quem não entrou não está na mesa: nem aparece no topo
+  await expect(p.getByTestId("presenca-jogador-5")).toHaveCount(0);
   await expect(p.getByTestId("presenca-jogador-1").locator(".avatar")).toHaveCSS(
     "background-color",
     "rgb(60, 180, 75)",

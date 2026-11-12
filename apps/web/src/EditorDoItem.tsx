@@ -1,6 +1,7 @@
 import {
   type Editores,
   type Estado,
+  jogadoresDaMesa,
   type Pasta,
   type Personagem,
   pode,
@@ -66,7 +67,7 @@ export function EditorDoItem({
   const euMestre = eu.papel === "mestre";
   const editor = podeEditarPersonagem(p, eu);
   const podeTrocarImagem = editor && (euMestre || pode(eu, "asset.subir", estado.permissoes));
-  const jogadores = estado.usuarios.filter((u) => u.papel === "jogador");
+  const jogadores = jogadoresDaMesa(estado);
   const pasta = estado.pastas.find((x) => x.id === p.pastaId);
   const [apagando, setApagando] = useState(false);
   const [aviso, setAviso] = useState<string | null>(null);

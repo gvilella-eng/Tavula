@@ -108,15 +108,9 @@ describe("nome da mesa", () => {
 });
 
 describe("mesa nova", () => {
-  it("nasce vazia: uma cena em branco, o mestre e 4 vagas, sem tokens, fichas nem paredes", () => {
+  it("nasce vazia: uma cena em branco, só o mestre (V7), sem tokens, fichas nem paredes", () => {
     const e = estadoDeMesaNova(1000);
-    expect(e.usuarios.map((u) => u.id)).toEqual([
-      "mestre",
-      "jogador-1",
-      "jogador-2",
-      "jogador-3",
-      "jogador-4",
-    ]);
+    expect(e.usuarios.map((u) => u.id)).toEqual(["mestre"]);
     expect(e.usuarios[0]?.papel).toBe("mestre");
     expect(e.cenas).toHaveLength(1);
     expect(e.tokens).toEqual([]);

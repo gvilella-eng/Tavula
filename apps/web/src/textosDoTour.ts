@@ -82,7 +82,7 @@ export const TEXTOS_DO_TOUR: Readonly<Record<string, string>> = {
   "tour-mestre-chat":
     "O chat guarda as conversas e as rolagens, inclusive os sussurros. Os dados rápidos ficam na barra da esquerda; Shift ao clicar rola oculto.",
   "mesa-secao-contas":
-    "Quem pede para entrar aparece aqui para você aceitar e ligar a uma vaga. Também dá para aprovar senhas esquecidas e proteger a conta do mestre.",
+    "Quem pede para entrar aparece aqui para você aceitar e, se quiser, ligar à ficha dele. Também dá para aprovar senhas esquecidas e proteger a conta do mestre.",
   "tour-jogador-boas-vindas":
     "Vamos ver o essencial em poucos passos. Use as setas do teclado para andar e Esc para pular.",
   "area-do-mapa":

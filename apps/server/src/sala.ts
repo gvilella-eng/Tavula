@@ -13,8 +13,8 @@ import {
   CorpoRecuperarPastaSchema,
   CorpoRedefinirSchema,
   CorpoTrocarSenhaSchema,
-  CorpoTrocarVagaSchema,
   calcularUso,
+  derivarMembros,
   desenhoVisivelPara,
   diaUtc,
   type Estado,
@@ -28,7 +28,6 @@ import {
   LIMITES_DO_CHAT,
   lerFrameDePedaco,
   lerIntencao,
-  MAXIMO_DE_VAGAS,
   type Mensagem,
   MestreDaMesaNovaSchema,
   mensagem,
@@ -36,10 +35,13 @@ import {
   mensagemParaUsuario,
   nomeDeExibicaoValido,
   type Pacote,
+  type PlanoDeAceite,
   type Presenca,
   pausarSeSemMestre,
+  planejarAceite,
   processar,
   processarSistema,
+  proximoIdDeJogador,
   proximoMarcoDoObjeto,
   type RascunhoRepassado,
   rascunhoDentroDoLimite,
@@ -323,6 +325,45 @@ export class Sala extends DurableObject<Env> {
   }
 
   /**
+   * V7: quem é membro da mesa. O mestre, quem tem conta ativa e, só com MODO=teste, quem entrou pelo login
+   * solto (marcado em `meta.presentes_teste`). A vaga em que ninguém entrou fica escondida das listas.
+   */
+  private membrosIds(): string[] {
+    return derivarMembros(
+      this.estado.usuarios,
+      this.contas.usuariosComContaAtiva(),
+      this.presentesDeTeste(),
+      this.ehTeste,
+    );
+  }
+
+  private presentesDeTeste(): string[] {
+    try {
+      const v = JSON.parse(this.banco.lerMeta("presentes_teste") ?? "[]") as unknown;
+      return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
+    } catch {
+      return [];
+    }
+  }
+
+  /** Com MODO=teste, o login solto numa vaga a torna membro. Devolve `true` se ela acabou de virar. */
+  private marcarPresenteDeTeste(usuarioId: string): boolean {
+    if (!this.ehTeste) return false;
+    const marcados = this.presentesDeTeste();
+    if (marcados.includes(usuarioId)) return false;
+    this.banco.gravarMeta("presentes_teste", JSON.stringify([...marcados, usuarioId]));
+    return true;
+  }
+
+  /** A lista de membros mudou: um snapshot novo para todos. */
+  private difundirSnapshots(): void {
+    for (const ws of this.ctx.getWebSockets()) {
+      const usuario = this.usuarioDe(ws);
+      if (usuario) this.enviarSnapshot(ws, usuario);
+    }
+  }
+
+  /**
    * Quem fez o pedido: o cookie `tavola_sessao` (sessão → conta → vaga) e, só com MODO=teste, o login solto
    * `tabletop_sessao` (o id do usuário). Nada do que o navegador mandar em cabeçalho vale aqui.
    */
@@ -467,6 +508,7 @@ export class Sala extends DurableObject<Env> {
     if (!this.estado.usuarios.some((u) => u.id === usuarioId)) {
       return json({ erro: "usuário desconhecido" }, 404);
     }
+    if (this.marcarPresenteDeTeste(usuarioId)) this.difundirSnapshots();
     return this.comCookies(json({ ok: true }), [cookieDeTeste(usuarioId, this.mesaIdDe(request))]);
   }
 
@@ -728,11 +770,16 @@ export class Sala extends DurableObject<Env> {
       const c = await this.lerCorpo(request, CorpoAceitarSchema);
       if (!c.ok) return c.resposta;
       if (alvo.status !== "pendente") return erroDeConta({ ok: false, erro: "sem_pedido" });
-      const vaga = this.vagaParaAceitar(c.valor.vaga, alvo.id);
-      if ("erro" in vaga) return erroDeConta({ ok: false, erro: vaga.erro });
-      const r = this.contas.aceitar(alvo.id, vaga.id);
+      const plano = planejarAceite(
+        this.estado,
+        this.contas.usuariosComContaAtiva(),
+        c.valor.personagemId,
+        proximoIdDeJogador(this.estado.usuarios),
+      );
+      if (plano.tipo === "erro") return erroDeConta({ ok: false, erro: plano.erro });
+      const r = this.contas.aceitar(alvo.id, plano.usuarioId);
       if (!r.ok) return erroDeConta(r);
-      this.ligarVaga(vaga.id, alvo.nome, vaga.nova);
+      this.ligarVaga(plano, alvo.nome, quem.usuarioId, agora);
       this.avisarMestres(null);
       return json({ ok: true });
     }
@@ -750,22 +797,8 @@ export class Sala extends DurableObject<Env> {
       const r = this.contas.remover(alvo.id);
       if (!r.ok) return erroDeConta(r);
       this.fecharSockets((i) => i.contaId === alvo.id, "conta removida");
-      this.avisarMestres(null);
-      return json({ ok: true });
-    }
-
-    if (acao === "vaga") {
-      const c = await this.lerCorpo(request, CorpoTrocarVagaSchema);
-      if (!c.ok) return c.resposta;
-      const vaga = this.estado.usuarios.find((u) => u.id === c.valor.usuarioId);
-      if (vaga?.papel !== "jogador") {
-        return erroDeConta({ ok: false, erro: "vaga_invalida" });
-      }
-      const r = this.contas.trocarVaga(alvo.id, vaga.id);
-      if (!r.ok) return erroDeConta(r);
-      this.ligarVaga(vaga.id, alvo.nome, false);
-      // Quem estava logado na vaga antiga reconecta já na nova.
-      this.fecharSockets((i) => i.contaId === alvo.id, "vaga trocada");
+      // O usuário dela some das listas (vira vaga escondida); fichas e tokens ficam para um novo aceite herdar.
+      this.difundirSnapshots();
       this.avisarMestres(null);
       return json({ ok: true });
     }
@@ -780,37 +813,63 @@ export class Sala extends DurableObject<Env> {
     return new Response("Não encontrado", { status: 404 });
   }
 
-  /** A vaga que o mestre escolheu ao aceitar: uma vaga de jogador livre, ou "Nova vaga" (ainda não criada). */
-  private vagaParaAceitar(
-    escolha: { usuarioId: string } | { nova: true },
-    contaId: string,
-  ): { id: string; nova: boolean } | { erro: "vaga_invalida" } {
-    if ("usuarioId" in escolha) {
-      const vaga = this.estado.usuarios.find((u) => u.id === escolha.usuarioId);
-      if (vaga?.papel !== "jogador" || this.contas.vagaOcupada(vaga.id, contaId)) {
-        return { erro: "vaga_invalida" };
-      }
-      return { id: vaga.id, nova: false };
+  /**
+   * V7: a conta aceita vira membro. Vaga que já existe (escondida): ganha o nome da pessoa, e tokens, permissões
+   * e histórico seguem com ela. Usuário novo: nome da pessoa e a próxima cor livre; se veio com uma "ficha dele"
+   * sem dono, ele passa a ser dono dela.
+   */
+  private ligarVaga(plano: PlanoDeAceite, nome: string, mestreId: string, agora: number): void {
+    if (plano.tipo === "erro") return;
+    const existe = this.estado.usuarios.some((u) => u.id === plano.usuarioId);
+    if (plano.tipo === "nova" && !existe) {
+      const cor = this.proximaCorLivre();
+      this.aplicarUsuarios([
+        ...this.estado.usuarios,
+        { id: plano.usuarioId, nome, papel: "jogador", cor },
+      ]);
+    } else {
+      this.aplicarUsuarios(
+        this.estado.usuarios.map((u) => (u.id === plano.usuarioId ? { ...u, nome } : u)),
+      );
     }
-    const jogadores = this.estado.usuarios.filter((u) => u.papel === "jogador");
-    if (jogadores.length >= MAXIMO_DE_VAGAS) return { erro: "vaga_invalida" };
-    let n = 1;
-    for (const u of this.estado.usuarios) {
-      const m = /^jogador-(\d+)$/.exec(u.id);
-      if (m) n = Math.max(n, Number(m[1]) + 1);
+    if (plano.tipo === "nova" && plano.fichaId !== undefined) {
+      this.darFichaA(plano.usuarioId, plano.fichaId, mestreId, agora);
     }
-    return { id: `jogador-${n}`, nova: true };
+    // A lista de membros mudou mesmo que nome e cor não (vaga escondida que já tinha o nome).
+    this.difundirSnapshots();
   }
 
-  /** A vaga (nova ou já existente) passa a se chamar como a pessoa. Fichas e tokens da vaga continuam dela. */
-  private ligarVaga(vagaId: string, nome: string, nova: boolean): void {
-    const existente = this.estado.usuarios.find((u) => u.id === vagaId);
-    if (nova && !existente) {
-      const cor = CORES_DE_VAGA[this.estado.usuarios.length % CORES_DE_VAGA.length] ?? "#3cb44b";
-      this.aplicarUsuarios([...this.estado.usuarios, { id: vagaId, nome, papel: "jogador", cor }]);
-      return;
-    }
-    this.aplicarUsuarios(this.estado.usuarios.map((u) => (u.id === vagaId ? { ...u, nome } : u)));
+  private proximaCorLivre(): string {
+    const usadas = new Set(this.estado.usuarios.map((u) => u.cor.toLowerCase()));
+    return (
+      CORES_DE_VAGA.find((c) => !usadas.has(c)) ??
+      CORES_DE_VAGA[this.estado.usuarios.length % CORES_DE_VAGA.length] ??
+      "#3cb44b"
+    );
+  }
+
+  /** Põe o jogador como dono de uma ficha sem dono, pela mesma intenção que o mestre usa na ficha. */
+  private darFichaA(usuarioId: string, fichaId: string, mestreId: string, agora: number): void {
+    const ficha = this.estado.personagens.find((p) => p.id === fichaId);
+    if (ficha?.editores.tipo !== "jogadores") return;
+    const r = processar(
+      this.estado,
+      mestreId,
+      {
+        id: "aceite",
+        tipo: "personagem.editar",
+        dados: {
+          id: fichaId,
+          mudancas: { editores: { tipo: "jogadores", ids: [...ficha.editores.ids, usuarioId] } },
+        },
+      } as Intencao,
+      new Date(agora).toISOString(),
+    );
+    if (!r.ok || r.eventos.length === 0) return;
+    this.banco.salvarEventos(r.estado, r.eventos);
+    const antes = this.estado;
+    this.estado = r.estado;
+    this.distribuir(r.eventos, r.snapshotPara, antes);
   }
 
   private async abrirSocket(request: Request): Promise<Response> {
@@ -838,6 +897,8 @@ export class Sala extends DurableObject<Env> {
     this.uso.conexoes++;
     this.banco.gravarUso(this.uso);
 
+    // Com MODO=teste, entrar pelo cookie solto (sem passar por /api/entrar) também torna a vaga membro.
+    if (!quem.conta && this.marcarPresenteDeTeste(usuario.id)) this.difundirSnapshots();
     this.enviarSnapshot(servidor, usuario);
     this.avisarPreparoA(servidor, usuario);
     if (usuario.papel === "mestre") {
@@ -868,6 +929,11 @@ export class Sala extends DurableObject<Env> {
       this.transferencias.limpar();
       this.banco.descartarTodosOsPreparos();
       for (const ws of this.ctx.getWebSockets()) this.anterioresAoZerar.add(ws);
+      // Quem já estava conectado continua membro (o login solto não se repete depois do reset).
+      for (const ws of this.ctx.getWebSockets()) {
+        const u = this.usuarioDe(ws);
+        if (u && !this.identidadeDe(ws)?.contaId) this.marcarPresenteDeTeste(u.id);
+      }
       for (const ws of this.ctx.getWebSockets()) {
         const usuario = this.usuarioDe(ws);
         if (usuario) this.enviarSnapshot(ws, usuario);
@@ -1393,7 +1459,10 @@ export class Sala extends DurableObject<Env> {
     const preparos = this.banco.preparos();
     // Sem preparo nada a contar; só avisa a lista vazia quando um preparo acabou de ser descartado.
     if (preparos.length === 0 && !descartou) return;
-    const jogadores = this.estado.usuarios.filter((u) => u.papel === "jogador");
+    const membros = new Set(this.membrosIds());
+    const jogadores = this.estado.usuarios.filter(
+      (u) => u.papel === "jogador" && membros.has(u.id),
+    );
     const quemTem = new Map<string, Set<string>>();
     const donosDe = (hash: string) => {
       let s = quemTem.get(hash);
@@ -1504,7 +1573,10 @@ export class Sala extends DurableObject<Env> {
         tipo: "snapshot",
         dados: {
           usuarioId: usuario.id,
-          estado: visaoPara({ ...this.estado, chat: mensagens }, usuario, Date.now()),
+          estado: {
+            ...visaoPara({ ...this.estado, chat: mensagens }, usuario, Date.now()),
+            membros: this.membrosIds(),
+          },
         },
       }),
     );

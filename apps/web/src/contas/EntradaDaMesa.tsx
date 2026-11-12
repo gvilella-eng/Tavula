@@ -724,8 +724,9 @@ function CriarContaDoMestre({
     >
       <h2 className="entrada-subtitulo">Criar a conta do mestre desta mesa</h2>
       <p className="nota">
-        Esta mesa ainda não tem dono. A conta fica ligada à vaga do mestre que já existe, com tudo o
-        que está nela. Depois, cada jogador pede para entrar e você liga cada um à vaga dele.
+        Esta mesa ainda não tem dono. A conta fica ligada ao mestre que já existe, com tudo o que
+        está nela. Depois, cada jogador pede para entrar e você aceita, ligando cada um à ficha
+        dele.
       </p>
       <CampoDeConta
         testid="mestre-inicial-login"

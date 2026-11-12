@@ -28,15 +28,16 @@ as mãos. Cada item diz **o que fazer** e, depois de "→", **o que deve acontec
 2. **Anote o código de recuperação** que aparece (C3), marque "Anotei o código" e continue.
 3. Em outro perfil do navegador, abra o link da mesa e escolha "Pedir para entrar" com nome, login e senha → aparece
    "Pedido enviado. O mestre precisa aceitar...".
-4. No perfil do mestre → o topo mostra **"1 pedido de entrada"**. Vá em Mesa → Contas, escolha a vaga que tem a
-   ficha da pessoa e clique em **Aceitar** → a vaga passa a se chamar como a pessoa.
+4. No perfil do mestre → o topo mostra **"1 pedido de entrada"**. Vá em Mesa → Contas, em **"Ficha dele"** escolha a
+   ficha antiga da pessoa (ou deixe **Nenhuma** para um jogador novo) e clique em **Aceitar** → a pessoa passa a
+   aparecer com o nome dela nos Papéis, no topo e nas listas; nenhum "Jogador N" aparece em lugar nenhum.
 5. No perfil do jogador, entre com o login e a senha → ele vê a ficha dele e controla o token dele.
 6. Erre a senha 5 vezes → aparece "Tente de novo em N minutos". Teste também um login inexistente: a mensagem é a
    mesma.
 7. **Esqueci a senha:** o jogador clica em "Esqueci a senha" e informa o login → o mestre vê o "pedido de
    redefinição" → **Aprovar redefinição** → o jogador usa "Definir nova senha" → ele entra, e a sessão antiga dele
    cai.
-8. **Remover** a conta de um jogador em Contas → o jogador cai da mesa na hora, e a vaga e as fichas ficam.
+8. **Remover** a conta de um jogador em Contas → o jogador cai da mesa na hora e some de todas as listas; as fichas e os tokens dele ficam.
 9. Em Preferências, troque a sua senha → as suas outras sessões caem e esta continua.
 10. Crie uma **mesa nova** na tela inicial (nome, login, senha) → ela nasce vazia, você é o mestre, e o id aparece
     grande para ditar. A conta da Campanha não vale nessa mesa.

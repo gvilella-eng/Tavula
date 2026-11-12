@@ -361,14 +361,16 @@ export async function listarContas(mesaId: string): Promise<ListaDeContas> {
   return (await r.json()) as ListaDeContas;
 }
 
-export type EscolhaDeVaga = { usuarioId: string } | { nova: true };
-
+/** Aceita o pedido. `personagemId` é a "Ficha dele" (opcional): sem ela a pessoa entra como jogador novo. */
 export async function aceitarConta(
   mesaId: string,
   contaId: string,
-  vaga: EscolhaDeVaga,
+  personagemId?: string,
 ): Promise<void> {
-  await postar(daMesa(mesaId, `contas/${contaId}/aceitar`), { vaga });
+  await postar(
+    daMesa(mesaId, `contas/${contaId}/aceitar`),
+    personagemId === undefined ? {} : { personagemId },
+  );
 }
 
 export async function recusarConta(mesaId: string, contaId: string): Promise<void> {
@@ -377,14 +379,6 @@ export async function recusarConta(mesaId: string, contaId: string): Promise<voi
 
 export async function removerConta(mesaId: string, contaId: string): Promise<void> {
   await postar(daMesa(mesaId, `contas/${contaId}/remover`), {});
-}
-
-export async function trocarVagaDaConta(
-  mesaId: string,
-  contaId: string,
-  usuarioId: string,
-): Promise<void> {
-  await postar(daMesa(mesaId, `contas/${contaId}/vaga`), { usuarioId });
 }
 
 export async function liberarRedefinicao(mesaId: string, contaId: string): Promise<void> {

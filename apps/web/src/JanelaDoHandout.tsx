@@ -1,4 +1,5 @@
 import type { Estado, Handout, Usuario, Visibilidade } from "@tabletop/shared";
+import { jogadoresDaMesa } from "@tabletop/shared";
 import { ImagePlus, ScrollText, Send, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { BotaoComDica } from "./BotaoComDica";
@@ -224,7 +225,7 @@ export function JanelaDoHandout({
   aoFechar,
 }: Props) {
   const euMestre = eu.papel === "mestre";
-  const jogadores = estado.usuarios.filter((u) => u.papel === "jogador");
+  const jogadores = jogadoresDaMesa(estado);
   const urlDaImagem = useImagem(imagens, h.imagemHash, versaoDasImagens);
   const [avisoDeMostrar, setAvisoDeMostrar] = useState<string | null>(null);
   const [apagando, setApagando] = useState(false);
@@ -234,7 +235,9 @@ export function JanelaDoHandout({
     h.visivel.tipo === "todos"
       ? "todos os jogadores"
       : h.visivel.tipo === "jogadores"
-        ? h.visivel.ids.map((id) => jogadores.find((u) => u.id === id)?.nome ?? id).join(", ")
+        ? h.visivel.ids
+            .map((id) => estado.usuarios.find((u) => u.id === id)?.nome ?? "?")
+            .join(", ")
         : "";
 
   const imagem = h.imagemHash ? (

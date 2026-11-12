@@ -22,6 +22,7 @@ export * from "./importarTraducoes.ts";
 export * from "./limitador.ts";
 export * from "./luz.ts";
 export * from "./mapa.ts";
+export * from "./membros.ts";
 export * from "./memoria.ts";
 export * from "./mesas.ts";
 export * from "./nucleo.ts";

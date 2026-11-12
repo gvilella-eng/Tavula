@@ -1,4 +1,5 @@
 import {
+  type APIRequestContext,
   type Browser,
   type BrowserContext,
   type BrowserContextOptions,
@@ -45,6 +46,18 @@ export type GanchoDeAssets = {
   corromperVezes?: number;
   limiteTile?: number;
 };
+
+/**
+ * V7: na mesa só existe quem entrou. Em MODO=teste o login solto (`/entrar`) numa vaga a torna membro, sem abrir
+ * página: serve para os testes que precisam ver uma vaga nas listas (exceções, Papéis, "+N" do topo) sem ter
+ * alguém conectado nela.
+ */
+export async function tornarMembros(request: APIRequestContext, ...usuarios: string[]) {
+  for (const usuarioId of usuarios) {
+    const r = await request.post(`/api/m/${ID_DA_MESA}/entrar`, { data: { usuarioId } });
+    expect(r.ok()).toBe(true);
+  }
+}
 
 /** Abre uma aba da barra lateral (a barra pode estar recolhida) e espera o painel aparecer. */
 export async function abrirAba(pagina: Page, id: string): Promise<void> {

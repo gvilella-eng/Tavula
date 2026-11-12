@@ -2,6 +2,9 @@ import {
   type AvisoDeContas,
   CAPACIDADES_DELEGAVEIS,
   type Estado,
+  fichasSemMembro,
+  jogadoresDaMesa,
+  membrosDaMesa,
   type Papel,
   ROTULO_DA_CAPACIDADE,
   TAMANHO_MAXIMO_DO_NOME_DA_MESA,
@@ -119,7 +122,7 @@ function SecaoDaIdentificacao({
  * capacidades dos jogadores, campanha (exportar e importar) e, recolhido no fim, o diagnóstico.
  */
 export function AbaMesa({ mesa, aoRenomear, estado, uso, avisoDeContas, enviar }: Props) {
-  const jogadores = estado.usuarios.filter((u) => u.papel === "jogador");
+  const jogadores = jogadoresDaMesa(estado);
   const [alvo, setAlvo] = useState<string>("");
   const alvoValido = jogadores.some((u) => u.id === alvo) ? alvo : (jogadores[0]?.id ?? "");
 
@@ -183,7 +186,7 @@ export function AbaMesa({ mesa, aoRenomear, estado, uso, avisoDeContas, enviar }
       <section data-testid={testidDaSecaoDaMesa("papeis")} className="secao-da-mesa">
         <h3>Papéis dos usuários</h3>
         <ul className="lista-simples" data-testid="papeis">
-          {estado.usuarios.map((u) => (
+          {membrosDaMesa(estado).map((u) => (
             <li key={u.id} className="linha-jogador" data-testid={`papel-linha-${u.id}`}>
               <span className="bolinha" style={{ background: u.cor }} />
               <span className="nome-jogador">{u.nome}</span>
@@ -202,25 +205,36 @@ export function AbaMesa({ mesa, aoRenomear, estado, uso, avisoDeContas, enviar }
       </section>
 
       <div data-testid={testidDaSecaoDaMesa("contas")} className="secao-da-mesa">
-        <SecaoDeContas mesaId={mesa.id} mesaNome={mesa.nome} aviso={avisoDeContas} />
+        <SecaoDeContas
+          mesaId={mesa.id}
+          mesaNome={mesa.nome}
+          aviso={avisoDeContas}
+          fichas={fichasSemMembro(estado).map((p) => ({ id: p.id, nome: p.nome }))}
+        />
       </div>
 
       <section data-testid={testidDaSecaoDaMesa("permissoes")} className="secao-da-mesa">
         <h3>Capacidades dos jogadores</h3>
-        <label>
-          Exceções para:{" "}
-          <select
-            data-testid="excecao-usuario"
-            value={alvoValido}
-            onChange={(e) => setAlvo(e.target.value)}
-          >
-            {jogadores.map((u) => (
-              <option key={u.id} value={u.id}>
-                {u.nome}
-              </option>
-            ))}
-          </select>
-        </label>
+        {jogadores.length === 0 ? (
+          <p className="nota" data-testid="excecao-sem-jogadores">
+            Nenhum jogador na mesa ainda. As exceções aparecem quando alguém entrar.
+          </p>
+        ) : (
+          <label>
+            Exceções para:{" "}
+            <select
+              data-testid="excecao-usuario"
+              value={alvoValido}
+              onChange={(e) => setAlvo(e.target.value)}
+            >
+              {jogadores.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.nome}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <table>
           <thead>
             <tr>

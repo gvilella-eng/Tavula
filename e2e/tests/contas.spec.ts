@@ -2,7 +2,8 @@ import type { APIRequestContext, Page } from "@playwright/test";
 // Só a derivação da senha e o sorteio do id (puros, sem navegador): o teste fala com a API como a tela fala.
 import { derivarSenha } from "../../packages/shared/src/contas.ts";
 import { gerarIdDeMesa } from "../../packages/shared/src/mesas.ts";
-import { abrirAba, expect, ID_DA_MESA, type Mesa, test } from "./ajudas";
+import { abrirAba, esperarMapa, expect, ID_DA_MESA, type Mesa, test } from "./ajudas";
+import { arrastarToken, tokenDe } from "./ajudasMapa";
 
 // C2: contas por mesa (login e senha), pedidos de entrada aprovados pelo mestre, sessões, limite de tentativas
 // e redefinição de senha aprovada pelo mestre. Cada cenário usa mesas novas (ids próprios) ou a legada zerada.
@@ -227,7 +228,7 @@ test("a mesa legada pede a conta do mestre só de uma requisição local, e uma 
   expect(nova.status()).toBe(409);
 });
 
-test("o jogador pede, o mestre vê o aviso, aceita numa vaga com ficha, e o jogador entra e vê a ficha", async ({
+test("o jogador pede, o mestre vê o aviso, aceita com a ficha de uma vaga escondida, e o jogador entra, vê a ficha e move o token dela", async ({
   mesa,
 }) => {
   // o mestre cria a conta na legada (que tem fichas: a Aldric é do Jogador 1)
@@ -262,17 +263,21 @@ test("o jogador pede, o mestre vê o aviso, aceita numa vaga com ficha, e o joga
   const pedido = mp.getByTestId("conta-pedido-ana");
   await expect(pedido).toContainText("Ana");
   await expect(pedido).toContainText("login: ana");
-  // as vagas livres e a "Nova vaga" são as opções
-  const opcoes = await mp.getByTestId("conta-vaga-ana").locator("option").allTextContents();
-  expect(opcoes).toContain("Jogador 1");
-  expect(opcoes.at(-1)).toBe("Nova vaga");
-  await mp.getByTestId("conta-vaga-ana").selectOption("jogador-1");
+  // V7: "Ficha dele" (opcional): Nenhuma e as fichas sem membro; nada de vaga nem de "Jogador N"
+  const opcoes = await mp.getByTestId("conta-ficha-ana").locator("option").allTextContents();
+  expect(opcoes[0]).toBe("Nenhuma");
+  expect(opcoes).toContain("Aldric");
+  expect(opcoes.join(" ")).not.toMatch(/vaga|Jogador d/i);
+  await expect(mp.getByTestId("conta-vaga-ana")).toHaveCount(0);
+  await mp.getByTestId("conta-ficha-ana").selectOption({ label: "Aldric" });
   await mp.getByTestId("conta-aceitar-ana").click();
   await expect(mp.getByTestId("conta-pedido-ana")).toHaveCount(0);
   await expect(mp.getByTestId("conta-status-ana")).toHaveText("Ativa");
   await expect(mp.getByTestId("aviso-de-contas")).toHaveCount(0);
-  // a vaga ganhou o nome dela (e as fichas continuam da vaga)
+  // a conta ficou ligada à vaga da ficha (que ganhou o nome dela): tokens e permissões seguem junto
   await expect(mp.getByTestId("papel-linha-jogador-1")).toContainText("Ana");
+  // quem não entrou continua escondido: nenhum "Jogador N" nos Papéis
+  await expect(mp.getByTestId("papeis")).not.toContainText(/Jogador d/);
 
   // o jogador entra e vê a ficha da vaga
   await fazerLogin(jp, "ana");
@@ -280,6 +285,13 @@ test("o jogador pede, o mestre vê o aviso, aceita numa vaga com ficha, e o joga
   await expect(jp.getByTestId("eu-nome")).toHaveText("Ana");
   await abrirAba(jp, "fichas");
   await expect(jp.getByTestId("aba-painel-fichas")).toContainText("Aldric");
+  // e controla o token da ficha: arrasta e a posição muda
+  await esperarMapa(jp);
+  const antes = await tokenDe(jp, "tok-jogador-1");
+  await arrastarToken(jp, "tok-jogador-1", 2, 0);
+  await expect
+    .poll(async () => (await tokenDe(jp, "tok-jogador-1")).x)
+    .toBeGreaterThan(antes.x + 1);
   // jogador não tem a seção de contas nem o aviso
   await expect(jp.getByTestId("aba-mesa")).toHaveCount(0);
   await expect(jp.getByTestId("aviso-de-contas")).toHaveCount(0);
@@ -289,17 +301,48 @@ test("o jogador pede, o mestre vê o aviso, aceita numa vaga com ficha, e o joga
     (await jp.request.post(`/api/m/${ID_DA_MESA}/contas/qualquer/aceitar`, { data: {} })).status(),
   ).toBe(403);
 
-  // "Nova vaga": um segundo pedido entra numa vaga criada na hora
+  // "Nenhuma": um segundo pedido vira um jogador novo, com o nome dele
   const k = await mesa.abrir();
   await pedirParaEntrar(k.pagina, ID_DA_MESA, { nome: "Beto", login: "beto" });
   await expect(mp.getByTestId("conta-pedido-beto")).toBeVisible();
-  await mp.getByTestId("conta-vaga-beto").selectOption("nova");
+  await expect(mp.getByTestId("conta-ficha-beto")).toHaveValue("");
   await mp.getByTestId("conta-aceitar-beto").click();
   await expect(mp.getByTestId("conta-status-beto")).toHaveText("Ativa");
-  await expect(mp.getByTestId("conta-vaga-beto")).toHaveValue("jogador-8");
+  await expect(mp.getByTestId("papel-linha-jogador-8")).toContainText("Beto");
   await fazerLogin(k.pagina, "beto");
   await naMesa(k.pagina);
   await expect(k.pagina.getByTestId("eu-nome")).toHaveText("Beto");
+});
+
+test('V7: mesa com só o mestre: Papéis, "Quem vê" do handout e o topo mostram só ele, sem "Jogador N"', async ({
+  mesa,
+  request,
+}) => {
+  const id = await criarMesaPelaApi(request, { mesa: "So mestre", login: "chefe", nome: "Chefe" });
+  const m = await mesa.abrir();
+  const p = m.pagina;
+  await p.goto(`/m/${id}`);
+  await fazerLogin(p, "chefe");
+  await naMesa(p);
+  await expect(p.getByTestId("presenca").locator('[data-testid^="presenca-estado-"]')).toHaveCount(
+    1,
+  );
+  await expect(p.getByTestId("presenca-mestre")).toBeVisible();
+  await abrirAba(p, "mesa");
+  await expect(p.locator('[data-testid^="papel-linha-"]')).toHaveCount(1);
+  await expect(p.getByTestId("papel-linha-mestre")).toContainText("Chefe");
+  // as exceções de permissão por usuário não têm a quem se aplicar
+  await expect(p.getByTestId("excecao-sem-jogadores")).toBeVisible();
+  await expect(p.getByTestId("excecao-usuario")).toHaveCount(0);
+  // "Quem vê" do handout: só os atalhos gerais, nenhum jogador
+  await abrirAba(p, "fichas");
+  await p.getByTestId("ficha-novo").click();
+  await p.getByTestId("ficha-novo-handout").click();
+  const janela = p.locator('[data-testid="janela-handout"]');
+  await expect(janela).toBeVisible();
+  await expect(janela.getByTestId("handout-visib-todos")).toBeVisible();
+  await expect(janela.locator('[data-testid^="handout-visib-jogador-"]')).toHaveCount(0);
+  await expect(p.locator("body")).not.toContainText(/Jogador d/);
 });
 
 test("recusar: o login diz que o pedido foi recusado e só dá para pedir de novo depois de 10 minutos", async ({
@@ -456,7 +499,7 @@ test("esqueci a senha: o mestre aprova, o jogador redefine e a sessão antiga ca
   expect(denovo.status()).toBe(403);
 });
 
-test("remover a conta derruba o socket; a vaga fica e a pessoa não entra mais", async ({
+test("remover a conta derruba o socket; a pessoa some das listas e não entra mais", async ({
   mesa,
   request,
 }) => {
@@ -469,9 +512,12 @@ test("remover a conta derruba o socket; a vaga fica e a pessoa não entra mais",
   const j = await mesa.abrir();
   await pedirParaEntrar(j.pagina, id, { nome: "Dani", login: "dani" });
   await abrirContas(m.pagina);
-  await m.pagina.getByTestId("conta-vaga-dani").selectOption("jogador-2");
   await m.pagina.getByTestId("conta-aceitar-dani").click();
   await expect(m.pagina.getByTestId("conta-status-dani")).toHaveText("Ativa");
+  // aceita com "Nenhuma": a Dani aparece com o nome dela nos Papéis e no topo, e nenhum "Jogador N" existe
+  await expect(m.pagina.getByTestId("papel-linha-jogador-1")).toContainText("Dani");
+  await expect(m.pagina.getByTestId("presenca-jogador-1")).toBeVisible();
+  await expect(m.pagina.locator("body")).not.toContainText(/Jogador d/);
   await fazerLogin(j.pagina, "dani");
   await naMesa(j.pagina);
   await j.pagina.evaluate((mesaId) => {
@@ -498,8 +544,9 @@ test("remover a conta derruba o socket; a vaga fica e a pessoa não entra mais",
     )
     .toBe(4001);
   await expect(j.pagina.getByTestId("tela-de-entrada")).toBeVisible();
-  // a vaga ficou (com o nome dela) e a conta sumiu
-  await expect(m.pagina.getByTestId("papel-linha-jogador-2")).toContainText("Dani");
+  // ela some dos Papéis e do topo (a vaga fica escondida, com as fichas e os tokens dela)
+  await expect(m.pagina.getByTestId("papel-linha-jogador-1")).toHaveCount(0);
+  await expect(m.pagina.getByTestId("presenca-jogador-1")).toHaveCount(0);
   await fazerLogin(j.pagina, "dani");
   await expect(j.pagina.getByTestId("entrada-erro")).toHaveText("Login ou senha incorretos.");
 });

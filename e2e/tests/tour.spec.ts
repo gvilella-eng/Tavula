@@ -3,7 +3,7 @@ import { PASSOS_DO_JOGADOR, PASSOS_DO_MESTRE } from "../../apps/web/src/tour/pas
 // Só a derivação da senha e o sorteio do id (puros, sem navegador): o teste fala com a API como a tela fala.
 import { derivarSenha } from "../../packages/shared/src/contas.ts";
 import { gerarIdDeMesa } from "../../packages/shared/src/mesas.ts";
-import { abrirAba, expect, ID_DA_MESA, Mesa, test } from "./ajudas";
+import { abrirAba, expect, ID_DA_MESA, Mesa, test, tornarMembros } from "./ajudas";
 
 // Lote T: o tour de introdução (mestre ~10 passos, jogador ~6), o "já viu" por conta guardado no servidor, o teclado e
 // a garantia de que cada passo ainda acha o seu alvo na tela do papel certo, em 1600×900 e 1280×720. Com MODO=teste o
@@ -294,7 +294,9 @@ for (const t of TAMANHOS) {
 
 test("passo cujo alvo não existe é pulado, nos dois sentidos, e o tour não trava (Paredes some em Ver como jogador)", async ({
   mesa,
+  request,
 }) => {
+  await tornarMembros(request, "jogador-1");
   const p = (await mesa.entrar("mestre")).pagina;
   // "Ver como" um jogador: a ferramenta Paredes sai da barra (só o mestre a tem)
   await p.getByTestId("menu-ver-como").click();

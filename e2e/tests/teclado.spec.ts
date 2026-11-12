@@ -1,7 +1,7 @@
 import type { Locator, Page } from "@playwright/test";
 import { ATALHOS, IDS_DOS_ATALHOS, textoDasTeclas } from "../../apps/web/src/atalhos";
 import { TEMAS } from "../../apps/web/src/tema/temas";
-import { abrirAba, enviarCru, expect, intencaoCrua, test } from "./ajudas";
+import { abrirAba, enviarCru, expect, intencaoCrua, test, tornarMembros } from "./ajudas";
 import { doTipo, entrarNoMapa, type GanchoDoMapa, soSelecionarToken } from "./ajudasMapa";
 
 // R6a: teclado, dicas com atalho, foco visível e contraste. Tudo o que se faz com o mouse tem caminho pelo
@@ -279,7 +279,12 @@ test("apagar e acender a tocha pelo menu do token, só pelo teclado, com os fram
   expect(doTipo(m.enviados, "tocha.guardar")).toHaveLength(1);
 });
 
-test("o '+N' da presença abre e fecha pelo teclado e o foco continua nele", async ({ mesa }) => {
+test("o '+N' da presença abre e fecha pelo teclado e o foco continua nele", async ({
+  mesa,
+  request,
+}) => {
+  // com 6 pessoas ou menos o topo mostra todas: 7 jogadores na mesa fazem o "+N" aparecer
+  await tornarMembros(request, ...TODOS_OS_JOGADORES);
   const m = await entrarNoMapa(mesa, "mestre");
   const p = m.pagina;
   const mais = p.getByTestId("presenca-mais");
@@ -306,13 +311,16 @@ test("o '+N' da presença abre e fecha pelo teclado e o foco continua nele", asy
   await expect(lista).toBeHidden();
 });
 
+const TODOS_OS_JOGADORES = [1, 2, 3, 4, 5, 6, 7].map((n) => `jogador-${n}`);
+
 function rgbDe(hex: string): string {
   const n = Number.parseInt(hex.slice(1), 16);
   return `rgb(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255})`;
 }
 
 for (const tema of ["grimorio", "escuro", "claro"] as const) {
-  test(`anel de foco visível nos controles, na cor do tema ${tema}`, async ({ mesa }) => {
+  test(`anel de foco visível nos controles, na cor do tema ${tema}`, async ({ mesa, request }) => {
+    await tornarMembros(request, ...TODOS_OS_JOGADORES);
     const m = await entrarNoMapa(mesa, "mestre");
     const p = m.pagina;
     await abrirAba(p, "preferencias");

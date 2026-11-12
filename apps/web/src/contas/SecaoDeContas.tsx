@@ -1,14 +1,6 @@
 import type { AvisoDeContas, ContaParaMestre, ListaDeContas } from "@tabletop/shared";
 import { useCallback, useEffect, useState } from "react";
-import {
-  aceitarConta,
-  type EscolhaDeVaga,
-  liberarRedefinicao,
-  listarContas,
-  recusarConta,
-  removerConta,
-  trocarVagaDaConta,
-} from "../api";
+import { aceitarConta, liberarRedefinicao, listarContas, recusarConta, removerConta } from "../api";
 import { ProtecaoDoMestre } from "./ProtecaoDoMestre";
 
 const ROTULO_DO_STATUS = { pendente: "Pendente", ativa: "Ativa", recusada: "Recusada" } as const;
@@ -18,60 +10,22 @@ function quando(ms: number | null): string {
   return new Date(ms).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
 }
 
-const NOVA_VAGA = "nova";
+type Ficha = { id: string; nome: string };
 
-type Vaga = ListaDeContas["vagasLivres"][number];
-
-function EscolhaDaVaga({
-  testid,
-  rotulo,
-  vagas,
-  valor,
-  aoMudar,
-  comNova,
-}: {
-  testid: string;
-  rotulo: string;
-  vagas: Vaga[];
-  valor: string;
-  aoMudar: (v: string) => void;
-  comNova: boolean;
-}) {
-  return (
-    <select
-      aria-label={rotulo}
-      data-testid={testid}
-      value={valor}
-      onChange={(e) => aoMudar(e.target.value)}
-    >
-      {vagas.map((v) => (
-        <option key={v.id} value={v.id}>
-          {v.nome}
-        </option>
-      ))}
-      {comNova && <option value={NOVA_VAGA}>Nova vaga</option>}
-    </select>
-  );
-}
-
-/** Um pedido de entrada: nome e login, a vaga em que a pessoa entra e Aceitar ou Recusar. */
+/** Um pedido de entrada: nome e login, a "Ficha dele" (opcional) e Aceitar ou Recusar. */
 function PedidoDeEntrada({
   mesaId,
   conta,
-  vagasLivres,
+  fichas,
   aoAgir,
 }: {
   mesaId: string;
   conta: ContaParaMestre;
-  vagasLivres: Vaga[];
+  fichas: Ficha[];
   aoAgir: (acao: () => Promise<void>) => void;
 }) {
-  const [vaga, setVaga] = useState<string>("");
-  const padrao = vagasLivres[0]?.id ?? NOVA_VAGA;
-  const escolhida =
-    vaga !== "" && (vaga === NOVA_VAGA || vagasLivres.some((v) => v.id === vaga)) ? vaga : padrao;
-  const escolha: EscolhaDeVaga =
-    escolhida === NOVA_VAGA ? { nova: true } : { usuarioId: escolhida };
+  const [ficha, setFicha] = useState<string>("");
+  const escolhida = fichas.some((f) => f.id === ficha) ? ficha : "";
   return (
     <li className="pedido-de-conta" data-testid={`conta-pedido-${conta.login}`}>
       <div className="pedido-de-conta-quem">
@@ -79,22 +33,27 @@ function PedidoDeEntrada({
         <span className="nota">login: {conta.login}</span>
       </div>
       <div className="pedido-de-conta-vaga">
-        <span className="nota">Entra na vaga</span>
-        <EscolhaDaVaga
-          testid={`conta-vaga-${conta.login}`}
-          rotulo={`Vaga de ${conta.nome}`}
-          vagas={vagasLivres}
-          valor={escolhida}
-          aoMudar={setVaga}
-          comNova
-        />
+        <span className="nota">Ficha dele</span>
+        <select
+          aria-label={`Ficha de ${conta.nome}`}
+          data-testid={`conta-ficha-${conta.login}`}
+          value={escolhida}
+          onChange={(e) => setFicha(e.target.value)}
+        >
+          <option value="">Nenhuma</option>
+          {fichas.map((f) => (
+            <option key={f.id} value={f.id}>
+              {f.nome}
+            </option>
+          ))}
+        </select>
       </div>
       <div className="linha-botoes">
         <button
           type="button"
           className="primario"
           data-testid={`conta-aceitar-${conta.login}`}
-          onClick={() => aoAgir(() => aceitarConta(mesaId, conta.id, escolha))}
+          onClick={() => aoAgir(() => aceitarConta(mesaId, conta.id, escolhida || undefined))}
         >
           Aceitar
         </button>
@@ -110,25 +69,18 @@ function PedidoDeEntrada({
   );
 }
 
-/** Uma conta ativa: vaga (troca), último acesso e as ações. */
+/** Uma conta: status, último acesso e as ações (a ficha de cada jogador se decide na própria ficha). */
 function LinhaDeConta({
   mesaId,
   conta,
-  vagasLivres,
   aoAgir,
 }: {
   mesaId: string;
   conta: ContaParaMestre;
-  vagasLivres: Vaga[];
   aoAgir: (acao: () => Promise<void>) => void;
 }) {
   const [confirmando, setConfirmando] = useState(false);
   const ehMestre = conta.papel === "mestre";
-  // As vagas que ela pode assumir: as livres e a que ela já tem.
-  const vagasDela: Vaga[] = [
-    ...(conta.vagaId ? [{ id: conta.vagaId, nome: conta.vagaNome ?? conta.vagaId }] : []),
-    ...vagasLivres,
-  ];
   return (
     <li className="linha-de-conta" data-testid={`conta-linha-${conta.login}`}>
       <div className="linha-de-conta-quem">
@@ -145,30 +97,13 @@ function LinhaDeConta({
           </span>
         )}
       </div>
-      {conta.status === "ativa" && (
-        <div className="pedido-de-conta-vaga">
-          <span className="nota">Vaga</span>
-          {ehMestre ? (
-            <span data-testid={`conta-vaga-nome-${conta.login}`}>{conta.vagaNome ?? "—"}</span>
-          ) : (
-            <EscolhaDaVaga
-              testid={`conta-vaga-${conta.login}`}
-              rotulo={`Vaga de ${conta.nome}`}
-              vagas={vagasDela}
-              valor={conta.vagaId ?? ""}
-              aoMudar={(id) =>
-                id !== conta.vagaId && aoAgir(() => trocarVagaDaConta(mesaId, conta.id, id))
-              }
-              comNova={false}
-            />
-          )}
-        </div>
-      )}
       {!ehMestre && (
         <div className="linha-botoes">
           {confirmando ? (
             <>
-              <span className="nota">Remover a conta de {conta.nome}? A vaga fica.</span>
+              <span className="nota">
+                Remover a conta de {conta.nome}? As fichas e os tokens dele ficam na mesa.
+              </span>
               <button
                 type="button"
                 className="perigo"
@@ -201,18 +136,21 @@ function LinhaDeConta({
 }
 
 /**
- * Seção "Contas" da aba Mesa (só o mestre): os pedidos de entrada (Aceitar com a escolha da vaga, ou
- * Recusar), os pedidos de redefinição de senha e a lista de contas (nome, login, vaga, status, último
- * acesso, trocar de vaga e remover). Tudo vem de uma rota própria; nunca há sal, hash nem token aqui.
+ * Seção "Contas" da aba Mesa (só o mestre): os pedidos de entrada (Aceitar, com a ficha dele se houver, ou
+ * Recusar), os pedidos de redefinição de senha e a lista de contas (nome, login, status, último
+ * acesso e remover). Tudo vem de uma rota própria; nunca há sal, hash nem token aqui.
  */
 export function SecaoDeContas({
   mesaId,
   mesaNome,
   aviso,
+  fichas,
 }: {
   mesaId: string;
   mesaNome: string;
   aviso: AvisoDeContas | null;
+  /** As fichas de personagem que nenhum jogador controla (a "Ficha dele" de quem pede para entrar). */
+  fichas: Ficha[];
 }) {
   const [lista, setLista] = useState<ListaDeContas | null>(null);
   const [erro, setErro] = useState<string | null>(null);
@@ -266,7 +204,7 @@ export function SecaoDeContas({
                   key={c.id}
                   mesaId={mesaId}
                   conta={c}
-                  vagasLivres={lista.vagasLivres}
+                  fichas={fichas}
                   aoAgir={agir}
                 />
               ))}
@@ -309,13 +247,7 @@ export function SecaoDeContas({
           <h4 className="contas-subtitulo">Contas da mesa</h4>
           <ul className="lista-simples" data-testid="contas-lista">
             {outras.map((c) => (
-              <LinhaDeConta
-                key={c.id}
-                mesaId={mesaId}
-                conta={c}
-                vagasLivres={lista.vagasLivres}
-                aoAgir={agir}
-              />
+              <LinhaDeConta key={c.id} mesaId={mesaId} conta={c} aoAgir={agir} />
             ))}
           </ul>
 

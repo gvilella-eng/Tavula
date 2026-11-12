@@ -46,8 +46,8 @@ personagem, a camada `mapa` e a ordem de turno, tudo **sem mudar o número do pr
 | `POST /api/m/<id>/conta/recuperar/codigo` `{ login, codigo, derivada }` | C3, público: código certo troca a senha, derruba as sessões, mata o código e devolve `{ ok, codigo }` com o novo (e abre sessão). Erro de pasta, chave, nonce ou código: sempre 401 `recuperacao_invalida`; `login_nao_confere` (403) só depois de provar ser o dono. Limites: 5 erros por mesa (espera 1, 5, 15 e 60 min) e os 30 por IP do C2 |
 | Origin (C3) | no upgrade do WebSocket e em todo `POST /api/...`, o `Origin` (se vier) tem de ser o host do pedido; senão 403 `origem_invalida`. Sem `Origin`, aceita. Em pedido local (loopback) vale também outra origem de loopback (o Vite) |
 | `GET /api/m/<id>/contas` | só o mestre: `{ contas: [{ id, login, nome, papel, status, vagaId, vagaNome, criadaEm, ultimoAcesso, redefinicaoPedida, redefinicaoAte }], vagasLivres }`; nunca sal, hash nem token; 401 sem sessão, 403 a quem não é mestre |
-| `POST /api/m/<id>/contas/<conta>/aceitar` `{ vaga: { usuarioId } ou { nova: true } }` | só o mestre; a conta fica ativa e a vaga ganha o nome dela |
-| `POST /api/m/<id>/contas/<conta>/recusar`, `remover`, `vaga` `{ usuarioId }`, `liberar-redefinicao` | só o mestre; recusar e remover fecham os sockets da conta (4001); a conta do mestre não se recusa nem se remove |
+| `POST /api/m/<id>/contas/<conta>/aceitar` `{ personagemId? }` | só o mestre; a conta fica ativa. V7: sem `personagemId` nasce um jogador com o nome dela; com a ficha de uma vaga escondida a conta fica ligada àquela vaga (renomeada); com uma ficha sem dono nasce o jogador e ele vira dono. 409 `vaga_invalida` (ficha com dono, "todos", inexistente, ou mesa cheia sem vaga a reaproveitar) |
+| `POST /api/m/<id>/contas/<conta>/recusar`, `remover`, `liberar-redefinicao` | só o mestre; recusar e remover fecham os sockets da conta (4001); a conta do mestre não se recusa nem se remove |
 | `GET /api/m/<id>/usuarios` e `POST /api/m/<id>/entrar` `{ usuarioId }` | **só com `MODO=teste`**: a escolha de usuário de desenvolvimento (cookie `tabletop_sessao`); fora dele 404 |
 | `GET /api/m/<id>/eu` | usuário da sessão nesta mesa (`{ id, nome, cor, login? }`) ou 401; renova o cookie se a sessão foi renovada |
 | `POST /api/m/<id>/renomear` `{ nome }` | muda o nome da mesa; só o mestre (403 aos outros, 401 sem sessão) |
@@ -58,6 +58,7 @@ personagem, a camada `mapa` e a ordem de turno, tudo **sem mudar o número do pr
 - Cada mesa é um Durable Object `Sala`: a legada é `idFromName("campanha")` e as outras `idFromName("mesa:<id>")`; o
   diretório (`Diretorio`) liga o id amigável ao nome do DO (PROJETO 4.14). A sala usa a WebSocket Hibernation API. Quem é
   cada socket fica no `serializeAttachment` (`usuarioId`, `conexaoId`).
+- V7: o `snapshot` leva `estado.membros` (ids do mestre e de quem tem conta ativa; com `MODO=teste`, também quem entrou pelo login solto). Aditivo e derivado: nunca é gravado nem exportado, e sem ele todos contam como membros. A tela só oferece membros nas listas de pessoas.
 - Ao conectar, a sala manda `snapshot`, `presenca` e (se mestre) `uso` e `contas.aviso`.
 - Sockets fechados pela sala com o código **4001** (conta removida ou recusada, senha redefinida ou trocada, sessão encerrada, usuário
   que sumiu): o cliente pergunta `eu`, recebe 401 e volta à tela de entrada.

@@ -1,5 +1,5 @@
 import type { Locator, Page } from "@playwright/test";
-import { abrirAba, test as base, expect, Mesa } from "./ajudas";
+import { abrirAba, test as base, expect, Mesa, tornarMembros } from "./ajudas";
 import { abrirFicha, criarDarion, DARION_ID } from "./ajudasFicha";
 import { centrarNoToken, entrarNoMapa, selecionarToken } from "./ajudasMapa";
 
@@ -264,6 +264,7 @@ test("as abas mostram ícone e nome, legíveis na largura mínima (300 px), do m
 
 test("a presença está no topo: um segundo usuário entra e o avatar fica online; quando sai, fica offline", async ({
   mesa,
+  request,
 }) => {
   const m = (await entrarNoMapa(mesa, "mestre")).pagina;
   const topo = m.getByTestId("topo");
@@ -272,9 +273,9 @@ test("a presença está no topo: um segundo usuário entra e o avatar fica onlin
   await expect(m.getByTestId("aba-painel-chat").getByTestId("presenca")).toHaveCount(0);
   await expect(topo.getByTestId("presenca")).toBeVisible();
 
-  // o mestre está online (e é ele); o jogador 1 ainda não entrou: offline, esmaecido
+  // o mestre está online (e é ele); o jogador 1 ainda não entrou na mesa (V7): nem aparece no topo
   await expect(m.getByTestId("presenca-estado-mestre")).toHaveText("online");
-  await expect(m.getByTestId("presenca-estado-jogador-1")).toHaveText("offline");
+  await expect(m.getByTestId("presenca-jogador-1")).toHaveCount(0);
   await expect(m.getByTestId("presenca-mestre")).toHaveAttribute("title", /você.*online/);
 
   const j = await mesa.entrar("jogador-1");
@@ -284,7 +285,16 @@ test("a presença está no topo: um segundo usuário entra e o avatar fica onlin
   await expect(avatar).toHaveAttribute("data-estado", "online");
   await expect(avatar).toHaveAttribute("title", /\(jogador\).*online/);
   await expect(avatar.locator(".avatar")).toHaveCSS("opacity", "1");
-  // com 8 pessoas na sala o topo mostra os online e um "+N" com o resto
+  // com 8 pessoas na mesa o topo mostra os online e um "+N" com o resto (os outros 6 só entram na lista)
+  await tornarMembros(
+    request,
+    "jogador-2",
+    "jogador-3",
+    "jogador-4",
+    "jogador-5",
+    "jogador-6",
+    "jogador-7",
+  );
   await expect(m.getByTestId("presenca-mais")).toHaveText(/^\+\d+$/);
   await m.getByTestId("presenca-mais").click();
   await expect(m.getByTestId("presenca-lista")).toBeVisible();

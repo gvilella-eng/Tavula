@@ -868,7 +868,7 @@ por mesa".
   movido, apagado nem reescrito: o DO só é carregado como antes. Em `MODO=teste` o id é fixo
   (`ID_DA_MESA_LEGADA_DE_TESTE`, `t3st-m3sa-e2e7`).
 - **Mesa nova**: `doNome = "mesa:" + id`. O DO só existe de verdade quando o diretório manda `POST /criar`; nasce
-  **vazio** (uma cena em branco, o mestre e as vagas "Jogador 1" a "Jogador 4", sem fichas nem tokens). Um DO de
+  **vazio** (uma cena em branco e só o mestre, sem fichas nem tokens; cada jogador entra com a conta dele; V7, 2026-11-12). Um DO de
   mesa que nunca foi criado responde 404 e **não se auto-semeia**: só a legada (`ctx.id.name === "campanha"`)
   nasce da semente de exemplo (`fixtures/campanha.seed.json`, que segue sendo o início da legada e dos E2E).
 - **Rotas do Worker**:
@@ -938,10 +938,15 @@ por mesa".
   as sessões antigas e já entra. "Sou o mestre e esqueci a senha" só mostra "em breve" (é o C3).
 - **O mestre**: um aviso no topo ("1 pedido de entrada", "1 pedido de redefinição") e um selo na aba Mesa, ao vivo
   (frame `contas.aviso`, só para mestres, só com números e o nome e o login do pedido); a seção **Contas** da aba Mesa
-  mostra os pedidos (Aceitar numa vaga de jogador ainda sem conta ou em "Nova vaga", ou Recusar), os pedidos de redefinição
-  ("Confirme por voz ou mensagem que é a própria pessoa" e Aprovar) e a lista de contas (nome, login, vaga, status, último
-  acesso, trocar de vaga, Remover com confirmação; a conta do mestre não se remove). Aceitar e trocar de vaga dão à vaga o
-  nome de exibição da pessoa; fichas e tokens da vaga continuam dela.
+  mostra os pedidos (Aceitar, com a "Ficha dele" opcional, ou Recusar), os pedidos de redefinição
+  ("Confirme por voz ou mensagem que é a própria pessoa" e Aprovar) e a lista de contas (nome, login, status, último
+  acesso, Remover com confirmação; a conta do mestre não se remove). **(V7, 2026-11-12) Membros e aceite:** o estado continua
+  guardando "vagas" (`usuarios`), mas só são **membros** da mesa o mestre e quem tem conta ativa (com `MODO=teste`, também quem
+  entrou pelo login solto). A sala manda a lista derivada em `estado.membros` (opcional, nunca gravado nem exportado; sem
+  ele todos contam) e toda lista ou seletor de pessoas mostra só membros; a vaga escondida segue existindo (fichas, tokens e
+  histórico apontam para ela) e aparece pelo nome onde é referência. Aceitar: "Nenhuma" cria o jogador com o nome da pessoa
+  (próxima cor livre; no limite de 12 reaproveita uma vaga escondida sem dono); a ficha de uma vaga escondida liga a conta
+  àquela vaga e a renomeia; a ficha sem dono cria o jogador e o torna dono dela. Remover a conta esconde o jogador.
 - **Trocar a senha**: em Preferências, com a atual, a nova e a confirmação; as outras sessões caem.
 - **A mesa legada sem mestre** (a campanha de hoje): a tela de entrada oferece "Criar a conta do mestre desta mesa" (login,
   nome e senha), ligando a conta à vaga `mestre` que já existe. O servidor só aceita de uma requisição **local** (host
@@ -951,7 +956,7 @@ por mesa".
   campanha importada não tem fica sem vaga (o mestre a liga de novo) e perde as sessões.
 - **Rotas novas** sob `/api/m/<id>/`: `GET situacao`, `conta/entrar`, `conta/pedir`, `conta/sair`, `conta/esqueci`,
   `conta/redefinir`, `conta/trocar-senha`, `conta/mestre-inicial`; do mestre: `GET contas`, `contas/<id>/aceitar`,
-  `recusar`, `remover`, `vaga` e `liberar-redefinicao`. Ver `docs/protocolo.md`.
+  `recusar`, `remover` e `liberar-redefinicao` (a rota `vaga` saiu no V7). Ver `docs/protocolo.md`.
 - **Pendências do C1 resolvidas**: a memória do mapa leva o id da mesa na chave (a legada herda a chave antiga, copiando-a
   uma vez); renomear a mesa chega ao vivo (frame `mesa.renomeada`); a lista "Mesas neste computador" fica em ordem de último
   uso, a legada primeiro quando não há uso.

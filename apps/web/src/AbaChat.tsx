@@ -4,6 +4,7 @@ import {
   interpretarChat,
   LIMITES_DO_CHAT,
   type Mensagem,
+  membrosDaMesa,
   pode,
   podeEditarPersonagem,
   ROTULO_DA_VANTAGEM,
@@ -254,7 +255,7 @@ export function AbaChat({
   function mandar() {
     const bruto = texto.trim();
     if (bruto === "") return;
-    const lido = interpretarChat(bruto, estado.usuarios);
+    const lido = interpretarChat(bruto, membrosDaMesa(estado));
     if (lido.tipo === "ajuda") {
       setAjuda(true);
       setErro(null);

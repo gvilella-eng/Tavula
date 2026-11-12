@@ -1,4 +1,6 @@
-import type { Page } from "@playwright/test";
+import type { APIRequestContext, Page } from "@playwright/test";
+import { derivarSenha } from "../../packages/shared/src/contas.ts";
+import { gerarIdDeMesa } from "../../packages/shared/src/mesas.ts";
 import { abrirAba, esperarMapa, expect, ID_DA_MESA, Mesa, test } from "./ajudas";
 import { criarToken, tokensDe } from "./ajudasMapa";
 
@@ -13,6 +15,34 @@ async function criarMesaPelaApi(pagina: Page, nome: string): Promise<string> {
   expect(r.status()).toBe(201);
   const { id } = (await r.json()) as { id: string };
   expect(id).toMatch(FORMATO_DO_ID);
+  return id;
+}
+
+/**
+ * V7: uma mesa nova só tem o mestre. Esta cria uma com a conta do mestre e um jogador já aceito ("Nenhuma": o
+ * jogador nasce com o nome da conta, no id `jogador-1`), para os testes que precisam de alguém na mesa.
+ */
+async function mesaComJogador(request: APIRequestContext, nome: string): Promise<string> {
+  const id = gerarIdDeMesa();
+  const senha = "senha-boa-1";
+  const criar = await request.post("/api/mesas", {
+    data: {
+      id,
+      nome,
+      mestre: { login: "chefe", nome: "Chefe", derivada: await derivarSenha(senha, id, "chefe") },
+    },
+  });
+  expect(criar.status()).toBe(201);
+  const pedir = await request.post(`/api/m/${id}/conta/pedir`, {
+    data: { login: "ana", nome: "Ana", derivada: await derivarSenha(senha, id, "ana") },
+  });
+  expect(pedir.ok()).toBe(true);
+  const { contas } = (await (await request.get(`/api/m/${id}/contas`)).json()) as {
+    contas: { id: string; login: string }[];
+  };
+  const ana = contas.find((c) => c.login === "ana");
+  const aceitar = await request.post(`/api/m/${id}/contas/${ana?.id}/aceitar`, { data: {} });
+  expect(aceitar.ok()).toBe(true);
   return id;
 }
 
@@ -94,14 +124,13 @@ test("criar uma mesa mostra o id grande, copia o id e o link e abre uma mesa vaz
     await expect(p).toHaveTitle(/^Távola · Masmorra do teste/);
 
     // num navegador sem sessão: a tela de entrada da mesa e, só em MODO=teste, a escolha de usuário de
-    // sempre (o mestre e 4 vagas, nada da semente de exemplo)
+    // sempre (só o mestre, V7: nada da semente de exemplo nem vagas "Jogador N")
     const outro = await mesa.abrir();
     await outro.pagina.goto(`/m/${id}`);
     await expect(outro.pagina.getByTestId("entrada-nome-da-mesa")).toHaveText("Masmorra do teste");
     await expect(outro.pagina.getByTestId("entrada-login")).toBeVisible();
     await expect(outro.pagina.getByTestId("entrar-mestre")).toBeVisible();
-    await expect(outro.pagina.getByTestId("entrar-jogador-4")).toBeVisible();
-    await expect(outro.pagina.getByTestId("entrar-jogador-5")).toHaveCount(0);
+    await expect(outro.pagina.getByTestId("entrar-jogador-1")).toHaveCount(0);
     await expect(outro.pagina).toHaveTitle("Távola · Masmorra do teste");
   } finally {
     await mesa.fechar();
@@ -231,8 +260,9 @@ test("a lista 'Mesas neste computador' lembra as mesas abertas aqui, mesmo sem a
 test("a aba Mesa mostra o nome e o id; o mestre renomeia e o jogador não", async ({
   mesa,
   page,
+  request,
 }) => {
-  const id = await criarMesaPelaApi(page, "Nome antigo");
+  const id = await mesaComJogador(request, "Nome antigo");
   const mestre = await entrarEm(mesa, id, "mestre");
   const p = mestre.pagina;
   await abrirAba(p, "mesa");

@@ -653,6 +653,15 @@ Continua em aberto, por ser decisão e não erro de doc: `ficha.verOutras` (seç
 - Frágil: o bloco colado depende de `.cartao-colado > .modelo-bloco` (o cartão de cima perde a borda de baixo); mexer no CSS do `.modelo-bloco` pode abrir uma fresta entre os dois.
 - Suposições: ver `REDESIGN`, "V6 — como ficou".
 
+## V7 (2026-11-12): fim das vagas "Jogador N"
+
+- Onde mexer: `packages/shared/src/membros.ts` (`membrosDaMesa`, `jogadoresDaMesa`, `fichasSemMembro`, `derivarMembros`, `planejarAceite`); a sala monta `estado.membros` em `enviarSnapshot` (`membrosIds`, `difundirSnapshots`) e aceita em `ligarVaga`/`darFichaA` (`acaoDoMestre`); web em `contas/SecaoDeContas.tsx` ("Ficha dele"), `AbaMesa.tsx`, `PresencaNoTopo`, `JanelaDoHandout`, `EditorDoItem`, `AbaFichas`, `Mesa.tsx`.
+- Testids: `conta-ficha-<login>` (no lugar de `conta-vaga-<login>`), `excecao-sem-jogadores`.
+- Frágil: lista de pessoas nova = `jogadoresDaMesa(estado)`; `estado.usuarios` só para achar o nome de uma referência (vaga escondida). `estado.membros` ausente significa "todos" (testes de unidade).
+- Frágil: com MODO=teste a vaga vira membro ao `entrar`, ao abrir o socket ou ao sobreviver ao `/teste/zerar` (`meta.presentes_teste`); spec novo que espera ver uma vaga sem ninguém ter entrado nela vai falhar de propósito.
+- Frágil: vagas escondidas nunca são apagadas; o limite (`MAXIMO_DE_VAGAS`, 12) reaproveita uma sem dono.
+- Suposições: ver `REDESIGN`, "V7 — como ficou".
+
 ## C1 (2026-11-12): várias mesas, ids amigáveis e a tela inicial
 
 - Mapa: ids em `packages/shared/src/mesas.ts`; diretório em `apps/server/src/diretorio.ts` e `registroDeMesas.ts`; inicialização do DO em `inicializacao.ts`; rotas no `index.ts` do Worker; web em `rotas.ts`, `TelaInicial.tsx`, `IdDaMesa.tsx`, `App.tsx`.

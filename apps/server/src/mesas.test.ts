@@ -197,20 +197,14 @@ describe("inicialização do Durable Object (carregarOuSemear / criarMesaNova)",
     banco.migrar();
     const { estado, jaExistia } = criarMesaNova(banco);
     expect(jaExistia).toBe(false);
-    expect(estado.usuarios.map((u) => u.id)).toEqual([
-      "mestre",
-      "jogador-1",
-      "jogador-2",
-      "jogador-3",
-      "jogador-4",
-    ]);
+    expect(estado.usuarios.map((u) => u.id)).toEqual(["mestre"]);
     expect(estado.tokens).toEqual([]);
     expect(estado.personagens).toEqual([]);
     expect(estado.cenas).toHaveLength(1);
 
     // o DO acorda depois: carrega o que foi gravado, sem semear nada
     const recarregado = carregarOuSemear(new Armazenamento(sql as never), "mesa:x", semente);
-    expect(recarregado?.usuarios).toHaveLength(5);
+    expect(recarregado?.usuarios).toHaveLength(1);
     expect(recarregado?.tokens).toEqual([]);
 
     const antes = fotografia(sql as never);

@@ -2221,6 +2221,7 @@ Primeiro lote dos ajustes que o Vilella pediu depois de usar a mesa (2026-11-11)
 
 - Unidade: `zerarRelogio.test.ts` (shared; a conta da pílula, migração do relógio sem marco, zerar rodando e pausada, pausar e retomar guardam o marco, só o mestre zera, tochas com o mesmo restante antes e depois, o jogador sem o marco no evento e no snapshot, exportar e importar com e sem o marco); `armazenamento.test.ts` (servidor; banco antigo sem marco e marco que sobrevive ao reinício); `temas.test.ts` (14 temas, ordem, nomes, AA, foco 3:1, bolinhas distintas, acento diferente do Grimório, Vampiro e Licantropo sem amarelo).
 - E2E novos: `ajustes-v1.spec.ts` (5 testes: Edgerunner, Élfico e Celestial aplicam e sobrevivem ao recarregar; aba Mesa última e só do mestre, também recolhida; zerar o relógio com tocha acesa e o jogador sem o marco nos frames; zerar pausada; menu do relógio só pelo teclado).
+- `pnpm verify` verde: typecheck, lint limpo (325 arquivos), unidade (web 98, servidor 103, shared 752) e 324 E2E, nenhum instável; sem mudança de código depois dele.
 - E2E antigos alterados (comportamento mudou de propósito; nada afrouxado): `tema.spec.ts` (11 viram 14 bolinhas, nova ordem e nomes, setas andam Grimório → Masmorra → Pergaminho, cores de fundo dos temas que mudaram, `escuro` agora se chama Masmorra); `interface.spec.ts` (a aba Mesa passou para depois de Preferências).
 - `organizacao.spec.ts` também mudou (a lista de abas do mestre agora termina em Preferências, Mesa); o primeiro `pnpm verify` apontou só esse E2E.
 - `pnpm verify` verde numa rodada (a segunda, depois de corrigir esse E2E): 32 (servidor) + 68 (web) + 561 (shared) de unidade e 218 E2E, sem instável. Repetição 3x de `ajustes-v1`, `tema`, `interface` e `organizacao`: 96 execuções verdes.
@@ -2917,4 +2918,54 @@ Detalhes em `docs/REDESIGN.md` ("V6 — como ficou"). O Vilella deixou o lote se
 
 ---
 
-## Próximo: bugs que sobrarem e acabamentos da tela inicial e contas; depois 7b e 12 (o V6 está entregue)
+## Ajustes V7 — Fim das vagas "Jogador N": na mesa só existe quem entrou (entregue, aguardando o roteiro manual)
+
+Detalhes em `docs/REDESIGN.md` ("V7 — como ficou"). O Vilella deixou o lote sem ninguém para perguntar: o que o brief não dizia foi assumido (marcado).
+
+### O que foi entregue
+
+- **Membros:** o mestre e quem tem conta ativa. A sala deriva a lista (`estado.membros`, em cada snapshot) e todas as listas de pessoas passam a mostrar só eles: Papéis, exceções de permissão, "Quem vê" e "Mostrar agora" do handout, "Quem controla" da ficha e do token, "Ver como", `/w`, bolinhas do topo, contagem do preparo.
+- **Mesa nova só com o mestre.** A Campanha real não perde vaga: Jogador 2 a 7 só ficam escondidos.
+- **Aceitar com "Ficha dele"** (opcional) no lugar de "Entra na vaga": Nenhuma cria o jogador com o nome da pessoa; a ficha de uma vaga escondida liga a conta àquela vaga (a Campanha); a ficha sem dono cria o jogador e o torna dono dela. Limite cheio reaproveita uma vaga escondida sem dono.
+- **Mesa → Contas** sem o seletor "Vaga". Remover a conta esconde o jogador (fichas e tokens ficam).
+- **Textos** sem "vaga" nem "Jogador N".
+
+### Como rodar
+
+- `pnpm verify` (uma vez). Prints: `$env:PRINTS_DIR="<pasta>"; pnpm --filter @tabletop/e2e prints v7`.
+
+### Verificação
+
+- Unidade: `packages/shared/src/membros.test.ts` (membros com e sem o campo, `derivarMembros` com e sem MODO=teste, fichas sem membro, aceitar com Nenhuma, com ficha de vaga escondida, com ficha sem dono, ficha de membro recusada, limite cheio com reaproveitamento e sem vaga livre, mesa nova só com o mestre); `apps/server/src/contas.test.ts` (conta ativa vira membro, remover esconde).
+- E2E: `contas.spec.ts`: novo "V7: mesa com só o mestre" (Papéis, exceções, "Quem vê" do handout e topo mostram só o mestre, sem "Jogador N"); o do pedido aceito virou "aceita com a ficha de uma vaga escondida" (a pessoa vê a ficha e arrasta o token) e o segundo pedido entra com "Nenhuma"; o de remover confere que a pessoa aparece com o nome nas listas e some delas.
+- E2E antigos alterados (comportamento mudou de propósito: a vaga em que ninguém entrou fica escondida; nenhuma asserção foi afrouxada): `ajudas.ts` ganhou `tornarMembros(request, ...ids)` (login solto de teste sem abrir página). `cenas.spec.ts` (preparar: o contador é "3/3" e "3 de 3 jogadores", não mais 7: conta só os membros); `estrutura.spec.ts` (presença: o jogador 1 nem aparece antes de entrar; o "+N" vem de 6 jogadores tornados membros); `interface.spec.ts` (o jogador 5 que não entrou não está no topo); `mesas.spec.ts` (mesa nova só tem `entrar-mestre`; o teste do renomear cria a mesa com um jogador aceito pela API); `sala.spec.ts` (handout do mestre e exportar/zerar/importar tornam membros os jogadores de que os seletores precisam; depois do `/teste/zerar` o jogador 1 entra de novo); `teclado.spec.ts` (o "+N" e o anel de foco ×3 tornam os 7 jogadores membros); `tour.spec.ts` ("Ver como" precisa do jogador 1 como membro); `contas.spec.ts` (aceitar com "Ficha dele", como descrito acima).
+
+### Decisões
+
+- (assumido) Ver `REDESIGN`, "V7 — como ficou", Decisões.
+
+### Estado, protocolo e migração
+
+- Campo novo `Estado.membros?: string[]` (derivado, só no snapshot; nunca gravado nem exportado). `CorpoAceitar` passou de `{ vaga }` para `{ personagemId? }` (o `vaga` antigo é ignorado); a rota `contas/<id>/vaga` saiu. **Não há migração de banco** e nenhuma vaga é apagada: o único dado novo é a chave `presentes_teste` da tabela `meta` (só com MODO=teste). Exportar e importar seguem iguais (o arquivo antigo carrega: o campo não existe nele). A campanha real carrega sem mudança.
+
+### Desvios do plano
+
+- Nenhum.
+
+### Frágil / não verificado
+
+- Quem decide a lista é `estado.membros` (vem da sala): todo seletor novo de pessoas precisa usar `jogadoresDaMesa`/`membrosDaMesa`, não `estado.usuarios`.
+- A vaga escondida não tem tela: ficam para sempre (só invisíveis) até um novo aceite herdar.
+- Não verificado com a campanha real (o banco dela não foi tocado).
+
+### Roteiro manual (pendente)
+
+1. Na Campanha: Mesa → Papéis lista só "Gabriel Vilella" e "Uker"; o topo mostra só as duas bolinhas.
+2. Uma conta nova pede para entrar: em Mesa → Contas o pedido tem "Ficha dele" com Nenhuma e as fichas sem dono; aceite com uma ficha antiga (de Jogador 2 a 7) → a pessoa entra, vê a ficha e controla o token.
+3. Aceite outra com Nenhuma → ela aparece com o nome dela em Papéis, no topo e no "Quem vê" do handout.
+4. Remova uma conta → o nome some de todas as listas.
+5. Crie uma mesa nova: só o mestre aparece em qualquer lista.
+
+---
+
+## Próximo: bugs que sobrarem e acabamentos da tela inicial e contas; depois 7b e 12 (o V7 está entregue)

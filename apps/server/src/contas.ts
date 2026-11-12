@@ -221,6 +221,15 @@ export class ContasDaMesa {
     );
   }
 
+  /** Os ids dos usuários que têm conta ativa (V7: são os membros da mesa, junto com o mestre). */
+  usuariosComContaAtiva(): Set<string> {
+    return new Set(
+      this.linhas(
+        "SELECT usuario_id FROM contas WHERE status = 'ativa' AND usuario_id IS NOT NULL",
+      ).map((l) => l.usuario_id as string),
+    );
+  }
+
   /** A conta (sem sal nem hash) ou `null`. */
   conta(id: string): ContaPublica | null {
     const l = this.porId(id);

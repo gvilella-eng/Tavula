@@ -140,11 +140,9 @@ export const CorpoMestreInicialSchema = z.object({
   nome: NomeSchema,
   derivada: DerivadaSchema,
 });
+/** V7: a "Ficha dele" é opcional; sem ela a pessoa entra como jogador novo. (O campo `vaga` antigo é ignorado.) */
 export const CorpoAceitarSchema = z.object({
-  vaga: z.union([
-    z.object({ usuarioId: z.string().min(1).max(64) }),
-    z.object({ nova: z.literal(true) }),
-  ]),
+  personagemId: z.string().min(1).max(64).optional(),
 });
 export const CorpoTrocarVagaSchema = z.object({ usuarioId: z.string().min(1).max(64) });
 /** O mestre de uma mesa nova. */
@@ -186,7 +184,7 @@ export const REDEFINICAO_VALE_MS = 30 * MINUTO;
 export const SESSAO_VALE_MS = 30 * 24 * HORA;
 export const SESSAO_RENOVA_APOS_MS = HORA;
 export const MAXIMO_DE_SESSOES_POR_CONTA = 10;
-/** Quantas vagas a mesa comporta ("Nova vaga" para de oferecer depois disso; assumido). */
+/** Quantos jogadores (com os escondidos) a mesa comporta; passando disso o aceite reaproveita um escondido (assumido). */
 export const MAXIMO_DE_VAGAS = 12;
 
 export type EstadoDeFalhas = { falhas: number; bloqueios: number };
@@ -287,7 +285,7 @@ export function mensagemDeErroDeConta(codigo: string, minutos?: number): string 
     case "pedido_recusado":
       return "Seu pedido foi recusado.";
     case "sem_vaga":
-      return "Sua conta ainda não está ligada a uma vaga. Peça ao mestre para ligá-la.";
+      return "Sua conta ainda não está ligada a um jogador. Peça ao mestre.";
     case "login_em_uso":
       return "Esse login já está em uso nesta mesa. Escolha outro.";
     case "muitos_pedidos":
@@ -305,7 +303,7 @@ export function mensagemDeErroDeConta(codigo: string, minutos?: number): string 
     case "conta_inexistente":
       return "Essa conta não existe mais.";
     case "vaga_invalida":
-      return "Essa vaga não está livre.";
+      return "Essa ficha já tem dono ou a mesa está cheia.";
     case "ja_tem_mestre":
       return "Esta mesa já tem um mestre.";
     case "so_local":

@@ -520,6 +520,11 @@ export type Personagem = z.infer<typeof PersonagemSchema>;
 export const EstadoSchema = z.object({
   seq: z.number().int().nonnegative(),
   usuarios: z.array(UsuarioSchema),
+  /**
+   * V7, derivado pela sala a cada snapshot (nunca gravado nem exportado): os ids dos usuários que são membros
+   * da mesa (o mestre e quem tem conta ativa). Sem o campo todos contam como membros.
+   */
+  membros: z.array(z.string().min(1).max(64)).optional(),
   permissoes: PermissoesSchema,
   cenas: z.array(CenaSchema).min(1),
   cenaAtivaId: z.string().min(1).max(64),

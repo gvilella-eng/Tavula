@@ -1,6 +1,7 @@
 import {
   type Estado,
   type Handout,
+  jogadoresDaMesa,
   PASTA_HANDOUTS_ID,
   PASTA_NPCS_ID,
   PASTA_PERSONAGENS_ID,
@@ -420,7 +421,7 @@ export function AbaFichas({
   aoAbrirHandout,
 }: Props) {
   const euMestre = eu.papel === "mestre";
-  const jogadores = estado.usuarios.filter((u) => u.papel === "jogador");
+  const jogadores = jogadoresDaMesa(estado);
   const [recolhidas, setRecolhidas] = useState<Set<string>>(new Set());
   const [novoAberto, setNovoAberto] = useState(false);
   const [paraAbrir, setParaAbrir] = useState<string | null>(null);

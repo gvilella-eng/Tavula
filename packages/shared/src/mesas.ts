@@ -81,13 +81,9 @@ export function nomeDeMesaValido(texto: unknown): string | null {
 /** O que o Worker e a tela sabem de uma mesa (nunca mais que isso numa consulta pelo id). */
 export type ResumoDaMesa = { id: string; nome: string };
 
-/** Usuários de uma mesa nova: o mestre e as vagas "Jogador 1" a "Jogador 4" (assumido). */
+/** Usuários de uma mesa nova: só o mestre; cada jogador entra com a conta dele (V7, 2026-11-12). */
 export const USUARIOS_DA_MESA_NOVA: Usuario[] = [
   { id: "mestre", nome: "Mestre", papel: "mestre", cor: "#d4a017" },
-  { id: "jogador-1", nome: "Jogador 1", papel: "jogador", cor: "#3cb44b" },
-  { id: "jogador-2", nome: "Jogador 2", papel: "jogador", cor: "#4363d8" },
-  { id: "jogador-3", nome: "Jogador 3", papel: "jogador", cor: "#f58231" },
-  { id: "jogador-4", nome: "Jogador 4", papel: "jogador", cor: "#911eb4" },
 ];
 
 /** Estado de uma mesa nova: vazia (cena em branco, sem fichas nem tokens), não a semente de exemplo. */

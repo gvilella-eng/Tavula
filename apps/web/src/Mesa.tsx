@@ -11,6 +11,8 @@ import {
   type FonteDeLuz,
   hashesPreparaveis,
   iluminacaoDinamicaLigada,
+  jogadoresDaMesa,
+  membrosDaMesa,
   modInteligenciaDe,
   pode,
   podeEditarPersonagem,
@@ -511,7 +513,7 @@ export function Mesa({
   // "Ver como o jogador X": o mestre passa a ver o que a sala mandaria a ele (o mesmo filtro), na cena do grupo.
   const usuarioVisto =
     euMestre && verComoId !== null
-      ? (estado?.usuarios.find((u) => u.id === verComoId && u.papel === "jogador") ?? null)
+      ? ((estado ? jogadoresDaMesa(estado) : []).find((u) => u.id === verComoId) ?? null)
       : null;
   const modoMestre = euMestre && usuarioVisto === null;
   const cena =
@@ -1194,7 +1196,7 @@ export function Mesa({
                       secaoTestid: testidDaSecaoDaMesa("luz"),
                     }))
                   }
-                  jogadores={estado.usuarios.filter((u) => u.papel === "jogador")}
+                  jogadores={jogadoresDaMesa(estado)}
                   verComoId={usuarioVisto?.id ?? null}
                   aoVerComo={(id) => {
                     setVerComoId(id);
@@ -1221,7 +1223,7 @@ export function Mesa({
                 {textoDoAvisoDeContas(avisoDeContas)}
               </button>
             )}
-            <PresencaNoTopo usuarios={estado.usuarios} presenca={presenca} euId={eu.id} />
+            <PresencaNoTopo usuarios={membrosDaMesa(estado)} presenca={presenca} euId={eu.id} />
             <EstadoDaMesa
               pausada={estado.relogio.pausada}
               euMestre={euMestre}
@@ -1447,7 +1449,7 @@ export function Mesa({
             {modoMestre && ferramenta !== "paredes" && selecionado && painelDoTokenAberto && (
               <PainelDoToken
                 token={selecionado}
-                jogadores={estado.usuarios.filter((u) => u.papel === "jogador")}
+                jogadores={jogadoresDaMesa(estado)}
                 enviar={enviar}
                 pedirImagem={pedirImagem}
                 aoFechar={() => {

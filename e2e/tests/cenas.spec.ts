@@ -510,13 +510,13 @@ test("preparar: os jogadores baixam os pacotes cifrados antes; a troca não baix
 
   // preparar: 6 tiles + a imagem da sentinela (o vigia está oculto e não entra)
   await menuDaCena(p, "cena-covil", "preparar");
-  await expect(p.getByTestId("cena-progresso-cena-covil")).toContainText("3/7", {
+  await expect(p.getByTestId("cena-progresso-cena-covil")).toContainText("3/3", {
     timeout: 90_000,
   });
   await expect(p.getByTestId("cena-progresso-cena-covil")).toContainText("7 arquivos");
   await expect(p.getByTestId("cena-progresso-cena-covil")).toHaveAttribute(
     "title",
-    /3 de 7 jogadores já têm tudo/,
+    /3 de 3 jogadores já têm tudo/,
   );
   const preparar1 = doTipo(mestre.enviados, "cena.preparar");
   expect(preparar1).toHaveLength(1);
@@ -563,7 +563,7 @@ test("preparar: os jogadores baixam os pacotes cifrados antes; a troca não baix
   await expect(p.getByTestId("cena-progresso-cena-covil")).toContainText("8 arquivos", {
     timeout: 60_000,
   });
-  await expect(p.getByTestId("cena-progresso-cena-covil")).toContainText("3/7", {
+  await expect(p.getByTestId("cena-progresso-cena-covil")).toContainText("3/3", {
     timeout: 60_000,
   });
   const preparar2 = doTipo(mestre.enviados, "cena.preparar");

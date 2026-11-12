@@ -7,6 +7,7 @@ import {
   ID_DA_MESA,
   intencaoCrua,
   test,
+  tornarMembros,
   USUARIOS,
 } from "./ajudas";
 import { abrirHandout, criarHandoutPelaSala, mandar } from "./ajudasFicha";
@@ -242,7 +243,11 @@ test("promover um jogador a mestre; o último mestre não se rebaixa", async ({ 
   await expect(mestre.pagina.getByTestId("papel-mestre")).toHaveValue("mestre");
 });
 
-test("frames recebidos pelo jogador nunca contêm o handout do mestre", async ({ mesa }) => {
+test("frames recebidos pelo jogador nunca contêm o handout do mestre", async ({
+  mesa,
+  request,
+}) => {
+  await tornarMembros(request, "jogador-2");
   const mestre = await mesa.entrar("mestre");
   const segredo = await criarHandoutPelaSala(mestre.pagina, {
     titulo: "SEGREDO-TITULO-1",
@@ -305,6 +310,7 @@ test("presença: ao fechar a aba o outro vê reconectando e depois offline", asy
 });
 
 test("exportar → zerar → importar devolve tudo igual", async ({ mesa, request }) => {
+  await tornarMembros(request, "jogador-1", "jogador-4");
   const mestre = await mesa.entrar("mestre");
   const daMesa = await criarHandoutPelaSala(mestre.pagina, {
     titulo: "Nota da mesa exportada",
@@ -343,6 +349,8 @@ test("exportar → zerar → importar devolve tudo igual", async ({ mesa, reques
 
   // apaga tudo: a mesa volta ao seed
   await request.post("/teste/zerar");
+  // o zerar também esquece quem tinha entrado (V7): o jogador 1 entra de novo para aparecer nos Papéis
+  await tornarMembros(request, "jogador-1");
   await abrirAba(mestre.pagina, "fichas");
   await expect(mestre.pagina.getByTestId(`handout-nome-${daMesa}`)).toHaveCount(0);
   await abrirAba(mestre.pagina, "mesa");

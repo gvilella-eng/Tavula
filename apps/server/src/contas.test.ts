@@ -78,6 +78,17 @@ async function jogadorAceito(
   return p.valor.id;
 }
 
+/** Uma mesa com vagas escondidas, como a campanha real (as vagas "Jogador N" vêm da semente). */
+function usuariosComVagas() {
+  return [
+    ...estadoDeMesaNova().usuarios,
+    { id: "jogador-1", nome: "Jogador 1", papel: "jogador" as const, cor: "#3cb44b" },
+    { id: "jogador-2", nome: "Jogador 2", papel: "jogador" as const, cor: "#4363d8" },
+    { id: "jogador-3", nome: "Jogador 3", papel: "jogador" as const, cor: "#f58231" },
+    { id: "jogador-4", nome: "Jogador 4", papel: "jogador" as const, cor: "#911eb4" },
+  ];
+}
+
 describe("hash e comparação", () => {
   it("o hash é SHA-256(sal || derivada): muda com o sal e com a derivada", async () => {
     const sal1 = new Uint8Array(16).fill(1);
@@ -169,7 +180,7 @@ describe("migração das contas", () => {
     b.migrar();
     b.salvarTudo({ ...estadoDeMesaNova() } as Estado);
     const e = b.carregar();
-    expect(e?.usuarios.length).toBe(5);
+    expect(e?.usuarios.length).toBe(1);
     void semente;
   });
 });
@@ -577,13 +588,28 @@ describe("esqueci a senha e redefinição aprovada pelo mestre", () => {
   });
 });
 
+describe("V7: quem é membro (conta ativa)", () => {
+  it("só o mestre e as contas ativas contam; pedido pendente e conta removida não", async () => {
+    const { contas } = await mesaComMestre();
+    expect([...contas.usuariosComContaAtiva()]).toEqual(["mestre"]);
+    const p = await contas.pedir({ login: "bia", nome: "Bia", derivada: SENHA_B }, "1.1.1.1", T0);
+    if (!p.ok) throw new Error("pedir");
+    expect(contas.usuariosComContaAtiva().has("jogador-2")).toBe(false);
+    expect(contas.aceitar(p.valor.id, "jogador-2").ok).toBe(true);
+    expect(contas.usuariosComContaAtiva().has("jogador-2")).toBe(true);
+    // remover a conta esconde a vaga de novo
+    expect(contas.remover(p.valor.id).ok).toBe(true);
+    expect(contas.usuariosComContaAtiva().has("jogador-2")).toBe(false);
+  });
+});
+
 describe("o que o mestre vê e o que nunca sai", () => {
   it("a lista do mestre só tem id, login, nome, vaga, status e último acesso (nada de sal, hash ou token)", async () => {
     const { contas } = await mesaComMestre();
     await jogadorAceito(contas, "ana", SENHA_B, "jogador-1");
     const login = await contas.entrar({ login: "ana", derivada: SENHA_B }, "2.2.2.2", T0 + 5 * MIN);
     if (!login.ok) throw new Error("entrar");
-    const lista = contas.listarParaMestre(estadoDeMesaNova().usuarios);
+    const lista = contas.listarParaMestre(usuariosComVagas());
     const texto = JSON.stringify(lista);
     for (const segredo of [
       SENHA_A,
