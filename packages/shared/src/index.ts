@@ -9,6 +9,7 @@ export * from "./compendio.ts";
 export * from "./compendioParaFicha.ts";
 export * from "./condicoes.ts";
 export { nomeDaSala, PORTA_SALA, PORTA_SALA_E2E, PORTA_WEB, PORTA_WEB_E2E } from "./constantes.ts";
+export * from "./contas.ts";
 export * from "./dados.ts";
 export * from "./desenho.ts";
 export * from "./desenhonucleo.ts";

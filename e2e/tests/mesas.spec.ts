@@ -57,6 +57,16 @@ test("criar uma mesa mostra o id grande, copia o id e o link e abre uma mesa vaz
     await p.goto("/");
     await expect(p.getByTestId("inicio-criar-botao")).toBeDisabled();
     await p.getByTestId("inicio-criar-nome").fill("Masmorra do teste");
+    // C2: a mesa nasce com a conta do mestre (login, nome e senha com confirmação)
+    await p.getByTestId("inicio-criar-login").fill("vila");
+    await p.getByTestId("inicio-criar-nome-do-mestre").fill("Vilela");
+    await p.getByTestId("inicio-criar-senha").fill("senha-boa-1");
+    await p.getByTestId("inicio-criar-confirmar").fill("senha-boa-2");
+    await p.getByTestId("inicio-criar-botao").click();
+    await expect(p.getByTestId("inicio-criar-erro")).toHaveText(
+      "A confirmação não é igual à senha.",
+    );
+    await p.getByTestId("inicio-criar-confirmar").fill("senha-boa-1");
     await p.getByTestId("inicio-criar-botao").click();
 
     const idGrande = p.getByTestId("inicio-criada-id");
@@ -75,18 +85,23 @@ test("criar uma mesa mostra o id grande, copia o id e o link e abre uma mesa vaz
 
     await p.getByTestId("inicio-abrir-mesa").click();
     await expect(p).toHaveURL(new RegExp(`/m/${id}$`));
-    // a escolha de usuário de sempre: o mestre e 4 vagas, nada da semente de exemplo
-    await expect(p.getByTestId("entrada-nome-da-mesa")).toHaveText("Masmorra do teste");
-    await expect(p.getByTestId("entrar-mestre")).toBeVisible();
-    await expect(p.getByTestId("entrar-jogador-4")).toBeVisible();
-    await expect(p.getByTestId("entrar-jogador-5")).toHaveCount(0);
-    await expect(p).toHaveTitle("Távola · Masmorra do teste");
-
-    await p.getByTestId("entrar-mestre").click();
+    // a sessão da conta já está aberta: entra direto na mesa vazia, como mestre
     await expect(p.getByTestId("status-conexao")).toHaveText("conectado");
     await esperarMapa(p);
     expect(await tokensDe(p)).toEqual([]);
+    await expect(p.getByTestId("eu-nome")).toHaveText("Vilela");
     await expect(p).toHaveTitle(/^Távola · Masmorra do teste/);
+
+    // num navegador sem sessão: a tela de entrada da mesa e, só em MODO=teste, a escolha de usuário de
+    // sempre (o mestre e 4 vagas, nada da semente de exemplo)
+    const outro = await mesa.abrir();
+    await outro.pagina.goto(`/m/${id}`);
+    await expect(outro.pagina.getByTestId("entrada-nome-da-mesa")).toHaveText("Masmorra do teste");
+    await expect(outro.pagina.getByTestId("entrada-login")).toBeVisible();
+    await expect(outro.pagina.getByTestId("entrar-mestre")).toBeVisible();
+    await expect(outro.pagina.getByTestId("entrar-jogador-4")).toBeVisible();
+    await expect(outro.pagina.getByTestId("entrar-jogador-5")).toHaveCount(0);
+    await expect(outro.pagina).toHaveTitle("Távola · Masmorra do teste");
   } finally {
     await mesa.fechar();
   }

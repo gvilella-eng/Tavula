@@ -44,7 +44,20 @@ export class ArmazemDeMemoria {
     return this.banco;
   }
 
-  async ler(chave: string): Promise<RegistroDeMemoria | undefined> {
+  /**
+   * Lê a memória de `chave`. Se não há e vem `chaveAntiga` (a mesa legada, de antes de a chave levar o id da
+   * mesa), lê a antiga e a COPIA para a chave nova: a antiga fica onde estava (só se acrescenta) e o que o
+   * jogador já explorou não se perde.
+   */
+  async ler(chave: string, chaveAntiga?: string): Promise<RegistroDeMemoria | undefined> {
+    const atual = await this.lerUm(chave);
+    if (atual || !chaveAntiga) return atual;
+    const antigo = await this.lerUm(chaveAntiga);
+    if (antigo) await this.gravar(chave, antigo);
+    return antigo;
+  }
+
+  private async lerUm(chave: string): Promise<RegistroDeMemoria | undefined> {
     const banco = await this.abrir();
     if (banco) {
       try {
@@ -82,8 +95,15 @@ export class ArmazemDeMemoria {
   }
 }
 
-/** Chave da memória: quem e qual cena. */
-export const chaveDaMemoria = (usuarioId: string, cenaId: string) => `${usuarioId}|${cenaId}`;
+/**
+ * Chave da memória: a mesa, quem e qual cena. Os ids de usuário (`mestre`, `jogador-1`) e de cena se repetem
+ * entre mesas; sem o id da mesa, a área explorada de uma vazaria para outra (C2).
+ */
+export const chaveDaMemoria = (mesaId: string, usuarioId: string, cenaId: string) =>
+  `${mesaId}|${usuarioId}|${cenaId}`;
+
+/** A chave de antes do C2 (sem a mesa): só a mesa legada a herda, uma vez, ao abrir a cena. */
+export const chaveAntigaDaMemoria = (usuarioId: string, cenaId: string) => `${usuarioId}|${cenaId}`;
 
 /** O registro lido ainda serve para esta cena (mesmo tamanho de grade)? */
 export function registroServe(

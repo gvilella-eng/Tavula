@@ -1,4 +1,5 @@
 import {
+  type AvisoDeContas,
   type CodigoDeErro,
   type Desenho,
   type Estado,
@@ -95,6 +96,8 @@ type Opcoes = {
   mesaId: string;
   aoExportar: (exportacao: Exportacao) => void;
   aoPerderSessao: () => void;
+  /** O mestre mudou o nome da mesa (frame `mesa.renomeada`): vale para quem já está nela, sem recarregar. */
+  aoRenomear?: (nome: string) => void;
 };
 
 /** Conexão WebSocket com a sala (mesma origem, via proxy do Vite), com reconexão automática. */
@@ -108,6 +111,8 @@ export function useSala(opcoes: Opcoes) {
   const [preparos, setPreparos] = useState<ProgressoDePreparo[]>([]);
   // Há mensagens visíveis mais antigas que as carregadas? (o snapshot traz no máximo 200)
   const [chatTemMais, setChatTemMais] = useState(false);
+  // C2, só o mestre recebe: quantos pedidos de entrada e de redefinição esperam (cada frame é um objeto novo).
+  const [avisoDeContas, setAvisoDeContas] = useState<AvisoDeContas | null>(null);
   const socket = useRef<WebSocket | null>(null);
   const ouvintes = useRef(new Set<(o: Ocorrencia) => void>());
   const opcoesAtuais = useRef(opcoes);
@@ -188,6 +193,12 @@ export function useSala(opcoes: Opcoes) {
         }
         case "preparo.progresso":
           setPreparos(m.dados.preparos);
+          break;
+        case "contas.aviso":
+          setAvisoDeContas(m.dados);
+          break;
+        case "mesa.renomeada":
+          opcoesAtuais.current.aoRenomear?.(m.dados.nome);
           break;
         case "asset.meta":
         case "asset.enviar":
@@ -319,6 +330,7 @@ export function useSala(opcoes: Opcoes) {
     dispensarAviso,
     preparos,
     chatTemMais,
+    avisoDeContas,
     enviar,
     enviarBinario,
     bufferizado,

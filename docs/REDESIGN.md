@@ -1106,6 +1106,32 @@ Primeiro lote do marco "Mesas e contas" (PROJETO 4.14): várias mesas no mesmo s
 - Contas, pedidos de entrada, sessões e redefinição (C2); pasta do mestre com chave e código de recuperação (C3).
 - Apagar ou esconder uma mesa da lista do servidor (a lista local do navegador tem `esquecerMesa`, ainda sem botão).
 
+## C2 — como ficou (2026-11-12)
+
+Segundo lote do marco "Mesas e contas" (PROJETO 4.14): contas por mesa, pedidos de entrada, sessões, limite de tentativas e redefinição aprovada pelo mestre.
+
+**O que foi feito**
+- `packages/shared/src/contas.ts` (derivação, validações, regras de limite e de sessão, esquemas dos corpos, textos de erro) e dois frames novos em `protocolo.ts` (`contas.aviso`, `mesa.renomeada`).
+- Servidor: `contas.ts` (`ContasDaMesa`), `autenticacao.ts` (cookies), migração 10 do `Armazenamento`, `Sala` com as rotas de conta e a identificação por sessão, `Diretorio` com o id escolhido pelo navegador, Worker com a lista fechada de rotas e os cabeçalhos internos.
+- Web: `contas/EntradaDaMesa.tsx` (entrar, pedir, esqueci, redefinir, conta do mestre na legada), `contas/SecaoDeContas.tsx`, `contas/TrocarSenha.tsx`, `contas/CampoDeConta.tsx`, o formulário de criar mesa, o aviso no topo e o selo na aba Mesa, memória do mapa por mesa, nome da mesa ao vivo, lista em ordem de uso.
+
+**Decisões (assumido)**
+- (assumido) O sal da derivação normaliza o login (minúsculas, sem espaços nas pontas) e a senha entra em NFKC.
+- (assumido) O navegador sorteia o id da mesa nova; sem `MODO=teste`, uma mesa nova sem conta de mestre é recusada.
+- (assumido) A sessão vale 30 dias, renovada com o uso no máximo uma vez por hora; até 10 sessões por conta.
+- (assumido) Esperas da conta: 1, 5, 15 e 60 minutos (continua em 60); IP: 30 falhas em 15 minutos bloqueiam por 15; pedidos: 10 pendentes por mesa e 3 por IP por hora; "esqueci a senha": 5 por IP por hora; pedir de novo depois de recusado: 10 minutos.
+- (assumido) Só se pode aprovar a redefinição de quem a pediu; ela vale 30 minutos e uma vez só; depois de definir a senha nova a pessoa já entra.
+- (assumido) A vaga ganha o nome de exibição ao aceitar e ao trocar de vaga (inclusive a do mestre ao criar a conta); a vaga antiga fica com o nome. "Nova vaga" cria `jogador-N` (no máximo 12 vagas de jogador).
+- (assumido) A conta do mestre não se recusa nem se remove; a conta de jogador cuja vaga virar mestre continua sendo conta de jogador.
+- (assumido) Importar uma campanha mantém as contas; a que ficou sem vaga entra de novo só quando o mestre a liga a outra.
+- (assumido) A conta do mestre da legada só se cria de requisição local (host loopback e sem `CF-Connecting-IP`, ou com ele em loopback).
+- (assumido) A lista "Mesas neste computador" põe primeiro as usadas mais recentemente neste navegador; as nunca abertas vêm depois, a legada na frente.
+- (assumido) A escolha de usuário de teste aparece abaixo dos formulários na tela de entrada quando o servidor roda com `MODO=teste` (os prints a escondem).
+
+**O que ficou para depois**
+- Pasta do mestre com chave e código de recuperação (C3), inclusive "Sou o mestre e esqueci a senha" (hoje só "em breve").
+- Mais de um mestre por mesa com conta, e promover um jogador a mestre pelo papel da conta (hoje o papel da conta é fixo na criação).
+
 ## Em aberto
 
 - **O plano R1 a R6 terminou** (R1, R2, R2b, R3, R4 em 2026-11-10; R5a, R5b, R6a e R6b em 2026-11-11). Agora o Vilella faz os ajustes

@@ -23,6 +23,23 @@ export function lerMesasLembradas(): MesaLembrada[] {
   }
 }
 
+/** Uma mesa da lista da tela inicial: o que o servidor sabe (ou só o id e o nome) e quando este navegador a abriu pela última vez. */
+export type MesaOrdenavel = { id: string; nome: string; legada?: boolean; ultimaVez?: number };
+
+/**
+ * A ordem da lista "Mesas neste computador" (C2): da aberta mais recentemente neste navegador para a mais
+ * antiga; as que nunca foram abertas aqui vêm depois, a legada primeiro e as outras na ordem em que o
+ * servidor as deu. (assumido)
+ */
+export function ordenarMesasPorUso<T extends MesaOrdenavel>(mesas: readonly T[]): T[] {
+  const comUso = mesas
+    .filter((m) => m.ultimaVez !== undefined)
+    .sort((a, b) => (b.ultimaVez ?? 0) - (a.ultimaVez ?? 0));
+  const semUso = mesas.filter((m) => m.ultimaVez === undefined);
+  const legadas = semUso.filter((m) => m.legada === true);
+  return [...comUso, ...legadas, ...semUso.filter((m) => m.legada !== true)];
+}
+
 /** Anota que a mesa foi aberta agora (e guarda o nome atual dela). */
 export function lembrarMesa(id: string, nome: string, agora = Date.now()): void {
   try {

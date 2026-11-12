@@ -1,4 +1,5 @@
 import {
+  type AvisoDeContas,
   alcanceDaMemoria,
   alcanceDeVisao,
   controlaToken,
@@ -116,12 +117,24 @@ function baixarExportacao(exportacao: Exportacao) {
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
+/** "1 pedido de entrada", "2 pedidos de entrada" e, se houver, "1 pedido de redefinição". */
+function textoDoAvisoDeContas(aviso: AvisoDeContas | null): string {
+  const partes: string[] = [];
+  const p = aviso?.pendentes ?? 0;
+  const r = aviso?.redefinicoes ?? 0;
+  if (p > 0) partes.push(`${p} ${p === 1 ? "pedido" : "pedidos"} de entrada`);
+  if (r > 0) partes.push(`${r} ${r === 1 ? "pedido" : "pedidos"} de redefinição`);
+  return partes.join(" e ");
+}
+
 const semAssinatura = () => () => {};
 const versaoZero = () => 0;
 
 type Props = {
   /** A mesa (id, nome e se é a legada) a que esta tela está ligada. */
   mesa: DadosDaMesa;
+  /** O login da conta de quem está na mesa (falta no login solto de teste); a troca de senha usa. */
+  login?: string | undefined;
   aoSair: () => void;
   aoPerderSessao: () => void;
   /** Vai para a tela inicial (`/`). */
@@ -140,7 +153,7 @@ type PedidoDeImagem = {
  * A mesa: quatro regiões fixas (topo, ferramentas, painel direito e, no meio, a área do mapa). Tudo o
  * que abre sobre o mapa fica dentro da área dele, sem cobrir as barras (REDESIGN.md, R2).
  */
-export function Mesa({ mesa, aoSair, aoPerderSessao, aoTrocarDeMesa, aoRenomear }: Props) {
+export function Mesa({ mesa, login, aoSair, aoPerderSessao, aoTrocarDeMesa, aoRenomear }: Props) {
   const {
     status,
     estado,
@@ -152,6 +165,7 @@ export function Mesa({ mesa, aoSair, aoPerderSessao, aoTrocarDeMesa, aoRenomear 
     dispensarAviso,
     preparos,
     chatTemMais,
+    avisoDeContas,
     enviar,
     enviarBinario,
     bufferizado,
@@ -161,6 +175,7 @@ export function Mesa({ mesa, aoSair, aoPerderSessao, aoTrocarDeMesa, aoRenomear 
     mesaId: mesa.id,
     aoExportar: baixarExportacao,
     aoPerderSessao,
+    aoRenomear,
   });
 
   const [ferramenta, setFerramenta] = useState<Ferramenta>("selecionar");
@@ -286,6 +301,8 @@ export function Mesa({ mesa, aoSair, aoPerderSessao, aoTrocarDeMesa, aoRenomear 
   const euId = eu?.id;
 
   const euMestre = eu?.papel === "mestre";
+  // C2: quantos pedidos de entrada e de redefinição de senha esperam o mestre (a sala avisa só a ele).
+  const pedidosDeConta = (avisoDeContas?.pendentes ?? 0) + (avisoDeContas?.redefinicoes ?? 0);
   // Algum mestre online? Enquanto a presença não chegou, supõe que sim (para não avisar à toa).
   const mestreOnline =
     Object.keys(presenca).length === 0 ||
@@ -581,7 +598,14 @@ export function Mesa({ mesa, aoSair, aoPerderSessao, aoTrocarDeMesa, aoRenomear 
   // iluminação dinâmica desligada, ou sem nenhum jogador (visão do mestre), fica toda clara.
   const iluminada = cena ? iluminacaoDinamicaLigada(cena) : true;
   const visaoCalculada: ConfigDeVisao = (() => {
-    const semMemoria = { ligada: false, tom: "#56627a", usuarioId: "", esquecimento: 0 };
+    const semMemoria = {
+      ligada: false,
+      tom: "#56627a",
+      usuarioId: "",
+      esquecimento: 0,
+      mesaId: mesa.id,
+      legada: mesa.legada,
+    };
     if (!estado || !eu || !cena || !iluminada) {
       return { modo: "claro", fontes: [], memoria: semMemoria };
     }
@@ -591,6 +615,8 @@ export function Mesa({ mesa, aoSair, aoPerderSessao, aoTrocarDeMesa, aoRenomear 
       tom: configLuz.tomDaMemoria,
       usuarioId: (usuarioVisto ?? eu).id,
       esquecimento: estado.memoriaEsquecida?.[cena.id] ?? 0,
+      mesaId: mesa.id,
+      legada: mesa.legada,
     };
     const donos = modoMestre
       ? estado.usuarios.filter((u) => u.papel === "jogador")
@@ -1068,6 +1094,8 @@ export function Mesa({ mesa, aoSair, aoPerderSessao, aoTrocarDeMesa, aoRenomear 
                 aoMudarEncaixe={mudarEncaixe}
                 aoSair={aoSair}
                 aoTrocarDeMesa={aoTrocarDeMesa}
+                mesaId={mesa.id}
+                login={login}
                 fontes={fontes}
                 gerente={gerente}
               />
@@ -1080,12 +1108,14 @@ export function Mesa({ mesa, aoSair, aoPerderSessao, aoTrocarDeMesa, aoRenomear 
                   id: "mesa",
                   titulo: "Mesa",
                   icone: <Settings2 size={20} />,
+                  selo: pedidosDeConta,
                   conteudo: (
                     <AbaMesa
                       mesa={mesa}
                       aoRenomear={aoRenomear}
                       estado={estado}
                       uso={uso}
+                      avisoDeContas={avisoDeContas}
                       enviar={enviar}
                     />
                   ),
@@ -1152,6 +1182,22 @@ export function Mesa({ mesa, aoSair, aoPerderSessao, aoTrocarDeMesa, aoRenomear 
               ) : undefined
             }
           >
+            {euMestre && pedidosDeConta > 0 && (
+              <button
+                type="button"
+                className="aviso-de-contas"
+                data-testid="aviso-de-contas"
+                onClick={() =>
+                  setPedidoDeAba((antes) => ({
+                    n: (antes?.n ?? 0) + 1,
+                    abaId: "mesa",
+                    secaoTestid: testidDaSecaoDaMesa("contas"),
+                  }))
+                }
+              >
+                {textoDoAvisoDeContas(avisoDeContas)}
+              </button>
+            )}
             <PresencaNoTopo usuarios={estado.usuarios} presenca={presenca} euId={eu.id} />
             <EstadoDaMesa
               pausada={estado.relogio.pausada}

@@ -1,6 +1,11 @@
 import { DurableObject } from "cloudflare:workers";
-import { ID_DA_MESA_LEGADA_DE_TESTE, nomeDeMesaValido, type ResumoDaMesa } from "@tabletop/shared";
-import { LIMITE_DE_MESAS_POR_HORA, RegistroDeMesas } from "./registroDeMesas";
+import {
+  ehIdDeMesa,
+  ID_DA_MESA_LEGADA_DE_TESTE,
+  nomeDeMesaValido,
+  type ResumoDaMesa,
+} from "@tabletop/shared";
+import { IdEmUso, LIMITE_DE_MESAS_POR_HORA, RegistroDeMesas } from "./registroDeMesas";
 
 function json(corpo: unknown, status = 200): Response {
   return new Response(JSON.stringify(corpo), {
@@ -45,7 +50,21 @@ export class Diretorio extends DurableObject<Env> {
   }
 
   private async criar(request: Request): Promise<Response> {
-    const { nome: bruto, ip } = (await request.json()) as { nome?: unknown; ip?: unknown };
+    const {
+      nome: bruto,
+      ip,
+      id: idBruto,
+      mestre,
+      seguro,
+    } = (await request.json()) as {
+      nome?: unknown;
+      ip?: unknown;
+      id?: unknown;
+      mestre?: unknown;
+      seguro?: unknown;
+    };
+    // O id vem do navegador (C2); o Worker já conferiu o formato. Sem id (MODO=teste, criação sem conta), a mesa sorteia.
+    const idEscolhido = typeof idBruto === "string" && ehIdDeMesa(idBruto) ? idBruto : undefined;
     const nome = nomeDeMesaValido(bruto);
     if (!nome) return json({ erro: "nome_invalido" }, 400);
     const quem = typeof ip === "string" && ip ? ip : "local";
@@ -54,20 +73,28 @@ export class Diretorio extends DurableObject<Env> {
     const agora = Date.now();
     if (this.registro.limiteAtingido(quem, agora, limite))
       return json({ erro: "muitas_mesas" }, 429);
-    const mesa = this.registro.criar(nome, quem, agora);
+    let mesa: ReturnType<RegistroDeMesas["criar"]>;
+    try {
+      mesa = this.registro.criar(nome, quem, agora, undefined, idEscolhido);
+    } catch (e) {
+      if (e instanceof IdEmUso) return json({ erro: "id_em_uso" }, 409);
+      throw e;
+    }
     // Só agora o Durable Object da mesa passa a existir (nasce vazio).
     const sala = this.env.SALA.get(this.env.SALA.idFromName(mesa.doNome));
     const r = await sala.fetch(
       new Request("https://sala/criar", {
         method: "POST",
-        body: JSON.stringify({ nome }),
+        body: JSON.stringify({ nome, mesaId: mesa.id, mestre, seguro: seguro === true }),
       }),
     );
     if (!r.ok) {
       this.registro.esquecer(mesa.id);
       return json({ erro: "falha_ao_criar" }, 500);
     }
-    return json({ id: mesa.id, nome }, 201);
+    // O cookie da sessão do mestre vai só até o Worker (que o põe no cabeçalho e o tira do corpo).
+    const { cookie } = (await r.json()) as { cookie?: string | null };
+    return json({ id: mesa.id, nome, cookie: cookie ?? null }, 201);
   }
 
   private async renomear(id: string, request: Request): Promise<Response> {

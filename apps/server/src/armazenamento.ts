@@ -180,6 +180,44 @@ const MIGRACOES: Migracao[] = [
     }
     sql.exec("DELETE FROM entidades WHERE colecao = 'notas'");
   },
+  // C2: contas por mesa, sessões e os registros do limite de tentativas. Só tabelas novas, fora de
+  // `entidades` (que a importação apaga e a exportação lê): nada aqui entra no estado da mesa, no snapshot,
+  // em frame algum nem na exportação. O banco antigo (a campanha real) ganha as tabelas vazias.
+  (sql) => {
+    sql.exec(`CREATE TABLE IF NOT EXISTS contas (
+      id TEXT PRIMARY KEY,
+      login TEXT NOT NULL,
+      login_norm TEXT NOT NULL UNIQUE,
+      nome_exibicao TEXT NOT NULL,
+      sal TEXT NOT NULL,
+      hash TEXT NOT NULL,
+      papel TEXT NOT NULL,
+      usuario_id TEXT,
+      status TEXT NOT NULL,
+      criada_em INTEGER NOT NULL,
+      ultimo_acesso INTEGER,
+      redefinicao_ate INTEGER,
+      redefinicao_pedida_em INTEGER,
+      recusada_em INTEGER,
+      falhas INTEGER NOT NULL DEFAULT 0,
+      bloqueios INTEGER NOT NULL DEFAULT 0,
+      bloqueada_ate INTEGER NOT NULL DEFAULT 0
+    )`);
+    sql.exec(`CREATE TABLE IF NOT EXISTS sessoes (
+      hash_token TEXT PRIMARY KEY,
+      conta_id TEXT NOT NULL,
+      criada_em INTEGER NOT NULL,
+      ultimo_uso INTEGER NOT NULL,
+      expira INTEGER NOT NULL
+    )`);
+    sql.exec("CREATE INDEX IF NOT EXISTS sessoes_conta ON sessoes (conta_id)");
+    sql.exec(`CREATE TABLE IF NOT EXISTS limites_ip (
+      tipo TEXT NOT NULL,
+      ip TEXT NOT NULL,
+      em INTEGER NOT NULL
+    )`);
+    sql.exec("CREATE INDEX IF NOT EXISTS limites_ip_busca ON limites_ip (tipo, ip, em)");
+  },
 ];
 
 /** Um arquivo pré-enviado de uma cena. */
@@ -448,6 +486,11 @@ export class Armazenamento {
     for (const d of estado.desenhos) this.gravarDesenho(d);
     this.gravarMeta("permissoes", JSON.stringify(estado.permissoes));
     this.gravarMeta("seq", String(estado.seq));
+  }
+
+  /** C2: as vagas mudaram fora de uma intenção (conta aceita, vaga nova, nome da vaga): grava as que mudaram. */
+  gravarUsuarios(usuarios: Usuario[]): void {
+    for (const u of usuarios) this.gravarEntidade("usuarios", u.id, u);
   }
 
   /** Grava só o que os eventos mudaram, mais o `seq`. */

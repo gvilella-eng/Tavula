@@ -9,7 +9,7 @@ import { describe, expect, it } from "vitest";
 import semente from "../../../fixtures/campanha.seed.json";
 import { Armazenamento } from "./armazenamento";
 import { carregarOuSemear, criarMesaNova } from "./inicializacao";
-import { LIMITE_DE_MESAS_POR_HORA, RegistroDeMesas } from "./registroDeMesas";
+import { IdEmUso, LIMITE_DE_MESAS_POR_HORA, RegistroDeMesas } from "./registroDeMesas";
 
 // O SQLite do Durable Object só existe no workerd. Aqui o mesmo adaptador do `armazenamento.test.ts`,
 // sobre o `node:sqlite` em memória.
@@ -109,6 +109,19 @@ describe("RegistroDeMesas (diretório)", () => {
     const ids = ["aaaa-aaaa-aaaa", "bbbb-bbbb-bbbb"];
     const segunda = registro.criar("b", "ip", 2, () => ids.shift() ?? "cccc-cccc-cccc");
     expect(segunda.id).toBe("bbbb-bbbb-bbbb");
+  });
+
+  it("o id vem do navegador (C2): vale se estiver livre; id repetido dá IdEmUso e não registra nada", async () => {
+    const { sql } = await abrirBanco();
+    const registro = new RegistroDeMesas(sql as never);
+    registro.iniciar();
+    const nova = registro.criar("Com id do navegador", "1.1.1.1", 1, undefined, "k7m2-qx9p-4tdn");
+    expect(nova.id).toBe("k7m2-qx9p-4tdn");
+    expect(nova.doNome).toBe("mesa:k7m2-qx9p-4tdn");
+    expect(() => registro.criar("Outra", "1.1.1.1", 2, undefined, "k7m2-qx9p-4tdn")).toThrow(
+      IdEmUso,
+    );
+    expect(registro.listar().filter((m) => m.nome === "Outra")).toEqual([]);
   });
 
   it("o limite por IP vale na janela de uma hora e não mistura IPs", async () => {

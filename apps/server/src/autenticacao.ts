@@ -1,20 +1,17 @@
-/**
- * Quem é o usuário desta requisição? Em desenvolvimento, o cookie `tabletop_sessao` basta (seção 4.6 do
- * plano); desde o C1 ele vale por mesa (`Path=/api/m/<id>`). Um login real troca só a implementação
- * desta interface.
- */
-export interface Autenticacao {
-  /** Id do usuário indicado pela requisição, ou `null`. Não confere se o usuário existe. */
-  identificar(request: Request): string | null;
-  /** Valor do cabeçalho `Set-Cookie` que registra a entrada do usuário na mesa `mesaId`. */
-  cabecalhoDeEntrada(usuarioId: string, mesaId: string): string;
-  /** Valores do cabeçalho `Set-Cookie` que apagam a sessão na mesa `mesaId`. */
-  cabecalhosDeSaida(mesaId: string): string[];
-}
+import { SESSAO_VALE_MS } from "@tabletop/shared";
 
-/** O cookie de antes do C1 (`Path=/`, valia em toda parte): nunca mais é lido, só apagado na saída. */
+/**
+ * Cookies da mesa (C2). A sessão de verdade é o `tavola_sessao`: 32 bytes aleatórios em base64url; no
+ * banco da sala fica só o hash dele. `HttpOnly`, `SameSite=Lax`, `Path=/api/m/<id>` (vale só para a
+ * mesa) e `Secure` quando a requisição veio por https. Vale 30 dias, renovada com o uso.
+ *
+ * O `tabletop_sessao` (o id do usuário, em texto) é o login solto de desenvolvimento e **só existe com
+ * `MODO=teste`**, para os E2E antigos continuarem escolhendo o usuário. O `tabletop_usuario` de antes do
+ * C1 (`Path=/`) nunca mais é lido, só apagado na saída.
+ */
+export const NOME_DO_COOKIE = "tavola_sessao";
+export const COOKIE_DE_TESTE = "tabletop_sessao";
 export const COOKIE_ANTIGO = "tabletop_usuario";
-export const NOME_DO_COOKIE = "tabletop_sessao";
 
 export function lerCookie(cabecalho: string | null, nome: string): string | null {
   if (!cabecalho) return null;
@@ -30,20 +27,24 @@ export function lerCookie(cabecalho: string | null, nome: string): string | null
   return null;
 }
 
-export class AutenticacaoDev implements Autenticacao {
-  /** O navegador só manda o cookie de uma mesa para as rotas dela (o `Path`); aqui basta lê-lo. */
-  identificar(request: Request): string | null {
-    return lerCookie(request.headers.get("Cookie"), NOME_DO_COOKIE);
-  }
+const SEGUNDOS_DA_SESSAO = Math.floor(SESSAO_VALE_MS / 1000);
 
-  cabecalhoDeEntrada(usuarioId: string, mesaId: string): string {
-    return `${NOME_DO_COOKIE}=${encodeURIComponent(usuarioId)}; Path=/api/m/${mesaId}; HttpOnly; SameSite=Lax; Max-Age=31536000`;
-  }
+/** O `Set-Cookie` que entrega o token de sessão da mesa `mesaId`. */
+export function cookieDeSessao(token: string, mesaId: string, seguro: boolean): string {
+  return `${NOME_DO_COOKIE}=${token}; Path=/api/m/${mesaId}; HttpOnly; SameSite=Lax; Max-Age=${SEGUNDOS_DA_SESSAO}${seguro ? "; Secure" : ""}`;
+}
 
-  cabecalhosDeSaida(mesaId: string): string[] {
-    return [
-      `${NOME_DO_COOKIE}=; Path=/api/m/${mesaId}; HttpOnly; SameSite=Lax; Max-Age=0`,
-      `${COOKIE_ANTIGO}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`,
-    ];
-  }
+/** Os `Set-Cookie` que apagam a sessão (e o login de teste e o cookie antigo) da mesa `mesaId`. */
+export function cookiesDeSaida(mesaId: string, seguro: boolean): string[] {
+  const fim = `HttpOnly; SameSite=Lax; Max-Age=0${seguro ? "; Secure" : ""}`;
+  return [
+    `${NOME_DO_COOKIE}=; Path=/api/m/${mesaId}; ${fim}`,
+    `${COOKIE_DE_TESTE}=; Path=/api/m/${mesaId}; ${fim}`,
+    `${COOKIE_ANTIGO}=; Path=/; ${fim}`,
+  ];
+}
+
+/** O login solto de desenvolvimento (só `MODO=teste`): o id do usuário no cookie, por mesa. */
+export function cookieDeTeste(usuarioId: string, mesaId: string): string {
+  return `${COOKIE_DE_TESTE}=${encodeURIComponent(usuarioId)}; Path=/api/m/${mesaId}; HttpOnly; SameSite=Lax; Max-Age=31536000`;
 }

@@ -1,7 +1,16 @@
-import type { ResumoDaMesa } from "@tabletop/shared";
+import {
+  derivarSenha,
+  gerarIdDeMesa,
+  type ListaDeContas,
+  mensagemDeErroDeConta,
+  normalizarLogin,
+  type ResumoDaMesa,
+  type SituacaoDaMesa,
+} from "@tabletop/shared";
 import { atrasoDaTentativa } from "./useSala";
 
-export type UsuarioDaEntrada = { id: string; nome: string; cor: string };
+/** `login`: o login da conta (a sessão de verdade); falta no login solto de teste. */
+export type UsuarioDaEntrada = { id: string; nome: string; cor: string; login?: string };
 
 /**
  * A sala não respondeu: ainda está subindo (no `pnpm dev` o Vite fica pronto antes do wrangler) ou
@@ -94,19 +103,70 @@ export async function consultarMesa(id: string): Promise<DadosDaMesa | null> {
   return (await r.json()) as DadosDaMesa;
 }
 
-/** Cria uma mesa e devolve o id dela. Erros com mensagem pronta para a tela. */
-export async function criarMesa(nome: string): Promise<ResumoDaMesa> {
-  const r = await pedir("/api/mesas", {
+/** Um erro de conta ou de mesa com o texto pronto para a tela (o servidor manda `mensagem`; sem ela, o texto do código). */
+export class ErroDeConta extends Error {
+  constructor(
+    readonly codigo: string,
+    mensagem: string,
+    readonly minutos?: number,
+  ) {
+    super(mensagem);
+  }
+}
+
+async function lerErro(r: Response): Promise<ErroDeConta> {
+  let corpo: { erro?: string; mensagem?: string; minutos?: number } = {};
+  try {
+    corpo = (await r.json()) as typeof corpo;
+  } catch {
+    // sem corpo
+  }
+  const codigo = corpo.erro ?? "desconhecido";
+  return new ErroDeConta(
+    codigo,
+    corpo.mensagem ?? mensagemDeErroDeConta(codigo, corpo.minutos),
+    corpo.minutos,
+  );
+}
+
+/** POST em JSON; resposta fora de 2xx vira `ErroDeConta` com a mensagem do servidor. */
+async function postar(url: string, corpo: object): Promise<Response> {
+  const r = await pedir(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ nome }),
+    body: JSON.stringify(corpo),
   });
-  if (r.status === 429) {
-    throw new Error("Você criou mesas demais por agora. Tente de novo daqui a uma hora.");
+  if (!r.ok) throw await lerErro(r);
+  return r;
+}
+
+/** Cria uma mesa com a conta do mestre e devolve o id dela. A senha é esticada aqui (PBKDF2) e nunca sai do navegador; o id é sorteado aqui porque entra no sal. */
+export async function criarMesa(
+  nome: string,
+  mestre: { login: string; nome: string; senha: string },
+): Promise<ResumoDaMesa> {
+  for (let tentativa = 0; ; tentativa++) {
+    const id = gerarIdDeMesa();
+    const derivada = await derivarSenha(mestre.senha, id, mestre.login);
+    try {
+      const r = await postar("/api/mesas", {
+        id,
+        nome,
+        mestre: { login: normalizarLogin(mestre.login), nome: mestre.nome, derivada },
+      });
+      return (await r.json()) as ResumoDaMesa;
+    } catch (e) {
+      // O id já existia (quase impossível): sorteia outro.
+      if (e instanceof ErroDeConta && e.codigo === "id_em_uso" && tentativa < 3) continue;
+      if (e instanceof ErroDeConta && e.codigo === "nome_invalido") {
+        throw new Error("O nome da mesa precisa ter de 1 a 60 caracteres.");
+      }
+      if (e instanceof ErroDeConta && e.codigo === "muitas_mesas") {
+        throw new Error("Você criou mesas demais por agora. Tente de novo daqui a uma hora.");
+      }
+      throw e;
+    }
   }
-  if (r.status === 400) throw new Error("O nome da mesa precisa ter de 1 a 60 caracteres.");
-  if (!r.ok) throw new Error("Não foi possível criar a mesa.");
-  return (await r.json()) as ResumoDaMesa;
 }
 
 /** A lista de mesas do servidor, ou `null` se ele não lista (na internet não lista: ninguém descobre as mesas dos outros). */
@@ -127,4 +187,112 @@ export async function renomearMesa(mesaId: string, nome: string): Promise<string
   if (r.status === 400) throw new Error("O nome da mesa precisa ter de 1 a 60 caracteres.");
   if (!r.ok) throw new Error("Não foi possível mudar o nome.");
   return ((await r.json()) as ResumoDaMesa).nome;
+}
+
+// --- Contas (C2) -----------------------------------------------------------------------------------
+
+/** O que a tela de entrada precisa saber antes de mostrar os formulários. */
+export async function situacaoDaMesa(mesaId: string): Promise<SituacaoDaMesa> {
+  const r = await pedir(daMesa(mesaId, "situacao"));
+  if (r.status === 404) throw new MesaInexistente();
+  if (!r.ok) throw new Error("A sala não respondeu.");
+  return (await r.json()) as SituacaoDaMesa;
+}
+
+/** Entrar com login e senha (a senha vira a derivada aqui e só ela é enviada). */
+export async function entrarComConta(mesaId: string, login: string, senha: string): Promise<void> {
+  const derivada = await derivarSenha(senha, mesaId, login);
+  await postar(daMesa(mesaId, "conta/entrar"), { login: normalizarLogin(login), derivada });
+}
+
+/** Pedir para entrar na mesa: o mestre precisa aceitar. */
+export async function pedirParaEntrar(
+  mesaId: string,
+  dados: { nome: string; login: string; senha: string },
+): Promise<void> {
+  const derivada = await derivarSenha(dados.senha, mesaId, dados.login);
+  await postar(daMesa(mesaId, "conta/pedir"), {
+    login: normalizarLogin(dados.login),
+    nome: dados.nome,
+    derivada,
+  });
+}
+
+/** "Esqueci a senha": avisa o mestre (a resposta é a mesma existindo o login ou não). */
+export async function esqueciASenha(mesaId: string, login: string): Promise<void> {
+  await postar(daMesa(mesaId, "conta/esqueci"), { login: normalizarLogin(login) });
+}
+
+/** Define a senha nova depois de o mestre liberar (vale 30 minutos). */
+export async function definirNovaSenha(
+  mesaId: string,
+  login: string,
+  senha: string,
+): Promise<void> {
+  const derivada = await derivarSenha(senha, mesaId, login);
+  await postar(daMesa(mesaId, "conta/redefinir"), { login: normalizarLogin(login), derivada });
+}
+
+/** Trocar a própria senha (as outras sessões caem). */
+export async function trocarSenha(
+  mesaId: string,
+  login: string,
+  atual: string,
+  nova: string,
+): Promise<void> {
+  const [a, n] = await Promise.all([
+    derivarSenha(atual, mesaId, login),
+    derivarSenha(nova, mesaId, login),
+  ]);
+  await postar(daMesa(mesaId, "conta/trocar-senha"), { atual: a, nova: n });
+}
+
+/** A mesa legada sem conta de mestre: cria a conta dele (só de uma requisição local). */
+export async function criarContaDoMestre(
+  mesaId: string,
+  dados: { login: string; nome: string; senha: string },
+): Promise<void> {
+  const derivada = await derivarSenha(dados.senha, mesaId, dados.login);
+  await postar(daMesa(mesaId, "conta/mestre-inicial"), {
+    login: normalizarLogin(dados.login),
+    nome: dados.nome,
+    derivada,
+  });
+}
+
+/** As contas da mesa, como o mestre as vê. */
+export async function listarContas(mesaId: string): Promise<ListaDeContas> {
+  const r = await pedir(daMesa(mesaId, "contas"));
+  if (!r.ok) throw await lerErro(r);
+  return (await r.json()) as ListaDeContas;
+}
+
+export type EscolhaDeVaga = { usuarioId: string } | { nova: true };
+
+export async function aceitarConta(
+  mesaId: string,
+  contaId: string,
+  vaga: EscolhaDeVaga,
+): Promise<void> {
+  await postar(daMesa(mesaId, `contas/${contaId}/aceitar`), { vaga });
+}
+
+export async function recusarConta(mesaId: string, contaId: string): Promise<void> {
+  await postar(daMesa(mesaId, `contas/${contaId}/recusar`), {});
+}
+
+export async function removerConta(mesaId: string, contaId: string): Promise<void> {
+  await postar(daMesa(mesaId, `contas/${contaId}/remover`), {});
+}
+
+export async function trocarVagaDaConta(
+  mesaId: string,
+  contaId: string,
+  usuarioId: string,
+): Promise<void> {
+  await postar(daMesa(mesaId, `contas/${contaId}/vaga`), { usuarioId });
+}
+
+export async function liberarRedefinicao(mesaId: string, contaId: string): Promise<void> {
+  await postar(daMesa(mesaId, `contas/${contaId}/liberar-redefinicao`), {});
 }

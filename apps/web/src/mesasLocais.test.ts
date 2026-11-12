@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { esquecerMesa, lembrarMesa, lerMesasLembradas } from "./mesasLocais";
+import { esquecerMesa, lembrarMesa, lerMesasLembradas, ordenarMesasPorUso } from "./mesasLocais";
 
 // O ambiente de unidade é o Node: um localStorage mínimo em memória.
 class ArmazemFalso {
@@ -55,5 +55,35 @@ describe("mesas lembradas", () => {
     );
     (globalThis as { localStorage?: unknown }).localStorage = a;
     expect(lerMesasLembradas()).toEqual([{ id: "x", nome: "X", ultimaVez: 5 }]);
+  });
+});
+
+describe("ordem da lista de mesas", () => {
+  it("da usada mais recentemente para a mais antiga; as nunca abertas depois, a legada primeiro", () => {
+    const lista = [
+      { id: "leg", nome: "Campanha", legada: true },
+      { id: "n1", nome: "Nova 1" },
+      { id: "u1", nome: "Usada antes", ultimaVez: 10 },
+      { id: "n2", nome: "Nova 2" },
+      { id: "u2", nome: "Usada agora", ultimaVez: 50 },
+    ];
+    expect(ordenarMesasPorUso(lista).map((m) => m.id)).toEqual(["u2", "u1", "leg", "n1", "n2"]);
+  });
+
+  it("sem nenhum uso registrado, a legada fica em primeiro e o resto na ordem do servidor", () => {
+    const lista = [
+      { id: "a", nome: "A" },
+      { id: "leg", nome: "Campanha", legada: true },
+      { id: "b", nome: "B" },
+    ];
+    expect(ordenarMesasPorUso(lista).map((m) => m.id)).toEqual(["leg", "a", "b"]);
+  });
+
+  it("a legada usada mais recentemente fica na frente das outras usadas", () => {
+    const lista = [
+      { id: "u1", nome: "U1", ultimaVez: 5 },
+      { id: "leg", nome: "Campanha", legada: true, ultimaVez: 9 },
+    ];
+    expect(ordenarMesasPorUso(lista).map((m) => m.id)).toEqual(["leg", "u1"]);
   });
 });

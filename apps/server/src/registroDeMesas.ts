@@ -14,6 +14,13 @@ export type RegistroDaMesa = {
   legada: boolean;
 };
 
+/** O id que o navegador escolheu já existe (o navegador sorteia outro e tenta de novo). */
+export class IdEmUso extends Error {
+  constructor() {
+    super("id de mesa em uso");
+  }
+}
+
 /** Quantas mesas um mesmo IP cria por hora (assumido; é só um freio simples). */
 export const LIMITE_DE_MESAS_POR_HORA = 5;
 const JANELA_DO_LIMITE_MS = 3_600_000;
@@ -85,10 +92,16 @@ export class RegistroDeMesas {
   }
 
   /** Registra uma mesa nova (o Durable Object dela só passa a existir quando o diretório o manda criar). */
-  criar(nome: string, ip: string, agora: number, aleatorio?: () => string): RegistroDaMesa {
+  criar(
+    nome: string,
+    ip: string,
+    agora: number,
+    aleatorio?: () => string,
+    idEscolhido?: string,
+  ): RegistroDaMesa {
     this.sql.exec("DELETE FROM criacoes WHERE em <= ?", agora - JANELA_DO_LIMITE_MS);
     for (let tentativa = 0; tentativa < 5; tentativa++) {
-      const id = aleatorio ? aleatorio() : gerarIdDeMesa();
+      const id = idEscolhido ?? (aleatorio ? aleatorio() : gerarIdDeMesa());
       const doNome = `${PREFIXO_DO_DE_MESA}${id}`;
       const r = this.sql.exec(
         "INSERT OR IGNORE INTO mesas (id, do_nome, nome, criada_em, legada) VALUES (?, ?, ?, ?, 0)",
@@ -97,7 +110,11 @@ export class RegistroDeMesas {
         nome,
         agora,
       );
-      if (r.rowsWritten === 0) continue; // id repetido (quase impossível): sorteia outro
+      if (r.rowsWritten === 0) {
+        // C2: o id vem do navegador (a senha do mestre usa o id no sal, então ele precisa conhecê-lo antes).
+        if (idEscolhido) throw new IdEmUso();
+        continue; // id repetido (quase impossível): sorteia outro
+      }
       this.sql.exec("INSERT INTO criacoes (ip, em) VALUES (?, ?)", ip, agora);
       return { id, doNome, nome, criadaEm: agora, legada: false };
     }

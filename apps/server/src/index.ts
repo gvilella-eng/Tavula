@@ -1,11 +1,22 @@
-import { nomeDaSala, nomeDeMesaValido, normalizarIdDeMesa } from "@tabletop/shared";
-import { AutenticacaoDev } from "./autenticacao";
-import { CABECALHO_USUARIO, pedeWebSocket } from "./sala";
+import {
+  ehIdDeMesa,
+  MestreDaMesaNovaSchema,
+  mensagemDeErroDeConta,
+  nomeDaSala,
+  nomeDeMesaValido,
+  normalizarIdDeMesa,
+} from "@tabletop/shared";
+import {
+  CABECALHO_IP,
+  CABECALHO_LOCAL,
+  CABECALHO_MESA,
+  CABECALHO_SEGURO,
+  CABECALHOS_INTERNOS,
+  pedeWebSocket,
+} from "./sala";
 
 export { Diretorio } from "./diretorio";
 export { Sala } from "./sala";
-
-const autenticacao = new AutenticacaoDev();
 
 /** O diretório é um só, para todo o servidor. */
 const NOME_DO_DIRETORIO = "diretorio";
@@ -40,11 +51,44 @@ async function lerCorpo(request: Request): Promise<Record<string, unknown> | nul
 
 type MesaDoDiretorio = { id: string; doNome: string; nome: string; legada: boolean };
 
+/** O Worker de verdade fica atrás do Cloudflare: lá o `CF-Connecting-IP` sempre existe. Sem ele, o pedido é do próprio computador. */
+const HOSTS_LOCAIS = new Set(["127.0.0.1", "localhost", "[::1]"]);
+
+/**
+ * As rotas de uma mesa que a sala atende, com o caminho interno de cada uma. O que não está aqui (as rotas
+ * internas `/criar`, `/papel` e `/api/renomeada`, por exemplo) nunca é repassado.
+ */
+function caminhoInterno(metodo: string, rota: string): string | null {
+  if (rota === "ws") return "/ws";
+  if (metodo === "GET" && ["situacao", "usuarios", "eu", "contas"].includes(rota)) {
+    return `/api/${rota}`;
+  }
+  if (metodo === "POST" && ["entrar", "sair"].includes(rota)) return `/api/${rota}`;
+  const conta = /^conta\/(entrar|pedir|sair|esqueci|redefinir|trocar-senha|mestre-inicial)$/.exec(
+    rota,
+  );
+  if (metodo === "POST" && conta) {
+    // `conta/sair` é o mesmo que `sair`: a sessão cai e os cookies saem.
+    return conta[1] === "sair" ? "/api/sair" : `/api/conta/${conta[1]}`;
+  }
+  const doMestre =
+    /^contas\/([A-Za-z0-9-]{1,64})\/(aceitar|recusar|remover|vaga|liberar-redefinicao)$/.exec(rota);
+  if (metodo === "POST" && doMestre) return `/api/contas/${doMestre[1]}/${doMestre[2]}`;
+  return null;
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     const { pathname } = url;
     const diretorio = () => env.DIRETORIO.get(env.DIRETORIO.idFromName(NOME_DO_DIRETORIO));
+    const ip = request.headers.get("CF-Connecting-IP") || "local";
+    const seguro = url.protocol === "https:";
+    // (assumido) O `wrangler dev` pode pôr o IP de loopback no cabeçalho: isso também conta como local.
+    const ipDoCliente = request.headers.get("CF-Connecting-IP");
+    const local =
+      HOSTS_LOCAIS.has(url.hostname) &&
+      (!ipDoCliente || ipDoCliente === "127.0.0.1" || ipDoCliente === "::1");
 
     if (pathname === "/saude") return new Response("ok");
 
@@ -57,14 +101,42 @@ export default {
       const corpo = await lerCorpo(request);
       const nome = nomeDeMesaValido(corpo?.nome);
       if (!nome) return json({ erro: "nome_invalido" }, 400);
-      // No C1 qualquer um cria (o C2 põe a conta do mestre aqui). O IP só serve ao limite por hora.
-      const ip = request.headers.get("CF-Connecting-IP") || "local";
-      return diretorio().fetch(
+      // C2: uma mesa nova nasce com a conta do mestre (login, nome e a senha já derivada no navegador) e o id
+      // que o navegador sorteou (o id entra no sal da senha). Só em MODO=teste dá para criar sem conta.
+      let mestre: unknown;
+      let id: string | undefined;
+      if (corpo?.mestre !== undefined) {
+        const m = MestreDaMesaNovaSchema.safeParse(corpo.mestre);
+        if (!m.success || typeof corpo.id !== "string" || !ehIdDeMesa(corpo.id)) {
+          return json(
+            { erro: "corpo_invalido", mensagem: mensagemDeErroDeConta("corpo_invalido") },
+            400,
+          );
+        }
+        mestre = m.data;
+        id = corpo.id;
+      } else if (env.MODO !== "teste") {
+        return json(
+          { erro: "mestre_obrigatorio", mensagem: mensagemDeErroDeConta("mestre_obrigatorio") },
+          400,
+        );
+      }
+      const r = await diretorio().fetch(
         new Request("https://diretorio/mesas", {
           method: "POST",
-          body: JSON.stringify({ nome, ip }),
+          body: JSON.stringify({ nome, ip, id, mestre, seguro }),
         }),
       );
+      if (!r.ok) {
+        if (r.status === 409) {
+          return json({ erro: "id_em_uso", mensagem: mensagemDeErroDeConta("id_em_uso") }, 409);
+        }
+        return r;
+      }
+      const criada = (await r.json()) as { id: string; nome: string; cookie?: string | null };
+      const saida = json({ id: criada.id, nome: criada.nome }, 201);
+      if (criada.cookie) saida.headers.append("Set-Cookie", criada.cookie);
+      return saida;
     }
 
     if (pathname === "/api/mesas" && request.method === "GET") {
@@ -86,56 +158,41 @@ export default {
     // --- Rotas da mesa: /api/m/<id>/... -------------------------------------------------------
 
     if (pathname.startsWith("/api/m/")) {
-      const daMesa = /^\/api\/m\/([^/]+)\/([a-z]+)$/.exec(pathname);
+      const daMesa = /^\/api\/m\/([^/]+)\/(.+)$/.exec(pathname);
       if (!daMesa) return naoEncontrado();
-      const id = normalizarIdDeMesa(decodeURIComponent(daMesa[1] ?? ""));
+      let idBruto = daMesa[1] ?? "";
+      try {
+        idBruto = decodeURIComponent(idBruto);
+      } catch {
+        return mesaInexistente();
+      }
+      const id = normalizarIdDeMesa(idBruto);
       if (!id) return mesaInexistente();
-      const rota = daMesa[2];
+      const rota = daMesa[2] ?? "";
       const r = await diretorio().fetch(new Request(`https://diretorio/mesas/${id}`));
       if (!r.ok) return mesaInexistente();
       const mesa = (await r.json()) as MesaDoDiretorio;
       const sala = env.SALA.get(env.SALA.idFromName(mesa.doNome));
-      const alvo = new URL(rota === "ws" ? "/ws" : `/api/${rota}`, request.url);
 
-      // O cabeçalho de usuário é sempre sobrescrito aqui: o que o navegador mandar com esse nome não vale.
-      const comUsuario = (usuarioId: string | null): Headers => {
-        const cabecalhos = new Headers(request.headers);
-        cabecalhos.delete(CABECALHO_USUARIO);
-        if (usuarioId) cabecalhos.set(CABECALHO_USUARIO, usuarioId);
-        return cabecalhos;
-      };
-
-      if (rota === "usuarios" && request.method === "GET") {
-        return sala.fetch(new Request(alvo, { headers: comUsuario(null) }));
-      }
-
-      if (rota === "eu" && request.method === "GET") {
-        const usuarioId = autenticacao.identificar(request);
-        if (!usuarioId) return new Response(null, { status: 401 });
-        return sala.fetch(new Request(alvo, { headers: comUsuario(usuarioId) }));
-      }
-
-      if (rota === "entrar" && request.method === "POST") {
-        const corpo = await request.text();
-        const resposta = await sala.fetch(new Request(alvo, { method: "POST", body: corpo }));
-        if (!resposta.ok) return resposta;
-        const { usuarioId } = JSON.parse(corpo) as { usuarioId: string };
-        const saida = new Response(resposta.body, resposta);
-        saida.headers.append("Set-Cookie", autenticacao.cabecalhoDeEntrada(usuarioId, id));
-        return saida;
-      }
-
-      if (rota === "sair" && request.method === "POST") {
-        const saida = new Response(null, { status: 204 });
-        for (const c of autenticacao.cabecalhosDeSaida(id)) saida.headers.append("Set-Cookie", c);
-        return saida;
-      }
+      // Os cabeçalhos internos são sempre refeitos aqui: o que o navegador mandar com esses nomes não vale.
+      // A sala descobre quem é quem sozinha, pelo cookie.
+      const cabecalhos = new Headers(request.headers);
+      for (const nome of [...CABECALHOS_INTERNOS, "x-tabletop-usuario"]) cabecalhos.delete(nome);
+      cabecalhos.set(CABECALHO_IP, ip);
+      cabecalhos.set(CABECALHO_MESA, id);
+      if (seguro) cabecalhos.set(CABECALHO_SEGURO, "1");
+      if (local) cabecalhos.set(CABECALHO_LOCAL, "1");
+      const repassar = (caminho: string, init?: RequestInit) =>
+        sala.fetch(
+          new Request(
+            new URL(caminho, request.url),
+            new Request(request, { ...init, headers: cabecalhos }),
+          ),
+        );
 
       if (rota === "renomear" && request.method === "POST") {
-        const usuarioId = autenticacao.identificar(request);
-        if (!usuarioId) return new Response(null, { status: 401 });
         const papel = await sala.fetch(
-          new Request(new URL("/papel", request.url), { headers: comUsuario(usuarioId) }),
+          new Request(new URL("/papel", request.url), { headers: cabecalhos }),
         );
         if (!papel.ok) return new Response(null, { status: 401 });
         if (((await papel.json()) as { papel: string }).papel !== "mestre") {
@@ -143,23 +200,30 @@ export default {
         }
         const nome = nomeDeMesaValido((await lerCorpo(request))?.nome);
         if (!nome) return json({ erro: "nome_invalido" }, 400);
-        return diretorio().fetch(
+        const resposta = await diretorio().fetch(
           new Request(`https://diretorio/mesas/${id}`, {
             method: "PATCH",
             body: JSON.stringify({ nome }),
           }),
         );
+        // Quem está na mesa recebe o nome novo sem recarregar (frame `mesa.renomeada`).
+        if (resposta.ok) {
+          await sala.fetch(
+            new Request(new URL("/api/renomeada", request.url), {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ nome }),
+            }),
+          );
+        }
+        return resposta;
       }
 
-      if (rota === "ws" && pedeWebSocket(request)) {
-        const usuarioId = autenticacao.identificar(request);
-        if (!usuarioId) return new Response("Não autenticado", { status: 401 });
-        return sala.fetch(
-          new Request(alvo, new Request(request, { headers: comUsuario(usuarioId) })),
-        );
-      }
-
-      return naoEncontrado();
+      const interno = caminhoInterno(request.method, rota);
+      if (!interno) return naoEncontrado();
+      if (rota === "ws" && !pedeWebSocket(request))
+        return new Response("Esperava WebSocket", { status: 426 });
+      return repassar(interno);
     }
 
     // Rotas de teste: só existem com MODO=teste (a sala confere de novo) e valem para a mesa legada.

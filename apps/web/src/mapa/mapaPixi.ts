@@ -61,7 +61,12 @@ import { corDoTextoSobre, haloDoTexto } from "../contrasteDeCor";
 import type { ConfigDoPincel } from "../pincel";
 import { CamadaDeDesenho, type DesenhoNaTela } from "./camadaDeDesenho";
 import { CamadaDeLuz } from "./camadaDeLuz";
-import { ArmazemDeMemoria, chaveDaMemoria, type RegistroDeMemoria } from "./memoriaLocal";
+import {
+  ArmazemDeMemoria,
+  chaveAntigaDaMemoria,
+  chaveDaMemoria,
+  type RegistroDeMemoria,
+} from "./memoriaLocal";
 
 /** Pixels do mundo por metro (zoom 1). O zoom é a escala do `mundo` sobre isso. */
 export const PX_POR_M = 40;
@@ -118,7 +123,15 @@ export type ConfigDeVisao = {
   modo: "jogador" | "noturna" | "claro";
   fontes: FonteDeVisao[];
   /** Memória do mapa (jogador): ligada, o tom, de quem é e o último "esquecer" do mestre. */
-  memoria: { ligada: boolean; tom: string; usuarioId: string; esquecimento: number };
+  memoria: {
+    ligada: boolean;
+    tom: string;
+    usuarioId: string;
+    esquecimento: number;
+    /** A mesa a que a memória pertence (entra na chave) e se é a legada (herda a chave de antes do C2). */
+    mesaId: string;
+    legada: boolean;
+  };
 };
 
 /** Tamanho (em pixels da tela) dos ícones das portas e das alças das pontas. */
@@ -1422,8 +1435,15 @@ export class MapaPixi {
 
   private chaveDaGrade(): string | null {
     const cena = this.cena;
-    const usuario = this.opcoes.visao.memoria.usuarioId;
-    return cena && usuario ? chaveDaMemoria(usuario, cena.id) : null;
+    const { usuarioId, mesaId } = this.opcoes.visao.memoria;
+    return cena && usuarioId ? chaveDaMemoria(mesaId, usuarioId, cena.id) : null;
+  }
+
+  /** Só a mesa legada tem uma chave antiga a herdar (a de antes de a chave levar o id da mesa). */
+  private chaveAntigaDaGrade(): string | undefined {
+    const cena = this.cena;
+    const { usuarioId, legada } = this.opcoes.visao.memoria;
+    return legada && cena && usuarioId ? chaveAntigaDaMemoria(usuarioId, cena.id) : undefined;
   }
 
   /** Lê a memória da cena do IndexedDB (ou começa uma vazia) e aplica o "esquecer" do mestre, se houver. */
@@ -1435,7 +1455,7 @@ export class MapaPixi {
     this.gradeDaMemoria = null;
     this.gradeCenaId = null;
     void this.armazem
-      .ler(chave)
+      .ler(chave, this.chaveAntigaDaGrade())
       .catch(() => undefined)
       .then((r) => {
         if (this.destruido || this.gradeCarregando !== chave || this.chaveDaGrade() !== chave)

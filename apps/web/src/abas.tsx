@@ -4,6 +4,7 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import { type ArquivoDaFonte, temSeletorDePasta } from "./assets/fonte";
 import type { Fontes } from "./assets/fontes";
 import type { GerenteDeAssets, StatusDeAsset } from "./assets/gerente";
+import { TrocarSenha } from "./contas/TrocarSenha";
 import { definirDicasLigadas, useDicasLigadas } from "./dicasLigadas";
 import { ListaDeAtalhos } from "./ListaDeAtalhos";
 import { SeletorDeTema } from "./SeletorDeTema";
@@ -23,6 +24,9 @@ type PropsPreferencias = {
   aoMudarEncaixe: (v: boolean) => void;
   aoSair: () => void;
   aoTrocarDeMesa: () => void;
+  /** C2: a mesa e o login da conta (a troca de senha precisa dos dois; sem login, não há conta). */
+  mesaId: string;
+  login?: string | undefined;
   fontes: Fontes;
   gerente: GerenteDeAssets | null;
 };
@@ -135,6 +139,8 @@ export function AbaPreferencias({
   aoMudarEncaixe,
   aoSair,
   aoTrocarDeMesa,
+  mesaId,
+  login,
   fontes,
   gerente,
 }: PropsPreferencias) {
@@ -146,12 +152,13 @@ export function AbaPreferencias({
       </p>
       <div className="linha-botoes">
         <button type="button" data-testid="trocar-usuario" onClick={aoSair}>
-          Trocar usuário
+          {login ? "Sair" : "Trocar usuário"}
         </button>
         <button type="button" data-testid="trocar-de-mesa" onClick={aoTrocarDeMesa}>
           Trocar de mesa
         </button>
       </div>
+      {login && <TrocarSenha mesaId={mesaId} login={login} />}
       <h3>Neste navegador</h3>
       <p className="nota">Só vale para você e fica guardado aqui, não vai para a mesa.</p>
       <SeletorDeTema />

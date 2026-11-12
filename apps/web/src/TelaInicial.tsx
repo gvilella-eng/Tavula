@@ -1,12 +1,22 @@
-import { normalizarIdDeMesa, TAMANHO_MAXIMO_DO_NOME_DA_MESA } from "@tabletop/shared";
+import {
+  erroDaSenha,
+  loginValido,
+  nomeDeExibicaoValido,
+  normalizarIdDeMesa,
+  TAMANHO_MAXIMO_DA_SENHA,
+  TAMANHO_MAXIMO_DO_LOGIN,
+  TAMANHO_MAXIMO_DO_NOME_DA_MESA,
+  TAMANHO_MAXIMO_DO_NOME_DE_EXIBICAO,
+} from "@tabletop/shared";
 import { type FormEvent, useEffect, useState } from "react";
 import { comRetentativa, criarMesa, listarMesasDoServidor } from "./api";
+import { CampoDeConta } from "./contas/CampoDeConta";
 import { IdDaMesa } from "./IdDaMesa";
 import { Logo } from "./Logo";
-import { lembrarMesa, lerMesasLembradas } from "./mesasLocais";
+import { lembrarMesa, lerMesasLembradas, ordenarMesasPorUso } from "./mesasLocais";
 import { caminhoDaMesa, irPara } from "./rotas";
 
-type MesaDaLista = { id: string; nome: string; ultimaVez?: number };
+type MesaDaLista = { id: string; nome: string; legada?: boolean; ultimaVez?: number };
 
 /** "agora", "há 5 min", "há 3 h" ou a data: quando a mesa foi aberta neste navegador. */
 function quandoFoi(ms: number, agora = Date.now()): string {
@@ -66,6 +76,10 @@ type Criada = { id: string; nome: string };
 
 function CriarMesa() {
   const [nome, setNome] = useState("");
+  const [login, setLogin] = useState("");
+  const [nomeDoMestre, setNomeDoMestre] = useState("");
+  const [senha, setSenha] = useState("");
+  const [confirmar, setConfirmar] = useState("");
   const [erro, setErro] = useState<string | null>(null);
   const [criando, setCriando] = useState(false);
   const [criada, setCriada] = useState<Criada | null>(null);
@@ -73,13 +87,29 @@ function CriarMesa() {
   async function aoEnviar(e: FormEvent) {
     e.preventDefault();
     if (criando) return;
+    // A senha nunca sai do navegador: o tamanho dela só se confere aqui (o servidor recebe a derivada).
+    const falta =
+      nomeDeExibicaoValido(nomeDoMestre) === null
+        ? `Escreva o seu nome, de 1 a ${TAMANHO_MAXIMO_DO_NOME_DE_EXIBICAO} caracteres.`
+        : loginValido(login) === null
+          ? `O login tem de 3 a ${TAMANHO_MAXIMO_DO_LOGIN} caracteres: letras, números, ponto, hífen e sublinhado.`
+          : (erroDaSenha(senha) ??
+            (senha !== confirmar ? "A confirmação não é igual à senha." : null));
+    if (falta) {
+      setErro(falta);
+      return;
+    }
     setErro(null);
     setCriando(true);
     try {
-      const mesa = await criarMesa(nome);
+      const mesa = await criarMesa(nome, { login, nome: nomeDoMestre, senha });
       lembrarMesa(mesa.id, mesa.nome);
       setCriada(mesa);
       setNome("");
+      setLogin("");
+      setNomeDoMestre("");
+      setSenha("");
+      setConfirmar("");
     } catch (falha) {
       setErro((falha as Error).message);
     } finally {
@@ -115,16 +145,49 @@ function CriarMesa() {
   return (
     <form className="cartao-inicio" onSubmit={aoEnviar} data-testid="inicio-criar">
       <h2>Criar mesa</h2>
-      <p className="nota">Uma mesa nova começa vazia: você é o mestre.</p>
-      <input
-        type="text"
-        aria-label="Nome da mesa"
-        placeholder="Nome da mesa"
+      <p className="nota">
+        Uma mesa nova começa vazia: você é o mestre e entra com a conta que criar aqui.
+      </p>
+      <CampoDeConta
+        testid="inicio-criar-nome"
+        rotulo="Nome da mesa"
+        valor={nome}
+        aoMudar={setNome}
         maxLength={TAMANHO_MAXIMO_DO_NOME_DA_MESA}
-        autoComplete="off"
-        value={nome}
-        data-testid="inicio-criar-nome"
-        onChange={(e) => setNome(e.target.value)}
+      />
+      <CampoDeConta
+        testid="inicio-criar-login"
+        rotulo="Seu login de mestre"
+        valor={login}
+        aoMudar={setLogin}
+        autoComplete="username"
+        maxLength={TAMANHO_MAXIMO_DO_LOGIN + 8}
+      />
+      <CampoDeConta
+        testid="inicio-criar-nome-do-mestre"
+        rotulo="Seu nome"
+        valor={nomeDoMestre}
+        aoMudar={setNomeDoMestre}
+        autoComplete="name"
+        maxLength={TAMANHO_MAXIMO_DO_NOME_DE_EXIBICAO}
+      />
+      <CampoDeConta
+        testid="inicio-criar-senha"
+        rotulo="Senha (pelo menos 5 caracteres)"
+        tipo="password"
+        valor={senha}
+        aoMudar={setSenha}
+        autoComplete="new-password"
+        maxLength={TAMANHO_MAXIMO_DA_SENHA}
+      />
+      <CampoDeConta
+        testid="inicio-criar-confirmar"
+        rotulo="Confirme a senha"
+        tipo="password"
+        valor={confirmar}
+        aoMudar={setConfirmar}
+        autoComplete="new-password"
+        maxLength={TAMANHO_MAXIMO_DA_SENHA}
       />
       {erro && (
         <p className="nota erro" role="alert" data-testid="inicio-criar-erro">
@@ -148,7 +211,6 @@ function CriarMesa() {
 function MesasNesteComputador() {
   // `undefined`: ainda perguntando ao servidor.
   const [lista, setLista] = useState<MesaDaLista[] | undefined>(undefined);
-  const [doServidor, setDoServidor] = useState(false);
 
   useEffect(() => {
     const controle = new AbortController();
@@ -156,8 +218,20 @@ function MesasNesteComputador() {
       .then((mesas) => {
         if (controle.signal.aborted) return;
         // O servidor só lista no desenvolvimento; sem lista dele valem as mesas que este navegador já abriu.
-        setDoServidor(mesas !== null);
-        setLista(mesas ?? lerMesasLembradas());
+        // Em ordem de último uso neste navegador; as nunca abertas por aqui depois, a legada primeiro.
+        if (mesas === null) {
+          setLista(lerMesasLembradas());
+          return;
+        }
+        const usos = new Map(lerMesasLembradas().map((m) => [m.id, m.ultimaVez]));
+        setLista(
+          ordenarMesasPorUso(
+            mesas.map((m) => {
+              const ultimaVez = usos.get(m.id);
+              return ultimaVez === undefined ? m : { ...m, ultimaVez };
+            }),
+          ),
+        );
       })
       .catch(() => !controle.signal.aborted && setLista(lerMesasLembradas()));
     return () => controle.abort();
@@ -184,7 +258,7 @@ function MesasNesteComputador() {
               >
                 <span className="cartao-de-mesa-nome">{m.nome}</span>
                 <span className="cartao-de-mesa-id">{m.id}</span>
-                {!doServidor && m.ultimaVez !== undefined && (
+                {m.ultimaVez !== undefined && (
                   <span className="cartao-de-mesa-quando">{quandoFoi(m.ultimaVez)}</span>
                 )}
               </button>

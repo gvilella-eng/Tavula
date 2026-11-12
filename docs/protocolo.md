@@ -13,20 +13,35 @@ personagem, a camada `mapa` e a ordem de turno, tudo **sem mudar o número do pr
 ### Conexão e autenticação (dev)
 
 - O front usa a mesma origem para tudo; o Vite faz proxy de `/api` (com `ws: true`) e `/teste` para o Worker.
-- A identidade vem do cookie `tabletop_sessao`, **por mesa** (`Path=/api/m/<id>`; C1, 2026-11-12; interface `Autenticacao`,
-  implementação `AutenticacaoDev`). O `tabletop_usuario` de antes não vale mais. Em dev, quem escolhe o mestre na tela de entrada é mestre.
+- A identidade vem do cookie `tavola_sessao` (C2, 2026-11-12): 32 bytes aleatórios em base64url, `HttpOnly`, `SameSite=Lax`,
+  `Path=/api/m/<id>` (vale só para a mesa), `Secure` quando a requisição vem por https, 30 dias renovados com o uso. A **sala**
+  resolve cookie, sessão, conta e vaga (no HTTP e no WebSocket); o Worker só repassa e refaz os cabeçalhos internos
+  `x-tavola-ip`, `x-tavola-local`, `x-tavola-seguro` e `x-tavola-mesa`. O login solto `tabletop_sessao` (id do usuário no cookie) e as
+  rotas `entrar` e `usuarios` **só existem com `MODO=teste`**. O `tabletop_usuario` de antes do C1 nunca mais é lido.
+- A senha nunca sai do navegador: o corpo leva só a "derivada" (PBKDF2-SHA256, 600.000 iterações, sal `tavola:<id da mesa>:<login>`, 32 bytes em
+  base64url, 43 caracteres). Corpos JSON de até 4 KB, `Content-Type: application/json`, validados com zod (`packages/shared/src/contas.ts`).
+  Erro: `{ erro: <código>, mensagem: <texto em português>, minutos? }` (429 leva `Retry-After`).
 - Rotas HTTP do Worker:
 
 | Rota | O que faz |
 |---|---|
 | `GET /saude` | `ok` |
-| `POST /api/mesas` `{ nome }` | cria a mesa (nome de 1 a 60 caracteres, `application/json`) e devolve `{ id, nome }` (201); 400, 415, 429 (limite por IP) |
+| `POST /api/mesas` `{ id, nome, mestre: { login, nome, derivada } }` | cria a mesa com a conta do mestre e abre a sessão dele (`Set-Cookie`); devolve `{ id, nome }` (201); o `id` é sorteado pelo navegador (409 `id_em_uso` se já existe); 400 (`mestre_obrigatorio`, `corpo_invalido`, `nome_invalido`), 415, 429 (5 mesas por hora por IP). Só com `MODO=teste` o `mestre` e o `id` podem faltar |
 | `GET /api/mesas/<id>` | `{ id, nome, legada }` ou 404 `{ erro: "mesa_inexistente" }` |
 | `GET /api/mesas` | lista as mesas; **só com `LISTAR_MESAS=1`** (`dev` e `dev:e2e`), senão 404 |
-| `GET /api/m/<id>/usuarios` | lista `{ id, nome, cor }` para a tela de entrada |
-| `POST /api/m/<id>/entrar` `{ usuarioId }` | valida o usuário e grava o cookie da mesa (404 se não existe) |
-| `POST /api/m/<id>/sair` | apaga o cookie da mesa (204) |
-| `GET /api/m/<id>/eu` | usuário da sessão nesta mesa (`{ id, nome, cor }`) ou 401 |
+| `GET /api/m/<id>/situacao` | público: `{ modoTeste, semMestre, podeCriarMestre }` (a tela de entrada decide o que mostrar) |
+| `POST /api/m/<id>/conta/entrar` `{ login, derivada }` | abre a sessão (`Set-Cookie tavola_sessao`); 401 `credenciais` (login inexistente e senha errada respondem igual), 429 `bloqueada` / `ip_bloqueado` (com `minutos`), 403 `pedido_pendente`, `pedido_recusado`, `sem_vaga` |
+| `POST /api/m/<id>/conta/pedir` `{ login, nome, derivada }` | pedido de entrada (conta `pendente`); 409 `login_em_uso`, `mesa_sem_mestre`; 429 `muitos_pedidos` (3 por IP por hora, 10 pendentes por mesa), `pedido_recusado_recente` |
+| `POST /api/m/<id>/conta/esqueci` `{ login }` | marca o pedido de redefinição e avisa o mestre; a resposta é sempre a mesma (200) |
+| `POST /api/m/<id>/conta/redefinir` `{ login, derivada }` | define a senha nova depois de o mestre liberar (30 min); derruba as sessões antigas e abre uma nova; 403 `redefinicao_indisponivel` |
+| `POST /api/m/<id>/conta/trocar-senha` `{ atual, nova }` | com sessão; derruba as outras sessões; 403 `senha_atual_incorreta` |
+| `POST /api/m/<id>/conta/sair` e `POST /api/m/<id>/sair` | apaga a sessão no banco, fecha os sockets dela e apaga os cookies (204) |
+| `POST /api/m/<id>/conta/mestre-inicial` `{ login, nome, derivada }` | a mesa legada sem conta de mestre ganha a dele (ligada à vaga `mestre`); só de requisição local (403 `so_local`) e só sem mestre (409 `ja_tem_mestre`) |
+| `GET /api/m/<id>/contas` | só o mestre: `{ contas: [{ id, login, nome, papel, status, vagaId, vagaNome, criadaEm, ultimoAcesso, redefinicaoPedida, redefinicaoAte }], vagasLivres }`; nunca sal, hash nem token; 401 sem sessão, 403 a quem não é mestre |
+| `POST /api/m/<id>/contas/<conta>/aceitar` `{ vaga: { usuarioId } ou { nova: true } }` | só o mestre; a conta fica ativa e a vaga ganha o nome dela |
+| `POST /api/m/<id>/contas/<conta>/recusar`, `remover`, `vaga` `{ usuarioId }`, `liberar-redefinicao` | só o mestre; recusar e remover fecham os sockets da conta (4001); a conta do mestre não se recusa nem se remove |
+| `GET /api/m/<id>/usuarios` e `POST /api/m/<id>/entrar` `{ usuarioId }` | **só com `MODO=teste`**: a escolha de usuário de desenvolvimento (cookie `tabletop_sessao`); fora dele 404 |
+| `GET /api/m/<id>/eu` | usuário da sessão nesta mesa (`{ id, nome, cor, login? }`) ou 401; renova o cookie se a sessão foi renovada |
 | `POST /api/m/<id>/renomear` `{ nome }` | muda o nome da mesa; só o mestre (403 aos outros, 401 sem sessão) |
 | `GET /api/m/<id>/ws` (Upgrade) | WebSocket da sala; sem usuário válido: 401 |
 | qualquer `/api/m/<id>/...` com id que não existe | 404 `{ erro: "mesa_inexistente" }` |
@@ -35,7 +50,11 @@ personagem, a camada `mapa` e a ordem de turno, tudo **sem mudar o número do pr
 - Cada mesa é um Durable Object `Sala`: a legada é `idFromName("campanha")` e as outras `idFromName("mesa:<id>")`; o
   diretório (`Diretorio`) liga o id amigável ao nome do DO (PROJETO 4.14). A sala usa a WebSocket Hibernation API. Quem é
   cada socket fica no `serializeAttachment` (`usuarioId`, `conexaoId`).
-- Ao conectar, a sala manda `snapshot`, `presenca` e (se mestre) `uso`.
+- Ao conectar, a sala manda `snapshot`, `presenca` e (se mestre) `uso` e `contas.aviso`.
+- Sockets fechados pela sala com o código **4001** (conta removida ou recusada, senha redefinida ou trocada, sessão encerrada, usuário
+  que sumiu): o cliente pergunta `eu`, recebe 401 e volta à tela de entrada.
+- Mensagens da sala novas no C2: `contas.aviso` `{ pendentes, redefinicoes, novo: { tipo: "entrada" ou "redefinicao", nome, login } ou null }`
+  (**só para o mestre**; nunca leva sal, hash, token nem derivada) e `mesa.renomeada` `{ nome }` (para todos; o título da aba e a lista local acompanham).
 
 ### Envelope
 

@@ -1,4 +1,5 @@
 import {
+  type AvisoDeContas,
   CAPACIDADES_DELEGAVEIS,
   type Estado,
   type Papel,
@@ -6,8 +7,9 @@ import {
   TAMANHO_MAXIMO_DO_NOME_DA_MESA,
   type Uso,
 } from "@tabletop/shared";
-import { type ChangeEvent, useState } from "react";
+import { type ChangeEvent, useEffect, useState } from "react";
 import { type DadosDaMesa, renomearMesa } from "./api";
+import { SecaoDeContas } from "./contas/SecaoDeContas";
 import { IdDaMesa } from "./IdDaMesa";
 import { SecaoMesa, SecaoObjetosDeLuz } from "./PainelDaMesa";
 
@@ -16,6 +18,8 @@ type Props = {
   aoRenomear: (nome: string) => void;
   estado: Estado;
   uso: Uso | null;
+  /** C2: o resumo dos pedidos de entrada (chega pelo WebSocket, só ao mestre). */
+  avisoDeContas: AvisoDeContas | null;
   enviar: (tipo: string, dados: object) => string | null;
 };
 
@@ -24,6 +28,7 @@ export const SECOES_DA_MESA = [
   { id: "regras", rotulo: "Regras" },
   { id: "luz", rotulo: "Luz" },
   { id: "papeis", rotulo: "Papéis" },
+  { id: "contas", rotulo: "Contas" },
   { id: "permissoes", rotulo: "Permissões" },
   { id: "campanha", rotulo: "Campanha" },
   { id: "diagnostico", rotulo: "Diagnóstico" },
@@ -58,6 +63,8 @@ function SecaoDaIdentificacao({
   const [erro, setErro] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
   const mudou = nome.trim() !== "" && nome.trim() !== mesa.nome;
+  // O nome mudou na sala (por outro mestre, ou o frame `mesa.renomeada`): o campo acompanha.
+  useEffect(() => setNome(mesa.nome), [mesa.nome]);
 
   async function salvar() {
     if (!mudou || salvando) return;
@@ -111,7 +118,7 @@ function SecaoDaIdentificacao({
  * Aba Mesa (só o mestre): tudo o que vale para a sala. Regras, modelos de luz, papéis dos usuários,
  * capacidades dos jogadores, campanha (exportar e importar) e, recolhido no fim, o diagnóstico.
  */
-export function AbaMesa({ mesa, aoRenomear, estado, uso, enviar }: Props) {
+export function AbaMesa({ mesa, aoRenomear, estado, uso, avisoDeContas, enviar }: Props) {
   const jogadores = estado.usuarios.filter((u) => u.papel === "jogador");
   const [alvo, setAlvo] = useState<string>("");
   const alvoValido = jogadores.some((u) => u.id === alvo) ? alvo : (jogadores[0]?.id ?? "");
@@ -193,6 +200,10 @@ export function AbaMesa({ mesa, aoRenomear, estado, uso, enviar }: Props) {
           ))}
         </ul>
       </section>
+
+      <div data-testid={testidDaSecaoDaMesa("contas")} className="secao-da-mesa">
+        <SecaoDeContas mesaId={mesa.id} aviso={avisoDeContas} />
+      </div>
 
       <section data-testid={testidDaSecaoDaMesa("permissoes")} className="secao-da-mesa">
         <h3>Capacidades dos jogadores</h3>

@@ -1,0 +1,643 @@
+import {
+  base64UrlParaBytes,
+  bloqueioDoIp,
+  bytesParaBase64Url,
+  type CodigoDeErroDeConta,
+  type ContaParaMestre,
+  ESQUECI_POR_IP_POR_HORA,
+  JANELA_DO_IP_MS,
+  JANELA_POR_HORA_MS,
+  type ListaDeContas,
+  MAXIMO_DE_PEDIDOS_PENDENTES,
+  MAXIMO_DE_SESSOES_POR_CONTA,
+  minutosAte,
+  type PapelDeConta,
+  PEDIDOS_POR_IP_POR_HORA,
+  PEDIR_DE_NOVO_APOS_RECUSA_MS,
+  REDEFINICAO_VALE_MS,
+  registrarFalhaDaConta,
+  SESSAO_VALE_MS,
+  type StatusDeConta,
+  sessaoPrecisaRenovar,
+  type Usuario,
+} from "@tabletop/shared";
+
+/**
+ * As contas de UMA mesa (C2), no SQLite da própria sala. Tudo aqui é segredo do servidor: o sal, o hash
+ * e os hashes dos tokens nunca saem desta classe (`listarParaMestre` devolve só o que o mestre pode ver).
+ * A senha nem chega aqui: o navegador manda a "derivada" (PBKDF2 de 600.000 iterações) e a sala guarda
+ * `SHA-256(sal || derivada)` com um sal aleatório de 16 bytes, comparado em tempo constante.
+ * O tempo (`agora`) vem sempre de fora, para os testes.
+ */
+
+export type ContaPublica = {
+  id: string;
+  login: string;
+  nome: string;
+  papel: PapelDeConta;
+  status: StatusDeConta;
+  usuarioId: string | null;
+};
+
+export type Falha = { ok: false; erro: CodigoDeErroDeConta; minutos?: number };
+export type Resultado<T> = { ok: true; valor: T } | Falha;
+
+const falha = (erro: CodigoDeErroDeConta, minutos?: number): Falha =>
+  minutos === undefined ? { ok: false, erro } : { ok: false, erro, minutos };
+const certo = <T>(valor: T): Resultado<T> => ({ ok: true, valor });
+
+type Linha = {
+  id: string;
+  login: string;
+  login_norm: string;
+  nome_exibicao: string;
+  sal: string;
+  hash: string;
+  papel: PapelDeConta;
+  usuario_id: string | null;
+  status: StatusDeConta;
+  criada_em: number;
+  ultimo_acesso: number | null;
+  redefinicao_ate: number | null;
+  redefinicao_pedida_em: number | null;
+  recusada_em: number | null;
+  falhas: number;
+  bloqueios: number;
+  bloqueada_ate: number;
+};
+
+const publica = (l: Linha): ContaPublica => ({
+  id: l.id,
+  login: l.login,
+  nome: l.nome_exibicao,
+  papel: l.papel,
+  status: l.status,
+  usuarioId: l.usuario_id,
+});
+
+const codificador = new TextEncoder();
+
+async function sha256(...partes: Uint8Array[]): Promise<Uint8Array> {
+  const total = partes.reduce((n, p) => n + p.length, 0);
+  const junto = new Uint8Array(total);
+  let i = 0;
+  for (const p of partes) {
+    junto.set(p, i);
+    i += p.length;
+  }
+  return new Uint8Array(await crypto.subtle.digest("SHA-256", junto));
+}
+
+/** O que a sala guarda no lugar da senha: `SHA-256(sal || derivada)` em base64url. */
+export async function hashDaDerivada(sal: Uint8Array, derivada: string): Promise<string> {
+  const bytes = base64UrlParaBytes(derivada) ?? new Uint8Array(0);
+  return bytesParaBase64Url(await sha256(sal, bytes));
+}
+
+/** O que a sala guarda no lugar do token de sessão: `SHA-256(token)` em base64url. */
+export async function hashDoToken(token: string): Promise<string> {
+  return bytesParaBase64Url(await sha256(codificador.encode(token)));
+}
+
+/** Compara dois textos sem parar no primeiro byte diferente (o tempo não depende de onde eles diferem). */
+export function iguaisEmTempoConstante(a: string, b: string): boolean {
+  const x = codificador.encode(a);
+  const y = codificador.encode(b);
+  let diferenca = x.length ^ y.length;
+  const n = Math.max(x.length, y.length);
+  for (let i = 0; i < n; i++) diferenca |= (x[i] ?? 0) ^ (y[i] ?? 0);
+  return diferenca === 0;
+}
+
+const sortearBytes = (n: number) => crypto.getRandomValues(new Uint8Array(n));
+
+/** Um sal e um hash que nenhuma senha satisfaz: a conta que não existe gasta o mesmo trabalho que a que existe. */
+const SAL_DE_MENTIRA = new Uint8Array(16);
+const HASH_DE_MENTIRA = bytesParaBase64Url(new Uint8Array(32).fill(7));
+
+const HORA = JANELA_POR_HORA_MS;
+const UM_DIA = 24 * HORA;
+
+export class ContasDaMesa {
+  constructor(
+    private readonly sql: SqlStorage,
+    private readonly sortear: (n: number) => Uint8Array = sortearBytes,
+  ) {}
+
+  // --- consultas ----------------------------------------------------------------------------
+
+  private linhas(consulta: string, ...params: unknown[]): Linha[] {
+    return this.sql.exec(consulta, ...params).toArray() as unknown as Linha[];
+  }
+
+  private porLogin(loginNorm: string): Linha | null {
+    return this.linhas("SELECT * FROM contas WHERE login_norm = ?", loginNorm)[0] ?? null;
+  }
+
+  private porId(id: string): Linha | null {
+    return this.linhas("SELECT * FROM contas WHERE id = ?", id)[0] ?? null;
+  }
+
+  private contar(consulta: string, ...params: unknown[]): number {
+    return (this.sql.exec(consulta, ...params).toArray()[0] as { n: number }).n;
+  }
+
+  /** A mesa já tem uma conta de mestre ativa? */
+  existeMestre(): boolean {
+    return (
+      this.contar("SELECT COUNT(*) AS n FROM contas WHERE papel = 'mestre' AND status = 'ativa'") >
+      0
+    );
+  }
+
+  /** Quantos pedidos de entrada e de redefinição esperam o mestre. */
+  pendencias(): { pendentes: number; redefinicoes: number } {
+    return {
+      pendentes: this.contar("SELECT COUNT(*) AS n FROM contas WHERE status = 'pendente'"),
+      redefinicoes: this.contar(
+        "SELECT COUNT(*) AS n FROM contas WHERE status = 'ativa' AND redefinicao_pedida_em IS NOT NULL AND redefinicao_ate IS NULL",
+      ),
+    };
+  }
+
+  /** Tem conta ativa nesta vaga? */
+  vagaOcupada(usuarioId: string, ignorarContaId?: string): boolean {
+    return (
+      this.contar(
+        "SELECT COUNT(*) AS n FROM contas WHERE usuario_id = ? AND status = 'ativa' AND id <> ?",
+        usuarioId,
+        ignorarContaId ?? "",
+      ) > 0
+    );
+  }
+
+  /** A conta (sem sal nem hash) ou `null`. */
+  conta(id: string): ContaPublica | null {
+    const l = this.porId(id);
+    return l ? publica(l) : null;
+  }
+
+  /** O que o mestre vê: id, login, nome, vaga, status e último acesso. Nunca sal, hash nem token. */
+  listarParaMestre(vagas: readonly Usuario[]): ListaDeContas {
+    const nomeDaVaga = new Map(vagas.map((u) => [u.id, u.nome]));
+    const contas = this.linhas("SELECT * FROM contas ORDER BY criada_em, id").map(
+      (l): ContaParaMestre => ({
+        id: l.id,
+        login: l.login,
+        nome: l.nome_exibicao,
+        papel: l.papel,
+        status: l.status,
+        vagaId: l.usuario_id,
+        vagaNome: l.usuario_id ? (nomeDaVaga.get(l.usuario_id) ?? null) : null,
+        criadaEm: l.criada_em,
+        ultimoAcesso: l.ultimo_acesso,
+        redefinicaoPedida: l.redefinicao_pedida_em !== null && l.redefinicao_ate === null,
+        redefinicaoAte: l.redefinicao_ate,
+      }),
+    );
+    const ocupadas = new Set(
+      contas.filter((c) => c.status === "ativa" && c.vagaId).map((c) => c.vagaId),
+    );
+    return {
+      contas,
+      vagasLivres: vagas
+        .filter((u) => u.papel === "jogador" && !ocupadas.has(u.id))
+        .map((u) => ({ id: u.id, nome: u.nome })),
+    };
+  }
+
+  // --- limites por IP -------------------------------------------------------------------------
+
+  private registrarDoIp(tipo: string, ip: string, agora: number): void {
+    this.sql.exec("INSERT INTO limites_ip (tipo, ip, em) VALUES (?, ?, ?)", tipo, ip, agora);
+  }
+
+  private contarDoIp(tipo: string, ip: string, desde: number): number {
+    return this.contar(
+      "SELECT COUNT(*) AS n FROM limites_ip WHERE tipo = ? AND ip = ? AND em > ?",
+      tipo,
+      ip,
+      desde,
+    );
+  }
+
+  /** Minutos que o IP ainda espera, ou `0` se ele pode tentar. */
+  private esperaDoIp(ip: string, agora: number): number {
+    const falhas = (
+      this.sql
+        .exec(
+          "SELECT em FROM limites_ip WHERE tipo = 'falha' AND ip = ? AND em > ?",
+          ip,
+          agora - JANELA_DO_IP_MS,
+        )
+        .toArray() as { em: number }[]
+    ).map((l) => l.em);
+    const ate = bloqueioDoIp(falhas, agora);
+    return ate ? minutosAte(ate, agora) : 0;
+  }
+
+  /** Apaga o que já não serve: sessões vencidas e registros de IP com mais de um dia. */
+  limpar(agora: number): void {
+    this.sql.exec("DELETE FROM sessoes WHERE expira <= ?", agora);
+    this.sql.exec("DELETE FROM limites_ip WHERE em <= ?", agora - UM_DIA);
+  }
+
+  // --- senha -----------------------------------------------------------------------------------
+
+  private async novaSenha(derivada: string): Promise<{ sal: string; hash: string }> {
+    const sal = this.sortear(16);
+    return { sal: bytesParaBase64Url(sal), hash: await hashDaDerivada(sal, derivada) };
+  }
+
+  /** A derivada confere com a conta? Sem conta, faz a mesma conta contra um hash de mentira (e dá `false`). */
+  private async confere(conta: Linha | null, derivada: string): Promise<boolean> {
+    const sal = conta ? (base64UrlParaBytes(conta.sal) ?? SAL_DE_MENTIRA) : SAL_DE_MENTIRA;
+    const calculado = await hashDaDerivada(sal, derivada);
+    const certoHash = iguaisEmTempoConstante(calculado, conta ? conta.hash : HASH_DE_MENTIRA);
+    return conta !== null && certoHash;
+  }
+
+  /** Conta uma senha errada: contra a conta (espera crescente) e contra o IP. Devolve a espera da conta, se bloqueou agora. */
+  private registrarSenhaErrada(conta: Linha | null, ip: string, agora: number): number {
+    this.registrarDoIp("falha", ip, agora);
+    if (!conta) return 0;
+    const r = registrarFalhaDaConta({ falhas: conta.falhas, bloqueios: conta.bloqueios }, agora);
+    this.sql.exec(
+      "UPDATE contas SET falhas = ?, bloqueios = ?, bloqueada_ate = ? WHERE id = ?",
+      r.falhas,
+      r.bloqueios,
+      r.bloqueadaAte || conta.bloqueada_ate,
+      conta.id,
+    );
+    return r.bloqueadaAte ? minutosAte(r.bloqueadaAte, agora) : 0;
+  }
+
+  private zerarFalhas(contaId: string): void {
+    this.sql.exec(
+      "UPDATE contas SET falhas = 0, bloqueios = 0, bloqueada_ate = 0 WHERE id = ?",
+      contaId,
+    );
+  }
+
+  // --- sessões ---------------------------------------------------------------------------------
+
+  /** Abre uma sessão para a conta e devolve o token (que só existe aqui e no cookie; no banco fica o hash). */
+  private async abrirSessao(contaId: string, agora: number): Promise<string> {
+    const token = bytesParaBase64Url(this.sortear(32));
+    this.sql.exec(
+      "INSERT INTO sessoes (hash_token, conta_id, criada_em, ultimo_uso, expira) VALUES (?, ?, ?, ?, ?)",
+      await hashDoToken(token),
+      contaId,
+      agora,
+      agora,
+      agora + SESSAO_VALE_MS,
+    );
+    // No máximo 10 sessões por conta: as mais antigas caem.
+    this.sql.exec(
+      `DELETE FROM sessoes WHERE conta_id = ? AND hash_token NOT IN (
+         SELECT hash_token FROM sessoes WHERE conta_id = ? ORDER BY ultimo_uso DESC, criada_em DESC LIMIT ?)`,
+      contaId,
+      contaId,
+      MAXIMO_DE_SESSOES_POR_CONTA,
+    );
+    this.sql.exec("UPDATE contas SET ultimo_acesso = ? WHERE id = ?", agora, contaId);
+    return token;
+  }
+
+  /**
+   * Quem é o dono deste token? A sessão vencida, ou de conta que não está ativa, não vale. Usar a sessão
+   * a renova (no máximo uma vez por hora); `renovou` avisa quem chama para reenviar o cookie.
+   */
+  async resolverSessao(
+    token: string,
+    agora: number,
+  ): Promise<{ conta: ContaPublica; sessaoHash: string; renovou: boolean } | null> {
+    if (!/^[A-Za-z0-9_-]{43}$/.test(token)) return null;
+    const sessaoHash = await hashDoToken(token);
+    const s = this.sql
+      .exec("SELECT * FROM sessoes WHERE hash_token = ?", sessaoHash)
+      .toArray()[0] as { conta_id: string; ultimo_uso: number; expira: number } | undefined;
+    if (!s) return null;
+    if (s.expira <= agora) {
+      this.sql.exec("DELETE FROM sessoes WHERE hash_token = ?", sessaoHash);
+      return null;
+    }
+    const conta = this.porId(s.conta_id);
+    if (conta?.status !== "ativa") return null;
+    let renovou = false;
+    if (sessaoPrecisaRenovar(s.ultimo_uso, agora)) {
+      this.sql.exec(
+        "UPDATE sessoes SET ultimo_uso = ?, expira = ? WHERE hash_token = ?",
+        agora,
+        agora + SESSAO_VALE_MS,
+        sessaoHash,
+      );
+      this.sql.exec("UPDATE contas SET ultimo_acesso = ? WHERE id = ?", agora, conta.id);
+      renovou = true;
+    }
+    return { conta: publica(conta), sessaoHash, renovou };
+  }
+
+  /** Sair: apaga a sessão. */
+  async sair(token: string): Promise<void> {
+    this.sql.exec("DELETE FROM sessoes WHERE hash_token = ?", await hashDoToken(token));
+  }
+
+  /** Apaga as sessões de uma conta (menos a de `manter`, se vier). */
+  private derrubarSessoes(contaId: string, manterHash?: string): void {
+    this.sql.exec(
+      "DELETE FROM sessoes WHERE conta_id = ? AND hash_token <> ?",
+      contaId,
+      manterHash ?? "",
+    );
+  }
+
+  // --- criar contas ------------------------------------------------------------------------------
+
+  /** A conta do mestre (mesa nova, ou a mesa legada na primeira vez), já ativa e ligada à vaga dele. */
+  async criarMestre(
+    dados: { login: string; nome: string; derivada: string },
+    usuarioId: string,
+    agora: number,
+  ): Promise<Resultado<ContaPublica>> {
+    if (this.existeMestre()) return falha("ja_tem_mestre");
+    const loginNorm = dados.login.trim().toLowerCase();
+    if (this.porLogin(loginNorm)) return falha("login_em_uso");
+    const { sal, hash } = await this.novaSenha(dados.derivada);
+    const id = crypto.randomUUID();
+    this.sql.exec(
+      `INSERT INTO contas (id, login, login_norm, nome_exibicao, sal, hash, papel, usuario_id, status, criada_em)
+       VALUES (?, ?, ?, ?, ?, ?, 'mestre', ?, 'ativa', ?)`,
+      id,
+      loginNorm,
+      loginNorm,
+      dados.nome,
+      sal,
+      hash,
+      usuarioId,
+      agora,
+    );
+    return certo(publica(this.porId(id) as Linha));
+  }
+
+  /** Um pedido de entrada: a conta nasce `pendente` e só entra quando o mestre aceita. */
+  async pedir(
+    dados: { login: string; nome: string; derivada: string },
+    ip: string,
+    agora: number,
+  ): Promise<Resultado<{ id: string }>> {
+    if (!this.existeMestre()) return falha("mesa_sem_mestre");
+    this.limpar(agora);
+    // Cada tentativa de pedir conta para o IP (inclusive as de login repetido: senão dava para varrer logins).
+    if (this.contarDoIp("pedido", ip, agora - HORA) >= PEDIDOS_POR_IP_POR_HORA) {
+      return falha("muitos_pedidos");
+    }
+    this.registrarDoIp("pedido", ip, agora);
+    if (
+      this.contar("SELECT COUNT(*) AS n FROM contas WHERE status = 'pendente'") >=
+      MAXIMO_DE_PEDIDOS_PENDENTES
+    ) {
+      return falha("muitos_pedidos");
+    }
+    const loginNorm = dados.login.trim().toLowerCase();
+    const existente = this.porLogin(loginNorm);
+    const { sal, hash } = await this.novaSenha(dados.derivada);
+    if (existente) {
+      if (existente.status !== "recusada") return falha("login_em_uso");
+      const espera = (existente.recusada_em ?? 0) + PEDIR_DE_NOVO_APOS_RECUSA_MS - agora;
+      if (espera > 0) return falha("pedido_recusado_recente", Math.ceil(espera / 60_000));
+      // Recusada há mais de 10 minutos: o mesmo login pede de novo (a linha vira um pedido novo).
+      this.sql.exec(
+        `UPDATE contas SET nome_exibicao = ?, sal = ?, hash = ?, status = 'pendente', usuario_id = NULL,
+           criada_em = ?, recusada_em = NULL, redefinicao_ate = NULL, redefinicao_pedida_em = NULL,
+           falhas = 0, bloqueios = 0, bloqueada_ate = 0 WHERE id = ?`,
+        dados.nome,
+        sal,
+        hash,
+        agora,
+        existente.id,
+      );
+      return certo({ id: existente.id });
+    }
+    const id = crypto.randomUUID();
+    this.sql.exec(
+      `INSERT INTO contas (id, login, login_norm, nome_exibicao, sal, hash, papel, usuario_id, status, criada_em)
+       VALUES (?, ?, ?, ?, ?, ?, 'jogador', NULL, 'pendente', ?)`,
+      id,
+      loginNorm,
+      loginNorm,
+      dados.nome,
+      sal,
+      hash,
+      agora,
+    );
+    return certo({ id });
+  }
+
+  // --- entrar ---------------------------------------------------------------------------------------
+
+  async entrar(
+    dados: { login: string; derivada: string },
+    ip: string,
+    agora: number,
+  ): Promise<Resultado<{ token: string; conta: ContaPublica }>> {
+    this.limpar(agora);
+    const esperaIp = this.esperaDoIp(ip, agora);
+    if (esperaIp) return falha("ip_bloqueado", esperaIp);
+    const conta = this.porLogin(dados.login.trim().toLowerCase());
+    if (conta && conta.bloqueada_ate > agora) {
+      return falha("bloqueada", minutosAte(conta.bloqueada_ate, agora));
+    }
+    if (!(await this.confere(conta, dados.derivada)) || !conta) {
+      const espera = this.registrarSenhaErrada(conta, ip, agora);
+      return espera ? falha("bloqueada", espera) : falha("credenciais");
+    }
+    // Senha certa: zera a contagem; só então se diz em que pé está o pedido (quem erra a senha não descobre).
+    this.zerarFalhas(conta.id);
+    if (conta.status === "pendente") return falha("pedido_pendente");
+    if (conta.status === "recusada") return falha("pedido_recusado");
+    if (!conta.usuario_id) return falha("sem_vaga");
+    const token = await this.abrirSessao(conta.id, agora);
+    return certo({ token, conta: publica(conta) });
+  }
+
+  /** Uma sessão nova para a conta já conferida por outro caminho (a mesa nova abre a sessão do mestre). */
+  async abrirSessaoDe(contaId: string, agora: number): Promise<string> {
+    return this.abrirSessao(contaId, agora);
+  }
+
+  // --- esqueci a senha e redefinição -----------------------------------------------------------------
+
+  /**
+   * "Esqueci a senha": marca o pedido na conta de jogador. A resposta ao cliente é sempre a mesma (existindo
+   * ou não o login). Devolve a conta só quando este pedido é novo e o mestre deve ser avisado.
+   */
+  esqueci(loginNorm: string, ip: string, agora: number): ContaPublica | null {
+    this.limpar(agora);
+    if (this.contarDoIp("esqueci", ip, agora - HORA) >= ESQUECI_POR_IP_POR_HORA) return null;
+    this.registrarDoIp("esqueci", ip, agora);
+    const conta = this.porLogin(loginNorm);
+    if (conta?.status !== "ativa" || conta.papel !== "jogador") return null;
+    // Já há um pedido esperando (ou uma liberação ainda no prazo): não avisa o mestre de novo.
+    const liberacaoVencida = conta.redefinicao_ate !== null && conta.redefinicao_ate <= agora;
+    if (conta.redefinicao_pedida_em !== null && !liberacaoVencida) return null;
+    this.sql.exec(
+      "UPDATE contas SET redefinicao_pedida_em = ?, redefinicao_ate = NULL WHERE id = ?",
+      agora,
+      conta.id,
+    );
+    return publica(conta);
+  }
+
+  /** O mestre libera a redefinição: a conta ganha 30 minutos para definir a senha nova. */
+  liberarRedefinicao(contaId: string, agora: number): Resultado<ContaPublica> {
+    const conta = this.porId(contaId);
+    if (!conta) return falha("conta_inexistente");
+    if (
+      conta.papel !== "jogador" ||
+      conta.status !== "ativa" ||
+      conta.redefinicao_pedida_em === null
+    ) {
+      return falha("sem_pedido");
+    }
+    this.sql.exec(
+      "UPDATE contas SET redefinicao_ate = ? WHERE id = ?",
+      agora + REDEFINICAO_VALE_MS,
+      contaId,
+    );
+    return certo(publica(conta));
+  }
+
+  /** Define a senha nova de uma conta com redefinição liberada e ainda no prazo. As sessões antigas caem. */
+  async redefinir(
+    dados: { login: string; derivada: string },
+    ip: string,
+    agora: number,
+  ): Promise<Resultado<{ conta: ContaPublica; token: string | null }>> {
+    this.limpar(agora);
+    const esperaIp = this.esperaDoIp(ip, agora);
+    if (esperaIp) return falha("ip_bloqueado", esperaIp);
+    const conta = this.porLogin(dados.login.trim().toLowerCase());
+    if (
+      conta?.status !== "ativa" ||
+      conta.papel !== "jogador" ||
+      conta.redefinicao_ate === null ||
+      conta.redefinicao_ate <= agora
+    ) {
+      this.registrarDoIp("falha", ip, agora);
+      return falha("redefinicao_indisponivel");
+    }
+    const { sal, hash } = await this.novaSenha(dados.derivada);
+    this.sql.exec(
+      `UPDATE contas SET sal = ?, hash = ?, redefinicao_ate = NULL, redefinicao_pedida_em = NULL,
+         falhas = 0, bloqueios = 0, bloqueada_ate = 0 WHERE id = ?`,
+      sal,
+      hash,
+      conta.id,
+    );
+    this.derrubarSessoes(conta.id);
+    const token = conta.usuario_id ? await this.abrirSessao(conta.id, agora) : null;
+    return certo({ conta: publica(conta), token });
+  }
+
+  /** Trocar a senha estando logado: confere a atual (errar conta como no login) e derruba as outras sessões. */
+  async trocarSenha(
+    contaId: string,
+    dados: { atual: string; nova: string },
+    sessaoHash: string,
+    ip: string,
+    agora: number,
+  ): Promise<Resultado<null>> {
+    const conta = this.porId(contaId);
+    if (!conta) return falha("conta_inexistente");
+    if (conta.bloqueada_ate > agora)
+      return falha("bloqueada", minutosAte(conta.bloqueada_ate, agora));
+    const esperaIp = this.esperaDoIp(ip, agora);
+    if (esperaIp) return falha("ip_bloqueado", esperaIp);
+    if (!(await this.confere(conta, dados.atual))) {
+      const espera = this.registrarSenhaErrada(conta, ip, agora);
+      return espera ? falha("bloqueada", espera) : falha("senha_atual_incorreta");
+    }
+    const { sal, hash } = await this.novaSenha(dados.nova);
+    this.sql.exec(
+      "UPDATE contas SET sal = ?, hash = ?, falhas = 0, bloqueios = 0, bloqueada_ate = 0 WHERE id = ?",
+      sal,
+      hash,
+      contaId,
+    );
+    this.derrubarSessoes(contaId, sessaoHash);
+    return certo(null);
+  }
+
+  // --- o que o mestre faz ------------------------------------------------------------------------------
+
+  /** Aceita um pedido: a conta fica ativa, ligada à vaga. Quem chama confere antes que a vaga é de jogador e está livre. */
+  aceitar(contaId: string, usuarioId: string): Resultado<ContaPublica> {
+    const conta = this.porId(contaId);
+    if (!conta) return falha("conta_inexistente");
+    if (conta.status !== "pendente") return falha("sem_pedido");
+    if (this.vagaOcupada(usuarioId, contaId)) return falha("vaga_invalida");
+    this.sql.exec(
+      "UPDATE contas SET status = 'ativa', usuario_id = ?, recusada_em = NULL WHERE id = ?",
+      usuarioId,
+      contaId,
+    );
+    return certo(publica(this.porId(contaId) as Linha));
+  }
+
+  recusar(contaId: string, agora: number): Resultado<ContaPublica> {
+    const conta = this.porId(contaId);
+    if (!conta) return falha("conta_inexistente");
+    if (conta.papel === "mestre") return falha("conta_do_mestre");
+    if (conta.status !== "pendente") return falha("sem_pedido");
+    this.sql.exec(
+      "UPDATE contas SET status = 'recusada', recusada_em = ?, usuario_id = NULL WHERE id = ?",
+      agora,
+      contaId,
+    );
+    this.derrubarSessoes(contaId);
+    return certo(publica(conta));
+  }
+
+  /** Remove a conta (a vaga fica e perde a conta). A do mestre não sai por aqui. */
+  remover(contaId: string): Resultado<ContaPublica> {
+    const conta = this.porId(contaId);
+    if (!conta) return falha("conta_inexistente");
+    if (conta.papel === "mestre") return falha("conta_do_mestre");
+    this.derrubarSessoes(contaId);
+    this.sql.exec("DELETE FROM contas WHERE id = ?", contaId);
+    return certo(publica(conta));
+  }
+
+  /** Liga uma conta ativa de jogador a outra vaga (livre, de jogador: quem chama confere). */
+  trocarVaga(contaId: string, usuarioId: string): Resultado<ContaPublica> {
+    const conta = this.porId(contaId);
+    if (!conta) return falha("conta_inexistente");
+    if (conta.papel !== "jogador" || conta.status !== "ativa") return falha("sem_pedido");
+    if (this.vagaOcupada(usuarioId, contaId)) return falha("vaga_invalida");
+    this.sql.exec("UPDATE contas SET usuario_id = ? WHERE id = ?", usuarioId, contaId);
+    return certo(publica(this.porId(contaId) as Linha));
+  }
+
+  /**
+   * A campanha foi importada e as vagas mudaram: a conta ligada a uma vaga que não existe mais fica sem
+   * vaga (o mestre a liga de novo) e perde as sessões. Devolve os ids das contas afetadas.
+   */
+  desligarVagasQueSumiram(vagasQueExistem: ReadonlySet<string>): string[] {
+    const afetadas = this.linhas("SELECT * FROM contas WHERE usuario_id IS NOT NULL").filter(
+      (c) => c.usuario_id !== null && !vagasQueExistem.has(c.usuario_id),
+    );
+    for (const c of afetadas) {
+      this.sql.exec("UPDATE contas SET usuario_id = NULL WHERE id = ?", c.id);
+      this.derrubarSessoes(c.id);
+    }
+    return afetadas.map((c) => c.id);
+  }
+
+  /** Só para o `/teste/zerar` (MODO=teste): esquece contas, sessões e limites. */
+  apagarTudo(): void {
+    this.sql.exec("DELETE FROM sessoes");
+    this.sql.exec("DELETE FROM limites_ip");
+    this.sql.exec("DELETE FROM contas");
+  }
+}

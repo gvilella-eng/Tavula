@@ -649,5 +649,15 @@ Continua em aberto, por ser decisão e não erro de doc: `ficha.verOutras` (seç
 
 - Mapa: ids em `packages/shared/src/mesas.ts`; diretório em `apps/server/src/diretorio.ts` e `registroDeMesas.ts`; inicialização do DO em `inicializacao.ts`; rotas no `index.ts` do Worker; web em `rotas.ts`, `TelaInicial.tsx`, `IdDaMesa.tsx`, `App.tsx`.
 - Frágil: a mesa legada é o DO `"campanha"` (`ctx.id.name`); a migração de DO `v2` do `wrangler.jsonc` só acrescenta (nunca edite a `v1`). A lista de mesas depende de `LISTAR_MESAS=1` (`--var` nos scripts `dev` e `dev:e2e` do servidor).
-- Suposições novas (assumido): ver `REDESIGN`, "C1 — como ficou". O cookie é `tabletop_sessao` por mesa; o renomear é uma rota; a memória do mapa não é por mesa.
+- Suposições novas (assumido): ver `REDESIGN`, "C1 — como ficou". O cookie era `tabletop_sessao` por mesa (agora só em `MODO=teste`; ver C2); o renomear é uma rota; a memória do mapa passou a ser por mesa no C2.
 - Os E2E abrem `/m/t3st-m3sa-e2e7` (`CAMINHO_DA_MESA` em `e2e/tests/ajudas.ts`); WebSocket cru: `/api/m/t3st-m3sa-e2e7/ws`.
+
+## C2 (2026-11-12): contas por mesa, pedidos de entrada, sessões e redefinição
+
+- Mapa: regras puras e derivação em `packages/shared/src/contas.ts`; contas, hash, sessões e limites em `apps/server/src/contas.ts` (`ContasDaMesa`); cookies em `autenticacao.ts`; rotas na `Sala` (`rotaDeConta`, `acaoDoMestre`, `identificar`) e lista fechada de rotas no Worker (`caminhoInterno` em `index.ts`); web em `contas/` (`EntradaDaMesa`, `SecaoDeContas`, `TrocarSenha`, `CampoDeConta`), `api.ts` (funções de conta) e `TelaInicial.tsx` (criar mesa com conta).
+- Frágil: a migração 10 do `Armazenamento` nunca se edita (só se acrescenta); as tabelas `contas`, `sessoes` e `limites_ip` ficam fora de `entidades` de propósito (a importação apaga e a exportação lê `entidades`). O `/teste/zerar` apaga as contas da legada de teste.
+- Frágil: quem identifica é a sala, pelo cookie. O Worker não confia em nada que o navegador mande em `x-tavola-*`. `MODO=teste` liga o login solto (`tabletop_sessao`), `entrar`, `usuarios` e a criação de mesa sem mestre: **nunca** suba o servidor de verdade com essa variável.
+- Frágil: a "requisição local" (conta do mestre da legada) depende do host e de `CF-Connecting-IP`; confira de novo ao ir para a internet.
+- Frágil: fechar socket com 4001 faz o cliente perguntar `eu`; se a rota mudar, ele não volta à entrada (`useSala.ts`).
+- Os E2E de conta usam derivação real (600.000 iterações): cada login leva cerca de 1 s.
+- Suposições novas (assumido): ver `REDESIGN`, "C2 — como ficou".

@@ -15,6 +15,7 @@ import {
 import { CombateSchema, IniciativaSchema, LIMITES_DO_COMBATE } from "./combate.ts";
 import { CompendioDaMesaSchema, MagiaDoCompendioSchema } from "./compendio.ts";
 import { CondicaoSchema } from "./condicoes.ts";
+import { AvisoDeContasSchema } from "./contas.ts";
 import { LIMITES_DE_DADOS } from "./dados.ts";
 import {
   DesenhoBaseSchema,
@@ -1177,6 +1178,13 @@ export const MensagemDaSalaSchema = z.discriminatedUnion("tipo", [
     }),
   ),
   mensagemDaSala("exportacao", z.object({ idPedido: z.string(), exportacao: ExportacaoSchema })),
+  /**
+   * C2, só para o mestre: quantos pedidos de entrada e de redefinição de senha esperam e, se acabou de
+   * chegar um, o nome e o login dele. Nunca leva sal, hash, token nem nada da senha.
+   */
+  mensagemDaSala("contas.aviso", AvisoDeContasSchema),
+  /** C2, para todos: o mestre mudou o nome da mesa (o título e a lista local acompanham sem recarregar). */
+  mensagemDaSala("mesa.renomeada", z.object({ nome: z.string().min(1).max(60) })),
   /**
    * Pré-envio (Lote 4): baixe estes arquivos cifrados. Sem `cenaId`, sem nome, sem nada sobre o
    * conteúdo. A sala manda a todo jogador conectado e a quem conecta depois.

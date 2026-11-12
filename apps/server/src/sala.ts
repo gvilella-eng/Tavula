@@ -2,6 +2,14 @@ import { DurableObject } from "cloudflare:workers";
 import {
   assetVisivelPara,
   type CodigoDeErro,
+  CorpoAceitarSchema,
+  CorpoEntrarSchema,
+  CorpoEsqueciSchema,
+  CorpoMestreInicialSchema,
+  CorpoPedirSchema,
+  CorpoRedefinirSchema,
+  CorpoTrocarSenhaSchema,
+  CorpoTrocarVagaSchema,
   calcularUso,
   desenhoVisivelPara,
   diaUtc,
@@ -16,9 +24,13 @@ import {
   LIMITES_DO_CHAT,
   lerFrameDePedaco,
   lerIntencao,
+  MAXIMO_DE_VAGAS,
   type Mensagem,
+  MestreDaMesaNovaSchema,
   mensagem,
+  mensagemDeErroDeConta,
   mensagemParaUsuario,
+  nomeDeExibicaoValido,
   type Pacote,
   type Presenca,
   pausarSeSemMestre,
@@ -36,6 +48,15 @@ import {
 import semente from "../../../fixtures/campanha.seed.json";
 import { Agendador } from "./agendador";
 import { Armazenamento, type UsoDoDia } from "./armazenamento";
+import {
+  COOKIE_DE_TESTE,
+  cookieDeSessao,
+  cookieDeTeste,
+  cookiesDeSaida,
+  lerCookie,
+  NOME_DO_COOKIE,
+} from "./autenticacao";
+import { type ContaPublica, ContasDaMesa, type Falha } from "./contas";
 import { carregarOuSemear, criarMesaNova } from "./inicializacao";
 import { Transferencias } from "./transferencias";
 
@@ -44,8 +65,21 @@ export function pedeWebSocket(request: Request): boolean {
   return request.headers.get("Upgrade")?.toLowerCase() === "websocket";
 }
 
-/** Cabeçalho que o Worker preenche com o usuário identificado (nunca confiar no que vem de fora). */
-export const CABECALHO_USUARIO = "x-tabletop-usuario";
+/**
+ * Cabeçalhos internos que o Worker preenche (e que ele sempre apaga do que o navegador mandar): o IP de
+ * quem pediu, se o pedido é local, se veio por https e o id da mesa. A identificação de quem pede NÃO vem
+ * de cabeçalho: a sala a resolve sozinha pelo cookie (sessão → conta → vaga).
+ */
+export const CABECALHO_IP = "x-tavola-ip";
+export const CABECALHO_LOCAL = "x-tavola-local";
+export const CABECALHO_SEGURO = "x-tavola-seguro";
+export const CABECALHO_MESA = "x-tavola-mesa";
+export const CABECALHOS_INTERNOS = [
+  CABECALHO_IP,
+  CABECALHO_LOCAL,
+  CABECALHO_SEGURO,
+  CABECALHO_MESA,
+];
 
 const TEMPO_RECONECTANDO_MS = 10_000;
 /**
@@ -68,7 +102,68 @@ const INTENCOES_DE_CHAT = new Set<string>([
 const PAGINA_DO_HISTORICO = 400;
 
 /** O que fica no `serializeAttachment` de cada socket: sobrevive à hibernação. */
-type Identidade = { usuarioId: string; conexaoId: string };
+type Identidade = {
+  usuarioId: string;
+  conexaoId: string;
+  /** Conta e sessão que abriram o socket (sem eles: o login solto de teste). Para fechar o socket quando a conta cai. */
+  contaId?: string;
+  sessaoHash?: string;
+};
+
+/** Quem fez uma requisição, já resolvido pela sala. */
+type Quem = {
+  usuarioId: string;
+  conta?: ContaPublica;
+  sessaoHash?: string;
+  renovou?: boolean;
+  token?: string;
+};
+
+type Esquema<T> = { safeParse(dados: unknown): { success: true; data: T } | { success: false } };
+
+const STATUS_DO_ERRO_DE_CONTA: Record<string, number> = {
+  corpo_invalido: 400,
+  mestre_obrigatorio: 400,
+  tipo_invalido: 415,
+  credenciais: 401,
+  sem_sessao: 401,
+  bloqueada: 429,
+  ip_bloqueado: 429,
+  muitos_pedidos: 429,
+  pedido_recusado_recente: 429,
+  login_em_uso: 409,
+  ja_tem_mestre: 409,
+  id_em_uso: 409,
+  vaga_invalida: 409,
+  sem_pedido: 409,
+  mesa_sem_mestre: 409,
+  conta_inexistente: 404,
+};
+const TAMANHO_MAXIMO_DO_CORPO = 4096;
+/** Cores das vagas novas (as de conteúdo de uma mesa; não são do tema da interface). */
+const CORES_DE_VAGA = [
+  "#3cb44b",
+  "#4363d8",
+  "#f58231",
+  "#911eb4",
+  "#46f0f0",
+  "#f032e6",
+  "#bcf60c",
+  "#fabebe",
+  "#008080",
+  "#e6beff",
+  "#9a6324",
+  "#800000",
+];
+
+function erroDeConta(f: Falha): Response {
+  const resposta = json(
+    { erro: f.erro, mensagem: mensagemDeErroDeConta(f.erro, f.minutos), minutos: f.minutos },
+    STATUS_DO_ERRO_DE_CONTA[f.erro] ?? 403,
+  );
+  if (f.minutos) resposta.headers.set("Retry-After", String(f.minutos * 60));
+  return resposta;
+}
 
 function json(corpo: unknown, status = 200): Response {
   return new Response(JSON.stringify(corpo), {
@@ -86,6 +181,8 @@ export class Sala extends DurableObject<Env> {
   /** Há estado nesta mesa? `false` num Durable Object de mesa que o diretório ainda não criou. */
   private criada = false;
   private readonly banco: Armazenamento;
+  /** As contas e sessões desta mesa (C2): segredo da sala, nunca vai a cliente. */
+  private readonly contas: ContasDaMesa;
   private readonly agenda: Agendador;
   private uso: UsoDoDia = { dia: "", mensagens: 0, conexoes: 0 };
   private mensagensDesdeGravacaoDoUso = 0;
@@ -118,6 +215,7 @@ export class Sala extends DurableObject<Env> {
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
     this.banco = new Armazenamento(ctx.storage.sql);
+    this.contas = new ContasDaMesa(ctx.storage.sql);
     this.agenda = new Agendador(ctx.storage.sql, ctx.storage);
     this.transferencias = new Transferencias({
       candidatos: (hash) => this.candidatosA(hash),
@@ -150,14 +248,120 @@ export class Sala extends DurableObject<Env> {
     this.banco.limparPosseOrfa(this.conexoesAbertas().map((c) => c.conexaoId));
   }
 
-  /** `POST /criar {nome}` (só o diretório manda): dá à mesa o estado vazio. Repetir não muda nada. */
-  private async criar(): Promise<Response> {
+  /** `POST /criar {nome, mestre?, seguro}` (só o diretório manda): dá à mesa o estado vazio e, com `mestre`, a conta do mestre. Repetir não muda nada. */
+  private async criar(request: Request): Promise<Response> {
     if (this.criada) return json({ ok: true, jaExistia: true });
+    let corpo: {
+      nome?: unknown;
+      seguro?: unknown;
+      mesaId?: unknown;
+      mestre?: unknown;
+    } = {};
+    try {
+      corpo = (await request.json()) as typeof corpo;
+    } catch {
+      // sem corpo: mesa sem conta (só MODO=teste; o Worker já conferiu)
+    }
+    const mestre = corpo.mestre ? MestreDaMesaNovaSchema.safeParse(corpo.mestre) : null;
+    if (corpo.mestre && !mestre?.success) return json({ erro: "corpo_invalido" }, 400);
+    let cookie: string | null = null;
+    let falhou = false;
     await this.ctx.blockConcurrencyWhile(async () => {
       const { estado } = criarMesaNova(this.banco);
       await this.iniciar(estado);
+      if (!mestre?.success) return;
+      const agora = Date.now();
+      const vaga = this.estado.usuarios.find((u) => u.papel === "mestre");
+      const nome = nomeDeExibicaoValido(mestre.data.nome);
+      if (!vaga || !nome) {
+        falhou = true;
+        return;
+      }
+      const conta = await this.contas.criarMestre({ ...mestre.data, nome }, vaga.id, agora);
+      if (!conta.ok) {
+        falhou = true;
+        return;
+      }
+      this.aplicarUsuarios(
+        this.estado.usuarios.map((u) => (u.id === vaga.id ? { ...u, nome } : u)),
+      );
+      const token = await this.contas.abrirSessaoDe(conta.valor.id, agora);
+      cookie = cookieDeSessao(token, String(corpo.mesaId ?? ""), corpo.seguro === true);
     });
-    return json({ ok: true });
+    if (falhou) return json({ erro: "falha_ao_criar" }, 500);
+    return json({ ok: true, cookie });
+  }
+
+  // --- Quem é quem ------------------------------------------------------------------------------
+
+  private get ehTeste(): boolean {
+    return this.env.MODO === "teste";
+  }
+
+  /**
+   * Quem fez o pedido: o cookie `tavola_sessao` (sessão → conta → vaga) e, só com MODO=teste, o login solto
+   * `tabletop_sessao` (o id do usuário). Nada do que o navegador mandar em cabeçalho vale aqui.
+   */
+  private async identificar(request: Request): Promise<Quem | null> {
+    const cookies = request.headers.get("Cookie");
+    const token = lerCookie(cookies, NOME_DO_COOKIE);
+    if (token) {
+      const r = await this.contas.resolverSessao(token, Date.now());
+      const vaga = r?.conta.usuarioId;
+      if (r && vaga && this.estado.usuarios.some((u) => u.id === vaga)) {
+        return {
+          usuarioId: vaga,
+          conta: r.conta,
+          sessaoHash: r.sessaoHash,
+          renovou: r.renovou,
+          token,
+        };
+      }
+    }
+    if (this.ehTeste) {
+      const id = lerCookie(cookies, COOKIE_DE_TESTE);
+      if (id && this.estado.usuarios.some((u) => u.id === id)) return { usuarioId: id };
+    }
+    return null;
+  }
+
+  private ipDe(request: Request): string {
+    return request.headers.get(CABECALHO_IP) || "local";
+  }
+
+  private seguro(request: Request): boolean {
+    return request.headers.get(CABECALHO_SEGURO) === "1";
+  }
+
+  private mesaIdDe(request: Request): string {
+    return request.headers.get(CABECALHO_MESA) ?? "";
+  }
+
+  private comCookies(resposta: Response, cookies: string[]): Response {
+    for (const c of cookies) resposta.headers.append("Set-Cookie", c);
+    return resposta;
+  }
+
+  /** O corpo JSON (até 4 KB) validado pelo esquema, ou a resposta de erro pronta. */
+  private async lerCorpo<T>(
+    request: Request,
+    esquema: Esquema<T>,
+  ): Promise<{ ok: true; valor: T } | { ok: false; resposta: Response }> {
+    if (!request.headers.get("Content-Type")?.toLowerCase().startsWith("application/json")) {
+      return { ok: false, resposta: erroDeConta({ ok: false, erro: "tipo_invalido" }) };
+    }
+    const texto = await request.text();
+    let bruto: unknown;
+    try {
+      bruto = texto.length <= TAMANHO_MAXIMO_DO_CORPO ? JSON.parse(texto) : null;
+    } catch {
+      bruto = null;
+    }
+    const r = esquema.safeParse(bruto);
+    if (!r.success) {
+      return { ok: false, resposta: erroDeConta({ ok: false, erro: "corpo_invalido" }) };
+    }
+    return { ok: true, valor: r.data };
   }
 
   // --- HTTP -----------------------------------------------------------------------------------
@@ -165,28 +369,68 @@ export class Sala extends DurableObject<Env> {
   override async fetch(request: Request): Promise<Response> {
     const { pathname } = new URL(request.url);
     // O Worker só repassa para cá depois de achar a mesa no diretório; o diretório é quem manda criar.
-    if (pathname === "/criar" && request.method === "POST") return this.criar();
+    if (pathname === "/criar" && request.method === "POST") return this.criar(request);
     if (!this.criada) return json({ erro: "mesa_inexistente" }, 404);
 
+    if (pathname === "/api/situacao" && request.method === "GET") {
+      const semMestre = !this.contas.existeMestre();
+      return json({
+        modoTeste: this.ehTeste,
+        semMestre,
+        podeCriarMestre: semMestre && request.headers.get(CABECALHO_LOCAL) === "1",
+      });
+    }
     if (pathname === "/api/usuarios" && request.method === "GET") {
+      // A escolha de usuário de desenvolvimento: só com MODO=teste (na internet ninguém lista as vagas).
+      if (!this.ehTeste) return new Response("Não encontrado", { status: 404 });
       return json(this.estado.usuarios.map(({ id, nome, cor }) => ({ id, nome, cor })));
     }
     if (pathname === "/api/eu" && request.method === "GET") {
-      const u = this.estado.usuarios.find((x) => x.id === request.headers.get(CABECALHO_USUARIO));
-      return u ? json({ id: u.id, nome: u.nome, cor: u.cor }) : new Response(null, { status: 401 });
+      const quem = await this.identificar(request);
+      const u = quem && this.estado.usuarios.find((x) => x.id === quem.usuarioId);
+      if (!quem || !u) return new Response(null, { status: 401 });
+      const resposta = json({
+        id: u.id,
+        nome: u.nome,
+        cor: u.cor,
+        ...(quem.conta ? { login: quem.conta.login } : {}),
+      });
+      // A sessão foi renovada pelo uso: o cookie ganha mais 30 dias.
+      if (quem.renovou && quem.token) {
+        resposta.headers.append(
+          "Set-Cookie",
+          cookieDeSessao(quem.token, this.mesaIdDe(request), this.seguro(request)),
+        );
+      }
+      return resposta;
     }
     if (pathname === "/papel" && request.method === "GET") {
       // Interna: o Worker pergunta o papel de quem fez o pedido (renomear a mesa é do mestre).
-      const u = this.estado.usuarios.find((x) => x.id === request.headers.get(CABECALHO_USUARIO));
-      return u ? json({ papel: u.papel }) : new Response(null, { status: 401 });
+      const quem = await this.identificar(request);
+      const u = quem && this.estado.usuarios.find((x) => x.id === quem.usuarioId);
+      return u
+        ? json({ papel: u.papel, conta: quem?.conta?.papel ?? null })
+        : new Response(null, { status: 401 });
     }
     if (pathname === "/api/entrar" && request.method === "POST") return this.entrar(request);
+    if (pathname === "/api/sair" && request.method === "POST") return this.sair(request);
+    if (pathname === "/api/renomeada" && request.method === "POST") return this.renomeada(request);
     if (pathname === "/ws") return this.abrirSocket(request);
+    if (pathname.startsWith("/api/conta/") && request.method === "POST") {
+      return this.rotaDeConta(request, pathname.slice("/api/conta/".length));
+    }
+    if (pathname === "/api/contas" && request.method === "GET") return this.listarContas(request);
+    const doMestre = /^\/api\/contas\/([^/]+)\/([a-z-]+)$/.exec(pathname);
+    if (doMestre && request.method === "POST") {
+      return this.acaoDoMestre(request, doMestre[1] ?? "", doMestre[2] ?? "");
+    }
     if (pathname.startsWith("/teste/")) return this.rotaDeTeste(new URL(request.url));
     return new Response("Não encontrado", { status: 404 });
   }
 
+  /** O login solto de desenvolvimento: só com MODO=teste (a escolha de usuário dos E2E antigos). */
   private async entrar(request: Request): Promise<Response> {
+    if (!this.ehTeste) return new Response("Não encontrado", { status: 404 });
     let usuarioId: unknown;
     try {
       usuarioId = ((await request.json()) as { usuarioId?: unknown }).usuarioId;
@@ -197,20 +441,304 @@ export class Sala extends DurableObject<Env> {
     if (!this.estado.usuarios.some((u) => u.id === usuarioId)) {
       return json({ erro: "usuário desconhecido" }, 404);
     }
+    return this.comCookies(json({ ok: true }), [cookieDeTeste(usuarioId, this.mesaIdDe(request))]);
+  }
+
+  /** Sair: apaga a sessão no banco, fecha os sockets dela e apaga os cookies. */
+  private async sair(request: Request): Promise<Response> {
+    const token = lerCookie(request.headers.get("Cookie"), NOME_DO_COOKIE);
+    if (token) {
+      const quem = await this.identificar(request);
+      await this.contas.sair(token);
+      if (quem?.sessaoHash) this.fecharSockets((i) => i.sessaoHash === quem.sessaoHash, "saiu");
+    }
+    return this.comCookies(
+      new Response(null, { status: 204 }),
+      cookiesDeSaida(this.mesaIdDe(request), this.seguro(request)),
+    );
+  }
+
+  /** O mestre mudou o nome da mesa (o Worker já conferiu e gravou no diretório): todos recebem o nome novo. */
+  private async renomeada(request: Request): Promise<Response> {
+    const { nome } = (await request.json().catch(() => ({}))) as { nome?: unknown };
+    if (typeof nome !== "string" || nome.length < 1 || nome.length > 60) {
+      return json({ erro: "nome_invalido" }, 400);
+    }
+    const texto = mensagem({ tipo: "mesa.renomeada", dados: { nome } });
+    for (const ws of this.ctx.getWebSockets()) this.enviar(ws, texto);
     return json({ ok: true });
+  }
+
+  // --- Contas (C2) ------------------------------------------------------------------------------
+
+  /** Fecha os sockets cuja identidade satisfaz `serve` (4001: o cliente volta à tela de entrada). */
+  private fecharSockets(serve: (i: Identidade) => boolean, motivo: string): void {
+    for (const ws of this.ctx.getWebSockets()) {
+      const i = this.identidadeDe(ws);
+      if (!i || !serve(i)) continue;
+      try {
+        ws.close(4001, motivo);
+      } catch {
+        // já fechado
+      }
+    }
+  }
+
+  /** Grava e distribui vagas novas ou renomeadas: um snapshot novo para todos (a mesa nunca guarda conta). */
+  private aplicarUsuarios(usuarios: Usuario[]): void {
+    const mudadas = usuarios.filter((u) => {
+      const antes = this.estado.usuarios.find((x) => x.id === u.id);
+      return !antes || antes.nome !== u.nome || antes.cor !== u.cor || antes.papel !== u.papel;
+    });
+    if (mudadas.length === 0) return;
+    this.banco.gravarUsuarios(mudadas);
+    this.estado = { ...this.estado, usuarios };
+    for (const ws of this.ctx.getWebSockets()) {
+      const usuario = this.usuarioDe(ws);
+      if (usuario) this.enviarSnapshot(ws, usuario);
+    }
+    this.difundirPresenca();
+  }
+
+  /** O resumo dos pedidos para os mestres conectados (e, se acabou de chegar um, qual). Sem dado de senha. */
+  private avisarMestres(
+    novo: { tipo: "entrada" | "redefinicao"; nome: string; login: string } | null,
+  ): void {
+    const texto = this.textoDoAvisoDeContas(novo);
+    for (const ws of this.ctx.getWebSockets()) {
+      if (this.usuarioDe(ws)?.papel === "mestre") this.enviar(ws, texto);
+    }
+  }
+
+  private textoDoAvisoDeContas(
+    novo: { tipo: "entrada" | "redefinicao"; nome: string; login: string } | null,
+  ): string {
+    return mensagem({ tipo: "contas.aviso", dados: { ...this.contas.pendencias(), novo } });
+  }
+
+  /** As rotas públicas e da própria conta: `conta/<acao>`. */
+  private async rotaDeConta(request: Request, acao: string): Promise<Response> {
+    const ip = this.ipDe(request);
+    const agora = Date.now();
+    const mesaId = this.mesaIdDe(request);
+    const seguro = this.seguro(request);
+
+    if (acao === "entrar") {
+      const c = await this.lerCorpo(request, CorpoEntrarSchema);
+      if (!c.ok) return c.resposta;
+      const r = await this.contas.entrar(c.valor, ip, agora);
+      if (!r.ok) return erroDeConta(r);
+      return this.comCookies(json({ ok: true }), [cookieDeSessao(r.valor.token, mesaId, seguro)]);
+    }
+
+    if (acao === "pedir") {
+      const c = await this.lerCorpo(request, CorpoPedirSchema);
+      if (!c.ok) return c.resposta;
+      const nome = nomeDeExibicaoValido(c.valor.nome);
+      if (!nome) return erroDeConta({ ok: false, erro: "corpo_invalido" });
+      const r = await this.contas.pedir({ ...c.valor, nome }, ip, agora);
+      if (!r.ok) return erroDeConta(r);
+      this.avisarMestres({ tipo: "entrada", nome, login: c.valor.login.trim().toLowerCase() });
+      return json({ ok: true });
+    }
+
+    if (acao === "esqueci") {
+      const c = await this.lerCorpo(request, CorpoEsqueciSchema);
+      if (!c.ok) return c.resposta;
+      const conta = this.contas.esqueci(c.valor.login.trim().toLowerCase(), ip, agora);
+      if (conta) this.avisarMestres({ tipo: "redefinicao", nome: conta.nome, login: conta.login });
+      // A resposta é a mesma existindo o login ou não.
+      return json({ ok: true });
+    }
+
+    if (acao === "redefinir") {
+      const c = await this.lerCorpo(request, CorpoRedefinirSchema);
+      if (!c.ok) return c.resposta;
+      const r = await this.contas.redefinir(c.valor, ip, agora);
+      if (!r.ok) return erroDeConta(r);
+      // As sessões antigas caem e os sockets delas também.
+      this.fecharSockets((i) => i.contaId === r.valor.conta.id, "senha redefinida");
+      this.avisarMestres(null);
+      return this.comCookies(
+        json({ ok: true }),
+        r.valor.token ? [cookieDeSessao(r.valor.token, mesaId, seguro)] : [],
+      );
+    }
+
+    if (acao === "trocar-senha") {
+      const quem = await this.identificar(request);
+      if (!quem?.conta || !quem.sessaoHash) return erroDeConta({ ok: false, erro: "sem_sessao" });
+      const c = await this.lerCorpo(request, CorpoTrocarSenhaSchema);
+      if (!c.ok) return c.resposta;
+      const r = await this.contas.trocarSenha(quem.conta.id, c.valor, quem.sessaoHash, ip, agora);
+      if (!r.ok) return erroDeConta(r);
+      const mantida = quem.sessaoHash;
+      const conta = quem.conta.id;
+      this.fecharSockets((i) => i.contaId === conta && i.sessaoHash !== mantida, "senha trocada");
+      return json({ ok: true });
+    }
+
+    if (acao === "mestre-inicial") return this.criarMestreInicial(request, agora, mesaId, seguro);
+
+    return new Response("Não encontrado", { status: 404 });
+  }
+
+  /**
+   * A mesa legada (a campanha de antes das contas) ganha a conta do mestre, ligada à vaga `mestre` que
+   * já existe. Só vale numa requisição local (o Worker marca) e só enquanto a mesa não tem mestre: na
+   * internet uma mesa nunca fica sem dono.
+   */
+  private async criarMestreInicial(
+    request: Request,
+    agora: number,
+    mesaId: string,
+    seguro: boolean,
+  ): Promise<Response> {
+    if (request.headers.get(CABECALHO_LOCAL) !== "1") {
+      return erroDeConta({ ok: false, erro: "so_local" });
+    }
+    const c = await this.lerCorpo(request, CorpoMestreInicialSchema);
+    if (!c.ok) return c.resposta;
+    const nome = nomeDeExibicaoValido(c.valor.nome);
+    const vaga =
+      this.estado.usuarios.find((u) => u.id === "mestre" && u.papel === "mestre") ??
+      this.estado.usuarios.find((u) => u.papel === "mestre");
+    if (!nome || !vaga) return erroDeConta({ ok: false, erro: "corpo_invalido" });
+    const r = await this.contas.criarMestre({ ...c.valor, nome }, vaga.id, agora);
+    if (!r.ok) return erroDeConta(r);
+    this.aplicarUsuarios(this.estado.usuarios.map((u) => (u.id === vaga.id ? { ...u, nome } : u)));
+    const token = await this.contas.abrirSessaoDe(r.valor.id, agora);
+    return this.comCookies(json({ ok: true }), [cookieDeSessao(token, mesaId, seguro)]);
+  }
+
+  /** O mestre (conta de mestre com sessão válida), ou a resposta de erro. */
+  private async exigirMestre(request: Request): Promise<Quem | Response> {
+    const quem = await this.identificar(request);
+    if (!quem?.conta) return erroDeConta({ ok: false, erro: "sem_sessao" });
+    if (quem.conta.papel !== "mestre") return erroDeConta({ ok: false, erro: "sem_permissao" });
+    return quem;
+  }
+
+  private async listarContas(request: Request): Promise<Response> {
+    const quem = await this.exigirMestre(request);
+    if (quem instanceof Response) return quem;
+    return json(this.contas.listarParaMestre(this.estado.usuarios));
+  }
+
+  /** `contas/<id>/aceitar|recusar|remover|vaga|liberar-redefinicao`: só o mestre. */
+  private async acaoDoMestre(request: Request, contaId: string, acao: string): Promise<Response> {
+    const quem = await this.exigirMestre(request);
+    if (quem instanceof Response) return quem;
+    const agora = Date.now();
+    const alvo = this.contas.conta(contaId);
+    if (!alvo) return erroDeConta({ ok: false, erro: "conta_inexistente" });
+
+    if (acao === "aceitar") {
+      const c = await this.lerCorpo(request, CorpoAceitarSchema);
+      if (!c.ok) return c.resposta;
+      if (alvo.status !== "pendente") return erroDeConta({ ok: false, erro: "sem_pedido" });
+      const vaga = this.vagaParaAceitar(c.valor.vaga, alvo.id);
+      if ("erro" in vaga) return erroDeConta({ ok: false, erro: vaga.erro });
+      const r = this.contas.aceitar(alvo.id, vaga.id);
+      if (!r.ok) return erroDeConta(r);
+      this.ligarVaga(vaga.id, alvo.nome, vaga.nova);
+      this.avisarMestres(null);
+      return json({ ok: true });
+    }
+
+    if (acao === "recusar") {
+      const r = this.contas.recusar(alvo.id, agora);
+      if (!r.ok) return erroDeConta(r);
+      this.fecharSockets((i) => i.contaId === alvo.id, "pedido recusado");
+      this.avisarMestres(null);
+      return json({ ok: true });
+    }
+
+    if (acao === "remover") {
+      if (alvo.id === quem.conta?.id) return erroDeConta({ ok: false, erro: "conta_do_mestre" });
+      const r = this.contas.remover(alvo.id);
+      if (!r.ok) return erroDeConta(r);
+      this.fecharSockets((i) => i.contaId === alvo.id, "conta removida");
+      this.avisarMestres(null);
+      return json({ ok: true });
+    }
+
+    if (acao === "vaga") {
+      const c = await this.lerCorpo(request, CorpoTrocarVagaSchema);
+      if (!c.ok) return c.resposta;
+      const vaga = this.estado.usuarios.find((u) => u.id === c.valor.usuarioId);
+      if (vaga?.papel !== "jogador") {
+        return erroDeConta({ ok: false, erro: "vaga_invalida" });
+      }
+      const r = this.contas.trocarVaga(alvo.id, vaga.id);
+      if (!r.ok) return erroDeConta(r);
+      this.ligarVaga(vaga.id, alvo.nome, false);
+      // Quem estava logado na vaga antiga reconecta já na nova.
+      this.fecharSockets((i) => i.contaId === alvo.id, "vaga trocada");
+      this.avisarMestres(null);
+      return json({ ok: true });
+    }
+
+    if (acao === "liberar-redefinicao") {
+      const r = this.contas.liberarRedefinicao(alvo.id, agora);
+      if (!r.ok) return erroDeConta(r);
+      this.avisarMestres(null);
+      return json({ ok: true });
+    }
+
+    return new Response("Não encontrado", { status: 404 });
+  }
+
+  /** A vaga que o mestre escolheu ao aceitar: uma vaga de jogador livre, ou "Nova vaga" (ainda não criada). */
+  private vagaParaAceitar(
+    escolha: { usuarioId: string } | { nova: true },
+    contaId: string,
+  ): { id: string; nova: boolean } | { erro: "vaga_invalida" } {
+    if ("usuarioId" in escolha) {
+      const vaga = this.estado.usuarios.find((u) => u.id === escolha.usuarioId);
+      if (vaga?.papel !== "jogador" || this.contas.vagaOcupada(vaga.id, contaId)) {
+        return { erro: "vaga_invalida" };
+      }
+      return { id: vaga.id, nova: false };
+    }
+    const jogadores = this.estado.usuarios.filter((u) => u.papel === "jogador");
+    if (jogadores.length >= MAXIMO_DE_VAGAS) return { erro: "vaga_invalida" };
+    let n = 1;
+    for (const u of this.estado.usuarios) {
+      const m = /^jogador-(\d+)$/.exec(u.id);
+      if (m) n = Math.max(n, Number(m[1]) + 1);
+    }
+    return { id: `jogador-${n}`, nova: true };
+  }
+
+  /** A vaga (nova ou já existente) passa a se chamar como a pessoa. Fichas e tokens da vaga continuam dela. */
+  private ligarVaga(vagaId: string, nome: string, nova: boolean): void {
+    const existente = this.estado.usuarios.find((u) => u.id === vagaId);
+    if (nova && !existente) {
+      const cor = CORES_DE_VAGA[this.estado.usuarios.length % CORES_DE_VAGA.length] ?? "#3cb44b";
+      this.aplicarUsuarios([...this.estado.usuarios, { id: vagaId, nome, papel: "jogador", cor }]);
+      return;
+    }
+    this.aplicarUsuarios(this.estado.usuarios.map((u) => (u.id === vagaId ? { ...u, nome } : u)));
   }
 
   private async abrirSocket(request: Request): Promise<Response> {
     if (!pedeWebSocket(request)) return new Response("Esperava WebSocket", { status: 426 });
-    const usuarioId = request.headers.get(CABECALHO_USUARIO);
-    const usuario = this.estado.usuarios.find((u) => u.id === usuarioId);
-    if (!usuario) return new Response("Usuário desconhecido", { status: 401 });
+    const quem = await this.identificar(request);
+    const usuario = quem && this.estado.usuarios.find((u) => u.id === quem.usuarioId);
+    if (!quem || !usuario) return new Response("Não autenticado", { status: 401 });
 
     const par = new WebSocketPair();
     const [cliente, servidor] = [par[0], par[1]];
     // Hibernation API: o runtime cuida do socket; nunca usar servidor.accept().
     this.ctx.acceptWebSocket(servidor);
-    const identidade: Identidade = { usuarioId: usuario.id, conexaoId: crypto.randomUUID() };
+    const identidade: Identidade = {
+      usuarioId: usuario.id,
+      conexaoId: crypto.randomUUID(),
+      ...(quem.conta && quem.sessaoHash
+        ? { contaId: quem.conta.id, sessaoHash: quem.sessaoHash }
+        : {}),
+    };
     servidor.serializeAttachment(identidade);
 
     this.agenda.cancelar("presenca.expirar", usuario.id);
@@ -221,7 +749,10 @@ export class Sala extends DurableObject<Env> {
 
     this.enviarSnapshot(servidor, usuario);
     this.avisarPreparoA(servidor, usuario);
-    if (usuario.papel === "mestre") this.enviarProgresso();
+    if (usuario.papel === "mestre") {
+      this.enviarProgresso();
+      this.enviar(servidor, this.textoDoAvisoDeContas(null));
+    }
     this.difundirPresenca();
     return new Response(null, { status: 101, webSocket: cliente });
   }
@@ -233,6 +764,7 @@ export class Sala extends DurableObject<Env> {
 
     if (pathname === "/teste/zerar") {
       this.banco.apagarTudo();
+      this.contas.apagarTudo();
       await this.ctx.storage.deleteAlarm();
       this.estado = estadoInicial(semente);
       this.fonteDeDadosDeTeste = null;
@@ -358,8 +890,11 @@ export class Sala extends DurableObject<Env> {
 
     // Só a importação reescreve tudo. Levar o grupo e mudar quem vê uma pasta também mandam snapshot
     // a todos, mas gravam só o que os eventos mudaram.
-    if (intencao.tipo === "campanha.importar") this.banco.salvarTudo(r.estado);
-    else if (r.eventos.length > 0) this.banco.salvarEventos(r.estado, r.eventos);
+    if (intencao.tipo === "campanha.importar") {
+      this.banco.salvarTudo(r.estado);
+      // As contas ficam (a exportação nunca as leva); a que apontava para uma vaga que sumiu fica sem vaga.
+      this.contas.desligarVagasQueSumiram(new Set(r.estado.usuarios.map((u) => u.id)));
+    } else if (r.eventos.length > 0) this.banco.salvarEventos(r.estado, r.eventos);
     const antes = this.estado;
     // O histórico do chat mora no banco: o estado em memória nunca o acumula.
     const { chat: _historico, ...semChat } = r.estado;

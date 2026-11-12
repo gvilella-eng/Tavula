@@ -498,6 +498,7 @@ escolhido vai num cookie e a sala confia nele **em modo dev**. Tudo passa por um
 `Autenticacao`, para que no futuro seja trocada por login real sem mexer no resto.
 
 (C1, 2026-11-12: desde as mesas, o cookie vale por mesa e as rotas ficam sob `/api/m/<id>`; ver 4.14.)
+(C2, 2026-11-12: a escolha de usuário só existe com `MODO=teste`; no `pnpm dev` vale só a conta, com login e senha. Ver 4.14, "C2: como ficou".)
 
 Papéis e capacidades valem desde o lote 1, mas só viram segurança de verdade com login real: em dev,
 quem escolhe o usuário mestre na tela de entrada é mestre.
@@ -894,8 +895,68 @@ por mesa".
   `handle:<id da mesa>`. A mesa legada, na primeira vez, **copia** a chave antiga `handle` para a chave dela (a antiga
   fica onde estava): sem pedir a pasta de novo. Os assets (por hash) e as preferências de tela seguem comuns.
 
-**C2 e C3**: a completar nos lotes deles (contas, pedidos, sessões, limite de tentativas, redefinição; pasta do
-mestre com chave e código de recuperação).
+**C2: como ficou** (2026-11-12; tudo local, mas feito como se fosse para a internet)
+
+- **A senha nunca sai do navegador.** O navegador estica a senha com PBKDF2-SHA256 (WebCrypto), 600.000 iterações,
+  32 bytes, sal `"tavola:" + idDaMesa + ":" + loginNormalizado`, e manda só o resultado (base64url, 43 caracteres: a
+  "derivada"). Motivo: o servidor da internet teria CPU curta por requisição (10 ms no plano grátis); o estiramento caro
+  fica no navegador. A senha entra normalizada (NFKC). Código: `derivarSenha` em `packages/shared/src/contas.ts`.
+- **O servidor guarda só um hash.** Por conta: um sal aleatório de 16 bytes e `SHA-256(sal || derivada)`, comparado em
+  tempo constante. A conta que não existe gasta o mesmo trabalho (mesma resposta e mesmo tempo). O tamanho da senha
+  (5 a 128 caracteres) só o navegador confere: o servidor nunca a vê.
+- **Login**: de 3 a 32 caracteres (letras, dígitos, ponto, hífen e sublinhado), único por mesa sem diferenciar
+  maiúsculas. **Nome de exibição**: de 1 a 40 caracteres.
+- **Tabelas** (migração 10 do `Armazenamento`, aditiva e idempotente, no SQLite de cada sala): `contas`
+  (`id`, `login`, `login_norm`, `nome_exibicao`, `sal`, `hash`, `papel` mestre|jogador, `usuario_id` = a vaga ou
+  null, `status` pendente|ativa|recusada, `criada_em`, `ultimo_acesso`, `redefinicao_ate`, `redefinicao_pedida_em`,
+  `recusada_em`, `falhas`, `bloqueios`, `bloqueada_ate`), `sessoes` (`hash_token` SHA-256, `conta_id`, `criada_em`,
+  `ultimo_uso`, `expira`) e `limites_ip` (`tipo`, `ip`, `em`). **Nada disso entra no estado da mesa, no snapshot, em
+  frame algum nem na exportação.** O mestre vê só id, login, nome, vaga, status e último acesso (rota `contas`).
+- **Sessão**: token de 32 bytes aleatórios (base64url) no cookie `tavola_sessao` (`HttpOnly`, `SameSite=Lax`,
+  `Path=/api/m/<id>`, `Secure` quando a requisição vem por https, 30 dias). No banco fica só o hash do token. Usar a
+  sessão a renova (no máximo uma vez por hora); a renovação reenvia o cookie na próxima `GET eu`. No máximo 10 sessões
+  por conta (as mais antigas caem). Sair apaga a sessão. Remover ou recusar a conta, redefinir ou trocar a senha apagam
+  as sessões dela (trocar a senha mantém a de quem trocou) e **fecham os sockets** com 4001.
+- **Quem identifica**: a sala (não o Worker) resolve cookie, sessão, conta e vaga, no HTTP e no WebSocket. O Worker só
+  repassa, sempre refazendo os cabeçalhos internos `x-tavola-ip`, `x-tavola-local`, `x-tavola-seguro` e `x-tavola-mesa`
+  (o que o navegador mandar com esses nomes é descartado). O `tabletop_sessao` solto (id do usuário no cookie) e as
+  rotas `entrar` e `usuarios` **só existem com `MODO=teste`**.
+- **Limite de tentativas** (tudo no SQLite da sala): por conta, 5 falhas seguidas bloqueiam por 1, 5, 15 e 60 minutos
+  (continua em 60; o acerto zera); por IP (`CF-Connecting-IP`, sem ele "local"), 30 falhas em 15 minutos bloqueiam o IP
+  por 15 minutos nessa mesa; pedidos de entrada: no máximo 10 pendentes por mesa e 3 por IP por hora; "esqueci a senha":
+  5 por IP por hora. Login errado e login inexistente respondem igual ("Login ou senha incorretos."); a espera é dita
+  ("Tente de novo em N minutos"). Quem erra a senha não descobre o estado do pedido: "Seu pedido ainda não foi aceito" e
+  "Seu pedido foi recusado" só aparecem com a senha certa. Registros velhos são apagados a cada entrada e pedido.
+- **Criar mesa**: nome da mesa, login, nome e senha (com confirmação) do mestre. O **navegador sorteia o id** (ele entra
+  no sal da senha) e manda `POST /api/mesas { id, nome, mestre: { login, nome, derivada } }`; o diretório recusa id
+  repetido (409, o navegador sorteia outro). A sala nasce já com a conta do mestre ativa, ligada à vaga `mestre`, e a
+  sessão abre na mesma resposta. Sem `mestre` o servidor recusa (400), **exceto com `MODO=teste`** (os E2E antigos).
+- **Entrar numa mesa** (`/m/<id>` sem sessão): o nome da mesa e duas abas, "Entrar" (login e senha) e "Pedir para entrar"
+  (nome, login, senha e confirmação). O pedido nasce `pendente` ("Pedido enviado. O mestre precisa aceitar; depois entre
+  com seu login e senha."); recusado, só dá para pedir de novo depois de 10 minutos. "Esqueci a senha" pede o login e
+  avisa o mestre; depois de ele aprovar, "Definir nova senha" (login, nova senha e confirmação) vale por 30 minutos, derruba
+  as sessões antigas e já entra. "Sou o mestre e esqueci a senha" só mostra "em breve" (é o C3).
+- **O mestre**: um aviso no topo ("1 pedido de entrada", "1 pedido de redefinição") e um selo na aba Mesa, ao vivo
+  (frame `contas.aviso`, só para mestres, só com números e o nome e o login do pedido); a seção **Contas** da aba Mesa
+  mostra os pedidos (Aceitar numa vaga de jogador ainda sem conta ou em "Nova vaga", ou Recusar), os pedidos de redefinição
+  ("Confirme por voz ou mensagem que é a própria pessoa" e Aprovar) e a lista de contas (nome, login, vaga, status, último
+  acesso, trocar de vaga, Remover com confirmação; a conta do mestre não se remove). Aceitar e trocar de vaga dão à vaga o
+  nome de exibição da pessoa; fichas e tokens da vaga continuam dela.
+- **Trocar a senha**: em Preferências, com a atual, a nova e a confirmação; as outras sessões caem.
+- **A mesa legada sem mestre** (a campanha de hoje): a tela de entrada oferece "Criar a conta do mestre desta mesa" (login,
+  nome e senha), ligando a conta à vaga `mestre` que já existe. O servidor só aceita de uma requisição **local** (host
+  `127.0.0.1`, `localhost` ou `[::1]` e sem `CF-Connecting-IP`, ou com ele em loopback) e só enquanto a mesa não tem conta de
+  mestre: na internet uma mesa nunca fica sem dono. Antes disso a mesa não aceita pedidos de entrada.
+- **Exportar e importar** não levam contas nem sessões. Importar mantém as contas da mesa; a conta ligada a uma vaga que a
+  campanha importada não tem fica sem vaga (o mestre a liga de novo) e perde as sessões.
+- **Rotas novas** sob `/api/m/<id>/`: `GET situacao`, `conta/entrar`, `conta/pedir`, `conta/sair`, `conta/esqueci`,
+  `conta/redefinir`, `conta/trocar-senha`, `conta/mestre-inicial`; do mestre: `GET contas`, `contas/<id>/aceitar`,
+  `recusar`, `remover`, `vaga` e `liberar-redefinicao`. Ver `docs/protocolo.md`.
+- **Pendências do C1 resolvidas**: a memória do mapa leva o id da mesa na chave (a legada herda a chave antiga, copiando-a
+  uma vez); renomear a mesa chega ao vivo (frame `mesa.renomeada`); a lista "Mesas neste computador" fica em ordem de último
+  uso, a legada primeiro quando não há uso.
+
+**C3**: a completar no lote dele (pasta do mestre com chave e código de recuperação).
 
 ## 5. Estrutura do repositório
 

@@ -2746,4 +2746,54 @@ Detalhes em `docs/REDESIGN.md` ("B1 — como ficou"). O Vilella deixou o lote se
 
 ---
 
-## Próximo: C2 (contas por mesa, pedidos de entrada, sessões e redefinição); depois C3 (pasta do mestre com chave), bugs que sobrarem, tour; depois 7b e 12
+## Contas C2 — contas por mesa, pedidos de entrada, sessões e redefinição (entregue, aguardando o roteiro manual)
+
+### O que foi entregue
+
+- Contas por mesa com login e senha. A senha é esticada no navegador (PBKDF2-SHA256, 600.000 iterações) e **nunca sai dele**; a sala guarda só `SHA-256(sal || derivada)` com sal aleatório, comparado em tempo constante.
+- Sessões por cookie `tavola_sessao` (token aleatório, só o hash no banco), limite de tentativas por conta e por IP, pedidos de entrada aprovados pelo mestre, redefinição de senha aprovada pelo mestre, trocar a senha em Preferências.
+- Criar mesa pede a conta do mestre. A mesa legada (a campanha de hoje) oferece "Criar a conta do mestre desta mesa" (só de requisição local).
+- A escolha de usuário de desenvolvimento só existe com `MODO=teste`.
+- Pendências do C1: memória do mapa por mesa (a legada herda a chave antiga), renomear a mesa ao vivo, lista de mesas em ordem de último uso.
+- Detalhes: PROJETO 4.14 ("C2: como ficou"), `docs/protocolo.md`, REDESIGN "C2 — como ficou".
+
+### Como rodar
+
+- **O `pnpm dev` do Vilella recarrega sozinho com o código novo** e não precisa de reinício: as variáveis e o proxy dele não mudaram. As tabelas novas (migração 10) entram sozinhas, vazias, na campanha real; nada existente é tocado.
+- Primeiro acesso à campanha de hoje: ver o roteiro manual abaixo (a mesa fica sem conta até ele criar a do mestre).
+- `pnpm verify` (uma vez). Prints: `$env:PRINTS_DIR="<pasta>"; pnpm --filter @tabletop/e2e prints c2`.
+
+### Verificação
+
+- Unidade: `packages/shared/src/contas.test.ts` (vetor fixo da derivação, validações, degraus do bloqueio, IP, sessão), `apps/server/src/contas.test.ts` (hash e comparação, estados da conta, limites, sessão que expira e renova, redefinição, migração sobre estado antigo, varredura de frames), `autenticacao.test.ts`, `mesas.test.ts` (id escolhido pelo navegador), `apps/web/src/mapa/memoriaLocal.test.ts` e `mesasLocais.test.ts`.
+- E2E novos: `e2e/tests/contas.spec.ts` (10 cenários: criar mesa com conta, legada pede a conta do mestre, pedido e aceite numa vaga com ficha, recusar, bloqueio por senha errada, esqueci e redefinir, remover derruba o socket, cookie de uma mesa em outra, nenhum segredo em frame, trocar a senha e renomear ao vivo).
+- E2E antigo alterado: `mesas.spec.ts` ("criar uma mesa mostra o id grande..."): a criação agora pede login, nome e senha, entra direto na mesa pela sessão da conta e só então confere a escolha de usuário de teste num navegador sem sessão. Os outros continuam pelo caminho de teste (`MODO=teste`, `entrar-<id>`) sem mudança.
+
+### Decisões
+
+- (assumido) Ver REDESIGN, "C2 — como ficou", Decisões.
+
+### Desvios do plano
+
+- O id da mesa nova é sorteado pelo **navegador** (e não pelo servidor, como no C1): o id entra no sal da senha e o navegador precisa conhecê-lo antes de derivar. O diretório recusa id repetido.
+
+### Frágil / não verificado
+
+- Nada disto rodou num servidor de verdade (Cloudflare): `CF-Connecting-IP`, `Secure` por https e o limite por IP só foram exercitados no `wrangler dev`, com cabeçalhos forjados nos E2E.
+- Na internet só vale o que o Worker vê: `request.url` com host de produção e `CF-Connecting-IP`. A regra de "requisição local" depende disso.
+- O mestre que esquece a senha ainda não tem saída (C3): hoje só apagando a conta pelo banco.
+- Não há CSRF extra além de `SameSite=Lax` e do corpo JSON obrigatório (uma requisição entre sites com JSON precisa de preflight, que o servidor não responde).
+- O servidor não consegue conferir o tamanho da senha (só vê a derivada): quem chamar a API à mão pode cadastrar a derivada de qualquer senha.
+- O bloqueio de conta diz "Tente de novo em N minutos" a partir da 5ª falha, o que revela que o login existe. (assumido: o Vilella pediu que a espera seja dita.)
+
+### Roteiro manual (pendente)
+
+1. Abra a campanha de hoje (`http://127.0.0.1:5173`, cartão "Campanha"): a tela de entrada mostra "Criar a conta do mestre desta mesa". Crie (login, nome, senha); você entra como mestre com tudo como estava.
+2. Passe o link da mesa (aba Mesa, "Copiar link") a cada jogador. Cada um abre, escolhe "Pedir para entrar" (nome, login, senha).
+3. No topo aparece "N pedidos de entrada": clique, e na seção Contas escolha a vaga que já tem a ficha dele (Jogador 1 a 7) e Aceitar. A vaga passa a se chamar como ele.
+4. O jogador volta, "Entrar" com login e senha e vê a ficha dele.
+5. Teste "Esqueci a senha" com um jogador, "Aprovar redefinição" e "Definir nova senha".
+
+---
+
+## Próximo: C3 (pasta do mestre com chave e código de recuperação), bugs que sobrarem, tour; depois 7b e 12
