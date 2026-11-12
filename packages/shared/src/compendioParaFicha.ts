@@ -177,52 +177,15 @@ export function magiaParaFichaCalculada(
   };
 }
 
-// ---------- NPC: o traço "Conjuração" ----------
-
-const LINHA_DE_NIVEL = /^(?:(Truques)|(\d)º nível):\s*(.*)$/;
-const NOME_DO_TRACO_DE_CONJURACAO = "Conjuração";
-
-const rotuloDaLinha = (nivel: number) => (nivel === 0 ? "Truques" : `${nivel}º nível`);
-
 /**
- * Põe a magia no traço "Conjuração" (criado se não existir), com uma linha por nível ("Truques: ...", "1º nível: ...")
- * em ordem. Devolve `null` se o traço já lista a magia.
+ * A habilidade de conjuração que um NPC sem classe ganha ao receber a primeira magia: a maior entre Inteligência,
+ * Sabedoria e Carisma (empate: nessa ordem).
  */
-export function colocarMagiaNaConjuracao(
-  caracteristicas: readonly Caracteristica[],
-  m: Pick<MagiaDoCompendio, "nome" | "nivel">,
-): Caracteristica[] | null {
-  const alvo = normalizarBusca(NOME_DO_TRACO_DE_CONJURACAO);
-  const i = caracteristicas.findIndex((c) => normalizarBusca(c.nome) === alvo);
-  const atual = i >= 0 ? (caracteristicas[i] as Caracteristica) : undefined;
-  const outras: string[] = [];
-  const porNivel = new Map<number, string[]>();
-  for (const linha of (atual?.descricao ?? "").split("\n")) {
-    const lida = LINHA_DE_NIVEL.exec(linha.trim());
-    if (!lida) {
-      if (linha.trim() !== "") outras.push(linha);
-      continue;
-    }
-    const nivel = lida[1] ? 0 : Number(lida[2]);
-    const nomes = (lida[3] ?? "")
-      .split(",")
-      .map((n) => n.trim())
-      .filter(Boolean);
-    porNivel.set(nivel, [...(porNivel.get(nivel) ?? []), ...nomes]);
-  }
-  const todos = [...porNivel.values()].flat();
-  if (todos.some((n) => normalizarBusca(n) === normalizarBusca(m.nome))) return null;
-  porNivel.set(m.nivel, [...(porNivel.get(m.nivel) ?? []), m.nome]);
-  const linhas = [...porNivel.keys()]
-    .sort((a, b) => a - b)
-    .map((nivel) => `${rotuloDaLinha(nivel)}: ${(porNivel.get(nivel) ?? []).join(", ")}`);
-  const nova: Caracteristica = {
-    nome: atual?.nome ?? NOME_DO_TRACO_DE_CONJURACAO,
-    descricao: [...outras, ...linhas].join("\n"),
-    ...(atual?.origem ? { origem: atual.origem } : {}),
-  };
-  if (i < 0) return [...caracteristicas, nova];
-  return caracteristicas.map((c, k) => (k === i ? nova : c));
+export function habilidadeDeConjuracaoDoNpc(f: Ficha): Atributo {
+  const mentais = ["int", "sab", "car"] as const;
+  return mentais.reduce((melhor, a) =>
+    modDoAtributo(f, a) > modDoAtributo(f, melhor) ? a : melhor,
+  );
 }
 
 // ---------- aplicar ----------
@@ -244,7 +207,7 @@ const ehAcao = (a: Ataque) => (a.categoria ?? "acao") === "acao";
 /**
  * As operações que põem a entrada do compêndio na ficha. No personagem: arma vira ataque calculado, magia entra em
  * Magias (e em Ataques e magias se rola), item vai para o Equipamento (quantidade 1, mais uma se já tem). No NPC: arma
- * vira ação calculada, magia entra no traço "Conjuração" e item vira traço. `destino.posicao` é a posição dentro da
+ * vira ação calculada, magia entra na seção Conjuração (em `magias`, no círculo dela) e item vira traço. `destino.posicao` é a posição dentro da
  * lista onde a pessoa soltou (`null` ou ausente = no fim).
  */
 export function aplicarEntradaNaFicha(
@@ -267,25 +230,28 @@ export function aplicarEntradaNaFicha(
   }
   if (entrada.tipo === "magia") {
     const m = entrada.magia;
-    if (npc) {
-      const nova = colocarMagiaNaConjuracao(f.caracteristicas ?? [], m);
-      if (!nova) return { ok: false, motivo: `${m.nome} já está na Conjuração.` };
-      return {
-        ok: true,
-        operacoes: [um("caracteristicas", nova)],
-        texto: `${m.nome} entrou na Conjuração.`,
-      };
-    }
     const lista = f.magias ?? [];
     if (fichaTemMagia(lista, m.nome)) {
-      return { ok: false, motivo: `${m.nome} já está na lista de magias.` };
+      return {
+        ok: false,
+        motivo: npc ? `${m.nome} já está na Conjuração.` : `${m.nome} já está na lista de magias.`,
+      };
     }
     const grupo = posicoesDoGrupo(lista, (x) => x.nivel === m.nivel);
-    const nova = magiaParaFichaCalculada(f, m, destino.emAtaques ? { emAtaques: true } : {});
+    // No NPC sem classe nem atributo escolhido, a primeira magia escolhe o atributo (e a conta sai dele).
+    const habilidade =
+      npc && conjuradoras(f).length === 0 && !f.habilidadeDeConjuracao
+        ? habilidadeDeConjuracaoDoNpc(f)
+        : undefined;
+    const base = habilidade ? { ...f, habilidadeDeConjuracao: habilidade } : f;
+    const nova = magiaParaFichaCalculada(base, m, destino.emAtaques ? { emAtaques: true } : {});
     return {
       ok: true,
-      operacoes: [um("magias", inserirNoGrupo(lista, grupo, nova, destino.posicao))],
-      texto: `${m.nome} entrou na lista de magias.`,
+      operacoes: [
+        um("magias", inserirNoGrupo(lista, grupo, nova, destino.posicao)),
+        ...(habilidade ? [um("habilidadeDeConjuracao", habilidade)] : []),
+      ],
+      texto: npc ? `${m.nome} entrou na Conjuração.` : `${m.nome} entrou na lista de magias.`,
     };
   }
   const item = entrada.item;

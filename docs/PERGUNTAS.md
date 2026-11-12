@@ -66,7 +66,7 @@ Juntadas durante os Lotes 6 a 14 (2026-11-06 a 10) para fazer ao Vilella no fim.
 - A recarga ("Recarga 5–6") rola um d6 no chat e a caixa se marca à mão; não há marcação automática. (assumido) basta.
 - A arma do compêndio entra com proficiência (não há como saber se o personagem é proficiente). (assumido) serve; se não for, desliga-se "proficiente" no editor.
 - O compêndio ganhou `armas` e `itens` opcionais no mesmo arquivo. Monstros ficam para um lote futuro. (assumido) sem versão nova do formato.
-- A magia solta no NPC vira uma linha do traço "Conjuração" (por nível), sem ataque nem CD. (assumido) basta; o mestre cria a ação do feitiço à mão pela engrenagem.
+- (V4b2 respondeu) A magia solta no NPC agora entra na seção Conjuração (em `magias`, no círculo dela, com ataque ou CD calculados), não mais como traço.
 - Item de luz (Lanterna, Tocha 5e) solto por um jogador segue a regra de hoje: só o mestre repõe objetos de luz, então a sala recusa. (assumido) mantido.
 
 ## Lote 6

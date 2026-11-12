@@ -26,7 +26,7 @@ test("o NPC abre no bloco de monstro e o personagem segue na ficha de personagem
   const janela = await abrirNpc(p, OGRO);
 
   // o Ogro da semente (SRD 5.1): estandarte, CA, PV com a fórmula, atributos, linhas e as duas ações
-  await expect(janela.getByTestId("ficha-nome")).toHaveValue("Ogro");
+  await expect(janela.getByTestId("ficha-nome")).toHaveValue("gro");
   await expect(janela.getByTestId("npc-tamanho")).toHaveValue("Grande");
   await expect(janela.getByTestId("npc-tipo")).toHaveValue("Gigante");
   await expect(janela.getByTestId("npc-tendencia")).toHaveValue("Caótico e Mau");

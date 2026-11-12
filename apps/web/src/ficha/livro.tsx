@@ -115,3 +115,20 @@ export function Acordeao({
     </section>
   );
 }
+
+/** O título de uma seção do bloco de monstro (V4b): "—— Ações ◆ ——". */
+export function TituloDoBloco({ children, testid }: { children: ReactNode; testid?: string }) {
+  return (
+    <div className="npc-titulo">
+      <h3 className="npc-h2" data-testid={testid}>
+        {children}
+      </h3>
+      <span className="npc-filete" aria-hidden />
+      <svg width="30" height="12" viewBox="0 0 30 12" fill="currentColor" aria-hidden="true">
+        <path d="M15 0l4 6-4 6-4-6z" />
+        <circle cx="4" cy="6" r="1.6" />
+        <circle cx="26" cy="6" r="1.6" />
+      </svg>
+    </div>
+  );
+}

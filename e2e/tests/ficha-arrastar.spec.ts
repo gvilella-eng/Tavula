@@ -78,13 +78,19 @@ async function arrastar(
   alvo: Locator,
   antesDeSoltar?: () => Promise<void>,
   posicao: "meio" | "topo" = "meio",
+  /** O alvo só aparece depois que o arrasto começa (a seção Conjuração do NPC). */
+  surge = false,
 ) {
-  await alvo.scrollIntoViewIfNeeded();
+  if (!surge) await alvo.scrollIntoViewIfNeeded();
   const o = await centro(origem);
-  const a = await centro(alvo);
   await p.mouse.move(o.x, o.y);
   await p.mouse.down();
   await p.mouse.move(o.x + 12, o.y + 12, { steps: 4 });
+  if (surge) {
+    await expect(alvo).toBeVisible();
+    await alvo.scrollIntoViewIfNeeded();
+  }
+  const a = await centro(alvo);
   await p.mouse.move(a.x, posicao === "topo" ? a.b.y + 4 : a.y, { steps: 14 });
   // o arrasto acendeu as áreas e a tela se ajustou: um passo a mais, como a mão que ainda se mexe
   await p.mouse.move(a.x + 1, posicao === "topo" ? a.b.y + 4 : a.y, { steps: 2 });
@@ -219,7 +225,7 @@ test("arrastar do compêndio para o personagem: arma vira ataque calculado, magi
   ).toHaveCount(0);
 });
 
-test("arrastar do compêndio para o NPC: arma vira ação calculada pelo ND, magia vai para a Conjuração e item vira traço", async ({
+test("arrastar do compêndio para o NPC: arma vira ação calculada pelo ND, magia vai para a seção Conjuração e item vira traço", async ({
   mesa,
 }) => {
   test.setTimeout(90_000);
@@ -258,26 +264,39 @@ test("arrastar do compêndio para o NPC: arma vira ação calculada pelo ND, mag
 
   await secao(p, "magias");
   const bola = p.locator('[data-testid="compendio-item"][data-nome="Bola de Fogo"]');
-  await arrastar(p, bola, janela.getByTestId("npc-secao-tracos"), async () => {
-    await expect(janela.getByTestId("npc-secao-tracos")).toHaveAttribute(
-      "data-aceita-soltar",
-      "true",
-    );
-    await expect(janela.getByTestId("npc-secao-acao")).not.toHaveAttribute(
-      "data-aceita-soltar",
-      "true",
-    );
-  });
-  await expect(janela.getByTestId("traco-alternar-0")).toContainText("Conjuração");
-  await janela.getByTestId("traco-alternar-0").click();
-  await expect(janela.getByTestId("traco-descricao-0")).toHaveValue("3º nível: Bola de Fogo");
+  // a seção não existe: o lugar onde ela aparece acende durante o arrasto, e só ele
+  await expect(janela.getByTestId("npc-secao-conjuracao")).toHaveCount(0);
+  await arrastar(
+    p,
+    bola,
+    janela.getByTestId("npc-secao-conjuracao"),
+    async () => {
+      await expect(janela.getByTestId("npc-secao-conjuracao")).toHaveAttribute(
+        "data-aceita-soltar",
+        "true",
+      );
+      await expect(janela.getByTestId("npc-secao-tracos")).not.toHaveAttribute(
+        "data-aceita-soltar",
+        "true",
+      );
+      await expect(janela.getByTestId("npc-secao-acao")).not.toHaveAttribute(
+        "data-aceita-soltar",
+        "true",
+      );
+    },
+    "meio",
+    true,
+  );
+  // a magia entra em `magias`, no círculo dela, e não vira traço
+  await expect(janela.getByTestId("npc-conj-nivel-3")).toContainText("Bola de Fogo");
+  await expect(janela.getByTestId("traco-alternar-0")).toHaveCount(0);
 
   await secao(p, "itens");
   const pocao = p
     .locator('[data-testid="compendio-entrada-item"]')
     .filter({ hasText: "Poção de cura" });
   await arrastar(p, pocao, janela.getByTestId("npc-secao-tracos"));
-  await expect(janela.getByTestId("traco-alternar-1")).toContainText("Poção de cura");
+  await expect(janela.getByTestId("traco-alternar-0")).toContainText("Poção de cura");
 });
 
 test("o jogador só solta numa ficha que edita; o botão Adicionar usa a mesma conversão", async ({

@@ -65,6 +65,7 @@ import {
   LARGURA_PADRAO,
 } from "./janelas";
 import { Caixa, Secao } from "./livro";
+import { NomeComCapitular } from "./NomeComCapitular";
 import { PainelExtra } from "./PainelExtra";
 import { criarRolador } from "./rolador";
 import { useFichaEditavel } from "./useFicha";
@@ -123,79 +124,6 @@ function useLargura<T extends HTMLElement>() {
     return () => obs.disconnect();
   }, [el]);
   return { ref, largura };
-}
-
-/** O nome do personagem com a capitular: a inicial grande numa moldura e o resto ao lado. */
-function NomeDoPersonagem({
-  nome,
-  podeEditar,
-  aoMudar,
-  pequeno,
-  capitular,
-}: {
-  nome: string;
-  podeEditar: boolean;
-  aoMudar: (nome: string) => void;
-  pequeno?: boolean;
-  /** Livro: a inicial numa moldura e o resto ao lado. Clássica: o nome inteiro num campo só. */
-  capitular: boolean;
-}) {
-  const [ini, setIni] = useState(capitular ? nome.charAt(0) : "");
-  const [resto, setResto] = useState(capitular ? nome.slice(1) : nome);
-  const [foco, setFoco] = useState(false);
-  useEffect(() => {
-    if (foco) return;
-    setIni(capitular ? nome.charAt(0) : "");
-    setResto(capitular ? nome.slice(1) : nome);
-  }, [nome, foco, capitular]);
-  const confirmar = (i: string, r: string) => {
-    const novo = `${i}${r}`.trim().slice(0, 64);
-    if (novo !== "" && novo !== nome) aoMudar(novo);
-  };
-  const saiu = (e: React.FocusEvent) => {
-    if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
-    setFoco(false);
-    confirmar(ini, resto);
-  };
-  return (
-    <fieldset
-      className={`fl-nome ${pequeno ? "pequeno" : ""}`}
-      aria-label="Nome do personagem"
-      onFocus={() => setFoco(true)}
-      onBlur={saiu}
-      data-testid="ficha-nome-bloco"
-    >
-      {capitular && (
-        <div className="fl-capitular">
-          <input
-            type="text"
-            className="fl-fh fl-capitular-campo"
-            data-testid="ficha-nome-inicial"
-            aria-label="Inicial do nome"
-            maxLength={1}
-            value={ini}
-            disabled={!podeEditar}
-            onChange={(e) => setIni(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
-          />
-        </div>
-      )}
-      <div className="fl-nome-resto">
-        <span className="fl-lbl">Nome do personagem</span>
-        <input
-          type="text"
-          className="fl-fh fl-in fl-ln fl-nome-campo"
-          data-testid="ficha-nome"
-          aria-label="Nome do personagem"
-          maxLength={63}
-          value={resto}
-          disabled={!podeEditar}
-          onChange={(e) => setResto(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
-        />
-      </div>
-    </fieldset>
-  );
 }
 
 /**
@@ -380,7 +308,9 @@ export function JanelaDaFicha({
     </fieldset>
   );
   const nomeEditavel = (pequeno: boolean) => (
-    <NomeDoPersonagem
+    <NomeComCapitular
+      variante="personagem"
+      rotulo="Nome do personagem"
       nome={p.nome}
       podeEditar={editar}
       pequeno={pequeno}

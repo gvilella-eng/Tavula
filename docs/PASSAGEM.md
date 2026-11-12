@@ -515,7 +515,7 @@ mapa**, não existe ainda; aparece em `PERGUNTAS:58` e `PERGUNTAS:69`.
 - As bolinhas de espaço e de dado de vida são `checkbox` estilizados: **cheia = disponível** (o primeiro V4a marcava o gasto).
 - O editor da engrenagem edita `ficha.ataques[i]` ou `ficha.magias[i]` pelos mesmos campos (`CamposDeRolagem` em `ficha.ts`); a lista de Ataques mostra as magias com `emAtaques`. O dano final sai de `expressaoDeDano` (dados + atributo + bônus + mágico + segundo dano); um dano antigo "1d8+7" sem campos novos sai como estava.
 - Rolagem: `criarRolador` não zera mais a vantagem; o d20 de teste e o de ataque usam `vantagem` da janela. O crítico por margem e o dano extra são feitos em `rolarAtaque` (sala).
-- O nome do personagem na ficha é edição de `personagem.editar` ao sair do campo (a capitular e o resto são dois campos).
+- O nome do personagem na ficha é edição de `personagem.editar` ao sair do campo (V4b2: peça única `ficha/NomeComCapitular.tsx`; a capitular é só desenho e o campo mostra o nome inteiro enquanto se edita).
 - Não verificado em Firefox e Safari (`color-mix`, `clip-path`).
 
 ## 6. Roteiros manuais pendentes
@@ -622,3 +622,10 @@ Continua em aberto, por ser decisão e não erro de doc: `ficha.verOutras` (seç
 - Frágil: o segurar com toque pode virar rolagem da página (o navegador toma o gesto); só foi exercitado com mouse e teclado.
 - Compêndio: `armas` e `itens` opcionais em `compendio.ts`; a aba lista os três tipos quando o arquivo traz armas ou itens. `compendio-entrada-arma` e `compendio-entrada-item` são as linhas arrastáveis; `compendio-item` segue sendo só a linha de magia. O botão "Adicionar à ficha" da magia e o "Adicionar" de arma e item passam por `aplicarEntradaNaFicha`.
 - Dados novos da ficha e regra de proficiência por ND: `bonusDeProficiencia` olha `npc.nd` antes do nível das classes.
+
+## V4b2 (2026-11-12): Conjuração do NPC e o nome com a capitular
+
+- Seção Conjuração do NPC: `ficha/ConjuracaoDoNpc.tsx` (`SecaoDeConjuracao` entra no `BlocoDoNpc` entre Traços e Ações). Os dados são os do personagem (`magias`, `espacosTotal`, `espacosGastos`, `habilidadeDeConjuracao`): não crie campo paralelo. Reaproveita `Espacos` e `subDaMagia` (agora exportados de `AbaMagias.tsx`), `conjurar.ts` e `EditorDeAtaque`. O título de seção do bloco (`TituloDoBloco`) mora em `livro.tsx`. Testids: `npc-secao-conjuracao`, `npc-conj-cd`, `npc-conj-ataque`, `npc-conj-habilidade`, `npc-conj-nivel-<n>`, `npc-conj-magia-<i>`, `npc-conj-conjurar-<i>`, `npc-espaco-<n>-<k>`, `npc-espaco-total-<n>`, `npc-nova-conjuracao`.
+- A magia solta no NPC: `aplicarEntradaNaFicha(..., "npc")` em `compendioParaFicha.ts` (sem classe nem atributo escolhido, grava também `habilidadeDeConjuracao`). `useSoltarDoCompendio.listaDoTipo` aceita uma função da entrada e há a opção `fluxo` (chips lado a lado) em `ordem.tsx`; listas `npc-circulo-<n>`.
+- Frágil: o manipulador de foco de `NomeComCapitular` troca o valor do input direto no DOM (antes do render) para o preenchimento por código (Playwright `fill`) substituir o texto em vez de anexar ao fim. Não passe isso para um `useEffect`.
+- Suposição: a seção existe com magias, atributo ou total de espaços escolhido; sem isso só o "+ Conjuração" de quem edita. Ver `REDESIGN`, "V4b2".

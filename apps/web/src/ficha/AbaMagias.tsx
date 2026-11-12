@@ -33,7 +33,7 @@ import { soltarNaFicha } from "./soltar";
 const TODOS_OS_NIVEIS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9] as const;
 
 /** Os espaços de um nível em bolinhas: cheia = disponível. Clicar gasta ou recupera até ali. */
-function Espacos({
+export function Espacos({
   prefixo,
   total,
   gastos,
@@ -228,7 +228,7 @@ function OutrasConjuradoras({ ficha, d, alterar, editar, rolador }: PropsDaAba) 
 }
 
 /** O texto de apoio da linha: escola e o que a magia rola ("ataque +9", "CD 15", "cura 1d8+4"). */
-function subDaMagia(props: PropsDaAba, m: Magia): string {
+export function subDaMagia(props: PropsDaAba, m: Magia): string {
   const { ficha } = props;
   const acerto = bonusDeAcerto(ficha, m);
   const previa = previaDoAtaque(ficha, m);

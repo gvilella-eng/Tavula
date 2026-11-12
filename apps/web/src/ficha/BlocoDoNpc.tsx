@@ -20,12 +20,15 @@ import {
   xpDoND,
 } from "@tabletop/shared";
 import { ChevronRight, Dices, GripVertical, MessageSquare, Plus, Settings, X } from "lucide-react";
-import { type HTMLAttributes, type ReactNode, useEffect, useState } from "react";
+import { type HTMLAttributes, type ReactNode, useState } from "react";
 import { BotaoComDica } from "../BotaoComDica";
 import { BarraDePv, CampoDeCa, ControlesDePv, type PropsDaAba, um } from "./AbaPrincipal";
+import { SecaoDeConjuracao } from "./ConjuracaoDoNpc";
 import { CampoDecimal, CampoNumero, CampoTexto } from "./campos";
 import { EditorDeAtaque } from "./EditorDeAtaque";
 import { ListaDeCaracteristicas } from "./ListaDeTitulos";
+import { TituloDoBloco as Titulo } from "./livro";
+import { NomeComCapitular } from "./NomeComCapitular";
 import { indicadorDoVao, useOrdemDaLista, useSoltarDoCompendio } from "./ordem";
 import { soltarNaFicha } from "./soltar";
 
@@ -71,23 +74,6 @@ function textoDaAcao(props: PropsDaAba, a: Ataque): string {
   return [cabeca ? `${cabeca}.` : "", dano].filter(Boolean).join(" ") || "Sem texto.";
 }
 
-/** O título de uma seção do bloco: "—— Ações ◆ ——". */
-function Titulo({ children, testid }: { children: ReactNode; testid?: string }) {
-  return (
-    <div className="npc-titulo">
-      <h3 className="npc-h2" data-testid={testid}>
-        {children}
-      </h3>
-      <span className="npc-filete" aria-hidden />
-      <svg width="30" height="12" viewBox="0 0 30 12" fill="currentColor" aria-hidden="true">
-        <path d="M15 0l4 6-4 6-4-6z" />
-        <circle cx="4" cy="6" r="1.6" />
-        <circle cx="26" cy="6" r="1.6" />
-      </svg>
-    </div>
-  );
-}
-
 /** Uma linha de rótulo e conteúdo (Sentidos, Idiomas, Desafio...). */
 function Linha({
   rotulo,
@@ -106,46 +92,6 @@ function Linha({
   );
 }
 
-/** O nome do monstro: grava ao sair do campo (como o nome do personagem). */
-function NomeDoMonstro({
-  nome,
-  podeEditar,
-  aoMudar,
-}: {
-  nome: string;
-  podeEditar: boolean;
-  aoMudar: (nome: string) => void;
-}) {
-  const [texto, setTexto] = useState(nome);
-  const [foco, setFoco] = useState(false);
-  useEffect(() => {
-    if (!foco) setTexto(nome);
-  }, [nome, foco]);
-  return (
-    <fieldset className="npc-nome" aria-label="Nome do monstro" data-testid="ficha-nome-bloco">
-      <input
-        type="text"
-        className="npc-nome-campo"
-        data-tamanho={texto.length > 22 ? "pequeno" : texto.length > 14 ? "medio" : undefined}
-        data-testid="ficha-nome"
-        aria-label="Nome do monstro"
-        maxLength={63}
-        value={texto}
-        disabled={!podeEditar}
-        onFocus={() => setFoco(true)}
-        onChange={(e) => setTexto(e.target.value)}
-        onBlur={() => {
-          setFoco(false);
-          const novo = texto.trim().slice(0, 64);
-          if (novo !== "" && novo !== nome) aoMudar(novo);
-          else setTexto(nome);
-        }}
-        onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
-      />
-    </fieldset>
-  );
-}
-
 // ---------------------------------------------------------------------------------------------
 // Cabeçalho: nome, CA, PV e deslocamento
 // ---------------------------------------------------------------------------------------------
@@ -158,55 +104,59 @@ function Cabecalho(props: PropsDoNpc) {
   return (
     <>
       <div className="npc-estandarte">
-        <div className="npc-inicial fl-fh" aria-hidden>
-          {nomeDoPersonagem.charAt(0).toUpperCase() || "?"}
-        </div>
-        <div className="npc-estandarte-textos">
-          <NomeDoMonstro nome={nomeDoPersonagem} podeEditar={editar} aoMudar={aoMudarNome} />
-          <div className="npc-identidade">
-            <select
-              className="npc-sel"
-              data-testid="npc-tamanho"
-              aria-label="Tamanho"
-              value={npc.tamanho ?? ""}
-              disabled={!editar}
-              onChange={(e) => texto("tamanho")(e.target.value)}
-            >
-              <option value="">Tamanho</option>
-              {TAMANHOS.map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
-            </select>
-            <CampoTexto
-              testid="npc-tipo"
-              rotulo="Tipo"
-              placeholder="Tipo"
-              valor={npc.tipo ?? ""}
-              maxLength={60}
-              desabilitado={!editar}
-              className="npc-inp"
-              aoMudar={(t) => {
-                texto("tipo")(t);
-                return true;
-              }}
-            />
-            <CampoTexto
-              testid="npc-tendencia"
-              rotulo="Tendência"
-              placeholder="Tendência"
-              valor={ficha.alinhamento ?? ""}
-              maxLength={64}
-              desabilitado={!editar}
-              className="npc-inp"
-              aoMudar={(t) => {
-                alterar(um("alinhamento", t === "" ? null : t));
-                return true;
-              }}
-            />
-          </div>
-        </div>
+        <NomeComCapitular
+          variante="monstro"
+          rotulo="Nome do monstro"
+          nome={nomeDoPersonagem}
+          podeEditar={editar}
+          aoMudar={aoMudarNome}
+          capitular
+          filhos={
+            <div className="npc-identidade">
+              <select
+                className="npc-sel"
+                data-testid="npc-tamanho"
+                aria-label="Tamanho"
+                value={npc.tamanho ?? ""}
+                disabled={!editar}
+                onChange={(e) => texto("tamanho")(e.target.value)}
+              >
+                <option value="">Tamanho</option>
+                {TAMANHOS.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+              <CampoTexto
+                testid="npc-tipo"
+                rotulo="Tipo"
+                placeholder="Tipo"
+                valor={npc.tipo ?? ""}
+                maxLength={60}
+                desabilitado={!editar}
+                className="npc-inp"
+                aoMudar={(t) => {
+                  texto("tipo")(t);
+                  return true;
+                }}
+              />
+              <CampoTexto
+                testid="npc-tendencia"
+                rotulo="Tendência"
+                placeholder="Tendência"
+                valor={ficha.alinhamento ?? ""}
+                maxLength={64}
+                desabilitado={!editar}
+                className="npc-inp"
+                aoMudar={(t) => {
+                  alterar(um("alinhamento", t === "" ? null : t));
+                  return true;
+                }}
+              />
+            </div>
+          }
+        />
       </div>
 
       <div className="npc-vitais">
@@ -1012,7 +962,7 @@ export function BlocoDoNpc(props: PropsDoNpc) {
   // Mexer na ordem recria as linhas (a seta de "expandida" volta ao fechado: elas se identificam pela posição).
   const [versao, setVersao] = useState(0);
   const tracos = useSoltarDoCompendio({
-    aceita: ["magia", "item"],
+    aceita: ["item"],
     habilitado: props.editar,
     listaDoTipo: { item: "caracteristicas" },
     aoSoltar: (entrada, posicao) => soltarNaFicha(props, "npc", entrada, { posicao }),
@@ -1046,10 +996,12 @@ export function BlocoDoNpc(props: PropsDoNpc) {
           </div>
           {tracos.acesa && (
             <p className="npc-soltar-aviso" data-testid="soltar-aqui-tracos">
-              Solte aqui para pôr a magia na Conjuração ou o item como traço
+              Solte aqui para pôr o item como traço
             </p>
           )}
         </div>
+
+        <SecaoDeConjuracao props={props} />
 
         {CATEGORIAS_DE_ACAO.map((c) => (
           <SecaoDeAcoes

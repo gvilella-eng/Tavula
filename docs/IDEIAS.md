@@ -37,6 +37,10 @@ Desenhar paredes à mão em mapas de caverna (formas orgânicas) é o custo esco
   1 quadrado = 1,5 m, −Z = norte). A integração seria só por arquivo (de preferência `.uvtt`), sem
   ligar os projetos. Exceção: o Poço do Eco (espiral de ~160 m de queda) precisa de mapas por altura.
 
+### Magia inata no bloco de NPC (próxima melhoria da Conjuração; V4b2, 2026-11-12)
+
+A seção Conjuração do NPC cobre conjuração por espaços e truques. Falta a "Conjuração inata" do monstro: uma linha "1/dia cada: ..." (ou "3/dia cada", "à vontade") com bolinhas de uso por magia, sem gastar espaço. (assumido) fica para um lote próprio.
+
 ### Tour de introdução (combinado com o Vilella, 2026-11-11; depois do V5)
 
 O Vilella achou as dicas no mouse demais ("tudo tem tooltip, tá um saco"). Ficou combinado:

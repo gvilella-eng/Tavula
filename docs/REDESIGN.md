@@ -998,6 +998,32 @@ Três coisas num lote: a ficha de NPC no desenho N (`docs/desenho/NpcN.dc.html`)
 - Toque: o segurar funciona com o ponteiro, mas o navegador pode tomar o gesto para rolar a página (não foi testado em celular).
 - Arrastar uma magia para um círculo diferente do dela não a muda de círculo (só o círculo dela aceita).
 
+## V4b2 — como ficou (2026-11-12)
+
+Dois pedidos do Vilella, o lote deixado sem ninguém para perguntar: tudo o que o brief não dizia foi assumido e está marcado.
+
+**O que foi feito**
+- **Seção Conjuração no bloco de NPC** (`ficha/ConjuracaoDoNpc.tsx`), entre Traços e Ações, com o filete das outras seções. Os dados são os da ficha de personagem (`magias`, `espacosTotal`, `espacosGastos`, `habilidadeDeConjuracao`), então trocar Personagem ↔ NPC mantém tudo (teste de unidade). Não há campo novo.
+  - Cabeçalho: atributo de conjuração (seletor para quem edita), CD e ataque de magia pelo bônus de proficiência do ND; clicar no ataque rola no chat.
+  - Uma linha por círculo, com o mesmo nome de nível da aba Magias do personagem: "Truques (à vontade):", "1º nível:", ... Bolinhas de espaço (marcam e desmarcam), o total do círculo num campo pequeno (só para quem edita) e as magias em chips.
+  - Clicar na magia abre o texto na própria seção (o cartão do compêndio, se a magia vem dele): Conjurar ou Lançar (`conjurar.ts`, o mesmo fluxo do personagem: gasta o espaço, rola ataque, CD e dano no bloco do chat, sem espaço avisa), Mandar ao chat e a engrenagem com o `EditorDeAtaque` na própria seção.
+  - A seção existe quando há magias, atributo ou total de espaços escolhido; quem edita vê um "+ Conjuração" discreto que a cria. "+ Círculo" mostra mais um círculo vazio. Cada círculo tem o campo "Nova magia".
+- **Arrastar do compêndio:** a magia solta no NPC entra em `magias`, no círculo dela e calculada como no personagem (`magiaParaFichaCalculada`); a seção Conjuração é a área que acende (se ela ainda não existe, aparece enquanto se arrasta). `colocarMagiaNaConjuracao` e o traço "Conjuração" saíram. O botão "Adicionar à ficha" faz o mesmo (`aplicarEntradaNaFicha`). A posição da soltura vale dentro do círculo (os chips correm em fluxo: opção `fluxo` em `ordem.tsx`).
+- **Reordenar:** as magias de cada círculo, segurando ~300 ms ou Alt+↑/↓ no chip em foco.
+- **Nome com capitular** (`ficha/NomeComCapitular.tsx`, a mesma peça no personagem e no monstro). A capitular é só desenho (`aria-hidden`; clicar nela foca o campo, cursor no fim). Fora de edição mostra a primeira letra maiúscula e o campo o resto ("V" + "ashta Carteiro"; "O" + "gro"). Com foco o campo mostra o nome inteiro; Enter ou sair grava e a letra "pula"; Esc desfaz; nome vazio não grava; limite de 64. Pele Clássica: nome inteiro num campo só, sem capitular. O campo tem `aria-label` "Nome do personagem: <nome>" fora de edição, para o leitor de tela ler o nome todo.
+
+**Decisões (assumido)**
+- (assumido) O "+ Conjuração" e a primeira magia solta num NPC sem classe escolhem o maior entre Inteligência, Sabedoria e Carisma (empate: nessa ordem) e gravam em `habilidadeDeConjuracao`.
+- (assumido) Conjurar um círculo sem espaços (total 0) avisa "Sem espaços", como no personagem; o mestre define o total na linha do círculo.
+- (assumido) O total de espaços é um campo pequeno na própria linha (não um popover); sem classe a tabela automática não vale.
+- (assumido) A capitular mostra a letra do texto digitado ao vivo, e o nome é guardado como foi escrito (a capitular só mostra a letra em maiúscula).
+- (assumido) Com o ponteiro o cursor vai para o fim do nome; por Tab ou por código o nome inteiro fica selecionado.
+- (assumido) O exemplo com 4 magias do SRD está só nos prints (o dragão), não no compêndio de exemplo nem na semente.
+
+**O que ficou para depois**
+- Magia inata ("1/dia cada") no bloco de NPC (está em `docs/IDEIAS.md`).
+- Espaços de pacto do Bruxo no bloco de NPC.
+
 ## Em aberto
 
 - **O plano R1 a R6 terminou** (R1, R2, R2b, R3, R4 em 2026-11-10; R5a, R5b, R6a e R6b em 2026-11-11). Agora o Vilella faz os ajustes

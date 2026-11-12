@@ -9,7 +9,8 @@ import {
   bonusDeAcerto,
   bonusDeProficiencia,
   bonusPorND,
-  colocarMagiaNaConjuracao,
+  conjuracaoSemClasse,
+  derivar,
   type EntradaDoCompendio,
   expressaoDeDano,
   type Ficha,
@@ -353,16 +354,70 @@ describe("V4b: do compêndio para a ficha", () => {
     expect(nova && bonusDeAcerto(f2.ficha, nova)).toBe(7);
   });
 
-  it("no NPC, a magia entra no traço Conjuração por nível e o item vira traço", () => {
-    const um = colocarMagiaNaConjuracao([], { nome: "Raio de Fogo", nivel: 0 });
-    expect(um).toEqual([{ nome: "Conjuração", descricao: "Truques: Raio de Fogo" }]);
-    const dois = colocarMagiaNaConjuracao(um ?? [], { nome: "Bola de Fogo", nivel: 3 });
-    const tres = colocarMagiaNaConjuracao(dois ?? [], { nome: "Dardo", nivel: 1 });
-    const quatro = colocarMagiaNaConjuracao(tres ?? [], { nome: "Luz", nivel: 0 });
-    expect(quatro?.[0]?.descricao).toBe(
-      "Truques: Raio de Fogo, Luz\n1º nível: Dardo\n3º nível: Bola de Fogo",
+  it("no NPC, a magia solta vai para `magias` no círculo dela (e não para um traço), com o atributo escolhido", () => {
+    const lich: Ficha = {
+      pvAtual: 1,
+      pvMax: 1,
+      npc: { nd: "5" },
+      atributos: { for: 10, des: 10, con: 10, int: 18, sab: 10, car: 12 },
+    };
+    const r = aplicarEntradaNaFicha(lich, { tipo: "magia", magia: bolaDeFogo }, "npc");
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const f2 = aplicarOperacoes(lich, r.operacoes);
+    expect(f2.ok).toBe(true);
+    if (!f2.ok) return;
+    expect(f2.ficha.caracteristicas ?? []).toEqual([]);
+    expect(f2.ficha.habilidadeDeConjuracao).toBe("int");
+    expect(f2.ficha.magias).toHaveLength(1);
+    const m = f2.ficha.magias?.[0];
+    expect(m?.nome).toBe("Bola de Fogo");
+    expect(m?.nivel).toBe(3);
+    expect(m?.salvaguarda).toEqual({ alvo: "des", cdAtributo: "int", sucesso: "metade" });
+    // ND 5: proficiência +3 e Inteligência 18 (+4): CD 15 e ataque +7
+    expect(conjuracaoSemClasse(f2.ficha)).toEqual({ habilidade: "int", cd: 15, ataque: 7 });
+    expect(derivar(f2.ficha).conjuracaoSemClasse).toMatchObject({ cd: 15, ataque: 7 });
+    // a mesma magia de novo é recusada
+    const deNovo = aplicarEntradaNaFicha(f2.ficha, { tipo: "magia", magia: bolaDeFogo }, "npc");
+    expect(deNovo.ok).toBe(false);
+    // com o atributo já escolhido, ele vale (Carisma +1, ND 5: ataque +4)
+    const r2 = aplicarEntradaNaFicha(
+      { ...lich, habilidadeDeConjuracao: "car" },
+      { tipo: "magia", magia: raioDeFogo },
+      "npc",
     );
-    expect(colocarMagiaNaConjuracao(quatro ?? [], { nome: "luz", nivel: 0 })).toBeNull();
+    expect(r2.ok).toBe(true);
+    if (!r2.ok) return;
+    expect(r2.operacoes).toHaveLength(1);
+    const lista = r2.operacoes[0]?.valor as { acerto?: unknown }[];
+    expect(lista[0]?.acerto).toEqual({ tipo: "formula", atributo: "car", proficiente: true });
+  });
+
+  it("trocar a apresentação Personagem ↔ NPC mantém as magias e os espaços", () => {
+    const f: Ficha = {
+      pvAtual: 1,
+      pvMax: 1,
+      npc: { nd: "3" },
+      habilidadeDeConjuracao: "sab",
+      espacosTotal: { "1": 4, "2": 3 },
+      espacosGastos: { "1": 1 },
+      magias: [{ nome: "Luz", nivel: 0, preparada: true, descricao: "x" }],
+    };
+    const ida = aplicarOperacoes(f, [{ caminho: "apresentacao", valor: "personagem" }]);
+    expect(ida.ok).toBe(true);
+    if (!ida.ok) return;
+    const volta = aplicarOperacoes(ida.ficha, [{ caminho: "apresentacao", valor: "npc" }]);
+    expect(volta.ok && volta.ficha.magias).toEqual(f.magias);
+    expect(volta.ok && volta.ficha.espacosTotal).toEqual({ "1": 4, "2": 3 });
+    expect(volta.ok && volta.ficha.espacosGastos).toEqual({ "1": 1 });
+    expect(volta.ok && volta.ficha.habilidadeDeConjuracao).toBe("sab");
+    expect(derivar(f).espacos.map((e) => [e.nivel, e.total, e.restantes])).toEqual([
+      [1, 4, 3],
+      [2, 3, 3],
+    ]);
+  });
+
+  it("no NPC o item vira traço", () => {
     const r = aplicarEntradaNaFicha(
       { pvAtual: 1, pvMax: 1, caracteristicas: [{ nome: "Rugido", descricao: "x" }] },
       { tipo: "item", item: { nome: "Poção de Cura", descricao: "Cura 2d4+2." } },

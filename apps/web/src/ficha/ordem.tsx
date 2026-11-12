@@ -31,11 +31,15 @@ function linhasDa(escopo: ParentNode, lista: string): HTMLElement[] {
   );
 }
 
-/** Em qual vão (0 = antes da primeira linha, n = depois da última) o ponteiro está. */
-function vaoDoPonteiro(linhas: readonly HTMLElement[], y: number): number {
+/**
+ * Em qual vão (0 = antes da primeira linha, n = depois da última) o ponteiro está. Com `x`, as "linhas" correm em
+ * fluxo (chips que quebram de linha): vale a ordem de leitura, primeiro pela faixa e depois pela metade do item.
+ */
+function vaoDoPonteiro(linhas: readonly HTMLElement[], y: number, x?: number): number {
   const i = linhas.findIndex((l) => {
     const r = l.getBoundingClientRect();
-    return y < r.top + r.height / 2;
+    if (x === undefined) return y < r.top + r.height / 2;
+    return y < r.top || (y <= r.bottom && x < r.left + r.width / 2);
   });
   return i === -1 ? linhas.length : i;
 }
@@ -62,6 +66,8 @@ type OpcoesDeOrdem = {
   habilitado: boolean;
   /** Move o item `de` para a posição `para` (as duas dentro da lista). */
   aoMover: (de: number, para: number) => void;
+  /** As linhas correm em fluxo (chips lado a lado): o vão do ponteiro leva o X em conta. */
+  fluxo?: boolean;
 };
 
 /**
@@ -69,7 +75,7 @@ type OpcoesDeOrdem = {
  * curto segue fazendo o que fazia. Alt+↑ e Alt+↓ numa linha focada movem uma posição. Os controles de dentro da
  * linha (`data-sem`, campos de texto) não iniciam o gesto.
  */
-export function useOrdemDaLista({ lista, habilitado, aoMover }: OpcoesDeOrdem) {
+export function useOrdemDaLista({ lista, habilitado, aoMover, fluxo }: OpcoesDeOrdem) {
   const [segurando, setSegurando] = useState<Segurando | null>(null);
   const aoMoverRef = useRef(aoMover);
   aoMoverRef.current = aoMover;
@@ -124,7 +130,11 @@ export function useOrdemDaLista({ lista, habilitado, aoMover }: OpcoesDeOrdem) {
           return;
         }
         if (desistiu) return;
-        const novo = vaoDoPonteiro(linhasDa(escopo, lista), ev.clientY);
+        const novo = vaoDoPonteiro(
+          linhasDa(escopo, lista),
+          ev.clientY,
+          fluxo ? ev.clientX : undefined,
+        );
         if (novo !== vao) {
           vao = novo;
           setSegurando({ de: i, vao });
@@ -173,7 +183,7 @@ export function useOrdemDaLista({ lista, habilitado, aoMover }: OpcoesDeOrdem) {
         setSegurando({ de: i, vao: null });
       }, TEMPO_DO_SEGURAR_MS);
     },
-    [habilitado, lista],
+    [habilitado, lista, fluxo],
   );
 
   const moverComTeclado = useCallback(
@@ -281,7 +291,9 @@ type OpcoesDeSoltar = {
   /** Só quem edita a ficha solta nela. */
   habilitado: boolean;
   /** O nome da lista de linhas de cada tipo aceito, para achar a posição exata da soltura. */
-  listaDoTipo?: Partial<Record<TipoDeEntrada, string>>;
+  listaDoTipo?: Partial<Record<TipoDeEntrada, string | ((entrada: EntradaDoCompendio) => string)>>;
+  /** As linhas da lista correm em fluxo (chips lado a lado). */
+  fluxo?: boolean;
   aoSoltar: (entrada: EntradaDoCompendio, posicao: number | null) => void;
 };
 
@@ -294,10 +306,10 @@ export function useSoltarDoCompendio({
   filtro,
   habilitado,
   listaDoTipo,
+  fluxo,
   aoSoltar,
 }: OpcoesDeSoltar) {
   const entradaEmArrasto = useEntradaEmArrasto();
-  const emArrasto = entradaEmArrasto?.tipo ?? null;
   const passa = (e: EntradaDoCompendio) => aceita.includes(e.tipo) && (filtro ? filtro(e) : true);
   const acesa = habilitado && entradaEmArrasto !== null && passa(entradaEmArrasto);
   const [previsao, setPrevisao] = useState<{ lista: string; vao: number } | null>(null);
@@ -312,7 +324,13 @@ export function useSoltarDoCompendio({
   const vaoDoEvento = (e: DragEvent<HTMLElement>, lista: string | undefined) => {
     if (!lista) return null;
     const linhas = linhasDa(escopoDe(e.currentTarget), lista);
-    return linhas.length === 0 ? null : vaoDoPonteiro(linhas, e.clientY);
+    return linhas.length === 0
+      ? null
+      : vaoDoPonteiro(linhas, e.clientY, fluxo ? e.clientX : undefined);
+  };
+  const listaDe = (entrada: EntradaDoCompendio): string | undefined => {
+    const alvo = listaDoTipo?.[entrada.tipo];
+    return typeof alvo === "function" ? alvo(entrada) : alvo;
   };
 
   const props = {
@@ -323,7 +341,7 @@ export function useSoltarDoCompendio({
       if (entradaEmArrasto !== null && !passa(entradaEmArrasto)) return;
       e.preventDefault();
       e.dataTransfer.dropEffect = "copy";
-      const lista = emArrasto === null ? undefined : listaDoTipo?.[emArrasto];
+      const lista = entradaEmArrasto === null ? undefined : listaDe(entradaEmArrasto);
       const vao = vaoDoEvento(e, lista);
       setPrevisao((antes) => {
         const novo = lista && vao !== null ? { lista, vao } : null;
@@ -346,7 +364,7 @@ export function useSoltarDoCompendio({
       if (!entrada || !passa(entrada)) return;
       e.preventDefault();
       e.stopPropagation();
-      const lista = listaDoTipo?.[entrada.tipo];
+      const lista = listaDe(entrada);
       const vao = vaoDoEvento(e, lista);
       aoSoltarRef.current(entrada, vao);
     },

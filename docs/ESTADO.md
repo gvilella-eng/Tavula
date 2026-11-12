@@ -2559,4 +2559,47 @@ Detalhes e decisões em `docs/REDESIGN.md` ("V4b — como ficou"). O brief antig
 
 ---
 
+## Ajustes V4b2 — Seção Conjuração no NPC e o nome com a capitular (entregue, aguardando o roteiro manual)
+
+Detalhes em `docs/REDESIGN.md` ("V4b2 — como ficou"). O Vilella deixou o lote sem ninguém para perguntar: o que o brief não dizia foi assumido (marcado).
+
+### O que foi entregue
+
+- **Seção Conjuração** no bloco de NPC, entre Traços e Ações: atributo, CD e ataque de magia pelo ND, uma linha por círculo com bolinhas de espaço, total do círculo (quem edita) e as magias em chips que expandem o texto com Conjurar, chat e engrenagem. Mesmos dados da ficha de personagem (sem campo novo).
+- **Arrastar do compêndio** para o NPC agora põe a magia em `magias` (círculo dela, calculada); o traço "Conjuração" e `colocarMagiaNaConjuracao` saíram. **Reordenar** as magias de um círculo (segurar ou Alt+↑/↓).
+- **Nome com a capitular** igual no personagem (Livro) e no monstro: a letra é só desenho, o campo mostra o nome inteiro ao editar e a letra pula ao gravar.
+
+### Como rodar
+
+- `pnpm verify` (uma vez). Prints: `$env:PRINTS_DIR="<pasta>"; pnpm --filter @tabletop/e2e prints v4b2`.
+
+### Verificação
+
+- Unidade (`packages/shared/src/v4b.test.ts`): a magia solta no NPC vai para `magias` com o atributo escolhido e a CD e o ataque saem do ND; trocar a apresentação mantém magias e espaços; item vira traço.
+- E2E novos (`e2e/tests/ficha-v4b2.spec.ts`, 5 testes): a seção com CD, ataque, bolinhas, conjurar de salvaguarda e de ataque (espaço gasto, chat); sem magias a seção não existe e o "+ Conjuração" a cria (círculo, total, magia, trocar a apresentação e voltar); Alt+↓ reordena; o nome do personagem (capitular, nome inteiro em edição, Enter, Esc, vazio, clique na capitular, pele Clássica) e o nome do monstro.
+- E2E antigos alterados: `ficha-arrastar.spec.ts` (a magia solta no NPC cai na seção Conjuração, que surge durante o arrasto; o índice do traço da poção passou de 1 para 0; o ajudante `arrastar` ganhou o parâmetro `surge`) e `ficha-npc.spec.ts` (o campo do nome mostra "gro", o resto do nome, fora de edição). Nenhum outro usava a inicial à parte.
+- `pnpm verify` verde: typecheck e lint sem avisos; unidade (shared 657, servidor 36, web 71); E2E 275 passaram, sem retentativas. Nenhuma mudança de código depois do verify.
+
+### Decisões
+
+- (assumido) Ver `REDESIGN`, "V4b2 — como ficou", Decisões.
+
+### Desvios do plano
+
+- O exemplo de 4 magias do SRD ficou só nos prints (o dragão); o compêndio de exemplo continua com 3 magias, para não mexer nos E2E do compêndio.
+
+### Frágil / não verificado
+
+- Reordenar os chips segurando e arrastando (com o ponteiro) não tem E2E; só o Alt+↑/↓ tem. O vão do ponteiro nos chips usa a ordem de leitura (`fluxo` em `ordem.tsx`).
+- O foco do nome troca o valor do campo na hora (no manipulador de foco, direto no DOM) para o preenchimento por código não anexar ao fim; ver `NomeComCapitular.tsx`.
+
+### Roteiro manual (pendente)
+
+1. Abra um NPC sem magias (o Ogro): "+ Conjuração" cria a seção; ponha o total de espaços de um círculo, escreva uma magia e conjure (o espaço gasta; sem espaço avisa).
+2. Compêndio → Magias: arraste a Bola de Fogo para o NPC (cai no 3º nível, com CD); Alt+↑/↓ num chip muda a ordem.
+3. Configurar → "Ficha de: Personagem" e de volta: as magias e os espaços continuam.
+4. Digite o nome completo ("Vashta Carteiro") no personagem e no NPC, Enter: a primeira letra pula para a capitular; clique na capitular, Esc desfaz.
+
+---
+
 ## Próximo: ajustes V5; depois 7b e 12
