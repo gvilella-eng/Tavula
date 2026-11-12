@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { HashSchema, LIMITES_DE_ASSET } from "./assets.ts";
+import { porNivelAcimaDoTexto } from "./conjuracao.ts";
 import type { Magia } from "./ficha.ts";
 
 // ---------------------------------------------------------------------------------------------
@@ -325,12 +326,14 @@ export function descricaoParaFicha(m: MagiaDoCompendio): string {
 
 /** A magia como a lista de magias da ficha a guarda (preparada, com nível, escola e a descrição montada). */
 export function magiaParaFicha(m: MagiaDoCompendio): Magia {
+  const porNivel = porNivelAcimaDoTexto(m.emNiveisSuperiores);
   return {
     nome: m.nome,
     nivel: m.nivel,
     preparada: true,
     escola: m.escola,
     descricao: descricaoParaFicha(m),
+    ...(porNivel ? { porNivelAcima: porNivel } : {}),
   };
 }
 

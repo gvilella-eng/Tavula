@@ -1176,6 +1176,32 @@ Lote do tour de introdução (combinado em `docs/IDEIAS.md`) e duas pendências 
 - O tour não ilumina itens dentro de menus que abrem (o item "Visão do mestre" do menu de Luz é falado no texto do grupo, não iluminado sozinho).
 - Um passo que depende de uma aba só aparece se a aba abre em 1,5 s.
 
+## V6 — como ficou (2026-11-12)
+
+Um pedido do Vilella: conjurar com espaço de nível maior, dano a mais por nível acima e um ícone para "pingar" a magia no chat. O lote foi feito sem ninguém para perguntar: o que o brief não dizia foi assumido e está marcado.
+
+**O que foi feito**
+- **Menu "Conjurar <nome> com espaço de:"** preso ao botão, em Magias do PJ, em Ataques e magias (o nome da magia) e na Conjuração do NPC. Um item por nível de espaço com restante, do nível da magia até o 9º, em ordem crescente ("4º · 4 restantes"), e o de pacto no fim ("Pacto 3º · 1 restante") quando o nível do pacto serve. Pergunta sempre, mesmo com uma opção só. Teclado: o foco abre na primeira opção, ↑ e ↓ andam, Enter escolhe, os números 1 a 9 escolhem o nível, Esc ou clique fora cancelam e o foco volta ao botão. Sem opção: o aviso "Sem espaços de 3º nível ou maior para Bola de Fogo.". Truque não pergunta.
+- **Dano por nível acima:** campo novo `Magia.porNivelAcima` (expressão de dados, "1d6" ou "1d4+1"), no editor da engrenagem como "Por nível acima" (dica "dados a mais por nível de espaço acima do da magia"; o texto cinza do campo mostra o valor que valerá quando ele está vazio). `porNivelAcimaDoTexto` (`packages/shared/src/conjuracao.ts`) lê o "Em níveis superiores" do compêndio; é usada em `magiaParaFicha` e, ao conjurar com o campo vazio, `porNivelAcimaDaMagia` tenta o campo, o compêndio (mesmo nome) e o trecho "Em níveis superiores:" que a descrição montada já carrega.
+- **Bloco colado no chat:** na mesma `Mensagem` (campo novo `espaco`). A sala rola o dado a mais (`rolarEspaco`) depois do dano; no crítico os dados extras dobram. O bloco diz "Espaço de 5º · +2d6", mostra o dado, "Total N" (dano principal mais extra) e, com salvaguarda que dá metade, "metade N". O cartão de cima perde os cantos de baixo e a borda de baixo; o bloco perde os de cima e usa `--cabecalho` (o cartão usa `--campo`). Subiu sem `porNivelAcima`: sem bloco, o cartão diz "com espaço de 5º"; magia sem rolagem diz o espaço no cartão da magia ou na origem da característica.
+- **Ícone "Mandar ao chat"** (`MessageSquareShare`) entre o Conjurar e a engrenagem, em Magias, em Ataques e magias (linhas de magia) e na Conjuração do NPC: manda o cartão do compêndio (se a magia casa) ou monta um com os campos da ficha, sem gastar espaço nem rolar. Quem pode conjurar a ficha pode pingar. O "Mandar ao chat" da magia expandida continua.
+- **Protocolo:** `chat.modelo` (ataque), `chat.enviar` (só num `/r`) e `chat.magia` aceitam `espaco?: { nivel, extra?, metade? }` (aditivo, sem capacidade nova). Ver `docs/protocolo.md`.
+
+**Decisões (assumido)**
+- (assumido) Magia de pacto sobe sempre para o nível do pacto: só há o item de pacto, nunca "pacto em nível menor".
+- (assumido) Os números 1 a 9 escolhem só os níveis comuns que estão no menu; o de pacto vai pelas setas.
+- (assumido) Com `dano2`, o total soma tudo o que a rolagem principal já continha (dano, bônus e segundo dano) mais o extra, porque a sala rola uma expressão só.
+- (assumido) `porNivelAcima` multiplica também a parte fixa ("1d4+1" por 2 níveis dá "2d4+2").
+- (assumido) Mísseis Mágicos, mais alvos e mais raios ficam vazios no preenchimento automático e se escrevem à mão; são lidos "o dano aumenta em XdY para cada nível acima" e "XdY de dano adicional para cada nível".
+- (assumido) Truque conjurado e magia conjurada no próprio nível não têm bloco nem "com espaço de".
+- (assumido) O ícone só fica desabilitado (com o motivo na dica) para quem não pode conjurar a ficha.
+- (assumido) O bloco aparece também quando o ataque erra: o dano é rolado sempre, como já era.
+- (assumido) Na linha de Ataques e magias a última coluna ganhou largura para o ícone (todas as linhas, para as colunas alinharem).
+
+**O que ficou para depois**
+- Truques que sobem pelo nível do personagem e conjurar como ritual (anotados em `docs/IDEIAS.md`).
+- Contar dardos, alvos e raios por nível.
+
 ## Em aberto
 
 - **O plano R1 a R6 terminou** (R1, R2, R2b, R3, R4 em 2026-11-10; R5a, R5b, R6a e R6b em 2026-11-11). Agora o Vilella faz os ajustes

@@ -776,6 +776,8 @@ Limites: arquivo **8 MB** (`LIMITES_DE_ASSET.bytesDoCompendio`), **2000 magias**
 
 **Fluxo no navegador**: o mestre lê `compendio/magias.json` da pasta (ou do arquivo escolhido à mão), valida com `lerCompendio` e, se válido e diferente do que a mesa tem, guarda os bytes no cache, manda `asset.registrar` (só a meta) + `asset.tenho` + `compendio.definir`. Arquivo inválido: o erro aparece só ao mestre e **nada é enviado**. Os jogadores veem `Estado.compendio`, pedem o asset (`asset.pedir`) e leem o JSON do cache. "Recarregar" repete a leitura.
 
+(V6, 2026-11-12: `chat.modelo` (ataque), `chat.enviar` (só vale num `/r`) e `chat.magia` aceitam `espaco?: { nivel (1 a 9), extra? (notação de dados, já multiplicada pelos níveis acima), metade? }`. A sala rola o `extra` (no crítico do ataque, os dados dobram) e a mensagem traz `espaco?: { nivel, extra?: { expressao, rolagem, total (dano principal + extra), metade? } }`. Sem capacidade nova; `extra` inválido: `dados_invalidos`; mensagem antiga sem o campo continua valendo.)
+
 **Intenções novas**: `compendio.definir`, `chat.magia`. (V4a, 2026-11-11: `chat.caracteristica { caracteristica: { nome (1 a 80), descricao (até 12000), origem? (até 80) }, como }`: publica uma mensagem `tipo: "caracteristica"` pública com a característica da ficha; `como` é obrigatório e é um personagem que quem fala edita (o mestre: qualquer um); sem capacidade; passa pelo mesmo limite de 10 mensagens por segundo. A `ficha.alterar` passou a recusar `aparenciaHash` e `simboloHash` sem meta registrada, com `dados_invalidos`.) **Evento novo**: `compendio.alterado`. **Tipo de asset novo**: `compendio`. **Tipo de mensagem novo**: `magia`. Sem capacidade nem código de erro novos.
 
 ### Contador de uso

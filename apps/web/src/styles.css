@@ -2505,6 +2505,35 @@ button[aria-disabled="true"]:hover {
   border: 1px solid var(--borda);
   border-radius: 6px;
 }
+/* O cartão da rolagem e o bloco do espaço de magia (V6): uma peça só, a borda do meio é comum. */
+.cartao-colado {
+  display: flex;
+  flex-direction: column;
+  margin-top: 2px;
+}
+.cartao-colado > .modelo {
+  margin-top: 0;
+}
+.cartao-colado > .modelo-bloco:not(:last-child) {
+  border-bottom-width: 0;
+  border-bottom-right-radius: 0;
+  border-bottom-left-radius: 0;
+}
+.cartao-colado > .bloco-espaco {
+  margin-top: 0;
+  background: var(--cabecalho);
+  border-top-right-radius: 0;
+  border-top-left-radius: 0;
+}
+.bloco-total {
+  font-size: 13px;
+  color: var(--texto-suave);
+}
+.bloco-total strong {
+  font-family: var(--fonte-titulo);
+  font-size: 17px;
+  color: var(--texto);
+}
 .modelo-bloco.teste {
   flex-direction: row;
   gap: 8px;
@@ -2523,6 +2552,9 @@ button[aria-disabled="true"]:hover {
   font-size: 16px;
   font-weight: 600;
   line-height: 1.1;
+}
+.bloco-espaco .bloco-titulo {
+  font-size: 14px;
 }
 .bloco-sub {
   display: flex;
@@ -2604,6 +2636,13 @@ button[aria-disabled="true"]:hover {
 .tag-natural.sucesso {
   color: var(--sucesso-texto);
   background: var(--sucesso);
+}
+.bloco-espaco .bloco-cabeca {
+  flex-wrap: wrap;
+  gap: 2px 8px;
+}
+.bloco-espaco .tag-natural {
+  white-space: nowrap;
 }
 .veredito {
   margin: 4px 0 0;

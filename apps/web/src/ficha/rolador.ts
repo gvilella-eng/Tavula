@@ -1,6 +1,7 @@
 import {
   bonusDeAcerto,
   cdDaRolagem,
+  type EspacoDoPedido,
   expressaoDeDano,
   type Ficha,
   formatarBonus,
@@ -24,12 +25,15 @@ export type Rolador = {
   vantagem: Vantagem;
   /** Teste de atributo, salvaguarda, perícia, iniciativa...: d20 + bônus (com CD, mostra sucesso). */
   teste: (nome: string, bonus: number, cd?: number) => void;
-  /** O nome do ataque ou da magia: acerto + dano no mesmo bloco do chat (crítico dobra os dados). */
-  ataque: (a: Rolavel, ficha: Ficha) => void;
+  /**
+   * O nome do ataque ou da magia: acerto + dano no mesmo bloco do chat (crítico dobra os dados). `espaco` (V6): a
+   * magia foi conjurada acima do nível; a sala rola o dado a mais num bloco colado na mesma mensagem.
+   */
+  ataque: (a: Rolavel, ficha: Ficha, espaco?: EspacoDoPedido) => void;
   /** O botão Acerto: só o d20 do ataque. */
   acerto: (a: Rolavel, ficha: Ficha) => void;
   /** O botão Dano: só o dano. */
-  dano: (a: Rolavel, ficha: Ficha) => void;
+  dano: (a: Rolavel, ficha: Ficha, espaco?: EspacoDoPedido) => void;
   /** Uma expressão qualquer, com um nome (ex.: dados de vida: `1d8+2`). */
   expressao: (expr: string, nome: string) => void;
 };
@@ -59,11 +63,11 @@ export function criarRolador(opcoes: {
         }),
       );
     },
-    ataque(a, ficha) {
+    ataque(a, ficha, espaco) {
       if (!podeRolar) return;
       const bonus = bonusDeAcerto(ficha, a);
       const dano = expressaoDeDano(ficha, a);
-      if (bonus === undefined) return rolador.dano(a, ficha);
+      if (bonus === undefined) return rolador.dano(a, ficha, espaco);
       if (dano === undefined) return rolador.acerto(a, ficha);
       const tipo = tipoDeDano(a);
       const cd = a.salvaguarda ? cdDaRolagem(ficha, a) : undefined;
@@ -76,6 +80,7 @@ export function criarRolador(opcoes: {
           ...(tipo ? { danoTipo: tipo } : {}),
           ...(a.margemCritico && a.margemCritico < 20 ? { margemCritico: a.margemCritico } : {}),
           ...(a.danoCritico?.trim() ? { danoCritico: a.danoCritico.trim() } : {}),
+          ...(espaco ? { espaco } : {}),
           ...(a.salvaguarda && cd !== undefined
             ? {
                 salvaguarda: {
@@ -104,14 +109,18 @@ export function criarRolador(opcoes: {
         }),
       );
     },
-    dano(a, ficha) {
+    dano(a, ficha, espaco) {
       const expr = expressaoDeDano(ficha, a);
       if (!podeRolar || expr === undefined) return;
       const cd = cdDaRolagem(ficha, a);
       const rotulo = [a.nome, cd === undefined ? "" : `CD ${cd}`, tipoDeDano(a) ?? ""]
         .filter(Boolean)
         .join(", ");
-      enviar("chat.enviar", { texto: `/r ${expr} ${rotulo}`.trim(), como: personagemId });
+      enviar("chat.enviar", {
+        texto: `/r ${expr} ${rotulo}`.trim(),
+        como: personagemId,
+        ...(espaco ? { espaco } : {}),
+      });
     },
     expressao(expr, nome) {
       if (!podeRolar) return;

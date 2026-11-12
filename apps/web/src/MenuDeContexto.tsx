@@ -1,5 +1,5 @@
 import { Check } from "lucide-react";
-import { type ReactNode, useLayoutEffect, useRef } from "react";
+import { type KeyboardEvent, type ReactNode, useLayoutEffect, useRef } from "react";
 import { useFecharFora } from "./Popover";
 import { useMenuPorTeclado } from "./useMenuPorTeclado";
 
@@ -35,6 +35,8 @@ type Props = {
   /** Aberto pelo teclado (Shift+F10 ou a tecla de menu): o foco vai para o primeiro item. */
   teclado?: boolean;
   aoFechar: () => void;
+  /** Teclas a mais do menu (V6: os números escolhem uma opção), chamadas depois das setas. */
+  aoTeclar?: (e: KeyboardEvent<HTMLElement>) => void;
 };
 
 const MARGEM = 8;
@@ -44,7 +46,16 @@ const MARGEM = 8;
  * menu), sem sair da janela do navegador; setas, Home, End, Enter e Espaço andam e ativam (`useMenuPorTeclado`,
  * R6a); Esc ou um clique fora fecha e o foco volta ao item. Serve às Fichas (item, pasta e handout).
  */
-export function MenuDeContexto({ testid, titulo, x, y, itens, teclado, aoFechar }: Props) {
+export function MenuDeContexto({
+  testid,
+  titulo,
+  x,
+  y,
+  itens,
+  teclado,
+  aoFechar,
+  aoTeclar,
+}: Props) {
   const ref = useRef<HTMLDivElement>(null);
   useFecharFora(ref, aoFechar);
   const aoTeclarNoMenu = useMenuPorTeclado(ref, teclado === true);
@@ -68,7 +79,10 @@ export function MenuDeContexto({ testid, titulo, x, y, itens, teclado, aoFechar 
       aria-label={titulo}
       data-testid={testid}
       style={{ left: x, top: y, maxHeight: window.innerHeight - 2 * MARGEM }}
-      onKeyDown={aoTeclarNoMenu}
+      onKeyDown={(e) => {
+        aoTeclarNoMenu(e);
+        aoTeclar?.(e);
+      }}
     >
       <div className="nota menu-titulo">{titulo}</div>
       {itens.map((item) => {

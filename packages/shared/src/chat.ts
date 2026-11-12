@@ -3,7 +3,7 @@ import { HashSchema } from "./assets.ts";
 import { MagiaDoCompendioSchema } from "./compendio.ts";
 import { lerExpressao, RolagemSchema } from "./dados.ts";
 import type { ConfigDaMesa, Usuario } from "./estado.ts";
-import { ResultadoDeModeloSchema } from "./rolagens.ts";
+import { EspacoNoChatSchema, ResultadoDeModeloSchema } from "./rolagens.ts";
 
 // ---------------------------------------------------------------------------------------------
 // Chat (Lote 8): a mensagem, quem pode vê-la e a leitura dos comandos (`/r`, `/gr`, `/w`, `/em`,
@@ -76,6 +76,8 @@ export const MensagemSchema = z.object({
   magia: MagiaDoCompendioSchema.optional(),
   /** Mensagem `caracteristica` (V4a): o título e a descrição de uma característica da ficha. */
   caracteristica: CaracteristicaNoChatSchema.optional(),
+  /** O espaço de magia usado acima do nível da magia (V6), com o dado a mais rolado: o bloco colado no cartão. */
+  espaco: EspacoNoChatSchema.optional(),
   visivelPara: VisibilidadeDaMensagemSchema,
   /** Rolagem oculta (`/gr`): só o autor e o mestre. */
   oculta: z.boolean().optional(),

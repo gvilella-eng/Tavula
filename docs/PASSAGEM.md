@@ -86,7 +86,7 @@ Tudo em `apps/web/src/`.
     tocha.
   - `SubBarraPincel.tsx`, `DadosRapidos.tsx`, `ZoomFlutuante.tsx`: sub-barra do pincel, grade de dados
     rápidos e controle de zoom no canto inferior direito da área do mapa.
-  - `ficha/JanelaDaFicha.tsx` e as demais em `ficha/`: a janela da ficha 5e e a revisão da importação de PDF. Desde o V4a (refeito) a ficha é o desenho aprovado em `docs/desenho/`: `JanelaDaFicha.tsx` (cabeçalho, fitas, estreita por `ResizeObserver`), `AbaPrincipal.tsx` (Personagem, 3 colunas e acordeão; as peças são exportadas), `AbaMagias.tsx`, `AbaHistoria.tsx`, a Configurar (`EditorDoItem` mais a Aparência), `EditorDeAtaque.tsx` (a engrenagem), `conjurar.ts`, `modificadorExtra.tsx` (V4a3: botão direito / Shift+F10 nas linhas de perícia e salvaguarda), `rolador.ts`, `aparencia.ts` (Livro/Clássica, `localStorage`), `livro.tsx` (título, caixa, bolinha, acordeão), `ListaDeTitulos.tsx` (características), `PainelExtra.tsx` (condições, luz, recursos) e `ficha.css` (tudo sob `.fl-raiz`; a pele vem de `data-pele`). A janela usa `camadaAlta` e `cabecalhoMinimizado` da `Janela`.
+  - `ficha/JanelaDaFicha.tsx` e as demais em `ficha/`: a janela da ficha 5e e a revisão da importação de PDF. Desde o V4a (refeito) a ficha é o desenho aprovado em `docs/desenho/`: `JanelaDaFicha.tsx` (cabeçalho, fitas, estreita por `ResizeObserver`), `AbaPrincipal.tsx` (Personagem, 3 colunas e acordeão; as peças são exportadas), `AbaMagias.tsx`, `AbaHistoria.tsx`, a Configurar (`EditorDoItem` mais a Aparência), `EditorDeAtaque.tsx` (a engrenagem), `conjurar.ts` (gasta o espaço, monta o pedido com `espaco` e o cartão do ícone) e `menuDeEspaco.tsx` (V6: `useConjurar`, o menu "Conjurar com espaço de:" e o `BotaoPingarMagia`), `modificadorExtra.tsx` (V4a3: botão direito / Shift+F10 nas linhas de perícia e salvaguarda), `rolador.ts`, `aparencia.ts` (Livro/Clássica, `localStorage`), `livro.tsx` (título, caixa, bolinha, acordeão), `ListaDeTitulos.tsx` (características), `PainelExtra.tsx` (condições, luz, recursos) e `ficha.css` (tudo sob `.fl-raiz`; a pele vem de `data-pele`). A janela usa `camadaAlta` e `cabecalhoMinimizado` da `Janela`.
   - `Avatar.tsx`, `MensagemDoChat.tsx`, `CartaoDeRolagem.tsx`, `CartaoDaMagia.tsx`: avatar com iniciais e
     cartões do chat.
 
@@ -644,6 +644,14 @@ Continua em aberto, por ser decisão e não erro de doc: `ficha.verOutras` (seç
 - `AbaCompendio.tsx`: `useAlvoDaFicha` segue a ficha em foco (`useFichasNaPilha` em `janelas/pilha.ts`); a escolha à mão vale até o foco mudar (reset durante o render).
 - Aviso das fichas: `JanelaDaFicha` recebe `avisar` (o toast `AvisoPerto`, testid `aviso`); o `ficha-aviso` não existe mais. `AvisoPerto` tem `role="status"` sem código de erro e `alert` com código (o `biome-ignore` de `noStaticElementInteractions` é por isso).
 - Conjuração do NPC: `.npc-conj-chips` ocupa a linha toda (`ficha.css`). Ver `REDESIGN`, "B1".
+
+## V6 (2026-11-12): conjurar com espaço maior, dano por nível e "mandar ao chat"
+
+- Onde mexer: regras puras em `packages/shared/src/conjuracao.ts` (`opcoesDeEspaco`, `porNivelAcimaDoTexto`, `porNivelAcimaDaMagia`, `extraDeEspaco`, `multiplicarExpressao`); o dado a mais é rolado na sala por `rolarEspaco` (`rolagens.ts`), chamado de `chatnucleo.ts`; o bloco é desenhado por `BlocoDoEspaco` em `MensagemDoChat.tsx` (CSS `.cartao-colado` e `.bloco-espaco` no `styles.css`); o menu reaproveita `MenuDeContexto` (prop nova `aoTeclar`) num portal.
+- Testids: `menu-espaco` (e `menu-espaco-<nível>` ou `menu-espaco-pacto`), `magia-pingar-<i>`, `npc-conj-pingar-<i>`, `ataque-pingar-magia-<i>`, `editor-por-nivel-acima`, `bloco-espaco`, `bloco-espaco-titulo`, `bloco-espaco-total`, `bloco-espaco-metade`, `espaco-usado`, `magia-chat-espaco`.
+- Frágil: o Conjurar sem escolher o espaço não faz nada (`conjurar(props, m, opcao)` exige a opção para magia de nível 1 ou mais): todo botão novo de conjurar precisa passar pelo `useConjurar`. O "por nível acima" automático lê só o português do SRD de exemplo; texto fora dos padrões fica vazio.
+- Frágil: o bloco colado depende de `.cartao-colado > .modelo-bloco` (o cartão de cima perde a borda de baixo); mexer no CSS do `.modelo-bloco` pode abrir uma fresta entre os dois.
+- Suposições: ver `REDESIGN`, "V6 — como ficou".
 
 ## C1 (2026-11-12): várias mesas, ids amigáveis e a tela inicial
 

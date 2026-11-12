@@ -31,7 +31,6 @@ import { BotaoComDica } from "../BotaoComDica";
 import type { PedirImagem } from "../FaixaDeCenas";
 import type { ImagensDoMapa } from "../mapa/mapaPixi";
 import { CampoDecimal, CampoDeNovo, CampoNumero, CampoTexto } from "./campos";
-import { conjurar } from "./conjurar";
 import { type AlvoDoEditor, EditorDeAtaque } from "./EditorDeAtaque";
 import { ListaDeCaracteristicas } from "./ListaDeTitulos";
 import {
@@ -42,6 +41,7 @@ import {
   useTicDasLuzes,
 } from "./LuzDoItem";
 import { Acordeao, Bolinha, Caixa, Secao } from "./livro";
+import { BotaoPingarMagia, useConjurar } from "./menuDeEspaco";
 import { PopoverDoModificador, useModificadorExtra } from "./modificadorExtra";
 import { indicadorDoVao, useOrdemDaLista, useSoltarDoCompendio } from "./ordem";
 import type { Rolador } from "./rolador";
@@ -968,6 +968,7 @@ function LinhaDoAtaque({
     .filter(Boolean)
     .join(" · ");
   const podeRolar = rolador.podeRolar;
+  const conj = useConjurar(props, magia);
 
   function rolarAcerto() {
     if (acerto !== undefined) return rolador.acerto(r, ficha);
@@ -993,10 +994,10 @@ function LinhaDoAtaque({
         disabled={!podeRolar}
         aria-label={
           magia
-            ? `Conjurar ${r.nome}${magia.nivel > 0 ? ` gastando um espaço de ${magia.nivel}º nível` : ""}: ataque e dano`
+            ? `Conjurar ${r.nome}${magia.nivel > 0 ? ", escolhendo o espaço de magia" : ""}: ataque e dano`
             : `Rolar ${r.nome}: ataque e dano juntos`
         }
-        onClick={() => (magia ? conjurar(props, magia, l.i) : rolador.ataque(r, ficha))}
+        onClick={(e) => (magia ? conj.pedir(e.currentTarget) : rolador.ataque(r, ficha))}
       >
         <span className="fl-nmt">{r.nome}</span>
         <span className="fl-sub">
@@ -1041,16 +1042,26 @@ function LinhaDoAtaque({
       >
         {dano ?? "–"}
       </button>
-      <BotaoComDica
-        className="fl-ib fl-eng"
-        testid={`${prefixo.replace("ataque-", "ataque-editar-")}`}
-        nome={`Configurar ${r.nome}`}
-        aria-label={`Configurar ${r.nome}`}
-        motivo={editar ? null : "Só quem edita a ficha configura"}
-        onClick={() => abrirEditor({ tipo: l.tipo, i: l.i })}
-      >
-        <Settings size={18} aria-hidden />
-      </BotaoComDica>
+      <span className="fl-ar-fim">
+        {magia && (
+          <BotaoPingarMagia
+            props={props}
+            m={magia}
+            testid={`${prefixo.replace("ataque-", "ataque-pingar-")}`}
+          />
+        )}
+        <BotaoComDica
+          className="fl-ib fl-eng"
+          testid={`${prefixo.replace("ataque-", "ataque-editar-")}`}
+          nome={`Configurar ${r.nome}`}
+          aria-label={`Configurar ${r.nome}`}
+          motivo={editar ? null : "Só quem edita a ficha configura"}
+          onClick={() => abrirEditor({ tipo: l.tipo, i: l.i })}
+        >
+          <Settings size={18} aria-hidden />
+        </BotaoComDica>
+      </span>
+      {conj.menu}
     </div>
   );
 }

@@ -18,10 +18,11 @@ import { BotaoComDica } from "../BotaoComDica";
 import { CamposDaMagia, linhaDeNivelEEscola, MarcasDaMagia, TextoDaMagia } from "../CartaoDaMagia";
 import { type PropsDaAba, um } from "./AbaPrincipal";
 import { CampoDeNovo, CampoNumero, CampoTexto } from "./campos";
-import { conjurar, magiaDoCompendio } from "./conjurar";
+import { magiaDoCompendio } from "./conjurar";
 import { EditorDeAtaque } from "./EditorDeAtaque";
 import { BotaoMandarAoChat } from "./ListaDeTitulos";
 import { Bolinha, Caixa, Secao } from "./livro";
+import { BotaoPingarMagia, useConjurar } from "./menuDeEspaco";
 import {
   indicadorDoVao,
   useEntradaEmArrasto,
@@ -260,6 +261,7 @@ function LinhaDeMagia({
   const doCompendio = magiaDoCompendio(compendio, m.nome);
   const sub = subDaMagia(props, m);
   const acao = m.nivel === 0 ? "Lançar" : "Conjurar";
+  const conj = useConjurar(props, m);
   return (
     <div className="fl-magia" data-testid={`magia-${i}`} data-aberta={aberta} {...ordem}>
       <div className="fl-magia-linha">
@@ -297,11 +299,14 @@ function LinhaDeMagia({
           className="fl-cnj"
           data-testid={`magia-conjurar-${i}`}
           disabled={!rolador.podeRolar}
-          aria-label={`${acao} ${m.nome}${m.nivel > 0 ? ` gastando um espaço de ${m.nivel}º nível` : ""}`}
-          onClick={() => conjurar(props, m, i)}
+          aria-label={`${acao} ${m.nome}${m.nivel > 0 ? ", escolhendo o espaço de magia" : ""}`}
+          aria-haspopup={m.nivel > 0 ? "menu" : undefined}
+          onClick={(e) => conj.pedir(e.currentTarget)}
         >
           {acao}
         </button>
+        {conj.menu}
+        <BotaoPingarMagia props={props} m={m} testid={`magia-pingar-${i}`} />
         <BotaoComDica
           className="fl-ib fl-eng"
           testid={`magia-editar-${i}`}

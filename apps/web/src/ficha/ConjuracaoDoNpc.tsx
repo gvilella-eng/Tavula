@@ -14,10 +14,11 @@ import { CamposDaMagia, linhaDeNivelEEscola, MarcasDaMagia, TextoDaMagia } from 
 import { Espacos, subDaMagia } from "./AbaMagias";
 import { type PropsDaAba, um } from "./AbaPrincipal";
 import { CampoDeNovo, CampoNumero } from "./campos";
-import { conjurar, magiaDoCompendio } from "./conjurar";
+import { magiaDoCompendio } from "./conjurar";
 import { EditorDeAtaque } from "./EditorDeAtaque";
 import { BotaoMandarAoChat } from "./ListaDeTitulos";
 import { TituloDoBloco as Titulo } from "./livro";
+import { BotaoPingarMagia, useConjurar } from "./menuDeEspaco";
 import {
   indicadorDoVao,
   useEntradaEmArrasto,
@@ -52,6 +53,7 @@ function CorpoDaMagia({ m, i, props }: { m: Magia; i: number; props: PropsDaAba 
   const sub = subDaMagia(props, m);
   const editando = editorAberto?.tipo === "magia" && editorAberto.i === i;
   const acao = m.nivel === 0 ? "Lançar" : "Conjurar";
+  const conj = useConjurar(props, m);
   return (
     <div className="npc-acao-texto npc-conj-corpo" data-sem data-testid={`npc-conj-corpo-${i}`}>
       {doCompendio ? (
@@ -76,11 +78,14 @@ function CorpoDaMagia({ m, i, props }: { m: Magia; i: number; props: PropsDaAba 
           className="npc-mandar"
           data-testid={`npc-conj-conjurar-${i}`}
           disabled={!rolador.podeRolar}
-          aria-label={`${acao} ${m.nome}${m.nivel > 0 ? ` gastando um espaço de ${m.nivel}º nível` : ""}`}
-          onClick={() => conjurar(props, m, i)}
+          aria-label={`${acao} ${m.nome}${m.nivel > 0 ? ", escolhendo o espaço de magia" : ""}`}
+          aria-haspopup={m.nivel > 0 ? "menu" : undefined}
+          onClick={(e) => conj.pedir(e.currentTarget)}
         >
           <Sparkles size={16} aria-hidden /> {acao}
         </button>
+        {conj.menu}
+        <BotaoPingarMagia props={props} m={m} testid={`npc-conj-pingar-${i}`} />
         <BotaoMandarAoChat
           testid={`npc-conj-chat-${i}`}
           nome={m.nome}

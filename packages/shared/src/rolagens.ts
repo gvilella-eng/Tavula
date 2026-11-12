@@ -45,6 +45,34 @@ export const SalvaguardaNoChatSchema = z.object({
 });
 export type SalvaguardaNoChat = z.infer<typeof SalvaguardaNoChatSchema>;
 
+/**
+ * O espaço de magia usado ao conjurar acima do nível (V6), como o cliente o pede: o nível do espaço, o dado a mais
+ * (já multiplicado pelos níveis acima: `2d6`) e se a salvaguarda dá metade (só para mostrar a metade no bloco).
+ */
+export const EspacoDoPedidoSchema = z.object({
+  nivel: z.number().int().min(1).max(9),
+  extra: z.string().max(LIMITES_DE_DADOS.caracteres).optional(),
+  metade: z.boolean().optional(),
+});
+export type EspacoDoPedido = z.infer<typeof EspacoDoPedidoSchema>;
+
+/** O espaço usado como a mensagem o guarda: o nível e, havendo dado a mais, o que rolou e os totais. */
+export const EspacoNoChatSchema = z.object({
+  nivel: z.number().int().min(1).max(9),
+  extra: z
+    .object({
+      /** O que foi rolado (no crítico, os dados já dobrados). */
+      expressao: z.string().max(LIMITES_DE_DADOS.caracteres * 2),
+      rolagem: RolagemSchema,
+      /** O dano principal mais o dado a mais. */
+      total: z.number().int(),
+      /** Metade do total (arredondada para baixo), quando a salvaguarda dá metade. */
+      metade: z.number().int().optional(),
+    })
+    .optional(),
+});
+export type EspacoNoChat = z.infer<typeof EspacoNoChatSchema>;
+
 /** O que o cliente pede (nunca traz resultado). */
 export const PedidoDeModeloSchema = z.discriminatedUnion("modelo", [
   z.object({
@@ -61,6 +89,8 @@ export const PedidoDeModeloSchema = z.discriminatedUnion("modelo", [
     danoCritico: z.string().max(60).optional(),
     /** A salvaguarda do alvo, só para mostrar no chat. */
     salvaguarda: SalvaguardaNoChatSchema.optional(),
+    /** Magia conjurada acima do nível (V6): o dado a mais é rolado à parte e vai no bloco colado do chat. */
+    espaco: EspacoDoPedidoSchema.optional(),
     vantagem: VantagemSchema.optional(),
     oculta: z.boolean().optional(),
     /** Fala como este personagem (id). */
@@ -168,6 +198,36 @@ export function rolarAtaque(
       ...(pedido.salvaguarda ? { salvaguarda: pedido.salvaguarda } : {}),
       critico,
       falhaCritica: natural === 1,
+    },
+  };
+}
+
+/**
+ * Rola o dado a mais do espaço (V6). `danoPrincipal` é o total do dano já rolado; no crítico os dados do extra
+ * dobram, como os do dano. Sem `extra`, só guarda o nível do espaço.
+ */
+export function rolarEspaco(
+  pedido: EspacoDoPedido,
+  danoPrincipal: number,
+  critico: boolean,
+  fonte: FonteDeAleatoriedade,
+): ResultadoOuErro<EspacoNoChat> {
+  const extra = pedido.extra?.trim() ?? "";
+  if (extra === "") return { ok: true, resultado: { nivel: pedido.nivel } };
+  const lida = lerExpressao(extra);
+  if (!lida.ok) return { ok: false, motivo: `Dano por nível inválido: ${lida.motivo}` };
+  const rolagem = rolar(critico ? dobrarDados(lida.expressao) : lida.expressao, fonte);
+  const total = danoPrincipal + rolagem.total;
+  return {
+    ok: true,
+    resultado: {
+      nivel: pedido.nivel,
+      extra: {
+        expressao: rolagem.expressao,
+        rolagem,
+        total,
+        ...(pedido.metade ? { metade: Math.floor(total / 2) } : {}),
+      },
     },
   };
 }

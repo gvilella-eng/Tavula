@@ -43,6 +43,63 @@ function formula(expressao: string): string {
   return expressao.replace(/([+-])/g, " $1 ").trim();
 }
 
+/** "com espaço de 5º": o subtítulo do cartão quando a magia subiu de nível sem dado a mais. */
+function etiquetaDoEspaco(mensagem: Mensagem) {
+  const e = mensagem.espaco;
+  if (!e || e.extra) return null;
+  return (
+    <span className="etiqueta-vantagem" data-testid="espaco-usado">
+      com espaço de {e.nivel}º
+    </span>
+  );
+}
+
+/**
+ * O bloco colado embaixo do cartão da rolagem (V6): o dado a mais por nível acima do nível da magia, o total (o dano
+ * principal mais o extra) e, com salvaguarda que dá metade, a metade. Mesma mensagem do cartão, então outra rolagem
+ * nunca cai no meio e o crítico dobra os dois.
+ */
+function BlocoDoEspaco({ mensagem }: { mensagem: Mensagem }) {
+  const e = mensagem.espaco;
+  if (!e?.extra) return null;
+  const critico = mensagem.modelo?.modelo === "ataque" && mensagem.modelo.critico;
+  return (
+    <div
+      className="modelo-bloco bloco-espaco"
+      data-testid="bloco-espaco"
+      data-critico={critico || undefined}
+    >
+      <div className="bloco-cabeca">
+        <strong className="bloco-titulo" data-testid="bloco-espaco-titulo">
+          Espaço de {e.nivel}º · +{formula(e.extra.expressao)}
+        </strong>
+        {critico && (
+          <span className="tag-natural critico" title="Os dados do extra dobram no crítico">
+            Dobrado
+          </span>
+        )}
+      </div>
+      <div className="bloco-linha">
+        <CartaoDeRolagem
+          rolagem={e.extra.rolagem}
+          rotulo="Extra"
+          dano
+          critico={critico}
+          semExpressao
+        />
+        <span className="bloco-total" data-testid="bloco-espaco-total">
+          Total <strong>{e.extra.total}</strong>
+        </span>
+        {e.extra.metade !== undefined && (
+          <span className="bloco-sub" data-testid="bloco-espaco-metade">
+            metade {e.extra.metade}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /**
  * A rolagem de um teste ou ataque no chat (V4a): um bloco baixo. O nome do teste fica em destaque, o total é o
  * número grande e os d20 ficam discretos (com vantagem ou desvantagem aparecem os dois, o descartado esmaecido). O
@@ -65,6 +122,7 @@ function ResultadoDoModelo({ mensagem }: { mensagem: Mensagem }) {
           {m.vantagem !== "normal" && (
             <span className="etiqueta-vantagem">{textoDaVantagem(m.vantagem)}</span>
           )}
+          {etiquetaDoEspaco(mensagem)}
         </div>
         <div className="bloco-linha">
           <CartaoDeRolagem rolagem={m.acerto} rotulo="Acerto" semExpressao />
@@ -198,14 +256,17 @@ export function MensagemDoChat({ mensagem, usuarios, euId, imagens, versaoDasIma
 
   let corpo: ReactNode;
   if (mensagem.tipo === "magia" && mensagem.magia) {
-    corpo = <CartaoDaMagiaNoChat magia={mensagem.magia} />;
+    corpo = <CartaoDaMagiaNoChat magia={mensagem.magia} espaco={mensagem.espaco?.nivel} />;
   } else if (mensagem.tipo === "caracteristica" && mensagem.caracteristica) {
     corpo = <CartaoDaCaracteristicaNoChat caracteristica={mensagem.caracteristica} />;
   } else if (mensagem.tipo === "modelo") {
     corpo = (
       <>
         {mensagem.texto && <p className="texto-chat">{mensagem.texto}</p>}
-        <ResultadoDoModelo mensagem={mensagem} />
+        <div className="cartao-colado">
+          <ResultadoDoModelo mensagem={mensagem} />
+          <BlocoDoEspaco mensagem={mensagem} />
+        </div>
       </>
     );
   } else if (mensagem.tipo === "rolagem" && mensagem.inline) {
@@ -217,22 +278,26 @@ export function MensagemDoChat({ mensagem, usuarios, euId, imagens, versaoDasIma
     );
   } else if (mensagem.tipo === "rolagem") {
     corpo = (
-      <div className="modelo modelo-bloco livre" data-testid="modelo-livre">
-        {mensagem.texto && <strong className="bloco-titulo">{mensagem.texto}</strong>}
-        <div className="bloco-linha">
-          {(mensagem.rolagens ?? []).map((r, i) => {
-            const natural = naturalDe(r);
-            return (
-              // biome-ignore lint/suspicious/noArrayIndexKey: a lista é fixa
-              <span key={i} className="bloco-item">
-                <CartaoDeRolagem rolagem={r} />
-                <ChipsDoD20 rolagem={r} />
-                {natural === "20" && <span className="tag-natural critico">20 natural</span>}
-                {natural === "1" && <span className="tag-natural falha">1 natural</span>}
-              </span>
-            );
-          })}
+      <div className="cartao-colado">
+        <div className="modelo modelo-bloco livre" data-testid="modelo-livre">
+          {mensagem.texto && <strong className="bloco-titulo">{mensagem.texto}</strong>}
+          {etiquetaDoEspaco(mensagem)}
+          <div className="bloco-linha">
+            {(mensagem.rolagens ?? []).map((r, i) => {
+              const natural = naturalDe(r);
+              return (
+                // biome-ignore lint/suspicious/noArrayIndexKey: a lista é fixa
+                <span key={i} className="bloco-item">
+                  <CartaoDeRolagem rolagem={r} />
+                  <ChipsDoD20 rolagem={r} />
+                  {natural === "20" && <span className="tag-natural critico">20 natural</span>}
+                  {natural === "1" && <span className="tag-natural falha">1 natural</span>}
+                </span>
+              );
+            })}
+          </div>
         </div>
+        <BlocoDoEspaco mensagem={mensagem} />
       </div>
     );
   } else if (mensagem.acao) {

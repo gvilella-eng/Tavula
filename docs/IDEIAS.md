@@ -108,6 +108,12 @@ Decidido pelo Vilella (2026-11-11), para levar ao PROJETO quando o marco for pla
 
 Planejado em 2026-11-12 como marco C1–C3 (PROJETO 4.14). O C1 (várias mesas, ids, tela inicial) está entregue.
 
+### Conjuração (levantado no V6, 2026-11-12)
+
+- **Truques que sobem pelo nível do personagem** (Rajada Mística, Raio de Fogo: mais dados no nível 5, 11 e 17). O V6 só cobre o dado a mais por nível de **espaço**. Dá para um campo "dados por nível do personagem" (uma lista nível → expressão) somado ao dano do truque, sem mexer no menu de espaço.
+- **Conjurar como ritual** (sem gastar espaço, só para magias com a marca Ritual e fora de combate): um item "Ritual · sem espaço" no menu de espaço quando a magia do compêndio é ritual.
+- **Mais alvos, mais raios, mais dardos por nível** (Mísseis Mágicos, Raio Ardente, Imobilizar Pessoa): hoje o "Por nível acima" só soma dados; contar dardos ou alvos fica à mão.
+
 ## Descartadas (não propor de novo)
 
 - **Imagens no servidor** (R2 ou similar): imagens locais são a premissa e o diferencial do projeto.

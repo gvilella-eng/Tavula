@@ -73,7 +73,7 @@ import {
   PersonagemAntigoSchema,
   pastasPadrao,
 } from "./pastas.ts";
-import { PedidoDeModeloSchema } from "./rolagens.ts";
+import { EspacoDoPedidoSchema, PedidoDeModeloSchema } from "./rolagens.ts";
 
 export const VERSAO_PROTOCOLO = 1;
 /** Versão do arquivo de exportação (de v1 a v12 ainda são aceitas na importação). */
@@ -716,7 +716,15 @@ export const IntencaoSchema = z.discriminatedUnion("tipo", [
    * Magia do compêndio no chat (Lote 14): a magia vai inteira (com os limites do formato) e a sala a
    * publica como mensagem `magia`. `como` é um personagem que quem fala edita.
    */
-  intencao("chat.magia", z.object({ magia: MagiaDoCompendioSchema, como: IdSchema.optional() })),
+  intencao(
+    "chat.magia",
+    z.object({
+      magia: MagiaDoCompendioSchema,
+      como: IdSchema.optional(),
+      /** O espaço usado, quando a magia foi conjurada acima do nível (V6): aparece no cartão. */
+      espaco: EspacoDoPedidoSchema.optional(),
+    }),
+  ),
   /**
    * Característica da ficha no chat (V4a): título e descrição, sempre pública. `como` é OBRIGATÓRIO: o personagem
    * que quem fala edita (o mestre: qualquer um), a mesma permissão de rolar pela ficha.
@@ -730,6 +738,8 @@ export const IntencaoSchema = z.discriminatedUnion("tipo", [
     z.object({
       texto: z.string().min(1).max(LIMITES_DO_CHAT.caracteres, TEXTO_DO_CHAT_MAX),
       como: IdSchema.optional(),
+      /** Só vale num `/r`: a magia conjurada acima do nível (V6), com o dado a mais num bloco colado. */
+      espaco: EspacoDoPedidoSchema.optional(),
     }),
   ),
   /** Rola uma expressão (dados rápidos). `oculta` só vale para o mestre ou com `dado.rolarOculto`. */

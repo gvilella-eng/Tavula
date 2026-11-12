@@ -2869,4 +2869,52 @@ Detalhes em `docs/REDESIGN.md` ("B1 — como ficou"). O Vilella deixou o lote se
 
 ---
 
-## Próximo: bugs que sobrarem e acabamentos da tela inicial e contas; depois 7b e 12
+## Ajustes V6 — Conjurar com espaço maior, dano por nível acima e "mandar ao chat" (entregue, aguardando o roteiro manual)
+
+Detalhes em `docs/REDESIGN.md` ("V6 — como ficou"). O Vilella deixou o lote sem ninguém para perguntar: o que o brief não dizia foi assumido (marcado).
+
+### O que foi entregue
+
+- **Menu de espaço ao conjurar** (Magias, Ataques e magias e Conjuração do NPC): um item por nível com restante, do nível da magia ao 9º, mais o pacto; pergunta sempre; teclado completo (setas, Enter, números, Esc, foco de volta). Truque não pergunta; sem opção, avisa.
+- **`Magia.porNivelAcima`** (campo no editor da engrenagem), preenchido do "Em níveis superiores" do compêndio e valendo também para as fichas antigas (lê o compêndio ou a descrição na hora de conjurar).
+- **Bloco colado no chat** na mesma mensagem: "Espaço de 5º · +2d6", dado, "Total N" e "metade N"; o crítico dobra os dados extras. Sem `porNivelAcima`, o cartão diz "com espaço de 5º".
+- **Ícone "Mandar ao chat"** ao lado do Conjurar nas três listas: cartão da magia sem gastar nem rolar.
+
+### Como rodar
+
+- `pnpm verify` (uma vez). Prints: `$env:PRINTS_DIR="<pasta>"; pnpm --filter @tabletop/e2e prints v6`.
+
+### Verificação
+
+- Unidade: `packages/shared/src/conjuracao.test.ts` (`opcoesDeEspaco` com nível exato, só acima, pacto e nenhuma opção; `porNivelAcimaDoTexto` com o texto real do fixture, cura e variações e os que não casam; multiplicar; o campo na ficha vinda do compêndio; o extra no crítico; ficha e mensagem antigas), mais 2 em `chat.test.ts` (a sala rola o extra na mesma mensagem e dobra no crítico, `/r` com espaço e extra inválido).
+- E2E novo: `e2e/tests/ficha-v6.spec.ts` (5): menu só com o 4º e o bloco colado (mesma largura, sem fresta, uma mensagem só); Esc, clique fora, setas, Enter e número, com o foco de volta; sem `porNivelAcima` não há bloco, sem espaço avisa e truque não pergunta; o ícone manda o cartão sem gastar; o campo do editor.
+- E2E antigos alterados: `ficha-livro.spec.ts`, `ficha-magias-v4a3.spec.ts` e `ficha-v4b2.spec.ts` (conjurar passa a abrir o menu: escolhem o espaço com `escolherEspaco`, de `ajudasFicha.ts`; no do NPC a mensagem do aviso é a nova, "...ou maior para Bola de Fogo."). Nenhuma asserção foi afrouxada.
+
+### Decisões
+
+- (assumido) Ver `REDESIGN`, "V6 — como ficou", Decisões.
+
+### Estado, protocolo e migração
+
+- Campo opcional novo `Magia.porNivelAcima` e `Mensagem.espaco`; `chat.modelo`, `chat.enviar` e `chat.magia` ganharam `espaco?`. Tudo aditivo: ficha e mensagem antigas carregam igual (teste), o arquivo de exportação continua v13. **Não há migração de banco** (a ficha e as mensagens são JSON). Sem capacidade nova; o segredo do mestre não é tocado (a mensagem é pública).
+
+### Desvios do plano
+
+- Nenhum.
+
+### Frágil / não verificado
+
+- O preenchimento automático só reconhece os padrões "aumenta em XdY para cada nível" e "XdY adicional para cada nível"; outros textos ficam vazios (se escreve à mão).
+- O crítico do bloco só foi conferido em unidade (o E2E não força um 20); nos prints ele sai repetindo o ataque pelo chat até aparecer.
+
+### Roteiro manual (pendente)
+
+1. Com um mago de 5º nível, conjure Bola de Fogo: o menu mostra 3º, 4º e 5º; escolha o 5º e veja o bloco colado com +2d6, o total e a metade.
+2. Esc cancela sem gastar; o teclado escolhe (setas, Enter, número).
+3. Clique no ícone ao lado do Conjurar: o cartão vai ao chat sem gastar espaço.
+4. No NPC com a seção Conjuração, repita o menu e o ícone.
+5. Uma magia sua que sobe sem "por nível acima": o cartão diz "com espaço de Nº".
+
+---
+
+## Próximo: bugs que sobrarem e acabamentos da tela inicial e contas; depois 7b e 12 (o V6 está entregue)

@@ -7,6 +7,7 @@ import {
   cdDaRolagem,
   type Magia,
   normalizarBusca,
+  porNivelAcimaDaMagia,
   previaDoAtaque,
   ROTULO_DO_ATRIBUTO,
 } from "@tabletop/shared";
@@ -39,11 +40,12 @@ export const TIPOS_DE_DANO = [
 const um = (caminho: string, valor: unknown) => [{ caminho, valor }];
 
 /** Um campo do editor: o rótulo em cima, o controle embaixo. */
-function Campo({ rotulo, children }: { rotulo: string; children: ReactNode }) {
+function Campo({ rotulo, dica, children }: { rotulo: string; dica?: string; children: ReactNode }) {
   return (
     <div className="fl-edf">
       <span className="fl-lbl">{rotulo}</span>
       {children}
+      {dica && <span className="fl-dica">{dica}</span>}
     </div>
   );
 }
@@ -427,6 +429,30 @@ export function EditorDeAtaque({
               aoMudar={texto("danoCritico")}
             />
           </Campo>
+          {magia && (
+            <Campo
+              rotulo="Por nível acima"
+              dica="dados a mais por nível de espaço acima do da magia"
+            >
+              <CampoTexto
+                testid="editor-por-nivel-acima"
+                rotulo="Por nível acima"
+                valor={magia.porNivelAcima ?? ""}
+                placeholder={porNivelAcimaDaMagia(
+                  { descricao: magia.descricao },
+                  compendio
+                    ? compendio.magias.find(
+                        (c) => normalizarBusca(c.nome) === normalizarBusca(magia.nome),
+                      )?.emNiveisSuperiores
+                    : undefined,
+                )}
+                maxLength={60}
+                desabilitado={sem}
+                className="fl-fld"
+                aoMudar={texto("porNivelAcima")}
+              />
+            </Campo>
+          )}
         </div>
         <div className="fl-ed-sep">
           <Marca

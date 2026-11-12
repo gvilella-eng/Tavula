@@ -143,6 +143,8 @@ export const MagiaSchema = z.object({
   duracao: z.string().max(80).optional(),
   /** "Mostrar em Ataques e magias" (V4a): a magia aparece na lista de ataques, editada pela mesma magia. */
   emAtaques: z.boolean().optional(),
+  /** Dados somados por nível de espaço acima do nível da magia ("1d6", "1d4+1"; V6). */
+  porNivelAcima: z.string().max(60).optional(),
 });
 export type Magia = z.infer<typeof MagiaSchema>;
 

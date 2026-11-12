@@ -1234,7 +1234,7 @@
 }
 .fl-raiz .fl-ar {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 52px 70px 28px;
+  grid-template-columns: minmax(0, 1fr) 52px 70px 58px;
   gap: 3px;
   align-items: center;
   min-height: 52px;
@@ -1243,6 +1243,12 @@
 }
 .fl-raiz[data-pele="classica"] .fl-ar {
   border-bottom-style: dotted;
+}
+.fl-raiz .fl-ar-fim {
+  display: flex;
+  gap: 2px;
+  align-items: center;
+  justify-content: flex-end;
 }
 .fl-raiz .fl-ar-cab {
   min-height: 24px;

@@ -7,6 +7,7 @@ import {
   criarDarion,
   criarPastaDoGrupo,
   DARION_ID,
+  escolherEspaco,
   ligarVerOutras,
   mandar,
 } from "./ajudasFicha";
@@ -82,6 +83,7 @@ test("conjurar gasta o espaço e a bolinha do espaço mostra o que sobrou; a mag
   await expect(janela.getByTestId("espacos-restantes-1")).toHaveText("4");
   // Hunter's Mark (1º nível) é a magia 6 da fixture
   await janela.getByTestId("magia-conjurar-6").click();
+  await escolherEspaco(j1.pagina, 1);
   await expect(janela.getByTestId("espacos-restantes-1")).toHaveText("3");
   await expect(janela.getByTestId("espaco-1-4")).not.toBeChecked();
   // recuperar espaços

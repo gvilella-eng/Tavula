@@ -5,7 +5,7 @@ import type { Estado, Usuario } from "./estado.ts";
 import { personagemVisivelPara, podeEditarPersonagem } from "./mapa.ts";
 import type { CodigoDeErro, Intencao } from "./protocolo.ts";
 import { tempoDaSala } from "./relogio.ts";
-import { rolarAtaque, rolarTeste } from "./rolagens.ts";
+import { type EspacoNoChat, rolarAtaque, rolarEspaco, rolarTeste } from "./rolagens.ts";
 
 export type IntencaoDeChat = Extract<
   Intencao,
@@ -118,7 +118,13 @@ export function criarMensagem(
   if (intencao.tipo === "chat.magia") {
     return {
       ok: true,
-      mensagem: { ...base, tipo: "magia", magia: intencao.dados.magia, visivelPara: "todos" },
+      mensagem: {
+        ...base,
+        tipo: "magia",
+        magia: intencao.dados.magia,
+        ...(intencao.dados.espaco ? { espaco: { nivel: intencao.dados.espaco.nivel } } : {}),
+        visivelPara: "todos",
+      },
     };
   }
 
@@ -163,12 +169,24 @@ export function criarMensagem(
     const feito =
       pedido.modelo === "ataque" ? rolarAtaque(pedido, aleatorio) : rolarTeste(pedido, aleatorio);
     if (!feito.ok) return recusa("dados_invalidos", feito.motivo);
+    let espaco: EspacoNoChat | undefined;
+    if (pedido.modelo === "ataque" && pedido.espaco && feito.resultado.modelo === "ataque") {
+      const r = rolarEspaco(
+        pedido.espaco,
+        feito.resultado.dano.total,
+        feito.resultado.critico,
+        aleatorio,
+      );
+      if (!r.ok) return recusa("dados_invalidos", r.motivo);
+      espaco = r.resultado;
+    }
     return {
       ok: true,
       mensagem: {
         ...base,
         tipo: "modelo",
         modelo: feito.resultado,
+        ...(espaco ? { espaco } : {}),
         ...(pedido.oculta ? ocultaDe() : { visivelPara: "todos" }),
       },
     };
@@ -185,13 +203,21 @@ export function criarMensagem(
         const negado = semPermissaoOculta();
         if (negado) return negado;
       }
+      const rolagens = rolarTodas([cmd.expressao]);
+      let espaco: EspacoNoChat | undefined;
+      if (intencao.dados.espaco) {
+        const r = rolarEspaco(intencao.dados.espaco, rolagens[0]?.total ?? 0, false, aleatorio);
+        if (!r.ok) return recusa("dados_invalidos", r.motivo);
+        espaco = r.resultado;
+      }
       return {
         ok: true,
         mensagem: {
           ...base,
           tipo: "rolagem",
           ...(cmd.comentario === "" ? {} : { texto: cmd.comentario }),
-          rolagens: rolarTodas([cmd.expressao]),
+          rolagens,
+          ...(espaco ? { espaco } : {}),
           ...(cmd.oculta ? ocultaDe() : { visivelPara: "todos" }),
         },
       };

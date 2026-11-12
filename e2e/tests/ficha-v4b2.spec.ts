@@ -1,6 +1,6 @@
 import type { Page } from "@playwright/test";
 import { abrirAba, expect, test } from "./ajudas";
-import { abrirFicha, criarDarion, DARION_ID, mandar } from "./ajudasFicha";
+import { abrirFicha, criarDarion, DARION_ID, escolherEspaco, mandar } from "./ajudasFicha";
 import { entrarNoMapa } from "./ajudasMapa";
 
 // V4b2: a seção Conjuração do bloco de NPC (mesmos dados da ficha de personagem) e o nome com a capitular (a letra é só
@@ -104,6 +104,13 @@ test("a seção Conjuração: CD e ataque pelo ND, bolinhas, conjurar gasta o es
   await expect(janela.getByTestId("npc-conj-texto-3")).toHaveText("Explosão de chamas.");
   // conjurar a de salvaguarda: gasta o espaço de 3º nível e rola o dano com a CD
   await janela.getByTestId("npc-conj-conjurar-3").click();
+  // V6: o menu de espaço aparece igual na Conjuração do NPC, e o ícone ao lado manda o cartão sem gastar
+  await expect(p.getByTestId("menu-espaco")).toHaveAttribute(
+    "aria-label",
+    "Conjurar Bola de Fogo com espaço de:",
+  );
+  await expect(p.getByTestId("menu-espaco").getByRole("menuitem")).toHaveCount(1);
+  await escolherEspaco(p, 3);
   await expect(janela.getByTestId("npc-espaco-3-1")).not.toBeChecked();
   // o truque de ataque: abre, lança, não gasta espaço nenhum
   await janela.getByTestId("npc-conj-magia-0").click();
@@ -114,7 +121,9 @@ test("a seção Conjuração: CD e ataque pelo ND, bolinhas, conjurar gasta o es
   await janela.getByTestId("npc-conj-magia-3").click();
   await janela.getByTestId("npc-conj-conjurar-3").click();
   // B1: o aviso é o padrão da mesa (toast na área do mapa, role=status), não mais um parágrafo dentro da ficha
-  await expect(p.getByTestId("aviso")).toContainText("Sem espaços de 3º nível");
+  await expect(p.getByTestId("aviso")).toContainText(
+    "Sem espaços de 3º nível ou maior para Bola de Fogo.",
+  );
   await expect(p.getByTestId("aviso")).toHaveAttribute("role", "status");
 
   // o ataque de magia do cabeçalho rola no chat

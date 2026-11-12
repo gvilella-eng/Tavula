@@ -1,6 +1,6 @@
 import type { Page } from "@playwright/test";
 import { expect, test } from "./ajudas";
-import { abrirFicha, criarDarion, DARION_ID, mandar } from "./ajudasFicha";
+import { abrirFicha, criarDarion, DARION_ID, escolherEspaco, mandar } from "./ajudasFicha";
 import { entrarNoMapa } from "./ajudasMapa";
 
 // V4a3: espaços por círculo sempre visíveis (também sem classe), rótulo "Prep.", atributo de conjuração sem classe,
@@ -51,6 +51,7 @@ test("sem classe: o total escrito à mão dá espaços para gastar, o rótulo Pr
 
   // conjurar gasta; Recuperar devolve
   await janela.getByTestId("magia-conjurar-0").click();
+  await escolherEspaco(j1.pagina, 1);
   await expect(janela.getByTestId("espacos-restantes-1")).toHaveText("3");
   await expect(janela.getByTestId("espaco-1-4")).not.toBeChecked();
   await janela.getByTestId("recuperar-espacos").click();

@@ -329,6 +329,64 @@ describe("crítico e testes pelo chat.modelo", () => {
     );
     expect(erro?.codigo).toBe("dados_invalidos");
   });
+
+  it("espaço acima do nível (V6): o extra vem na mesma mensagem e dobra no crítico", () => {
+    const e = criarEstado();
+    const normal = falar(
+      e,
+      "j1",
+      pedido("chat.modelo", {
+        modelo: "ataque",
+        nome: "Bola de Fogo",
+        bonus: -50,
+        dano: "8d6",
+        espaco: { nivel: 5, extra: "2d6", metade: true },
+      }),
+    );
+    expect(normal.mensagem?.espaco?.nivel).toBe(5);
+    const extra = normal.mensagem?.espaco?.extra;
+    const dano = normal.mensagem?.modelo?.modelo === "ataque" ? normal.mensagem.modelo.dano : null;
+    const critDoNormal =
+      normal.mensagem?.modelo?.modelo === "ataque" && normal.mensagem.modelo.critico;
+    expect(extra?.expressao).toBe(critDoNormal ? "4d6" : "2d6");
+    expect(extra?.total).toBe((dano?.total ?? 0) + (extra?.rolagem.total ?? 0));
+    expect(extra?.metade).toBe(Math.floor((extra?.total ?? 0) / 2));
+    const critico = falar(
+      e,
+      "j1",
+      pedido("chat.modelo", {
+        modelo: "ataque",
+        nome: "Raio",
+        bonus: 50,
+        dano: "1d10",
+        margemCritico: 18,
+        espaco: { nivel: 3, extra: "1d10" },
+      }),
+    );
+    const eCrit = critico.mensagem?.modelo?.modelo === "ataque" && critico.mensagem.modelo.critico;
+    expect(critico.mensagem?.espaco?.extra?.expressao).toBe(eCrit ? "2d10" : "1d10");
+  });
+
+  it("espaço no /r e no cartão da magia; extra inválido é recusado", () => {
+    const e = criarEstado();
+    const r = falar(
+      e,
+      "j1",
+      pedido("chat.enviar", { texto: "/r 3d8 Cura", espaco: { nivel: 3, extra: "1d8" } }),
+    );
+    expect(r.mensagem?.tipo).toBe("rolagem");
+    expect(r.mensagem?.espaco?.extra?.total).toBe(
+      (r.mensagem?.rolagens?.[0]?.total ?? 0) + (r.mensagem?.espaco?.extra?.rolagem.total ?? 0),
+    );
+    const sem = falar(e, "j1", pedido("chat.enviar", { texto: "/r 3d8", espaco: { nivel: 3 } }));
+    expect(sem.mensagem?.espaco).toEqual({ nivel: 3 });
+    const mal = erroDe(
+      e,
+      "j1",
+      pedido("chat.enviar", { texto: "/r 3d8", espaco: { nivel: 3, extra: "oi" } }),
+    );
+    expect(mal?.codigo).toBe("dados_invalidos");
+  });
 });
 
 describe("sigilo: sussurro e rolagem oculta", () => {

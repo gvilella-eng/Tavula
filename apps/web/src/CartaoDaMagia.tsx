@@ -74,7 +74,14 @@ export function TextoDaMagia({ magia }: { magia: MagiaDoCompendio }) {
  * O cartão de uma magia no chat: nome, nível, escola, marcas e uma linha com tempo, alcance e duração; a
  * descrição fica recolhida até alguém abrir.
  */
-export function CartaoDaMagiaNoChat({ magia }: { magia: MagiaDoCompendio }) {
+export function CartaoDaMagiaNoChat({
+  magia,
+  espaco,
+}: {
+  magia: MagiaDoCompendio;
+  /** O nível do espaço, quando a magia foi conjurada acima do nível dela (V6). */
+  espaco?: number | undefined;
+}) {
   const [aberta, setAberta] = useState(false);
   return (
     <section className="cartao-magia-chat" data-testid="magia-chat" data-aberta={aberta}>
@@ -84,6 +91,11 @@ export function CartaoDaMagiaNoChat({ magia }: { magia: MagiaDoCompendio }) {
       </header>
       <p className="nivel-e-escola">
         {linhaDeNivelEEscola(magia)} <MarcasDaMagia magia={magia} />
+        {espaco !== undefined && (
+          <span className="etiqueta-magia" data-testid="magia-chat-espaco">
+            com espaço de {espaco}º
+          </span>
+        )}
       </p>
       <p className="resumo-da-magia">
         {magia.tempo} · {magia.alcance} · {magia.duracao}

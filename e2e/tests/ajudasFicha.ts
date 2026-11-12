@@ -144,3 +144,11 @@ export async function clicarImportarPdf(p: Page, personagemId: string) {
   const janela = await abrirFicha(p, personagemId, "configurar");
   await janela.getByTestId("editor-importar-pdf").click();
 }
+
+/** V6: escolhe o espaço no menu "Conjurar com espaço de:" (um nível, ou `pacto`). */
+export async function escolherEspaco(p: Page, nivel: number | "pacto") {
+  const menu = p.getByTestId("menu-espaco");
+  await expect(menu).toBeVisible();
+  await menu.getByTestId(`menu-espaco-${nivel}`).click();
+  await expect(menu).toHaveCount(0);
+}
