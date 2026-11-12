@@ -90,6 +90,8 @@ type Props = {
   fontes: Fontes;
   /** Para ler o compêndio de magias da mesa (as linhas de magia ganham o cartão dele). */
   gerente: GerenteDeAssets | null;
+  /** O aviso padrão da mesa (toast na área do mapa, lido pelo leitor de tela): "entrou como ataque", descanso feito... */
+  avisar: (texto: string) => void;
   aoFechar: () => void;
   aoMudar: (mudancas: Partial<JanelaDeFicha>) => void;
 };
@@ -146,6 +148,7 @@ export function JanelaDaFicha({
   tempo,
   fontes,
   gerente,
+  avisar,
   aoFechar,
   aoMudar,
 }: Props) {
@@ -165,7 +168,6 @@ export function JanelaDaFicha({
   const aparencia = useAparencia();
   const [vantagem, setVantagem] = useState<Vantagem>("normal");
   const [descanso, setDescanso] = useState<"curto" | "longo" | null>(null);
-  const [aviso, setAviso] = useState<string | null>(null);
   const [avisoDaOrdem, setAvisoDaOrdem] = useState<string | null>(null);
   const [editorAberto, setEditorAberto] = useState<(AlvoDoEditor & { aba: AbaDaFicha }) | null>(
     null,
@@ -186,11 +188,6 @@ export function JanelaDaFicha({
     corpo.current?.scrollTo({ top: 0 });
     setEditorAberto(null);
   }, [aba]);
-  useEffect(() => {
-    if (aviso === null) return;
-    const t = setTimeout(() => setAviso(null), 5000);
-    return () => clearTimeout(t);
-  }, [aviso]);
   useEffect(() => {
     if (avisoDaOrdem === null) return;
     const t = setTimeout(() => setAvisoDaOrdem(null), 5000);
@@ -248,7 +245,7 @@ export function JanelaDaFicha({
     editorAberto: editorAberto && editorAberto.aba === aba ? editorAberto : null,
     abrirEditor: (alvo) => setEditorAberto({ ...alvo, aba }),
     fecharEditor: () => setEditorAberto(null),
-    avisar: setAviso,
+    avisar,
     luz: { estado, eu, personagem: p, tempo },
     // As condições moram no token: o do personagem na cena ativa (o que quem olha recebe).
     token: estado.tokens.find((t) => t.personagemId === p.id && t.cenaId === estado.cenaAtivaId),
@@ -260,12 +257,12 @@ export function JanelaDaFicha({
     const ops = operacoesDeDiferenca(ficha, nova);
     setDescanso(null);
     if (ops.length === 0 || !aplicarOperacoes(ficha, ops).ok) {
-      setAviso("Nada a recuperar.");
+      avisar("Nada a recuperar.");
       return;
     }
     alterar(ops);
     enviarAgora();
-    setAviso(descanso === "curto" ? "Descanso curto feito." : "Descanso longo feito.");
+    avisar(descanso === "curto" ? "Descanso curto feito." : "Descanso longo feito.");
   }
 
   const abas = ABAS_DA_FICHA.filter(([id]) => temFicha || id === "configurar");
@@ -485,12 +482,6 @@ export function JanelaDaFicha({
             </button>
           </div>
         )}
-        {aviso && (
-          <p className="nota fh-aviso" role="status" data-testid="ficha-aviso">
-            {aviso}
-          </p>
-        )}
-
         {avisoDaOrdem && (
           <p className="nota fh-aviso" role="status" data-testid="ficha-aviso-ordem">
             {avisoDaOrdem}

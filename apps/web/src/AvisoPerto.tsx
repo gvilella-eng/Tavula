@@ -40,10 +40,11 @@ export function AvisoPerto({ aviso, aoDispensar }: Props) {
 
   return (
     // biome-ignore lint/a11y/useKeyWithClickEvents: o teclado dispensa pelo botão; o clique no aviso todo é um atalho do mouse
+    // biome-ignore lint/a11y/noStaticElementInteractions: o papel muda (alert para erro da sala, status para aviso comum); o botão X é o caminho do teclado
     <div
       ref={ref}
       className="aviso"
-      role="alert"
+      role={aviso.codigo ? "alert" : "status"}
       data-testid="aviso"
       data-codigo={aviso.codigo ?? ""}
       data-origem={origem ? "clique" : "alto"}

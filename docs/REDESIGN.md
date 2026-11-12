@@ -1056,6 +1056,30 @@ Um pedido do Vilella: paredes e portas só para o mestre, "Visão do mestre", en
 - O ícone da porta em arco fica no meio do arco; não gira com a parede.
 - A ferramenta do MCP para paredes (PROJETO 4.12 descreve os campos).
 
+## B1 — como ficou (2026-11-12)
+
+Primeiro lote de bugs, depois dos V1 a V5: o importador do PDF do Rendan e três detalhes vistos nas revisões. Sem ninguém para perguntar: o que o brief não dizia foi assumido e está marcado.
+
+**O que foi feito**
+- **Importador (`shared/src/importarFichaPdf.ts`):** o campo "Classe & nível" cortado com "…" é lido por `classeDeTextoCortado` (começo da palavra = uma classe do SRD só; o resto é a subclasse). O nível vem do número sem rótulo sob os PV temporários (dados de vida) ou, sem ele, do menor nível que dá o bônus de proficiência impresso; um incerto `classes.0.nivel` avisa. Raça, antecedente e tendência passam por `importarTraducoes.ts` (tabelas pequenas e puras). Antecedente, raça e tendência só leem itens que começam na coluna do rótulo (o texto largo da classe invadia a coluna do antecedente). Idiomas rotulados ("IDIOMA: ... ARMADURA: ...") são separados das outras proficiências. O texto de Traços, Ideais, Vínculos e Defeitos fica abaixo da faixa do cabeçalho.
+- **Compêndio:** `useAlvoDaFicha` (`AbaCompendio.tsx`) e `useFichasNaPilha` (`janelas/pilha.ts`): o "Ficha de" é a ficha em foco que a pessoa edita.
+- **Aviso:** `JanelaDaFicha` recebe `avisar` da `Mesa` (o toast `AvisoPerto`); `AvisoPerto` usa `role="status"` quando não há código de erro da sala (e `alert` quando há).
+- **Conjuração do NPC:** `.npc-conj-chips` com `flex: 1 1 100%` (`ficha.css`).
+- Fixtures: `fichas/brendan.pdf` e `fichas/brendan.json` (o esperado, sem as descrições longas).
+
+**Decisões (assumido)**
+- (assumido) Raças do SRD em português: Humano, Humano (variante), Anão (da colina, da montanha), Elfo (Alto elfo, Elfo da floresta, Drow), Halfling (pés-leves, robusto), Draconato, Gnomo (da floresta, das rochas), Meio-elfo, Meio-orc, Tiefling. Nome desconhecido fica como veio.
+- (assumido) Tendência: "LB" e "LG" viram "Leal e Bom", "N" e "True Neutral" viram "Neutro", "CN" vira "Caótico e Neutro"; nome completo em inglês também; texto já em português fica como veio ("Caótico Mau" do Darion).
+- (assumido) "Acolyte" vira "Acólito" e os idiomas do SRD também ("Common" é "Comum").
+- (assumido) Nível a partir dos dados de vida (uma classe só) e, sem eles, do bônus de proficiência (menor nível do degrau); sempre com o incerto para o jogador conferir.
+- (assumido) A escolha à mão no "Ficha de" vale até a ficha em foco mudar; sem ficha aberta, a primeira da lista.
+- (assumido) O aviso de ficha (inclusive "Descanso feito") usa o toast da mesa, no alto da área do mapa (sem origem), em vez de um parágrafo dentro da ficha.
+- (assumido) Os chips da Conjuração ficam numa linha própria mesmo quando há pouca coisa na linha de cima.
+
+**O que ficou para depois**
+- Tradução dos nomes de itens, magias e ataques da ficha impressa (ficam em inglês), "preparada" (o PDF não traz) e os tipos de dano cortados do PDF.
+- Classe e subclasse de quem é multiclasse com o campo cortado.
+
 ## Em aberto
 
 - **O plano R1 a R6 terminou** (R1, R2, R2b, R3, R4 em 2026-11-10; R5a, R5b, R6a e R6b em 2026-11-11). Agora o Vilella faz os ajustes

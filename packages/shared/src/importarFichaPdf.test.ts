@@ -3,15 +3,19 @@ import { readFileSync } from "node:fs";
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { beforeAll, describe, expect, it } from "vitest";
 import {
+  antecedenteEmPortugues,
   conjuradoras,
   derivar,
   espacosDaFicha,
   FichaSchema,
   type ImportacaoDoPdf,
+  idiomaEmPortugues,
   importarFichaDoPdf,
   type Pedaco,
   pedacosDoTextoDoPdf,
   pesParaMetros,
+  racaEmPortugues,
+  tendenciaEmPortugues,
 } from "./index.ts";
 
 // ---------------------------------------------------------------------------------------------
@@ -403,9 +407,9 @@ describe("parser com pedaços sintéticos", () => {
     const r = importarFichaDoPdf(fichaEmIngles(IGUAL));
     expect(r.reconhecido).toBe(true);
     expect(r.nome).toBe("Ana");
-    expect(r.ficha.raca).toBe("Human");
+    expect(r.ficha.raca).toBe("Humano");
     expect(r.ficha.antecedente).toBe("Soldier");
-    expect(r.ficha.alinhamento).toBe("Lawful Good");
+    expect(r.ficha.alinhamento).toBe("Leal e Bom");
     expect(r.ficha.classes).toEqual([{ classe: "Guerreiro", nivel: 5 }]);
     expect(r.ficha.atributos).toEqual({ for: 16, des: 14, con: 12, int: 10, sab: 10, car: 8 });
     expect(r.ficha.pvMax).toBe(44);
@@ -441,5 +445,114 @@ describe("parser com pedaços sintéticos", () => {
     const r = importarFichaDoPdf([texto("Qualquer coisa", 10, 10)]);
     expect(r.reconhecido).toBe(false);
     expect(r.incertos).toHaveLength(1);
+  });
+});
+
+// ---------------------------------------------------------------------------------------------
+// O PDF do Rendan (fixtures/fichas/brendan.pdf), contra fixtures/fichas/brendan.json (B1).
+// O campo "Classe & nível" vem cortado ("Domínio da Sepultura Cl…"): o nível sai dos dados de vida.
+// ---------------------------------------------------------------------------------------------
+
+describe("importar o PDF do Rendan (B1)", () => {
+  let r: ImportacaoDoPdf;
+  const esperado = JSON.parse(
+    readFileSync(new URL("../../../fixtures/fichas/brendan.json", import.meta.url), "utf8"),
+  ) as {
+    nome: string;
+    ficha: Record<string, unknown>;
+    magiasPorNivel: Record<string, string[]>;
+    ataques: string[];
+    itens: unknown[];
+  };
+  beforeAll(async () => {
+    r = importarFichaDoPdf(
+      await pedacosDoPdf(new URL("../../../fixtures/fichas/brendan.pdf", import.meta.url)),
+    );
+  });
+
+  it("reconhece a ficha e valida no schema", () => {
+    expect(r.reconhecido).toBe(true);
+    expect(FichaSchema.safeParse(r.ficha).success).toBe(true);
+    expect(r.nome).toBe("Brendan Banerjee");
+  });
+
+  it("classe, nível e subclasse (o campo vem cortado), antecedente, raça e tendência", () => {
+    expect(r.ficha.classes).toEqual([
+      { classe: "Clérigo", subclasse: "Domínio da Sepultura", nivel: 10 },
+    ]);
+    // O domínio não vaza para o antecedente.
+    expect(r.ficha.antecedente).toBe("Acólito");
+    expect(r.ficha.raca).toBe("Humano");
+    expect(r.ficha.alinhamento).toBe("Leal e Bom");
+    // O nível veio de outro lugar do PDF: o jogador é avisado para conferir.
+    expect(r.incertos.filter((i) => i.caminho === "classes.0.nivel")).toHaveLength(1);
+  });
+
+  it("o nível fecha com o bônus, a CD, o ataque e os espaços do PDF", () => {
+    const d = derivar(r.ficha);
+    expect(d.proficiencia).toBe(4);
+    expect(conjuradoras(r.ficha).map((c) => [c.cd, c.ataque])).toEqual([[16, 8]]);
+    expect(espacosDaFicha(r.ficha).map((e) => e.total)).toEqual([4, 3, 3, 3, 2]);
+    for (const caminho of ["conjuracao", "espacos", "classes"]) {
+      expect(r.incertos.filter((i) => i.caminho === caminho)).toEqual([]);
+    }
+  });
+
+  it("bate com fixtures/fichas/brendan.json", () => {
+    for (const [campo, valor] of Object.entries(esperado.ficha)) {
+      expect([campo, (r.ficha as Record<string, unknown>)[campo]]).toEqual([campo, valor]);
+    }
+    const magias = r.ficha.magias ?? [];
+    for (const [nivel, nomes] of Object.entries(esperado.magiasPorNivel)) {
+      expect(magias.filter((m) => m.nivel === Number(nivel)).map((m) => m.nome)).toEqual(nomes);
+    }
+    expect((r.ficha.ataques ?? []).map((a) => a.nome)).toEqual(esperado.ataques);
+    expect(r.ficha.itens).toEqual(esperado.itens);
+  });
+
+  it("personalidade sem os rótulos do cabeçalho e idiomas separados das proficiências", () => {
+    expect(r.ficha.personalidade).toBe(
+      "Eu cito (corretamente ou não) textos sagrados e provérbios em quase qualquer situação.",
+    );
+    expect(r.ficha.defeitos).toContain("templo");
+    expect(r.ficha.idiomas).toEqual(["Comum"]);
+    expect(r.ficha.outrasProficiencias).not.toContain("IDIOMA");
+  });
+});
+
+describe("tabelas de tradução da ficha impressa", () => {
+  it("raças", () => {
+    expect(racaEmPortugues("Standard Human")).toBe("Humano");
+    expect(racaEmPortugues("Variant Human")).toBe("Humano (variante)");
+    expect(racaEmPortugues("half-elf")).toBe("Meio-elfo");
+    expect(racaEmPortugues("Dragonborn")).toBe("Draconato");
+    expect(racaEmPortugues("Elfo da floresta")).toBe("Elfo da floresta");
+    expect(racaEmPortugues("Aarakocra")).toBe("Aarakocra");
+  });
+
+  it("tendências: siglas e nomes em inglês viram texto por extenso", () => {
+    const casos: [string, string][] = [
+      ["LB", "Leal e Bom"],
+      ["LG", "Leal e Bom"],
+      ["CN", "Caótico e Neutro"],
+      ["N", "Neutro"],
+      ["NM", "Neutro e Mau"],
+      ["CE", "Caótico e Mau"],
+      ["Lawful Good", "Leal e Bom"],
+      ["Chaotic Neutral", "Caótico e Neutro"],
+      ["True Neutral", "Neutro"],
+      ["Caótico Mau", "Caótico Mau"],
+      ["Neutro", "Neutro"],
+      ["Sem tendência", "Sem tendência"],
+    ];
+    for (const [entrada, saida] of casos)
+      expect([entrada, tendenciaEmPortugues(entrada)]).toEqual([entrada, saida]);
+  });
+
+  it("antecedente e idiomas", () => {
+    expect(antecedenteEmPortugues("Acolyte")).toBe("Acólito");
+    expect(antecedenteEmPortugues("Forasteiro")).toBe("Forasteiro");
+    expect(idiomaEmPortugues("Common")).toBe("Comum");
+    expect(idiomaEmPortugues("Thieves' Cant")).toBe("Thieves' Cant");
   });
 });

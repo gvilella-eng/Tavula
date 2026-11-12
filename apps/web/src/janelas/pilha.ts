@@ -38,3 +38,22 @@ export function usePosicaoNaPilha(id: string): number {
     () => ordem.indexOf(id),
   );
 }
+
+/**
+ * Os personagens das fichas abertas, da de trás para a de cima (a última é a ficha em foco). O Compêndio
+ * usa isso para o "Ficha de" seguir a ficha que a pessoa está editando.
+ */
+export function useFichasNaPilha(): string[] {
+  const chave = useSyncExternalStore(
+    (aoMudar) => {
+      ouvintes.add(aoMudar);
+      return () => ouvintes.delete(aoMudar);
+    },
+    () =>
+      ordem
+        .filter((id) => id.startsWith("ficha:"))
+        .map((id) => id.slice("ficha:".length))
+        .join("\n"),
+  );
+  return chave === "" ? [] : chave.split("\n");
+}

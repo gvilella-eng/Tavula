@@ -666,6 +666,11 @@ Problemas conhecidos no PDF de referência:
 - CA, iniciativa e deslocamento saem **sem rótulo** (três números numa linha acima do PV máximo);
   "preparada", os espaços gastos e os dados de vida não saem do PDF (as bolinhas e caixas são desenho).
 
+Nota (B1, 2026-11-12): o PDF do Rendan (`fixtures/fichas/brendan.pdf`, esperado em `brendan.json`) traz o campo
+"Classe & nível" cortado com "…" ("Domínio da Sepultura Cl…"): a classe é achada pelo começo da palavra, o que vem antes
+é a subclasse e o nível vem do total de dados de vida (ou do bônus de proficiência), sempre marcado para conferir.
+Raça, tendência, antecedente e idiomas em inglês da ficha impressa passam por tabelas em português (`importarTraducoes.ts`).
+
 ### 4.11 Automações da mesa
 
 "Funções customizadas" que o mestre monta por campanha. Três peças:

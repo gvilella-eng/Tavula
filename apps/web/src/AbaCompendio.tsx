@@ -13,6 +13,7 @@ import {
   type MagiaDoCompendio,
   normalizarBusca,
   opcoesDeFiltro,
+  type Personagem,
   podeEditarPersonagem,
   ROTULO_DO_NIVEL_DE_MAGIA,
   sha256Hex,
@@ -40,6 +41,7 @@ import {
 } from "./CartaoDaMagia";
 import { TEXTO_DO_EXEMPLO_SRD } from "./exemploSrd";
 import { comecarArrastoDoCompendio } from "./ficha/ordem";
+import { useFichasNaPilha } from "./janelas/pilha";
 import { type ResultadoDoExemplo, useCompendio } from "./useCompendio";
 
 type Enviar = (tipo: string, dados: object) => string | null;
@@ -211,6 +213,26 @@ function ComoMontar({
   );
 }
 
+/**
+ * Quem recebe o que o Compêndio adiciona ("Ficha de"): a ficha aberta em foco que eu edito; sem ficha
+ * aberta, a primeira dos meus personagens. Uma escolha à mão vale até eu focar outra ficha (assumido).
+ */
+function useAlvoDaFicha(
+  meus: readonly Personagem[],
+): [Personagem | undefined, (id: string) => void] {
+  const abertas = useFichasNaPilha();
+  const emFoco = [...abertas].reverse().find((id) => meus.some((p) => p.id === id)) ?? null;
+  const [escolha, setEscolha] = useState<string | null>(null);
+  // Focou outra ficha: a escolha à mão acaba (ajuste durante o render, sem efeito).
+  const [focoVisto, setFocoVisto] = useState(emFoco);
+  if (focoVisto !== emFoco) {
+    setFocoVisto(emFoco);
+    setEscolha(null);
+  }
+  const alvo = meus.find((p) => p.id === escolha) ?? meus.find((p) => p.id === emFoco) ?? meus[0];
+  return [alvo, setEscolha];
+}
+
 type PropsDoCartao = {
   magia: MagiaDoCompendio;
   estado: Estado;
@@ -233,8 +255,7 @@ function CartaoDaMagia({
 }: PropsDoCartao) {
   const meus = estado.personagens.filter((p) => podeEditarPersonagem(p, eu));
   const comoValido = meus.some((p) => p.id === comoId) ? comoId : "";
-  const [alvoId, setAlvoId] = useState(meus[0]?.id ?? "");
-  const alvo = meus.find((p) => p.id === alvoId) ?? meus[0];
+  const [alvo, escolherAlvo] = useAlvoDaFicha(meus);
   const [aviso, setAviso] = useState<{ tipo: "ok" | "erro"; texto: string } | null>(null);
 
   function mandarParaOChat() {
@@ -315,7 +336,7 @@ function CartaoDaMagia({
               aria-label="Personagem que recebe a magia"
               value={alvo?.id ?? ""}
               onChange={(e) => {
-                setAlvoId(e.target.value);
+                escolherAlvo(e.target.value);
                 setAviso(null);
               }}
             >
@@ -388,8 +409,7 @@ function ListaDeEntradas({
   enviar: Enviar;
 }) {
   const meus = estado.personagens.filter((p) => podeEditarPersonagem(p, eu));
-  const [alvoId, setAlvoId] = useState(meus[0]?.id ?? "");
-  const alvo = meus.find((p) => p.id === alvoId) ?? meus[0];
+  const [alvo, escolherAlvo] = useAlvoDaFicha(meus);
   const [aviso, setAviso] = useState<{ tipo: "ok" | "erro"; texto: string } | null>(null);
   const busca = normalizarBusca(texto);
   const linhas: { entrada: EntradaDoCompendio; nome: string; meta: string }[] =
@@ -449,7 +469,7 @@ function ListaDeEntradas({
             aria-label="Ficha que recebe"
             value={alvo?.id ?? ""}
             onChange={(e) => {
-              setAlvoId(e.target.value);
+              escolherAlvo(e.target.value);
               setAviso(null);
             }}
           >

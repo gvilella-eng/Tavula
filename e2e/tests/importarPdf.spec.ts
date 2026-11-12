@@ -12,6 +12,10 @@ const decodificado = fileURLToPath(
   new URL("../../fixtures/fichas/darion.pdf", import.meta.url),
 );
 
+const decodificadoDoRendan = fileURLToPath(
+  new URL("../../fixtures/fichas/brendan.pdf", import.meta.url),
+);
+
 /** Um item "Darion" simples, para a importação passar por cima. */
 async function criarDarionSimples(mestre: Page) {
   await mandar(mestre, "personagem.criar", {
@@ -28,12 +32,12 @@ async function criarDarionSimples(mestre: Page) {
 }
 
 /** Ficha → aba Configurar → "Importar PDF" → escolhe o PDF do Darion. */
-async function escolherPdfPelaFicha(p: Page, personagemId: string) {
+async function escolherPdfPelaFicha(p: Page, personagemId: string, arquivo = decodificado) {
   const [seletor] = await Promise.all([
     p.waitForEvent("filechooser"),
     clicarImportarPdf(p, personagemId),
   ]);
-  await seletor.setFiles(decodificado);
+  await seletor.setFiles(arquivo);
   await expect(p.getByTestId("revisao-pdf")).toBeVisible();
 }
 
@@ -112,6 +116,34 @@ test("importar o PDF do Darion pela aba Configurar da ficha: revisão com incert
   await expect(janela.getByTestId(`pv-atual-${DARION_ID}`)).toHaveValue("97");
   await janela.getByTestId("ficha-aba-magias").click();
   await expect(janela.getByTestId("espacos-restantes-1")).toHaveText("4");
+});
+
+test("importar o PDF do Rendan (B1): classe, nível, raça e tendência saem em português e o domínio não vai para o antecedente", async ({
+  mesa,
+}) => {
+  test.setTimeout(90_000);
+  const mestre = await entrarNoMapa(mesa, "mestre");
+  await criarDarionSimples(mestre.pagina);
+  const p = mestre.pagina;
+
+  await escolherPdfPelaFicha(p, DARION_ID, decodificadoDoRendan);
+  // O campo da classe vem cortado no PDF: o nível entra como campo para conferir.
+  await expect(p.getByTestId("revisao-total-incertos")).toContainText("campos para conferir");
+  await p.getByTestId("revisao-confirmar").click();
+  await p.getByTestId("revisao-sobrescrever-sim").click();
+  await expect(p.getByTestId("revisao-pdf")).toBeHidden();
+
+  const janela = await abrirFicha(p, DARION_ID, "principal");
+  const resumo = janela.getByTestId("janela-ficha-resumo");
+  await expect(resumo).toContainText("Clérigo 10");
+  await expect(resumo).toContainText("Humano");
+  await expect(resumo).toContainText("Acólito");
+  await expect(resumo).toContainText("Leal e Bom");
+  await expect(resumo).not.toContainText("Standard Human");
+  await expect(resumo).not.toContainText("Sepultura");
+  await expect(janela.getByTestId("atributo-mod-int")).toHaveText("+4");
+  await janela.getByTestId("ficha-aba-magias").click();
+  await expect(janela.getByTestId("espacos-restantes-5")).toHaveText("2");
 });
 
 test("Cancelar na revisão não manda nenhum frame de ficha para a sala e a ficha continua como estava", async ({

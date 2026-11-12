@@ -636,3 +636,10 @@ Continua em aberto, por ser decisão e não erro de doc: `ficha.verOutras` (seç
 - A magia solta no NPC: `aplicarEntradaNaFicha(..., "npc")` em `compendioParaFicha.ts` (sem classe nem atributo escolhido, grava também `habilidadeDeConjuracao`). `useSoltarDoCompendio.listaDoTipo` aceita uma função da entrada e há a opção `fluxo` (chips lado a lado) em `ordem.tsx`; listas `npc-circulo-<n>`.
 - Frágil: o manipulador de foco de `NomeComCapitular` troca o valor do input direto no DOM (antes do render) para o preenchimento por código (Playwright `fill`) substituir o texto em vez de anexar ao fim. Não passe isso para um `useEffect`.
 - Suposição: a seção existe com magias, atributo ou total de espaços escolhido; sem isso só o "+ Conjuração" de quem edita. Ver `REDESIGN`, "V4b2".
+
+## B1 (2026-11-12): importador do Rendan, "Ficha de", aviso e chips
+
+- Importador: o PDF do Rendan (`fixtures/fichas/brendan.pdf`, esperado em `brendan.json`) tem o campo "Classe & nível" cortado com "…". `classeDeTextoCortado` e o nível pelos dados de vida estão em `importarFichaPdf.ts` (no cabeçalho); as tabelas de raça, tendência, antecedente e idioma, em `importarTraducoes.ts` (puro; nome desconhecido fica como veio). Frágil: o nível só é lido assim para uma classe; antecedente, raça e tendência só leem itens que começam na coluna do rótulo (`valorDe(..., daColuna)`).
+- `AbaCompendio.tsx`: `useAlvoDaFicha` segue a ficha em foco (`useFichasNaPilha` em `janelas/pilha.ts`); a escolha à mão vale até o foco mudar (reset durante o render).
+- Aviso das fichas: `JanelaDaFicha` recebe `avisar` (o toast `AvisoPerto`, testid `aviso`); o `ficha-aviso` não existe mais. `AvisoPerto` tem `role="status"` sem código de erro e `alert` com código (o `biome-ignore` de `noStaticElementInteractions` é por isso).
+- Conjuração do NPC: `.npc-conj-chips` ocupa a linha toda (`ficha.css`). Ver `REDESIGN`, "B1".

@@ -2653,4 +2653,50 @@ Detalhes em `docs/REDESIGN.md` ("V5 — como ficou"). O Vilella deixou o lote se
 
 ---
 
-## Próximo: bugs conhecidos; depois tela inicial e contas, tour; depois 7b e 12
+## Ajustes B1 — Importador do Rendan e detalhes das revisões (entregue, aguardando o roteiro manual)
+
+Detalhes em `docs/REDESIGN.md` ("B1 — como ficou"). O Vilella deixou o lote sem ninguém para perguntar: o que o brief não dizia foi assumido (marcado). Corrige o bug "Importador do PDF: o Rendan" do `docs/BUGS.md` (apagado de lá).
+
+### O que foi entregue
+
+- **Importador do PDF (Rendan):** o PDF da ficha corta o campo "Classe & nível" com "…" ("Domínio da Sepultura Cl…"), então o nível se perde. Agora a classe sai do começo da palavra (Clérigo), o que vem antes é a subclasse ("Domínio da Sepultura") e o nível vem do total de dados de vida do PDF (10), ou do bônus de proficiência se faltar; o campo entra marcado "para conferir". O antecedente é lido só da coluna dele ("Acolyte", que vira "Acólito"); o domínio não vaza mais para lá. Raça e tendência passam por tabelas em português: "Standard Human" vira "Humano", "LB" vira "Leal e Bom".
+- **Também corrigido no mesmo PDF:** idiomas separados das proficiências ("IDIOMA: Common ARMADURA: ..." virava lista de idiomas) e os rótulos "ALINHAMENTO"/"PONTOS DE EXPERIÊNCIA" que vazavam no texto de Traços de personalidade. Com o nível certo, a CD, o ataque de magia e os espaços de magia do PDF passaram a fechar com a ficha.
+- **Compêndio, "Ficha de":** segue a ficha aberta em foco que a pessoa edita; a escolha à mão vale até focar outra ficha.
+- **Aviso "entrou como ataque":** agora é o toast padrão da mesa (`AvisoPerto`, `role="status"`, some sozinho); o parágrafo `ficha-aviso` dentro da ficha deixou de existir ("Descanso feito" e "Sem espaços de Nº nível" também vão ao toast).
+- **Conjuração do NPC:** o cabeçalho do círculo (nome, bolinhas, total) fica numa linha e os chips das magias vêm abaixo, na largura toda, com "Nova magia" no fim; truques iguais.
+
+### Como rodar
+
+- `pnpm verify` (uma vez). Prints: `$env:PRINTS_DIR="<pasta>"; pnpm --filter @tabletop/e2e prints b1`.
+
+### Verificação
+
+- Unidade (`packages/shared/src/importarFichaPdf.test.ts`): o Rendan pela fixture (classe, nível, subclasse, antecedente, raça, tendência, o nível fechando com proficiência, CD, ataque e espaços; `fixtures/fichas/brendan.json` com o esperado), idiomas, personalidade e as tabelas de raça, tendência, antecedente e idioma; o Darion e o resto seguem iguais.
+- E2E novos: Rendan importado pela ficha (`importarPdf.spec.ts`); "Ficha de" seguindo a ficha em foco e o aviso como toast (`ficha-arrastar.spec.ts`).
+- E2E antigos alterados: `ficha-v4b2.spec.ts` (o aviso "Sem espaços de 3º nível" agora é o toast `aviso`, não `ficha-aviso`). O teste sintético de `importarFichaPdf.test.ts` ("lê os rótulos em inglês") passou a esperar "Humano" e "Leal e Bom" em vez de "Human" e "Lawful Good" (a tradução é o comportamento novo).
+- Ver o fim desta seção para os números do `pnpm verify`.
+
+### Decisões
+
+- (assumido) Ver `REDESIGN`, "B1 — como ficou", Decisões.
+
+### Desvios do plano
+
+- Nenhum.
+
+### Frágil / não verificado
+
+- O nível do Rendan não está escrito no PDF (o campo vem cortado): vem do número solto sob os PV temporários (total de dados de vida) e só vale para uma classe só. Num PDF multiclasse com o campo cortado, só a primeira classe é achada.
+- As moedas do Rendan entram como 50 PE (o número cai entre SP e EP no PDF; a regra é "número à esquerda do rótulo"): confira.
+- Do Rendan ainda sai errado ou incompleto: nomes de itens, magias e ataques em inglês; tipos de dano cortados ("Bludge…", "Radiant/N…", "Fire + 4d6…") entram como vieram, marcados; "preparada" não existe no PDF (as 81 magias entram preparadas); 2 magias (Spirit Guardians, Stone Shape) ficam sem descrição e 4 descrições soltas não são importadas; a caixa Channel Divinity entra como recurso a conferir; PV atuais e temporários vazios no PDF.
+
+### Roteiro manual (pendente)
+
+1. Fichas → abra uma ficha → Configurar → Importar PDF → escolha o PDF do Rendan → confirme. O topo mostra Clérigo 10, Domínio da Sepultura, Acólito, Humano, Leal e Bom; confira o nível no aviso amarelo.
+2. Abra duas fichas; no Compêndio (Armas ou Itens) o "Ficha de" é a que está por cima. Escolha outra à mão: ela vale até focar outra ficha.
+3. Solte uma arma na ficha: o aviso aparece como toast no alto do mapa e some sozinho.
+4. Abra o Dragão (NPC) e veja a Conjuração: o círculo, as bolinhas e o total numa linha, os chips embaixo.
+
+---
+
+## Próximo: bugs que sobrarem; depois tela inicial e contas, tour; depois 7b e 12

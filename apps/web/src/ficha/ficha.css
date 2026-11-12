@@ -3140,9 +3140,10 @@
   height: 26px;
   font-size: 15px;
 }
+/* Os chips vão para a linha de baixo, na largura toda (B1): a linha de cima fica com o círculo, as bolinhas e o total. */
 .fl-raiz .npc-conj-chips {
   display: flex;
-  flex: 1;
+  flex: 1 1 100%;
   flex-wrap: wrap;
   gap: 4px 6px;
   align-items: center;

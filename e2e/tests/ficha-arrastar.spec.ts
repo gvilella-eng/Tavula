@@ -139,6 +139,11 @@ test("arrastar do compêndio para o personagem: arma vira ataque calculado, magi
   await expect(janela.getByTestId("ataque-dano-1")).toHaveText("1d8+3");
   await expect(janela.getByTestId("ataque-nome-2")).toContainText("Funda");
   await expect(ataques).not.toHaveAttribute("data-aceita-soltar", "true");
+  // B1: o aviso é o toast padrão da mesa (role=status, some sozinho), não um texto colado no canto da ficha
+  const toast = p.getByTestId("aviso");
+  await expect(toast).toContainText("Espada longa entrou como ataque.");
+  await expect(toast).toHaveAttribute("role", "status");
+  await expect(janela.getByTestId("ficha-aviso")).toHaveCount(0);
 
   // item → Equipamento (quantidade 1, peso do compêndio); soltar fora de uma área aceita não faz nada
   await secao(p, "itens");
@@ -335,6 +340,39 @@ test("o jogador só solta numa ficha que edita; o botão Adicionar usa a mesma c
   await expect(aldric.locator('[data-testid^="ataque-nome-"]').first()).toBeVisible();
   // a soltura recusada não mandou nada à sala (a do Aldric, que veio depois, já chegou): o mago segue com 2 ataques
   await expect(janela.locator('[data-testid^="ataque-nome-"]')).toHaveCount(2);
+});
+
+test('B1: o "Ficha de" do Compêndio segue a ficha em foco; a escolha à mão vale até focar outra', async ({
+  mesa,
+}) => {
+  test.setTimeout(120_000);
+  const mestre = await entrarNoMapa(mesa, "mestre");
+  const p = mestre.pagina;
+  await criarMago(p);
+  await abrirCompendio(p);
+  const alvo = p.getByTestId("compendio-alvo");
+  const ver = async () => {
+    await abrirAba(p, "compendio");
+    await secao(p, "armas");
+    return alvo;
+  };
+
+  await abrirFicha(p, MAGO, "principal");
+  await expect(await ver()).toHaveValue(MAGO);
+  await abrirFicha(p, "pers-aldric", "principal");
+  await expect(await ver()).toHaveValue("pers-aldric");
+
+  // a escolha à mão vale enquanto a ficha em foco não muda (abrir a mesma de novo não muda nada)
+  await alvo.selectOption(MAGO);
+  await expect(alvo).toHaveValue(MAGO);
+  await abrirFicha(p, "pers-aldric", "principal");
+  await expect(await ver()).toHaveValue(MAGO);
+
+  // focar outra ficha troca o alvo: primeiro o Mago, depois o Aldric de novo
+  await abrirFicha(p, MAGO, "principal");
+  await expect(await ver()).toHaveValue(MAGO);
+  await abrirFicha(p, "pers-aldric", "principal");
+  await expect(await ver()).toHaveValue("pers-aldric");
 });
 
 test("segurar e arrastar reordena (com a linha indicadora, Esc cancela) e Alt+↑/↓ move uma posição, no NPC e no personagem", async ({

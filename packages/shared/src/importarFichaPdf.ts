@@ -13,8 +13,15 @@ import {
   type Recurso,
 } from "./ficha.ts";
 import {
+  antecedenteEmPortugues,
+  idiomaEmPortugues,
+  racaEmPortugues,
+  tendenciaEmPortugues,
+} from "./importarTraducoes.ts";
+import {
   ATRIBUTOS,
   type Atributo,
+  CLASSES,
   classeSrd,
   PERICIAS,
   ROTULO_DO_ATRIBUTO,
@@ -407,6 +414,26 @@ const NOMES_EN_DAS_PERICIAS: Record<string, string> = {
   sobrevivencia: "survival",
 };
 
+/**
+ * O campo "Classe & nível" cortado na impressão ("Domínio da Sepultura Cl…"): a última palavra é o começo
+ * do nome da classe (em português ou inglês) e o que vem antes é a subclasse. Só vale se o começo bate com
+ * UMA classe do SRD; se for ambíguo ("B…"), devolve `undefined`.
+ */
+function classeDeTextoCortado(texto: string): { classe: string; subclasse?: string } | undefined {
+  const palavras = texto
+    .replace(/(…|\.\.\.)\s*$/, "")
+    .split(/\s+/)
+    .filter(Boolean);
+  const ultima = semAcento(palavras[palavras.length - 1] ?? "");
+  if (ultima.length < 2) return undefined;
+  const achadas = CLASSES.filter((c) =>
+    [c.nome, ...c.apelidos].some((n) => semAcento(n).startsWith(ultima)),
+  );
+  if (achadas.length !== 1 || !achadas[0]) return undefined;
+  const subclasse = palavras.slice(0, -1).join(" ");
+  return { classe: achadas[0].nome, ...(subclasse ? { subclasse } : {}) };
+}
+
 function atributoPeloNome(texto: string): Atributo | undefined {
   const n = norm(texto);
   for (const a of ATRIBUTOS) {
@@ -467,16 +494,21 @@ export function importarFichaDoPdf(pedacos: readonly Pedaco[]): ImportacaoDoPdf 
   const ficha: Ficha = { pvAtual: 0, pvMax: 0 };
 
   // --- cabeçalho ----------------------------------------------------------------------------
-  const valorDe = (regex: RegExp, dyMax = 30, folga = 4): string => {
+  // `daColuna`: só os itens que começam na coluna do rótulo. O texto da classe é largo e invade a coluna do
+  // antecedente (o domínio do Rendan vinha colado no antecedente).
+  const valorDe = (regex: RegExp, dyMax = 30, folga = 4, daColuna = false): string => {
     const r = acharItens(principal, regex)[0];
     if (!r) return "";
-    return linhaMaisProxima(acima(principal, r, dyMax, folga, u), u, "acima");
+    const itens = acima(principal, r, dyMax, folga, u).filter(
+      (i) => !daColuna || i.x >= r.x - 3 * u,
+    );
+    return linhaMaisProxima(itens, u, "acima");
   };
   const nome = valorDe(A.nome, 40, 25);
   const textoDaClasse = valorDe(A.classe, 20);
-  const antecedente = valorDe(A.antecedente, 20);
-  const raca = valorDe(A.raca, 20);
-  const alinhamento = valorDe(A.alinhamento, 20);
+  const antecedente = valorDe(A.antecedente, 20, 4, true);
+  const raca = valorDe(A.raca, 20, 4, true);
+  const alinhamento = valorDe(A.alinhamento, 20, 4, true);
   reg(
     "cabecalho",
     [
@@ -487,12 +519,17 @@ export function importarFichaDoPdf(pedacos: readonly Pedaco[]): ImportacaoDoPdf 
       `ALINHAMENTO: ${alinhamento}`,
     ].join("\n"),
   );
-  if (raca) ficha.raca = raca.slice(0, 64);
-  if (antecedente) ficha.antecedente = antecedente.slice(0, 64);
-  if (alinhamento) ficha.alinhamento = alinhamento.slice(0, 64);
+  if (raca) ficha.raca = racaEmPortugues(raca).slice(0, 64);
+  if (antecedente) ficha.antecedente = antecedenteEmPortugues(antecedente).slice(0, 64);
+  if (alinhamento) ficha.alinhamento = tendenciaEmPortugues(alinhamento).slice(0, 64);
 
   const classes: ClasseDaFicha[] = [];
-  for (const parte of textoDaClasse
+  // A impressão corta o campo com "…" quando o texto não cabe ("Domínio da Sepultura Cl…") e o nível se
+  // perde. A classe sai do começo da palavra; o nível, de outro lugar do PDF (mais abaixo).
+  const cortada = /(…|\.\.\.)\s*$/.test(textoDaClasse)
+    ? classeDeTextoCortado(textoDaClasse)
+    : undefined;
+  for (const parte of (cortada ? "" : textoDaClasse)
     .split(/[,/;]|\se\s/)
     .map((s) => s.trim())
     .filter(Boolean)) {
@@ -529,6 +566,33 @@ export function importarFichaDoPdf(pedacos: readonly Pedaco[]): ImportacaoDoPdf 
       classes.push({ classe: palavras.join(" ").slice(0, 48) || parte.slice(0, 48), nivel });
       incerto(`classes.${indice}.classe`, "Classe que não está na lista do SRD.", parte);
     }
+  }
+  if (cortada) {
+    // Nível: o número solto abaixo dos PV temporários é o total de dados de vida (= nível, numa classe só);
+    // sem ele, o menor nível que dá o bônus de proficiência impresso (assumido).
+    const rTemp = acharItens(principal, A.pvTemp)[0];
+    const solto = rTemp ? linhaMaisProxima(abaixo(principal, rTemp, 35, 20, u), u, "abaixo") : "";
+    const rProf = acharItens(principal, A.bonusProficiencia)[0];
+    const nProf = rProf ? numeroNaLinha(principal, rProf, "esquerda", u) : undefined;
+    let nivel = 1;
+    let origem = "não achei o nível em outro lugar: entrou 1";
+    if (/^\d{1,2}$/.test(solto) && Number(solto) >= 1 && Number(solto) <= 20) {
+      nivel = Number(solto);
+      origem = `o nível ${nivel} veio do total de dados de vida do PDF`;
+    } else if (nProf && /^\d$/.test(nProf.t)) {
+      nivel = Math.min(20, (Number(nProf.t) - 2) * 4 + 1);
+      origem = `o nível ${nivel} foi deduzido do bônus de proficiência`;
+    }
+    classes.push({
+      classe: cortada.classe,
+      nivel,
+      ...(cortada.subclasse ? { subclasse: cortada.subclasse.slice(0, 48) } : {}),
+    });
+    incerto(
+      "classes.0.nivel",
+      `O campo "Classe & nível" vem cortado no PDF; ${origem}. Confira a classe e o nível.`,
+      textoDaClasse,
+    );
   }
   if (classes.length > 0) ficha.classes = classes;
 
@@ -618,7 +682,7 @@ export function importarFichaDoPdf(pedacos: readonly Pedaco[]): ImportacaoDoPdf 
   const rotuloTemp = acharItens(principal, A.pvTemp)[0];
   if (rotuloTemp) {
     const solto = linhaMaisProxima(abaixo(principal, rotuloTemp, 35, 20, u), u, "abaixo");
-    if (/^\d+$/.test(solto))
+    if (/^\d+$/.test(solto) && !cortada)
       incerto(
         "dadosDeVida",
         "Há um número sem rótulo logo abaixo dos PV temporários (provavelmente o total de dados de vida); a ficha calcula os dados pelas classes e não o guardou.",
@@ -776,12 +840,30 @@ export function importarFichaDoPdf(pedacos: readonly Pedaco[]): ImportacaoDoPdf 
     const texto = r ? textoDosItens(acima(principal, r, 120, 8, u), u) : "";
     reg("idiomas", `OUTRAS PROFICIÊNCIAS & IDIOMAS: ${texto || "(vazio)"}`);
     if (texto) {
-      ficha.outrasProficiencias = texto.slice(0, 4000);
-      ficha.idiomas = texto
-        .split(/[,;\n]/)
-        .map((s) => s.trim().slice(0, 40))
-        .filter(Boolean)
-        .slice(0, 30);
+      // A ficha impressa traz "IDIOMA: Common ARMADURA: Light Armor ARMA: Simple Weapons": separa pelos rótulos.
+      const secoes = texto.split(/\b([A-ZÀ-Ý]{4,})\s*:\s*/u);
+      const rotulado = secoes.length > 2 && /^(idiomas?|languages?)$/i.test(secoes[1] ?? "");
+      const separar = (t: string) =>
+        t
+          .split(/[,;\n]/)
+          .map((x) => x.trim().slice(0, 40))
+          .filter(Boolean);
+      if (rotulado) {
+        const idiomas: string[] = [];
+        const outras: string[] = [];
+        for (let k = 1; k + 1 < secoes.length; k += 2) {
+          const rotulo = secoes[k] ?? "";
+          const conteudo = (secoes[k + 1] ?? "").trim();
+          if (/^(idiomas?|languages?)$/i.test(rotulo))
+            idiomas.push(...separar(conteudo).map(idiomaEmPortugues));
+          else if (conteudo) outras.push(`${tituloBonito(rotulo)}: ${conteudo}`);
+        }
+        if (outras.length > 0) ficha.outrasProficiencias = outras.join("\n").slice(0, 4000);
+        ficha.idiomas = idiomas.slice(0, 30);
+      } else {
+        ficha.outrasProficiencias = texto.slice(0, 4000);
+        ficha.idiomas = separar(texto).slice(0, 30);
+      }
     } else
       incerto(
         "idiomas",
@@ -799,7 +881,12 @@ export function importarFichaDoPdf(pedacos: readonly Pedaco[]): ImportacaoDoPdf 
   ] as const) {
     const r = principal.rotulos.find((i) => regex.test(i.n));
     if (!r) continue;
-    const texto = textoDosItens(acima(principal, r, 130, 30, u), u);
+    // Abaixo da faixa do cabeçalho (os rótulos "ALINHAMENTO" e "PONTOS DE EXPERIÊNCIA" vazavam no texto).
+    const teto = acharItens(principal, A.alinhamento)[0]?.y ?? Number.POSITIVE_INFINITY;
+    const texto = textoDosItens(
+      acima(principal, r, 130, 45, u).filter((i) => i.y < teto - u),
+      u,
+    );
     reg("notas", `${titulo.toUpperCase()}: ${texto || "(vazio)"}`);
     if (texto) ficha[campo] = texto.slice(0, 2000);
   }

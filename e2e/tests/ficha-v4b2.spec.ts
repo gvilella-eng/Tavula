@@ -113,7 +113,9 @@ test("a seção Conjuração: CD e ataque pelo ND, bolinhas, conjurar gasta o es
   // sem espaço de 3º nível: avisa e não rola de novo
   await janela.getByTestId("npc-conj-magia-3").click();
   await janela.getByTestId("npc-conj-conjurar-3").click();
-  await expect(janela.getByTestId("ficha-aviso")).toContainText("Sem espaços de 3º nível");
+  // B1: o aviso é o padrão da mesa (toast na área do mapa, role=status), não mais um parágrafo dentro da ficha
+  await expect(p.getByTestId("aviso")).toContainText("Sem espaços de 3º nível");
+  await expect(p.getByTestId("aviso")).toHaveAttribute("role", "status");
 
   // o ataque de magia do cabeçalho rola no chat
   await janela.getByTestId("npc-conj-ataque").click();
