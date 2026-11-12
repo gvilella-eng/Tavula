@@ -2090,54 +2090,6 @@ button[aria-disabled="true"]:hover {
   padding: 1px 0;
 }
 
-.mochila {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin: 4px 0;
-  padding: 6px 8px 8px;
-  border: 1px solid var(--borda);
-  border-radius: 8px;
-}
-.mochila legend {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 0 6px;
-  font-size: 13px;
-  color: var(--texto-suave);
-}
-.mochila-modelo {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.mochila-linha,
-.mochila-usada {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-.mochila-linha > span:not(.mochila-quantidade) {
-  color: var(--texto-suave);
-}
-.mochila-quantidade {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin-left: auto;
-}
-.mochila-usada {
-  padding-left: 12px;
-  font-size: 13px;
-  color: var(--texto-suave);
-}
-.mochila-usada > span {
-  flex: 1;
-  min-width: 160px;
-}
-
 .secao-mesa,
 .secao-objetos {
   display: flex;
@@ -2783,11 +2735,6 @@ button[aria-disabled="true"]:hover {
   flex-direction: column;
   align-items: flex-start;
   gap: 4px;
-}
-.fh-item-modelo {
-  display: flex;
-  align-items: center;
-  gap: 8px;
 }
 .fh-recurso {
   display: flex;
@@ -4327,4 +4274,9 @@ kbd {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+.bloco-item {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
 }

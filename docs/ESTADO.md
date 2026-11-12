@@ -2424,6 +2424,8 @@ Refeito depois de o Vilella recusar o papel branco do primeiro V4a. Detalhes e d
 - Rolagem no chat em bloco baixo, com os dois d20 na vantagem, crítico verde e 1 natural vermelho fixos.
 - Dados: campos de rolagem opcionais em ataque e magia, peso do item, origem da característica; `chat.caracteristica` com `origem`.
 
+- V4a2: identidade rola com o corpo na janela larga; rolagem livre no bloco novo do chat; **dado de vida pela sala** (`ficha.dadoDeVida`, soma a cura ao PV com teto, bloco no chat; `dadoDeVida.test.ts`); **luz na linha do equipamento** (Acender/Apagar, sublinhas "em uso", "apagada", "guardada"; sem Condições nem "Objetos de luz" no painel de baixo, ficam só os Recursos). Testes: `ficha-livro.spec.ts`, `tochas.spec.ts`, `ficha.spec.ts`, `combate.spec.ts` ajustados.
+
 ### Como rodar
 
 - `pnpm verify` (uma vez). Prints: `$env:PRINTS_DIR="<pasta>"; pnpm --filter @tabletop/e2e prints v4a`.

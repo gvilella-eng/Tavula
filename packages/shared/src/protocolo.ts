@@ -59,6 +59,7 @@ import {
 } from "./estado.ts";
 import {
   absorverMochila,
+  DADOS_DE_VIDA,
   FichaSchema,
   MAXIMO_DE_OPERACOES,
   OperacaoDeFichaSchema,
@@ -570,6 +571,11 @@ export const IntencaoSchema = z.discriminatedUnion("tipo", [
       operacoes: z.array(OperacaoDeFichaSchema).min(1).max(MAXIMO_DE_OPERACOES),
     }),
   ),
+  /**
+   * V4a2: gasta um dado de vida do tipo pedido, rola 1dN + Con na sala, soma a cura ao PV (teto no máximo; o
+   * temporário não muda) e publica o bloco no chat. Quem edita a ficha ou o mestre. Recusa sem dado disponível.
+   */
+  intencao("ficha.dadoDeVida", z.object({ personagemId: IdSchema, dado: z.enum(DADOS_DE_VIDA) })),
   intencao("cena.criar", z.object({ id: IdSchema, nome: CenaSchema.shape.nome })),
   intencao(
     "cena.editar",
@@ -860,6 +866,7 @@ export const capacidadeDaIntencao: Record<TipoIntencao, Capacidade | null> = {
   "personagem.colocar": "cena.editar",
   // Quem edita ou o mestre: a capacidade não diz quem edita; `processar` confere.
   "ficha.alterar": null,
+  "ficha.dadoDeVida": null,
   "cena.criar": "cena.editar",
   "cena.editar": "cena.editar",
   "cena.duplicar": "cena.editar",

@@ -3,7 +3,7 @@ import { EyeOff, Lock } from "lucide-react";
 import type { ReactNode } from "react";
 import { Avatar } from "./Avatar";
 import { CartaoDaCaracteristicaNoChat, CartaoDaMagiaNoChat } from "./CartaoDaMagia";
-import { CartaoDeRolagem, ChipsDoD20 } from "./CartaoDeRolagem";
+import { CartaoDeRolagem, ChipsDoD20, naturalDe } from "./CartaoDeRolagem";
 import type { ImagensDoMapa } from "./mapa/mapaPixi";
 
 type Props = {
@@ -101,6 +101,19 @@ function ResultadoDoModelo({ mensagem }: { mensagem: Mensagem }) {
             {meio !== null ? ` · metade: ${meio}` : ""}
           </span>
         </div>
+      </div>
+    );
+  }
+  if (m.modelo === "vida") {
+    return (
+      <div className="modelo modelo-bloco teste" data-testid="modelo-vida">
+        <CartaoDeRolagem rolagem={m.rolagem} semExpressao />
+        <span className="bloco-textos">
+          <strong className="bloco-titulo">{m.nome}</strong>
+          <span className="bloco-sub" data-testid="modelo-vida-pv">
+            +{m.curou} PV ({m.pvAtual}/{m.pvMax})
+          </span>
+        </span>
       </div>
     );
   }
@@ -204,15 +217,23 @@ export function MensagemDoChat({ mensagem, usuarios, euId, imagens, versaoDasIma
     );
   } else if (mensagem.tipo === "rolagem") {
     corpo = (
-      <>
-        {mensagem.texto && <p className="texto-chat">{mensagem.texto}</p>}
-        <div className="modelo-linha">
-          {(mensagem.rolagens ?? []).map((r, i) => (
-            // biome-ignore lint/suspicious/noArrayIndexKey: a lista é fixa
-            <CartaoDeRolagem key={i} rolagem={r} />
-          ))}
+      <div className="modelo modelo-bloco livre" data-testid="modelo-livre">
+        {mensagem.texto && <strong className="bloco-titulo">{mensagem.texto}</strong>}
+        <div className="bloco-linha">
+          {(mensagem.rolagens ?? []).map((r, i) => {
+            const natural = naturalDe(r);
+            return (
+              // biome-ignore lint/suspicious/noArrayIndexKey: a lista é fixa
+              <span key={i} className="bloco-item">
+                <CartaoDeRolagem rolagem={r} />
+                <ChipsDoD20 rolagem={r} />
+                {natural === "20" && <span className="tag-natural critico">20 natural</span>}
+                {natural === "1" && <span className="tag-natural falha">1 natural</span>}
+              </span>
+            );
+          })}
         </div>
-      </>
+      </div>
     );
   } else if (mensagem.acao) {
     corpo = (

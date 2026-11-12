@@ -243,12 +243,12 @@ export function tocharAcender(
   if (e.luzes.some((l) => l.id === novoId)) {
     return erro("dados_invalidos", "Já existe um objeto de luz com esse id.");
   }
-  if (novasDoModelo(p.ficha, modelo.id) <= 0) {
+  if (novasDoModelo(p.ficha, modelo.id, e.modelos) <= 0) {
     return erro("dados_invalidos", `Sem ${modelo.nome} nova na mochila.`);
   }
   c.emitir({
     tipo: "personagem.alterado",
-    dados: { personagem: { ...p, ficha: ajustarNovas(p.ficha, modelo, -1) } },
+    dados: { personagem: { ...p, ficha: ajustarNovas(p.ficha, modelo, -1, e.modelos) } },
   });
   c.emitir({
     tipo: "fonte.criada",

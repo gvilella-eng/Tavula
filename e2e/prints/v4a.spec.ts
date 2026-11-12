@@ -21,7 +21,17 @@ const CENARIOS = [
 
 const falhas: string[] = [];
 
+const ESCOLHIDAS = [
+  "03b-equipamento-tocha",
+  "01-personagem",
+  "01b-personagem-rolada",
+  "02-personagem-editor",
+  "07-personagem-classica",
+  "09-ficha-e-chat",
+];
+
 async function foto(p: Page, nome: string, espera = 400) {
+  if (!ESCOLHIDAS.some((e) => nome.endsWith(e))) return;
   await p.waitForTimeout(espera);
   await p.screenshot({ path: join(PASTA as string, `${nome}.png`) });
 }
@@ -102,6 +112,11 @@ for (const c of CENARIOS) {
       await tentar(`${rotulo} personagem`, async () => {
         janela = await abrirFicha(m, DARION_ID, "principal");
         await foto(m, `${rotulo}-01-personagem`);
+        await janela
+          .getByTestId("ficha-painel-principal")
+          .evaluate((e) => e.scrollTo({ top: 220 }));
+        await foto(m, `${rotulo}-01b-personagem-rolada`);
+        await janela.getByTestId("ficha-painel-principal").evaluate((e) => e.scrollTo({ top: 0 }));
       });
       await tentar(`${rotulo} editor`, async () => {
         await janela.getByTestId("ataque-editar-0").click();
@@ -116,6 +131,28 @@ for (const c of CENARIOS) {
         await janela.getByTestId("magia-editar-2").click();
         await foto(m, `${rotulo}-04-magias-editor`);
         await janela.getByTestId("editor-voltar").click();
+      });
+      await tentar(`${rotulo} equipamento com tocha`, async () => {
+        await janela.getByTestId("ficha-aba-principal").click();
+        for (const novoId of ["obj-print-1", "obj-print-2"]) {
+          await mandar(m, "tocha.acender", {
+            personagemId: DARION_ID,
+            modeloId: "modelo-tocha",
+            novoId,
+          });
+        }
+        await mandar(m, "tocha.alternar", { id: "obj-print-2" });
+        await expect(janela.getByTestId("item-usada-obj-print-2")).toHaveAttribute(
+          "data-estado",
+          "apagada",
+        );
+        await janela.getByTestId("item-12").scrollIntoViewIfNeeded();
+        await janela.getByTestId("ficha-painel-principal").evaluate((e) => {
+          const alvo = e.querySelector('[data-testid="item-12"]') as HTMLElement;
+          e.scrollTo({ top: alvo.offsetTop - 200 });
+        });
+        await foto(m, `${rotulo}-03b-equipamento-tocha`);
+        await janela.getByTestId("ficha-painel-principal").evaluate((e) => e.scrollTo({ top: 0 }));
       });
       await tentar(`${rotulo} historia`, async () => {
         await janela.getByTestId("ficha-aba-historia").click();
@@ -153,6 +190,7 @@ for (const c of CENARIOS) {
         await janela.getByTestId("magia-conjurar-2").click();
         await janela.getByTestId("ficha-aba-principal").click();
         await janela.getByTestId("caracteristica-chat-0").click();
+        await m.getByTestId("aba-chat").click();
         await foto(m, `${rotulo}-09-ficha-e-chat`);
         const caixa = m.getByTestId(`janela-${`ficha:${DARION_ID}`}`);
         await janela

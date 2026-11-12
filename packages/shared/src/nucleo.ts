@@ -9,7 +9,7 @@ import {
 } from "./assets.ts";
 import { ehCapacidadeDelegavel, pode } from "./capacidades.ts";
 import { chatParaUsuario, mensagemParaUsuario } from "./chat.ts";
-import { criarMensagem } from "./chatnucleo.ts";
+import { criarMensagem, mensagemDeDadoDeVida } from "./chatnucleo.ts";
 import { combateParaUsuario } from "./combate.ts";
 import {
   type ContextoDeCombate,
@@ -30,7 +30,7 @@ import {
   tokenCondicoes,
   tokenTemEntrada,
 } from "./combatenucleo.ts";
-import { type FonteDeAleatoriedade, fonteCrypto } from "./dados.ts";
+import { type FonteDeAleatoriedade, fonteCrypto, lerExpressao, rolar } from "./dados.ts";
 import { desenhoVisivelPara, LIMITES_DO_DESENHO } from "./desenho.ts";
 import {
   type ContextoDeDesenho,
@@ -57,7 +57,14 @@ import type {
   Token,
   Usuario,
 } from "./estado.ts";
-import { absorverMochila, aplicarOperacoes, modelosAumentados, novasDoModelo } from "./ficha.ts";
+import {
+  absorverMochila,
+  aplicarOperacoes,
+  dadosDeVidaDaFicha,
+  modDoAtributo,
+  modelosAumentados,
+  novasDoModelo,
+} from "./ficha.ts";
 import { fatorDeLuzDa, luzAmbienteDa, luzVisivelPara } from "./luz.ts";
 import {
   arrumarNoGrid,
@@ -1230,12 +1237,53 @@ export function processar(
         }
       }
       // Só o mestre repõe tochas (e outros itens de modelo): quem edita a própria ficha só gasta.
-      if (usuario.papel !== "mestre" && modelosAumentados(atual.ficha, r.ficha).length > 0) {
+      if (
+        usuario.papel !== "mestre" &&
+        modelosAumentados(atual.ficha, r.ficha, estado.modelos).length > 0
+      ) {
         return recusa("sem_permissao", "Só o mestre repõe tochas e outros objetos de luz.");
       }
       const personagem: Personagem = { ...atual, ficha: r.ficha };
       if (JSON.stringify(personagem) === JSON.stringify(atual)) return aplicado();
       emitir({ tipo: "personagem.alterado", dados: { personagem } });
+      return aplicado();
+    }
+
+    case "ficha.dadoDeVida": {
+      const { personagemId, dado } = intencao.dados;
+      const atual = personagemDe(estado, personagemId);
+      if (!atual || !personagemVisivelPara(atual, usuario, estado.pastas)) {
+        return recusa("personagem_inexistente", SEM_PERSONAGEM);
+      }
+      if (!podeEditarPersonagem(atual, usuario)) {
+        return recusa("sem_permissao", "Você não edita esta ficha.");
+      }
+      const f = atual.ficha;
+      const dv = f ? dadosDeVidaDaFicha(f).find((x) => x.dado === dado) : undefined;
+      if (!f || !dv || dv.restantes <= 0) {
+        return recusa("dados_invalidos", `Sem dado de vida ${dado} disponível.`);
+      }
+      const mod = modDoAtributo(f, "con");
+      const lida = lerExpressao(`1${dado}${mod > 0 ? `+${mod}` : mod < 0 ? String(mod) : ""}`);
+      if (!lida.ok) return recusa("dados_invalidos", lida.motivo);
+      const rolagem = rolar(lida.expressao, aleatorio);
+      const cura = Math.max(0, rolagem.total);
+      const pvAtual = Math.min(f.pvMax, f.pvAtual + cura);
+      const ficha = {
+        ...f,
+        pvAtual,
+        dadosDeVidaUsados: { ...(f.dadosDeVidaUsados ?? {}), [dado]: dv.usados + 1 },
+      };
+      const mensagem = mensagemDeDadoDeVida(estado, usuario, atual, {
+        nome: `Dado de vida · ${dado}`,
+        rolagem,
+        curou: pvAtual - f.pvAtual,
+        pvAtual,
+        pvMax: f.pvMax,
+        agoraMs,
+      });
+      emitir({ tipo: "chat.mensagem", dados: { mensagem } });
+      emitir({ tipo: "personagem.alterado", dados: { personagem: { ...atual, ficha } } });
       return aplicado();
     }
 
@@ -1821,7 +1869,7 @@ export function processar(
       }
       const emUso =
         estado.luzes.some((l) => l.modeloId === id) ||
-        estado.personagens.some((p) => novasDoModelo(p.ficha, id) > 0) ||
+        estado.personagens.some((p) => novasDoModelo(p.ficha, id, estado.modelos) > 0) ||
         estado.pontos.some((p) => p.modeloId === id);
       if (emUso) {
         return recusa("dados_invalidos", "Há objetos, mochilas ou pontos usando este modelo.");

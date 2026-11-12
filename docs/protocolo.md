@@ -750,3 +750,8 @@ A sala conta as mensagens recebidas por dia UTC e as conexões. `requisicoes = m
 `percentual` é sobre 100 mil por dia. Grava no SQLite a cada 50 mensagens (e a cada conexão) e envia
 `uso` aos mestres no snapshot, a cada 50 mensagens ou, no máximo, a cada ~5 s (o resto fica para o
 agendador).
+
+## V4a2: dado de vida na sala
+
+- `ficha.dadoDeVida { personagemId, dado: "d6" | "d8" | "d10" | "d12" }` (sem capacidade; quem edita a ficha ou o mestre): a sala confere que há dado daquele tipo disponível (senão `dados_invalidos`), rola `1dN + mod. de Con` (cura mínima 0), marca o dado como usado (`dadosDeVidaUsados`), soma a cura a `pvAtual` com teto em `pvMax` (o temporário não muda) e emite `chat.mensagem` (tipo `modelo`, resultado `modelo: "vida"` com `nome`, `rolagem`, `curou`, `pvAtual`, `pvMax`, como o personagem) e `personagem.alterado`. Sem migração.
+- `ModeloDeObjeto` não mudou; o item da ficha é de luz se tem `modeloId` de um modelo existente ou se o nome é igual ao de um modelo (sem maiúsculas, acentos nem espaços nas pontas): `modeloDoItem`. `novasDoModelo`, `ajustarNovas` e `modelosAumentados` recebem a lista de modelos e valem para os dois casos (o jogador não repõe nenhum).

@@ -24,6 +24,45 @@ const recusa = (codigo: CodigoDeErro, mensagem: string): ResultadoDaMensagem => 
 
 type Quem = Pick<Usuario, "id" | "papel">;
 
+/** A mensagem do dado de vida (V4a2): bloco `vida` com a rolagem e o PV de depois, falando como o personagem. */
+export function mensagemDeDadoDeVida(
+  estado: Estado,
+  usuario: Quem,
+  personagem: { id: string; nome: string; retratoHash?: string | undefined },
+  dados: {
+    nome: string;
+    rolagem: Rolagem;
+    curou: number;
+    pvAtual: number;
+    pvMax: number;
+    agoraMs: number;
+  },
+): Mensagem {
+  const seq = estado.seq + 1;
+  return {
+    id: `m${seq}`,
+    seq,
+    emSala: tempoDaSala(estado.relogio, dados.agoraMs),
+    emReal: dados.agoraMs,
+    autorId: usuario.id,
+    como: {
+      personagemId: personagem.id,
+      nome: personagem.nome,
+      ...(personagem.retratoHash === undefined ? {} : { retratoHash: personagem.retratoHash }),
+    },
+    tipo: "modelo",
+    modelo: {
+      modelo: "vida",
+      nome: dados.nome,
+      rolagem: dados.rolagem,
+      curou: dados.curou,
+      pvAtual: dados.pvAtual,
+      pvMax: dados.pvMax,
+    },
+    visivelPara: "todos",
+  };
+}
+
 /**
  * Monta a mensagem de uma intenção do chat, rolando os dados com `aleatorio` (o que o cliente manda
  * é só a notação; resultado de cliente não existe no schema). Não toca no estado: o núcleo emite o

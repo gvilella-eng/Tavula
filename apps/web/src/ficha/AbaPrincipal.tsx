@@ -31,6 +31,13 @@ import { CampoDecimal, CampoDeNovo, CampoNumero, CampoTexto } from "./campos";
 import { conjurar } from "./conjurar";
 import { type AlvoDoEditor, EditorDeAtaque } from "./EditorDeAtaque";
 import { ListaDeCaracteristicas } from "./ListaDeTitulos";
+import {
+  BotaoAcender,
+  type LuzDaFicha,
+  modeloDaLinha,
+  SublinhasDeLuz,
+  useTicDasLuzes,
+} from "./LuzDoItem";
 import { Acordeao, Bolinha, Caixa, Secao } from "./livro";
 import type { Rolador } from "./rolador";
 
@@ -68,6 +75,8 @@ export type PropsDaAba = {
   fecharEditor: () => void;
   /** Um aviso curto no alto da ficha. */
   avisar: (texto: string) => void;
+  /** A mesa, para acender e apagar objetos de luz na linha do equipamento (V4a2). */
+  luz?: LuzDaFicha | undefined;
 };
 
 /** Uma operação só: `caminho` recebe `valor` (`null` remove). */
@@ -725,7 +734,7 @@ function PontosDeVida(props: PropsDaAba) {
   );
 }
 
-export function DadosDeVida({ d, alterar, editar, rolador }: PropsDaAba) {
+export function DadosDeVida({ d, alterar, editar, rolador, enviar, personagemId }: PropsDaAba) {
   return (
     <Caixa testid="fh-dados-de-vida" className="fl-bloco" rotulo="Dados de Vida">
       <Secao>Dados de Vida</Secao>
@@ -738,13 +747,8 @@ export function DadosDeVida({ d, alterar, editar, rolador }: PropsDaAba) {
             data-testid={`dv-rolar-${dv.dado}`}
             disabled={!rolador.podeRolar || dv.restantes <= 0}
             aria-label={`Gastar um dado de vida ${dv.dado} e rolar`}
-            onClick={() => {
-              rolador.expressao(
-                `1${dv.dado}${d.atributos.con.mod === 0 ? "" : formatarBonus(d.atributos.con.mod).replace("−", "-")}`,
-                `Dado de vida (${dv.dado})`,
-              );
-              alterar(um(`dadosDeVidaUsados.${dv.dado}`, dv.usados + 1));
-            }}
+            // V4a2: a sala rola 1dN + Con, marca o dado, soma a cura ao PV (teto no máximo) e publica no chat
+            onClick={() => enviar("ficha.dadoDeVida", { personagemId, dado: dv.dado })}
           >
             <Dices size={15} aria-hidden /> <span>{dv.dado}</span>
           </button>
@@ -1032,92 +1036,116 @@ export function Ataques(props: PropsDaAba) {
   );
 }
 
-export function Equipamento({ ficha, alterar, editar }: PropsDaAba) {
+export function Equipamento({ ficha, alterar, editar, luz, enviar }: PropsDaAba) {
   const itens = ficha.itens ?? [];
+  const euMestre = luz?.eu.papel === "mestre";
+  useTicDasLuzes(luz);
+  const modeloDe = itens.map((it) => modeloDaLinha(luz, it));
   return (
     <Caixa testid="fh-itens" className="fl-bloco" rotulo="Equipamento">
       <Secao>Equipamento</Secao>
       <div className="fl-itens">
         {itens.map((it, i) => (
           // biome-ignore lint/suspicious/noArrayIndexKey: a lista não tem id e é editada por posição
-          <div key={`i-${i}`} className="fl-item" data-testid={`item-${i}`}>
-            <div className="fl-item-linha">
-              <BotaoComDica
-                className="fl-ib fl-mq"
-                testid={`item-menos-${i}`}
-                nome={`Tirar uma unidade de ${it.nome}`}
-                aria-label={`Tirar uma unidade de ${it.nome}`}
-                motivo={editar ? null : "Só quem edita a ficha muda"}
-                onClick={() => alterar(um(`itens.${i}.quantidade`, Math.max(0, it.quantidade - 1)))}
-              >
-                <Minus size={12} aria-hidden />
-              </BotaoComDica>
-              <CampoNumero
-                testid={`item-quantidade-${i}`}
-                rotulo={`Quantidade de ${it.nome}`}
-                valor={it.quantidade}
-                max={9999}
-                desabilitado={!editar}
-                className="fl-in fl-fa fl-item-qtd"
-                aoMudar={(n) => alterar(um(`itens.${i}.quantidade`, n))}
-              />
-              <BotaoComDica
-                className="fl-ib fl-mq"
-                testid={`item-mais-${i}`}
-                nome={`Somar uma unidade de ${it.nome}`}
-                aria-label={`Somar uma unidade de ${it.nome}`}
-                motivo={editar ? null : "Só quem edita a ficha muda"}
-                onClick={() =>
-                  alterar(um(`itens.${i}.quantidade`, Math.min(9999, it.quantidade + 1)))
-                }
-              >
-                <Plus size={12} aria-hidden />
-              </BotaoComDica>
-              <CampoTexto
-                testid={`item-nome-${i}`}
-                rotulo="Nome do item"
-                valor={it.nome}
-                maxLength={80}
-                desabilitado={!editar}
-                className="fl-in fl-item-nome"
-                aoMudar={(t) => alterar(um(`itens.${i}.nome`, t))}
-              />
-              {editar && (
+          <div key={`i-${i}`} className="fl-item-grupo">
+            <div className="fl-item" data-testid={`item-${i}`}>
+              <div className="fl-item-linha">
                 <BotaoComDica
-                  className="fl-ib"
-                  testid={`item-remover-${i}`}
-                  nome={`Tirar ${it.nome}`}
-                  aria-label={`Tirar ${it.nome}`}
-                  onClick={() => alterar(um(`itens.${i}`, null))}
+                  className="fl-ib fl-mq"
+                  testid={`item-menos-${i}`}
+                  nome={`Tirar uma unidade de ${it.nome}`}
+                  aria-label={`Tirar uma unidade de ${it.nome}`}
+                  motivo={editar ? null : "Só quem edita a ficha muda"}
+                  onClick={() =>
+                    alterar(um(`itens.${i}.quantidade`, Math.max(0, it.quantidade - 1)))
+                  }
                 >
-                  <Trash2 size={15} aria-hidden />
+                  <Minus size={12} aria-hidden />
                 </BotaoComDica>
-              )}
-            </div>
-            <div className="fl-item-baixo">
-              <CampoDecimal
-                testid={`item-peso-${i}`}
-                rotulo={`Peso de ${it.nome} em quilos`}
-                placeholder="peso"
-                valor={it.peso}
-                desabilitado={!editar}
-                className="fl-in fl-item-peso"
-                aoMudar={(n) => alterar(um(`itens.${i}.peso`, n === null || n === 0 ? null : n))}
-              />
-              <span className="fl-item-kg">kg</span>
-              {(it.nota !== undefined || editar) && (
-                <CampoTexto
-                  testid={`item-nota-${i}`}
-                  rotulo="Nota do item"
-                  placeholder="nota"
-                  valor={it.nota ?? ""}
-                  maxLength={500}
+                <CampoNumero
+                  testid={`item-quantidade-${i}`}
+                  rotulo={`Quantidade de ${it.nome}`}
+                  valor={it.quantidade}
+                  max={modeloDe[i] && !euMestre ? it.quantidade : 9999}
                   desabilitado={!editar}
-                  className="fl-in fl-item-nota"
-                  aoMudar={(t) => alterar(um(`itens.${i}.nota`, t === "" ? null : t))}
+                  className="fl-in fl-fa fl-item-qtd"
+                  aoMudar={(n) => alterar(um(`itens.${i}.quantidade`, n))}
                 />
-              )}
+                <BotaoComDica
+                  className="fl-ib fl-mq"
+                  testid={`item-mais-${i}`}
+                  nome={`Somar uma unidade de ${it.nome}`}
+                  aria-label={`Somar uma unidade de ${it.nome}`}
+                  motivo={
+                    !editar
+                      ? "Só quem edita a ficha muda"
+                      : modeloDe[i] && !euMestre
+                        ? "Só o mestre repõe objetos de luz"
+                        : null
+                  }
+                  onClick={() =>
+                    alterar(um(`itens.${i}.quantidade`, Math.min(9999, it.quantidade + 1)))
+                  }
+                >
+                  <Plus size={12} aria-hidden />
+                </BotaoComDica>
+                <CampoTexto
+                  testid={`item-nome-${i}`}
+                  rotulo="Nome do item"
+                  valor={it.nome}
+                  maxLength={80}
+                  desabilitado={!editar}
+                  className="fl-in fl-item-nome"
+                  aoMudar={(t) => alterar(um(`itens.${i}.nome`, t))}
+                />
+                {editar && (
+                  <BotaoComDica
+                    className="fl-ib"
+                    testid={`item-remover-${i}`}
+                    nome={`Tirar ${it.nome}`}
+                    aria-label={`Tirar ${it.nome}`}
+                    onClick={() => alterar(um(`itens.${i}`, null))}
+                  >
+                    <Trash2 size={15} aria-hidden />
+                  </BotaoComDica>
+                )}
+              </div>
+              <div className="fl-item-baixo">
+                <CampoDecimal
+                  testid={`item-peso-${i}`}
+                  rotulo={`Peso de ${it.nome} em quilos`}
+                  placeholder="peso"
+                  valor={it.peso}
+                  desabilitado={!editar}
+                  className="fl-in fl-item-peso"
+                  aoMudar={(n) => alterar(um(`itens.${i}.peso`, n === null || n === 0 ? null : n))}
+                />
+                <span className="fl-item-kg">kg</span>
+                {(it.nota !== undefined || editar) && (
+                  <CampoTexto
+                    testid={`item-nota-${i}`}
+                    rotulo="Nota do item"
+                    placeholder="nota"
+                    valor={it.nota ?? ""}
+                    maxLength={500}
+                    desabilitado={!editar}
+                    className="fl-in fl-item-nota"
+                    aoMudar={(t) => alterar(um(`itens.${i}.nota`, t === "" ? null : t))}
+                  />
+                )}
+                {luz && modeloDe[i] && (
+                  <BotaoAcender
+                    luz={luz}
+                    modeloId={modeloDe[i] as string}
+                    enviar={enviar}
+                    indice={i}
+                  />
+                )}
+              </div>
             </div>
+            {luz && modeloDe[i] && modeloDe.indexOf(modeloDe[i]) === i && (
+              <SublinhasDeLuz luz={luz} modeloId={modeloDe[i] as string} enviar={enviar} />
+            )}
           </div>
         ))}
       </div>

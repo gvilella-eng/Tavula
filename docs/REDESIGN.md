@@ -935,6 +935,8 @@ A ficha de personagem no desenho que o Vilella aprovou (protótipos em `docs/des
 - (assumido) A ficha larga pode cobrir a ordem de turno (camada mais alta); quem quer as duas move uma.
 - (assumido) O valor fixo de acerto importado de PDF continua valendo; no editor aparece como "Valor fixo".
 
+- **V4a2 (correções)**: na janela larga a identidade (classes, antecedente, raça, tendência, XP) passou a rolar no alto do corpo; fica fixo só capitular + nome, fitas e faixa de modo (~120 px). Rolagem livre (`/r`, botão Dano, Lançar de truque) usa o bloco baixo do chat, com o texto como nome, total grande, fórmula, d20 e tags de 20/1 natural; a inline `[[...]]` não mudou. O dado de vida agora é da sala (`ficha.dadoDeVida`: rola, marca, soma ao PV com teto, publica) e o objeto de luz mora na linha do equipamento: o item é de luz se tem `modeloId` de um modelo da mesa ou nome igual ao de um modelo; Acender/Apagar e as sublinhas das usadas ficam abaixo da linha; o + de item de luz é só do mestre; sem token na cena ou sem mão livre o botão fica desabilitado com motivo. Sem seletor de modelo na linha: vale só o `modeloId` ou o nome. As ações diretas da ficha (dado de vida, tocha, rolagens) mandam antes a gravação agrupada pendente, para não serem desfeitas por ela.
+
 **O que ficou para depois (V4b)**
 - Ficha de NPC no desenho N (a atual segue funcionando); arrastar do compêndio para a ficha; reordenar ataques, equipamento e características por arrasto ou Alt+↑/↓; acender e apagar tocha no equipamento.
 - Firefox e Safari não foram conferidos (`color-mix`, `clip-path` das fitas).

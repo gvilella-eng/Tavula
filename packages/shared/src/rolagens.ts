@@ -105,6 +105,15 @@ export const ResultadoDeModeloSchema = z.discriminatedUnion("modelo", [
     critico: z.boolean(),
     falhaCritica: z.boolean(),
   }),
+  /** Dado de vida gasto (V4a2): a cura somada ao PV, com o PV de depois. */
+  z.object({
+    modelo: z.literal("vida"),
+    nome: Nome,
+    rolagem: RolagemSchema,
+    curou: z.number().int().min(0),
+    pvAtual: z.number().int().min(0),
+    pvMax: z.number().int().min(0),
+  }),
 ]);
 export type ResultadoDeModelo = z.infer<typeof ResultadoDeModeloSchema>;
 

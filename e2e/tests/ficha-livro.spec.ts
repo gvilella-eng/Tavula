@@ -339,3 +339,114 @@ test("o jogador sem permissão vê a ficha só para ler, com o mesmo layout", as
     await expect(lida.getByTestId(`fh-aba-${aba}`)).toBeVisible();
   }
 });
+
+test("a identidade rola com o corpo (a parte fixa é baixa) e a rolagem livre usa o bloco novo", async ({
+  mesa,
+}) => {
+  test.setTimeout(90_000);
+  const mestre = await entrarNoMapa(mesa, "mestre");
+  const j1 = await entrarNoMapa(mesa, "jogador-1");
+  await criarDarion(mestre.pagina);
+  const janela = await abrirFicha(j1.pagina, DARION_ID, "principal");
+
+  const cab = (await janela.getByTestId("ficha-cabecalho").boundingBox()) as { height: number };
+  expect(cab.height).toBeLessThanOrEqual(125);
+  const identidade = janela.getByTestId("ficha-identidade");
+  const antes = (await identidade.boundingBox()) as { y: number };
+  await janela.getByTestId("ficha-painel-principal").evaluate((e) => e.scrollTo({ top: 150 }));
+  await expect
+    .poll(async () => antes.y - ((await identidade.boundingBox()) as { y: number }).y)
+    .toBeGreaterThan(100);
+  // o cabeçalho fixo continua no lugar
+  await expect(janela.getByTestId("vantagem-normal")).toBeVisible();
+
+  // Dano (vai por /r com o nome): bloco novo, com o texto como nome
+  await janela.getByTestId("ataque-dano-0").click();
+  await abrirAba(mestre.pagina, "chat");
+  const bloco = mestre.pagina.getByTestId("modelo-livre").filter({ hasText: "Cimitarra" });
+  await expect(bloco).toBeVisible();
+  await expect(bloco.getByTestId("rolagem-total")).toBeVisible();
+});
+
+test("dado de vida: a sala rola 1dN + Con, soma a cura ao PV (teto no máximo) e publica no chat", async ({
+  mesa,
+}) => {
+  test.setTimeout(90_000);
+  const mestre = await entrarNoMapa(mesa, "mestre");
+  const j1 = await entrarNoMapa(mesa, "jogador-1");
+  await criarDarion(mestre.pagina);
+  const janela = await abrirFicha(j1.pagina, DARION_ID, "principal");
+  const enviadas = () => j1.enviados.filter((f) => f.includes('"ficha.alterar"')).length;
+  const n0 = enviadas();
+  await janela.getByTestId(`pv-atual-${DARION_ID}`).fill("50");
+  // a gravação agrupada (~400 ms) tem de chegar à sala antes do dado de vida
+  await expect.poll(enviadas).toBeGreaterThan(n0);
+  await expect(janela.getByTestId("dv-restantes-d10")).toHaveText("5/5");
+  await janela.getByTestId("dv-rolar-d10").click();
+  await expect(janela.getByTestId("dv-restantes-d10")).toHaveText("4/5");
+  // Con 14 (+2): no mínimo 3 PV
+  await expect
+    .poll(async () => Number(await janela.getByTestId(`pv-atual-${DARION_ID}`).inputValue()))
+    .toBeGreaterThanOrEqual(53);
+  await abrirAba(mestre.pagina, "chat");
+  const bloco = mestre.pagina.getByTestId("modelo-vida").last();
+  await expect(bloco).toContainText("Dado de vida · d10");
+  await expect(bloco.getByTestId("modelo-vida-pv")).toContainText("/97)");
+  await expect(bloco.getByTestId("rolagem-total")).toBeVisible();
+
+  // PV cheio: a cura é 0 e o dado se gasta do mesmo jeito (teto no máximo)
+  const n1 = enviadas();
+  await janela.getByTestId(`pv-atual-${DARION_ID}`).fill("97");
+  await expect.poll(enviadas).toBeGreaterThan(n1);
+  await janela.getByTestId("dv-rolar-d10").click();
+  await expect(janela.getByTestId("dv-restantes-d10")).toHaveText("3/5");
+  await expect(janela.getByTestId(`pv-atual-${DARION_ID}`)).toHaveValue("97");
+});
+
+test("objeto de luz na linha do equipamento: vale o modelo da mesa (nome qualquer), item comum não tem botão, o + é do mestre", async ({
+  mesa,
+}) => {
+  test.setTimeout(120_000);
+  const mestre = await entrarNoMapa(mesa, "mestre");
+  const j1 = await entrarNoMapa(mesa, "jogador-1");
+  const m = mestre.pagina;
+  await mandar(m, "modelo.criar", {
+    modelo: {
+      id: "modelo-brasa",
+      nome: "Brasa Viva",
+      luz: { claraM: 3, penumbraM: 3, cor: "#ff5533", tremula: false },
+      duracaoS: 600,
+      ocupaMao: true,
+      tags: [],
+    },
+  });
+  const ficha = await abrirFicha(m, "pers-aldric", "principal");
+  const antes = await ficha.locator('[data-testid^="item-nome-"]').count();
+  // o mestre escreve itens: um com o nome do modelo (maiúsculas, espaços e acentos à parte) e um comum
+  await ficha.getByTestId("item-novo-nome").fill("  brasa VIVA ");
+  await ficha.getByTestId("item-novo-nome").press("Enter");
+  await ficha.getByTestId("item-novo-nome").fill("Corda de cânhamo");
+  await ficha.getByTestId("item-novo-nome").press("Enter");
+  const luz = antes;
+  const comum = antes + 1;
+  await expect(ficha.getByTestId(`item-acender-${luz}`)).toBeVisible();
+  await expect(ficha.getByTestId(`item-acender-${comum}`)).toHaveCount(0);
+  await expect(ficha.getByTestId(`item-mais-${luz}`)).not.toHaveAttribute("aria-disabled", "true");
+
+  // acender: a linha cai para 0 e nasce a sublinha "em uso" com o tempo; apagar não devolve a unidade
+  await ficha.getByTestId(`item-acender-${luz}`).click();
+  await expect(ficha.getByTestId(`item-quantidade-${luz}`)).toHaveValue("0");
+  const usada = ficha.locator('[data-testid^="item-usada-texto-"]');
+  await expect(usada).toContainText("Brasa Viva · em uso · ");
+  await ficha.locator('[data-testid^="item-alternar-"]').click();
+  await expect(usada).toContainText("apagada");
+  await expect(ficha.getByTestId(`item-quantidade-${luz}`)).toHaveValue("0");
+  await ficha.locator('[data-testid^="item-alternar-"]').click();
+  await expect(usada).toContainText("em uso");
+
+  // o jogador que edita o Aldric vê o mesmo e não repõe (o + fica desabilitado)
+  await m.getByTestId("janela-ficha-fechar").click();
+  const doJogador = await abrirFicha(j1.pagina, "pers-aldric", "principal");
+  await expect(doJogador.getByTestId(`item-mais-${luz}`)).toHaveAttribute("aria-disabled", "true");
+  await expect(doJogador.locator('[data-testid^="item-usada-texto-"]')).toContainText("Brasa Viva");
+});

@@ -80,6 +80,19 @@ async function preparar(mestre: Sessao, tochas = 3) {
   await ok(mestre.pagina, "token.soltar", { id: "tok-jogador-2", x: 11.25, y: 11.25 });
 }
 
+/** A linha do equipamento que é de um objeto de luz (V4a2): o índice sai do botão Acender dela. */
+async function linhaDaTocha(p: Page) {
+  const botao = p.locator(
+    '[data-testid^="item-acender-"]:not([data-testid^="item-acender-usada"])',
+  );
+  await expect(botao.first()).toBeVisible();
+  const i = ((await botao.first().getAttribute("data-testid")) ?? "").split("-").pop();
+  return {
+    acender: p.getByTestId(`item-acender-${i}`),
+    quantidade: p.getByTestId(`item-quantidade-${i}`),
+  };
+}
+
 async function acender(p: Page, novoId = "tocha-1", personagemId = ALDRIC) {
   await ok(p, "tocha.acender", { personagemId, modeloId: TOCHA, novoId });
 }
@@ -103,9 +116,11 @@ test("a tocha acesa vai para a mão, mostra o tempo na alça e a ficha mostra x�
   // a mochila no editor do item
   await abrirAba(p, "fichas");
   await p.getByTestId("aba-painel-fichas").getByText("Aldric").first().dblclick();
-  await expect(p.getByTestId("mochila-resumo-modelo-tocha")).toHaveText("3 novas, 0 usadas");
-  await p.getByTestId("mochila-acender-modelo-tocha").click();
-  await expect(p.getByTestId("mochila-resumo-modelo-tocha")).toHaveText("2 novas, 1 usada");
+  const linha = await linhaDaTocha(p);
+  await expect(linha.quantidade).toHaveValue("3");
+  await linha.acender.click();
+  await expect(linha.quantidade).toHaveValue("2");
+  await expect(p.locator('[data-testid^="item-usada-texto-"]')).toContainText("em uso");
   await p.getByTestId("janela-ficha-fechar").click();
 
   // a alça junto ao token, com o tempo (60 min da semente)
@@ -128,7 +143,8 @@ test("a tocha acesa vai para a mão, mostra o tempo na alça e a ficha mostra x�
   expect(Math.abs(depois - tempoAntes)).toBeLessThanOrEqual(3);
   await abrirAba(p, "fichas");
   await p.getByTestId("aba-painel-fichas").getByText("Aldric").first().dblclick();
-  await expect(p.getByTestId("mochila-resumo-modelo-tocha")).toHaveText("2 novas, 1 usada");
+  await expect((await linhaDaTocha(p)).quantidade).toHaveValue("2");
+  await expect(p.locator('[data-testid^="item-usada-texto-"]')).toContainText("em uso");
 });
 
 test("dois cliques na alça apagam e reacendem; o clique direito guarda na mochila", async ({
@@ -154,8 +170,9 @@ test("dois cliques na alça apagam e reacendem; o clique direito guarda na mochi
   // guardada: aparece como usada na mochila e acende de novo
   await abrirAba(p, "fichas");
   await p.getByTestId("aba-painel-fichas").getByText("Aldric").first().dblclick();
-  await expect(p.getByTestId("mochila-resumo-modelo-tocha")).toHaveText("2 novas, 1 usada");
-  await p.getByTestId("mochila-acender-usada-tocha-1").click();
+  await expect((await linhaDaTocha(p)).quantidade).toHaveValue("2");
+  await expect(p.locator('[data-testid^="item-usada-texto-"]')).toContainText("guardada");
+  await p.getByTestId("item-acender-usada-tocha-1").click();
   await p.getByTestId("janela-ficha-fechar").click();
   await expect.poll(async () => (await alcas(p)).length).toBe(1);
 });

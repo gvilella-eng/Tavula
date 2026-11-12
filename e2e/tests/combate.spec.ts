@@ -288,15 +288,14 @@ test("condição e concentração que o jogador aplica no próprio token aparece
   // e ninguém ganha marcas em outros tokens
   expect((await tokenDe(mestre.pagina, "tok-jogador-2")).marcas).toEqual([]);
 
-  // a ficha do Aldric lista as condições (as do token na cena ativa)
+  // V4a2: a ficha não lista mais as condições (ficam no token e no menu dele)
   await mestre.pagina.getByTestId("aba-fichas").click();
   await mestre.pagina.getByTestId("ficha-abrir-pers-aldric").dblclick();
   const janela = mestre.pagina.locator(
     '[data-testid="janela-ficha"][data-personagem-id="pers-aldric"]',
   );
-  await expect(janela.getByTestId("fh-condicao-caido")).toBeVisible();
-  await expect(janela.getByTestId("fh-condicao-exaustao")).toContainText("Exaustão 2");
-  await expect(janela.getByTestId("fh-condicao-concentracao")).toContainText("Bênção");
+  await expect(janela).toBeVisible();
+  await expect(janela.getByTestId("fh-condicoes")).toHaveCount(0);
   await janela.getByTestId("janela-ficha-fechar").click();
   await expect(janela).toHaveCount(0);
 

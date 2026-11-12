@@ -875,10 +875,37 @@ export function absorverMochila(
   return { ...resto, ficha: itens.length > 0 ? { ...ficha, itens } : ficha };
 }
 
-/** Quantas unidades NOVAS do modelo o personagem tem (soma os itens com esse `modeloId`). */
-export function novasDoModelo(f: Ficha | undefined, modeloId: string): number {
+const semAcentoEBranco = (t: string) =>
+  t
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+
+/**
+ * O modelo de objeto de luz de um item da ficha: o do `modeloId` (se o modelo ainda existe) ou o modelo de mesmo
+ * nome (sem maiúsculas, acentos nem espaços nas pontas). Sem a lista de `modelos`, vale só o `modeloId`. Item de
+ * modelo apagado ou renomeado volta a ser item comum.
+ */
+export function modeloDoItem(
+  item: Pick<ItemDaFicha, "nome" | "modeloId">,
+  modelos?: readonly { id: string; nome: string }[],
+): string | undefined {
+  if (!modelos) return item.modeloId;
+  if (item.modeloId !== undefined && modelos.some((m) => m.id === item.modeloId))
+    return item.modeloId;
+  const nome = semAcentoEBranco(item.nome);
+  return modelos.find((m) => semAcentoEBranco(m.nome) === nome)?.id;
+}
+
+/** Quantas unidades NOVAS do modelo o personagem tem (soma os itens desse modelo, ver `modeloDoItem`). */
+export function novasDoModelo(
+  f: Ficha | undefined,
+  modeloId: string,
+  modelos?: readonly { id: string; nome: string }[],
+): number {
   return (f?.itens ?? [])
-    .filter((i) => i.modeloId === modeloId)
+    .filter((i) => modeloDoItem(i, modelos) === modeloId)
     .reduce((t, i) => t + i.quantidade, 0);
 }
 
@@ -887,11 +914,20 @@ export function novasDoModelo(f: Ficha | undefined, modeloId: string): number {
  * `modeloId` conta). Só o mestre repõe tochas (`mochila.ajustar`, Lote 7): quem edita a própria ficha
  * pode gastar, mas não criar luz do nada.
  */
-export function modelosAumentados(antes: Ficha | undefined, depois: Ficha): string[] {
+export function modelosAumentados(
+  antes: Ficha | undefined,
+  depois: Ficha,
+  modelos?: readonly { id: string; nome: string }[],
+): string[] {
   const ids = new Set(
-    (depois.itens ?? []).flatMap((i) => (i.modeloId === undefined ? [] : [i.modeloId])),
+    (depois.itens ?? []).flatMap((i) => {
+      const id = modeloDoItem(i, modelos);
+      return id === undefined ? [] : [id];
+    }),
   );
-  return [...ids].filter((id) => novasDoModelo(depois, id) > novasDoModelo(antes, id));
+  return [...ids].filter(
+    (id) => novasDoModelo(depois, id, modelos) > novasDoModelo(antes, id, modelos),
+  );
 }
 
 /**
@@ -903,19 +939,21 @@ export function ajustarNovas(
   ficha: Ficha | undefined,
   modelo: { id: string; nome: string },
   delta: number,
+  modelos?: readonly { id: string; nome: string }[],
 ): Ficha {
   const base = ficha ?? fichaNova(0);
   const itens = (base.itens ?? []).map((i) => ({ ...i }));
-  const atual = itens.filter((i) => i.modeloId === modelo.id).reduce((t, i) => t + i.quantidade, 0);
+  const doModelo = (i: ItemDaFicha) => modeloDoItem(i, modelos) === modelo.id;
+  const atual = itens.filter(doModelo).reduce((t, i) => t + i.quantidade, 0);
   const nova = Math.min(9999, Math.max(0, atual + delta));
   if (nova > atual) {
-    const primeiro = itens.find((i) => i.modeloId === modelo.id);
+    const primeiro = itens.find(doModelo);
     if (primeiro) primeiro.quantidade += nova - atual;
     else itens.push({ nome: modelo.nome, quantidade: nova - atual, modeloId: modelo.id });
   } else if (nova < atual) {
     let tirar = atual - nova;
     for (const i of itens) {
-      if (i.modeloId !== modelo.id || tirar <= 0) continue;
+      if (!doModelo(i) || tirar <= 0) continue;
       const t = Math.min(tirar, i.quantidade);
       i.quantidade -= t;
       tirar -= t;

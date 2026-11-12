@@ -412,14 +412,21 @@ test("a tocha na mão chega a quem edita o personagem mesmo sem o token na cena 
   await criarDarion(mestre.pagina); // sem token em cena nenhuma
 
   const janela = await abrirFicha(j1.pagina, DARION_ID, "principal");
-  // o Darion tem 9 tochas (como no PDF da ficha)
-  await expect(janela.getByTestId("mochila-resumo-modelo-tocha")).toHaveText("9 novas, 0 usadas");
-  await janela.getByTestId("mochila-acender-modelo-tocha").click();
-  await expect(janela.getByTestId("mochila-resumo-modelo-tocha")).toHaveText("8 novas, 1 usada");
-  await expect(janela.locator('[data-testid^="mochila-usada-"]')).toContainText("na mão, acesa");
-  // guardar devolve para a mochila (como usada); apagar/reacender seguem pela ficha
-  await janela.locator('[data-testid^="mochila-guardar-"]').click();
-  await expect(janela.locator('[data-testid^="mochila-usada-"]')).toContainText("guardada");
+  // o Darion tem 9 tochas (como no PDF da ficha), na linha 12 do equipamento (V4a2)
+  await expect(janela.getByTestId("item-quantidade-12")).toHaveValue("9");
+  // sem token do personagem na cena o botão fica desabilitado, com o motivo acessível
+  await expect(janela.getByTestId("item-acender-12")).toHaveAttribute("aria-disabled", "true");
+  // a sala aceita mesmo assim (a regra da sala não mudou): acende por fora e a sublinha aparece
+  await mandar(j1.pagina, "tocha.acender", {
+    personagemId: DARION_ID,
+    modeloId: "modelo-tocha",
+    novoId: "obj-darion",
+  });
+  await expect(janela.getByTestId("item-quantidade-12")).toHaveValue("8");
+  await expect(janela.getByTestId("item-usada-texto-obj-darion")).toContainText("em uso");
+  // guardar devolve para a mochila (como usada)
+  await janela.getByTestId("item-guardar-obj-darion").click();
+  await expect(janela.getByTestId("item-usada-texto-obj-darion")).toContainText("guardada");
   // quem não edita o Darion não recebe a tocha dele (nenhum frame de luz com o portador)
   expect(texto(j2)).not.toContain('"personagemId":"pers-darion"');
   // e o jogador não repõe tochas pela ficha (só o mestre): subir a quantidade é recusado

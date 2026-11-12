@@ -14,7 +14,7 @@ import {
   type Vantagem,
 } from "@tabletop/shared";
 import { BedDouble, BookOpen, Coffee } from "lucide-react";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { Fontes } from "../assets/fontes";
 import type { GerenteDeAssets } from "../assets/gerente";
 import { BotaoComDica } from "../BotaoComDica";
@@ -218,6 +218,15 @@ export function JanelaDaFicha({
   const editar = podeEditarPersonagem(p, eu);
   const temFicha = p.ficha !== undefined;
   const { ficha, alterar, enviarAgora } = useFichaEditavel(p, enviar, editar && temFicha);
+  // Ação direta na sala (dado de vida, tocha, rolagem): a fila da ficha vai antes. Senão a gravação
+  // agrupada (~400 ms) chegaria depois e desfaria o efeito, como a cura do dado de vida sobre o PV.
+  const enviarComFila = useCallback(
+    (tipo: string, dados: object) => {
+      if (tipo !== "ficha.alterar") enviarAgora();
+      return enviar(tipo, dados);
+    },
+    [enviar, enviarAgora],
+  );
   const d = useMemo(() => derivar(ficha), [ficha]);
   const aparencia = useAparencia();
   const [vantagem, setVantagem] = useState<Vantagem>("normal");
@@ -251,7 +260,7 @@ export function JanelaDaFicha({
   const rolador = criarRolador({
     personagemId: p.id,
     podeRolar: editar && temFicha,
-    enviar,
+    enviar: enviarComFila,
     vantagem,
   });
   // Iniciativa na ficha (V2): com a ordem aberta, rola na sala e põe o token na lista.
@@ -281,7 +290,7 @@ export function JanelaDaFicha({
   }).compendio;
   const propsDaAba: PropsDaAba = {
     nomeDoPersonagem: p.nome,
-    enviar,
+    enviar: enviarComFila,
     compendio,
     imagens,
     versaoDasImagens,
@@ -300,6 +309,7 @@ export function JanelaDaFicha({
     abrirEditor: (alvo) => setEditorAberto({ ...alvo, aba }),
     fecharEditor: () => setEditorAberto(null),
     avisar: setAviso,
+    luz: { estado, eu, personagem: p, tempo },
     // As condições moram no token: o do personagem na cena ativa (o que quem olha recebe).
     token: estado.tokens.find((t) => t.personagemId === p.id && t.cenaId === estado.cenaAtivaId),
   };
@@ -435,20 +445,13 @@ export function JanelaDaFicha({
         data-testid="ficha-raiz"
       >
         {temFicha && !estreita && (
-          <header className="fl-cab" data-testid="ficha-cabecalho">
+          <header className="fl-cab fl-cab-larga" data-testid="ficha-cabecalho">
             {fitas}
             <div className="fl-cab-nome">{nomeEditavel(false)}</div>
             <span className="fl-sr" data-testid="janela-ficha-resumo">
               {resumoDaFicha(p)}
             </span>
             {modos}
-            <div className="fl-cab-campos">
-              <div className="fl-campo-id fl-campo-classe">
-                <ClasseENivel {...propsDaAba} />
-                <span className="fl-lbl">Classe e nível</span>
-              </div>
-              <CamposDeIdentidade {...propsDaAba} />
-            </div>
           </header>
         )}
         {temFicha && estreita && (
@@ -539,6 +542,15 @@ export function JanelaDaFicha({
         )}
 
         <div className="fl-corpo" ref={corpo} data-testid={`ficha-painel-${aba}`}>
+          {temFicha && !estreita && (
+            <div className="fl-cab-campos" data-testid="ficha-identidade">
+              <div className="fl-campo-id fl-campo-classe">
+                <ClasseENivel {...propsDaAba} />
+                <span className="fl-lbl">Classe e nível</span>
+              </div>
+              <CamposDeIdentidade {...propsDaAba} />
+            </div>
+          )}
           {!temFicha && (
             <p className="nota fh-oculta" data-testid="ficha-oculta">
               Você não vê a ficha deste personagem (o mestre pode liberar em "Ver fichas dos
@@ -548,9 +560,7 @@ export function JanelaDaFicha({
           {aba === "principal" && (
             <>
               <AbaPrincipal {...propsDaAba} />
-              {temFicha && (
-                <PainelExtra {...propsDaAba} estado={estado} eu={eu} personagem={p} tempo={tempo} />
-              )}
+              {temFicha && <PainelExtra {...propsDaAba} />}
             </>
           )}
           {aba === "magias" && <AbaMagias {...propsDaAba} />}
