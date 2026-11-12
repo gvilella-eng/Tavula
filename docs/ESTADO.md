@@ -2512,4 +2512,51 @@ Detalhes e decisões em `docs/REDESIGN.md` ("V4a3 — como ficou"). Corrige os d
 
 ---
 
-## Próximo: ajustes V4b (ficha de NPC no desenho N, arrastar do compêndio, reordenar, tocha no equipamento); depois V5, 7b e 12
+## Ajustes V4b — Ficha de NPC, arrastar do compêndio e segurar para reordenar (entregue, aguardando o roteiro manual)
+
+Detalhes e decisões em `docs/REDESIGN.md` ("V4b — como ficou"). O brief antigo `brief-v4b.md` ficou velho; valeu o `brief-v4b-novo.md`. O Vilella deixou o lote sem ninguém para perguntar: tudo que o brief não dizia foi assumido (marcado).
+
+### O que foi entregue
+
+- **Bloco de monstro** no desenho N para todo NPC (pasta NPCs, nenhum jogador editor, ou "Ficha de: NPC" em Configurar): estandarte, CA, PV com fórmula, deslocamento, atributos em escudo, linhas de resistências, sentidos, idiomas e Desafio com XP, Traços, Ações, Reações e Lendárias. Ações em linha fechadinha (título expande e "Mandar ao chat"; Acerto e Dano em colunas; chips; usos por dia e Recarga em bolinhas; engrenagem com o `EditorDeAtaque` na própria linha). O Ogro da semente está completo (SRD 5.1).
+- **Compêndio com armas e itens** (campos opcionais do mesmo arquivo; o exemplo do SRD ganhou 9 armas e 5 itens) e **arrastar** magia, arma e item para a ficha aberta, no personagem e no NPC; as áreas que aceitam acendem; soltar no lugar exato de uma lista põe o item ali. "Adicionar à ficha" usa a mesma conversão (`aplicarEntradaNaFicha`).
+- **Segurar ~300 ms e arrastar para reordenar**, com linha indicadora e Esc, mais **Alt+↑/↓** (registrado em `atalhos.ts`, aparece nas Preferências), em Ataques e magias, Características, Equipamento (as sublinhas de luz acompanham), magias de cada círculo e, no NPC, Traços, Ações, Reações e Lendárias.
+
+### Como rodar
+
+- `pnpm verify` (uma vez). Prints: `$env:PRINTS_DIR="<pasta>"; pnpm --filter @tabletop/e2e prints v4b`.
+
+### Verificação
+
+- Unidade (`packages/shared/src/v4b.test.ts`, 17 testes): ND, proficiência e XP; a regra de NPC; ficha antiga de NPC carregando, exportar e importar; reordenar e inserir em grupo (ações, reações, círculos); arma com acuidade, à distância e pelo ND no NPC; magia de ataque e de salvaguarda; item de luz pelo nome; Conjuração do NPC por nível; arrasto inválido; compêndio antigo e novo.
+- E2E novos: `e2e/tests/ficha-npc.spec.ts` (3 testes: o NPC abre no bloco e o PJ não; "Ficha de" troca; atacar, só o dano, expandir e mandar ao chat; recarga, usos, editor na linha, Reações e Lendárias só quando existem, minimizar) e `e2e/tests/ficha-arrastar.spec.ts` (4 testes: arrastar arma, item e magia para o personagem com as áreas acesas; arma, magia e item para o NPC; o jogador não solta numa ficha que não edita; reordenar segurando, com Esc e com Alt+↑/↓, no NPC e no personagem).
+- O arrasto dos E2E é o de verdade (`mouse.down`, `move`, `up`): o HTML5 drag and drop funciona no Chrome do Playwright, sem `dispatchEvent`.
+- E2E antigos alterados: `fichas.spec.ts` (o ajudante que abre a Configurar de um item: o NPC não tem abas, então ele usa a engrenagem do cabeçalho; o comportamento mudou de propósito), `interface.spec.ts` (idem: o Ogro abre a Configurar pela engrenagem) e nenhum outro. `compendio.spec.ts` e os demais passaram sem mudança (o importar do PDF e do arquivo de ficha agora mantêm a apresentação do item, por isso `fluxos.spec.ts` e `importarPdf.spec.ts` seguem como estavam).
+- {VERIFY}
+
+### Decisões
+
+- (assumido) Ver `REDESIGN`, "V4b — como ficou", Decisões.
+
+### Desvios do plano
+
+- O brief citava "o NPC do exemplo SRD (`exemploSrd.ts`)": esse arquivo é um compêndio, não tem NPC. O bloco preenchido é o Ogro da semente.
+- Monstros no compêndio não existem e ficaram de fora ("se existir").
+
+### Frágil / não verificado
+
+- Toque (celular): o segurar não foi testado com o dedo; o navegador pode tomar o gesto para rolar.
+- Só Chrome.
+- Ver `docs/PASSAGEM.md` ("V4b") para o `dragleave` do Chrome e a pré-visualização do vão.
+
+### Roteiro manual (pendente)
+
+1. Abra o Ogro (Fichas, NPCs): bloco de monstro. Clique em Acerto (+6) e Dano; abra a engrenagem da Clava Grande, ponha "Recarga 5–6" e 3 usos; use a caixa e o dado da recarga.
+2. "+ Reação" e "+ Lendária" criam as seções; minimize a janela e arraste-a por cima do chat.
+3. Compêndio → Armas: arraste a Espada longa para as Ações do Ogro (+6, 1d8+4) e para Ataques e magias de um personagem (acerto e dano pelo atributo); arraste uma magia para o círculo dela e uma poção para o Equipamento; veja as áreas acenderem.
+4. Segure uma ação por meio segundo, arraste para outra posição e solte; repita com Esc; use Alt+↑/↓ em uma ação, em um item e em um ataque.
+5. Configurar → "Ficha de": Personagem no Ogro e NPC num personagem do grupo.
+
+---
+
+## Próximo: ajustes V5; depois 7b e 12

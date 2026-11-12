@@ -105,10 +105,28 @@ const CamposDeRolagem = {
   salvaguarda: SalvaguardaDaRolagemSchema.optional(),
 };
 
+/** Onde a linha mora no bloco de NPC (V4b): ação (o padrão), reação ou ação lendária. */
+export const CATEGORIAS_DE_ACAO = ["acao", "reacao", "lendaria"] as const;
+export type CategoriaDeAcao = (typeof CATEGORIAS_DE_ACAO)[number];
+/** O chip de tipo da ação do NPC: corpo a corpo, à distância, os dois, magia ou especial. */
+export const TIPOS_DE_ACAO = ["cac", "dist", "cacdist", "magia", "esp"] as const;
+export type TipoDeAcao = (typeof TIPOS_DE_ACAO)[number];
+
 export const AtaqueSchema = z.object({
   nome: Nome,
   ...CamposDeRolagem,
   descricao: z.string().max(20_000).optional(),
+  // --- só o bloco de NPC (V4b); a ficha de personagem ignora ---
+  categoria: z.enum(CATEGORIAS_DE_ACAO).optional(),
+  tipoDeAcao: z.enum(TIPOS_DE_ACAO).optional(),
+  /** "Recarga 5–6": recarrega com este resultado do d6 ou mais. */
+  recarga: z.number().int().min(2).max(6).optional(),
+  /** `false` = gasta (esperando recarregar); sem o campo, está disponível. */
+  recarregado: z.boolean().optional(),
+  /** Usos por dia, em bolinhas. */
+  usos: z
+    .object({ max: z.number().int().min(1).max(20), gastos: z.number().int().min(0).max(20) })
+    .optional(),
 });
 export type Ataque = z.infer<typeof AtaqueSchema>;
 
@@ -198,7 +216,32 @@ export type Moedas = z.infer<typeof MoedasSchema>;
 export const MOEDAS = ["pc", "pp", "pe", "po", "pl"] as const;
 export type TipoDeMoeda = (typeof MOEDAS)[number];
 
+export const APRESENTACOES = ["personagem", "npc"] as const;
+export type Apresentacao = (typeof APRESENTACOES)[number];
+
+/** Os textos de lista do bloco de monstro (V4b). Tudo opcional: a ficha antiga carrega igual. */
+export const NpcSchema = z.object({
+  /** Miúdo, Pequeno, Médio, Grande, Enorme ou Imenso. */
+  tamanho: z.string().max(24).optional(),
+  /** Gigante, Morto-vivo, Fera... */
+  tipo: z.string().max(60).optional(),
+  /** "7d10 + 21": só mostrada ao lado dos PV. */
+  pvFormula: z.string().max(40).optional(),
+  sentidos: z.string().max(200).optional(),
+  vulnerabilidades: z.string().max(200).optional(),
+  resistencias: z.string().max(200).optional(),
+  imunidades: z.string().max(200).optional(),
+  imunidadesCondicoes: z.string().max(200).optional(),
+  /** Nível de desafio: "0", "1/8", "1/4", "1/2", "1" a "30". Dele saem o bônus de proficiência e o XP. */
+  nd: z.string().max(8).optional(),
+});
+export type Npc = z.infer<typeof NpcSchema>;
+
 export const FichaSchema = z.object({
+  /** Como a ficha se mostra (V4b): o bloco de NPC ou a ficha de personagem. Sem o campo vale a regra do app (`ehNpc`). */
+  apresentacao: z.enum(APRESENTACOES).optional(),
+  /** Dados do bloco de monstro. Os traços são `caracteristicas`; ações, reações e lendárias são `ataques` com `categoria`. */
+  npc: NpcSchema.optional(),
   // --- identidade ---
   raca: z.string().max(64).optional(),
   antecedente: z.string().max(64).optional(),
@@ -325,8 +368,66 @@ export function nivelTotal(f: Ficha): number {
   return Math.min(20, Math.max(1, soma));
 }
 
-/** Bônus de proficiência pelo nível total: +2 no 1º, +3 no 5º, +4 no 9º, +5 no 13º, +6 no 17º. */
+/** XP por nível de desafio (SRD 5.1). */
+export const XP_POR_ND: Readonly<Record<string, number>> = {
+  "0": 10,
+  "1/8": 25,
+  "1/4": 50,
+  "1/2": 100,
+  "1": 200,
+  "2": 450,
+  "3": 700,
+  "4": 1100,
+  "5": 1800,
+  "6": 2300,
+  "7": 2900,
+  "8": 3900,
+  "9": 5000,
+  "10": 5900,
+  "11": 7200,
+  "12": 8400,
+  "13": 10_000,
+  "14": 11_500,
+  "15": 13_000,
+  "16": 15_000,
+  "17": 18_000,
+  "18": 20_000,
+  "19": 22_000,
+  "20": 25_000,
+  "21": 33_000,
+  "22": 41_000,
+  "23": 50_000,
+  "24": 62_000,
+  "25": 75_000,
+  "26": 90_000,
+  "27": 105_000,
+  "28": 120_000,
+  "29": 135_000,
+  "30": 155_000,
+};
+
+/** Os níveis de desafio que o seletor oferece, do menor ao maior. */
+export const NIVEIS_DE_DESAFIO = Object.keys(XP_POR_ND);
+
+/** Bônus de proficiência de um nível de desafio (+2 até o 4, +3 do 5 ao 8... +9 no 29 e 30); `undefined` se o ND não existe. */
+export function bonusPorND(nd: string | undefined): number | undefined {
+  if (nd === undefined || XP_POR_ND[nd] === undefined) return undefined;
+  const n = nd.includes("/") ? 0 : Number(nd);
+  return 2 + Math.floor(Math.max(0, n - 1) / 4);
+}
+
+/** O XP do nível de desafio, ou `undefined`. */
+export function xpDoND(nd: string | undefined): number | undefined {
+  return nd === undefined ? undefined : XP_POR_ND[nd];
+}
+
+/**
+ * Bônus de proficiência: pelo nível de desafio quando a ficha é de monstro (`npc.nd`), senão pelo nível total
+ * (+2 no 1º, +3 no 5º, +4 no 9º, +5 no 13º, +6 no 17º).
+ */
 export function bonusDeProficiencia(f: Ficha): number {
+  const porND = bonusPorND(f.npc?.nd);
+  if (porND !== undefined) return porND;
   return 2 + Math.floor((nivelTotal(f) - 1) / 4);
 }
 

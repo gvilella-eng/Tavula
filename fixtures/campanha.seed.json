@@ -429,7 +429,65 @@
       },
       "ficha": {
         "pvAtual": 59,
-        "pvMax": 59
+        "pvMax": 59,
+        "apresentacao": "npc",
+        "alinhamento": "Caótico e Mau",
+        "npc": {
+          "tamanho": "Grande",
+          "tipo": "Gigante",
+          "pvFormula": "7d10 + 21",
+          "sentidos": "visão no escuro 18 m",
+          "nd": "2"
+        },
+        "atributos": {
+          "for": 19,
+          "des": 8,
+          "con": 16,
+          "int": 5,
+          "sab": 7,
+          "car": 7
+        },
+        "ca": {
+          "valor": 11,
+          "nota": "peles"
+        },
+        "deslocamentoFt": 40,
+        "idiomas": [
+          "Comum",
+          "Gigante"
+        ],
+        "ataques": [
+          {
+            "nome": "Clava Grande",
+            "categoria": "acao",
+            "tipoDeAcao": "cac",
+            "alcance": "1,5 m",
+            "acerto": {
+              "tipo": "formula",
+              "atributo": "for",
+              "proficiente": true
+            },
+            "dano": "2d8",
+            "atributoDano": "for",
+            "tipo": "Contundente",
+            "descricao": "Ataque corpo a corpo com arma: +6 para acertar, alcance 1,5 m, um alvo. Acerto: 13 (2d8 + 4) de dano contundente."
+          },
+          {
+            "nome": "Azagaia",
+            "categoria": "acao",
+            "tipoDeAcao": "cacdist",
+            "alcance": "1,5 m ou 9/36 m",
+            "acerto": {
+              "tipo": "formula",
+              "atributo": "for",
+              "proficiente": true
+            },
+            "dano": "2d6",
+            "atributoDano": "for",
+            "tipo": "Perfurante",
+            "descricao": "Ataque corpo a corpo ou à distância com arma: +6 para acertar, alcance 1,5 m ou 9/36 m, um alvo. Acerto: 11 (2d6 + 4) de dano perfurante."
+          }
+        ]
       }
     }
   ],

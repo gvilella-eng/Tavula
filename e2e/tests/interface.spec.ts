@@ -308,7 +308,8 @@ test("barra da direita: Chat, Fichas, Compêndio, Preferências e Mesa (largura 
   await p.keyboard.press("Escape");
   // a janela da ficha (duplo clique): na aba Configurar, "Importar ficha" já funciona (Lote 9)
   await p.getByTestId("ficha-abrir-pers-ogro").dblclick();
-  await p.getByTestId("ficha-aba-configurar").click();
+  // V4b: o Ogro é NPC (bloco de monstro, sem abas): a engrenagem do cabeçalho leva à Configurar
+  await p.getByTestId("npc-configurar").click();
   await expect(p.getByTestId("editor-importar")).toBeEnabled();
   await expect(p.getByTestId("editor-pasta")).toContainText("NPCs");
   await expect(p.getByTestId("editor-pasta-visivel")).toContainText("só o mestre");

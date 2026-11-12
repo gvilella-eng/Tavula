@@ -1,5 +1,5 @@
 import { ChevronRight } from "lucide-react";
-import { type ReactNode, useState } from "react";
+import { type HTMLAttributes, type ReactNode, useState } from "react";
 
 /**
  * Peças da ficha no desenho aprovado (V4a): título ornamentado, caixa, bolinha de marcar e acordeão. Todas as
@@ -30,18 +30,20 @@ export function Caixa({
   moldura,
   testid,
   rotulo,
+  ...resto
 }: {
   children: ReactNode;
   className?: string;
   moldura?: boolean;
   testid?: string;
   rotulo?: string;
-}) {
+} & Omit<HTMLAttributes<HTMLElement>, "className" | "children">) {
   return (
     <section
       className={`fl-cx ${moldura ? "fl-fr" : ""} ${className ?? ""}`}
       data-testid={testid}
       aria-label={rotulo}
+      {...resto}
     >
       {children}
     </section>

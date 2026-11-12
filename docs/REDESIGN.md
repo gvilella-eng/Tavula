@@ -962,6 +962,42 @@ Lote pequeno, só na ficha de personagem. O Vilella abriu o Rendan (Clérigo da 
 **O que ficou para depois**
 - Importador do PDF: o Rendan veio sem classe e nível (item em `docs/BUGS.md`).
 
+## V4b — como ficou (2026-11-12)
+
+Três coisas num lote: a ficha de NPC no desenho N (`docs/desenho/NpcN.dc.html`), arrastar do compêndio para a ficha (personagem e NPC) e segurar uma linha para reordenar. O Vilella deixou o lote sozinho: o que o brief não dizia foi assumido e está marcado.
+
+**O que foi feito**
+- **Ficha de NPC (bloco de monstro).** O personagem NPC abre num bloco: estandarte com o nome e a inicial, tamanho, tipo e tendência, CA em escudo (com o tipo de armadura), PV com −/+ e a fórmula ("7d10 + 21"), deslocamento em metros, a faixa Vantagem/Normal/Desvantagem, os seis atributos em escudo (o modificador rola o teste; o valor se edita) com o botão "Salv." de cada um, e as linhas Testes de resistência, Perícias, Vulnerabilidades, Resistências, Imunidades, Imunidades a condições, Sentidos (com Percepção passiva, que rola), Idiomas e Desafio (com XP e proficiência). Depois, Traços, Ações, Reações e Ações lendárias. Reações e Lendárias só existem enquanto há linha; quem edita vê "+ Reação" e "+ Lendária" discretos. Janela de 520 px (a medida do protótipo), mínima 380 px, camada alta, minimiza para só o nome, abaixo de ~460 px vira uma coluna (container query).
+- **Importar mantém a apresentação:** importar o PDF (por cima ou criando) e importar o arquivo de ficha deixam o item como estava (ficha de personagem ou de NPC); sem isso um "Novo personagem" (sem jogador editor) viraria NPC ao importar.
+- **Quem é NPC:** `apresentacaoDoPersonagem` (`pastas.ts`): a escolha em Configurar → "Ficha de: Personagem / NPC" (campo `ficha.apresentacao`) vale; sem escolha vale a regra do app (pasta NPCs ou nenhum jogador editor). "+ Novo → NPC" e "+ Novo → Personagem" já gravam a escolha. A engrenagem do cabeçalho do bloco alterna entre o bloco e a Configurar (sem abas no NPC).
+- **Ações "bem fechadinhas".** Uma linha por ação: título em destaque (expande o texto completo e o "Mandar ao chat"), chips de tipo e alcance, bolinhas de usos por dia, "Recarga 5–6" (caixa que marca disponível ou gasta, mais um botão que rola o d6 no chat), à direita o botão de Acerto ("+6": rola acerto e dano no mesmo bloco do chat) e o de Dano ("2d8+4": só o dano), alinhados em colunas fixas. A engrenagem abre o mesmo `EditorDeAtaque` do personagem dentro da linha, com um bloco a mais do monstro (onde mora, tipo, recarga, usos). Ação sem jogada troca os dois botões por "Mandar ao chat".
+- **Dados.** `FichaSchema` ganhou, tudo opcional: `apresentacao`, `npc { tamanho, tipo, pvFormula, sentidos, vulnerabilidades, resistencias, imunidades, imunidadesCondicoes, nd }`; em `Ataque`: `categoria` (ação, reação, lendária), `tipoDeAcao`, `recarga`, `recarregado`, `usos {max, gastos}`. Traços são `caracteristicas`; ações, reações e lendárias são `ataques` com `categoria`; a tendência é `alinhamento`, a CA é `ca` (com `nota` para o tipo de armadura), idiomas e perícias são os de sempre. O bônus de proficiência de uma ficha com `npc.nd` vem do ND (`bonusPorND`, tabela do SRD), então acerto, salvaguardas e perícias saem das mesmas contas; o XP vem de `xpDoND`. Ficha antiga carrega igual (teste de unidade).
+- **Exemplos.** O Ogro da semente (`fixtures/campanha.seed.json`) está completo (SRD 5.1: CA 11, 59 PV, Clava Grande e Azagaia). O exemplo de compêndio (`fixtures/compendio/exemplo-srd.json`) ganhou 9 armas e 5 itens do SRD 5.1 (CC-BY-4.0, atribuição em `fixtures/compendio/ATRIBUICAO.md`). Não há "NPC do exemplo SRD" separado: o exemplo é um compêndio, e o Ogro é o NPC.
+- **Compêndio com armas e itens.** O arquivo ganhou `armas` e `itens`, opcionais (o arquivo só de magias continua valendo). A aba tem Magias, Armas e Itens quando o arquivo traz os dois últimos. Monstros: não existem no compêndio (fora do lote).
+- **Arrastar do compêndio.** Cada entrada (magia, arma, item) é arrastável (`dataTransfer` com o tipo `application/x-tabletop-compendio`). No começo do arrasto as áreas da ficha aberta que aceitam aquele tipo acendem (contorno tracejado no acento e um aviso "Solte aqui..."); as outras não; soltar fora não faz nada; só quem edita a ficha solta. A conversão é função pura na `shared` (`compendioParaFicha.ts`, `aplicarEntradaNaFicha`) e o botão "Adicionar à ficha" usa a mesma.
+  - **Personagem:** arma vira ataque calculado em Ataques e magias (atributo certo, acuidade, distância, proficiência, dano com o modificador, propriedades na descrição). Magia entra no círculo dela (só esse círculo acende; um círculo vazio aparece enquanto se arrasta) e, se o texto tem "ataque de magia" ou "salvaguarda de ...", ganha a jogada (acerto ou CD pela habilidade de conjuração, o primeiro "NdM de dano ...") e `emAtaques`. Item vai para o Equipamento (quantidade 1, peso do compêndio; já tem, soma uma unidade); o nome igual ao de um modelo de luz já dá o Acender pela regra do V4a2.
+  - **NPC:** arma vira Ação calculada pelos atributos e pelo bônus do ND; magia entra no traço "Conjuração" (uma linha por nível); item vira Traço com o texto.
+  - Soltar no lugar exato de uma lista põe o item ali (linha indicadora durante o arrasto).
+- **Segurar para reordenar.** ~300 ms numa linha a "levanta" (contorno e fundo no acento); arrastar mostra a linha indicadora; soltar move; Esc cancela (o clique de depois não abre nada); um clique curto faz o de sempre. Listas: Ataques e magias (ataques entre si, magias entre si), Características e talentos (e Outras), Equipamento (a linha do item leva as sublinhas de luz junto) e as magias de cada círculo; no NPC, Traços, Ações, Reações e Lendárias. Teclado: Alt+↑ e Alt+↓ na linha em foco (o foco acompanha o item); registrado em `atalhos.ts` (`fichaMoverLinha`) e na lista das Preferências. A ordem nova vai numa operação só (`ficha.alterar` com a lista inteira), pela gravação agrupada. A lógica pura está em `reordenar.ts` (`posicoesDoGrupo`, `moverNoGrupo`, `inserirNoGrupo`) e o gesto em `ficha/ordem.tsx` (`useOrdemDaLista`, `useSoltarDoCompendio`).
+
+**Decisões (assumido)**
+- (assumido) 520 px de largura do NPC (a medida do protótipo, não os ~620 px do brief) e uma coluna abaixo de 460 px.
+- (assumido) O botão Acerto da ação rola acerto e dano juntos (como o protótipo N) e o título só expande; no brief "o nome rola os dois" e "o título expande" não cabem juntos no mesmo clique.
+- (assumido) Reações e lendárias são `ataques` com `categoria`, e as ações sem jogada têm o botão "Mandar ao chat" no lugar de "Conjurar".
+- (assumido) A recarga se rola no chat (a sala rola) e a caixa "Recarga" se marca à mão; não há rolagem local.
+- (assumido) A arma do compêndio entra com proficiência; no NPC o bônus vem do ND.
+- (assumido) A magia solta em Ataques e magias entra na lista de magias e aparece nos ataques mesmo sem jogada; a solta numa aba Magias só aparece nos ataques se o texto tem ataque de magia ou salvaguarda.
+- (assumido) Perícias e testes de resistência do NPC mostram só os com proficiência (chips que rolam), com "+ Perícia" e "+ Resistência" para quem edita; as seis "Salv." sob os atributos rolam todas.
+- (assumido) Os botões de descanso curto e longo não aparecem no NPC.
+- (assumido) Dados do compêndio: `armas` e `itens` opcionais no mesmo arquivo `magias.json`, sem versão nova do formato.
+- (assumido) Item de luz solto por jogador segue a regra de hoje: só o mestre repõe objetos de luz, e a sala recusa o aumento.
+- (assumido) Ao reordenar, as linhas expandidas voltam fechadas (elas se identificam pela posição).
+
+**O que ficou para depois**
+- Monstros no compêndio (arrastar um monstro para criar o NPC).
+- Toque: o segurar funciona com o ponteiro, mas o navegador pode tomar o gesto para rolar a página (não foi testado em celular).
+- Arrastar uma magia para um círculo diferente do dela não a muda de círculo (só o círculo dela aceita).
+
 ## Em aberto
 
 - **O plano R1 a R6 terminou** (R1, R2, R2b, R3, R4 em 2026-11-10; R5a, R5b, R6a e R6b em 2026-11-11). Agora o Vilella faz os ajustes

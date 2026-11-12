@@ -346,6 +346,9 @@
   border: 1px solid var(--borda);
   border-radius: 8px;
 }
+.fl-raiz .npc-modos > .fl-modos {
+  flex: 1;
+}
 .fl-raiz .fl-modos:disabled {
   opacity: 0.6;
 }
@@ -2187,4 +2190,948 @@
   height: 26px;
   padding: 0 8px;
   font-size: 13px;
+}
+
+/* --- V4b: segurar para reordenar e as áreas que recebem o que vem do compêndio ------------------- */
+.fl-raiz [data-linha-lista] {
+  position: relative;
+}
+.fl-raiz [data-levantada="true"] {
+  background: var(--acento-suave);
+  outline: 2px solid var(--acento-forte);
+  outline-offset: -2px;
+  border-radius: 6px;
+  cursor: grabbing;
+  user-select: none;
+}
+.fl-raiz [data-indicador="antes"] {
+  box-shadow: inset 0 4px 0 var(--acento-forte);
+}
+.fl-raiz [data-indicador="depois"] {
+  box-shadow: inset 0 -4px 0 var(--acento-forte);
+}
+.fl-raiz [data-aceita-soltar="true"] {
+  outline: 2px dashed var(--acento-forte);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 5px var(--acento-suave);
+}
+.fl-raiz .fl-soltar-aviso,
+.fl-raiz .npc-soltar-aviso {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  color: var(--acento-forte);
+  font-weight: 600;
+  text-align: center;
+  background: var(--acento-suave);
+  border: 2px dashed var(--acento-forte);
+  border-radius: 6px;
+}
+.fl-raiz .fl-alca,
+.fl-raiz .npc-alca {
+  flex: none;
+  color: var(--texto-suave);
+  cursor: grab;
+  opacity: 0.7;
+}
+
+/* --- V4b: o bloco de monstro (desenho N, docs/desenho/NpcN.dc.html) ----------------------------- */
+.fl-raiz .npc-pagina {
+  position: relative;
+  box-sizing: border-box;
+  padding: 14px 14px 18px;
+  container: npc / inline-size;
+  background:
+    radial-gradient(rgba(127, 127, 127, 0.16) 1px, transparent 1px) 0 0 / 7px 7px,
+    linear-gradient(135deg, var(--acento-suave), transparent 55%),
+    var(--fl-janela);
+}
+.fl-raiz .npc-fita {
+  position: absolute;
+  top: 8px;
+  right: 30px;
+  z-index: 2;
+  box-sizing: border-box;
+  width: 84px;
+  height: 52px;
+  padding: 8px 6px 0;
+  color: var(--acento-texto);
+  font-size: 14px;
+  text-align: center;
+  background: var(--acento);
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 84%, 0 100%);
+}
+.fl-raiz .npc-miolo {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  box-sizing: border-box;
+  padding: 44px 18px 20px 28px;
+  background: var(--painel);
+  border-radius: 6px 8px 8px 6px;
+  box-shadow:
+    0 3px 0 var(--borda),
+    0 6px 0 var(--painel-topo),
+    0 9px 0 var(--borda);
+}
+.fl-raiz .npc-miolo::before {
+  position: absolute;
+  top: 14px;
+  bottom: 14px;
+  left: 10px;
+  border-left: 2px dotted var(--acento-forte);
+  opacity: 0.5;
+  content: "";
+  pointer-events: none;
+}
+.fl-raiz .npc-rot {
+  color: var(--texto-suave);
+  font-family: var(--fl-fl);
+  font-weight: var(--fl-flw);
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  line-height: 1.1;
+}
+.fl-raiz .npc-h2 {
+  margin: 0;
+  font-family: var(--fl-fh);
+  font-weight: var(--fl-flw);
+  font-size: 20px;
+  letter-spacing: 0.04em;
+  line-height: 1.1;
+}
+.fl-raiz .npc-acento {
+  color: var(--acento-forte);
+}
+.fl-raiz .npc-inp,
+.fl-raiz .npc-pv-formula,
+.fl-raiz .npc-armadura {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  padding: 2px 4px;
+  color: inherit;
+  font: inherit;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px dotted currentColor;
+  border-radius: 0;
+}
+.fl-raiz textarea.npc-inp {
+  display: block;
+  overflow: hidden;
+  resize: none;
+}
+.fl-raiz .npc-inp:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--texto) 8%, transparent);
+}
+.fl-raiz .npc-inp:disabled,
+.fl-raiz .npc-armadura:disabled,
+.fl-raiz .npc-pv-formula:disabled {
+  border-bottom-color: transparent;
+}
+.fl-raiz .npc-sel {
+  height: 28px;
+  padding: 0 4px;
+  color: var(--texto);
+  font: inherit;
+  font-size: 14px;
+  background: var(--campo);
+  border: 1px solid var(--borda);
+  border-radius: 6px;
+}
+.fl-raiz .npc-sel:disabled {
+  border-color: transparent;
+  appearance: none;
+  background: transparent;
+}
+
+/* estandarte */
+.fl-raiz .npc-estandarte {
+  position: relative;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  box-sizing: border-box;
+  min-height: 100px;
+  padding: 0 34px 0 30px;
+  background: var(--acento-forte);
+  clip-path: polygon(0 0, 100% 0, 96% 50%, 100% 100%, 0 100%, 4% 50%);
+}
+.fl-raiz .npc-estandarte::before {
+  position: absolute;
+  inset: 4px;
+  background: var(--painel-topo);
+  clip-path: polygon(0 0, 100% 0, 96.5% 50%, 100% 100%, 0 100%, 3.5% 50%);
+  content: "";
+}
+.fl-raiz .npc-estandarte > * {
+  position: relative;
+}
+.fl-raiz .npc-inicial {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 58px;
+  height: 66px;
+  color: var(--acento-forte);
+  font-size: 44px;
+  line-height: 1;
+  background: var(--acento-suave);
+  border: 2px solid var(--acento-forte);
+  border-radius: 6px;
+  box-shadow:
+    inset 0 0 0 3px var(--painel-topo),
+    inset 0 0 0 4px var(--acento-forte);
+}
+.fl-raiz .npc-estandarte-textos {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.fl-raiz .npc-nome {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.fl-raiz .npc-nome-campo {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 0 2px;
+  color: var(--texto);
+  font-family: var(--fl-fh);
+  font-weight: var(--fl-flw);
+  font-size: 32px;
+  line-height: 1.1;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px dotted var(--texto-suave);
+}
+.fl-raiz .npc-nome-campo:disabled {
+  border-bottom-color: transparent;
+}
+.fl-raiz .npc-nome-campo[data-tamanho="medio"] {
+  font-size: 26px;
+}
+.fl-raiz .npc-nome-campo[data-tamanho="pequeno"] {
+  font-size: 20px;
+}
+.fl-raiz .npc-identidade {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  color: var(--texto-suave);
+  font-size: 15px;
+  font-style: italic;
+}
+.fl-raiz .npc-identidade .npc-sel {
+  flex: none;
+  max-width: 96px;
+  font-style: italic;
+}
+
+/* CA, PV e deslocamento */
+.fl-raiz .npc-vitais {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+}
+.fl-raiz .npc-ca {
+  position: relative;
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: center;
+  box-sizing: border-box;
+  width: 94px;
+  height: 110px;
+  padding-top: 6px;
+  background: var(--acento-forte);
+  clip-path: polygon(
+    0 0,
+    100% 0,
+    100% 55%,
+    94% 70%,
+    82% 83%,
+    66% 94%,
+    50% 100%,
+    34% 94%,
+    18% 83%,
+    6% 70%,
+    0 55%
+  );
+}
+.fl-raiz .npc-ca::before {
+  position: absolute;
+  inset: 3px 3px 4px;
+  background: var(--painel-topo);
+  clip-path: inherit;
+  content: "";
+}
+.fl-raiz .npc-ca > * {
+  position: relative;
+}
+.fl-raiz .npc-ca-campo {
+  width: 64px;
+  height: 54px;
+  padding: 0;
+  color: var(--texto);
+  font-size: 42px;
+  text-align: center;
+  background: transparent;
+  border: 0;
+}
+.fl-raiz .npc-armadura {
+  position: absolute;
+  bottom: 14px;
+  left: 14px;
+  width: 66px;
+  padding: 0;
+  color: var(--texto-suave);
+  font-size: 11px;
+  font-style: italic;
+  text-align: center;
+  text-overflow: ellipsis;
+  border-bottom-color: transparent;
+}
+.fl-raiz .npc-pv {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.fl-raiz .npc-pv-cab {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  justify-content: space-between;
+}
+.fl-raiz .npc-pv-formula {
+  width: 110px;
+  color: var(--texto-suave);
+  font-size: 14px;
+  text-align: right;
+}
+.fl-raiz .npc-pv-linha {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.fl-raiz .npc-pv-barra {
+  color: var(--texto-suave);
+  font-family: var(--fl-fn);
+  font-size: 22px;
+}
+.fl-raiz .npc-pv-max {
+  width: 64px;
+  color: var(--texto-suave);
+  font-size: 22px;
+  text-align: center;
+}
+.fl-raiz .npc-desl {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 84px;
+  height: 70px;
+  background: var(--campo);
+  border: 1.5px solid var(--borda);
+  border-radius: 10px;
+}
+.fl-raiz .npc-desl-campo {
+  width: 64px;
+  height: 34px;
+  padding: 0;
+  color: var(--texto);
+  font-size: 24px;
+  text-align: center;
+  background: transparent;
+  border: 0;
+}
+.fl-raiz .npc-modos {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+/* atributos */
+.fl-raiz .npc-atributos {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 4px;
+  justify-items: center;
+}
+.fl-raiz .npc-at {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: center;
+  min-width: 0;
+}
+.fl-raiz .npc-escudo {
+  position: relative;
+  width: 70px;
+  height: 92px;
+}
+.fl-raiz .npc-escudo-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.fl-raiz .npc-escudo-fora {
+  fill: var(--acento-forte);
+}
+.fl-raiz .npc-escudo-dentro {
+  fill: var(--painel-topo);
+}
+.fl-raiz .npc-escudo-botao {
+  position: absolute;
+  top: 5px;
+  right: 4px;
+  left: 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  box-sizing: border-box;
+  height: 56px;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.fl-raiz .npc-escudo-botao:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--texto) 10%, transparent);
+}
+.fl-raiz .npc-escudo-botao:disabled {
+  cursor: default;
+}
+.fl-raiz .npc-mod {
+  color: var(--texto);
+  font-family: var(--fl-fn);
+  font-weight: var(--fl-flw);
+  font-size: 30px;
+  line-height: 1.05;
+}
+.fl-raiz .npc-valor {
+  position: absolute;
+  bottom: 12px;
+  left: 20px;
+  box-sizing: border-box;
+  width: 30px;
+  height: 20px;
+  padding: 0;
+  color: var(--texto);
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+  background: var(--campo);
+  border: 1.5px solid var(--acento-forte);
+  border-radius: 10px;
+}
+.fl-raiz .npc-salv {
+  min-width: 58px;
+  height: 30px;
+  padding: 0 6px;
+  color: var(--texto-suave);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  background: transparent;
+  border: 1px solid var(--borda);
+  border-radius: 6px;
+  cursor: pointer;
+}
+.fl-raiz .npc-salv[data-proficiente="true"] {
+  color: var(--acento-forte);
+  background: var(--acento-suave);
+  border-color: var(--acento-forte);
+}
+.fl-raiz .npc-salv:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--texto) 10%, transparent);
+}
+.fl-raiz .npc-salv:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+/* sentidos e afins */
+.fl-raiz .npc-linhas {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 4px;
+  border-top: 1px solid var(--borda);
+  border-bottom: 1px solid var(--borda);
+}
+.fl-raiz .npc-linha {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+.fl-raiz .npc-linha > .npc-rot {
+  flex: none;
+  width: 84px;
+}
+.fl-raiz .npc-linha-corpo {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  align-items: center;
+  min-width: 0;
+}
+.fl-raiz .npc-sentidos-campo {
+  flex: 1 1 140px;
+  width: auto;
+}
+.fl-raiz .npc-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  align-items: center;
+}
+.fl-raiz .npc-prof {
+  display: inline-flex;
+  align-items: center;
+  background: var(--campo);
+  border: 1px solid var(--borda);
+  border-radius: 12px;
+}
+.fl-raiz .npc-chip-rolar {
+  padding: 2px 8px;
+  color: inherit;
+  font: inherit;
+  font-size: 14px;
+  background: transparent;
+  border: 0;
+  border-radius: 12px;
+  cursor: pointer;
+}
+.fl-raiz .npc-chip-rolar:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--texto) 12%, transparent);
+}
+.fl-raiz .npc-chip-rolar:disabled {
+  cursor: default;
+}
+.fl-raiz .npc-prof-tirar {
+  width: 22px;
+  height: 22px;
+}
+.fl-raiz .npc-sel-mais {
+  height: 26px;
+  font-size: 13px;
+  border-style: dashed;
+}
+.fl-raiz .npc-botao-linha {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  height: 30px;
+  padding: 0 10px;
+  color: var(--acento-forte);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  background: transparent;
+  border: 1.5px solid var(--acento-forte);
+  border-radius: 6px;
+  cursor: pointer;
+}
+.fl-raiz .npc-botao-linha:hover:not(:disabled) {
+  background: var(--acento-suave);
+}
+.fl-raiz .npc-botao-linha:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+.fl-raiz .npc-losango {
+  width: 9px;
+  height: 9px;
+  border: 1.5px solid var(--acento-forte);
+  transform: rotate(45deg);
+}
+
+/* seções: traços, ações, reações e lendárias */
+.fl-raiz .npc-secao {
+  position: relative;
+  padding: 2px 0;
+  border-radius: 6px;
+}
+.fl-raiz .npc-titulo {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 2px;
+  color: var(--acento-forte);
+}
+.fl-raiz .npc-titulo .npc-h2 {
+  font-size: 22px;
+}
+.fl-raiz .npc-filete {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, var(--acento-forte), transparent);
+}
+.fl-raiz .npc-tracos .fl-cx-lista,
+.fl-raiz .npc-tracos .fl-feats {
+  background: transparent;
+  box-shadow: none;
+}
+.fl-raiz .npc-acoes-cab {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 2px;
+}
+.fl-raiz .npc-acoes-cab-vazio {
+  flex: 1;
+}
+.fl-raiz .npc-col-acerto {
+  flex: none;
+  width: 62px;
+  text-align: center;
+}
+.fl-raiz .npc-col-dano {
+  flex: none;
+  width: 96px;
+  text-align: center;
+}
+.fl-raiz .npc-col-eng {
+  flex: none;
+  width: 34px;
+}
+.fl-raiz .npc-acao {
+  border-bottom: 1px solid var(--borda);
+  user-select: none;
+}
+.fl-raiz .npc-acao-linha {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  min-height: 56px;
+  padding: 4px 0;
+}
+.fl-raiz .npc-acao-meio {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.fl-raiz .npc-acao-titulo {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  width: fit-content;
+  max-width: 100%;
+  min-height: 30px;
+  padding: 0 2px;
+  color: var(--acento-forte);
+  font: inherit;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.fl-raiz .npc-acao-titulo:hover {
+  background: color-mix(in srgb, var(--texto) 8%, transparent);
+}
+.fl-raiz .npc-acao-nome {
+  font-family: var(--fl-fh);
+  font-weight: var(--fl-flw);
+  font-size: 20px;
+  line-height: 1.15;
+}
+.fl-raiz .npc-giro {
+  flex: none;
+  transition: transform 140ms;
+}
+.fl-raiz .npc-acao[data-aberta="true"] .npc-giro {
+  transform: rotate(90deg);
+}
+.fl-raiz .npc-chips-da-acao {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+  padding-left: 20px;
+}
+.fl-raiz .npc-chip {
+  padding: 1px 7px;
+  color: var(--texto-suave);
+  font-size: 13px;
+  line-height: 1.2;
+  background: var(--campo);
+  border: 1px solid var(--borda);
+  border-radius: 10px;
+}
+.fl-raiz .npc-chip-texto {
+  margin-right: 2px;
+  color: var(--texto-suave);
+  font-size: 13px;
+}
+.fl-raiz .npc-usos {
+  display: inline-flex;
+  align-items: center;
+}
+.fl-raiz .npc-pip,
+.fl-raiz .npc-recarga {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  justify-content: center;
+  height: 28px;
+  padding: 0;
+  color: var(--texto-suave);
+  font: inherit;
+  font-size: 13px;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.fl-raiz .npc-pip {
+  width: 28px;
+}
+.fl-raiz .npc-recarga {
+  padding: 0 6px;
+}
+.fl-raiz .npc-pip:hover:not(:disabled),
+.fl-raiz .npc-recarga:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--texto) 10%, transparent);
+}
+.fl-raiz .npc-pip:disabled,
+.fl-raiz .npc-recarga:disabled {
+  cursor: default;
+}
+.fl-raiz .npc-pip-bolinha {
+  box-sizing: border-box;
+  flex: none;
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  appearance: none;
+  background: transparent;
+  border: 1.5px solid var(--acento-forte);
+  border-radius: 50%;
+  cursor: inherit;
+}
+.fl-raiz .npc-pip-bolinha:checked {
+  background: var(--acento-forte);
+}
+.fl-raiz .npc-recarga-rolar {
+  width: 26px;
+  height: 26px;
+}
+.fl-raiz .npc-acerto,
+.fl-raiz .npc-dano,
+.fl-raiz .npc-sem-rolar {
+  flex: none;
+  height: 40px;
+  padding: 0;
+  font: inherit;
+  text-align: center;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.fl-raiz .npc-acerto {
+  width: 62px;
+  color: var(--acento-texto);
+  font-family: var(--fl-fn);
+  font-size: 21px;
+  background: var(--acento);
+  border: 0;
+}
+.fl-raiz .npc-dano {
+  width: 96px;
+  color: var(--perigo);
+  font-family: var(--fl-fn);
+  font-size: 18px;
+  background: transparent;
+  border: 1.5px solid var(--perigo);
+}
+.fl-raiz .npc-dano[data-longo="true"] {
+  font-size: 14px;
+}
+.fl-raiz .npc-extras.fl-ed4 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.fl-raiz .npc-sem-rolar {
+  width: 164px;
+  color: var(--acento-forte);
+  font-size: 16px;
+  font-weight: 600;
+  background: transparent;
+  border: 1.5px solid var(--acento-forte);
+}
+.fl-raiz .npc-acerto:hover:not(:disabled),
+.fl-raiz .npc-dano:hover:not(:disabled),
+.fl-raiz .npc-sem-rolar:hover:not(:disabled) {
+  box-shadow: inset 0 0 0 999px rgba(127, 127, 127, 0.18);
+}
+.fl-raiz .npc-acerto:disabled,
+.fl-raiz .npc-dano:disabled,
+.fl-raiz .npc-sem-rolar:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+.fl-raiz .npc-engrenagem {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  color: var(--texto-suave);
+  border: 1px solid var(--borda);
+  border-radius: 6px;
+}
+.fl-raiz .npc-acao[data-editando="true"] .npc-engrenagem {
+  background: var(--acento-suave);
+  border-color: var(--acento-forte);
+}
+.fl-raiz .npc-acao-texto {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 0 10px 20px;
+  padding-left: 10px;
+  border-left: 2px solid var(--acento-forte);
+  user-select: text;
+}
+.fl-raiz .npc-acao-texto p {
+  margin: 0;
+  font-size: 16.5px;
+  line-height: 1.45;
+}
+.fl-raiz .npc-mandar {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  align-self: flex-start;
+  height: 34px;
+  padding: 0 12px;
+  color: var(--acento-forte);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  background: transparent;
+  border: 1.5px solid var(--acento-forte);
+  border-radius: 6px;
+  cursor: pointer;
+}
+.fl-raiz .npc-mandar:hover:not(:disabled) {
+  background: var(--acento-suave);
+}
+.fl-raiz .npc-mandar:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+.fl-raiz .npc-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0 0 12px;
+  padding: 12px;
+  background: var(--campo);
+  border: 1.5px solid var(--acento-forte);
+  border-radius: 10px;
+  cursor: default;
+  user-select: text;
+}
+.fl-raiz .npc-editor .fl-editor {
+  padding: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+.fl-raiz .npc-editor .fl-editor::before,
+.fl-raiz .npc-editor .fl-editor::after {
+  display: none;
+}
+.fl-raiz .npc-novas {
+  display: flex;
+  gap: 8px;
+}
+.fl-raiz .npc-novo {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  align-self: flex-start;
+  height: 28px;
+  margin-top: 6px;
+  padding: 0 10px;
+  color: var(--texto-suave);
+  font: inherit;
+  font-size: 14px;
+  background: transparent;
+  border: 1px dashed var(--borda);
+  border-radius: 14px;
+  cursor: pointer;
+}
+.fl-raiz .npc-novo:hover {
+  color: var(--acento-forte);
+  border-color: var(--acento-forte);
+}
+.fl-raiz .npc-dica {
+  margin: 0;
+  color: var(--texto-suave);
+  font-size: 14px;
+  font-style: italic;
+}
+
+/* abaixo de ~460 px o bloco vira uma coluna só */
+@container npc (max-width: 460px) {
+  .npc-atributos {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    row-gap: 10px;
+  }
+  .npc-vitais {
+    flex-wrap: wrap;
+  }
+  .npc-pv {
+    flex-basis: 100%;
+    order: 3;
+  }
+  .npc-acao-linha {
+    flex-wrap: wrap;
+  }
+  .npc-acao-meio {
+    flex-basis: 100%;
+  }
+  .npc-acoes-cab {
+    display: none;
+  }
+  .npc-linha {
+    flex-direction: column;
+    gap: 2px;
+  }
+  .npc-linha > .npc-rot {
+    width: auto;
+  }
+  .npc-miolo {
+    padding-right: 12px;
+    padding-left: 22px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fl-raiz .npc-giro {
+    transition: none;
+  }
 }

@@ -29,7 +29,19 @@ async function abrirItem(p: Page, personagemId: string, aba = "configurar") {
   await abrirAba(p, "fichas");
   await p.getByTestId(`ficha-abrir-${personagemId}`).dblclick();
   await expect(p.getByTestId("janela-ficha")).toBeVisible();
-  await p.getByTestId(`ficha-aba-${aba}`).click();
+  // V4b: o NPC não tem abas; a engrenagem do cabeçalho leva à Configurar dele
+  const abaDaFicha = p.getByTestId(`ficha-aba-${aba}`);
+  const engrenagem = p.getByTestId("npc-configurar");
+  if (aba === "configurar") {
+    await expect(abaDaFicha.or(engrenagem)).toBeVisible();
+    if ((await engrenagem.count()) > 0) {
+      if ((await engrenagem.getAttribute("aria-pressed")) !== "true") await engrenagem.click();
+    } else {
+      await abaDaFicha.click();
+    }
+  } else {
+    await abaDaFicha.click();
+  }
   await expect(p.getByTestId(aba === "configurar" ? "editor-item" : `fh-aba-${aba}`)).toBeVisible();
 }
 

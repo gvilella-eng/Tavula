@@ -87,3 +87,20 @@ export function migrarNotasParaHandouts(
     ],
   };
 }
+
+/**
+ * Como a ficha deste personagem se mostra (V4b): o que a pessoa escolheu em Configurar (`ficha.apresentacao`) ou, sem
+ * escolha, a regra do app: NPC é quem está na pasta NPCs ou não tem jogador que o edite.
+ */
+export function apresentacaoDoPersonagem(
+  p: Pick<Personagem, "editores" | "pastaId" | "ficha">,
+): "personagem" | "npc" {
+  const escolhida = p.ficha?.apresentacao;
+  if (escolhida) return escolhida;
+  const semJogador = p.editores.tipo === "jogadores" && p.editores.ids.length === 0;
+  return p.pastaId === PASTA_NPCS_ID || semJogador ? "npc" : "personagem";
+}
+
+export function ehNpc(p: Pick<Personagem, "editores" | "pastaId" | "ficha">): boolean {
+  return apresentacaoDoPersonagem(p) === "npc";
+}

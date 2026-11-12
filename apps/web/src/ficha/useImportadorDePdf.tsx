@@ -78,7 +78,15 @@ export function useImportadorDePdf({ estado, eu, enviar, aoCriar }: Opcoes): {
       // Importar por cima: troca só a ficha; retrato, token e pasta do item ficam como estão.
       const id = enviar("ficha.alterar", {
         personagemId: itemAlvo.id,
-        operacoes: [{ caminho: "", valor: ficha }],
+        // V4b: a ficha lida não traz como se mostra: o item continua sendo ficha de personagem ou de NPC como era.
+        operacoes: [
+          {
+            caminho: "",
+            valor: itemAlvo.ficha?.apresentacao
+              ? { ...ficha, apresentacao: itemAlvo.ficha.apresentacao }
+              : ficha,
+          },
+        ],
       });
       if (!id) return "Sem conexão com a sala: nada foi enviado.";
       setFase(null);
@@ -97,7 +105,7 @@ export function useImportadorDePdf({ estado, eu, enviar, aoCriar }: Opcoes): {
         nome,
         tokenPadrao: { cor: "#3cb44b", tamanhoQuadrados: 1 },
         visao: { alcanceM: null, visaoNoEscuroM: 0 },
-        ficha,
+        ficha: { ...ficha, apresentacao: "personagem" },
       },
     });
     if (!id) return "Sem conexão com a sala: nada foi enviado.";

@@ -480,7 +480,8 @@ export function AbaFichas({
         nome: npc ? "Novo NPC" : "Novo personagem",
         tokenPadrao: { cor: npc ? "#c0392b" : "#3cb44b", tamanhoQuadrados: 1 },
         visao: { alcanceM: null, visaoNoEscuroM: 0 },
-        ficha: { pvAtual: 10, pvMax: 10 },
+        // V4b: a ficha já nasce com a apresentação escolhida (o bloco de monstro ou a ficha de personagem).
+        ficha: { pvAtual: 10, pvMax: 10, apresentacao: npc ? "npc" : "personagem" },
       },
     });
     if (enviado) setParaAbrir(id);

@@ -60,6 +60,15 @@ Juntadas durante os Lotes 6 a 14 (2026-11-06 a 10) para fazer ao Vilella no fim.
 - A capacidade `nota.editar` ficou sem uso (some da tela da Mesa). (assumido) sai de vez num lote futuro; mantida agora por causa de bancos e arquivos antigos.
 - "Importar PDF" não cria mais uma ficha nova direto da aba: cria-se o personagem e importa-se dentro da ficha. (assumido) basta.
 
+## Novas do V4b (2026-11-12)
+- O NPC abre com 520 px (a medida do protótipo N), não os ~620 do brief. (assumido) serve; o mínimo é 380 px e abaixo de ~460 vira uma coluna.
+- Na ação do NPC o botão Acerto rola acerto e dano juntos (como no protótipo) e o título só expande a descrição. O brief dizia "o nome rola os dois" e "o título expande". Qual dos dois prefere no nome? (assumido: título expande)
+- A recarga ("Recarga 5–6") rola um d6 no chat e a caixa se marca à mão; não há marcação automática. (assumido) basta.
+- A arma do compêndio entra com proficiência (não há como saber se o personagem é proficiente). (assumido) serve; se não for, desliga-se "proficiente" no editor.
+- O compêndio ganhou `armas` e `itens` opcionais no mesmo arquivo. Monstros ficam para um lote futuro. (assumido) sem versão nova do formato.
+- A magia solta no NPC vira uma linha do traço "Conjuração" (por nível), sem ataque nem CD. (assumido) basta; o mestre cria a ação do feitiço à mão pela engrenagem.
+- Item de luz (Lanterna, Tocha 5e) solto por um jogador segue a regra de hoje: só o mestre repõe objetos de luz, então a sala recusa. (assumido) mantido.
+
 ## Lote 6
 - ~~Visão noturna do mestre~~: cor normal, como está (2026-11-10).
 

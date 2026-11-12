@@ -1,9 +1,10 @@
-import type { Caracteristica } from "@tabletop/shared";
+import { type Caracteristica, moverNoGrupo, posicoesDoGrupo } from "@tabletop/shared";
 import { ChevronRight, MessageSquare, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { BotaoComDica } from "../BotaoComDica";
 import type { PropsDaAba } from "./AbaPrincipal";
 import { CampoDeNovo, CampoTexto } from "./campos";
+import { useOrdemDaLista } from "./ordem";
 
 const um = (caminho: string, valor: unknown) => [{ caminho, valor }];
 
@@ -72,6 +73,24 @@ export function ListaDeCaracteristicas({
   const lista: Caracteristica[] = ficha[campo] ?? [];
   const [abertas, setAbertas] = useState<Record<number, boolean>>({});
   const alternar = (i: number) => setAbertas((a) => ({ ...a, [i]: !a[i] }));
+  const ordem = useOrdemDaLista({
+    lista: campo,
+    habilitado: editar,
+    aoMover: (de, para) => {
+      setAbertas({});
+      alterar(
+        um(
+          campo,
+          moverNoGrupo(
+            lista,
+            posicoesDoGrupo(lista, () => true),
+            de,
+            para,
+          ),
+        ),
+      );
+    },
+  });
   return (
     <div className="fl-feats" data-testid={`${testidBase}-lista`}>
       {lista.map((c, i) => {
@@ -83,6 +102,7 @@ export function ListaDeCaracteristicas({
             className="fl-feat"
             data-testid={`${testidBase}-${i}`}
             data-aberta={aberta}
+            {...ordem.linha(i, lista.length)}
           >
             <div className="fl-feat-linha">
               <button

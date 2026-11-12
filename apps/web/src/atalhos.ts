@@ -97,6 +97,15 @@ export const ATALHOS = {
       ["Alt", "↓"],
     ],
   },
+  fichaMoverLinha: {
+    descricao:
+      "Mover a linha em foco de uma lista da ficha uma posição (segurar a linha e arrastar faz o mesmo)",
+    grupo: "Janelas e painéis",
+    teclas: [
+      ["Alt", "↑"],
+      ["Alt", "↓"],
+    ],
+  },
   painelLargura: {
     descricao: "Ajustar a largura do painel com a alça em foco (Shift: passo maior)",
     grupo: "Janelas e painéis",

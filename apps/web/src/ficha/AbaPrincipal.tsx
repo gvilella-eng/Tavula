@@ -13,17 +13,20 @@ import {
   type Magia,
   MOEDAS,
   moedasEmOuro,
+  moverNoGrupo,
   NIVEIS_DE_PROFICIENCIA,
   type NivelDeProficiencia,
   type OperacaoDeFicha,
   PERICIAS,
+  posicoesDoGrupo,
   previaDoAtaque,
   ROTULO_DO_ATRIBUTO,
   receberDano,
   SIGLA_DO_ATRIBUTO,
   type Token,
 } from "@tabletop/shared";
-import { Dices, Minus, Plus, Settings, Trash2 } from "lucide-react";
+import { Dices, GripVertical, Minus, Plus, Settings, Trash2 } from "lucide-react";
+import type { HTMLAttributes } from "react";
 import { BotaoComDica } from "../BotaoComDica";
 import type { PedirImagem } from "../FaixaDeCenas";
 import type { ImagensDoMapa } from "../mapa/mapaPixi";
@@ -40,7 +43,9 @@ import {
 } from "./LuzDoItem";
 import { Acordeao, Bolinha, Caixa, Secao } from "./livro";
 import { PopoverDoModificador, useModificadorExtra } from "./modificadorExtra";
+import { indicadorDoVao, useOrdemDaLista, useSoltarDoCompendio } from "./ordem";
 import type { Rolador } from "./rolador";
+import { soltarNaFicha } from "./soltar";
 
 type Enviar = (tipo: string, dados: object) => string | null;
 
@@ -939,7 +944,15 @@ export function linhasDeAtaque(ficha: Ficha): LinhaDeAtaque[] {
   ];
 }
 
-function LinhaDoAtaque({ l, props }: { l: LinhaDeAtaque; props: PropsDaAba }) {
+function LinhaDoAtaque({
+  l,
+  props,
+  ordem,
+}: {
+  l: LinhaDeAtaque;
+  props: PropsDaAba;
+  ordem: HTMLAttributes<HTMLDivElement>;
+}) {
   const { ficha, d, rolador, editar, abrirEditor, enviar, personagemId } = props;
   const { r } = l;
   const prefixo = l.tipo === "magia" ? `ataque-magia-${l.i}` : `ataque-${l.i}`;
@@ -971,10 +984,11 @@ function LinhaDoAtaque({ l, props }: { l: LinhaDeAtaque; props: PropsDaAba }) {
   }
 
   return (
-    <div className="fl-ar" data-testid={prefixo}>
+    <div className="fl-ar" data-testid={prefixo} {...ordem}>
       <button
         type="button"
         className="fl-nm"
+        data-foco-ordem
         data-testid={`${prefixo.replace("ataque-", "ataque-nome-")}`}
         disabled={!podeRolar}
         aria-label={
@@ -1042,8 +1056,57 @@ function LinhaDoAtaque({ l, props }: { l: LinhaDeAtaque; props: PropsDaAba }) {
 }
 
 export function Ataques(props: PropsDaAba) {
-  const { ficha, alterar, editar, abrirEditor } = props;
+  const { ficha, alterar, editar, abrirEditor, fecharEditor } = props;
   const linhas = linhasDeAtaque(ficha);
+  const doTipo = (tipo: "ataque" | "magia") => linhas.filter((x) => x.tipo === tipo);
+  // Reordenar: os ataques entre si e as magias de "Mostrar em Ataques e magias" entre si (cada uma mora na sua lista).
+  const ordemDosAtaques = useOrdemDaLista({
+    lista: "ataque",
+    habilitado: editar,
+    aoMover: (de, para) => {
+      const todos = ficha.ataques ?? [];
+      fecharEditor();
+      alterar(
+        um(
+          "ataques",
+          moverNoGrupo(
+            todos,
+            posicoesDoGrupo(todos, () => true),
+            de,
+            para,
+          ),
+        ),
+      );
+    },
+  });
+  const ordemDasMagias = useOrdemDaLista({
+    lista: "magia-ataque",
+    habilitado: editar,
+    aoMover: (de, para) => {
+      const todas = ficha.magias ?? [];
+      fecharEditor();
+      alterar(
+        um(
+          "magias",
+          moverNoGrupo(
+            todas,
+            posicoesDoGrupo(todas, (m) => m.emAtaques === true),
+            de,
+            para,
+          ),
+        ),
+      );
+    },
+  });
+  const soltar = useSoltarDoCompendio({
+    aceita: ["arma", "magia"],
+    habilitado: editar,
+    listaDoTipo: { arma: "ataque" },
+    aoSoltar: (entrada, posicao) =>
+      soltarNaFicha(props, "personagem", entrada, { posicao, emAtaques: true }),
+  });
+  const ataquesDaLista = doTipo("ataque");
+  const magiasDaLista = doTipo("magia");
   const novo = () => {
     const ataques = ficha.ataques ?? [];
     const ok = alterar(
@@ -1061,7 +1124,12 @@ export function Ataques(props: PropsDaAba) {
     if (ok) abrirEditor({ tipo: "ataque", i: ataques.length });
   };
   return (
-    <Caixa testid="fh-ataques" className="fl-bloco" rotulo="Ataques e Magias">
+    <Caixa
+      testid="fh-ataques"
+      className="fl-bloco fl-soltar"
+      rotulo="Ataques e Magias"
+      {...soltar.props}
+    >
       <Secao>Ataques e Magias</Secao>
       <div className="fl-ataques">
         <div className="fl-ar fl-ar-cab" aria-hidden>
@@ -1070,10 +1138,35 @@ export function Ataques(props: PropsDaAba) {
           <span className="fl-lbl fl-ar-c">Dano</span>
           <span />
         </div>
-        {linhas.map((l) => (
-          <LinhaDoAtaque key={`${l.tipo}-${l.i}`} l={l} props={props} />
+        {ataquesDaLista.map((l, k) => (
+          <LinhaDoAtaque
+            key={`ataque-${l.i}`}
+            l={l}
+            props={props}
+            ordem={{
+              ...ordemDosAtaques.linha(k, ataquesDaLista.length),
+              ...(soltar.previsao?.lista === "ataque"
+                ? {
+                    "data-indicador": indicadorDoVao(soltar.previsao.vao, k, ataquesDaLista.length),
+                  }
+                : {}),
+            }}
+          />
+        ))}
+        {magiasDaLista.map((l, k) => (
+          <LinhaDoAtaque
+            key={`magia-${l.i}`}
+            l={l}
+            props={props}
+            ordem={ordemDasMagias.linha(k, magiasDaLista.length)}
+          />
         ))}
       </div>
+      {soltar.acesa && (
+        <p className="fl-soltar-aviso" data-testid="soltar-aqui-ataques">
+          Solte aqui para pôr no ataque ou na magia
+        </p>
+      )}
       {editar && (
         <button
           type="button"
@@ -1101,20 +1194,51 @@ export function Ataques(props: PropsDaAba) {
   );
 }
 
-export function Equipamento({ ficha, alterar, editar, luz, enviar }: PropsDaAba) {
+export function Equipamento(props: PropsDaAba) {
+  const { ficha, alterar, editar, luz, enviar } = props;
   const itens = ficha.itens ?? [];
+  const ordem = useOrdemDaLista({
+    lista: "itens",
+    habilitado: editar,
+    aoMover: (de, para) =>
+      alterar(
+        um(
+          "itens",
+          moverNoGrupo(
+            itens,
+            posicoesDoGrupo(itens, () => true),
+            de,
+            para,
+          ),
+        ),
+      ),
+  });
+  const soltar = useSoltarDoCompendio({
+    aceita: ["item"],
+    habilitado: editar,
+    listaDoTipo: { item: "itens" },
+    aoSoltar: (entrada, posicao) => soltarNaFicha(props, "personagem", entrada, { posicao }),
+  });
   const euMestre = luz?.eu.papel === "mestre";
   useTicDasLuzes(luz);
   const modeloDe = itens.map((it) => modeloDaLinha(luz, it));
   return (
-    <Caixa testid="fh-itens" className="fl-bloco" rotulo="Equipamento">
+    <Caixa testid="fh-itens" className="fl-bloco fl-soltar" rotulo="Equipamento" {...soltar.props}>
       <Secao>Equipamento</Secao>
       <div className="fl-itens">
         {itens.map((it, i) => (
-          // biome-ignore lint/suspicious/noArrayIndexKey: a lista não tem id e é editada por posição
-          <div key={`i-${i}`} className="fl-item-grupo">
+          <div
+            // biome-ignore lint/suspicious/noArrayIndexKey: a lista não tem id e é editada por posição
+            key={`i-${i}`}
+            className="fl-item-grupo"
+            {...ordem.linha(i, itens.length)}
+            {...(soltar.previsao?.lista === "itens"
+              ? { "data-indicador": indicadorDoVao(soltar.previsao.vao, i, itens.length) }
+              : {})}
+          >
             <div className="fl-item" data-testid={`item-${i}`}>
               <div className="fl-item-linha">
+                {editar && <GripVertical size={14} className="fl-alca" aria-hidden />}
                 <BotaoComDica
                   className="fl-ib fl-mq"
                   testid={`item-menos-${i}`}
@@ -1222,6 +1346,11 @@ export function Equipamento({ ficha, alterar, editar, luz, enviar }: PropsDaAba)
           className="fl-in fl-item-novo"
           aoCriar={(t) => alterar(um("itens", [...itens, { nome: t, quantidade: 1 }]))}
         />
+      )}
+      {soltar.acesa && (
+        <p className="fl-soltar-aviso" data-testid="soltar-aqui-equipamento">
+          Solte aqui para pôr no equipamento
+        </p>
       )}
       <div className="fl-carga">
         <span data-testid="carga-total">Carga: {comVirgula(cargaDaFicha(ficha))} kg</span>

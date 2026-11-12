@@ -4280,3 +4280,68 @@ kbd {
   gap: 6px;
   align-items: center;
 }
+
+/* V4b: armas e itens do compêndio, que se arrastam para a ficha */
+.secoes-do-compendio {
+  display: flex;
+  gap: 4px;
+  margin: 0 0 8px;
+  padding: 0;
+  border: 0;
+}
+.secao-do-compendio {
+  flex: 1;
+}
+.secao-do-compendio[aria-pressed="true"] {
+  color: var(--acento-forte);
+  background: var(--acento-suave);
+  border-color: var(--acento-forte);
+}
+.ficha-de-quem {
+  gap: 8px;
+  margin: 4px 0;
+}
+.entrada-do-compendio {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  background: var(--campo);
+  border: 1px solid var(--borda);
+  border-radius: 8px;
+}
+.entrada-arrastavel {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 0;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  cursor: grab;
+}
+.entrada-arrastavel:active {
+  cursor: grabbing;
+}
+.entrada-do-compendio .alca-da-entrada {
+  flex: none;
+  color: var(--texto-suave);
+}
+.entrada-do-compendio .textos-da-entrada {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.entrada-do-compendio > button:not(.entrada-arrastavel) {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+}
+.item-de-magia[draggable="true"] {
+  cursor: grab;
+}

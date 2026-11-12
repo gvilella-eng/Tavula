@@ -20,6 +20,10 @@ export type JanelaDeFicha = {
 export const LARGURA_DA_FICHA_ESTREITA = 620;
 export const LARGURA_PADRAO = 880;
 export const LARGURA_MINIMA = 420;
+/** O bloco de NPC (V4b): ~520 px de largura (a medida do desenho N) e uma coluna só abaixo de ~460. */
+export const LARGURA_DO_NPC = 520;
+export const LARGURA_MINIMA_DO_NPC = 380;
+export const LARGURA_DO_NPC_ESTREITO = 460;
 export const ALTURA_MINIMA = 360;
 
 /** O id da `Janela` de uma ficha: uma por personagem (guarda posição e tamanho de cada uma). */

@@ -6,12 +6,14 @@ import {
   expressaoDeDano,
   formatarBonus,
   type Magia,
+  moverNoGrupo,
+  posicoesDoGrupo,
   previaDoAtaque,
   ROTULO_DO_ATRIBUTO,
   SIGLA_DO_ATRIBUTO,
 } from "@tabletop/shared";
 import { ChevronRight, Plus, RotateCcw, Settings, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { type HTMLAttributes, useState } from "react";
 import { BotaoComDica } from "../BotaoComDica";
 import { CamposDaMagia, linhaDeNivelEEscola, MarcasDaMagia, TextoDaMagia } from "../CartaoDaMagia";
 import { type PropsDaAba, um } from "./AbaPrincipal";
@@ -20,6 +22,13 @@ import { conjurar, magiaDoCompendio } from "./conjurar";
 import { EditorDeAtaque } from "./EditorDeAtaque";
 import { BotaoMandarAoChat } from "./ListaDeTitulos";
 import { Bolinha, Caixa, Secao } from "./livro";
+import {
+  indicadorDoVao,
+  useEntradaEmArrasto,
+  useOrdemDaLista,
+  useSoltarDoCompendio,
+} from "./ordem";
+import { soltarNaFicha } from "./soltar";
 
 const TODOS_OS_NIVEIS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9] as const;
 
@@ -235,14 +244,24 @@ function subDaMagia(props: PropsDaAba, m: Magia): string {
   return [m.escola, chip].filter(Boolean).join(" · ");
 }
 
-function LinhaDeMagia({ m, i, props }: { m: Magia; i: number; props: PropsDaAba }) {
+function LinhaDeMagia({
+  m,
+  i,
+  props,
+  ordem,
+}: {
+  m: Magia;
+  i: number;
+  props: PropsDaAba;
+  ordem: HTMLAttributes<HTMLDivElement>;
+}) {
   const { alterar, editar, enviar, personagemId, compendio, abrirEditor, rolador } = props;
   const [aberta, setAberta] = useState(false);
   const doCompendio = magiaDoCompendio(compendio, m.nome);
   const sub = subDaMagia(props, m);
   const acao = m.nivel === 0 ? "Lançar" : "Conjurar";
   return (
-    <div className="fl-magia" data-testid={`magia-${i}`} data-aberta={aberta}>
+    <div className="fl-magia" data-testid={`magia-${i}`} data-aberta={aberta} {...ordem}>
       <div className="fl-magia-linha">
         {m.nivel > 0 ? (
           <label className="fl-prep">
@@ -458,13 +477,39 @@ function TotalDeEspacos({ n, props }: { n: number; props: PropsDaAba }) {
 }
 
 function Nivel({ n, props }: { n: number; props: PropsDaAba }) {
-  const { ficha, d, alterar, editar } = props;
+  const { ficha, d, alterar, editar, fecharEditor } = props;
   const magias = ficha.magias ?? [];
   const doNivel = magias.map((m, i) => ({ m, i })).filter((x) => x.m.nivel === n);
+  const ordem = useOrdemDaLista({
+    lista: `circulo-${n}`,
+    habilitado: editar,
+    aoMover: (de, para) => {
+      fecharEditor();
+      alterar(
+        um(
+          "magias",
+          moverNoGrupo(
+            magias,
+            posicoesDoGrupo(magias, (x) => x.nivel === n),
+            de,
+            para,
+          ),
+        ),
+      );
+    },
+  });
+  // A magia solta entra no círculo dela: só esse círculo acende, e a posição vale quando é este mesmo.
+  const soltar = useSoltarDoCompendio({
+    aceita: ["magia"],
+    filtro: (e) => e.tipo === "magia" && e.magia.nivel === n,
+    habilitado: editar,
+    listaDoTipo: { magia: `circulo-${n}` },
+    aoSoltar: (entrada, posicao) => soltarNaFicha(props, "personagem", entrada, { posicao }),
+  });
   const espaco = d.espacos.find((e) => e.nivel === n);
   const titulo = n === 0 ? "Truques" : `${n}º nível`;
   return (
-    <Caixa testid={`magias-nivel-${n}`} className="fl-nivel">
+    <Caixa testid={`magias-nivel-${n}`} className="fl-nivel fl-soltar" {...soltar.props}>
       <div className="fl-nivel-cab" data-testid={n > 0 ? `espacos-${n}` : undefined}>
         <Secao className="fl-nivel-titulo">{titulo}</Secao>
         {n > 0 && (
@@ -499,9 +544,25 @@ function Nivel({ n, props }: { n: number; props: PropsDaAba }) {
           <span className="fl-so-leitor">Preparada</span>
         </span>
       )}
-      {doNivel.map(({ m, i }) => (
-        <LinhaDeMagia key={`m-${i}`} m={m} i={i} props={props} />
+      {doNivel.map(({ m, i }, k) => (
+        <LinhaDeMagia
+          key={`m-${i}-${m.nome}`}
+          m={m}
+          i={i}
+          props={props}
+          ordem={{
+            ...ordem.linha(k, doNivel.length),
+            ...(soltar.previsao?.lista === `circulo-${n}`
+              ? { "data-indicador": indicadorDoVao(soltar.previsao.vao, k, doNivel.length) }
+              : {}),
+          }}
+        />
       ))}
+      {soltar.acesa && (
+        <p className="fl-soltar-aviso" data-testid={`soltar-aqui-circulo-${n}`}>
+          Solte aqui para pôr entre as magias
+        </p>
+      )}
       {doNivel.length === 0 && !editar && <p className="fl-dica">Nenhuma magia.</p>}
       {editar && (
         <CampoDeNovo
@@ -537,11 +598,15 @@ function BotaoNovoCirculo({ aoClicar }: { aoClicar: () => void }) {
 export function AbaMagias(props: PropsDaAba) {
   const { ficha, d, alterar, editar, editorAberto, fecharEditor, estreita } = props;
   const temMagiaNoNivel = (n: number) => (ficha.magias ?? []).some((m) => m.nivel === n);
+  // Arrastando uma magia do compêndio, o círculo dela aparece mesmo vazio, para ela ter onde cair.
+  const emArrasto = useEntradaEmArrasto();
+  const circuloEmArrasto = editar && emArrasto?.tipo === "magia" ? emArrasto.magia.nivel : null;
   // V4a3: o "+ Círculo" mostra um círculo vazio para preencher o total antes das magias.
   const [extras, setExtras] = useState<number[]>([]);
   const visiveis = TODOS_OS_NIVEIS.filter(
     (n) =>
       n <= 1 ||
+      n === circuloEmArrasto ||
       temMagiaNoNivel(n) ||
       extras.includes(n) ||
       (d.espacos.find((e) => e.nivel === n)?.total ?? 0) > 0,

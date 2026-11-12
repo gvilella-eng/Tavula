@@ -47,5 +47,146 @@
       "classes": ["Bardo", "Clérigo", "Druida", "Paladino", "Patrulheiro", "Feiticeiro", "Mago"],
       "descricao": "Enquanto durar a magia, você sente a presença de magia a até 9 metros (30 pés) de você. Se sentir magia dessa forma, você pode usar sua ação para ver uma aura tênue ao redor de qualquer criatura ou objeto visível na área que carregue magia, e descobre a escola de magia dela, se houver.\n\nA magia atravessa a maioria das barreiras, mas é bloqueada por 30 centímetros de pedra, 2,5 centímetros de metal comum, uma fina folha de chumbo ou 90 centímetros de madeira ou terra."
     }
+  ],
+  "armas": [
+    {
+      "nome": "Machado de batalha",
+      "nomeOriginal": "Battleaxe",
+      "categoria": "marcial",
+      "distancia": false,
+      "dano": "1d8",
+      "tipoDeDano": "Cortante",
+      "propriedades": ["versátil (1d10)"],
+      "peso": 1.8,
+      "custo": "10 po"
+    },
+    {
+      "nome": "Espada longa",
+      "nomeOriginal": "Longsword",
+      "categoria": "marcial",
+      "distancia": false,
+      "dano": "1d8",
+      "tipoDeDano": "Cortante",
+      "propriedades": ["versátil (1d10)"],
+      "peso": 1.4,
+      "custo": "15 po"
+    },
+    {
+      "nome": "Adaga",
+      "nomeOriginal": "Dagger",
+      "categoria": "simples",
+      "distancia": false,
+      "dano": "1d4",
+      "tipoDeDano": "Perfurante",
+      "propriedades": ["acuidade", "leve", "arremesso (6/18 m)"],
+      "peso": 0.5,
+      "custo": "2 po"
+    },
+    {
+      "nome": "Rapieira",
+      "nomeOriginal": "Rapier",
+      "categoria": "marcial",
+      "distancia": false,
+      "dano": "1d8",
+      "tipoDeDano": "Perfurante",
+      "propriedades": ["acuidade"],
+      "peso": 1,
+      "custo": "25 po"
+    },
+    {
+      "nome": "Cajado",
+      "nomeOriginal": "Quarterstaff",
+      "categoria": "simples",
+      "distancia": false,
+      "dano": "1d6",
+      "tipoDeDano": "Contundente",
+      "propriedades": ["versátil (1d8)"],
+      "peso": 1.8,
+      "custo": "2 pp"
+    },
+    {
+      "nome": "Clava grande",
+      "nomeOriginal": "Greatclub",
+      "categoria": "simples",
+      "distancia": false,
+      "dano": "1d8",
+      "tipoDeDano": "Contundente",
+      "propriedades": ["duas mãos"],
+      "peso": 4.5,
+      "custo": "2 pp"
+    },
+    {
+      "nome": "Azagaia",
+      "nomeOriginal": "Javelin",
+      "categoria": "simples",
+      "distancia": false,
+      "dano": "1d6",
+      "tipoDeDano": "Perfurante",
+      "propriedades": ["arremesso (9/36 m)"],
+      "alcance": "1,5 m ou 9/36 m",
+      "peso": 1,
+      "custo": "5 pp"
+    },
+    {
+      "nome": "Arco curto",
+      "nomeOriginal": "Shortbow",
+      "categoria": "simples",
+      "distancia": true,
+      "dano": "1d6",
+      "tipoDeDano": "Perfurante",
+      "propriedades": ["munição (24/96 m)", "duas mãos"],
+      "alcance": "24/96 m",
+      "peso": 1,
+      "custo": "25 po"
+    },
+    {
+      "nome": "Besta leve",
+      "nomeOriginal": "Light crossbow",
+      "categoria": "simples",
+      "distancia": true,
+      "dano": "1d8",
+      "tipoDeDano": "Perfurante",
+      "propriedades": ["munição (24/96 m)", "recarga", "duas mãos"],
+      "alcance": "24/96 m",
+      "peso": 2.5,
+      "custo": "25 po"
+    }
+  ],
+  "itens": [
+    {
+      "nome": "Corda de cânhamo (15 m)",
+      "nomeOriginal": "Rope, hempen (50 feet)",
+      "descricao": "Equipamento de aventura. Tem 2 pontos de vida e pode ser arrebentada com um teste de Força CD 17.",
+      "peso": 4.5,
+      "custo": "1 po"
+    },
+    {
+      "nome": "Lanterna",
+      "nomeOriginal": "Lantern, hooded",
+      "descricao": "Equipamento de aventura. Ilumina um raio de 9 metros com luz plena e mais 9 metros de penumbra.",
+      "peso": 0.9,
+      "custo": "5 po"
+    },
+    {
+      "nome": "Poção de cura",
+      "nomeOriginal": "Potion of healing",
+      "descricao": "Item mágico. Quem a bebe recupera 2d4 + 2 pontos de vida.",
+      "peso": 0.2,
+      "custo": "50 po"
+    },
+    {
+      "nome": "Ração de viagem (1 dia)",
+      "nomeOriginal": "Rations (1 day)",
+      "descricao": "Equipamento de aventura. Comida seca para um dia.",
+      "peso": 0.9,
+      "custo": "5 pp"
+    },
+    {
+      "nome": "Mochila",
+      "nomeOriginal": "Backpack",
+      "descricao": "Equipamento de aventura. Carrega até 30 litros de equipamento.",
+      "peso": 2.3,
+      "custo": "2 po"
+    }
   ]
 }

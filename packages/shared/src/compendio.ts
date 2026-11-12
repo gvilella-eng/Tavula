@@ -20,6 +20,8 @@ export const LIMITES_DO_COMPENDIO = {
   /** Tamanho do arquivo, em bytes (UTF-8). Cabe num punhado de pedaços de 256 KB. */
   bytes: LIMITES_DE_ASSET.bytesDoCompendio,
   magias: 2000,
+  armas: 500,
+  itens: 2000,
   nome: 80,
   escola: 32,
   tempo: 100,
@@ -70,12 +72,44 @@ export const MagiaDoCompendioSchema = z.object({
 });
 export type MagiaDoCompendio = z.infer<typeof MagiaDoCompendioSchema>;
 
+/** Uma arma do compêndio (V4b): vira um ataque já calculado na ficha. Campo novo e opcional no arquivo. */
+export const ArmaDoCompendioSchema = z.object({
+  nome: Linha(LIMITES_DO_COMPENDIO.nome),
+  nomeOriginal: Linha(LIMITES_DO_COMPENDIO.nome).optional(),
+  categoria: z.enum(["simples", "marcial"]),
+  /** Arma de ataque à distância (arco, besta). Arma de corpo a corpo com "arremesso" também vale à distância. */
+  distancia: z.boolean(),
+  /** Os dados do dano, sem o modificador: "1d8". */
+  dano: z.string().trim().min(1).max(40),
+  tipoDeDano: Linha(32),
+  /** "leve", "acuidade", "arremesso (6/18 m)", "versátil (1d10)"... */
+  propriedades: z.array(Linha(60)).max(12),
+  alcance: Linha(60).optional(),
+  /** Em quilos. */
+  peso: z.number().min(0).max(99_999).optional(),
+  custo: Linha(40).optional(),
+});
+export type ArmaDoCompendio = z.infer<typeof ArmaDoCompendioSchema>;
+
+/** Um item do compêndio (V4b): vai para o Equipamento da ficha (ou vira um traço no bloco de NPC). */
+export const ItemDoCompendioSchema = z.object({
+  nome: Linha(LIMITES_DO_COMPENDIO.nome),
+  nomeOriginal: Linha(LIMITES_DO_COMPENDIO.nome).optional(),
+  descricao: z.string().trim().min(1).max(4000).optional(),
+  peso: z.number().min(0).max(99_999).optional(),
+  custo: Linha(40).optional(),
+});
+export type ItemDoCompendio = z.infer<typeof ItemDoCompendioSchema>;
+
 export const CompendioSchema = z.object({
   formato: z.literal(FORMATO_DO_COMPENDIO),
   versao: z.literal(VERSAO_DO_COMPENDIO),
   /** Atribuição exigida pela licença do conteúdo (ex.: CC-BY-4.0 do SRD 5.1). Só é mostrada. */
   creditos: z.string().trim().min(1).max(LIMITES_DO_COMPENDIO.creditos).optional(),
   magias: z.array(MagiaDoCompendioSchema).max(LIMITES_DO_COMPENDIO.magias),
+  /** V4b: armas e itens, opcionais (o arquivo antigo, só de magias, continua valendo). */
+  armas: z.array(ArmaDoCompendioSchema).max(LIMITES_DO_COMPENDIO.armas).optional(),
+  itens: z.array(ItemDoCompendioSchema).max(LIMITES_DO_COMPENDIO.itens).optional(),
 });
 export type Compendio = z.infer<typeof CompendioSchema>;
 
@@ -97,8 +131,11 @@ export type CompendioDaMesa = z.infer<typeof CompendioDaMesaSchema>;
 /** Texto de um campo do zod: `magias.3.nivel`, com o número como a pessoa conta (a partir de 1). */
 function caminhoLegivel(caminho: readonly PropertyKey[]): string {
   const partes = caminho.map(String);
-  if (partes[0] === "magias" && partes[1] !== undefined && /^\d+$/.test(partes[1])) {
-    return `magia ${Number(partes[1]) + 1}${partes.length > 2 ? `, campo ${partes.slice(2).join(".")}` : ""}`;
+  const rotulo = ({ magias: "magia", armas: "arma", itens: "item" } as Record<string, string>)[
+    partes[0] ?? ""
+  ];
+  if (rotulo && partes[1] !== undefined && /^\d+$/.test(partes[1])) {
+    return `${rotulo} ${Number(partes[1]) + 1}${partes.length > 2 ? `, campo ${partes.slice(2).join(".")}` : ""}`;
   }
   return partes.join(".") || "arquivo";
 }

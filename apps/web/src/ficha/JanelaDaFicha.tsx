@@ -1,5 +1,8 @@
 import {
+  APRESENTACOES,
+  type Apresentacao,
   aplicarOperacoes,
+  apresentacaoDoPersonagem,
   derivar,
   descansoCurto,
   descansoLongo,
@@ -13,7 +16,7 @@ import {
   VANTAGENS,
   type Vantagem,
 } from "@tabletop/shared";
-import { BedDouble, BookOpen, Coffee } from "lucide-react";
+import { BedDouble, BookOpen, Coffee, Settings } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { Fontes } from "../assets/fontes";
 import type { GerenteDeAssets } from "../assets/gerente";
@@ -46,6 +49,7 @@ import {
   useAparencia,
 } from "./aparencia";
 import { exportarFicha, lerFichaDoArquivo } from "./arquivo";
+import { BlocoDoNpc } from "./BlocoDoNpc";
 import { CampoNumero } from "./campos";
 import type { AlvoDoEditor } from "./EditorDeAtaque";
 import {
@@ -55,7 +59,9 @@ import {
   idDaJanelaDaFicha,
   type JanelaDeFicha,
   LARGURA_DA_FICHA_ESTREITA,
+  LARGURA_DO_NPC,
   LARGURA_MINIMA,
+  LARGURA_MINIMA_DO_NPC,
   LARGURA_PADRAO,
 } from "./janelas";
 import { Caixa, Secao } from "./livro";
@@ -236,7 +242,13 @@ export function JanelaDaFicha({
   const [editorAberto, setEditorAberto] = useState<(AlvoDoEditor & { aba: AbaDaFicha }) | null>(
     null,
   );
-  const aba: AbaDaFicha = temFicha ? janela.aba : "configurar";
+  // V4b: o NPC abre no bloco de monstro (desenho N); a Configurar dele é um painel que a engrenagem do cabeçalho alterna.
+  const npc = temFicha && apresentacaoDoPersonagem(p) === "npc";
+  const aba: AbaDaFicha = !temFicha
+    ? "configurar"
+    : npc && janela.aba !== "configurar"
+      ? "principal"
+      : janela.aba;
   const { ref: raiz, largura } = useLargura<HTMLDivElement>();
   const estreita = largura !== null && largura < LARGURA_DA_FICHA_ESTREITA;
   // Trocar de aba volta ao topo (cada aba é uma página) e fecha o editor da engrenagem.
@@ -395,14 +407,17 @@ export function JanelaDaFicha({
       testidDoRedimensionar="janela-ficha-redimensionar"
       rotuloDoFechar="Fechar a ficha"
       dados={{ "data-personagem-id": p.id, "data-aba": aba }}
-      classe="janela-ficha"
+      classe={npc ? "janela-ficha janela-npc" : "janela-ficha"}
       corpoLivre
       camadaAlta
       redimensionar="ambos"
-      minLargura={LARGURA_MINIMA}
+      minLargura={npc ? LARGURA_MINIMA_DO_NPC : LARGURA_MINIMA}
       minAltura={ALTURA_MINIMA}
       largura={(area) =>
-        Math.max(LARGURA_MINIMA, Math.min(LARGURA_PADRAO, area.largura - 2 * FOLGA))
+        Math.max(
+          npc ? LARGURA_MINIMA_DO_NPC : LARGURA_MINIMA,
+          Math.min(npc ? LARGURA_DO_NPC : LARGURA_PADRAO, area.largura - 2 * FOLGA),
+        )
       }
       altura={(area) => Math.max(ALTURA_MINIMA, Math.min(900, area.altura - 2 * FOLGA))}
       padrao={() => ({
@@ -413,7 +428,18 @@ export function JanelaDaFicha({
       cabecalho={titulo}
       cabecalhoMinimizado={titulo}
       acoes={
-        temFicha && editar ? (
+        npc ? (
+          <BotaoComDica
+            className="botao-icone"
+            testid="npc-configurar"
+            nome="Configurar"
+            aria-label="Configurar"
+            aria-pressed={aba === "configurar"}
+            onClick={() => aoMudar({ aba: aba === "configurar" ? "principal" : "configurar" })}
+          >
+            <Settings size={16} />
+          </BotaoComDica>
+        ) : temFicha && editar ? (
           <>
             <BotaoComDica
               className="botao-icone"
@@ -444,7 +470,7 @@ export function JanelaDaFicha({
         data-estreita={estreita}
         data-testid="ficha-raiz"
       >
-        {temFicha && !estreita && (
+        {temFicha && !npc && !estreita && (
           <header className="fl-cab fl-cab-larga" data-testid="ficha-cabecalho">
             {fitas}
             <div className="fl-cab-nome">{nomeEditavel(false)}</div>
@@ -454,7 +480,7 @@ export function JanelaDaFicha({
             {modos}
           </header>
         )}
-        {temFicha && estreita && (
+        {temFicha && !npc && estreita && (
           <header className="fl-cab fl-cab-estreito" data-testid="ficha-cabecalho">
             <div className="fl-cab-estreito-topo">
               <span className="fl-resumo-id" data-testid="janela-ficha-resumo">
@@ -542,7 +568,14 @@ export function JanelaDaFicha({
         )}
 
         <div className="fl-corpo" ref={corpo} data-testid={`ficha-painel-${aba}`}>
-          {temFicha && !estreita && (
+          {npc && aba === "principal" && (
+            <BlocoDoNpc
+              {...propsDaAba}
+              aoMudarNome={(nome) => enviar("personagem.editar", { id: p.id, mudancas: { nome } })}
+              modos={modos}
+            />
+          )}
+          {temFicha && !npc && !estreita && (
             <div className="fl-cab-campos" data-testid="ficha-identidade">
               <div className="fl-campo-id fl-campo-classe">
                 <ClasseENivel {...propsDaAba} />
@@ -557,7 +590,7 @@ export function JanelaDaFicha({
               outros").
             </p>
           )}
-          {aba === "principal" && (
+          {aba === "principal" && !npc && (
             <>
               <AbaPrincipal {...propsDaAba} />
               {temFicha && <PainelExtra {...propsDaAba} />}
@@ -584,11 +617,44 @@ export function JanelaDaFicha({
                 importar={async (arquivo) => {
                   const lida = await lerFichaDoArquivo(arquivo);
                   if (!lida.ok) return lida.motivo;
-                  alterar([{ caminho: "", valor: lida.ficha }]);
+                  // o arquivo de uma ficha de antes do V4b não diz como se mostra: fica como estava
+                  const escolha = lida.ficha.apresentacao ?? ficha.apresentacao;
+                  alterar([
+                    {
+                      caminho: "",
+                      valor: escolha ? { ...lida.ficha, apresentacao: escolha } : lida.ficha,
+                    },
+                  ]);
                   enviarAgora();
                   return null;
                 }}
               />
+              {temFicha && (
+                <Caixa moldura className="fl-conf-caixa" testid="ficha-apresentacao-escolha">
+                  <Secao>Ficha de</Secao>
+                  <div className="fl-conf-linha">
+                    <fieldset className="fl-modos" aria-label="Ficha de">
+                      {APRESENTACOES.map((a: Apresentacao) => (
+                        <button
+                          key={a}
+                          type="button"
+                          className="fl-seg fl-seg-grande"
+                          data-testid={`apresentacao-${a}`}
+                          aria-pressed={(npc ? "npc" : "personagem") === a}
+                          disabled={!editar}
+                          onClick={() => alterar([{ caminho: "apresentacao", valor: a }])}
+                        >
+                          {a === "npc" ? "NPC" : "Personagem"}
+                        </button>
+                      ))}
+                    </fieldset>
+                    <span className="fl-dica fl-conf-dica">
+                      Só muda como a ficha se mostra: o bloco de monstro ou a ficha de personagem.
+                      Os dados são os mesmos.
+                    </span>
+                  </div>
+                </Caixa>
+              )}
               <Caixa moldura className="fl-conf-caixa" testid="ficha-aparencia-escolha">
                 <Secao>Aparência da ficha</Secao>
                 <div className="fl-conf-linha">

@@ -1,7 +1,7 @@
 # Atribuição do exemplo de compêndio
 
-O arquivo `exemplo-srd.json` contém três magias (Bola de Fogo, Mísseis Mágicos e Detectar Magia)
-traduzidas para o português a partir do System Reference Document 5.1.
+O arquivo `exemplo-srd.json` contém três magias (Bola de Fogo, Mísseis Mágicos e Detectar Magia), nove armas
+e cinco itens de equipamento (V4b), traduzidos para o português a partir do System Reference Document 5.1.
 
 > Este trabalho inclui material do System Reference Document 5.1 ("SRD 5.1"), de Wizards of the Coast
 > LLC, disponível em <https://dnd.wizards.com/resources/systems-reference-document>. O SRD 5.1 é
