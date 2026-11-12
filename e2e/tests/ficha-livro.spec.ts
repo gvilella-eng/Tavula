@@ -79,14 +79,14 @@ test("conjurar gasta o espaço e a bolinha do espaço mostra o que sobrou; a mag
   await criarDarion(mestre.pagina);
   const janela = await abrirFicha(j1.pagina, DARION_ID, "magias");
 
-  await expect(janela.getByTestId("espacos-resumo-1")).toHaveText("4/4");
+  await expect(janela.getByTestId("espacos-restantes-1")).toHaveText("4");
   // Hunter's Mark (1º nível) é a magia 6 da fixture
   await janela.getByTestId("magia-conjurar-6").click();
-  await expect(janela.getByTestId("espacos-resumo-1")).toHaveText("3/4");
+  await expect(janela.getByTestId("espacos-restantes-1")).toHaveText("3");
   await expect(janela.getByTestId("espaco-1-4")).not.toBeChecked();
   // recuperar espaços
   await janela.getByTestId("recuperar-espacos").click();
-  await expect(janela.getByTestId("espacos-resumo-1")).toHaveText("4/4");
+  await expect(janela.getByTestId("espacos-restantes-1")).toHaveText("4");
 
   // "Mostrar em Ataques e magias": a magia aparece na lista de ataques, editada pela mesma magia
   await janela.getByTestId("magia-editar-6").click();

@@ -240,6 +240,8 @@ export const FichaSchema = z.object({
     .array(z.object({ classe: z.string().min(1).max(48), habilidade: AtributoSchema }))
     .max(12)
     .optional(),
+  /** Habilidade de conjuração escolhida à mão quando não há classe conjuradora (V4a3); com classe, não vale. */
+  habilidadeDeConjuracao: AtributoSchema.optional(),
   /** Espaços de magia gastos por nível ("1" a "9"). */
   espacosGastos: z
     .partialRecord(z.enum(NIVEIS_DE_ESPACO), z.number().int().min(0).max(30))
@@ -464,6 +466,21 @@ export function conjuradoras(f: Ficha): Conjuradora[] {
   return lista;
 }
 
+export type ConjuracaoSemClasse = { habilidade: Atributo; cd: number; ataque: number };
+
+/** CD e ataque de magia de quem não tem classe conjuradora mas escolheu a habilidade (V4a3); `null` caso contrário. */
+export function conjuracaoSemClasse(f: Ficha): ConjuracaoSemClasse | null {
+  if (!f.habilidadeDeConjuracao || conjuradoras(f).length > 0) return null;
+  const prof = bonusDeProficiencia(f);
+  const mod = modDoAtributo(f, f.habilidadeDeConjuracao);
+  return { habilidade: f.habilidadeDeConjuracao, cd: 8 + prof + mod, ataque: prof + mod };
+}
+
+/** O total de espaços de cada círculo só pela conta das classes ([1º ... 9º]), sem o número escrito à mão. */
+export function espacosAutomaticos(f: Ficha): number[] {
+  return espacosDeMagia(nivelDeConjurador(f.classes ?? []));
+}
+
 export type EspacoDeMagia = { nivel: number; total: number; gastos: number; restantes: number };
 
 export function espacosDaFicha(f: Ficha): EspacoDeMagia[] {
@@ -532,6 +549,7 @@ export type FichaDerivada = {
   deslocamentoFt: number;
   deslocamentoM: number;
   conjuradoras: Conjuradora[];
+  conjuracaoSemClasse: ConjuracaoSemClasse | null;
   nivelDeConjurador: number;
   espacos: EspacoDeMagia[];
   pacto: PactoDaFicha | null;
@@ -568,6 +586,7 @@ export function derivar(f: Ficha): FichaDerivada {
     deslocamentoFt,
     deslocamentoM: pesParaMetros(deslocamentoFt),
     conjuradoras: conjuradoras(f),
+    conjuracaoSemClasse: conjuracaoSemClasse(f),
     nivelDeConjurador: nivelDeConjurador(f.classes ?? []),
     espacos: espacosDaFicha(f),
     pacto: pactoDaFicha(f),

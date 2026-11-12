@@ -85,7 +85,7 @@ Tudo em `apps/web/src/`.
     tocha.
   - `SubBarraPincel.tsx`, `DadosRapidos.tsx`, `ZoomFlutuante.tsx`: sub-barra do pincel, grade de dados
     rápidos e controle de zoom no canto inferior direito da área do mapa.
-  - `ficha/JanelaDaFicha.tsx` e as demais em `ficha/`: a janela da ficha 5e e a revisão da importação de PDF. Desde o V4a (refeito) a ficha é o desenho aprovado em `docs/desenho/`: `JanelaDaFicha.tsx` (cabeçalho, fitas, estreita por `ResizeObserver`), `AbaPrincipal.tsx` (Personagem, 3 colunas e acordeão; as peças são exportadas), `AbaMagias.tsx`, `AbaHistoria.tsx`, a Configurar (`EditorDoItem` mais a Aparência), `EditorDeAtaque.tsx` (a engrenagem), `conjurar.ts`, `rolador.ts`, `aparencia.ts` (Livro/Clássica, `localStorage`), `livro.tsx` (título, caixa, bolinha, acordeão), `ListaDeTitulos.tsx` (características), `PainelExtra.tsx` (condições, luz, recursos) e `ficha.css` (tudo sob `.fl-raiz`; a pele vem de `data-pele`). A janela usa `camadaAlta` e `cabecalhoMinimizado` da `Janela`.
+  - `ficha/JanelaDaFicha.tsx` e as demais em `ficha/`: a janela da ficha 5e e a revisão da importação de PDF. Desde o V4a (refeito) a ficha é o desenho aprovado em `docs/desenho/`: `JanelaDaFicha.tsx` (cabeçalho, fitas, estreita por `ResizeObserver`), `AbaPrincipal.tsx` (Personagem, 3 colunas e acordeão; as peças são exportadas), `AbaMagias.tsx`, `AbaHistoria.tsx`, a Configurar (`EditorDoItem` mais a Aparência), `EditorDeAtaque.tsx` (a engrenagem), `conjurar.ts`, `modificadorExtra.tsx` (V4a3: botão direito / Shift+F10 nas linhas de perícia e salvaguarda), `rolador.ts`, `aparencia.ts` (Livro/Clássica, `localStorage`), `livro.tsx` (título, caixa, bolinha, acordeão), `ListaDeTitulos.tsx` (características), `PainelExtra.tsx` (condições, luz, recursos) e `ficha.css` (tudo sob `.fl-raiz`; a pele vem de `data-pele`). A janela usa `camadaAlta` e `cabecalhoMinimizado` da `Janela`.
   - `Avatar.tsx`, `MensagemDoChat.tsx`, `CartaoDeRolagem.tsx`, `CartaoDaMagia.tsx`: avatar com iniciais e
     cartões do chat.
 
@@ -602,3 +602,11 @@ Achadas ao montar esta passagem e já acertadas nos docs de origem:
 - "Em aberto" do `REDESIGN`: R1 e R2 feitos; R3–R6 a combinar.
 
 Continua em aberto, por ser decisão e não erro de doc: `ficha.verOutras` (seção 4, item 21).
+
+## V4a3 (2026-11-12): magias sem classe e bugs da ficha
+
+- Espaços por círculo: `AbaMagias.tsx` (`TotalDeEspacos`, `Nivel`, "+ Círculo" com estado local). O total vem de `espacosDaFicha`; `espacosAutomaticos` dá só a conta das classes (para o "auto"). `CampoNumero` ganhou `aoApagar` (apagar o texto chama o callback em vez de não enviar nada).
+- Sem classe: `habilidadeDeConjuracao` + `conjuracaoSemClasse(f)` (testids `conjuracao-habilidade-livre`, `conjuracao-cd-livre`, `conjuracao-ataque-livre`). Com classe conjuradora o campo é ignorado.
+- `espacos-resumo-N` ("3/4") virou `espacos-restantes-N` (só o número). O testid `espaco-total-N` continua, agora à vista.
+- Dados de Vida: bolinhas em `.fl-bolinhas-dv` (quebram de linha); acima de `LIMITE_DE_BOLINHAS_DE_DV` (12) vira contador com `dv-menos-*` e `dv-mais-*`.
+- Frágil: o popover do modificador sai por portal no body (fora do `.fl-raiz`; estilo `.popover.fl-pop-mod`); o foco volta ao botão da linha por `data-testid`. A tecla Menu também dispara `contextmenu`; uma janela de 700 ms evita abrir duas vezes (como no menu das Fichas).

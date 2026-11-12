@@ -8,6 +8,7 @@ import {
   bonusDeProficiencia,
   bonusDeSalvaguarda,
   CENA_PADRAO,
+  conjuracaoSemClasse,
   conjuradoras,
   criarArquivoDeFicha,
   criarExportacao,
@@ -15,6 +16,7 @@ import {
   descansoCurto,
   descansoLongo,
   type Estado,
+  espacosAutomaticos,
   espacosDaFicha,
   espacosDeMagia,
   estadoInicial,
@@ -228,6 +230,36 @@ describe("regras", () => {
     };
     expect(espacosDaFicha(f).map((e) => e.restantes)).toEqual([0, 2, 3, 1]);
     expect(espacosDaFicha({ pvAtual: 1, pvMax: 1 })).toEqual([]);
+  });
+
+  it("V4a3: sem classe, o total escrito à mão dá espaços para gastar", () => {
+    const f: Ficha = { pvAtual: 1, pvMax: 1, espacosTotal: { "1": 4 }, espacosGastos: { "1": 1 } };
+    expect(espacosDaFicha(f)).toEqual([{ nivel: 1, total: 4, gastos: 1, restantes: 3 }]);
+    // um total zerado não mostra nada
+    expect(espacosDaFicha({ pvAtual: 1, pvMax: 1, espacosTotal: { "1": 0 } })).toEqual([]);
+  });
+
+  it("V4a3: o número escrito sobrescreve o automático e, apagado, a conta volta", () => {
+    const base: Ficha = { pvAtual: 1, pvMax: 1, classes: [{ classe: "Clérigo", nivel: 3 }] };
+    expect(espacosAutomaticos(base)).toEqual([4, 2]);
+    expect(espacosDaFicha(base).map((e) => e.total)).toEqual([4, 2]);
+    const escrito: Ficha = { ...base, espacosTotal: { "1": 6 } };
+    expect(espacosDaFicha(escrito).map((e) => e.total)).toEqual([6, 2]);
+    const { espacosTotal: _apagado, ...volta } = escrito;
+    expect(espacosDaFicha(volta).map((e) => e.total)).toEqual([4, 2]);
+  });
+
+  it("V4a3: sem classe, o atributo escolhido dá CD e ataque; com classe, ele não vale", () => {
+    const f: Ficha = {
+      pvAtual: 1,
+      pvMax: 1,
+      atributos: { sab: 16 },
+      habilidadeDeConjuracao: "sab",
+    };
+    expect(conjuracaoSemClasse(f)).toEqual({ habilidade: "sab", cd: 8 + 2 + 3, ataque: 2 + 3 });
+    expect(derivar(f).conjuracaoSemClasse).toMatchObject({ cd: 13 });
+    expect(conjuracaoSemClasse({ pvAtual: 1, pvMax: 1 })).toBeNull();
+    expect(conjuracaoSemClasse({ ...f, classes: [{ classe: "Clérigo", nivel: 1 }] })).toBeNull();
   });
 
   it("ficha antiga (só PV) deriva com o padrão", () => {

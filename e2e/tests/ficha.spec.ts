@@ -307,13 +307,13 @@ test("descanso longo e curto pedem confirmação e restauram PV, espaços e recu
   await janela.getByTestId("ficha-aba-magias").click();
   await expect(janela.getByTestId("conjuracao-cd-Patrulheiro")).toHaveText("14");
   await expect(janela.getByTestId("conjuracao-ataque-Clérigo")).toHaveText("+6");
-  await expect(janela.getByTestId("espacos-resumo-1")).toHaveText("4/4");
-  await expect(janela.getByTestId("espacos-resumo-4")).toHaveText("1/1");
+  await expect(janela.getByTestId("espacos-restantes-1")).toHaveText("4");
+  await expect(janela.getByTestId("espacos-restantes-4")).toHaveText("1");
   await expect(janela.getByTestId("espacos-9")).toHaveCount(0);
   // V4a: bolinha cheia = espaço disponível; clicar gasta
   await janela.getByTestId("espaco-1-4").uncheck();
   await janela.getByTestId("espaco-1-3").uncheck();
-  await expect(janela.getByTestId("espacos-resumo-1")).toHaveText("2/4");
+  await expect(janela.getByTestId("espacos-restantes-1")).toHaveText("2");
   // V4a: os recursos moram embaixo da página Personagem
   await janela.getByTestId("ficha-aba-principal").click();
   await janela.getByTestId("recurso-menos-2").click(); // Radiação do Amanhecer (curto): 1 -> 0
@@ -337,7 +337,7 @@ test("descanso longo e curto pedem confirmação e restauram PV, espaços e recu
   await janela.getByTestId("descanso-confirmar-sim").click();
   await expect(janela.getByTestId("recurso-atual-1")).toHaveValue("2");
   await janela.getByTestId("ficha-aba-magias").click();
-  await expect(janela.getByTestId("espacos-resumo-1")).toHaveText("4/4");
+  await expect(janela.getByTestId("espacos-restantes-1")).toHaveText("4");
   await janela.getByTestId("ficha-aba-principal").click();
   await expect(janela.getByTestId(pvAtual(DARION_ID))).toHaveValue("97");
   // metade dos dados de vida (10 no total: devolve 5, o d10 usado volta)

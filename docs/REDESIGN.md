@@ -927,7 +927,7 @@ A ficha de personagem no desenho que o Vilella aprovou (protótipos em `docs/des
 **Decisões (assumido)**
 - (assumido) A faixa de vantagem não volta sozinha a Normal depois do d20 (o protótipo mostra "Rolando: Normal" fixo); o primeiro V4a voltava.
 - (assumido) Dado de vida: gastar rola `1dN+Con` na sala e marca o dado como usado; a cura **não** é somada sozinha aos PV (o cliente não conhece o resultado; a pessoa ajusta o PV).
-- (assumido) O "bônus extra" de perícia e salvaguarda (que o desenho não tem) aparece só com o mouse em cima ou o foco na linha.
+- (assumido) O "bônus extra" de perícia e salvaguarda (que o desenho não tem) aparecia só com o mouse em cima ou o foco na linha. **Mudou no V4a3**: abre só pelo botão direito ou Shift+F10 (ver "V4a3 — como ficou").
 - (assumido) Onde o desenho não tem lugar, a ficha mantém: Idiomas e outras proficiências e Notas na aba História; Condições, luz (mochila) e Recursos num painel abaixo das três colunas da aba Personagem.
 - (assumido) Dano com segundo dano ou extra no crítico entra na mesma rolagem do chat; o tipo vira "Radiante + Fogo".
 - (assumido) Botão Acerto sem dano rola um teste "Ataque · Nome"; Dano solto vai pelo `/r` do chat, com o nome, a CD e o tipo.
@@ -940,6 +940,27 @@ A ficha de personagem no desenho que o Vilella aprovou (protótipos em `docs/des
 **O que ficou para depois (V4b)**
 - Ficha de NPC no desenho N (a atual segue funcionando); arrastar do compêndio para a ficha; reordenar ataques, equipamento e características por arrasto ou Alt+↑/↓; acender e apagar tocha no equipamento.
 - Firefox e Safari não foram conferidos (`color-mix`, `clip-path` das fitas).
+
+## V4a3 — como ficou (2026-11-12)
+
+Lote pequeno, só na ficha de personagem. O Vilella abriu o Rendan (Clérigo da campanha, importado do PDF sem classe) e a aba Magias não tinha onde gastar espaço.
+
+**O que foi feito**
+- **Espaços por círculo sempre à vista**: cada círculo de 1 a 9 mostrado tem no cabeçalho o título, "Espaços totais [n]" (campo editável sem hover; o `fl-bonus-extra` saiu daqui) e "Restantes n"; as bolinhas vêm numa linha logo abaixo. O total vem da tabela de multiclasse; o número escrito sobrescreve (`espacosTotal`). Apagar o campo ou o botão "auto" (só aparece com número escrito e círculo na conta das classes) volta ao automático. Sem classe o total manual funciona igual: total 4 no 1º círculo dá 4 bolinhas. Círculos mostrados: com magia, com total maior que 0, o 1º e os abertos por "+ Círculo".
+- **Rótulo "Prep."** sobre a coluna dos checkboxes de cada círculo de 1 a 9 que tem magia (nome completo "Preparada" para leitor de tela e na dica).
+- **Conjuração sem classe**: a caixa Atributo vira seletor; com a escolha, CD (8 + proficiência + mod.) e Ataque rolam como na ficha com classe. Campo novo e opcional `habilidadeDeConjuracao` (sem migração); funções `conjuracaoSemClasse` e `espacosAutomaticos` em `ficha.ts`; `derivar` devolve `conjuracaoSemClasse`. O aviso agora é "Sem classe: escolha o atributo de conjuração" e some com a escolha. Com classe conjuradora o campo não vale.
+- **Dados de Vida**: as bolinhas quebram de linha dentro do bloco (24 px cada) até 12 por tipo; acima disso vira o contador "7/20" com − e + (marca um dado como gasto, sem rolar, e recupera).
+- **Modificador extra de perícia e salvaguarda**: não aparece mais no hover nem no foco. Botão direito na linha, ou Shift+F10 / tecla Menu na linha em foco, abre o popover "Modificador: [caixa]" (positivo e negativo; Enter ou Esc fecha e o foco volta ao botão da linha). Com valor diferente de zero um ponto discreto na linha avisa (`fl-bonus-marca`). Peças novas em `ficha/modificadorExtra.tsx`; o popover sai por portal no body e usa a classe `popover` do app.
+
+**Decisões (assumido)**
+- (assumido) A escolha do atributo sem classe fica num campo novo, não em `conjuracao` com classe vazia (o schema exige classe com 1 caractere ou mais).
+- (assumido) As bolinhas dos espaços ficam numa linha abaixo do cabeçalho do círculo, porque título, total e restantes já enchem a coluna de ~326 px.
+- (assumido) "+ Círculo" mostra o menor círculo oculto de cada vez; o círculo aberto só some se ficar sem magia e sem total e a janela for fechada (o estado é local).
+- (assumido) Limite do contador compacto dos dados de vida: acima de 12 por tipo.
+- (assumido) O modificador só abre para quem edita a ficha; para os outros o botão direito mostra o menu do navegador.
+
+**O que ficou para depois**
+- Importador do PDF: o Rendan veio sem classe e nível (item em `docs/BUGS.md`).
 
 ## Em aberto
 

@@ -111,7 +111,7 @@ test("importar o PDF do Darion pela aba Configurar da ficha: revisão com incert
   await expect(janela.getByTestId("percepcao-passiva")).toHaveText("12");
   await expect(janela.getByTestId(`pv-atual-${DARION_ID}`)).toHaveValue("97");
   await janela.getByTestId("ficha-aba-magias").click();
-  await expect(janela.getByTestId("espacos-resumo-1")).toHaveText("4/4");
+  await expect(janela.getByTestId("espacos-restantes-1")).toHaveText("4");
 });
 
 test("Cancelar na revisão não manda nenhum frame de ficha para a sala e a ficha continua como estava", async ({

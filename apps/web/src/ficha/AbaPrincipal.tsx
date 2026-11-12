@@ -39,6 +39,7 @@ import {
   useTicDasLuzes,
 } from "./LuzDoItem";
 import { Acordeao, Bolinha, Caixa, Secao } from "./livro";
+import { PopoverDoModificador, useModificadorExtra } from "./modificadorExtra";
 import type { Rolador } from "./rolador";
 
 type Enviar = (tipo: string, dados: object) => string | null;
@@ -365,40 +366,32 @@ export function InspiracaoEProficiencia({ ficha, d, alterar, editar }: PropsDaAb
   );
 }
 
-/** O campo "bônus extra" de uma linha: só aparece com o mouse em cima ou o foco dentro. */
-function BonusExtra({
-  testid,
-  rotulo,
-  valor,
-  editar,
-  aoMudar,
-}: {
-  testid: string;
-  rotulo: string;
-  valor: number;
-  editar: boolean;
-  aoMudar: (n: number) => void;
-}) {
+/** O sinal discreto de que a linha tem bônus extra (o valor está na dica; o total já o inclui). */
+function MarcaDeBonus({ valor }: { valor: number }) {
+  if (valor === 0) return null;
   return (
-    <CampoNumero
-      testid={testid}
-      rotulo={rotulo}
-      valor={valor}
-      min={-50}
-      max={50}
-      desabilitado={!editar}
-      className="fl-bonus-extra"
-      aoMudar={aoMudar}
+    <span
+      className="fl-bonus-marca"
+      role="img"
+      aria-label={`Bônus extra ${formatarBonus(valor)}`}
+      title={`Bônus extra ${formatarBonus(valor)}`}
     />
   );
 }
 
 export function Salvaguardas({ ficha, d, alterar, editar, rolador }: PropsDaAba) {
+  const mod = useModificadorExtra(editar);
+  const aberta = ATRIBUTOS.find((a) => mod.aberto?.id === `salva-${a}`);
   return (
     <Caixa testid="fh-salvaguardas" className="fl-lista-de-testes" rotulo="Salvaguardas">
       <Secao>Salvaguardas</Secao>
       {ATRIBUTOS.map((a) => (
-        <div key={a} className="fl-linha" data-testid={`salvaguarda-${a}`}>
+        <div
+          key={a}
+          className="fl-linha"
+          data-testid={`salvaguarda-${a}`}
+          {...mod.propsDaLinha(`salva-${a}`)}
+        >
           <BotaoDeProficiencia
             testid={`prof-salva-${a}`}
             nome={`salvaguarda de ${ROTULO_DO_ATRIBUTO[a]}`}
@@ -421,27 +414,38 @@ export function Salvaguardas({ ficha, d, alterar, editar, rolador }: PropsDaAba)
               {formatarBonus(d.salvaguardas[a].total)}
             </span>
             <span className="fl-teste-nome">{ROTULO_DO_ATRIBUTO[a]}</span>
+            <MarcaDeBonus valor={ficha.salvaguardas?.[a]?.bonus ?? 0} />
           </button>
-          <BonusExtra
-            testid={`salvaguarda-bonus-${a}`}
-            rotulo={`Bônus extra na salvaguarda de ${ROTULO_DO_ATRIBUTO[a]}`}
-            valor={ficha.salvaguardas?.[a]?.bonus ?? 0}
-            editar={editar}
-            aoMudar={(n) =>
-              alterar(
-                ficha.salvaguardas?.[a]
-                  ? um(`salvaguardas.${a}.bonus`, n === 0 ? null : n)
-                  : um(`salvaguardas.${a}`, { nivel: "nenhuma", ...(n === 0 ? {} : { bonus: n }) }),
-              )
-            }
-          />
         </div>
       ))}
+      {mod.aberto && aberta && (
+        <PopoverDoModificador
+          testid={`salvaguarda-bonus-${aberta}`}
+          rotulo={`Modificador extra na salvaguarda de ${ROTULO_DO_ATRIBUTO[aberta]}`}
+          valor={ficha.salvaguardas?.[aberta]?.bonus ?? 0}
+          x={mod.aberto.x}
+          y={mod.aberto.y}
+          testidDoFoco={`salvaguarda-botao-${aberta}`}
+          aoFechar={() => mod.setAberto(null)}
+          aoMudar={(n) =>
+            alterar(
+              ficha.salvaguardas?.[aberta]
+                ? um(`salvaguardas.${aberta}.bonus`, n === 0 ? null : n)
+                : um(`salvaguardas.${aberta}`, {
+                    nivel: "nenhuma",
+                    ...(n === 0 ? {} : { bonus: n }),
+                  }),
+            )
+          }
+        />
+      )}
     </Caixa>
   );
 }
 
 export function Pericias({ ficha, d, alterar, editar, rolador }: PropsDaAba) {
+  const mod = useModificadorExtra(editar);
+  const aberta = PERICIAS_NA_ORDEM_DO_PDF.find((def) => mod.aberto?.id === `pericia-${def.id}`);
   return (
     <Caixa testid="fh-pericias" className="fl-lista-de-testes" rotulo="Perícias">
       <Secao>Perícias</Secao>
@@ -450,7 +454,12 @@ export function Pericias({ ficha, d, alterar, editar, rolador }: PropsDaAba) {
         if (!p) return null;
         const nome = nomeNoPdf(p.id, p.nome);
         return (
-          <div key={p.id} className="fl-linha" data-testid={`pericia-${p.id}`}>
+          <div
+            key={p.id}
+            className="fl-linha"
+            data-testid={`pericia-${p.id}`}
+            {...mod.propsDaLinha(`pericia-${p.id}`)}
+          >
             <BotaoDeProficiencia
               testid={`prof-pericia-${p.id}`}
               nome={nome}
@@ -473,26 +482,32 @@ export function Pericias({ ficha, d, alterar, editar, rolador }: PropsDaAba) {
               <span className="fl-teste-nome" title={`${nome} (${SIGLA_DO_ATRIBUTO[p.atributo]})`}>
                 {nome}
               </span>
+              <MarcaDeBonus valor={ficha.pericias?.[p.id]?.bonus ?? 0} />
             </button>
-            <BonusExtra
-              testid={`pericia-bonus-${p.id}`}
-              rotulo={`Bônus extra em ${nome}`}
-              valor={ficha.pericias?.[p.id]?.bonus ?? 0}
-              editar={editar}
-              aoMudar={(n) =>
-                alterar(
-                  ficha.pericias?.[p.id]
-                    ? um(`pericias.${p.id}.bonus`, n === 0 ? null : n)
-                    : um(`pericias.${p.id}`, {
-                        nivel: "nenhuma",
-                        ...(n === 0 ? {} : { bonus: n }),
-                      }),
-                )
-              }
-            />
           </div>
         );
       })}
+      {mod.aberto && aberta && (
+        <PopoverDoModificador
+          testid={`pericia-bonus-${aberta.id}`}
+          rotulo={`Modificador extra em ${nomeNoPdf(aberta.id, aberta.nome)}`}
+          valor={ficha.pericias?.[aberta.id]?.bonus ?? 0}
+          x={mod.aberto.x}
+          y={mod.aberto.y}
+          testidDoFoco={`pericia-botao-${aberta.id}`}
+          aoFechar={() => mod.setAberto(null)}
+          aoMudar={(n) =>
+            alterar(
+              ficha.pericias?.[aberta.id]
+                ? um(`pericias.${aberta.id}.bonus`, n === 0 ? null : n)
+                : um(`pericias.${aberta.id}`, {
+                    nivel: "nenhuma",
+                    ...(n === 0 ? {} : { bonus: n }),
+                  }),
+            )
+          }
+        />
+      )}
     </Caixa>
   );
 }
@@ -734,6 +749,9 @@ function PontosDeVida(props: PropsDaAba) {
   );
 }
 
+/** Acima disto, os dados de vida de um tipo viram o contador compacto (V4a3). */
+const LIMITE_DE_BOLINHAS_DE_DV = 12;
+
 export function DadosDeVida({ d, alterar, editar, rolador, enviar, personagemId }: PropsDaAba) {
   return (
     <Caixa testid="fh-dados-de-vida" className="fl-bloco" rotulo="Dados de Vida">
@@ -752,25 +770,72 @@ export function DadosDeVida({ d, alterar, editar, rolador, enviar, personagemId 
           >
             <Dices size={15} aria-hidden /> <span>{dv.dado}</span>
           </button>
-          <span className="fl-bolinhas">
-            {Array.from({ length: dv.total }, (_, n) => n + 1).map((n) => (
-              <Bolinha
-                key={n}
-                testid={`dv-bolinha-${dv.dado}-${n}`}
-                rotulo={`Dado de vida ${dv.dado} número ${n}`}
-                marcada={n <= dv.restantes}
-                desabilitado={!editar}
-                aoMudar={() => {
-                  const restantes = n <= dv.restantes ? n - 1 : n;
-                  const usados = dv.total - restantes;
-                  alterar(um(`dadosDeVidaUsados.${dv.dado}`, usados === 0 ? null : usados));
-                }}
-              />
-            ))}
-          </span>
-          <span className="fl-lbl fl-dv-contagem" data-testid={`dv-restantes-${dv.dado}`}>
-            {dv.restantes}/{dv.total}
-          </span>
+          {dv.total > LIMITE_DE_BOLINHAS_DE_DV ? (
+            // V4a3: acima de ~12 por tipo as bolinhas viram o contador compacto, com − e +
+            <>
+              <BotaoComDica
+                className="fl-ib fl-mq"
+                testid={`dv-menos-${dv.dado}`}
+                nome={`Gastar um dado de vida ${dv.dado} (sem rolar)`}
+                aria-label={`Marcar um dado de vida ${dv.dado} como gasto`}
+                motivo={
+                  editar
+                    ? dv.restantes <= 0
+                      ? "Não há dados restantes"
+                      : null
+                    : "Só quem edita a ficha muda"
+                }
+                onClick={() => alterar(um(`dadosDeVidaUsados.${dv.dado}`, dv.usados + 1))}
+              >
+                <Minus size={13} aria-hidden />
+              </BotaoComDica>
+              <span className="fl-lbl fl-dv-contagem" data-testid={`dv-restantes-${dv.dado}`}>
+                {dv.restantes}/{dv.total}
+              </span>
+              <BotaoComDica
+                className="fl-ib fl-mq"
+                testid={`dv-mais-${dv.dado}`}
+                nome={`Recuperar um dado de vida ${dv.dado}`}
+                aria-label={`Recuperar um dado de vida ${dv.dado}`}
+                motivo={
+                  editar
+                    ? dv.usados <= 0
+                      ? "Todos os dados estão disponíveis"
+                      : null
+                    : "Só quem edita a ficha muda"
+                }
+                onClick={() =>
+                  alterar(
+                    um(`dadosDeVidaUsados.${dv.dado}`, dv.usados - 1 <= 0 ? null : dv.usados - 1),
+                  )
+                }
+              >
+                <Plus size={13} aria-hidden />
+              </BotaoComDica>
+            </>
+          ) : (
+            <>
+              <span className="fl-bolinhas fl-bolinhas-dv">
+                {Array.from({ length: dv.total }, (_, n) => n + 1).map((n) => (
+                  <Bolinha
+                    key={n}
+                    testid={`dv-bolinha-${dv.dado}-${n}`}
+                    rotulo={`Dado de vida ${dv.dado} número ${n}`}
+                    marcada={n <= dv.restantes}
+                    desabilitado={!editar}
+                    aoMudar={() => {
+                      const restantes = n <= dv.restantes ? n - 1 : n;
+                      const usados = dv.total - restantes;
+                      alterar(um(`dadosDeVidaUsados.${dv.dado}`, usados === 0 ? null : usados));
+                    }}
+                  />
+                ))}
+              </span>
+              <span className="fl-lbl fl-dv-contagem" data-testid={`dv-restantes-${dv.dado}`}>
+                {dv.restantes}/{dv.total}
+              </span>
+            </>
+          )}
         </div>
       ))}
     </Caixa>

@@ -22,6 +22,8 @@ type PropsNumero = {
   desabilitado?: boolean;
   className?: string;
   aoMudar: (n: number) => void;
+  /** Quando dado, apagar o texto chama isto (em vez de não enviar nada): o "voltar ao automático". */
+  aoApagar?: () => void;
 };
 
 /** Número inteiro. Texto vazio ou fora dos limites não é enviado; ao sair, volta ao valor da ficha. */
@@ -34,6 +36,7 @@ export function CampoNumero({
   desabilitado,
   className,
   aoMudar,
+  aoApagar,
 }: PropsNumero) {
   const [texto, setTexto] = useState(String(valor));
   const [foco, setFoco] = useState(false);
@@ -54,6 +57,10 @@ export function CampoNumero({
       onFocus={() => setFoco(true)}
       onChange={(e) => {
         setTexto(e.target.value);
+        if (e.target.value === "" && aoApagar) {
+          aoApagar();
+          return;
+        }
         const n = Number(e.target.value);
         if (e.target.value !== "" && Number.isInteger(n) && n >= min && n <= max) aoMudar(n);
       }}

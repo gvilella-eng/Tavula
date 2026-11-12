@@ -1487,11 +1487,11 @@ entra nas perguntas do fim):**
   valores base:
   - identidade (raça, antecedente, alinhamento) e `classes: { classe, subclasse?, nivel }[]`;
   - atributos (valores);
-  - salvaguardas e perícias com `nenhuma | proficiente | especialista`, mais um bônus extra manual;
+  - salvaguardas e perícias com `nenhuma | proficiente | especialista`, mais um bônus extra manual (V4a3, 2026-11-12: edita-se pelo botão direito ou Shift+F10 na linha, num popover "Modificador:", nunca no hover);
   - CA (número, com nota), deslocamento em ft;
   - PV atual/máximo/temporário, dados de vida usados por tipo e testes contra morte;
   - ataques `{ nome, acerto: número fixo | fórmula, dano (expressão), tipo }`;
-  - conjuração por classe (habilidade), espaços gastos por nível, `magias: { nome, nivel, preparada,
+  - conjuração por classe (habilidade; V4a3, 2026-11-12: sem classe conjuradora vale o campo opcional `habilidadeDeConjuracao`, que dá CD e ataque), espaços gastos por nível (o total por círculo vem da tabela de multiclasse e `espacosTotal` sobrescreve, também sem classe), `magias: { nome, nivel, preparada,
     escola?, descricao }[]`;
   - características (texto), `itens: { nome, quantidade, modeloId?, nota? }[]`;
   - recursos `{ nome, atual, max, recarga: 'curto' | 'longo' | 'nenhuma' }`, idiomas e notas.

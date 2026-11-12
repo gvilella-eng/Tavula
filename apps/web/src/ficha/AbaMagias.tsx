@@ -1,6 +1,8 @@
 import {
   ATRIBUTOS,
+  type Atributo,
   bonusDeAcerto,
+  espacosAutomaticos,
   expressaoDeDano,
   formatarBonus,
   type Magia,
@@ -8,7 +10,7 @@ import {
   ROTULO_DO_ATRIBUTO,
   SIGLA_DO_ATRIBUTO,
 } from "@tabletop/shared";
-import { ChevronRight, RotateCcw, Settings, Trash2 } from "lucide-react";
+import { ChevronRight, Plus, RotateCcw, Settings, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { BotaoComDica } from "../BotaoComDica";
 import { CamposDaMagia, linhaDeNivelEEscola, MarcasDaMagia, TextoDaMagia } from "../CartaoDaMagia";
@@ -80,14 +82,62 @@ function Conjuracao({ ficha, d, alterar, editar, rolador }: PropsDaAba) {
     </select>
   );
   if (!c) {
+    // V4a3: sem classe conjuradora, a pessoa escolhe o atributo e a CD e o ataque saem dele.
+    const livre = d.conjuracaoSemClasse;
     return (
-      <div className="fl-conj-caixas" data-testid="fh-conjuracao-vazia">
-        {["Atributo", "CD das magias", "Ataque de magia"].map((r) => (
-          <Caixa key={r} className="fl-conj-caixa">
+      <div
+        className="fl-conj-caixas"
+        data-testid={livre ? "fh-conjuracao-livre" : "fh-conjuracao-vazia"}
+      >
+        <Caixa className="fl-conj-caixa">
+          <select
+            className="fl-fld fl-seletor"
+            data-testid="conjuracao-habilidade-livre"
+            aria-label="Atributo de conjuração"
+            value={ficha.habilidadeDeConjuracao ?? ""}
+            disabled={!editar}
+            onChange={(e) =>
+              alterar(
+                um(
+                  "habilidadeDeConjuracao",
+                  e.target.value === "" ? null : (e.target.value as Atributo),
+                ),
+              )
+            }
+          >
+            <option value="">—</option>
+            {ATRIBUTOS.map((a) => (
+              <option key={a} value={a}>
+                {ROTULO_DO_ATRIBUTO[a]}
+              </option>
+            ))}
+          </select>
+          <span className="fl-lbl">Atributo</span>
+        </Caixa>
+        <Caixa className="fl-conj-caixa">
+          <strong className="fl-fa fl-conj-valor" data-testid="conjuracao-cd-livre">
+            {livre ? livre.cd : "—"}
+          </strong>
+          <span className="fl-lbl">CD das magias</span>
+        </Caixa>
+        <Caixa className="fl-conj-caixa fl-conj-rola">
+          {livre ? (
+            <button
+              type="button"
+              className="fl-rl fl-conj-botao"
+              data-testid="conjuracao-ataque-livre"
+              disabled={!rolador.podeRolar}
+              title={rolador.podeRolar ? undefined : "Só quem edita a ficha rola"}
+              aria-label="Rolar o ataque de magia"
+              onClick={() => rolador.teste("Ataque de magia", livre.ataque)}
+            >
+              <span className="fl-fa fl-rn fl-conj-valor">{formatarBonus(livre.ataque)}</span>
+            </button>
+          ) : (
             <span className="fl-fa fl-conj-valor">—</span>
-            <span className="fl-lbl">{r}</span>
-          </Caixa>
-        ))}
+          )}
+          <span className="fl-lbl">Ataque de magia</span>
+        </Caixa>
       </div>
     );
   }
@@ -367,6 +417,46 @@ function LinhaDeMagia({ m, i, props }: { m: Magia; i: number; props: PropsDaAba 
   );
 }
 
+/** O total de espaços de um círculo: o número à vista, "auto" para voltar à conta das classes (V4a3). */
+function TotalDeEspacos({ n, props }: { n: number; props: PropsDaAba }) {
+  const { ficha, d, alterar, editar } = props;
+  const chave = String(n) as "1";
+  const total = d.espacos.find((e) => e.nivel === n)?.total ?? 0;
+  const escrito = ficha.espacosTotal?.[chave] !== undefined;
+  const definir = (v: number | null) => {
+    const { [chave]: _antigo, ...resto } = ficha.espacosTotal ?? {};
+    const novo = v === null ? resto : { ...resto, [chave]: v };
+    alterar(um("espacosTotal", Object.keys(novo).length === 0 ? null : novo));
+  };
+  return (
+    <div className="fl-total-espacos-rotulo">
+      <span className="fl-lbl">Espaços totais</span>
+      <CampoNumero
+        testid={`espaco-total-${n}`}
+        rotulo={`Espaços de ${n}º nível: total`}
+        valor={total}
+        max={30}
+        desabilitado={!editar}
+        className="fl-in fl-fn fl-total-espacos"
+        aoMudar={definir}
+        aoApagar={() => definir(null)}
+      />
+      {editar && escrito && espacosAutomaticos(ficha)[n - 1] !== undefined && (
+        <button
+          type="button"
+          className="fl-auto"
+          data-testid={`espaco-auto-${n}`}
+          aria-label={`Espaços de ${n}º nível: voltar ao total automático (${espacosAutomaticos(ficha)[n - 1]})`}
+          title="Voltar ao total das classes"
+          onClick={() => definir(null)}
+        >
+          auto
+        </button>
+      )}
+    </div>
+  );
+}
+
 function Nivel({ n, props }: { n: number; props: PropsDaAba }) {
   const { ficha, d, alterar, editar } = props;
   const magias = ficha.magias ?? [];
@@ -375,40 +465,40 @@ function Nivel({ n, props }: { n: number; props: PropsDaAba }) {
   const titulo = n === 0 ? "Truques" : `${n}º nível`;
   return (
     <Caixa testid={`magias-nivel-${n}`} className="fl-nivel">
-      <div className="fl-nivel-cab" data-testid={espaco ? `espacos-${n}` : undefined}>
+      <div className="fl-nivel-cab" data-testid={n > 0 ? `espacos-${n}` : undefined}>
         <Secao className="fl-nivel-titulo">{titulo}</Secao>
-        {espaco && n > 0 && (
+        {n > 0 && (
           <>
-            <Espacos
-              prefixo={`espaco-${n}`}
-              total={espaco.total}
-              gastos={espaco.gastos}
-              editar={editar}
-              rotuloDoNivel={`${n}º nível`}
-              aoMudar={(g) => {
-                // O objeto inteiro (chave numérica não cria o caminho: "1" seria posição de lista).
-                const { [String(n) as "1"]: _antigo, ...resto } = ficha.espacosGastos ?? {};
-                alterar(um("espacosGastos", g === 0 ? resto : { ...resto, [String(n)]: g }));
-              }}
-            />
-            <span className="fl-fa fl-nivel-resumo" data-testid={`espacos-resumo-${n}`}>
-              {espaco.restantes}/{espaco.total}
+            <TotalDeEspacos n={n} props={props} />
+            <span className="fl-nivel-resumo">
+              Restantes{" "}
+              <strong className="fl-fa" data-testid={`espacos-restantes-${n}`}>
+                {espaco?.restantes ?? 0}
+              </strong>
             </span>
           </>
         )}
-        {n > 0 && editar && (
-          <CampoNumero
-            testid={`espaco-total-${n}`}
-            rotulo={`Espaços de ${n}º nível: total`}
-            valor={espaco?.total ?? 0}
-            max={30}
-            className="fl-bonus-extra fl-total-espacos"
-            aoMudar={(v) =>
-              alterar(um("espacosTotal", { ...(ficha.espacosTotal ?? {}), [String(n)]: v }))
-            }
-          />
-        )}
       </div>
+      {n > 0 && espaco && espaco.total > 0 && (
+        <Espacos
+          prefixo={`espaco-${n}`}
+          total={espaco.total}
+          gastos={espaco.gastos}
+          editar={editar}
+          rotuloDoNivel={`${n}º nível`}
+          aoMudar={(g) => {
+            // O objeto inteiro (chave numérica não cria o caminho: "1" seria posição de lista).
+            const { [String(n) as "1"]: _antigo, ...resto } = ficha.espacosGastos ?? {};
+            alterar(um("espacosGastos", g === 0 ? resto : { ...resto, [String(n)]: g }));
+          }}
+        />
+      )}
+      {n > 0 && doNivel.length > 0 && (
+        <span className="fl-prep-rotulo" data-testid={`magias-prep-${n}`} title="Preparada">
+          <span aria-hidden="true">Prep.</span>
+          <span className="fl-so-leitor">Preparada</span>
+        </span>
+      )}
       {doNivel.map(({ m, i }) => (
         <LinhaDeMagia key={`m-${i}`} m={m} i={i} props={props} />
       ))}
@@ -430,13 +520,33 @@ function Nivel({ n, props }: { n: number; props: PropsDaAba }) {
   );
 }
 
+function BotaoNovoCirculo({ aoClicar }: { aoClicar: () => void }) {
+  return (
+    <button
+      type="button"
+      className="fl-sec2 fl-novo-circulo"
+      data-testid="magias-novo-circulo"
+      onClick={aoClicar}
+    >
+      <Plus size={15} aria-hidden /> Círculo
+    </button>
+  );
+}
+
 /** Aba Magias: atributo, CD e ataque, os espaços por nível e as magias de cada nível. */
 export function AbaMagias(props: PropsDaAba) {
   const { ficha, d, alterar, editar, editorAberto, fecharEditor, estreita } = props;
   const temMagiaNoNivel = (n: number) => (ficha.magias ?? []).some((m) => m.nivel === n);
+  // V4a3: o "+ Círculo" mostra um círculo vazio para preencher o total antes das magias.
+  const [extras, setExtras] = useState<number[]>([]);
   const visiveis = TODOS_OS_NIVEIS.filter(
-    (n) => n <= 1 || temMagiaNoNivel(n) || (d.espacos.find((e) => e.nivel === n)?.total ?? 0) > 0,
+    (n) =>
+      n <= 1 ||
+      temMagiaNoNivel(n) ||
+      extras.includes(n) ||
+      (d.espacos.find((e) => e.nivel === n)?.total ?? 0) > 0,
   );
+  const proximoOculto = TODOS_OS_NIVEIS.find((n) => n > 1 && !visiveis.includes(n));
   const metade = Math.ceil(visiveis.length / 2);
   const esquerda = estreita ? visiveis : visiveis.slice(0, metade);
   const direita = estreita ? [] : visiveis.slice(metade);
@@ -453,9 +563,9 @@ export function AbaMagias(props: PropsDaAba) {
       <div className="fl-mag-col">
         <Conjuracao {...props} />
         <OutrasConjuradoras {...props} />
-        {d.conjuradoras.length === 0 && (
+        {d.conjuradoras.length === 0 && !d.conjuracaoSemClasse && (
           <p className="fl-dica" data-testid="sem-conjuracao">
-            Nenhuma classe de conjuração: preencha as classes na aba Personagem.
+            Sem classe: escolha o atributo de conjuração.
           </p>
         )}
         <div className="fl-mag-barra">
@@ -501,6 +611,9 @@ export function AbaMagias(props: PropsDaAba) {
         {esquerda.map((n) => (
           <Nivel key={n} n={n} props={props} />
         ))}
+        {estreita && editar && proximoOculto !== undefined && (
+          <BotaoNovoCirculo aoClicar={() => setExtras([...extras, proximoOculto])} />
+        )}
       </div>
       {!estreita && (
         <div className="fl-mag-col">
@@ -512,7 +625,14 @@ export function AbaMagias(props: PropsDaAba) {
               aoVoltar={fecharEditor}
             />
           ) : (
-            direita.map((n) => <Nivel key={n} n={n} props={props} />)
+            <>
+              {direita.map((n) => (
+                <Nivel key={n} n={n} props={props} />
+              ))}
+              {editar && proximoOculto !== undefined && (
+                <BotaoNovoCirculo aoClicar={() => setExtras([...extras, proximoOculto])} />
+              )}
+            </>
           )}
         </div>
       )}

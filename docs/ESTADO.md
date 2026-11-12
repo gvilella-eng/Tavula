@@ -2464,4 +2464,52 @@ Refeito depois de o Vilella recusar o papel branco do primeiro V4a. Detalhes e d
 
 ---
 
+## Ajustes V4a3 — Magias com espaços por círculo e os bugs da ficha (entregue, aguardando o roteiro manual)
+
+Detalhes e decisões em `docs/REDESIGN.md` ("V4a3 — como ficou"). Corrige os dois bugs de `docs/BUGS.md` (Dados de Vida que estouram a caixa e o modificador extra no hover) e deixa a aba Magias útil para um personagem sem classe, como o Rendan.
+
+### O que foi entregue
+
+- Cada círculo de 1 a 9 tem "Espaços totais [n]" editável à vista e "Restantes n"; o total manual vale também sem classe; "auto" ou campo vazio volta à conta das classes; "+ Círculo" abre um círculo vazio.
+- Rótulo "Prep." sobre os checkboxes de preparada.
+- Sem classe: seletor de atributo de conjuração (campo novo `habilidadeDeConjuracao`), com CD e ataque; aviso "Sem classe: escolha o atributo de conjuração".
+- **Bug corrigido: Dados de Vida estouram a caixa** (quebram de linha até 12 por tipo; acima disso, contador "7/20" com − e +).
+- **Bug corrigido: modificador extra no hover** (agora botão direito ou Shift+F10 / tecla Menu, popover "Modificador:", ponto discreto na linha com bônus).
+- `docs/BUGS.md`: os dois itens saíram; entrou o do importador do PDF do Rendan.
+
+### Como rodar
+
+- `pnpm verify` (uma vez). Prints: `$env:PRINTS_DIR="<pasta>"; pnpm --filter @tabletop/e2e prints v4a3`.
+
+### Verificação
+
+- Unidade (`packages/shared/src/ficha.test.ts`): total manual sem classe; automático sobrescrito e de volta; atributo sem classe dá CD e ataque (e não vale com classe). O schema ganhou só um campo opcional: não há migração.
+- E2E novo: `e2e/tests/ficha-magias-v4a3.spec.ts` (sem classe: total 4, conjurar, Recuperar, Prep., atributo e "+ Círculo"; auto; dados de vida sem estouro do nível 6 ao 20 e multiclasse; modificador por botão direito, Shift+F10 e tecla Menu, sem caixa no hover).
+- E2E antigos alterados: `ficha-livro.spec.ts`, `ficha.spec.ts` e `importarPdf.spec.ts` (`espacos-resumo-N` "3/4" virou `espacos-restantes-N` "3": o resumo foi trocado por "Restantes n"). Nenhum teste dependia do `fl-bonus-extra` por hover.
+
+### Decisões
+
+- (assumido) Ver `REDESIGN`, "V4a3 — como ficou", Decisões.
+
+### Desvios do plano
+
+- As bolinhas dos espaços ficam numa linha abaixo do cabeçalho do círculo, não no mesmo, por falta de largura (~326 px).
+
+### Frágil / não verificado
+
+- O popover do modificador sai por portal no body; em janela do navegador muito pequena ele é preso às margens.
+- O botão direito só abre o popover para quem edita a ficha.
+- Só Chrome.
+
+### Roteiro manual (pendente)
+
+1. Abra o Rendan (ou um personagem sem classe) → Magias: escreva 4 em "Espaços totais" do 1º círculo, conjure uma magia (Restantes 3) e use "Recuperar espaços".
+2. Escolha o atributo na primeira caixa: CD e ataque aparecem; clique no ataque e veja a rolagem.
+3. "+ Círculo": o 2º círculo aparece; escreva o total. Em quem tem classe, mude o total e volte com "auto".
+4. Confira o rótulo "Prep." sobre os checkboxes.
+5. Um Bárbaro de nível 10 e um multiclasse: as bolinhas dos Dados de Vida ficam dentro da caixa; no nível 15 vira "15/15" com − e +.
+6. Perícias e salvaguardas: passe o mouse (nada aparece); botão direito abre "Modificador:"; Esc fecha; na linha focada, Shift+F10 abre; o total muda e a linha ganha um ponto.
+
+---
+
 ## Próximo: ajustes V4b (ficha de NPC no desenho N, arrastar do compêndio, reordenar, tocha no equipamento); depois V5, 7b e 12
