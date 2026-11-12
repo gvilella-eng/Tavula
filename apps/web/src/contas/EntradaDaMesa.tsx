@@ -31,6 +31,7 @@ import { Logo } from "../Logo";
 import { irPara } from "../rotas";
 import { CampoDeConta } from "./CampoDeConta";
 import { TelaDoCodigo } from "./CodigoDeRecuperacao";
+import { OfertaDePasta } from "./OfertaDePasta";
 import {
   escolherPastaDoMestre,
   lerChaveDaPasta,
@@ -674,6 +675,8 @@ function CriarContaDoMestre({
   const { erro, setErro, enviando, enviar } = useEnvio();
   // O código de recuperação nasce com a conta do mestre e aparece uma vez, antes de entrar na mesa (C3).
   const [comCodigo, setComCodigo] = useState<{ codigo: string; u: UsuarioDaEntrada } | null>(null);
+  // Depois de anotar o código, a oferta "Proteger com a pasta da mesa" (com "Agora não"); só então a mesa abre.
+  const [ofertaDaPasta, setOfertaDaPasta] = useState<UsuarioDaEntrada | null>(null);
 
   async function aoEnviar(e: FormEvent) {
     e.preventDefault();
@@ -691,13 +694,24 @@ function CriarContaDoMestre({
     });
   }
 
+  if (ofertaDaPasta) {
+    return (
+      <OfertaDePasta
+        mesaId={mesa.id}
+        mesaNome={mesa.nome}
+        login={login}
+        senha={senha}
+        aoSeguir={() => aoEntrar(ofertaDaPasta)}
+      />
+    );
+  }
   if (comCodigo) {
     return (
       <TelaDoCodigo
         codigo={comCodigo.codigo}
         mesaNome={mesa.nome}
-        rotuloDoBotao="Entrar na mesa"
-        aoContinuar={() => aoEntrar(comCodigo.u)}
+        rotuloDoBotao="Continuar"
+        aoContinuar={() => setOfertaDaPasta(comCodigo.u)}
       />
     );
   }

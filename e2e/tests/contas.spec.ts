@@ -199,6 +199,9 @@ test("a mesa legada pede a conta do mestre só de uma requisição local, e uma 
   // C3: a conta do mestre da legada nasce com o código de recuperação, mostrado antes de entrar
   await p.getByTestId("codigo-anotei").check();
   await p.getByTestId("codigo-continuar").click();
+  // lote T: depois do código, a oferta de proteger com a pasta da mesa ("Agora não" segue para a mesa)
+  await expect(p.getByTestId("oferta-de-pasta")).toBeVisible();
+  await p.getByTestId("oferta-agora-nao").click();
   await naMesa(p);
   await expect(p.getByTestId("eu-nome")).toHaveText("Dono da Mesa");
   await abrirAba(p, "fichas");
@@ -238,6 +241,7 @@ test("o jogador pede, o mestre vê o aviso, aceita numa vaga com ficha, e o joga
   await mp.getByTestId("mestre-inicial-criar").click();
   await mp.getByTestId("codigo-anotei").check();
   await mp.getByTestId("codigo-continuar").click();
+  await mp.getByTestId("oferta-agora-nao").click();
   await naMesa(mp);
   await expect(mp.getByTestId("aviso-de-contas")).toHaveCount(0);
 

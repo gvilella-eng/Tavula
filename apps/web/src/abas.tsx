@@ -24,6 +24,8 @@ type PropsPreferencias = {
   aoMudarEncaixe: (v: boolean) => void;
   aoSair: () => void;
   aoTrocarDeMesa: () => void;
+  /** Abre o tour de introdução de novo. */
+  aoFazerOTour: () => void;
   /** C2: a mesa e o login da conta (a troca de senha precisa dos dois; sem login, não há conta). */
   mesaId: string;
   login?: string | undefined;
@@ -139,6 +141,7 @@ export function AbaPreferencias({
   aoMudarEncaixe,
   aoSair,
   aoTrocarDeMesa,
+  aoFazerOTour,
   mesaId,
   login,
   fontes,
@@ -180,6 +183,11 @@ export function AbaPreferencias({
         />
         Dicas ao passar o mouse (o nome e o atalho dos botões só de ícone)
       </label>
+      <div className="linha-botoes">
+        <button type="button" data-testid="tour-refazer" onClick={aoFazerOTour}>
+          Fazer o tour de novo
+        </button>
+      </div>
       <PastaLocal fontes={fontes} />
       {gerente && <Transferencias gerente={gerente} />}
       <ListaDeAtalhos />

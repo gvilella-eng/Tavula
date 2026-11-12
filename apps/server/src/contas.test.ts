@@ -144,7 +144,7 @@ describe("migração das contas", () => {
 
     const reaberto = new Armazenamento(sql as never);
     reaberto.migrar();
-    expect(reaberto.lerMeta("versao_esquema")).toBe("11");
+    expect(reaberto.lerMeta("versao_esquema")).toBe("12");
     expect(tabelas()).toEqual(expect.arrayContaining(["contas", "sessoes", "limites_ip"]));
     expect(sql.exec("SELECT COUNT(*) AS n FROM contas").toArray()).toEqual([{ n: 0 }]);
     expect(reaberto.lerMeta("marca")).toBe("campanha-real");
@@ -655,5 +655,35 @@ describe("o que o mestre vê e o que nunca sai", () => {
       for (const s of segredos) expect(f).not.toContain(s);
       expect(f).not.toMatch(/"(sal|hash|token|derivada|senha)"\s*:/);
     }
+  });
+});
+
+describe("migração 12 (tour de introdução visto)", () => {
+  it("o banco da versão 11 ganha a coluna sem perder conta; a conta existente ainda não viu o tour; repetir não falha", async () => {
+    const { contas, sql, mestreId } = await mesaComMestre();
+    // volta ao banco do C3: sem a coluna do tour
+    sql.exec("ALTER TABLE contas DROP COLUMN tour_visto");
+    const arm = new Armazenamento(sql as never);
+    arm.gravarMeta("versao_esquema", "11");
+    arm.migrar();
+    expect(arm.lerMeta("versao_esquema")).toBe("12");
+    expect(contas.existeMestre()).toBe(true);
+    const login = await contas.entrar({ login: "mestre", derivada: SENHA_A }, "1.1.1.1", T0 + MIN);
+    if (!login.ok) throw new Error("entrar");
+    expect(login.valor.conta.tourVisto).toBe(false);
+    // marcar é idempotente e vale para a conta (e só para ela)
+    contas.marcarTourVisto(mestreId);
+    contas.marcarTourVisto(mestreId);
+    const outra = await jogadorAceito(contas, "ana", SENHA_B, "jogador-1");
+    const dono = await contas.resolverSessao(login.valor.token, T0 + 2 * MIN);
+    expect(dono?.conta.tourVisto).toBe(true);
+    const ana = await contas.entrar({ login: "ana", derivada: SENHA_B }, "1.1.1.1", T0 + 3 * MIN);
+    if (!ana.ok) throw new Error("entrar ana");
+    expect(ana.valor.conta.tourVisto).toBe(false);
+    expect(outra).toBe(ana.valor.conta.id);
+    // migrar de novo, com a coluna já criada
+    arm.gravarMeta("versao_esquema", "11");
+    arm.migrar();
+    expect(arm.lerMeta("versao_esquema")).toBe("12");
   });
 });

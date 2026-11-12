@@ -13,8 +13,18 @@ import {
 } from "@tabletop/shared";
 import { atrasoDaTentativa } from "./useSala";
 
-/** `login`: o login da conta (a sessão de verdade); falta no login solto de teste. */
-export type UsuarioDaEntrada = { id: string; nome: string; cor: string; login?: string };
+/**
+ * `login`: o login da conta (a sessão de verdade); falta no login solto de teste. `tourVisto`: a conta já viu (ou
+ * pulou) o tour de introdução; também só existe com conta. `modoTeste`: o servidor roda com MODO=teste.
+ */
+export type UsuarioDaEntrada = {
+  id: string;
+  nome: string;
+  cor: string;
+  login?: string;
+  tourVisto?: boolean;
+  modoTeste?: boolean;
+};
 
 /**
  * A sala não respondeu: ainda está subindo (no `pnpm dev` o Vite fica pronto antes do wrangler) ou
@@ -81,6 +91,15 @@ export async function usuarioDaSessao(mesaId: string): Promise<UsuarioDaEntrada 
   if (r.status === 404) throw new MesaInexistente();
   if (!r.ok) throw new Error("A sala não respondeu.");
   return (await r.json()) as UsuarioDaEntrada;
+}
+
+/** O tour de introdução acabou (ou foi pulado): a conta não o vê de novo sozinha, em nenhum navegador. */
+export async function marcarTourVisto(mesaId: string): Promise<void> {
+  try {
+    await fetch(daMesa(mesaId, "conta/tour-visto"), { method: "POST" });
+  } catch {
+    // sem rede: o tour só abre de novo no próximo acesso
+  }
 }
 
 export async function entrar(mesaId: string, usuarioId: string): Promise<void> {

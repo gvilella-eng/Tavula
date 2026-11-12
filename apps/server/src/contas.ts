@@ -49,6 +49,8 @@ export type ContaPublica = {
   papel: PapelDeConta;
   status: StatusDeConta;
   usuarioId: string | null;
+  /** O tour de introdução já foi visto por esta conta (ou pulado). */
+  tourVisto: boolean;
 };
 
 export type Falha = { ok: false; erro: CodigoDeErroDeConta; minutos?: number };
@@ -79,6 +81,8 @@ type Linha = {
   /** C3: a chave pública do mestre (JWK em JSON) e o SHA-256 do código de recuperação. Segredos da sala. */
   chave_publica: string | null;
   codigo_hash: string | null;
+  /** Tour: 1 = a conta já viu (ou pulou) o tour de introdução. */
+  tour_visto: number;
 };
 
 const publica = (l: Linha): ContaPublica => ({
@@ -88,6 +92,7 @@ const publica = (l: Linha): ContaPublica => ({
   papel: l.papel,
   status: l.status,
   usuarioId: l.usuario_id,
+  tourVisto: l.tour_visto === 1,
 });
 
 const codificador = new TextEncoder();
@@ -438,6 +443,11 @@ export class ContasDaMesa {
       renovou = true;
     }
     return { conta: publica(conta), sessaoHash, renovou };
+  }
+
+  /** O tour de introdução foi visto (ou pulado) por esta conta: nunca mais abre sozinho, em nenhum navegador. */
+  marcarTourVisto(contaId: string): void {
+    this.sql.exec("UPDATE contas SET tour_visto = 1 WHERE id = ?", contaId);
   }
 
   /** Sair: apaga a sessão. */

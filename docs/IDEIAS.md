@@ -49,8 +49,7 @@ O Vilella achou as dicas no mouse demais ("tudo tem tooltip, tá um saco"). Fico
   - opção em Preferências para desligar as dicas;
   - os textos explicativos saíram das dicas e estão guardados em `apps/web/src/textosDoTour.ts` (`TEXTOS_DO_TOUR`,
     por `data-testid` do controle; ainda nada o lê). O tour deve usá-lo e acrescentar ali os passos que não são de botão.
-- **Depois do V5 (de preferência junto do marco "Mesa na internet", que traz o primeiro login de verdade):** um
-  tour de introdução:
+- **Feito (lote T, 2026-11-12; ver `docs/REDESIGN.md`):** um tour de introdução:
   - no primeiro acesso, com "Pular", e "Fazer o tour de novo" nas Preferências;
   - a tela escurece e só a opção do passo fica iluminada, com um cartão curto: Voltar, Próximo n/N e Pular;
   - funciona pelo teclado;

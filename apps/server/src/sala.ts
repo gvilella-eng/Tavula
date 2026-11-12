@@ -417,7 +417,9 @@ export class Sala extends DurableObject<Env> {
         id: u.id,
         nome: u.nome,
         cor: u.cor,
-        ...(quem.conta ? { login: quem.conta.login } : {}),
+        ...(quem.conta ? { login: quem.conta.login, tourVisto: quem.conta.tourVisto } : {}),
+        // Com MODO=teste o tour não abre sozinho (a tela decide): não atrapalha os E2E antigos.
+        modoTeste: this.ehTeste,
       });
       // A sessão foi renovada pelo uso: o cookie ganha mais 30 dias.
       if (quem.renovou && quem.token) {
@@ -587,6 +589,14 @@ export class Sala extends DurableObject<Env> {
         json({ ok: true }),
         r.valor.token ? [cookieDeSessao(r.valor.token, mesaId, seguro)] : [],
       );
+    }
+
+    if (acao === "tour-visto") {
+      // O tour de introdução acabou (ou foi pulado): a conta não o vê sozinha de novo.
+      const quem = await this.identificar(request);
+      if (!quem?.conta) return erroDeConta({ ok: false, erro: "sem_sessao" });
+      this.contas.marcarTourVisto(quem.conta.id);
+      return json({ ok: true });
     }
 
     if (acao === "trocar-senha") {

@@ -67,7 +67,7 @@ function caminhoInterno(metodo: string, rota: string): string | null {
   }
   if (metodo === "POST" && ["entrar", "sair"].includes(rota)) return `/api/${rota}`;
   const conta =
-    /^conta\/(entrar|pedir|sair|esqueci|redefinir|trocar-senha|mestre-inicial|chave|codigo|recuperar\/desafio|recuperar\/pasta|recuperar\/codigo)$/.exec(
+    /^conta\/(entrar|pedir|sair|esqueci|redefinir|trocar-senha|tour-visto|mestre-inicial|chave|codigo|recuperar\/desafio|recuperar\/pasta|recuperar\/codigo)$/.exec(
       rota,
     );
   if (metodo === "POST" && conta) {

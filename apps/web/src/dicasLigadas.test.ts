@@ -34,8 +34,12 @@ describe("textos do tour", () => {
       [/^ferramenta-(selecionar|mao|regua)$/, ["ferramenta-$" + "{f.id}", 'id: "$1"']],
       [/^janela-minimizar$/, ["janela-$" + "{id}-minimizar"]],
       [/^lanterna-modelos$/, ['testid="lanterna"', 'id: "modelos"']],
+      [/^menu-grupo-luz$/, ["menu-grupo-$" + "{props.id}", '<Grupo id="luz"']],
+      [/^mesa-secao-contas$/, ["mesa-secao-$" + "{id}", 'testidDaSecaoDaMesa("contas")']],
     ];
     const aparece = (id: string) => {
+      // Textos de passo do tour (chave pelo id do passo, não por testid): quem confere os alvos é o tour.spec.
+      if (id.startsWith("tour-")) return true;
       const regra = montados.find(([re]) => re.test(id));
       if (!regra) return codigo.includes(id);
       return regra[1].every((trecho) => codigo.includes(id.replace(regra[0], trecho)));

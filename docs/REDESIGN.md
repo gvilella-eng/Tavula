@@ -1153,6 +1153,29 @@ Terceiro lote do marco "Mesas e contas" (PROJETO 4.14): pasta do mestre com chav
 - Gravar a chave já ao criar a conta do mestre da legada (hoje: Contas, "Proteger com a pasta da mesa").
 - A pasta de imagens aberta só enxerga a chave nova depois de recarregar.
 
+## T — como ficou (2026-11-12)
+
+Lote do tour de introdução (combinado em `docs/IDEIAS.md`) e duas pendências do C3.
+
+**O que foi feito**
+- `apps/web/src/tour/`: `Tour.tsx` (véu escuro com um buraco no alvo, contorno no acento, cartão com título, texto, Voltar, Próximo n/N e Pular), `posicao.ts` (onde pôr o cartão, sempre inteiro na janela), `passos.ts` (os dois tours) e `abreSozinho.ts` (quando abre sozinho). Sem biblioteca.
+- Mestre, 10 passos: Bem-vindo e o id (`mesa-identificacao`, aba Mesa), Cenas (`menu-cenas`), Novo token (`novo-token`), Ferramentas (`barra-ferramentas`), Paredes (`ferramenta-paredes`), Luz e Visão do mestre (`menu-grupo-luz`), Fichas (`aba-painel-fichas`), Compêndio (`aba-painel-compendio`), Chat e dados (`aba-painel-chat`), Pedidos de entrada e contas (`mesa-secao-contas`, aba Mesa). Jogador, 6: Bem-vindo (sem alvo), O mapa (`area-do-mapa`), A sua ficha (`aba-painel-fichas`), Chat e dados (`aba-painel-chat`), A régua (`ferramenta-regua`), Preferências (`aba-painel-preferencias`).
+- Os textos moram em `textosDoTour.ts` (o das paredes ganhou "A para arco"; entraram os passos que não são de botão).
+- "Já viu" é por conta (e a conta é por mesa), no servidor: migração 12 (`contas.tour_visto`, aditiva e idempotente), `GET eu` devolve `tourVisto` e `modoTeste`, `POST conta/tour-visto` marca. "Fazer o tour de novo" em Preferências.
+- C3: o código de recuperação cabe numa linha só (a fonte acompanha a largura da caixa, `container-type`); a mesa legada, depois de criar a conta do mestre e anotar o código, oferece "Proteger com a pasta da mesa" ou "Agora não" (`contas/OfertaDePasta.tsx`).
+
+**Decisões (assumido)**
+- (assumido) O "visto" é marcado ao fechar o tour (concluir, Pular ou Esc); fechar a aba no meio faz ele abrir de novo no próximo acesso.
+- (assumido) Com `MODO=teste` só abre sozinho com a chave `tabletop:pref:tourNoTeste` = "1" no navegador (os testes do tour a ligam). O usuário solto de teste (sem conta) nunca abre sozinho; "Fazer o tour de novo" abre para qualquer um.
+- (assumido) Passo cujo alvo não aparece em 1,5 s é pulado, no sentido em que o tour anda; passo sem alvo (a boas-vindas do jogador) escurece a tela toda e fica no meio.
+- (assumido) O tour é modal: o véu segura os cliques e as teclas que não são dele não chegam ao app (a letra R não troca a ferramenta por baixo).
+- (assumido) A oferta de pasta da mesa legada reaproveita a senha acabada de digitar. Em navegador sem seletor de pasta ela diz que só o Chrome e o Edge servem, e "Agora não" segue.
+- (assumido) Contas que já existem ficam com "não viram": veem o tour uma vez no próximo acesso.
+
+**O que ficou para depois**
+- O tour não ilumina itens dentro de menus que abrem (o item "Visão do mestre" do menu de Luz é falado no texto do grupo, não iluminado sozinho).
+- Um passo que depende de uma aba só aparece se a aba abre em 1,5 s.
+
 ## Em aberto
 
 - **O plano R1 a R6 terminou** (R1, R2, R2b, R3, R4 em 2026-11-10; R5a, R5b, R6a e R6b em 2026-11-11). Agora o Vilella faz os ajustes

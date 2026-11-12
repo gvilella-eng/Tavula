@@ -89,7 +89,7 @@ describe("Armazenamento: histórico do chat", () => {
     const reaberto = new Armazenamento(sql as never);
     reaberto.migrar();
     // o Lote 13 acrescentou a migração dos desenhos: a versão do esquema final é 10 (o V3 acrescentou a dos handouts; o C2, a das contas)
-    expect(reaberto.lerMeta("versao_esquema")).toBe("11");
+    expect(reaberto.lerMeta("versao_esquema")).toBe("12");
     expect(reaberto.chatAntes(null, 10)).toEqual([]);
     // a campanha antiga continua inteira
     const carregado = reaberto.carregar();
@@ -196,14 +196,14 @@ describe("Armazenamento: combate do Lote 11", () => {
 
     const reaberto = new Armazenamento(sql as never);
     reaberto.migrar();
-    expect(reaberto.lerMeta("versao_esquema")).toBe("11");
+    expect(reaberto.lerMeta("versao_esquema")).toBe("12");
     const carregado = reaberto.carregar();
     expect(carregado?.combate).toBeUndefined();
     expect(carregado?.personagens.map((p) => p.nome)).toContain("Aldric");
     expect(carregado?.tokens.length).toBeGreaterThan(3);
     // migrar de novo não faz nada
     reaberto.migrar();
-    expect(reaberto.lerMeta("versao_esquema")).toBe("11");
+    expect(reaberto.lerMeta("versao_esquema")).toBe("12");
   });
 
   it("grava o combate pelos eventos, regrava a cada mudança e apaga ao encerrar", async () => {
@@ -314,14 +314,14 @@ describe("Armazenamento: desenhos do Lote 13", () => {
 
     const reaberto = new Armazenamento(sql as never);
     reaberto.migrar();
-    expect(reaberto.lerMeta("versao_esquema")).toBe("11");
+    expect(reaberto.lerMeta("versao_esquema")).toBe("12");
     const carregado = reaberto.carregar();
     expect(carregado?.desenhos).toEqual([]);
     expect(carregado?.personagens.map((p) => p.nome)).toContain("Aldric");
     expect(carregado?.tokens.length).toBeGreaterThan(3);
     // migrar de novo não faz nada, e o desenho já grava
     reaberto.migrar();
-    expect(reaberto.lerMeta("versao_esquema")).toBe("11");
+    expect(reaberto.lerMeta("versao_esquema")).toBe("12");
     const base = estadoInicial(semente);
     const d = desenho("d1");
     reaberto.salvarEventos({ ...base, seq: 1, desenhos: [d] }, [
@@ -424,7 +424,7 @@ describe("Armazenamento: compêndio do Lote 14", () => {
     sql.exec("DELETE FROM meta WHERE chave = 'compendio'");
     const reaberto = new Armazenamento(sql as never);
     reaberto.migrar();
-    expect(reaberto.lerMeta("versao_esquema")).toBe("11");
+    expect(reaberto.lerMeta("versao_esquema")).toBe("12");
     const carregado = reaberto.carregar();
     expect(carregado?.compendio).toBeUndefined();
     expect(carregado?.personagens.map((p) => p.nome)).toContain("Aldric");
@@ -532,7 +532,7 @@ describe("Armazenamento: handouts (V3)", () => {
     const { sql } = await bancoDoV2({ mesa: "Bem-vindos", mestre: "O cofre é falso" });
     const reaberto = new Armazenamento(sql as never);
     reaberto.migrar();
-    expect(reaberto.lerMeta("versao_esquema")).toBe("11");
+    expect(reaberto.lerMeta("versao_esquema")).toBe("12");
     const estado = reaberto.carregar();
     expect(estado?.handouts.map((h) => [h.titulo, h.texto, h.visivel.tipo, h.fonte])).toEqual([
       ["Nota da mesa", "Bem-vindos", "todos", "simples"],

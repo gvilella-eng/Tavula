@@ -234,6 +234,17 @@ const MIGRACOES: Migracao[] = [
     )`);
     sql.exec("CREATE INDEX IF NOT EXISTS desafios_expira ON desafios (expira)");
   },
+  // Tour: "esta conta já viu o tour de introdução" (por conta, e a conta é por mesa). Aditiva e idempotente (a coluna
+  // só é criada quando falta). Contas que já existem ficam com 0: veem o tour uma vez, no próximo acesso. É um
+  // 0/1 só, sem segredo; não entra no estado da mesa nem na exportação.
+  (sql) => {
+    const colunas = new Set(
+      (sql.exec("PRAGMA table_info(contas)").toArray() as { name: string }[]).map((c) => c.name),
+    );
+    if (!colunas.has("tour_visto")) {
+      sql.exec("ALTER TABLE contas ADD COLUMN tour_visto INTEGER NOT NULL DEFAULT 0");
+    }
+  },
 ];
 
 /** Um arquivo pré-enviado de uma cena. */

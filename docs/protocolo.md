@@ -34,6 +34,8 @@ personagem, a camada `mapa` e a ordem de turno, tudo **sem mudar o número do pr
 | `POST /api/m/<id>/conta/pedir` `{ login, nome, derivada }` | pedido de entrada (conta `pendente`); 409 `login_em_uso`, `mesa_sem_mestre`; 429 `muitos_pedidos` (3 por IP por hora, 10 pendentes por mesa), `pedido_recusado_recente` |
 | `POST /api/m/<id>/conta/esqueci` `{ login }` | marca o pedido de redefinição e avisa o mestre; a resposta é sempre a mesma (200) |
 | `POST /api/m/<id>/conta/redefinir` `{ login, derivada }` | define a senha nova depois de o mestre liberar (30 min); derruba as sessões antigas e abre uma nova; 403 `redefinicao_indisponivel` |
+| `GET /api/m/<id>/eu` | com sessão: `{ id, nome, cor, login?, tourVisto?, modoTeste }` (`login` e `tourVisto` só com conta; `tourVisto` é o 0/1 do tour de introdução). Lote T |
+| `POST /api/m/<id>/conta/tour-visto` | com sessão de conta: marca que o tour de introdução foi visto (idempotente); 401 sem sessão. Lote T |
 | `POST /api/m/<id>/conta/trocar-senha` `{ atual, nova }` | com sessão; derruba as outras sessões; 403 `senha_atual_incorreta` |
 | `POST /api/m/<id>/conta/sair` e `POST /api/m/<id>/sair` | apaga a sessão no banco, fecha os sockets dela e apaga os cookies (204) |
 | `POST /api/m/<id>/conta/mestre-inicial` `{ login, nome, derivada }` | a mesa legada sem conta de mestre ganha a dele (ligada à vaga `mestre`); só de requisição local (403 `so_local`) e só sem mestre (409 `ja_tem_mestre`). C3: responde `{ ok, codigo }` (o código de recuperação, só nesta resposta) |

@@ -44,7 +44,7 @@ import { AbaFichas } from "./AbaFichas";
 import { AbaMesa, testidDaSecaoDaMesa } from "./AbaMesa";
 import { AvisoPerto } from "./AvisoPerto";
 import { AbaPreferencias } from "./abas";
-import type { DadosDaMesa } from "./api";
+import { type DadosDaMesa, marcarTourVisto } from "./api";
 import { caixaDaArea } from "./area";
 import { lerItemArrastado } from "./arrasto";
 import { CacheOpfs } from "./assets/cache";
@@ -92,6 +92,8 @@ import { tituloDaMesa } from "./rotas";
 import { SeletorDeImagem } from "./SeletorDeImagem";
 import { Topo } from "./Topo";
 import { useTempoDaSala } from "./tempo";
+import { passosDoPapel } from "./tour/passos";
+import { Tour } from "./tour/Tour";
 import { useSala } from "./useSala";
 import { ZoomFlutuante } from "./ZoomFlutuante";
 
@@ -135,6 +137,8 @@ type Props = {
   mesa: DadosDaMesa;
   /** O login da conta de quem está na mesa (falta no login solto de teste); a troca de senha usa. */
   login?: string | undefined;
+  /** O tour de introdução abre sozinho (primeiro acesso desta conta a esta mesa). */
+  tourAutomatico?: boolean;
   aoSair: () => void;
   aoPerderSessao: () => void;
   /** Vai para a tela inicial (`/`). */
@@ -153,7 +157,15 @@ type PedidoDeImagem = {
  * A mesa: quatro regiões fixas (topo, ferramentas, painel direito e, no meio, a área do mapa). Tudo o
  * que abre sobre o mapa fica dentro da área dele, sem cobrir as barras (REDESIGN.md, R2).
  */
-export function Mesa({ mesa, login, aoSair, aoPerderSessao, aoTrocarDeMesa, aoRenomear }: Props) {
+export function Mesa({
+  mesa,
+  login,
+  tourAutomatico = false,
+  aoSair,
+  aoPerderSessao,
+  aoTrocarDeMesa,
+  aoRenomear,
+}: Props) {
   const {
     status,
     estado,
@@ -266,6 +278,16 @@ export function Mesa({ mesa, login, aoSair, aoPerderSessao, aoTrocarDeMesa, aoRe
   const [abaVisivel, setAbaVisivel] = useState<string | null>("chat");
   // Pedido de abrir uma aba do painel direito (o atalho "Modelos de tocha…" do menu de Luz).
   const [pedidoDeAba, setPedidoDeAba] = useState<PedidoDeAba | null>(null);
+  // O tour de introdução: abre sozinho no primeiro acesso da conta (o servidor guarda "já viu") e em "Fazer o tour de novo".
+  const [tourAberto, setTourAberto] = useState(tourAutomatico);
+  const abrirAbaDoTour = useCallback(
+    (abaId: string) => setPedidoDeAba((antes) => ({ n: (antes?.n ?? 0) + 1, abaId })),
+    [],
+  );
+  const fecharTour = useCallback(() => {
+    setTourAberto(false);
+    if (login) void marcarTourVisto(mesa.id);
+  }, [login, mesa.id]);
   const [vistoAteSeq, setVistoAteSeq] = useState<number | null>(null);
   const [pedidoDeImagem, setPedidoDeImagem] = useState<PedidoDeImagem | null>(null);
   // A cena que o mestre olha (e edita) sem mover o grupo: estado local da tela dele. `null` = a do grupo.
@@ -1094,6 +1116,7 @@ export function Mesa({ mesa, login, aoSair, aoPerderSessao, aoTrocarDeMesa, aoRe
                 aoMudarEncaixe={mudarEncaixe}
                 aoSair={aoSair}
                 aoTrocarDeMesa={aoTrocarDeMesa}
+                aoFazerOTour={() => setTourAberto(true)}
                 mesaId={mesa.id}
                 login={login}
                 fontes={fontes}
@@ -1536,6 +1559,13 @@ export function Mesa({ mesa, login, aoSair, aoPerderSessao, aoTrocarDeMesa, aoRe
             limites={limitesDoPainel}
             aoAjustar={ajustarPainel}
           />
+          {tourAberto && (
+            <Tour
+              passos={passosDoPapel(euMestre ? "mestre" : "jogador")}
+              abrirAba={abrirAbaDoTour}
+              aoFechar={fecharTour}
+            />
+          )}
           {pedidoDeImagem && gerente && (
             <SeletorDeImagem
               titulo={pedidoDeImagem.titulo}

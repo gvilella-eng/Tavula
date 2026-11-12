@@ -15,7 +15,7 @@ restantes, transições e revisão final). O **V1** (temas com personalidade, ab
 
 **O que sobrou de interface (resumo; os detalhes estão nas seções 4, 5 e 7):**
 - Toque (celular) nunca foi testado: arrastar janelas, alça da tocha, dicas e menus só valem com mouse e teclado.
-- Dicas (V3b): só em botão sem nome à vista, uma linha, 700 ms no mouse (na hora no teclado), opção `tabletop:pref:dicas` em Preferências. `Dica.tsx` (`useDica`: atraso e troca), `BotaoComDica.tsx` (`nomeVisivel`, `dicaSe`, `motivo`), `dicasLigadas.ts`. As explicações que saíram das dicas estão em `textosDoTour.ts` (o tour vem depois do V5).
+- Dicas (V3b): só em botão sem nome à vista, uma linha, 700 ms no mouse (na hora no teclado), opção `tabletop:pref:dicas` em Preferências. `Dica.tsx` (`useDica`: atraso e troca), `BotaoComDica.tsx` (`nomeVisivel`, `dicaSe`, `motivo`), `dicasLigadas.ts`. As explicações que saíram das dicas estão em `textosDoTour.ts`, que o tour (`tour/Tour.tsx`, `tour/passos.ts`, lote T) lê.
 - Só o Chrome foi testado (Firefox e Safari não: arrasto de item, WebP, OPFS, pasta local).
 - Seleção múltipla no mapa não existe.
 - "Entregar" a tocha só por arrastar a alça até outro token (o menu do token não tem "Entregar").

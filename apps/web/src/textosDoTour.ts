@@ -1,7 +1,9 @@
 /**
- * Os textos que explicam os controles, para o tour de introdução (lote do tour, depois do V5). Desde o V3b a
- * dica no mouse tem uma linha só (nome e atalho); a explicação que ficava na segunda linha mora aqui, por id
- * do controle (o `data-testid` do botão), num lugar só. Ainda não há quem leia isto: o tour vem depois.
+ * Os textos que explicam os controles e as áreas da tela, lidos pelo tour de introdução (`tour/passos.ts`). Desde o
+ * V3b a dica no mouse tem uma linha só (nome e atalho); a explicação que ficava na segunda linha mora aqui, por id
+ * do controle (o `data-testid` do botão), num lugar só. Os passos que não são de botão (o mapa, o painel da
+ * direita, a ficha) têm a chave do `data-testid` da área, ou do id do passo quando o mesmo alvo tem dois textos.
+ * Cada passo do tour mostra 1 a 2 frases.
  */
 export const TEXTOS_DO_TOUR: Readonly<Record<string, string>> = {
   // Barra de ferramentas (à esquerda do mapa)
@@ -11,7 +13,7 @@ export const TEXTOS_DO_TOUR: Readonly<Record<string, string>> = {
   "ferramenta-dados": "Rola dados no chat. Shift ao clicar rola oculto (mestre).",
   "ferramenta-pincel": "Desenha formas e traços para todos; borracha e seleção.",
   "ferramenta-paredes":
-    "Desenha as paredes que bloqueiam a luz, em meia célula e em qualquer direção. A troca linha e arco. Clique de novo para sair.",
+    "Desenha as paredes que bloqueiam a luz, em meia célula e em qualquer direção. Aperte A para trocar linha e arco; clique de novo na ferramenta para sair.",
   // Sub-barra do pincel
   "pincel-desfazer": "Apaga o meu desenho mais recente desta cena.",
   "pincel-selecionar": "Seleciona desenhos para mover ou apagar.",
@@ -66,4 +68,29 @@ export const TEXTOS_DO_TOUR: Readonly<Record<string, string>> = {
   "ordem-rodada": "A rodada atual.",
   "cena-nome": "Duplo clique para renomear.",
   "ficha-pasta-nome": "Clique para renomear (F2).",
+  // Passos do tour que não são de botão (o alvo é uma área da tela)
+  "tour-mestre-boas-vindas":
+    "Esta é a sua mesa. Aqui está o id: quem tem o id ou o link pede para entrar, e você aceita.",
+  "barra-ferramentas":
+    "Selecionar, mão, régua, dados rápidos e pincel. As letras V, H e R trocam de ferramenta.",
+  "menu-grupo-luz":
+    "Ligue a iluminação para os jogadores verem só o que a luz alcança. A Visão do mestre mostra, só na sua tela, a cena iluminada como eles a veem.",
+  "tour-mestre-fichas":
+    "Crie personagens, NPCs e handouts aqui. Arraste uma ficha para o mapa para pôr o token dela.",
+  "tour-mestre-compendio":
+    "Traga as magias da sua pasta ou use o exemplo do SRD. Arraste uma magia para a ficha de um personagem para ele aprendê-la.",
+  "tour-mestre-chat":
+    "O chat guarda as conversas e as rolagens, inclusive os sussurros. Os dados rápidos ficam na barra da esquerda; Shift ao clicar rola oculto.",
+  "mesa-secao-contas":
+    "Quem pede para entrar aparece aqui para você aceitar e ligar a uma vaga. Também dá para aprovar senhas esquecidas e proteger a conta do mestre.",
+  "tour-jogador-boas-vindas":
+    "Vamos ver o essencial em poucos passos. Use as setas do teclado para andar e Esc para pular.",
+  "area-do-mapa":
+    "Este é o mapa. Arraste o seu token para andar; a roda do mouse dá zoom e, com Espaço apertado, você arrasta o mapa.",
+  "tour-jogador-ficha":
+    "Aqui ficam as suas fichas. Abra a sua para ver atributos e magias e rolar os dados dela.",
+  "tour-jogador-chat":
+    "Converse com a mesa e veja as rolagens de todos. Os dados rápidos ficam na barra da esquerda.",
+  "tour-jogador-preferencias":
+    "Escolha o tema de cores e ligue ou desligue as dicas ao passar o mouse. Aqui também dá para refazer este tour.",
 };

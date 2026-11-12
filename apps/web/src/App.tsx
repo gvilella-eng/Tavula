@@ -13,6 +13,7 @@ import { Mesa } from "./Mesa";
 import { lembrarMesa } from "./mesasLocais";
 import { irPara, tituloDaMesa, useRota } from "./rotas";
 import { TelaInicial } from "./TelaInicial";
+import { tourAbreSozinho } from "./tour/abreSozinho";
 
 const voltarAoInicio = () => irPara("/");
 
@@ -51,6 +52,7 @@ function MesaEncontrada({
       key={usuario.id}
       mesa={mesa}
       login={usuario.login}
+      tourAutomatico={tourAbreSozinho(usuario)}
       aoSair={aoSair}
       aoPerderSessao={aoPerderSessao}
       aoTrocarDeMesa={voltarAoInicio}

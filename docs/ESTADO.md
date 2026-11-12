@@ -2833,4 +2833,40 @@ Detalhes em `docs/REDESIGN.md` ("B1 — como ficou"). O Vilella deixou o lote se
 
 ---
 
-## Próximo: bugs que sobrarem, tela inicial e contas (acabamentos), tour; depois 7b e 12
+## Tour — tour de introdução e pendências do C3 (entregue, aguardando o roteiro manual)
+
+### O que foi entregue
+
+- Tour do mestre (10 passos) e do jogador (6), no primeiro acesso de cada conta a cada mesa, com Pular e "Fazer o tour de novo" em Preferências; "já viu" guardado no servidor (migração 12). Código de recuperação numa linha só; oferta "Proteger com a pasta da mesa" / "Agora não" para a mesa legada.
+
+### Como rodar
+
+- O `pnpm dev` do Vilella recarrega sozinho: a migração 12 só acrescenta a coluna `tour_visto` em `contas` (as contas que já existem ficam com "não viu": o tour abre uma vez no próximo acesso). Nada do banco da campanha é reescrito.
+- `pnpm verify` (uma vez). Prints: `$env:PRINTS_DIR="<pasta>"; pnpm --filter @tabletop/e2e prints tour`.
+
+### Verificação
+
+- Unidade: `apps/web/src/tour/posicao.test.ts`, `passos.test.ts`, `abreSozinho.test.ts`; `apps/server/src/contas.test.ts` (migração 12); a versão de esquema "12" nos testes do `Armazenamento`.
+- E2E novo: `e2e/tests/tour.spec.ts` (primeiro acesso, não abre no segundo nem em outro navegador, Pular, teclado e foco preso, "de novo", cada passo acha o alvo nos dois papéis em 1600×900 e 1280×720, passo sem alvo é pulado, código numa linha e oferta de pasta).
+- E2E antigo alterado: `contas.spec.ts` (depois do código da mesa legada, clicar "Agora não" na oferta de pasta, nos dois cenários da legada).
+
+### Decisões
+
+- (assumido) Ver REDESIGN, "T — como ficou", Decisões.
+
+### Frágil / não verificado
+
+- O tour acha o alvo por `data-testid`: renomear um testid de `passos.ts` quebra o `tour.spec.ts`, de propósito.
+- A oferta de pasta com a pasta real do Chrome não foi exercitada (o E2E usa a pasta de teste).
+- O contorno e o buraco foram vistos em Grimório e Pergaminho; os outros temas usam os mesmos tokens (`--acento`, `--sobreposicao`, `--painel`).
+
+### Roteiro manual (pendente)
+
+1. Entre com uma conta nova (ou crie uma mesa nova): o tour abre sozinho. Ande com as setas, volte com a seta para a esquerda, pule com Esc.
+2. Recarregue e entre em outro navegador com a mesma conta: não abre de novo.
+3. Preferências, "Fazer o tour de novo". Confira os passos do mestre e os de um jogador (entrando como jogador de verdade).
+4. Na campanha de hoje: criar a conta do mestre, anotar o código (uma linha só) e ver a oferta de proteger com a pasta.
+
+---
+
+## Próximo: bugs que sobrarem e acabamentos da tela inicial e contas; depois 7b e 12
