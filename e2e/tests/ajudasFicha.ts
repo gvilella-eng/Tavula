@@ -71,13 +71,8 @@ export async function ligarVerOutras(mestre: Page, valor: boolean) {
   );
 }
 
-export type AbaDaFicha =
-  | "principal"
-  | "magias"
-  | "caracteristicas"
-  | "equipamento"
-  | "notas"
-  | "configurar";
+// V4a: uma aba por página do PDF (principal = Personagem, historia, magias) e a Configurar.
+export type AbaDaFicha = "principal" | "historia" | "magias" | "configurar";
 
 /** Fichas → duplo clique no item → a aba pedida. */
 export async function abrirFicha(p: Page, personagemId: string, aba: AbaDaFicha = "principal") {

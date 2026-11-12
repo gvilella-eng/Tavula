@@ -832,14 +832,7 @@ async function partePainelEMenus({ mestre: m, j1, j2 }: Campanha) {
 
 /** 40-59: janela da ficha (cada aba), ficha de NPC e importação de PDF. */
 async function parteFichas({ mestre: m, j1 }: Campanha) {
-  const abas: AbaDaFicha[] = [
-    "principal",
-    "magias",
-    "caracteristicas",
-    "equipamento",
-    "notas",
-    "configurar",
-  ];
+  const abas: AbaDaFicha[] = ["principal", "magias", "historia", "configurar"];
   for (const aba of abas) {
     await tentar(`40 ficha ${aba} mestre`, async () => {
       await abrirFicha(m, DARION_ID, aba);

@@ -3,30 +3,49 @@ import {
   type Ataque,
   bonusDeAcerto,
   CLASSES,
+  type Compendio,
+  cargaDaFicha,
+  cdDaRolagem,
+  expressaoDeDano,
   type Ficha,
   type FichaDerivada,
   formatarBonus,
-  iconesDoToken,
+  type Magia,
+  MOEDAS,
+  moedasEmOuro,
   NIVEIS_DE_PROFICIENCIA,
   type NivelDeProficiencia,
   type OperacaoDeFicha,
+  PERICIAS,
+  previaDoAtaque,
   ROTULO_DO_ATRIBUTO,
+  receberDano,
   SIGLA_DO_ATRIBUTO,
   type Token,
 } from "@tabletop/shared";
-import { Dices, Plus, Trash2 } from "lucide-react";
+import { Dices, Minus, Plus, Settings, Trash2 } from "lucide-react";
 import { BotaoComDica } from "../BotaoComDica";
-import { corDoTextoSobre } from "../contrasteDeCor";
-import { CampoNumero, CampoTexto } from "./campos";
+import type { PedirImagem } from "../FaixaDeCenas";
+import type { ImagensDoMapa } from "../mapa/mapaPixi";
+import { CampoDecimal, CampoDeNovo, CampoNumero, CampoTexto } from "./campos";
+import { conjurar } from "./conjurar";
+import { type AlvoDoEditor, EditorDeAtaque } from "./EditorDeAtaque";
+import { ListaDeCaracteristicas } from "./ListaDeTitulos";
+import { Acordeao, Bolinha, Caixa, Secao } from "./livro";
 import type { Rolador } from "./rolador";
+
+type Enviar = (tipo: string, dados: object) => string | null;
 
 export type PropsDaAba = {
   personagemId: string;
+  /** O nome do personagem (a janela mostra e edita no cabeçalho). */
+  nomeDoPersonagem: string;
   ficha: Ficha;
   d: FichaDerivada;
   alterar: (operacoes: OperacaoDeFicha[]) => boolean;
   editar: boolean;
   rolador: Rolador;
+  enviar: Enviar;
   /** O token do personagem na cena ativa (as condições e a concentração moram nele); sem token, `undefined`. */
   token?: Token | undefined;
   /**
@@ -34,16 +53,60 @@ export type PropsDaAba = {
    * selecionado na lista; fechada, só rola no chat como antes.
    */
   ordem?: { aberta: boolean; entrar: () => void } | undefined;
+  /** O compêndio de magias da mesa, quando já chegou (as linhas de magia ganham o cartão dele). */
+  compendio?: Compendio | null | undefined;
+  imagens: ImagensDoMapa | null;
+  versaoDasImagens: number;
+  pedirImagem: PedirImagem;
+  /** Quem pode trocar as imagens da ficha (o retrato segue a mesma regra). */
+  podeTrocarImagem: boolean;
+  /** A janela está estreita: as seções viram acordeão e o cabeçalho gruda. */
+  estreita: boolean;
+  /** O editor da engrenagem aberto nesta aba (ou `null`). */
+  editorAberto: AlvoDoEditor | null;
+  abrirEditor: (alvo: AlvoDoEditor) => void;
+  fecharEditor: () => void;
+  /** Um aviso curto no alto da ficha. */
+  avisar: (texto: string) => void;
 };
 
 /** Uma operação só: `caminho` recebe `valor` (`null` remove). */
-const um = (caminho: string, valor: unknown): OperacaoDeFicha[] => [{ caminho, valor }];
+export const um = (caminho: string, valor: unknown): OperacaoDeFicha[] => [{ caminho, valor }];
 
 const ROTULO_DA_PROFICIENCIA: Record<NivelDeProficiencia, string> = {
   nenhuma: "sem proficiência",
   proficiente: "proficiente",
   especialista: "especialista",
 };
+
+/** Os nomes que a ficha do PDF usa (os ids internos das perícias não mudam). */
+const NOME_NO_PDF: Record<string, string> = {
+  enganacao: "Blefar",
+  adestrarAnimais: "Lidar com Animais",
+};
+const nomeNoPdf = (id: string, nome: string) => NOME_NO_PDF[id] ?? nome;
+
+/** As perícias na ordem do PDF (alfabética pelos nomes dele). */
+const PERICIAS_NA_ORDEM_DO_PDF = [...PERICIAS].sort((a, b) =>
+  nomeNoPdf(a.id, a.nome).localeCompare(nomeNoPdf(b.id, b.nome), "pt-BR"),
+);
+
+const ROTULO_DA_MOEDA: Record<(typeof MOEDAS)[number], string> = {
+  pc: "PC",
+  pp: "PP",
+  pe: "PE",
+  po: "PO",
+  pl: "PL",
+};
+const NOME_DA_MOEDA: Record<(typeof MOEDAS)[number], string> = {
+  pc: "Peças de cobre",
+  pp: "Peças de prata",
+  pe: "Peças de electro",
+  po: "Peças de ouro",
+  pl: "Peças de platina",
+};
+
+const comVirgula = (n: number) => String(n).replace(".", ",");
 
 /** Bolinha que alterna nenhuma → proficiente → especialista. */
 function BotaoDeProficiencia({
@@ -65,14 +128,16 @@ function BotaoDeProficiencia({
   };
   return (
     <BotaoComDica
-      className="fh-prof"
+      className="fl-pmb"
       testid={testid}
       nome={`${nome}: ${ROTULO_DA_PROFICIENCIA[nivel]}`}
       motivo={editar ? null : "Só quem edita a ficha muda"}
       data-nivel={nivel}
       aria-label={`Proficiência em ${nome}: ${ROTULO_DA_PROFICIENCIA[nivel]}`}
       onClick={() => aoMudar(proximo())}
-    />
+    >
+      <span className="fl-pm" data-nivel={nivel} />
+    </BotaoComDica>
   );
 }
 
@@ -95,7 +160,7 @@ function NumeroRolavel({
   return (
     <button
       type="button"
-      className={`fh-rolavel ${className ?? ""}`}
+      className={`fl-rolavel ${className ?? ""}`}
       data-testid={testid}
       disabled={!rolador.podeRolar}
       title={rolador.podeRolar ? undefined : "Só quem edita a ficha rola"}
@@ -107,20 +172,136 @@ function NumeroRolavel({
   );
 }
 
-function Atributos({ ficha, d, alterar, editar, rolador }: PropsDaAba) {
+// ---------------------------------------------------------------------------------------------
+// Identidade (cabeçalho da janela larga; seção "Identidade" da estreita)
+// ---------------------------------------------------------------------------------------------
+
+export function ClasseENivel({ ficha, alterar, editar }: PropsDaAba) {
+  const classes = ficha.classes ?? [];
   return (
-    <section className="fh-atributos" data-testid="fh-atributos" aria-label="Atributos">
+    <div className="fl-classes" data-testid="fh-classes">
+      {classes.map((c, i) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: a lista não tem id e é editada por posição
+        <div key={i} className="fl-classe" data-testid={`classe-${i}`}>
+          <CampoTexto
+            testid={`classe-nome-${i}`}
+            lista="fh-classes-srd"
+            rotulo="Classe"
+            valor={c.classe}
+            maxLength={48}
+            desabilitado={!editar}
+            className="fl-in fl-ln fl-classe-nome"
+            aoMudar={(t) => alterar(um(`classes.${i}.classe`, t))}
+          />
+          <CampoNumero
+            testid={`classe-nivel-${i}`}
+            rotulo={`Nível de ${c.classe}`}
+            valor={c.nivel}
+            min={1}
+            max={20}
+            desabilitado={!editar}
+            className="fl-in fl-ln fl-classe-nivel"
+            aoMudar={(n) => alterar(um(`classes.${i}.nivel`, n))}
+          />
+          <CampoTexto
+            testid={`classe-subclasse-${i}`}
+            rotulo="Subclasse"
+            placeholder="subclasse"
+            valor={c.subclasse ?? ""}
+            maxLength={48}
+            desabilitado={!editar}
+            className="fl-in fl-ln fl-classe-sub"
+            aoMudar={(t) => alterar(um(`classes.${i}.subclasse`, t === "" ? null : t))}
+          />
+          {editar && (
+            <BotaoComDica
+              className="fl-ib fl-mini"
+              testid={`classe-remover-${i}`}
+              nome={`Tirar a classe ${c.classe}`}
+              aria-label={`Tirar a classe ${c.classe}`}
+              onClick={() => alterar(um(`classes.${i}`, null))}
+            >
+              <Trash2 size={13} aria-hidden />
+            </BotaoComDica>
+          )}
+        </div>
+      ))}
+      {editar && (
+        <datalist id="fh-classes-srd">
+          {CLASSES.map((c) => (
+            <option key={c.id} value={c.nome} />
+          ))}
+        </datalist>
+      )}
+      {editar && (
+        <BotaoComDica
+          className="fl-ib fl-mini fl-adicionar"
+          testid="classe-adicionar"
+          nome="Adicionar classe"
+          aria-label="Adicionar classe"
+          onClick={() => alterar(um("classes", [...classes, { classe: "Guerreiro", nivel: 1 }]))}
+        >
+          <Plus size={13} aria-hidden />
+        </BotaoComDica>
+      )}
+    </div>
+  );
+}
+
+/** Os campos de texto do cabeçalho (antecedente, raça, alinhamento) e o XP. */
+export function CamposDeIdentidade(props: PropsDaAba) {
+  const { ficha, alterar, editar } = props;
+  const texto = (campo: "antecedente" | "raca" | "alinhamento", rotulo: string) => (
+    <div className="fl-campo-id">
+      <CampoTexto
+        testid={`ficha-${campo}`}
+        rotulo={rotulo}
+        valor={ficha[campo] ?? ""}
+        maxLength={64}
+        desabilitado={!editar}
+        className="fl-in fl-ln"
+        aoMudar={(t) => alterar(um(campo, t === "" ? null : t))}
+      />
+      <span className="fl-lbl">{rotulo}</span>
+    </div>
+  );
+  return (
+    <>
+      {texto("antecedente", "Antecedente")}
+      {texto("raca", "Raça")}
+      {texto("alinhamento", "Tendência")}
+      <div className="fl-campo-id fl-campo-xp">
+        <CampoNumero
+          testid="ficha-xp"
+          rotulo="Pontos de experiência"
+          valor={ficha.xp ?? 0}
+          max={99_999_999}
+          desabilitado={!editar}
+          className="fl-in fl-ln"
+          aoMudar={(n) => alterar(um("xp", n === 0 ? null : n))}
+        />
+        <span className="fl-lbl">XP</span>
+      </div>
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------------------------
+// Coluna da esquerda: atributos, inspiração, proficiência, salvaguardas e perícias
+// ---------------------------------------------------------------------------------------------
+
+export function Atributos({ ficha, d, alterar, editar, rolador }: PropsDaAba) {
+  return (
+    <section className="fl-atributos" data-testid="fh-atributos" aria-label="Atributos">
       {ATRIBUTOS.map((a) => (
-        <div key={a} className="fh-atributo" data-testid={`atributo-${a}`}>
-          <span className="fh-sigla" title={ROTULO_DO_ATRIBUTO[a]}>
-            {SIGLA_DO_ATRIBUTO[a]}
-          </span>
+        <div key={a} className="fl-at" data-testid={`atributo-${a}`}>
+          <span className="fl-lbl fl-fa fl-at-sigla">{SIGLA_DO_ATRIBUTO[a]}</span>
           <NumeroRolavel
             testid={`atributo-mod-${a}`}
             valor={d.atributos[a].mod}
             nome={`Teste de ${ROTULO_DO_ATRIBUTO[a]}`}
             rolador={rolador}
-            className="grande"
+            className="fl-modificador"
           />
           <CampoNumero
             testid={`atributo-valor-${a}`}
@@ -129,6 +310,7 @@ function Atributos({ ficha, d, alterar, editar, rolador }: PropsDaAba) {
             min={1}
             max={30}
             desabilitado={!editar}
+            className="fl-oval"
             aoMudar={(n) => alterar(um(`atributos.${a}`, n))}
           />
         </div>
@@ -137,12 +319,77 @@ function Atributos({ ficha, d, alterar, editar, rolador }: PropsDaAba) {
   );
 }
 
-function Salvaguardas({ ficha, d, alterar, editar, rolador }: PropsDaAba) {
+export function Passiva({ d }: PropsDaAba) {
   return (
-    <section className="fh-lista" data-testid="fh-salvaguardas" aria-label="Salvaguardas">
-      <h4>Salvaguardas</h4>
+    <div className="fl-cx fl-passiva" data-testid="fh-passiva">
+      <strong className="fl-fa fl-passiva-valor" data-testid="percepcao-passiva">
+        {d.percepcaoPassiva}
+      </strong>
+      <span className="fl-lbl">Percepção passiva</span>
+    </div>
+  );
+}
+
+export function InspiracaoEProficiencia({ ficha, d, alterar, editar }: PropsDaAba) {
+  const tem = ficha.inspiracao === true;
+  return (
+    <>
+      <label className="fl-cx fl-faixa" data-testid="fh-inspiracao">
+        <input
+          type="checkbox"
+          className="fl-dot"
+          data-testid="ficha-inspiracao"
+          aria-label={tem ? "Inspiração: tem" : "Inspiração: não tem"}
+          checked={tem}
+          disabled={!editar}
+          onChange={() => alterar(um("inspiracao", tem ? null : true))}
+        />
+        <span className="fl-lbl fl-faixa-nome">Inspiração</span>
+      </label>
+      <div className="fl-cx fl-faixa" data-testid="fh-proficiencia">
+        <strong className="fl-fa fl-faixa-valor" data-testid="proficiencia">
+          {formatarBonus(d.proficiencia)}
+        </strong>
+        <span className="fl-lbl fl-faixa-nome">Bônus de proficiência</span>
+      </div>
+    </>
+  );
+}
+
+/** O campo "bônus extra" de uma linha: só aparece com o mouse em cima ou o foco dentro. */
+function BonusExtra({
+  testid,
+  rotulo,
+  valor,
+  editar,
+  aoMudar,
+}: {
+  testid: string;
+  rotulo: string;
+  valor: number;
+  editar: boolean;
+  aoMudar: (n: number) => void;
+}) {
+  return (
+    <CampoNumero
+      testid={testid}
+      rotulo={rotulo}
+      valor={valor}
+      min={-50}
+      max={50}
+      desabilitado={!editar}
+      className="fl-bonus-extra"
+      aoMudar={aoMudar}
+    />
+  );
+}
+
+export function Salvaguardas({ ficha, d, alterar, editar, rolador }: PropsDaAba) {
+  return (
+    <Caixa testid="fh-salvaguardas" className="fl-lista-de-testes" rotulo="Salvaguardas">
+      <Secao>Salvaguardas</Secao>
       {ATRIBUTOS.map((a) => (
-        <div key={a} className="fh-linha" data-testid={`salvaguarda-${a}`}>
+        <div key={a} className="fl-linha" data-testid={`salvaguarda-${a}`}>
           <BotaoDeProficiencia
             testid={`prof-salva-${a}`}
             nome={`salvaguarda de ${ROTULO_DO_ATRIBUTO[a]}`}
@@ -150,21 +397,27 @@ function Salvaguardas({ ficha, d, alterar, editar, rolador }: PropsDaAba) {
             editar={editar}
             aoMudar={(nivel) => alterar(um(`salvaguardas.${a}.nivel`, nivel))}
           />
-          <NumeroRolavel
-            testid={`salvaguarda-total-${a}`}
-            valor={d.salvaguardas[a].total}
-            nome={`Salvaguarda de ${ROTULO_DO_ATRIBUTO[a]}`}
-            rolador={rolador}
-          />
-          <span className="fh-nome-linha">{ROTULO_DO_ATRIBUTO[a]}</span>
-          <CampoNumero
+          <button
+            type="button"
+            className="fl-rl fl-teste"
+            data-testid={`salvaguarda-botao-${a}`}
+            disabled={!rolador.podeRolar}
+            title={rolador.podeRolar ? undefined : "Só quem edita a ficha rola"}
+            aria-label={`Rolar salvaguarda de ${ROTULO_DO_ATRIBUTO[a]}, ${formatarBonus(d.salvaguardas[a].total)}`}
+            onClick={() =>
+              rolador.teste(`Salvaguarda de ${ROTULO_DO_ATRIBUTO[a]}`, d.salvaguardas[a].total)
+            }
+          >
+            <span className="fl-fa fl-rn fl-teste-bonus" data-testid={`salvaguarda-total-${a}`}>
+              {formatarBonus(d.salvaguardas[a].total)}
+            </span>
+            <span className="fl-teste-nome">{ROTULO_DO_ATRIBUTO[a]}</span>
+          </button>
+          <BonusExtra
             testid={`salvaguarda-bonus-${a}`}
             rotulo={`Bônus extra na salvaguarda de ${ROTULO_DO_ATRIBUTO[a]}`}
             valor={ficha.salvaguardas?.[a]?.bonus ?? 0}
-            min={-50}
-            max={50}
-            desabilitado={!editar}
-            className="mini"
+            editar={editar}
             aoMudar={(n) =>
               alterar(
                 ficha.salvaguardas?.[a]
@@ -175,529 +428,911 @@ function Salvaguardas({ ficha, d, alterar, editar, rolador }: PropsDaAba) {
           />
         </div>
       ))}
-    </section>
+    </Caixa>
   );
 }
 
-function Pericias({ ficha, d, alterar, editar, rolador }: PropsDaAba) {
+export function Pericias({ ficha, d, alterar, editar, rolador }: PropsDaAba) {
   return (
-    <section className="fh-lista" data-testid="fh-pericias" aria-label="Perícias">
-      <h4>Perícias</h4>
-      {d.pericias.map((p) => (
-        <div key={p.id} className="fh-linha" data-testid={`pericia-${p.id}`}>
-          <BotaoDeProficiencia
-            testid={`prof-pericia-${p.id}`}
-            nome={p.nome}
-            nivel={p.nivel}
-            editar={editar}
-            aoMudar={(nivel) => alterar(um(`pericias.${p.id}.nivel`, nivel))}
-          />
-          <NumeroRolavel
-            testid={`pericia-total-${p.id}`}
-            valor={p.total}
-            nome={p.nome}
-            rolador={rolador}
-          />
-          <span className="fh-nome-linha">
-            {p.nome} <small>({SIGLA_DO_ATRIBUTO[p.atributo]})</small>
-          </span>
-          <CampoNumero
-            testid={`pericia-bonus-${p.id}`}
-            rotulo={`Bônus extra em ${p.nome}`}
-            valor={ficha.pericias?.[p.id]?.bonus ?? 0}
-            min={-50}
-            max={50}
-            desabilitado={!editar}
-            className="mini"
-            aoMudar={(n) =>
-              alterar(
-                ficha.pericias?.[p.id]
-                  ? um(`pericias.${p.id}.bonus`, n === 0 ? null : n)
-                  : um(`pericias.${p.id}`, { nivel: "nenhuma", ...(n === 0 ? {} : { bonus: n }) }),
-              )
-            }
-          />
-        </div>
-      ))}
-    </section>
-  );
-}
-
-function Identidade({ ficha, alterar, editar }: PropsDaAba) {
-  const classes = ficha.classes ?? [];
-  return (
-    <section className="fh-identidade" data-testid="fh-identidade" aria-label="Identidade">
-      <div className="fh-grade-3">
-        {(
-          [
-            ["raca", "Raça"],
-            ["antecedente", "Antecedente"],
-            ["alinhamento", "Alinhamento"],
-          ] as const
-        ).map(([campo, rotulo]) => (
-          <div key={campo} className="fh-campo">
-            <span>{rotulo}</span>
-            <CampoTexto
-              testid={`ficha-${campo}`}
-              rotulo={rotulo}
-              valor={ficha[campo] ?? ""}
-              maxLength={64}
-              desabilitado={!editar}
-              aoMudar={(t) => alterar(um(campo, t === "" ? null : t))}
+    <Caixa testid="fh-pericias" className="fl-lista-de-testes" rotulo="Perícias">
+      <Secao>Perícias</Secao>
+      {PERICIAS_NA_ORDEM_DO_PDF.map((def) => {
+        const p = d.pericias.find((x) => x.id === def.id);
+        if (!p) return null;
+        const nome = nomeNoPdf(p.id, p.nome);
+        return (
+          <div key={p.id} className="fl-linha" data-testid={`pericia-${p.id}`}>
+            <BotaoDeProficiencia
+              testid={`prof-pericia-${p.id}`}
+              nome={nome}
+              nivel={p.nivel}
+              editar={editar}
+              aoMudar={(nivel) => alterar(um(`pericias.${p.id}.nivel`, nivel))}
             />
-          </div>
-        ))}
-      </div>
-      <div className="fh-classes" data-testid="fh-classes">
-        {classes.map((c, i) => (
-          // biome-ignore lint/suspicious/noArrayIndexKey: a lista não tem id e é editada por posição
-          <div key={i} className="fh-classe" data-testid={`classe-${i}`}>
-            <CampoTexto
-              testid={`classe-nome-${i}`}
-              lista="fh-classes-srd"
-              rotulo="Classe"
-              valor={c.classe}
-              maxLength={48}
-              desabilitado={!editar}
-              aoMudar={(t) => alterar(um(`classes.${i}.classe`, t))}
-            />
-            <CampoTexto
-              testid={`classe-subclasse-${i}`}
-              rotulo="Subclasse"
-              placeholder="subclasse"
-              valor={c.subclasse ?? ""}
-              maxLength={48}
-              desabilitado={!editar}
-              aoMudar={(t) => alterar(um(`classes.${i}.subclasse`, t === "" ? null : t))}
-            />
-            <CampoNumero
-              testid={`classe-nivel-${i}`}
-              rotulo={`Nível de ${c.classe}`}
-              valor={c.nivel}
-              min={1}
-              max={20}
-              desabilitado={!editar}
-              aoMudar={(n) => alterar(um(`classes.${i}.nivel`, n))}
-            />
-            {editar && (
-              <BotaoComDica
-                className="botao-icone pequeno"
-                testid={`classe-remover-${i}`}
-                nome={`Tirar a classe ${c.classe}`}
-                aria-label={`Tirar a classe ${c.classe}`}
-                onClick={() => alterar(um(`classes.${i}`, null))}
-              >
-                <Trash2 size={14} />
-              </BotaoComDica>
-            )}
-          </div>
-        ))}
-        {editar && (
-          <>
-            <datalist id="fh-classes-srd">
-              {CLASSES.map((c) => (
-                <option key={c.id} value={c.nome} />
-              ))}
-            </datalist>
             <button
               type="button"
-              data-testid="classe-adicionar"
-              onClick={() =>
-                alterar(um("classes", [...classes, { classe: "Guerreiro", nivel: 1 }]))
-              }
+              className="fl-rl fl-teste"
+              data-testid={`pericia-botao-${p.id}`}
+              disabled={!rolador.podeRolar}
+              title={rolador.podeRolar ? undefined : "Só quem edita a ficha rola"}
+              aria-label={`Rolar ${nome} ${formatarBonus(p.total)}`}
+              onClick={() => rolador.teste(nome, p.total)}
             >
-              <Plus size={14} /> Classe
+              <span className="fl-fa fl-rn fl-teste-bonus" data-testid={`pericia-total-${p.id}`}>
+                {formatarBonus(p.total)}
+              </span>
+              <span className="fl-teste-nome" title={`${nome} (${SIGLA_DO_ATRIBUTO[p.atributo]})`}>
+                {nome}
+              </span>
             </button>
-          </>
-        )}
-      </div>
-    </section>
+            <BonusExtra
+              testid={`pericia-bonus-${p.id}`}
+              rotulo={`Bônus extra em ${nome}`}
+              valor={ficha.pericias?.[p.id]?.bonus ?? 0}
+              editar={editar}
+              aoMudar={(n) =>
+                alterar(
+                  ficha.pericias?.[p.id]
+                    ? um(`pericias.${p.id}.bonus`, n === 0 ? null : n)
+                    : um(`pericias.${p.id}`, {
+                        nivel: "nenhuma",
+                        ...(n === 0 ? {} : { bonus: n }),
+                      }),
+                )
+              }
+            />
+          </div>
+        );
+      })}
+    </Caixa>
   );
 }
 
-function Resumo({ personagemId, d, alterar, editar, rolador, ordem }: PropsDaAba) {
+// ---------------------------------------------------------------------------------------------
+// Coluna do meio: CA, iniciativa, deslocamento, vida, dados de vida, morte, moedas, ataques, equipamento
+// ---------------------------------------------------------------------------------------------
+
+export function BotaoDeIniciativa({
+  d,
+  rolador,
+  ordem,
+}: Pick<PropsDaAba, "d" | "rolador" | "ordem">) {
+  return ordem?.aberta ? (
+    <BotaoComDica
+      type="button"
+      className="fl-rl fl-grande-rolavel"
+      testid="iniciativa"
+      dica="Rolar a iniciativa e entrar na ordem de turno"
+      nomeVisivel
+      motivo={rolador.podeRolar ? null : "Só quem edita a ficha rola"}
+      aria-label={`Rolar Iniciativa ${formatarBonus(d.iniciativa)} e entrar na ordem de turno`}
+      onClick={ordem.entrar}
+    >
+      <span className="fl-fa fl-rn">{formatarBonus(d.iniciativa)}</span>
+    </BotaoComDica>
+  ) : (
+    <button
+      type="button"
+      className="fl-rl fl-grande-rolavel"
+      data-testid="iniciativa"
+      disabled={!rolador.podeRolar}
+      title={rolador.podeRolar ? undefined : "Só quem edita a ficha rola"}
+      aria-label={`Rolar Iniciativa ${formatarBonus(d.iniciativa)}`}
+      onClick={() => rolador.teste("Iniciativa", d.iniciativa)}
+    >
+      <span className="fl-fa fl-rn">{formatarBonus(d.iniciativa)}</span>
+    </button>
+  );
+}
+
+export function CampoDeCa({
+  personagemId,
+  d,
+  alterar,
+  editar,
+  className,
+}: PropsDaAba & { className?: string }) {
   return (
-    <section className="fh-resumo" aria-label="Resumo">
-      <div className="fh-caixa" data-testid="fh-ca">
-        <span className="fh-rotulo">CA</span>
-        <CampoNumero
-          testid={`ca-${personagemId}`}
-          rotulo="Classe de armadura"
-          valor={d.ca}
-          max={50}
-          desabilitado={!editar}
-          className="grande"
-          aoMudar={(n) => alterar(um("ca.valor", n))}
-        />
-      </div>
-      <div className="fh-caixa" data-testid="fh-iniciativa">
-        <span className="fh-rotulo">Iniciativa</span>
-        {ordem?.aberta ? (
-          <BotaoComDica
-            type="button"
-            className="fh-rolavel grande"
-            testid="iniciativa"
-            dica="Rolar a iniciativa e entrar na ordem de turno"
-            motivo={rolador.podeRolar ? null : "Só quem edita a ficha rola"}
-            aria-label={`Rolar Iniciativa ${formatarBonus(d.iniciativa)} e entrar na ordem de turno`}
-            onClick={ordem.entrar}
-          >
-            {formatarBonus(d.iniciativa)}
-          </BotaoComDica>
-        ) : (
-          <NumeroRolavel
-            testid="iniciativa"
-            valor={d.iniciativa}
-            nome="Iniciativa"
-            rolador={rolador}
-            className="grande"
+    <CampoNumero
+      testid={`ca-${personagemId}`}
+      rotulo="Classe de armadura"
+      valor={d.ca}
+      max={50}
+      desabilitado={!editar}
+      className={`fl-in fl-fn ${className ?? ""}`}
+      aoMudar={(n) => alterar(um("ca.valor", n))}
+    />
+  );
+}
+
+export function CampoDeDeslocamento({
+  d,
+  alterar,
+  editar,
+  className,
+}: PropsDaAba & { className?: string }) {
+  return (
+    <CampoNumero
+      testid="deslocamento-ft"
+      rotulo="Deslocamento em pés (ft)"
+      valor={d.deslocamentoFt}
+      max={500}
+      desabilitado={!editar}
+      className={`fl-in fl-fn ${className ?? ""}`}
+      aoMudar={(n) => alterar(um("deslocamentoFt", n))}
+    />
+  );
+}
+
+function CaIniciativaDeslocamento(props: PropsDaAba) {
+  const { d, rolador, ordem } = props;
+  return (
+    <div className="fl-resumo">
+      <div className="fl-escudo" data-testid="fh-ca">
+        <svg className="fl-escudo-svg" viewBox="0 0 80 92" fill="none" aria-hidden="true">
+          <path
+            d="M40 4 L72 15 V46 C72 66 58 80 40 88 C22 80 8 66 8 46 V15 Z"
+            className="fl-escudo-fora"
           />
-        )}
-      </div>
-      <div className="fh-caixa" data-testid="fh-deslocamento">
-        <span className="fh-rotulo">Deslocamento</span>
-        <span className="fh-duplo">
-          <CampoNumero
-            testid="deslocamento-ft"
-            rotulo="Deslocamento em pés (ft)"
-            valor={d.deslocamentoFt}
-            max={500}
-            desabilitado={!editar}
-            aoMudar={(n) => alterar(um("deslocamentoFt", n))}
+          <path
+            d="M40 9 L67 18 V46 C67 63 55 75 40 82 C25 75 13 63 13 46 V18 Z"
+            className="fl-escudo-dentro"
           />
-          <span data-testid="deslocamento-texto">
-            ft = {String(d.deslocamentoM).replace(".", ",")} m
-          </span>
+        </svg>
+        <span className="fl-lbl fl-escudo-rotulo">CA</span>
+        <CampoDeCa {...props} className="fl-ca" />
+      </div>
+      <div className="fl-cx fl-quadrada" data-testid="fh-iniciativa">
+        <span className="fl-lbl">Iniciativa</span>
+        <BotaoDeIniciativa d={d} rolador={rolador} ordem={ordem} />
+      </div>
+      <div className="fl-cx fl-quadrada" data-testid="fh-deslocamento">
+        <span className="fl-lbl">Desloc.</span>
+        <CampoDeDeslocamento {...props} className="fl-desloc" />
+        <span className="fl-sr" data-testid="deslocamento-texto">
+          ft = {String(d.deslocamentoM).replace(".", ",")} m
         </span>
       </div>
-      <div className="fh-caixa" data-testid="fh-proficiencia">
-        <span className="fh-rotulo">Proficiência</span>
-        <strong data-testid="proficiencia" className="fh-grande">
-          {formatarBonus(d.proficiencia)}
-        </strong>
-        <small>nível {d.nivelTotal}</small>
-      </div>
-      <div className="fh-caixa" data-testid="fh-passiva">
-        <span className="fh-rotulo">Percepção passiva</span>
-        <strong data-testid="percepcao-passiva" className="fh-grande">
-          {d.percepcaoPassiva}
-        </strong>
-      </div>
-    </section>
+    </div>
   );
 }
 
-function PontosDeVida({ personagemId, ficha, d, alterar, editar, rolador }: PropsDaAba) {
-  const mortes = ficha.mortes ?? { sucessos: 0, falhas: 0 };
-  const marcas = (campo: "sucessos" | "falhas") =>
-    [1, 2, 3].map((n) => (
-      <input
-        key={n}
-        type="checkbox"
-        data-testid={`morte-${campo}-${n}`}
-        aria-label={`${campo === "sucessos" ? "Sucesso" : "Falha"} ${n} no teste contra a morte`}
-        checked={mortes[campo] >= n}
-        disabled={!editar}
-        onChange={() =>
-          alterar(um("mortes", { ...mortes, [campo]: mortes[campo] >= n ? n - 1 : n }))
-        }
-      />
-    ));
+/** PV atuais com − e +: o dano consome os temporários primeiro. */
+export function ControlesDePv({ personagemId, ficha, alterar, editar }: PropsDaAba) {
+  const tirar = () => {
+    const novo = receberDano(ficha, 1);
+    alterar([
+      { caminho: "pvAtual", valor: novo.pvAtual },
+      { caminho: "pvTemp", valor: novo.pvTemp === 0 ? null : novo.pvTemp },
+    ]);
+  };
+  const somar = () => alterar(um("pvAtual", Math.min(ficha.pvMax, ficha.pvAtual + 1)));
   return (
-    <section className="fh-pv" data-testid="fh-pv" aria-label="Pontos de vida">
-      <div className="fh-pv-campos">
-        <div className="fh-campo">
-          <span>PV atuais</span>
-          <CampoNumero
-            testid={`pv-atual-${personagemId}`}
-            rotulo="PV atuais"
-            valor={ficha.pvAtual}
-            desabilitado={!editar}
-            className="grande"
-            aoMudar={(n) => alterar(um("pvAtual", n))}
-          />
-        </div>
-        <span className="fh-barra">/</span>
-        <div className="fh-campo">
-          <span>PV máximos</span>
+    <div className="fl-pv-linha">
+      <BotaoComDica
+        className="fl-ib fl-ib-borda"
+        testid="pv-menos"
+        nome="Tirar 1 PV"
+        aria-label="Tirar 1 PV"
+        motivo={editar ? null : "Só quem edita a ficha muda"}
+        onClick={tirar}
+      >
+        <Minus size={16} aria-hidden />
+      </BotaoComDica>
+      <CampoNumero
+        testid={`pv-atual-${personagemId}`}
+        rotulo="PV atuais"
+        valor={ficha.pvAtual}
+        max={9999}
+        desabilitado={!editar}
+        className="fl-in fl-fn fl-pv-atual"
+        aoMudar={(n) => alterar(um("pvAtual", n))}
+      />
+      <BotaoComDica
+        className="fl-ib fl-ib-borda"
+        testid="pv-mais"
+        nome="Somar 1 PV"
+        aria-label="Somar 1 PV"
+        motivo={editar ? null : "Só quem edita a ficha muda"}
+        onClick={somar}
+      >
+        <Plus size={16} aria-hidden />
+      </BotaoComDica>
+    </div>
+  );
+}
+
+export function BarraDePv({ ficha }: Pick<PropsDaAba, "ficha">) {
+  const pct = Math.max(
+    0,
+    Math.min(100, Math.round((ficha.pvAtual / Math.max(1, ficha.pvMax)) * 100)),
+  );
+  const nivel = pct > 50 ? "alto" : pct > 25 ? "medio" : "baixo";
+  return (
+    <div
+      className="fl-barra"
+      role="img"
+      aria-label={`PV ${ficha.pvAtual} de ${ficha.pvMax}`}
+      data-testid="pv-barra"
+    >
+      <div className="fl-barra-cheia" data-nivel={nivel} style={{ width: `${pct}%` }} />
+    </div>
+  );
+}
+
+export function ControlesDePvTemporario({ personagemId, ficha, alterar, editar }: PropsDaAba) {
+  const temp = ficha.pvTemp ?? 0;
+  const ajustar = (n: number) => alterar(um("pvTemp", n <= 0 ? null : n));
+  return (
+    <div className="fl-pvt">
+      <BotaoComDica
+        className="fl-ib fl-mq"
+        testid="pv-temp-menos"
+        nome="Tirar 1 PV temporário"
+        aria-label="Tirar 1 PV temporário"
+        motivo={editar ? null : "Só quem edita a ficha muda"}
+        onClick={() => ajustar(temp - 1)}
+      >
+        <Minus size={13} aria-hidden />
+      </BotaoComDica>
+      <CampoNumero
+        testid={`pv-temp-${personagemId}`}
+        rotulo="PV temporários"
+        valor={temp}
+        desabilitado={!editar}
+        className="fl-in fl-fn fl-pv-temp"
+        aoMudar={(n) => alterar(um("pvTemp", n === 0 ? null : n))}
+      />
+      <BotaoComDica
+        className="fl-ib fl-mq"
+        testid="pv-temp-mais"
+        nome="Somar 1 PV temporário"
+        aria-label="Somar 1 PV temporário"
+        motivo={editar ? null : "Só quem edita a ficha muda"}
+        onClick={() => ajustar(temp + 1)}
+      >
+        <Plus size={13} aria-hidden />
+      </BotaoComDica>
+    </div>
+  );
+}
+
+function PontosDeVida(props: PropsDaAba) {
+  const { personagemId, ficha, alterar, editar } = props;
+  return (
+    <Caixa moldura testid="fh-pv" className="fl-bloco" rotulo="Pontos de Vida">
+      <Secao>Pontos de Vida</Secao>
+      <ControlesDePv {...props} />
+      <BarraDePv ficha={ficha} />
+      <div className="fl-pv-baixo">
+        <div className="fl-pv-max">
           <CampoNumero
             testid={`pv-max-${personagemId}`}
             rotulo="PV máximos"
             valor={ficha.pvMax}
             desabilitado={!editar}
-            className="grande"
+            className="fl-in fl-fn fl-pv-max-campo"
             aoMudar={(n) => alterar(um("pvMax", n))}
           />
+          <span className="fl-lbl">Máximo</span>
         </div>
-        <div className="fh-campo">
-          <span>Temporários</span>
-          <CampoNumero
-            testid={`pv-temp-${personagemId}`}
-            rotulo="PV temporários"
-            valor={ficha.pvTemp ?? 0}
-            desabilitado={!editar}
-            className="grande"
-            aoMudar={(n) => alterar(um("pvTemp", n === 0 ? null : n))}
-          />
+        <div className="fl-pv-temp-bloco" data-testid="fh-pv-temp">
+          <ControlesDePvTemporario {...props} />
+          <span className="fl-lbl">Temporários</span>
         </div>
       </div>
-      <div className="fh-dv" data-testid="fh-dados-de-vida">
-        <span className="fh-rotulo">Dados de vida</span>
-        {d.dadosDeVida.length === 0 && <small>Sem classe do SRD</small>}
-        {d.dadosDeVida.map((dv) => (
-          <span key={dv.dado} className="fh-dv-tipo" data-testid={`dv-${dv.dado}`}>
-            <button
-              type="button"
-              className="fh-rolavel"
-              disabled={!rolador.podeRolar}
-              data-testid={`dv-rolar-${dv.dado}`}
-              onClick={() => {
-                if (dv.restantes <= 0) return;
-                rolador.expressao(
-                  `1${dv.dado}${d.atributos.con.mod === 0 ? "" : formatarBonus(d.atributos.con.mod).replace("−", "-")}`,
-                  `Dado de vida (${dv.dado})`,
-                );
-                alterar(um(`dadosDeVidaUsados.${dv.dado}`, dv.usados + 1));
-              }}
-            >
-              <Dices size={14} /> {dv.dado}
-            </button>
-            <span data-testid={`dv-restantes-${dv.dado}`}>
-              {dv.restantes}/{dv.total}
-            </span>
-            {editar && (
-              <>
-                <button
-                  type="button"
-                  className="botao-icone pequeno"
-                  data-testid={`dv-menos-${dv.dado}`}
-                  aria-label={`Gastar um ${dv.dado}`}
-                  disabled={dv.restantes <= 0}
-                  onClick={() => alterar(um(`dadosDeVidaUsados.${dv.dado}`, dv.usados + 1))}
-                >
-                  −
-                </button>
-                <button
-                  type="button"
-                  className="botao-icone pequeno"
-                  data-testid={`dv-mais-${dv.dado}`}
-                  aria-label={`Recuperar um ${dv.dado}`}
-                  disabled={dv.usados <= 0}
-                  onClick={() => alterar(um(`dadosDeVidaUsados.${dv.dado}`, dv.usados - 1 || null))}
-                >
-                  +
-                </button>
-              </>
-            )}
-          </span>
-        ))}
-      </div>
-      <div className="fh-mortes" data-testid="fh-mortes">
-        <span className="fh-rotulo">Testes contra a morte</span>
-        <span className="fh-marcas">Sucessos {marcas("sucessos")}</span>
-        <span className="fh-marcas">Falhas {marcas("falhas")}</span>
-        <button
-          type="button"
-          className="fh-rolavel"
-          disabled={!rolador.podeRolar}
-          data-testid="morte-rolar"
-          onClick={() => rolador.teste("Teste contra a morte", 0, 10)}
-        >
-          <Dices size={14} /> Rolar
-        </button>
-      </div>
-    </section>
+    </Caixa>
   );
 }
 
-function descricaoDoAcerto(ficha: Ficha, a: Ataque): string {
-  const b = bonusDeAcerto(ficha, a);
-  if (b !== undefined) return formatarBonus(b);
-  return a.cd === undefined ? "—" : `CD ${a.cd}`;
+export function DadosDeVida({ d, alterar, editar, rolador }: PropsDaAba) {
+  return (
+    <Caixa testid="fh-dados-de-vida" className="fl-bloco" rotulo="Dados de Vida">
+      <Secao>Dados de Vida</Secao>
+      {d.dadosDeVida.length === 0 && <p className="fl-dica">Sem classe do SRD</p>}
+      {d.dadosDeVida.map((dv) => (
+        <div key={dv.dado} className="fl-dv" data-testid={`dv-${dv.dado}`}>
+          <button
+            type="button"
+            className="fl-pill fl-fa fl-dv-rolar"
+            data-testid={`dv-rolar-${dv.dado}`}
+            disabled={!rolador.podeRolar || dv.restantes <= 0}
+            aria-label={`Gastar um dado de vida ${dv.dado} e rolar`}
+            onClick={() => {
+              rolador.expressao(
+                `1${dv.dado}${d.atributos.con.mod === 0 ? "" : formatarBonus(d.atributos.con.mod).replace("−", "-")}`,
+                `Dado de vida (${dv.dado})`,
+              );
+              alterar(um(`dadosDeVidaUsados.${dv.dado}`, dv.usados + 1));
+            }}
+          >
+            <Dices size={15} aria-hidden /> <span>{dv.dado}</span>
+          </button>
+          <span className="fl-bolinhas">
+            {Array.from({ length: dv.total }, (_, n) => n + 1).map((n) => (
+              <Bolinha
+                key={n}
+                testid={`dv-bolinha-${dv.dado}-${n}`}
+                rotulo={`Dado de vida ${dv.dado} número ${n}`}
+                marcada={n <= dv.restantes}
+                desabilitado={!editar}
+                aoMudar={() => {
+                  const restantes = n <= dv.restantes ? n - 1 : n;
+                  const usados = dv.total - restantes;
+                  alterar(um(`dadosDeVidaUsados.${dv.dado}`, usados === 0 ? null : usados));
+                }}
+              />
+            ))}
+          </span>
+          <span className="fl-lbl fl-dv-contagem" data-testid={`dv-restantes-${dv.dado}`}>
+            {dv.restantes}/{dv.total}
+          </span>
+        </div>
+      ))}
+    </Caixa>
+  );
 }
 
-function Ataques({ ficha, alterar, editar, rolador }: PropsDaAba) {
-  const ataques = ficha.ataques ?? [];
+export function ContraAMorte({ ficha, alterar, editar, rolador }: PropsDaAba) {
+  const mortes = ficha.mortes ?? { sucessos: 0, falhas: 0 };
+  const marcas = (campo: "sucessos" | "falhas") =>
+    [1, 2, 3].map((n) => (
+      <Bolinha
+        key={n}
+        testid={`morte-${campo}-${n}`}
+        rotulo={`${campo === "sucessos" ? "Sucesso" : "Falha"} ${n} no teste contra a morte`}
+        marcada={mortes[campo] >= n}
+        falha={campo === "falhas"}
+        desabilitado={!editar}
+        aoMudar={() =>
+          alterar(um("mortes", { ...mortes, [campo]: mortes[campo] >= n ? n - 1 : n }))
+        }
+      />
+    ));
   return (
-    <section className="fh-ataques" data-testid="fh-ataques" aria-label="Ataques">
-      <h4>Ataques</h4>
-      <div className="fh-tabela-ataques">
-        {ataques.map((a, i) => {
-          const acerto = a.acerto;
-          return (
-            // biome-ignore lint/suspicious/noArrayIndexKey: a lista não tem id e é editada por posição
-            <div key={i} className="fh-ataque" data-testid={`ataque-${i}`}>
-              <CampoTexto
-                testid={`ataque-nome-${i}`}
-                rotulo="Nome do ataque"
-                valor={a.nome}
-                maxLength={80}
-                desabilitado={!editar}
-                aoMudar={(t) => alterar(um(`ataques.${i}.nome`, t))}
-              />
-              <button
-                type="button"
-                className="fh-rolavel"
-                data-testid={`ataque-rolar-${i}`}
-                disabled={!rolador.podeRolar || (!acerto && !a.dano)}
-                onClick={() => rolador.ataque(a, ficha)}
-              >
-                {descricaoDoAcerto(ficha, a)}
-              </button>
-              <button
-                type="button"
-                className="fh-rolavel dano"
-                data-testid={`ataque-dano-${i}`}
-                disabled={!rolador.podeRolar || !a.dano}
-                onClick={() => rolador.dano(a)}
-              >
-                {a.dano || "—"}
-              </button>
-              <span className="fh-tipo" data-testid={`ataque-tipo-${i}`}>
-                {a.tipo ?? ""}
-              </span>
-              {editar && (
-                <BotaoComDica
-                  className="botao-icone pequeno"
-                  testid={`ataque-remover-${i}`}
-                  nome={`Tirar o ataque ${a.nome}`}
-                  aria-label={`Tirar o ataque ${a.nome}`}
-                  onClick={() => alterar(um(`ataques.${i}`, null))}
-                >
-                  <Trash2 size={14} />
-                </BotaoComDica>
-              )}
-              {editar && (
-                <details className="fh-ataque-edicao">
-                  <summary>Editar</summary>
-                  <div className="fh-grade-3">
-                    <div className="fh-campo">
-                      <span>Acerto (fixo)</span>
-                      <CampoNumero
-                        testid={`ataque-acerto-${i}`}
-                        rotulo="Bônus de acerto (valor fixo)"
-                        valor={acerto?.tipo === "fixo" ? acerto.valor : 0}
-                        min={-50}
-                        max={50}
-                        aoMudar={(n) =>
-                          alterar(um(`ataques.${i}.acerto`, { tipo: "fixo", valor: n }))
-                        }
-                      />
-                    </div>
-                    <div className="fh-campo">
-                      <span>Dano</span>
-                      <CampoTexto
-                        testid={`ataque-dano-editar-${i}`}
-                        rotulo="Dano (1d8+3)"
-                        valor={a.dano ?? ""}
-                        maxLength={100}
-                        aoMudar={(t) => alterar(um(`ataques.${i}.dano`, t === "" ? null : t))}
-                      />
-                    </div>
-                    <div className="fh-campo">
-                      <span>Tipo</span>
-                      <CampoTexto
-                        testid={`ataque-tipo-editar-${i}`}
-                        rotulo="Tipo de dano"
-                        valor={a.tipo ?? ""}
-                        maxLength={32}
-                        aoMudar={(t) => alterar(um(`ataques.${i}.tipo`, t === "" ? null : t))}
-                      />
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    data-testid={`ataque-sem-acerto-${i}`}
-                    disabled={!acerto}
-                    onClick={() => alterar(um(`ataques.${i}.acerto`, null))}
-                  >
-                    Sem rolagem de acerto
-                  </button>
-                </details>
-              )}
-            </div>
-          );
-        })}
-        {ataques.length === 0 && <p className="nota">Nenhum ataque.</p>}
+    <Caixa testid="fh-mortes" className="fl-bloco" rotulo="Contra a Morte">
+      <Secao>Contra a Morte</Secao>
+      <div className="fl-morte">
+        <div className="fl-morte-marcas">
+          <div className="fl-morte-linha">
+            <span className="fl-lbl fl-morte-rotulo">Sucessos</span>
+            {marcas("sucessos")}
+          </div>
+          <div className="fl-morte-linha">
+            <span className="fl-lbl fl-morte-rotulo">Falhas</span>
+            {marcas("falhas")}
+          </div>
+        </div>
+        <button
+          type="button"
+          className="fl-sec2 fl-morte-rolar"
+          data-testid="morte-rolar"
+          disabled={!rolador.podeRolar}
+          aria-label="Rolar teste contra a morte"
+          onClick={() => rolador.teste("Teste contra a morte", 0, 10)}
+        >
+          <Dices size={17} aria-hidden />
+          <span>Rolar</span>
+        </button>
+      </div>
+    </Caixa>
+  );
+}
+
+export function Moedas({ ficha, alterar, editar }: PropsDaAba) {
+  return (
+    <Caixa testid="fh-moedas" className="fl-bloco" rotulo="Moedas">
+      <Secao>Moedas</Secao>
+      <div className="fl-moedas">
+        {MOEDAS.map((m) => (
+          <div key={m} className="fl-moeda">
+            <CampoNumero
+              testid={`moeda-${m}`}
+              rotulo={NOME_DA_MOEDA[m]}
+              valor={ficha.moedas?.[m] ?? 0}
+              max={9_999_999}
+              desabilitado={!editar}
+              className="fl-in fl-fn fl-moeda-campo"
+              aoMudar={(n) => {
+                const atuais = { ...(ficha.moedas ?? {}) };
+                if (n === 0) delete atuais[m];
+                else atuais[m] = n;
+                alterar(um("moedas", Object.keys(atuais).length === 0 ? null : atuais));
+              }}
+            />
+            <span className="fl-lbl">{ROTULO_DA_MOEDA[m]}</span>
+          </div>
+        ))}
+      </div>
+      <div className="fl-moedas-total">
+        <span className="fl-lbl">Total em peças de ouro</span>
+        <span className="fl-fn fl-moedas-valor" data-testid="moedas-total">
+          {comVirgula(moedasEmOuro(ficha))} po
+        </span>
+      </div>
+    </Caixa>
+  );
+}
+
+// ---- Ataques e magias ----
+
+type LinhaDeAtaque =
+  | { tipo: "ataque"; i: number; r: Ataque }
+  | { tipo: "magia"; i: number; r: Magia };
+
+/** A lista de Ataques e magias: os ataques da ficha e as magias marcadas com "Mostrar em Ataques e magias". */
+export function linhasDeAtaque(ficha: Ficha): LinhaDeAtaque[] {
+  return [
+    ...(ficha.ataques ?? []).map((r, i): LinhaDeAtaque => ({ tipo: "ataque", i, r })),
+    ...(ficha.magias ?? []).flatMap((r, i): LinhaDeAtaque[] =>
+      r.emAtaques ? [{ tipo: "magia", i, r }] : [],
+    ),
+  ];
+}
+
+function LinhaDoAtaque({ l, props }: { l: LinhaDeAtaque; props: PropsDaAba }) {
+  const { ficha, d, rolador, editar, abrirEditor, enviar, personagemId } = props;
+  const { r } = l;
+  const prefixo = l.tipo === "magia" ? `ataque-magia-${l.i}` : `ataque-${l.i}`;
+  const acerto = bonusDeAcerto(ficha, r);
+  const dano = expressaoDeDano(ficha, r);
+  const cd = cdDaRolagem(ficha, r);
+  const previa = previaDoAtaque(ficha, r);
+  const magia = l.tipo === "magia" ? l.r : undefined;
+  const espaco =
+    magia && magia.nivel > 0 ? d.espacos.find((e) => e.nivel === magia.nivel) : undefined;
+  const nivelTxt = magia ? (magia.nivel === 0 ? "truque" : `${magia.nivel}º nível`) : "";
+  const sub = [dano ? (r.tipo ?? "").toLowerCase() : "", r.alcance ?? ""]
+    .filter(Boolean)
+    .join(" · ");
+  const podeRolar = rolador.podeRolar;
+
+  function rolarAcerto() {
+    if (acerto !== undefined) return rolador.acerto(r, ficha);
+    if (cd === undefined || !podeRolar) return;
+    if (dano !== undefined) return rolador.ataque(r, ficha);
+    enviar("chat.caracteristica", {
+      caracteristica: {
+        nome: r.nome.slice(0, 80),
+        descricao: previa.salvaguarda ?? `CD ${cd}`,
+        origem: magia ? `Magia · ${nivelTxt}` : "Ataque",
+      },
+      como: personagemId,
+    });
+  }
+
+  return (
+    <div className="fl-ar" data-testid={prefixo}>
+      <button
+        type="button"
+        className="fl-nm"
+        data-testid={`${prefixo.replace("ataque-", "ataque-nome-")}`}
+        disabled={!podeRolar}
+        aria-label={
+          magia
+            ? `Conjurar ${r.nome}${magia.nivel > 0 ? ` gastando um espaço de ${magia.nivel}º nível` : ""}: ataque e dano`
+            : `Rolar ${r.nome}: ataque e dano juntos`
+        }
+        onClick={() => (magia ? conjurar(props, magia, l.i) : rolador.ataque(r, ficha))}
+      >
+        <span className="fl-nmt">{r.nome}</span>
+        <span className="fl-sub">
+          {magia && <span className="fl-tgm">magia · {nivelTxt}</span>}
+          {espaco && (
+            <span
+              className="fl-sds"
+              role="img"
+              aria-label={`${espaco.restantes} de ${espaco.total} espaços de ${magia?.nivel}º nível`}
+            >
+              {Array.from({ length: espaco.total }, (_, q) => q).map((q) => (
+                <span key={q} className="fl-sd" data-on={q < espaco.restantes} />
+              ))}
+            </span>
+          )}
+          {sub && <span>{sub}</span>}
+        </span>
+      </button>
+      <button
+        type="button"
+        className="fl-rb"
+        data-testid={`${prefixo.replace("ataque-", "ataque-rolar-")}`}
+        disabled={!podeRolar || (acerto === undefined && cd === undefined)}
+        aria-label={
+          acerto !== undefined
+            ? `Rolar o ataque de ${r.nome}, ${formatarBonus(acerto)} para acertar`
+            : cd !== undefined
+              ? `Mostrar a CD de ${r.nome} no chat, ${cd}`
+              : "Sem jogada de ataque"
+        }
+        onClick={rolarAcerto}
+      >
+        {acerto !== undefined ? formatarBonus(acerto) : cd !== undefined ? `CD ${cd}` : "–"}
+      </button>
+      <button
+        type="button"
+        className="fl-rb fl-dm"
+        data-testid={`${prefixo.replace("ataque-", "ataque-dano-")}`}
+        disabled={!podeRolar || dano === undefined}
+        aria-label={dano ? `Rolar o dano de ${r.nome}, ${dano}` : "Sem dano"}
+        onClick={() => rolador.dano(r, ficha)}
+      >
+        {dano ?? "–"}
+      </button>
+      <BotaoComDica
+        className="fl-ib fl-eng"
+        testid={`${prefixo.replace("ataque-", "ataque-editar-")}`}
+        nome={`Configurar ${r.nome}`}
+        aria-label={`Configurar ${r.nome}`}
+        motivo={editar ? null : "Só quem edita a ficha configura"}
+        onClick={() => abrirEditor({ tipo: l.tipo, i: l.i })}
+      >
+        <Settings size={18} aria-hidden />
+      </BotaoComDica>
+    </div>
+  );
+}
+
+export function Ataques(props: PropsDaAba) {
+  const { ficha, alterar, editar, abrirEditor } = props;
+  const linhas = linhasDeAtaque(ficha);
+  const novo = () => {
+    const ataques = ficha.ataques ?? [];
+    const ok = alterar(
+      um("ataques", [
+        ...ataques,
+        {
+          nome: "Novo ataque",
+          acerto: { tipo: "formula", atributo: "for", proficiente: true },
+          dano: "1d6",
+          atributoDano: "for",
+          tipo: "Cortante",
+        },
+      ]),
+    );
+    if (ok) abrirEditor({ tipo: "ataque", i: ataques.length });
+  };
+  return (
+    <Caixa testid="fh-ataques" className="fl-bloco" rotulo="Ataques e Magias">
+      <Secao>Ataques e Magias</Secao>
+      <div className="fl-ataques">
+        <div className="fl-ar fl-ar-cab" aria-hidden>
+          <span className="fl-lbl fl-ar-nome">Nome</span>
+          <span className="fl-lbl fl-ar-c">Acerto</span>
+          <span className="fl-lbl fl-ar-c">Dano</span>
+          <span />
+        </div>
+        {linhas.map((l) => (
+          <LinhaDoAtaque key={`${l.tipo}-${l.i}`} l={l} props={props} />
+        ))}
       </div>
       {editar && (
         <button
           type="button"
+          className="fl-pill fl-novo"
           data-testid="ataque-adicionar"
-          onClick={() =>
-            alterar(
-              um("ataques", [
-                ...ataques,
-                { nome: "Novo ataque", acerto: { tipo: "fixo", valor: 0 }, dano: "1d6" },
-              ]),
-            )
-          }
+          onClick={novo}
         >
-          <Plus size={14} /> Ataque
+          <Plus size={15} aria-hidden /> Novo ataque
         </button>
       )}
-    </section>
+      {linhas.length === 0 && !editar && <p className="fl-dica">Nenhum ataque.</p>}
+      <CampoTexto
+        testid="ficha-ataques-texto"
+        rotulo="Texto de ataques e magias"
+        placeholder="Anotações sobre ataques e magias"
+        valor={ficha.ataquesTexto ?? ""}
+        maxLength={8000}
+        multilinha
+        crescente
+        desabilitado={!editar}
+        className="fl-in fl-notas-ataques"
+        aoMudar={(t) => alterar(um("ataquesTexto", t === "" ? null : t))}
+      />
+    </Caixa>
   );
 }
 
-/** Condições, exaustão e concentração do token do personagem na cena ativa (só leitura; o menu do token as muda). */
-function Condicoes({ token }: PropsDaAba) {
-  const icones = token ? iconesDoToken(token) : [];
+export function Equipamento({ ficha, alterar, editar }: PropsDaAba) {
+  const itens = ficha.itens ?? [];
   return (
-    <section className="fh-condicoes" data-testid="fh-condicoes" aria-label="Condições">
-      <h4>Condições</h4>
-      {!token ? (
-        <p className="nota" data-testid="fh-condicoes-sem-token">
-          Sem token na cena atual.
-        </p>
-      ) : icones.length === 0 ? (
-        <p className="nota" data-testid="fh-condicoes-nenhuma">
-          Nenhuma condição.
-        </p>
-      ) : (
-        <ul className="fh-condicoes-lista">
-          {icones.map((i) => (
-            <li key={i.chave} className="fh-condicao" data-testid={`fh-condicao-${i.chave}`}>
-              <span
-                className="fh-condicao-sigla"
-                style={{ background: i.cor, color: corDoTextoSobre(i.cor) }}
-                aria-hidden
+    <Caixa testid="fh-itens" className="fl-bloco" rotulo="Equipamento">
+      <Secao>Equipamento</Secao>
+      <div className="fl-itens">
+        {itens.map((it, i) => (
+          // biome-ignore lint/suspicious/noArrayIndexKey: a lista não tem id e é editada por posição
+          <div key={`i-${i}`} className="fl-item" data-testid={`item-${i}`}>
+            <div className="fl-item-linha">
+              <BotaoComDica
+                className="fl-ib fl-mq"
+                testid={`item-menos-${i}`}
+                nome={`Tirar uma unidade de ${it.nome}`}
+                aria-label={`Tirar uma unidade de ${it.nome}`}
+                motivo={editar ? null : "Só quem edita a ficha muda"}
+                onClick={() => alterar(um(`itens.${i}.quantidade`, Math.max(0, it.quantidade - 1)))}
               >
-                {i.sigla}
-              </span>
-              <span className="fh-condicao-texto">{i.titulo}</span>
-            </li>
-          ))}
-        </ul>
+                <Minus size={12} aria-hidden />
+              </BotaoComDica>
+              <CampoNumero
+                testid={`item-quantidade-${i}`}
+                rotulo={`Quantidade de ${it.nome}`}
+                valor={it.quantidade}
+                max={9999}
+                desabilitado={!editar}
+                className="fl-in fl-fa fl-item-qtd"
+                aoMudar={(n) => alterar(um(`itens.${i}.quantidade`, n))}
+              />
+              <BotaoComDica
+                className="fl-ib fl-mq"
+                testid={`item-mais-${i}`}
+                nome={`Somar uma unidade de ${it.nome}`}
+                aria-label={`Somar uma unidade de ${it.nome}`}
+                motivo={editar ? null : "Só quem edita a ficha muda"}
+                onClick={() =>
+                  alterar(um(`itens.${i}.quantidade`, Math.min(9999, it.quantidade + 1)))
+                }
+              >
+                <Plus size={12} aria-hidden />
+              </BotaoComDica>
+              <CampoTexto
+                testid={`item-nome-${i}`}
+                rotulo="Nome do item"
+                valor={it.nome}
+                maxLength={80}
+                desabilitado={!editar}
+                className="fl-in fl-item-nome"
+                aoMudar={(t) => alterar(um(`itens.${i}.nome`, t))}
+              />
+              {editar && (
+                <BotaoComDica
+                  className="fl-ib"
+                  testid={`item-remover-${i}`}
+                  nome={`Tirar ${it.nome}`}
+                  aria-label={`Tirar ${it.nome}`}
+                  onClick={() => alterar(um(`itens.${i}`, null))}
+                >
+                  <Trash2 size={15} aria-hidden />
+                </BotaoComDica>
+              )}
+            </div>
+            <div className="fl-item-baixo">
+              <CampoDecimal
+                testid={`item-peso-${i}`}
+                rotulo={`Peso de ${it.nome} em quilos`}
+                placeholder="peso"
+                valor={it.peso}
+                desabilitado={!editar}
+                className="fl-in fl-item-peso"
+                aoMudar={(n) => alterar(um(`itens.${i}.peso`, n === null || n === 0 ? null : n))}
+              />
+              <span className="fl-item-kg">kg</span>
+              {(it.nota !== undefined || editar) && (
+                <CampoTexto
+                  testid={`item-nota-${i}`}
+                  rotulo="Nota do item"
+                  placeholder="nota"
+                  valor={it.nota ?? ""}
+                  maxLength={500}
+                  desabilitado={!editar}
+                  className="fl-in fl-item-nota"
+                  aoMudar={(t) => alterar(um(`itens.${i}.nota`, t === "" ? null : t))}
+                />
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+      {editar && (
+        <CampoDeNovo
+          testid="item-novo-nome"
+          rotulo="Nome do novo item"
+          placeholder="Novo item"
+          className="fl-in fl-item-novo"
+          aoCriar={(t) => alterar(um("itens", [...itens, { nome: t, quantidade: 1 }]))}
+        />
       )}
-      {token && (
-        <p className="nota">
-          Passe o mouse para ler a regra. Para mudar: botão direito no token do mapa,{" "}
-          <em>Condições</em>.
-        </p>
-      )}
-    </section>
+      <div className="fl-carga">
+        <span data-testid="carga-total">Carga: {comVirgula(cargaDaFicha(ficha))} kg</span>
+      </div>
+    </Caixa>
   );
 }
 
-/** Aba Principal: atributos, salvaguardas e perícias à esquerda; o resto à direita. */
-export function AbaPrincipal(props: PropsDaAba) {
+// ---------------------------------------------------------------------------------------------
+// Coluna da direita: personalidade e características
+// ---------------------------------------------------------------------------------------------
+
+export function Personalidade({ ficha, alterar, editar }: PropsDaAba) {
+  const campos = [
+    ["personalidade", "Traços de personalidade", "fl-t-150"],
+    ["ideais", "Ideais", "fl-t-80"],
+    ["ligacoes", "Vínculos", "fl-t-80"],
+    ["defeitos", "Defeitos", "fl-t-70"],
+  ] as const;
   return (
-    <div className="fh-principal" data-testid="fh-aba-principal">
-      <div className="fh-esquerda">
-        <Atributos {...props} />
-        <div className="fh-listas">
-          <Salvaguardas {...props} />
-          <Pericias {...props} />
+    <div className="fl-personalidade" data-testid="fh-personalidade">
+      {campos.map(([campo, rotulo, tamanho]) => (
+        <div key={campo} className="fl-cx fl-texto-caixa">
+          <CampoTexto
+            testid={`ficha-${campo}`}
+            rotulo={rotulo}
+            valor={ficha[campo] ?? ""}
+            maxLength={2000}
+            multilinha
+            crescente
+            desabilitado={!editar}
+            className={`fl-in fl-area ${tamanho}`}
+            aoMudar={(t) => alterar(um(campo, t === "" ? null : t))}
+          />
+          <span className="fl-lbl">{rotulo}</span>
         </div>
-      </div>
-      <div className="fh-direita">
-        <Identidade {...props} />
-        <Resumo {...props} />
-        <PontosDeVida {...props} />
-        <Condicoes {...props} />
-        <Ataques {...props} />
+      ))}
+    </div>
+  );
+}
+
+export function Caracteristicas(props: PropsDaAba) {
+  return (
+    <div className="fl-caracteristicas" data-testid="fh-caracteristicas">
+      <Secao>Características e Talentos</Secao>
+      <div className="fl-cx fl-cx-lista">
+        <ListaDeCaracteristicas
+          campo="caracteristicas"
+          testidBase="caracteristica"
+          ficha={props.ficha}
+          alterar={props.alterar}
+          editar={props.editar}
+          enviar={props.enviar}
+          personagemId={props.personagemId}
+        />
       </div>
     </div>
   );
+}
+
+// ---------------------------------------------------------------------------------------------
+// As duas páginas
+// ---------------------------------------------------------------------------------------------
+
+function PrincipalLarga(props: PropsDaAba) {
+  const { editorAberto, fecharEditor } = props;
+  return (
+    <div className="fl-pers" data-testid="fh-aba-principal">
+      <div className="fl-col-esq">
+        <div className="fl-esq-topo">
+          <div className="fl-col-atr">
+            <Atributos {...props} />
+            <Passiva {...props} />
+          </div>
+          <div className="fl-col-testes">
+            <InspiracaoEProficiencia {...props} />
+            <Salvaguardas {...props} />
+            <Pericias {...props} />
+          </div>
+        </div>
+      </div>
+      {editorAberto ? (
+        <div className="fl-col-editor">
+          <EditorDeAtaque
+            alvo={editorAberto}
+            origem="principal"
+            props={props}
+            aoVoltar={fecharEditor}
+          />
+        </div>
+      ) : (
+        <>
+          <div className="fl-col-meio">
+            <CaIniciativaDeslocamento {...props} />
+            <PontosDeVida {...props} />
+            <DadosDeVida {...props} />
+            <ContraAMorte {...props} />
+            <Moedas {...props} />
+            <Ataques {...props} />
+            <Equipamento {...props} />
+          </div>
+          <div className="fl-col-dir">
+            <Personalidade {...props} />
+            <Caracteristicas {...props} />
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/** A janela estreita: o cabeçalho (nome, CA, iniciativa, PV) gruda no alto; o resto vira acordeão. */
+function PrincipalEstreita(props: PropsDaAba) {
+  const { editorAberto, fecharEditor, ficha, d } = props;
+  if (editorAberto) {
+    return (
+      <div className="fl-pers fl-estreita" data-testid="fh-aba-principal">
+        <EditorDeAtaque
+          alvo={editorAberto}
+          origem="principal"
+          props={props}
+          aoVoltar={fecharEditor}
+        />
+      </div>
+    );
+  }
+  const classes = (ficha.classes ?? []).map((c) => `${c.classe} ${c.nivel}`).join(" / ");
+  const profs = ATRIBUTOS.filter((a) => d.salvaguardas[a].nivel !== "nenhuma").length;
+  const nAtq = linhasDeAtaque(ficha).length;
+  const itens = ficha.itens ?? [];
+  return (
+    <div className="fl-pers fl-estreita" data-testid="fh-aba-principal">
+      <Acordeao id="identidade" titulo="Identidade" resumo={classes || "Sem classe"}>
+        <div className="fl-identidade-corpo">
+          <ClasseENivel {...props} />
+          <div className="fl-identidade-campos">
+            <CamposDeIdentidade {...props} />
+          </div>
+        </div>
+      </Acordeao>
+      <Acordeao
+        id="atributos"
+        titulo="Atributos"
+        resumo={`Prof. ${formatarBonus(d.proficiencia)}`}
+        inicialmenteAberto
+      >
+        <div className="fl-estreita-atributos">
+          <Atributos {...props} />
+          <div className="fl-estreita-faixas">
+            <InspiracaoEProficiencia {...props} />
+            <Passiva {...props} />
+          </div>
+        </div>
+      </Acordeao>
+      <Acordeao
+        id="salvaguardas-pericias"
+        titulo="Salvaguardas e perícias"
+        resumo={`${profs} salvaguardas`}
+      >
+        <div className="fl-estreita-testes">
+          <Salvaguardas {...props} />
+          <Pericias {...props} />
+        </div>
+      </Acordeao>
+      <Acordeao
+        id="vida"
+        titulo="Vida e morte"
+        resumo={`PV ${ficha.pvAtual}/${ficha.pvMax}`}
+        inicialmenteAberto
+      >
+        <div className="fl-estreita-vida">
+          <DadosDeVida {...props} />
+          <ContraAMorte {...props} />
+        </div>
+      </Acordeao>
+      <Acordeao id="moedas" titulo="Moedas" resumo={`${comVirgula(moedasEmOuro(ficha))} po`}>
+        <Moedas {...props} />
+      </Acordeao>
+      <Acordeao id="ataques" titulo="Ataques" resumo={`${nAtq}`} inicialmenteAberto>
+        <Ataques {...props} />
+      </Acordeao>
+      <Acordeao
+        id="equipamento"
+        titulo="Equipamento"
+        resumo={`${itens.length} · ${comVirgula(cargaDaFicha(ficha))} kg`}
+        inicialmenteAberto
+      >
+        <Equipamento {...props} />
+      </Acordeao>
+      <Acordeao id="personalidade" titulo="Personalidade">
+        <Personalidade {...props} />
+      </Acordeao>
+      <Acordeao
+        id="caracteristicas"
+        titulo="Características"
+        resumo={`${(ficha.caracteristicas ?? []).length}`}
+      >
+        <Caracteristicas {...props} />
+      </Acordeao>
+    </div>
+  );
+}
+
+/** Aba Personagem: três colunas na janela larga; acordeão na estreita. */
+export function AbaPrincipal(props: PropsDaAba) {
+  return props.estreita ? <PrincipalEstreita {...props} /> : <PrincipalLarga {...props} />;
 }

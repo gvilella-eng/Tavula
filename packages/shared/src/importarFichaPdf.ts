@@ -776,6 +776,7 @@ export function importarFichaDoPdf(pedacos: readonly Pedaco[]): ImportacaoDoPdf 
     const texto = r ? textoDosItens(acima(principal, r, 120, 8, u), u) : "";
     reg("idiomas", `OUTRAS PROFICIÊNCIAS & IDIOMAS: ${texto || "(vazio)"}`);
     if (texto) {
+      ficha.outrasProficiencias = texto.slice(0, 4000);
       ficha.idiomas = texto
         .split(/[,;\n]/)
         .map((s) => s.trim().slice(0, 40))
@@ -789,21 +790,28 @@ export function importarFichaDoPdf(pedacos: readonly Pedaco[]): ImportacaoDoPdf 
       );
   }
 
-  // --- notas: personalidade e moedas -----------------------------------------------------------
-  const blocosDeNota: string[] = [];
-  for (const [titulo, regex] of [
-    ["Traços de personalidade", /^(tracos de personalidade|personality traits)$/],
-    ["Ideais", /^(ideais|ideals)$/],
-    ["Vínculos", /^(vinculos|bonds)$/],
-    ["Defeitos", /^(defeitos|flaws)$/],
+  // --- personalidade e moedas (V4a: campos próprios da ficha de papel; antes iam para as notas) ----
+  for (const [titulo, campo, regex] of [
+    ["Traços de personalidade", "personalidade", /^(tracos de personalidade|personality traits)$/],
+    ["Ideais", "ideais", /^(ideais|ideals)$/],
+    ["Vínculos", "ligacoes", /^(vinculos|ligacoes|bonds)$/],
+    ["Defeitos", "defeitos", /^(defeitos|flaws)$/],
   ] as const) {
     const r = principal.rotulos.find((i) => regex.test(i.n));
     if (!r) continue;
-    const texto = textoDosItens(acima(principal, r, 100, 30, u), u);
+    const texto = textoDosItens(acima(principal, r, 130, 30, u), u);
     reg("notas", `${titulo.toUpperCase()}: ${texto || "(vazio)"}`);
-    if (texto) blocosDeNota.push(`${titulo}: ${texto}`);
+    if (texto) ficha[campo] = texto.slice(0, 2000);
   }
-  const moedas: string[] = [];
+  // Moedas: CP/SP/EP/GP/PP da ficha impressa são PC/PP/PE/PO/PL da ficha em português.
+  const CAMPO_DA_MOEDA: Record<string, keyof NonNullable<Ficha["moedas"]>> = {
+    cp: "pc",
+    sp: "pp",
+    ep: "pe",
+    gp: "po",
+    pp: "pl",
+  };
+  const moedas: NonNullable<Ficha["moedas"]> = {};
   for (const pag of paginas) {
     for (const r of pag.rotulos.filter((i) => /^(cp|sp|ep|gp|pp)$/.test(i.n))) {
       const n = linhaMaisProxima(
@@ -818,14 +826,57 @@ export function importarFichaDoPdf(pedacos: readonly Pedaco[]): ImportacaoDoPdf 
         u,
         "acima",
       );
-      if (/^\d+$/.test(n) && n !== "0") moedas.push(`${n} ${r.t}`);
+      const campo = CAMPO_DA_MOEDA[r.n];
+      if (campo && /^\d+$/.test(n) && n !== "0" && moedas[campo] === undefined) {
+        moedas[campo] = Math.min(9_999_999, Number(n));
+      }
     }
   }
-  if (moedas.length > 0) {
-    blocosDeNota.push(`Moedas: ${moedas.join(", ")}`);
-    reg("notas", `MOEDAS: ${moedas.join(", ")}`);
+  if (Object.keys(moedas).length > 0) {
+    ficha.moedas = moedas;
+    reg(
+      "notas",
+      `MOEDAS: ${Object.entries(moedas)
+        .map(([k, v]) => `${v} ${k.toUpperCase()}`)
+        .join(", ")}`,
+    );
   }
-  if (blocosDeNota.length > 0) ficha.notas = blocosDeNota.join("\n\n").slice(0, 50_000);
+  // Pontos de experiência: o número acima do rótulo, quando há.
+  {
+    const r = principal.rotulos.find((i) =>
+      /^(pontos de experiencia|experience points)$/.test(i.n),
+    );
+    const valor = r ? linhaMaisProxima(acima(principal, r, 20, 4, u), u, "acima") : "";
+    if (/^\d+$/.test(valor)) ficha.xp = Math.min(99_999_999, Number(valor));
+  }
+  // Página dos detalhes (idade, aparência, história...): só lê o que o PDF tiver; o que falta fica vazio.
+  for (const [campo, regex, max] of [
+    ["idade", /^(idade|age)$/, 40],
+    ["altura", /^(altura|height)$/, 40],
+    ["peso", /^(peso|weight)$/, 40],
+    ["olhos", /^(olhos|eyes)$/, 40],
+    ["pele", /^(pele|skin)$/, 40],
+    ["cabelos", /^(cabelos?|hair)$/, 40],
+    ["aparencia", /^(aparencia do personagem|aparencia|character appearance|appearance)$/, 4000],
+    ["aliados", /^(aliados & organizacoes|aliados e organizacoes|allies & organizations)$/, 8000],
+    ["historia", /^(historia do personagem|character backstory|backstory)$/, 20_000],
+    ["tesouro", /^(tesouro|treasure)$/, 8000],
+  ] as const) {
+    // Só rótulos em maiúsculas pequenas: "História" é também o nome de uma perícia.
+    let achado: { pag: Pag; item: Item } | undefined;
+    for (const pag of paginas) {
+      const item = pag.rotulos.find((i) => regex.test(i.n));
+      if (item) {
+        achado = { pag, item };
+        break;
+      }
+    }
+    if (!achado) continue;
+    const { pag, item } = achado;
+    const texto = textoDosItens(acima(pag, item, campo.length > 8 ? 300 : 20, 30, u), u);
+    reg("notas", `${campo.toUpperCase()}: ${texto || "(vazio)"}`);
+    if (texto) ficha[campo] = texto.slice(0, max);
+  }
 
   // --- conjuração: cabeçalho e lista por nível -------------------------------------------------
   const paginaDaConjuracao = paginas.find((p) => p.itens.some((i) => A.cdConj.test(i.n)));

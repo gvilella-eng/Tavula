@@ -108,6 +108,45 @@ export function CartaoDaMagiaNoChat({ magia }: { magia: MagiaDoCompendio }) {
   );
 }
 
+/** O cartão de uma característica da ficha no chat (V4a): título e descrição recolhida até alguém abrir. */
+export function CartaoDaCaracteristicaNoChat({
+  caracteristica,
+}: {
+  caracteristica: { nome: string; descricao: string; origem?: string | undefined };
+}) {
+  const [aberta, setAberta] = useState(false);
+  const temTexto = caracteristica.descricao.trim() !== "";
+  return (
+    <section className="cartao-magia-chat" data-testid="caracteristica-chat" data-aberta={aberta}>
+      <header>
+        <strong data-testid="caracteristica-chat-nome">{caracteristica.nome}</strong>
+      </header>
+      {caracteristica.origem && (
+        <p className="nivel-e-escola" data-testid="caracteristica-chat-origem">
+          {caracteristica.origem}
+        </p>
+      )}
+      {temTexto && (
+        <button
+          type="button"
+          className="alternar-descricao"
+          data-testid="caracteristica-chat-alternar"
+          aria-expanded={aberta}
+          onClick={() => setAberta(!aberta)}
+        >
+          {aberta ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+          {aberta ? "Esconder a descrição" : "Mostrar a descrição"}
+        </button>
+      )}
+      {aberta && (
+        <div className="descricao-da-magia" data-testid="caracteristica-chat-descricao">
+          <p className="texto-da-magia">{caracteristica.descricao}</p>
+        </div>
+      )}
+    </section>
+  );
+}
+
 /** Um bloco de rótulo + conteúdo (as ações do cartão). */
 export function LinhaDeAcao({ rotulo, children }: { rotulo: string; children: ReactNode }) {
   return (

@@ -103,7 +103,6 @@ test("a tocha acesa vai para a mão, mostra o tempo na alça e a ficha mostra x�
   // a mochila no editor do item
   await abrirAba(p, "fichas");
   await p.getByTestId("aba-painel-fichas").getByText("Aldric").first().dblclick();
-  await p.getByTestId("ficha-aba-equipamento").click();
   await expect(p.getByTestId("mochila-resumo-modelo-tocha")).toHaveText("3 novas, 0 usadas");
   await p.getByTestId("mochila-acender-modelo-tocha").click();
   await expect(p.getByTestId("mochila-resumo-modelo-tocha")).toHaveText("2 novas, 1 usada");
@@ -129,7 +128,6 @@ test("a tocha acesa vai para a mão, mostra o tempo na alça e a ficha mostra x�
   expect(Math.abs(depois - tempoAntes)).toBeLessThanOrEqual(3);
   await abrirAba(p, "fichas");
   await p.getByTestId("aba-painel-fichas").getByText("Aldric").first().dblclick();
-  await p.getByTestId("ficha-aba-equipamento").click();
   await expect(p.getByTestId("mochila-resumo-modelo-tocha")).toHaveText("2 novas, 1 usada");
 });
 
@@ -156,7 +154,6 @@ test("dois cliques na alça apagam e reacendem; o clique direito guarda na mochi
   // guardada: aparece como usada na mochila e acende de novo
   await abrirAba(p, "fichas");
   await p.getByTestId("aba-painel-fichas").getByText("Aldric").first().dblclick();
-  await p.getByTestId("ficha-aba-equipamento").click();
   await expect(p.getByTestId("mochila-resumo-modelo-tocha")).toHaveText("2 novas, 1 usada");
   await p.getByTestId("mochila-acender-usada-tocha-1").click();
   await p.getByTestId("janela-ficha-fechar").click();

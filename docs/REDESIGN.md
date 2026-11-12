@@ -906,6 +906,39 @@ depois do V5 (`docs/IDEIAS.md`). Esta seção muda o que o R6a decidiu sobre dic
 - Os ícones "quem vê" e os avatares da presença seguem com `title` nativo (não são botões; dica comum pediria foco e papel próprios).
 - Toque: a dica por mouse não existe em tela de toque (como antes); o balão do motivo também depende do clique.
 
+## V4a — como ficou (2026-11-11)
+
+A ficha de personagem no desenho que o Vilella aprovou (protótipos em `docs/desenho/`, `FichaFinal.dc.html` é a fonte da verdade). O primeiro V4a copiava o PDF da Biblioteca Élfica em papel branco e foi recusado ("melhor, mas não tá top"); a parte de dados e protocolo ficou, o visual foi refeito. NPC fica para o V4b. Execução em `docs/ESTADO.md` ("Ajustes V4a").
+
+**O que foi feito**
+- **Janela**: abre com ~880 px (a área limita), cabeçalho no tema, minimiza pelo botão ou por duplo clique e então fica só o cabeçalho com o nome, na largura do nome. Fica na **camada mais alta** (`z-index` 45 a 59, acima dos painéis e das outras janelas, abaixo de avisos, menus e modais); entre fichas vale o último clique. Estende a `Janela` do R3 (`camadaAlta`, `cabecalhoMinimizado`), sem outro sistema.
+- **Cabeçalho**: nome com capitular (IM Fell English SC), classe e nível, antecedente, raça, tendência e XP editáveis, as quatro abas como **fitas** à direita (Personagem, Magias, História, Configurar) e a faixa **Vantagem / Normal / Desvantagem**, que vale para todas as rolagens da ficha até a pessoa trocá-la (estado da janela, não volta sozinha a Normal).
+- **Aba Personagem em 3 colunas**: atributos (modificador grande clicável, valor no oval), Inspiração e Proficiência, Salvaguardas e Perícias com o título ornamentado **em cima** dentro do bloco, Percepção passiva; CA, Iniciativa e Deslocamento; PV com − e + (o dano consome o temporário primeiro) e barra; dados de vida (gastar rola `1dN+Con`); testes contra a morte; **Moedas** (com o total em po); **Ataques e magias** em lista (nome rola acerto e dano juntos, ou conjura se for magia; botão Acerto e botão Dano; engrenagem); **Equipamento** com quantidade à esquerda (− e +), peso e carga; Traços, Ideais, Vínculos e Defeitos; Características e Talentos (seta que gira, título em `acentoForte`, origem em itálico, chat). A direita ficou com ~250 px.
+- **Editor da engrenagem** ("vira a página" sobre o meio e a direita; na estreita ocupa o corpo): Ataque (atributo ou valor fixo, bônus extra e mágico, margem de crítico, proficiente), Dano (dados, atributo, bônus, tipo, extra no crítico, **segundo dano**), Salvaguarda (teste do alvo, atributo da CD, bônus, CD calculada, efeito no sucesso), Preparo (só magia, com "Mostrar em Ataques e magias"), Descrição, **prévia ao vivo** ("+13 para acertar · 1d8+9 radiante; crítico 2d8+9"), Rolar, Mandar ao chat e Remover. O "+" (Novo ataque) cria e abre o editor.
+- **Aba Magias**: atributo de conjuração, CD e ataque; espaços por nível em bolinhas (cheia = disponível; clicar gasta e recupera); "Recuperar espaços"; magias por nível que expandem (compêndio, se houver vínculo; senão escola, tempo, alcance, componentes, duração e texto editáveis), Preparada, **Conjurar** (gasta o espaço, ou o de pacto se os comuns acabaram, e rola o que a magia tiver; sem rolagem manda o cartão), o mesmo editor da engrenagem.
+- **Aba História**: personalidade, aparência (imagem local e descrição), aliados, símbolo, história, tesouro, outras características, idiomas e notas, em caixas com linhas de caderno.
+- **Aba Configurar**: "Aparência da ficha: Livro / Clássica" no alto, mais o que já existia (Importar PDF, quem vê e edita, token, retrato, exportar e importar a ficha).
+- **Janela estreita** (< 620 px de largura **da janela**, medida por `ResizeObserver`, não da tela): cabeçalho grudado com abas, nome, CA, iniciativa, deslocamento, modo e PV com −/+; seções em acordeão (Identidade, Atributos, Salvaguardas e perícias, Vida e morte, Moedas, Ataques, Equipamento, Personalidade, Características). A escala por zoom do primeiro V4a **saiu** (`papel.tsx` foi apagado).
+- **Aparência Livro / Clássica**: preferência local `tabletop:pref:aparenciaFicha` (padrão `livro`, com try/catch, nunca vai à sala); troca por `data-pele` na raiz da ficha. Livro: fitas, capitular, IM Fell English SC + EB Garamond, caixa de marcar quadrada, filetes em `acentoForte`. Clássica: Cinzel, Cormorant SC, Alegreya, abas planas sublinhadas, caixa de marcar nativa. Mesmo arranjo. Todas as fontes por @fontsource (só os pesos usados); nada de Google Fonts.
+- **A ficha segue o tema (sem papel branco)**: os seis tokens `ficha*` saíram; o CSS vive em `apps/web/src/ficha/ficha.css` (tudo prefixado `.fl-raiz`) e usa só os tokens do tema.
+- **Rolagem no chat** (toda rolagem, não só a da ficha): bloco baixo; o nome do teste em destaque ("Percepção", "Ataque · Lâmina Solar"), o total é o número grande e o d20 fica discreto; com vantagem ou desvantagem aparecem os dois d20 e o descartado esmaecido (opacidade 0,4); ataque mostra acerto e dano lado a lado, com a CD e "metade no sucesso" quando há salvaguarda. **Crítico em verde fixo (`#2FA46A`) e 1 natural em vermelho fixo (`#E5484D`)** nos 14 temas: tokens `critico`, `criticoTexto`, `falhaCritica`, `falhaCriticaTexto`. Rolagem oculta, do mestre, cartões de magia e de característica e a ordem de turno do V2 seguem. Quem rola é sempre a sala.
+- **Dados**: `Ataque` e `Magia` ganharam campos opcionais de rolagem (`alcance`, `bonusMagico`, `atributoDano`, `bonusDano`, `margemCritico` 18 a 20, `danoCritico`, `dano2`, `salvaguarda`; `descricao` no ataque; `tempo`, `componentes`, `duracao` e `emAtaques` na magia); `ItemDaFicha.peso` (kg); `Caracteristica.origem`. O pedido e o resultado do modelo de ataque levam `margemCritico`, `danoCritico` e `salvaguarda`. Tudo opcional: a campanha antiga carrega sem migração e a ficha versão 1 e 2 seguem lendo. Funções puras em `packages/shared/src/ataques.ts` (dano, CD, prévia), `moedasEmOuro`, `cargaDaFicha` e `receberDano` em `ficha.ts`. Do primeiro V4a ficam os campos da ficha (xp, moedas, personalidade...), `chat.caracteristica` (agora com `origem`), os hashes `aparenciaHash`/`simboloHash` e o importador da ficha em PDF.
+
+**Decisões (assumido)**
+- (assumido) A faixa de vantagem não volta sozinha a Normal depois do d20 (o protótipo mostra "Rolando: Normal" fixo); o primeiro V4a voltava.
+- (assumido) Dado de vida: gastar rola `1dN+Con` na sala e marca o dado como usado; a cura **não** é somada sozinha aos PV (o cliente não conhece o resultado; a pessoa ajusta o PV).
+- (assumido) O "bônus extra" de perícia e salvaguarda (que o desenho não tem) aparece só com o mouse em cima ou o foco na linha.
+- (assumido) Onde o desenho não tem lugar, a ficha mantém: Idiomas e outras proficiências e Notas na aba História; Condições, luz (mochila) e Recursos num painel abaixo das três colunas da aba Personagem.
+- (assumido) Dano com segundo dano ou extra no crítico entra na mesma rolagem do chat; o tipo vira "Radiante + Fogo".
+- (assumido) Botão Acerto sem dano rola um teste "Ataque · Nome"; Dano solto vai pelo `/r` do chat, com o nome, a CD e o tipo.
+- (assumido) O nome do personagem na ficha se edita pelo cabeçalho (`personagem.editar`, a mesma permissão da Configurar).
+- (assumido) A ficha larga pode cobrir a ordem de turno (camada mais alta); quem quer as duas move uma.
+- (assumido) O valor fixo de acerto importado de PDF continua valendo; no editor aparece como "Valor fixo".
+
+**O que ficou para depois (V4b)**
+- Ficha de NPC no desenho N (a atual segue funcionando); arrastar do compêndio para a ficha; reordenar ataques, equipamento e características por arrasto ou Alt+↑/↓; acender e apagar tocha no equipamento.
+- Firefox e Safari não foram conferidos (`color-mix`, `clip-path` das fitas).
+
 ## Em aberto
 
 - **O plano R1 a R6 terminou** (R1, R2, R2b, R3, R4 em 2026-11-10; R5a, R5b, R6a e R6b em 2026-11-11). Agora o Vilella faz os ajustes

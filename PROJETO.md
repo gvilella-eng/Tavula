@@ -609,6 +609,8 @@ entra no histórico do objeto.
   a um modelo de objeto (tocha) acende direto da ficha e vai para a mão do token (seção 4.8).
 - Permissões: o jogador edita a própria ficha; o mestre edita todas.
 - Exportação da ficha em JSON para a pasta do jogador (`fichas/`).
+- **Ficha no desenho aprovado (V4a, 2026-11-11).** A janela da ficha segue os protótipos aprovados em `docs/desenho/` (a ficha **segue o tema**: sem papel branco), com abas Personagem (3 colunas), Magias, História e Configurar, e abre com ~880 px, na camada mais alta, minimizando para só o nome. Abaixo de ~620 px de largura da janela vira cabeçalho grudado mais acordeão. Duas peles por preferência local `tabletop:pref:aparenciaFicha`: **Livro** (padrão) e **Clássica**, com o mesmo arranjo. Campos opcionais da ficha: `xp`, `inspiracao`, `outrasProficiencias`, `moedas {pc,pp,pe,po,pl}`, `personalidade`, `ideais`, `ligacoes`, `defeitos`, `ataquesTexto`, `idade`, `altura`, `peso`, `olhos`, `pele`, `cabelos`, `aparencia`, `aparenciaHash`, `aliados`, `simboloNome`, `simboloHash`, `outrasCaracteristicas`, `historia`, `tesouro`, `classeConjurador`, `espacosTotal`; em `Ataque` e `Magia`: `alcance`, `bonusMagico`, `atributoDano`, `bonusDano`, `margemCritico` (18 a 20), `danoCritico`, `dano2`, `salvaguarda` (e `descricao` no ataque; `tempo`, `componentes`, `duracao`, `emAtaques` na magia); em `ItemDaFicha`: `peso` (kg); em `Caracteristica`: `origem`. Os hashes são imagens locais (asset `retrato`): contam como usados, só quem vê a ficha as baixa, a exportação da mesa leva a meta e a sala recusa hash sem meta. O arquivo de ficha é a versão 2 e lê a 1. Características (e "outras") têm título que expande e "Mandar ao chat" (mensagem `caracteristica`, com `origem`); a magia ligada ao compêndio manda o cartão de magia (V4a, 2026-11-11).
+- **Rolagem no chat (V4a, 2026-11-11).** Toda rolagem de modelo (teste e ataque) é um bloco baixo: o nome do teste em destaque, o total grande, os d20 discretos (os dois, com o descartado esmaecido, em vantagem e desvantagem); ataque mostra acerto e dano lado a lado, com a CD quando há salvaguarda. Crítico em verde fixo e 1 natural em vermelho fixo, iguais nos 14 temas (tokens `critico`, `criticoTexto`, `falhaCritica`, `falhaCriticaTexto`). O pedido de ataque aceita `margemCritico`, `danoCritico` e `salvaguarda`; quem rola é sempre a sala.
 
 ### 4.10 Importação da ficha em PDF
 
@@ -1816,6 +1818,7 @@ entra nas perguntas do fim):**
 - o navegador do mestre lê `compendio/magias.json` sozinho ao conectar e quando a pasta muda, e só
   registra se o hash mudou; "Recarregar" relê; "Escolher o arquivo…" para navegadores sem o seletor de
   pasta; arquivo com nome de magia repetido é recusado;
+- `chat.caracteristica { caracteristica: { nome, descricao, origem? }, como }` (V4a, 2026-11-11): publica uma mensagem `caracteristica`, sempre pública, de um personagem que quem fala edita (`como` obrigatório). Sem capacidade nova.
 - `chat.magia` é uma intenção própria, sempre pública, com a magia inteira dentro (a sala valida os
   limites, não confere o compêndio); "Adicionar à ficha" entra preparada, sem conferir classe nem
   espaço;

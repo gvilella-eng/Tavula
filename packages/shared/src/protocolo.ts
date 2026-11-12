@@ -6,7 +6,12 @@ import {
   PERMISSOES_PADRAO,
   TODAS_AS_CAPACIDADES,
 } from "./capacidades.ts";
-import { LIMITES_DO_CHAT, MensagemSchema, TEXTO_DO_CHAT_MAX } from "./chat.ts";
+import {
+  CaracteristicaNoChatSchema,
+  LIMITES_DO_CHAT,
+  MensagemSchema,
+  TEXTO_DO_CHAT_MAX,
+} from "./chat.ts";
 import { CombateSchema, IniciativaSchema, LIMITES_DO_COMBATE } from "./combate.ts";
 import { CompendioDaMesaSchema, MagiaDoCompendioSchema } from "./compendio.ts";
 import { CondicaoSchema } from "./condicoes.ts";
@@ -701,6 +706,14 @@ export const IntencaoSchema = z.discriminatedUnion("tipo", [
    * publica como mensagem `magia`. `como` é um personagem que quem fala edita.
    */
   intencao("chat.magia", z.object({ magia: MagiaDoCompendioSchema, como: IdSchema.optional() })),
+  /**
+   * Característica da ficha no chat (V4a): título e descrição, sempre pública. `como` é OBRIGATÓRIO: o personagem
+   * que quem fala edita (o mestre: qualquer um), a mesma permissão de rolar pela ficha.
+   */
+  intencao(
+    "chat.caracteristica",
+    z.object({ caracteristica: CaracteristicaNoChatSchema, como: IdSchema }),
+  ),
   intencao(
     "chat.enviar",
     z.object({
@@ -889,6 +902,7 @@ export const capacidadeDaIntencao: Record<TipoIntencao, Capacidade | null> = {
   "dado.rolar": null,
   "chat.modelo": null,
   "chat.magia": null,
+  "chat.caracteristica": null,
   "chat.anteriores": null,
   "chat.limpar": "mesa.configurar",
   // Mestre: rola para todos ou para algumas entradas; jogador: a própria. `processar` confere.

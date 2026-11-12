@@ -72,10 +72,23 @@ export const CHAVES_DE_TOKEN = [
   "veu", // véu sobre o mapa (rótulos de progresso)
   "pontoOff", // ponto de presença offline
   "sombra",
+  // Rolagens no chat (V4a): verde de crítico e vermelho de falha crítica, iguais em todos os temas.
+  "critico",
+  "criticoTexto",
+  "falhaCritica",
+  "falhaCriticaTexto",
 ] as const;
 
 export type ChaveDeToken = (typeof CHAVES_DE_TOKEN)[number];
 export type Tema = Record<ChaveDeToken, string>;
+
+/** Os tokens das rolagens do chat (V4a): o mesmo verde e o mesmo vermelho nos 14 temas. */
+const ROLAGENS_DO_CHAT = {
+  critico: "#2FA46A",
+  criticoTexto: "#0B2416",
+  falhaCritica: "#E5484D",
+  falhaCriticaTexto: "#1A0507",
+} as const;
 
 export const TEMAS: Record<IdDoTema, Tema> = {
   grimorio: {
@@ -115,6 +128,7 @@ export const TEMAS: Record<IdDoTema, Tema> = {
     veu: "rgba(12, 12, 12, 0.88)",
     pontoOff: "#6F6F6F",
     sombra: "0 6px 24px rgba(0, 0, 0, 0.5)",
+    ...ROLAGENS_DO_CHAT,
   },
   escuro: {
     fundoMesa: "#0A0B0E",
@@ -153,6 +167,7 @@ export const TEMAS: Record<IdDoTema, Tema> = {
     veu: "rgba(15, 17, 21, 0.88)",
     pontoOff: "#6F7684",
     sombra: "0 6px 24px rgba(0, 0, 0, 0.5)",
+    ...ROLAGENS_DO_CHAT,
   },
   claro: {
     fundoMesa: "#CFC8BC",
@@ -191,6 +206,7 @@ export const TEMAS: Record<IdDoTema, Tema> = {
     veu: "rgba(251, 249, 245, 0.92)",
     pontoOff: "#9A8F82",
     sombra: "0 6px 20px rgba(60, 45, 25, 0.2)",
+    ...ROLAGENS_DO_CHAT,
   },
   edgerunner: {
     fundoMesa: "#06050C",
@@ -229,6 +245,7 @@ export const TEMAS: Record<IdDoTema, Tema> = {
     veu: "rgba(11, 9, 18, 0.88)",
     pontoOff: "#726A92",
     sombra: "0 6px 24px rgba(0, 0, 0, 0.5)",
+    ...ROLAGENS_DO_CHAT,
   },
   vampiro: {
     fundoMesa: "#050203",
@@ -267,6 +284,7 @@ export const TEMAS: Record<IdDoTema, Tema> = {
     veu: "rgba(10, 4, 5, 0.88)",
     pontoOff: "#7A5F66",
     sombra: "0 6px 24px rgba(0, 0, 0, 0.5)",
+    ...ROLAGENS_DO_CHAT,
   },
   licantropo: {
     fundoMesa: "#07080A",
@@ -305,6 +323,7 @@ export const TEMAS: Record<IdDoTema, Tema> = {
     veu: "rgba(12, 14, 17, 0.88)",
     pontoOff: "#65707D",
     sombra: "0 6px 24px rgba(0, 0, 0, 0.5)",
+    ...ROLAGENS_DO_CHAT,
   },
   taverna: {
     fundoMesa: "#0C0805",
@@ -343,6 +362,7 @@ export const TEMAS: Record<IdDoTema, Tema> = {
     veu: "rgba(16, 11, 7, 0.88)",
     pontoOff: "#8A785F",
     sombra: "0 6px 24px rgba(0, 0, 0, 0.5)",
+    ...ROLAGENS_DO_CHAT,
   },
   forja: {
     fundoMesa: "#090807",
@@ -381,6 +401,7 @@ export const TEMAS: Record<IdDoTema, Tema> = {
     veu: "rgba(13, 12, 11, 0.88)",
     pontoOff: "#68645D",
     sombra: "0 6px 24px rgba(0, 0, 0, 0.5)",
+    ...ROLAGENS_DO_CHAT,
   },
   paladino: {
     fundoMesa: "#060916",
@@ -419,6 +440,7 @@ export const TEMAS: Record<IdDoTema, Tema> = {
     veu: "rgba(10, 14, 29, 0.88)",
     pontoOff: "#656D90",
     sombra: "0 6px 24px rgba(0, 0, 0, 0.5)",
+    ...ROLAGENS_DO_CHAT,
   },
   druida: {
     fundoMesa: "#070C08",
@@ -457,6 +479,7 @@ export const TEMAS: Record<IdDoTema, Tema> = {
     veu: "rgba(10, 17, 11, 0.88)",
     pontoOff: "#64705F",
     sombra: "0 6px 24px rgba(0, 0, 0, 0.5)",
+    ...ROLAGENS_DO_CHAT,
   },
   leviata: {
     fundoMesa: "#03090E",
@@ -495,6 +518,7 @@ export const TEMAS: Record<IdDoTema, Tema> = {
     veu: "rgba(6, 17, 26, 0.88)",
     pontoOff: "#58798A",
     sombra: "0 6px 24px rgba(0, 0, 0, 0.5)",
+    ...ROLAGENS_DO_CHAT,
   },
   arcana: {
     fundoMesa: "#08050F",
@@ -533,6 +557,7 @@ export const TEMAS: Record<IdDoTema, Tema> = {
     veu: "rgba(14, 9, 23, 0.88)",
     pontoOff: "#706690",
     sombra: "0 6px 24px rgba(0, 0, 0, 0.5)",
+    ...ROLAGENS_DO_CHAT,
   },
   elfico: {
     fundoMesa: "#B0C2AD",
@@ -571,6 +596,7 @@ export const TEMAS: Record<IdDoTema, Tema> = {
     veu: "rgba(235, 244, 232, 0.92)",
     pontoOff: "#77897A",
     sombra: "0 6px 20px rgba(30, 55, 35, 0.2)",
+    ...ROLAGENS_DO_CHAT,
   },
   celestial: {
     fundoMesa: "#AABCD6",
@@ -609,6 +635,7 @@ export const TEMAS: Record<IdDoTema, Tema> = {
     veu: "rgba(235, 242, 252, 0.92)",
     pontoOff: "#74839F",
     sombra: "0 6px 20px rgba(30, 50, 90, 0.2)",
+    ...ROLAGENS_DO_CHAT,
   },
 };
 

@@ -43,6 +43,61 @@ const SECOES = [
 ] as const;
 type Secao = (typeof SECOES)[number];
 
+/** Os campos da ficha de papel (V4a) que a seção "Personalidade, moedas e detalhes" mostra. */
+const CAMPOS_DE_PAPEL = [
+  "personalidade",
+  "ideais",
+  "ligacoes",
+  "defeitos",
+  "moedas",
+  "xp",
+  "idade",
+  "altura",
+  "peso",
+  "olhos",
+  "pele",
+  "cabelos",
+  "aparencia",
+  "aliados",
+  "historia",
+  "tesouro",
+  "outrasProficiencias",
+];
+
+const NOVO_PARAGRAFO = "\n\n";
+
+/** O resumo em texto de cada campo da ficha de papel que veio preenchido. */
+function textoDosCamposDePapel(f: Ficha): string {
+  const rotulos: Record<string, string> = {
+    personalidade: "Traços de personalidade",
+    ideais: "Ideais",
+    ligacoes: "Ligações",
+    defeitos: "Defeitos",
+    xp: "Pontos de experiência",
+    idade: "Idade",
+    altura: "Altura",
+    peso: "Peso",
+    olhos: "Olhos",
+    pele: "Pele",
+    cabelos: "Cabelos",
+    aparencia: "Aparência",
+    aliados: "Aliados e organizações",
+    historia: "História",
+    tesouro: "Tesouro",
+    outrasProficiencias: "Outras proficiências",
+  };
+  const bruto = f as Record<string, unknown>;
+  const linhas = Object.entries(rotulos)
+    .filter(([k]) => bruto[k] !== undefined && bruto[k] !== "")
+    .map(([k, r]) => `${r}: ${String(bruto[k])}`);
+  const moedas = Object.entries(f.moedas ?? {})
+    .map(([k, v]) => `${v} ${k.toUpperCase()}`)
+    .join(", ");
+  if (moedas) linhas.push(`Moedas: ${moedas}`);
+  if (f.notas) linhas.push(f.notas);
+  return linhas.join(NOVO_PARAGRAFO);
+}
+
 /** A seção da tela de revisão a que um caminho da ficha pertence. */
 export function secaoDoCaminho(caminho: string): Secao {
   const raiz = caminho.split(".")[0] ?? "";
@@ -55,7 +110,7 @@ export function secaoDoCaminho(caminho: string): Secao {
   if (raiz === "caracteristicas") return "caracteristicas";
   if (raiz === "itens") return "equipamento";
   if (raiz === "recursos") return "recursos";
-  if (raiz === "notas") return "notas";
+  if (raiz === "notas" || CAMPOS_DE_PAPEL.includes(raiz)) return "notas";
   return "gerais";
 }
 
@@ -69,7 +124,7 @@ const TITULOS: Record<Secao, string> = {
   caracteristicas: "Características e traços",
   equipamento: "Equipamento",
   recursos: "Recursos (caixas do PDF)",
-  notas: "Notas (personalidade e moedas)",
+  notas: "Personalidade, moedas e detalhes",
 };
 
 /** Quantos campos a seção leu (para o resumo da seção recolhida: "12 campos lidos, nada a conferir"). */
@@ -95,7 +150,10 @@ function camposLidos(secao: Secao, f: Ficha): number {
     case "recursos":
       return f.recursos?.length ?? 0;
     case "notas":
-      return tem(f.notas);
+      return (
+        tem(f.notas) +
+        CAMPOS_DE_PAPEL.filter((k) => tem((f as Record<string, unknown>)[k]) > 0).length
+      );
   }
 }
 
@@ -781,7 +839,7 @@ export function RevisaoDoPdf({
             aoAlternar={() => alternar("notas")}
             resumo={resumoDe("notas")}
           >
-            <pre className="rev-descricao">{ficha.notas || "(vazio)"}</pre>
+            <pre className="rev-descricao">{textoDosCamposDePapel(ficha) || "(vazio)"}</pre>
           </Secao>
         </div>
 

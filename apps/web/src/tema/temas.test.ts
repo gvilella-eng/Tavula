@@ -57,6 +57,9 @@ const PARES: Par[] = [
   ["texto", "avisoFundo"],
   ["perigo", "perigoFundo"],
   ["texto", "perigoFundo"],
+  // Rolagens do chat (V4a): texto do crítico (verde) e da falha crítica (vermelho) sobre o próprio fundo.
+  ["criticoTexto", "critico"],
+  ["falhaCriticaTexto", "falhaCritica"],
 ];
 
 describe("temas de cor", () => {
@@ -149,6 +152,17 @@ describe("temas de cor", () => {
       expect(ruins.map((p) => `foco sobre ${p.f}: ${p.c.toFixed(2)}`)).toEqual([]);
     });
   }
+
+  // V4a: o verde do crítico e o vermelho da falha crítica são iguais em todos os temas.
+  it("o verde de crítico e o vermelho de falha crítica são fixos, iguais nos 14 temas", () => {
+    for (const id of IDS_DOS_TEMAS) {
+      const t = TEMAS[id];
+      expect(t.critico, id).toBe("#2FA46A");
+      expect(t.criticoTexto, id).toBe("#0B2416");
+      expect(t.falhaCritica, id).toBe("#E5484D");
+      expect(t.falhaCriticaTexto, id).toBe("#1A0507");
+    }
+  });
 
   it("o anel de foco existe nos temas e vira a variável --foco", () => {
     for (const id of IDS_DOS_TEMAS) {

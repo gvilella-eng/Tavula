@@ -2413,4 +2413,53 @@ Pedido do Vilella ("TUDO está com o tooltip ao passar o mouse, tá um saco"; re
 
 ---
 
-## Próximo: ajustes V4 (próximo lote dos ajustes do Vilella); depois 7b e 12
+## Ajustes V4a — A ficha no desenho aprovado (entregue, aguardando o roteiro manual)
+
+Refeito depois de o Vilella recusar o papel branco do primeiro V4a. Detalhes e decisões em `docs/REDESIGN.md` ("V4a — como ficou"); os protótipos aprovados estão em `docs/desenho/`. NPC, arrastar do compêndio, reordenar e acender tocha no equipamento ficam para o V4b.
+
+### O que foi entregue
+
+- Janela da ficha de ~880 px, na camada mais alta, que minimiza para só o nome; cabeçalho com capitular, campos de identidade, fitas e faixa Vantagem / Normal / Desvantagem.
+- Abas Personagem (3 colunas), Magias, História e Configurar; editor da engrenagem com prévia ao vivo; layout estreito em acordeão (pela largura da janela); peles Livro e Clássica.
+- Rolagem no chat em bloco baixo, com os dois d20 na vantagem, crítico verde e 1 natural vermelho fixos.
+- Dados: campos de rolagem opcionais em ataque e magia, peso do item, origem da característica; `chat.caracteristica` com `origem`.
+
+### Como rodar
+
+- `pnpm verify` (uma vez). Prints: `$env:PRINTS_DIR="<pasta>"; pnpm --filter @tabletop/e2e prints v4a`.
+
+### Verificação
+
+- Unidade nova: `packages/shared/src/ataques.test.ts` (dano, CD, prévia, margem de crítico e dano extra na rolagem, moedas, carga, dano no temporário); `fichaCampos.test.ts` (o do primeiro V4a, renomeado); `temas.test.ts` (tokens do crítico iguais nos 14 temas, contraste AA).
+- E2E novo: `e2e/tests/ficha-livro.spec.ts` (editor e prévia, conjurar, moedas e equipamento, característica no chat, minimizar, aparência Clássica persistida, janela estreita, crítico verde, importar PDF, só leitura). O `ficha-pdf.spec.ts` do primeiro V4a nunca tinha rodado e foi apagado.
+- E2E antigos alterados (comportamento mudou de propósito): `ficha.spec.ts` (o nome do ataque rola acerto e dano, o botão Acerto só o d20; a vantagem fica até trocar; dois d20 visíveis; bolinhas de dado de vida e de espaço cheias = disponíveis; remover ataque pela engrenagem; classe no cabeçalho), `janelas.spec.ts` (a ficha fica acima da ordem de turno; abre com ~880 px; arrasto e cascata curtos pela largura), `chat.spec.ts` ("Ataque · Nome" e chips dos d20), `compendio.spec.ts` (o nome da magia é botão que expande), `polimento.spec.ts` (a 520 px a ficha é a estreita e os campos de identidade ficam na seção Identidade; a ficha larga pode cobrir a ordem e o painel do token, então saíram "ordem × ficha" e "ficha × token" e a ficha fecha antes do botão do token), `importarPdf.spec.ts` e `fluxos.spec.ts` (o nome do ataque é botão; o resumo da classe é o texto de leitor de tela `janela-ficha-resumo`), `prints/auditoria.spec.ts` (abas). `fichas-arvore.spec.ts` e `ordem-simples.spec.ts` passam sem mudança de código nelas (a Aparência ficou por último na Configurar; o aviso da ordem manteve o testid).
+- `--repeat-each=3` não foi rodado (decisão do dono).
+
+### Decisões
+
+- (assumido) Ver `REDESIGN`, "V4a — como ficou", Decisões.
+
+### Desvios do plano
+
+- Reordenar por arrasto e Alt+↑/↓ não entraram (V4b, como o brief mandou); a dica do protótipo sobre isso foi omitida.
+
+### Frágil / não verificado
+
+- `ficha.css` repete o prefixo `.fl-raiz` em tudo para ganhar do `button` global do `styles.css`; mexer na ordem dos blocos de "ajustes por contexto" (fim do arquivo) dá aviso de especificidade no Biome e erro de aparência.
+- O botão e o input dentro da ficha só perdem o estilo global se a classe começa com `fl-` (`button[class*="fl-"]`).
+- Firefox e Safari não conferidos (`color-mix`, `clip-path`).
+
+### Roteiro manual (pendente)
+
+1. Abra uma ficha: ~880 px, nome com capitular, fitas à direita. Arraste pelo cabeçalho: ela passa por cima do chat, do painel e da ordem de turno. Duplo clique no cabeçalho: sobra só o nome.
+2. Troque Vantagem / Normal / Desvantagem e clique numa perícia: o chat mostra os dois d20, o descartado esmaecido.
+3. Clique no nome de um ataque (acerto e dano juntos), em Acerto e em Dano; abra a engrenagem, mude o bônus mágico e veja a prévia; "Novo ataque".
+4. Magias: conjure uma magia de 1º nível (o espaço some), "Recuperar espaços", marque "Mostrar em Ataques e magias".
+5. Configurar → Aparência: Clássica; recarregue e confira que ficou.
+6. Estreite a janela pela quina até ~500 px: cabeçalho grudado e acordeão.
+7. Moedas, quantidade e peso do equipamento; característica "Mandar ao chat".
+8. Force um 20 natural (o mestre pode usar um dado de teste) e confira o verde do crítico; confira em 2 ou 3 temas.
+
+---
+
+## Próximo: ajustes V4b (ficha de NPC no desenho N, arrastar do compêndio, reordenar, tocha no equipamento); depois V5, 7b e 12

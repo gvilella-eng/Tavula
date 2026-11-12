@@ -435,14 +435,13 @@ test("modelos: ataque, teste com CD e vantagem pelo formulário", async ({ mesa 
   await p.getByTestId("modelo-vantagem").selectOption("vantagem");
   await p.getByTestId("modelo-rolar").click();
   const ataque = p.getByTestId("modelo-ataque");
-  await expect(ataque).toContainText("Ataque: Espada longa");
+  await expect(ataque).toContainText("Ataque · Espada longa");
   await expect(ataque).toContainText("Vantagem");
   await expect(ataque.getByTestId("cartao-rolagem")).toHaveCount(2);
-  // o acerto de vantagem tem dois d20, um riscado, e o jogador comum não tem a opção "oculta"
+  // o acerto de vantagem mostra os dois d20, o descartado esmaecido, e o jogador comum não tem a opção "oculta"
+  await expect(ataque.getByTestId("d20-chip")).toHaveCount(2);
+  await expect(ataque.locator('[data-testid="d20-chip"][data-descartado="true"]')).toHaveCount(1);
   await ataque.getByTestId("cartao-rolagem").first().hover();
-  await expect(ataque.locator('[data-testid="dado-rolado"][data-descartado="true"]')).toHaveCount(
-    1,
-  );
   await expect(ataque.getByTestId("dado-rolado").first()).toBeVisible();
   await expect(p.getByTestId("modelo-oculta")).toHaveCount(0);
 

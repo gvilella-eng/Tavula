@@ -287,14 +287,18 @@ test("o jogador adiciona a magia à ficha do personagem dele; adicionar de novo 
 
   const janela = await abrirFicha(p, "pers-aldric", "magias");
   await expect(janela.getByTestId("magias-nivel-1")).toBeVisible();
-  await expect(janela.getByTestId("magia-nome-0")).toHaveValue("Detectar Magia");
-  await expect(janela.getByTestId("magia-escola-0")).toHaveValue("Adivinhação");
-  await janela.getByTestId("magia-detalhes-0").click();
-  const descricao = janela.getByTestId("magia-descricao-0");
-  await expect(descricao).toHaveValue(/Tempo de conjuração: 1 ação/);
-  await expect(descricao).toHaveValue(/Alcance: Pessoal/);
-  await expect(descricao).toHaveValue(/Concentração · Ritual/);
-  await expect(descricao).toHaveValue(/sente a presença de magia/);
+  await expect(janela.getByTestId("magia-nome-0")).toHaveText("Detectar Magia");
+  // V4a: a linha tem o vínculo com o compêndio, então expandir mostra o cartão dele (não mais o texto copiado)
+  await janela.getByTestId("magia-alternar-0").click();
+  const cartao = janela.getByTestId("magia-cartao-0");
+  await expect(cartao).toContainText("Adivinhação");
+  await expect(cartao).toContainText("Tempo de conjuração");
+  await expect(cartao).toContainText("1 ação");
+  await expect(cartao).toContainText("Alcance");
+  await expect(cartao).toContainText("Pessoal");
+  await expect(cartao).toContainText("Concentração");
+  await expect(cartao).toContainText("Ritual");
+  await expect(cartao).toContainText("sente a presença de magia");
   await janela.getByTestId("janela-ficha-fechar").click();
 
   // de novo: avisa e não duplica
@@ -305,7 +309,9 @@ test("o jogador adiciona a magia à ficha do personagem dele; adicionar de novo 
   );
   const janela2 = await abrirFicha(p, "pers-aldric", "magias");
   await expect(janela2.getByTestId("magia-nome-1")).toHaveCount(0);
-  await expect(janela2.getByTestId("magias-nivel-1")).toContainText("(1)");
+  await expect(
+    janela2.getByTestId("magias-nivel-1").locator('[data-testid^="magia-alternar-"]'),
+  ).toHaveCount(1);
 });
 
 test("JSON inválido mostra o erro ao mestre com o campo e nada é distribuído; corrigido e recarregado, vai", async ({

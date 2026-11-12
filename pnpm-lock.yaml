@@ -45,6 +45,21 @@ importers:
       '@fontsource-variable/space-grotesk':
         specifier: ^5.3.0
         version: 5.3.0
+      '@fontsource/alegreya':
+        specifier: ^5.3.0
+        version: 5.3.0
+      '@fontsource/cinzel':
+        specifier: ^5.3.0
+        version: 5.3.0
+      '@fontsource/cormorant-sc':
+        specifier: ^5.3.0
+        version: 5.3.0
+      '@fontsource/eb-garamond':
+        specifier: ^5.3.0
+        version: 5.3.0
+      '@fontsource/im-fell-english-sc':
+        specifier: ^5.3.0
+        version: 5.3.0
       '@fontsource/medievalsharp':
         specifier: ^5.3.0
         version: 5.3.0
@@ -399,6 +414,21 @@ packages:
 
   '@fontsource-variable/space-grotesk@5.3.0':
     resolution: {integrity: sha512-2IxmvfB08i9vnGB3Ym/AXvhRE+8XOjWMXIyDum03c+tPwH0FUoMNQfGpU8NXPxjbws0Vvss3AH0Zqt4oJBBAdw==}
+
+  '@fontsource/alegreya@5.3.0':
+    resolution: {integrity: sha512-YCsp9dHYfMNdggXxinMMS0nkGlZkzs2MvPL7qPVjSO4DM1uJ29hmKEdTC/fBP+2K4Aa+4Z44JuOQz05eDcvNJA==}
+
+  '@fontsource/cinzel@5.3.0':
+    resolution: {integrity: sha512-KEOYTsrRppW0uRIPWBDPrQgunCS6f8u4nzZxYRBfo9SCknKojLYjK7B0ZoVmJhyVLefz271ZQRF9EOpHZlfhRw==}
+
+  '@fontsource/cormorant-sc@5.3.0':
+    resolution: {integrity: sha512-4iTWFRwm6x6UJ2tJpcMYShL2KLgLSwiXt5KTPSe6GHpDr54ZzkH3/JXXvczGWV3MnzTUc4PCqPsbh/VLNPlxGg==}
+
+  '@fontsource/eb-garamond@5.3.0':
+    resolution: {integrity: sha512-VplwHpB8FLuzl+4G5LDci1b3Z4SghiuXH8XEgaxjnOb5aue5mEt1njmDKeO6iyLeGa73LffU7PC7hzncLRx0ZA==}
+
+  '@fontsource/im-fell-english-sc@5.3.0':
+    resolution: {integrity: sha512-jKnCJ22tgVwxWVs1YQ/GCWmP60ulVq49IJZ7c0wgv0MXHe8T8LPbl0sOteYLOkCURW5+ZKwFiLNU2h/l9fHgrg==}
 
   '@fontsource/medievalsharp@5.3.0':
     resolution: {integrity: sha512-vaqsQ/qp5kL/WuJ/4dZG2ScHDG1Tu+n83q9JvgkYLqhay2n6bbXqL5WBppJxU40pKH6fTDE5CA33hEkJUmSbaA==}
@@ -1612,6 +1642,16 @@ snapshots:
   '@fontsource-variable/lora@5.3.0': {}
 
   '@fontsource-variable/space-grotesk@5.3.0': {}
+
+  '@fontsource/alegreya@5.3.0': {}
+
+  '@fontsource/cinzel@5.3.0': {}
+
+  '@fontsource/cormorant-sc@5.3.0': {}
+
+  '@fontsource/eb-garamond@5.3.0': {}
+
+  '@fontsource/im-fell-english-sc@5.3.0': {}
 
   '@fontsource/medievalsharp@5.3.0': {}
 

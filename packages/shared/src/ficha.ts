@@ -59,16 +59,56 @@ export const AcertoSchema = z.discriminatedUnion("tipo", [
 ]);
 export type Acerto = z.infer<typeof AcertoSchema>;
 
-export const AtaqueSchema = z.object({
-  nome: Nome,
+/** Um segundo dano do ataque (V4a: "Usar um segundo dano"): dados, atributo, bônus e tipo. */
+export const SegundoDanoSchema = z.object({
+  dados: z.string().max(100),
+  atributo: AtributoSchema.optional(),
+  bonus: Bonus.optional(),
+  tipo: z.string().max(32).optional(),
+});
+export type SegundoDano = z.infer<typeof SegundoDanoSchema>;
+
+export const EFEITOS_NO_SUCESSO = ["metade", "nenhum"] as const;
+/** A salvaguarda que o alvo faz (V4a): o teste dele, o atributo da CD, o bônus na CD e o que o sucesso faz. */
+export const SalvaguardaDaRolagemSchema = z.object({
+  alvo: AtributoSchema,
+  cdAtributo: AtributoSchema,
+  cdBonus: Bonus.optional(),
+  sucesso: z.enum(EFEITOS_NO_SUCESSO),
+});
+export type SalvaguardaDaRolagem = z.infer<typeof SalvaguardaDaRolagemSchema>;
+
+/**
+ * Os campos de rolagem que um ataque e uma magia têm em comum (V4a: o mesmo editor serve aos dois). Tudo opcional:
+ * `acerto`, `cd`, `dano` e `tipo` já existiam; o resto é do editor da engrenagem.
+ */
+const CamposDeRolagem = {
   /** Sem acerto: o ataque só tem dano (ou CD). */
   acerto: AcertoSchema.optional(),
-  /** CD da salvaguarda do alvo (magia que não rola ataque). Só é mostrada. */
+  /** CD da salvaguarda do alvo escrita à mão (sem `salvaguarda`). Só é mostrada. */
   cd: z.number().int().min(0).max(40).optional(),
-  /** Expressão de dano (`1d8+7`); vazio = sem dano. */
+  /** Os dados do dano (`1d8`) ou a expressão inteira que o import trouxe (`1d8+7`); vazio = sem dano. */
   dano: z.string().max(100).optional(),
   /** Tipo do dano ("Cortante", "Radiante"...). */
   tipo: z.string().max(32).optional(),
+  alcance: z.string().max(100).optional(),
+  /** Soma ao acerto e ao dano. */
+  bonusMagico: Bonus.optional(),
+  /** O modificador desse atributo soma ao dano. */
+  atributoDano: AtributoSchema.optional(),
+  bonusDano: Bonus.optional(),
+  /** A partir de qual número natural o acerto é crítico (20 por padrão; 19 ou 18 para quem amplia). */
+  margemCritico: z.number().int().min(18).max(20).optional(),
+  /** Dados a mais no crítico (`1d6`), somados depois de dobrar os do dano. */
+  danoCritico: z.string().max(60).optional(),
+  dano2: SegundoDanoSchema.optional(),
+  salvaguarda: SalvaguardaDaRolagemSchema.optional(),
+};
+
+export const AtaqueSchema = z.object({
+  nome: Nome,
+  ...CamposDeRolagem,
+  descricao: z.string().max(20_000).optional(),
 });
 export type Ataque = z.infer<typeof AtaqueSchema>;
 
@@ -78,12 +118,39 @@ export const MagiaSchema = z.object({
   preparada: z.boolean(),
   escola: z.string().max(32).optional(),
   descricao: z.string().max(20_000),
+  ...CamposDeRolagem,
+  /** Tempo de conjuração, componentes e duração (o que o compêndio traz, para a magia escrita à mão). */
+  tempo: z.string().max(60).optional(),
+  componentes: z.string().max(200).optional(),
+  duracao: z.string().max(80).optional(),
+  /** "Mostrar em Ataques e magias" (V4a): a magia aparece na lista de ataques, editada pela mesma magia. */
+  emAtaques: z.boolean().optional(),
 });
 export type Magia = z.infer<typeof MagiaSchema>;
+
+/** O que o editor de ataque e as rolagens leem: um ataque ou uma magia (têm a mesma forma). */
+export type Rolavel = Pick<
+  Ataque,
+  | "nome"
+  | "acerto"
+  | "cd"
+  | "dano"
+  | "tipo"
+  | "alcance"
+  | "bonusMagico"
+  | "atributoDano"
+  | "bonusDano"
+  | "margemCritico"
+  | "danoCritico"
+  | "dano2"
+  | "salvaguarda"
+>;
 
 export const CaracteristicaSchema = z.object({
   nome: Nome,
   descricao: z.string().max(20_000),
+  /** De onde vem ("Classe: Patrulheiro", "Raça: Elfo"): a linha em itálico embaixo do título (V4a). */
+  origem: z.string().max(80).optional(),
 });
 export type Caracteristica = z.infer<typeof CaracteristicaSchema>;
 
@@ -93,6 +160,8 @@ export const ItemDaFichaSchema = z.object({
   /** Modelo de objeto (tocha, lanterna): o item acende direto da ficha (4.8). */
   modeloId: z.string().min(1).max(64).optional(),
   nota: z.string().max(500).optional(),
+  /** Peso de uma unidade, em quilos (V4a): a carga da ficha soma quantidade vezes peso. */
+  peso: z.number().min(0).max(99_999).optional(),
 });
 export type ItemDaFicha = z.infer<typeof ItemDaFichaSchema>;
 
@@ -109,6 +178,25 @@ export const DADOS_DE_VIDA = ["d6", "d8", "d10", "d12"] as const;
 export type DadoDeVida = (typeof DADOS_DE_VIDA)[number];
 
 const NIVEIS_DE_ESPACO = ["1", "2", "3", "4", "5", "6", "7", "8", "9"] as const;
+
+/** SHA-256 em hexadecimal minúsculo (o mesmo de `HashSchema`, sem importar `assets.ts`: ele importa o estado). */
+const HashDaImagem = z.string().regex(/^[0-9a-f]{64}$/, "hash inválido");
+const Moeda = z.number().int().min(0).max(9_999_999);
+const Curto = z.string().max(40);
+/** Texto livre de uma caixa da ficha de papel (V4a). */
+const Caixa = (max: number) => z.string().max(max);
+
+/** As moedas da ficha de papel: PC (cobre), PP (prata), PE (electro), PO (ouro) e PL (platina). */
+export const MoedasSchema = z.object({
+  pc: Moeda.optional(),
+  pp: Moeda.optional(),
+  pe: Moeda.optional(),
+  po: Moeda.optional(),
+  pl: Moeda.optional(),
+});
+export type Moedas = z.infer<typeof MoedasSchema>;
+export const MOEDAS = ["pc", "pp", "pe", "po", "pl"] as const;
+export type TipoDeMoeda = (typeof MOEDAS)[number];
 
 export const FichaSchema = z.object({
   // --- identidade ---
@@ -165,6 +253,45 @@ export const FichaSchema = z.object({
   recursos: z.array(RecursoSchema).max(60).optional(),
   idiomas: z.array(z.string().min(1).max(40)).max(30).optional(),
   notas: z.string().max(50_000).optional(),
+  // --- ficha de papel (V4a): o que o PDF da Biblioteca Élfica tem e a ficha não tinha. Tudo opcional. ---
+  /** Pontos de experiência. */
+  xp: z.number().int().min(0).max(99_999_999).optional(),
+  /** Inspiração: tem ou não. */
+  inspiracao: z.boolean().optional(),
+  /** "Idiomas e outras proficiências": o texto da caixa (o `idiomas` antigo é a lista que o import preenche). */
+  outrasProficiencias: Caixa(4000).optional(),
+  moedas: MoedasSchema.optional(),
+  personalidade: Caixa(2000).optional(),
+  ideais: Caixa(2000).optional(),
+  ligacoes: Caixa(2000).optional(),
+  defeitos: Caixa(2000).optional(),
+  /** Texto livre da caixa "Ataques e magias" (abaixo das linhas de ataque). */
+  ataquesTexto: Caixa(8000).optional(),
+  // --- página 2 ---
+  idade: Curto.optional(),
+  altura: Curto.optional(),
+  peso: Curto.optional(),
+  olhos: Curto.optional(),
+  pele: Curto.optional(),
+  cabelos: Curto.optional(),
+  /** A imagem local da "Aparência do personagem" (um asset `retrato`, como o retrato). */
+  aparenciaHash: HashDaImagem.optional(),
+  /** A descrição escrita da aparência. */
+  aparencia: Caixa(4000).optional(),
+  aliados: Caixa(8000).optional(),
+  simboloNome: z.string().max(80).optional(),
+  simboloHash: HashDaImagem.optional(),
+  /** "Outras características e habilidades" (a página 2; as da página 1 são `caracteristicas`). */
+  outrasCaracteristicas: z.array(CaracteristicaSchema).max(200).optional(),
+  historia: Caixa(20_000).optional(),
+  tesouro: Caixa(8000).optional(),
+  // --- página 3 ---
+  /** "Classe de conjurador" escrita à mão (sem ela, vale a primeira classe que conjura). */
+  classeConjurador: z.string().max(48).optional(),
+  /** Espaços de magia por nível, quando a pessoa quer escrever por cima da conta das classes. */
+  espacosTotal: z
+    .partialRecord(z.enum(NIVEIS_DE_ESPACO), z.number().int().min(0).max(30))
+    .optional(),
 });
 export type Ficha = z.infer<typeof FichaSchema>;
 
@@ -238,15 +365,17 @@ export function pesParaMetros(ft: number): number {
   return Math.round(ft * 3) / 10;
 }
 
-/** Bônus de acerto do ataque: valor fixo ou atributo + proficiência + bônus; `undefined` sem acerto. */
-export function bonusDeAcerto(f: Ficha, a: Ataque): number | undefined {
+/** Bônus de acerto do ataque: valor fixo ou atributo + proficiência + bônus, mais o bônus mágico; `undefined` sem acerto. */
+export function bonusDeAcerto(f: Ficha, a: Rolavel): number | undefined {
   const acerto = a.acerto;
   if (!acerto) return undefined;
-  if (acerto.tipo === "fixo") return acerto.valor;
+  const magico = a.bonusMagico ?? 0;
+  if (acerto.tipo === "fixo") return acerto.valor + magico;
   return (
     modDoAtributo(f, acerto.atributo) +
     (acerto.proficiente ? bonusDeProficiencia(f) : 0) +
-    (acerto.bonus ?? 0)
+    (acerto.bonus ?? 0) +
+    magico
   );
 }
 
@@ -338,7 +467,15 @@ export function conjuradoras(f: Ficha): Conjuradora[] {
 export type EspacoDeMagia = { nivel: number; total: number; gastos: number; restantes: number };
 
 export function espacosDaFicha(f: Ficha): EspacoDeMagia[] {
-  const total = espacosDeMagia(nivelDeConjurador(f.classes ?? []));
+  const calculado = espacosDeMagia(nivelDeConjurador(f.classes ?? []));
+  const sobrescrito = f.espacosTotal ?? {};
+  // Sem total escrito à mão vale a conta das classes; com ele, o escrito vence nos níveis que ele cobre.
+  const total =
+    Object.keys(sobrescrito).length === 0
+      ? calculado
+      : NIVEIS_DE_ESPACO.map((n, i) => sobrescrito[n] ?? calculado[i] ?? 0).filter((_t, i, todos) =>
+          todos.slice(i).some((x) => x > 0),
+        );
   return total.map((t, i) => {
     const gastos = Math.min(t, f.espacosGastos?.[String(i + 1) as "1"] ?? 0);
     return { nivel: i + 1, total: t, gastos, restantes: t - gastos };
@@ -435,6 +572,36 @@ export function derivar(f: Ficha): FichaDerivada {
     espacos: espacosDaFicha(f),
     pacto: pactoDaFicha(f),
     dadosDeVida: dadosDeVidaDaFicha(f),
+  };
+}
+
+/** O valor das moedas da ficha em peças de ouro (1 po = 10 pp = 100 pc; 1 pe = 0,5 po; 1 pl = 10 po). */
+export function moedasEmOuro(f: Ficha): number {
+  const m = f.moedas ?? {};
+  const total =
+    (m.pc ?? 0) / 100 + (m.pp ?? 0) / 10 + (m.pe ?? 0) / 2 + (m.po ?? 0) + (m.pl ?? 0) * 10;
+  return Math.round(total * 100) / 100;
+}
+
+/** A carga do equipamento, em quilos: a soma de quantidade vezes peso de cada item (sem peso conta zero). */
+export function cargaDaFicha(f: Ficha): number {
+  const total = (f.itens ?? []).reduce((t, i) => t + i.quantidade * (i.peso ?? 0), 0);
+  return Math.round(total * 100) / 100;
+}
+
+/**
+ * Tira `dano` PV: os temporários absorvem primeiro, o resto sai dos atuais (nunca abaixo de 0). Devolve os dois
+ * valores novos.
+ */
+export function receberDano(
+  f: Pick<Ficha, "pvAtual" | "pvTemp">,
+  dano: number,
+): { pvAtual: number; pvTemp: number } {
+  const temp = f.pvTemp ?? 0;
+  const absorvido = Math.min(temp, Math.max(0, dano));
+  return {
+    pvTemp: temp - absorvido,
+    pvAtual: Math.max(0, f.pvAtual - (Math.max(0, dano) - absorvido)),
   };
 }
 
@@ -633,11 +800,15 @@ export function operacoesDeDiferenca(antes: Ficha, depois: Ficha): OperacaoDeFic
 // ---------------------------------------------------------------------------------------------
 
 export const FORMATO_DA_FICHA = "tabletop-ficha";
-export const VERSAO_DA_FICHA = 1 as const;
+/**
+ * Versão 2 (V4a): a ficha ganhou os campos da ficha de papel. É só acréscimo (tudo opcional), então o arquivo da
+ * versão 1 continua lendo igual.
+ */
+export const VERSAO_DA_FICHA = 2 as const;
 
 export const ArquivoDeFichaSchema = z.object({
   formato: z.literal(FORMATO_DA_FICHA),
-  versao: z.literal(VERSAO_DA_FICHA),
+  versao: z.union([z.literal(1), z.literal(2)]),
   nome: z.string().max(64).optional(),
   exportadoEm: z.string().optional(),
   ficha: FichaSchema,

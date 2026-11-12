@@ -1,10 +1,14 @@
 import {
-  type Ataque,
   bonusDeAcerto,
+  cdDaRolagem,
+  expressaoDeDano,
   type Ficha,
   formatarBonus,
   pedidoDeAtaque,
   pedidoDeTeste,
+  ROTULO_DO_ATRIBUTO,
+  type Rolavel,
+  tipoDeDano,
   type Vantagem,
 } from "@tabletop/shared";
 
@@ -12,17 +16,20 @@ type Enviar = (tipo: string, dados: object) => string | null;
 
 /**
  * O que a ficha rola. Tudo sai "Como:" o personagem (campo `como`) e usa os modelos do Lote 8: ataque
- * (`chat.modelo`), teste (`chat.modelo`) e dano solto (`/r` pelo chat). O seletor de vantagem do
- * cabeçalho vale para o PRÓXIMO d20: depois de rolar ele volta a "normal".
+ * (`chat.modelo`), teste (`chat.modelo`) e dano solto (`/r` pelo chat). Quem rola é sempre a sala. A faixa
+ * Vantagem / Normal / Desvantagem da janela vale para todos os d20 desta ficha (V4a), até a pessoa trocá-la.
  */
 export type Rolador = {
   podeRolar: boolean;
+  vantagem: Vantagem;
   /** Teste de atributo, salvaguarda, perícia, iniciativa...: d20 + bônus (com CD, mostra sucesso). */
   teste: (nome: string, bonus: number, cd?: number) => void;
-  /** Clique no acerto do ataque: acerto + dano (crítico dobra os dados). */
-  ataque: (a: Ataque, ficha: Ficha) => void;
-  /** Clique no dano: só o dano. */
-  dano: (a: Ataque) => void;
+  /** O nome do ataque ou da magia: acerto + dano no mesmo bloco do chat (crítico dobra os dados). */
+  ataque: (a: Rolavel, ficha: Ficha) => void;
+  /** O botão Acerto: só o d20 do ataque. */
+  acerto: (a: Rolavel, ficha: Ficha) => void;
+  /** O botão Dano: só o dano. */
+  dano: (a: Rolavel, ficha: Ficha) => void;
   /** Uma expressão qualquer, com um nome (ex.: dados de vida: `1d8+2`). */
   expressao: (expr: string, nome: string) => void;
 };
@@ -32,13 +39,13 @@ export function criarRolador(opcoes: {
   podeRolar: boolean;
   enviar: Enviar;
   vantagem: Vantagem;
-  aoRolarD20: () => void;
 }): Rolador {
-  const { personagemId, podeRolar, enviar, vantagem, aoRolarD20 } = opcoes;
+  const { personagemId, podeRolar, enviar, vantagem } = opcoes;
   const v = vantagem === "normal" ? {} : { vantagem };
   const nomeLimpo = (n: string) => n.trim().slice(0, 64) || "Ataque";
-  return {
+  const rolador: Rolador = {
     podeRolar,
+    vantagem,
     teste(nome, bonus, cd) {
       if (!podeRolar) return;
       enviar(
@@ -51,48 +58,71 @@ export function criarRolador(opcoes: {
           como: personagemId,
         }),
       );
-      aoRolarD20();
     },
     ataque(a, ficha) {
       if (!podeRolar) return;
       const bonus = bonusDeAcerto(ficha, a);
-      if (bonus === undefined) return this.dano(a);
-      if (a.dano && a.dano.trim() !== "") {
-        enviar(
-          "chat.modelo",
-          pedidoDeAtaque({
-            nome: nomeLimpo(a.nome),
-            bonus,
-            dano: a.dano.trim(),
-            ...(a.tipo ? { danoTipo: a.tipo } : {}),
-            ...v,
-            como: personagemId,
-          }),
-        );
-      } else {
-        // Sem dano: só o teste de ataque.
-        enviar(
-          "chat.modelo",
-          pedidoDeTeste({
-            nome: `${nomeLimpo(a.nome)} (ataque ${formatarBonus(bonus)})`.slice(0, 64),
-            bonus,
-            ...v,
-            como: personagemId,
-          }),
-        );
-      }
-      aoRolarD20();
+      const dano = expressaoDeDano(ficha, a);
+      if (bonus === undefined) return rolador.dano(a, ficha);
+      if (dano === undefined) return rolador.acerto(a, ficha);
+      const tipo = tipoDeDano(a);
+      const cd = a.salvaguarda ? cdDaRolagem(ficha, a) : undefined;
+      enviar(
+        "chat.modelo",
+        pedidoDeAtaque({
+          nome: nomeLimpo(a.nome),
+          bonus,
+          dano,
+          ...(tipo ? { danoTipo: tipo } : {}),
+          ...(a.margemCritico && a.margemCritico < 20 ? { margemCritico: a.margemCritico } : {}),
+          ...(a.danoCritico?.trim() ? { danoCritico: a.danoCritico.trim() } : {}),
+          ...(a.salvaguarda && cd !== undefined
+            ? {
+                salvaguarda: {
+                  cd,
+                  atributo: ROTULO_DO_ATRIBUTO[a.salvaguarda.alvo],
+                  sucesso: a.salvaguarda.sucesso,
+                },
+              }
+            : {}),
+          ...v,
+          como: personagemId,
+        }),
+      );
     },
-    dano(a) {
-      if (!podeRolar || !a.dano || a.dano.trim() === "") return;
-      const rotulo = [a.nome, a.cd === undefined ? "" : `CD ${a.cd}`, a.tipo ?? ""]
+    acerto(a, ficha) {
+      if (!podeRolar) return;
+      const bonus = bonusDeAcerto(ficha, a);
+      if (bonus === undefined) return;
+      enviar(
+        "chat.modelo",
+        pedidoDeTeste({
+          nome: `Ataque · ${nomeLimpo(a.nome)}`.slice(0, 64),
+          bonus,
+          ...v,
+          como: personagemId,
+        }),
+      );
+    },
+    dano(a, ficha) {
+      const expr = expressaoDeDano(ficha, a);
+      if (!podeRolar || expr === undefined) return;
+      const cd = cdDaRolagem(ficha, a);
+      const rotulo = [a.nome, cd === undefined ? "" : `CD ${cd}`, tipoDeDano(a) ?? ""]
         .filter(Boolean)
         .join(", ");
-      enviar("chat.enviar", { texto: `/r ${a.dano.trim()} ${rotulo}`.trim(), como: personagemId });
+      enviar("chat.enviar", { texto: `/r ${expr} ${rotulo}`.trim(), como: personagemId });
     },
     expressao(expr, nome) {
       if (!podeRolar) return;
       enviar("chat.enviar", { texto: `/r ${expr} ${nome}`.trim(), como: personagemId });
     },
   };
+  return rolador;
+}
+
+/** "+13": o texto do bônus de acerto de um ataque, ou `null` sem acerto. */
+export function textoDoAcerto(ficha: Ficha, a: Rolavel): string | null {
+  const b = bonusDeAcerto(ficha, a);
+  return b === undefined ? null : formatarBonus(b);
 }

@@ -2257,64 +2257,78 @@ button[aria-disabled="true"]:hover {
 .etiqueta-sigilo.oculta {
   color: var(--perigo);
 }
+/* A rolagem no chat (V4a): bloco baixo, nome em destaque, total grande, d20 discretos. */
 .cartao-rolagem {
   position: relative;
   display: inline-flex;
-  flex-direction: column;
+  flex-direction: row;
+  gap: 6px;
   align-items: center;
-  min-width: 64px;
-  padding: 4px 10px;
-  background: var(--cabecalho);
-  border: 1px solid var(--borda);
-  border-radius: 8px;
+  min-width: 0;
+  padding: 0;
   cursor: default;
   vertical-align: middle;
 }
 .rolagem-rotulo {
+  order: 3;
   font-size: 10px;
   text-transform: uppercase;
   color: var(--texto-suave);
 }
 .rolagem-total {
-  font-family: var(--fonte-titulo);
-  font-size: 24px;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  height: 34px;
+  padding: 0 7px;
+  font-family: "Cinzel", var(--fonte-titulo);
+  font-size: 23px;
   font-weight: 700;
-  line-height: 1.1;
+  line-height: 1;
+  color: var(--texto);
+  background: var(--campo);
+  border: 1px solid var(--borda);
+  border-radius: 6px;
+}
+.cartao-rolagem.dano .rolagem-total {
+  border-color: var(--perigo);
 }
 .rolagem-expressao {
   font-size: 11px;
   color: var(--texto-suave);
 }
 .cartao-rolagem.embutido {
-  flex-direction: row;
   gap: 6px;
-  padding: 0 6px;
   min-width: 0;
 }
 .cartao-rolagem.embutido .rolagem-total {
-  font-size: 15px;
+  min-width: 0;
+  height: 22px;
+  padding: 0 5px;
+  font-size: 14px;
 }
-.cartao-rolagem[data-natural="20"] {
-  border-color: var(--aviso);
-  background: var(--aviso-fundo);
-  box-shadow: 0 0 8px var(--aviso-suave);
-}
-.cartao-rolagem[data-natural="20"] .rolagem-total {
-  color: var(--aviso);
-}
-.cartao-rolagem[data-natural="1"] {
-  border-color: var(--perigo);
-  background: var(--perigo-fundo);
+.cartao-rolagem[data-natural="20"] .rolagem-total,
+.cartao-rolagem.critico .rolagem-total {
+  color: var(--critico-texto);
+  background: var(--critico);
+  border-color: var(--critico);
 }
 .cartao-rolagem[data-natural="1"] .rolagem-total {
-  color: var(--perigo);
+  color: var(--falha-critica-texto);
+  background: var(--falha-critica);
+  border-color: var(--falha-critica);
 }
 .rolagem-detalhe {
-  display: none;
   position: absolute;
-  z-index: 30;
-  left: 0;
   bottom: calc(100% + 4px);
+  left: 0;
+  z-index: 30;
+  display: none;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
   width: max-content;
   max-width: 280px;
   padding: 6px 8px;
@@ -2322,9 +2336,6 @@ button[aria-disabled="true"]:hover {
   border: 1px solid var(--borda);
   border-radius: 8px;
   box-shadow: var(--sombra);
-  gap: 4px;
-  flex-direction: column;
-  align-items: flex-start;
 }
 .cartao-rolagem:hover .rolagem-detalhe,
 .cartao-rolagem:focus .rolagem-detalhe {
@@ -2333,43 +2344,146 @@ button[aria-disabled="true"]:hover {
 .termo {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
   gap: 3px;
+  align-items: center;
   font-size: 12px;
 }
 .termo-nome {
-  color: var(--texto-suave);
   margin-right: 2px;
+  color: var(--texto-suave);
 }
 .dado-rolado {
   min-width: 22px;
   padding: 1px 4px;
+  font-weight: 600;
   text-align: center;
   background: var(--cabecalho);
   border: 1px solid var(--borda);
   border-radius: 5px;
-  font-weight: 600;
 }
 .dado-rolado.descartado {
   text-decoration: line-through;
   opacity: 0.5;
 }
 .dado-rolado.nat20 {
-  color: var(--aviso);
-  border-color: var(--aviso);
+  color: var(--critico-texto);
+  background: var(--critico);
+  border-color: var(--critico);
 }
 .dado-rolado.nat1 {
-  color: var(--perigo);
-  border-color: var(--perigo);
+  color: var(--falha-critica-texto);
+  background: var(--falha-critica);
+  border-color: var(--falha-critica);
+}
+.chips-d20 {
+  display: inline-flex;
+  flex: none;
+  gap: 4px;
+}
+.chip-d20 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 3px;
+  font-family: "Cinzel", var(--fonte-titulo);
+  font-size: 12px;
+  font-weight: 700;
+  border: 1px solid var(--borda);
+  border-radius: 4px;
+}
+.chip-d20.descartado {
+  opacity: 0.4;
+}
+.chip-d20.usado {
+  border-color: var(--acento-forte);
+}
+.chip-d20.nat20 {
+  color: var(--critico-texto);
+  background: var(--critico);
+  border-color: var(--critico);
+}
+.chip-d20.nat1 {
+  color: var(--falha-critica-texto);
+  background: var(--falha-critica);
+  border-color: var(--falha-critica);
 }
 .modelo {
   margin-top: 2px;
 }
+.modelo-bloco {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 6px 9px;
+  background: var(--campo);
+  border: 1px solid var(--borda);
+  border-radius: 6px;
+}
+.modelo-bloco.teste {
+  flex-direction: row;
+  gap: 8px;
+  align-items: center;
+  min-height: 48px;
+}
+.bloco-textos {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.bloco-titulo {
+  font-family: var(--fonte-titulo);
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.1;
+}
+.bloco-sub {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  font-size: 12px;
+  color: var(--texto-suave);
+}
+.bloco-cabeca {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+.bloco-linha {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  align-items: center;
+}
+.bloco-formula {
+  font-size: 12.5px;
+  line-height: 1.15;
+}
+.bloco-cd {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+.bloco-cd-valor {
+  display: inline-flex;
+  align-items: center;
+  height: 34px;
+  padding: 0 7px;
+  font-family: "Cinzel", var(--fonte-titulo);
+  font-size: 16px;
+  font-weight: 700;
+  border: 1px solid var(--borda);
+  border-radius: 6px;
+}
 .modelo-titulo {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
   gap: 6px;
+  align-items: center;
 }
 .modelo-linha {
   display: flex;
@@ -2380,10 +2494,32 @@ button[aria-disabled="true"]:hover {
 .etiqueta-vantagem,
 .etiqueta-cd {
   padding: 0 6px;
-  border-radius: 999px;
+  font-size: 11px;
   background: var(--cabecalho);
   border: 1px solid var(--borda);
+  border-radius: 999px;
+}
+.tag-natural {
+  display: inline-flex;
+  align-items: center;
+  height: 17px;
+  padding: 0 6px;
   font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  border-radius: 9px;
+}
+.tag-natural.critico {
+  color: var(--critico-texto);
+  background: var(--critico);
+}
+.tag-natural.falha {
+  color: var(--falha-critica-texto);
+  background: var(--falha-critica);
+}
+.tag-natural.sucesso {
+  color: var(--sucesso-texto);
+  background: var(--sucesso);
 }
 .veredito {
   margin: 4px 0 0;
@@ -2398,6 +2534,11 @@ button[aria-disabled="true"]:hover {
 }
 .veredito.falha {
   color: var(--perigo);
+}
+.mensagem-chat.tipo-modelo .mensagem-autor {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--texto-suave);
 }
 .modelos-rolagem {
   display: flex;
@@ -2573,71 +2714,6 @@ button[aria-disabled="true"]:hover {
 
 /* --- janela da ficha 5e (Lote 9) ------------------------------------------------------------ */
 
-.janela-ficha-titulo {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  min-width: 0;
-}
-.janela-ficha-titulo strong {
-  font-size: 16px;
-}
-.janela-ficha .janela-ficha-titulo .nota {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.janela-ficha-abas {
-  display: flex;
-  overflow-x: auto;
-  gap: 2px;
-  padding: 0 8px;
-  border-bottom: 1px solid var(--borda);
-  background: var(--painel);
-}
-.janela-ficha .janela-ficha-abas button {
-  padding: 7px 9px;
-  background: transparent;
-  border: 0;
-  border-bottom: 2px solid transparent;
-  border-radius: 0;
-  color: var(--texto-suave);
-}
-.janela-ficha .janela-ficha-abas button[aria-selected="true"] {
-  color: var(--texto);
-  border-bottom-color: var(--acento-forte);
-}
-.janela-ficha-corpo {
-  /* As abas se rearrumam pela largura da ficha (não da tela): ver `.fh-classe`. */
-  container: ficha / inline-size;
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-  padding: 12px;
-}
-.fh-vantagem {
-  display: inline-flex;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  gap: 0;
-}
-.janela-ficha .fh-vantagem button {
-  padding: 4px 8px;
-  font-size: 12px;
-  border-radius: 0;
-}
-.janela-ficha .fh-vantagem button:first-child {
-  border-radius: 8px 0 0 8px;
-}
-.janela-ficha .fh-vantagem button:last-child {
-  border-radius: 0 8px 8px 0;
-}
-.janela-ficha .fh-vantagem button[aria-pressed="true"] {
-  background: var(--acento);
-  border-color: var(--acento-forte);
-  color: var(--acento-texto);
-}
 .fh-confirmar {
   display: flex;
   flex-wrap: wrap;
@@ -2657,73 +2733,8 @@ button[aria-disabled="true"]:hover {
   margin: 6px 12px 0;
 }
 
-.fh-principal {
-  display: grid;
-  grid-template-columns: 270px minmax(0, 1fr);
-  gap: 14px;
-  align-items: start;
-}
-.fh-esquerda,
-.fh-direita {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  min-width: 0;
-}
-.fh-listas {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-.fh-atributos {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 6px;
-}
-.fh-atributo {
-  display: grid;
-  justify-items: center;
-  gap: 2px;
-  padding: 6px 4px;
-  background: var(--cabecalho);
-  border: 1px solid var(--borda);
-  border-radius: 8px;
-}
-.fh-sigla {
-  font-size: 11px;
-  letter-spacing: 0.08em;
-  color: var(--texto-suave);
-}
-.fh-rolavel {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  min-width: 2.8em;
-  padding: 1px 8px;
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  color: var(--acento-forte);
-  font-variant-numeric: tabular-nums;
-  font-weight: 600;
-  cursor: pointer;
-}
-.fh-rolavel:hover:not(:disabled) {
-  background: var(--acento);
-  color: var(--acento-texto);
-}
-.fh-rolavel:disabled {
-  color: var(--texto);
-  cursor: default;
-}
-.fh-rolavel.grande {
-  font-size: 22px;
-}
-.fh-rolavel.dano {
-  color: var(--texto);
-  border-color: var(--borda);
-}
+/* --- a ficha (V4a): o desenho aprovado mora em ficha/ficha.css; aqui ficam só as peças comuns --- */
+
 .fh-numero {
   width: 3.6em;
   padding: 3px 4px;
@@ -2735,11 +2746,6 @@ button[aria-disabled="true"]:hover {
   appearance: none;
   margin: 0;
 }
-.fh-numero.grande {
-  width: 4.4em;
-  font-size: 20px;
-  font-weight: 700;
-}
 .fh-numero.mini {
   width: 2.8em;
   padding: 1px 2px;
@@ -2750,323 +2756,38 @@ button[aria-disabled="true"]:hover {
   min-width: 0;
   padding: 4px 6px;
 }
-.fh-texto.curto {
-  width: 7em;
-}
 .fh-texto[aria-invalid="true"] {
   border-color: var(--perigo);
 }
-.fh-descricao {
-  min-height: 90px;
-  resize: vertical;
+.fh-oculta {
+  padding: 12px;
 }
-.fh-notas-texto {
-  min-height: 260px;
-  resize: vertical;
+.fh-extra {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 4px 12px 16px;
 }
-.fh-lista h4,
-.fh-ataques h4,
-.fh-secao h4,
-.fh-espacos h4,
-.fh-grupo-magias h4 {
+.fh-extra h4 {
   margin: 0 0 4px;
   font-size: 12px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--texto-suave);
 }
-.fh-lista h4 small,
-.fh-espacos h4 small,
-.fh-grupo-magias h4 small {
-  text-transform: none;
-  letter-spacing: 0;
-}
-.fh-linha {
-  display: grid;
-  grid-template-columns: 16px 3em minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 6px;
-  padding: 1px 0;
-}
-.fh-nome-linha {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.fh-linha .fh-nome-linha small {
-  color: var(--texto-suave);
-}
-.fh-prof {
-  width: 14px;
-  height: 14px;
-  padding: 0;
-  border: 2px solid var(--texto-suave);
-  border-radius: 50%;
-  background: transparent;
-}
-.fh-prof[data-nivel="proficiente"] {
-  background: var(--acento);
-  border-color: var(--acento-forte);
-}
-.fh-prof[data-nivel="especialista"] {
-  background: var(--acento);
-  border-color: var(--acento-forte);
-  box-shadow:
-    0 0 0 2px var(--painel),
-    0 0 0 3px var(--acento);
-}
-.fh-grade-3 {
-  display: grid;
-  /* Raça, Antecedente e Alinhamento: 3 colunas quando cabem; na ficha estreita (520 px) empilham, e o texto não corta. */
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 140px), 1fr));
-  gap: 8px;
-}
-.fh-campo {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  font-size: 12px;
-  color: var(--texto-suave);
-}
-.fh-campo > span:first-child {
-  font-size: 11px;
-}
-.fh-identidade {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.fh-classes {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 4px;
-}
-.fh-classe {
-  display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto auto;
-  align-items: center;
-  gap: 6px;
-  width: 100%;
-}
-/* Ficha estreita (o mínimo é 520 px; em 1280×720 ela abre assim): a subclasse desce para a linha de baixo,
-   para o nível e a lixeira continuarem à vista. */
-@container ficha (max-width: 640px) {
-  .fh-classe {
-    grid-template-columns: minmax(0, 1fr) auto auto;
-  }
-  .fh-classe > :nth-child(2) {
-    grid-row: 2;
-    grid-column: 1 / -1;
-  }
-}
-.fh-resumo {
-  display: grid;
-  /* Na janela estreita (a ficha abre com ~60% da área) as caixas quebram em duas linhas. */
-  grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));
-  gap: 8px;
-}
-.fh-caixa {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  padding: 6px 4px;
-  text-align: center;
-  background: var(--cabecalho);
-  border: 1px solid var(--borda);
-  border-radius: 8px;
-}
-.fh-caixa.mini {
-  flex-direction: row;
-  gap: 6px;
-  padding: 4px 8px;
-}
-.fh-principal .fh-caixa small {
-  color: var(--texto-suave);
-}
-.fh-rotulo {
-  max-width: 100%;
-  overflow-wrap: anywhere;
-  font-size: 11px;
-  letter-spacing: 0.04em;
-  color: var(--texto-suave);
-  text-transform: uppercase;
-}
-.fh-resumo .fh-rotulo {
-  font-size: 10px;
-  letter-spacing: 0;
-}
-.fh-grande {
-  font-size: 22px;
-  font-weight: 700;
-}
-.fh-duplo {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 12px;
-  color: var(--texto-suave);
-}
-.fh-pv {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 8px;
-  background: var(--cabecalho);
-  border: 1px solid var(--borda);
-  border-radius: 8px;
-}
-.fh-pv-campos {
-  display: flex;
-  align-items: flex-end;
-  gap: 8px;
-}
-.fh-barra {
-  padding-bottom: 6px;
-  font-size: 22px;
-  color: var(--texto-suave);
-}
-.fh-dv,
-.fh-mortes {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
-}
-.fh-dv-tipo {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-.fh-marcas {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 12px;
-  color: var(--texto-suave);
-}
-.fh-ataques {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  align-items: flex-start;
-}
-.fh-tabela-ataques {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  width: 100%;
-}
-.fh-ataque {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 4.4em 7em 6em auto;
-  align-items: center;
-  gap: 6px;
-  padding: 2px 0;
-  border-bottom: 1px solid var(--borda);
-}
-.fh-tipo {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 12px;
-  color: var(--texto-suave);
-}
-.fh-ataque-edicao {
-  grid-column: 1 / -1;
-  padding: 2px 0 6px;
-  font-size: 12px;
-  color: var(--texto-suave);
-}
-.fh-ataque-edicao summary {
-  cursor: pointer;
-}
-
-.fh-conjuracao {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-bottom: 12px;
-}
-.fh-conjuradora {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: 10px;
-  padding: 8px;
-  background: var(--cabecalho);
-  border: 1px solid var(--borda);
-  border-radius: 8px;
-}
-.fh-conjuradora strong {
-  align-self: center;
-  min-width: 7em;
-}
-.fh-espacos {
-  margin-bottom: 12px;
-}
-.fh-linha-espaco {
-  display: grid;
-  grid-template-columns: 9em auto auto;
-  justify-content: start;
-  align-items: center;
-  gap: 10px;
-  padding: 2px 0;
-}
-.fh-caixinhas {
-  display: inline-flex;
-  gap: 4px;
-}
-.fh-resumo-espaco {
-  font-variant-numeric: tabular-nums;
-  color: var(--texto-suave);
-}
-.fh-grupo-magias {
-  margin-bottom: 10px;
-}
-.lista-simples .fh-magia {
-  margin: 3px 0;
-}
-.fh-magia-linha {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.fh-nova-magia {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 8px;
-}
-.fh-nova-magia input[type="text"] {
-  flex: 1 1 180px;
-}
-.fh-caracteristica {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin-bottom: 10px;
-  padding: 8px;
-  background: var(--cabecalho);
-  border: 1px solid var(--borda);
-  border-radius: 8px;
+.fh-extra .mochila {
+  margin: 0;
 }
 .fh-secao {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 4px;
-  margin-top: 10px;
 }
-.fh-item {
-  display: grid;
-  grid-template-columns: minmax(0, 1.4fr) 4em minmax(0, 1fr) auto auto;
+.fh-item-modelo {
+  display: flex;
   align-items: center;
-  gap: 6px;
-  width: 100%;
+  gap: 8px;
 }
 .fh-recurso {
   display: flex;
@@ -3076,19 +2797,6 @@ button[aria-disabled="true"]:hover {
 }
 .fh-recurso .fh-texto {
   flex: 1;
-}
-.fh-notas {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.fh-configurar {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.fh-equipamento .mochila {
-  margin: 0;
 }
 
 /* --- importação da ficha em PDF (Lote 10) --------------------------------------------- */

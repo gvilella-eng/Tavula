@@ -13,7 +13,13 @@ import { BotaoComDica } from "../BotaoComDica";
 import { Dica, useDica } from "../Dica";
 import { gravarJanela, lerJanela, type PreferenciaDeJanela } from "../preferencias";
 import { limitarNaArea, limitarTamanho, noCanto, type Padrao, type Tam } from "./geometria";
-import { BASE_DO_Z, sairDaPilha, trazerParaFrente, usePosicaoNaPilha } from "./pilha";
+import {
+  BASE_DO_Z,
+  CAMADA_ALTA_DO_Z,
+  sairDaPilha,
+  trazerParaFrente,
+  usePosicaoNaPilha,
+} from "./pilha";
 
 /** Passo das setas com o cabeçalho focado (Shift = o maior). */
 const PASSO = 8;
@@ -57,6 +63,16 @@ type Props = {
   classe?: string;
   /** Classe do corpo (o que as janelas tinham no contêiner antes do R3). */
   classeDoCorpo?: string;
+  /**
+   * Fica na camada mais alta (V4a): por cima dos painéis e das outras janelas enquanto ativa (a ficha). As janelas
+   * dessa camada ainda se empilham entre si pelo clique. Menus, avisos e modais seguem por cima dela.
+   */
+  camadaAlta?: boolean;
+  /**
+   * Minimizada, mostra só este cabeçalho (com o botão de restaurar) e a janela encolhe até a largura dele: a ficha,
+   * só com o nome do personagem (V4a). Sem isso, a janela minimizada mantém a largura e o cabeçalho de sempre.
+   */
+  cabecalhoMinimizado?: ReactNode;
   /** O corpo não rola nem tem espaçamento: quem usa cuida disso (a ficha, com abas). */
   corpoLivre?: boolean;
   children: ReactNode;
@@ -138,6 +154,7 @@ function JanelaNaArea({ alvo, ...p }: Props & { alvo: HTMLElement }) {
   }
 
   const minimizada = pref.minimizada === true;
+  const compacta = minimizada && p.cabecalhoMinimizado !== undefined;
   const tam = medida ?? { largura: 0, altura: 0 };
   const largura = pref.largura ?? valorDe(p.largura, area);
   const altura = pref.altura ?? valorDe(p.altura, area);
@@ -222,11 +239,13 @@ function JanelaNaArea({ alvo, ...p }: Props & { alvo: HTMLElement }) {
   const estilo: CSSProperties = {
     left: x,
     top: y,
-    zIndex: BASE_DO_Z + Math.max(0, posicao),
-    ...(largura !== undefined ? { width: largura } : {}),
+    zIndex: p.camadaAlta
+      ? CAMADA_ALTA_DO_Z + Math.min(Math.max(0, posicao), 14)
+      : BASE_DO_Z + Math.max(0, posicao),
+    ...(compacta ? { width: "max-content" } : largura !== undefined ? { width: largura } : {}),
     ...(altura !== undefined && !minimizada ? { height: altura } : {}),
     // Janela redimensionável nos dois eixos tem um piso (sem passar do que a área comporta).
-    ...(p.redimensionar === "ambos"
+    ...(p.redimensionar === "ambos" && !compacta
       ? {
           minWidth: `min(${minL}px, 100%)`,
           ...(minimizada ? {} : { minHeight: `min(${minA}px, 100%)` }),
@@ -279,14 +298,16 @@ function JanelaNaArea({ alvo, ...p }: Props & { alvo: HTMLElement }) {
           }}
         >
           <div className="janela-titulo">
-            {p.cabecalho ?? (
-              <>
-                {p.icone}
-                <strong>{nome}</strong>
-              </>
-            )}
+            {compacta
+              ? p.cabecalhoMinimizado
+              : (p.cabecalho ?? (
+                  <>
+                    {p.icone}
+                    <strong>{nome}</strong>
+                  </>
+                ))}
           </div>
-          {p.acoes}
+          {!compacta && p.acoes}
           {!p.semMinimizar && (
             <BotaoComDica
               className="botao-icone pequeno"
@@ -298,7 +319,7 @@ function JanelaNaArea({ alvo, ...p }: Props & { alvo: HTMLElement }) {
               {minimizada ? <Maximize2 size={14} /> : <Minus size={16} />}
             </BotaoComDica>
           )}
-          {p.aoFechar && (
+          {p.aoFechar && !compacta && (
             <BotaoComDica
               className="botao-icone pequeno"
               testid={p.testidDoFechar ?? `janela-${id}-fechar`}

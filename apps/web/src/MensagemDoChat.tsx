@@ -2,8 +2,8 @@ import { type Mensagem, ROTULO_DA_VANTAGEM, type Usuario } from "@tabletop/share
 import { EyeOff, Lock } from "lucide-react";
 import type { ReactNode } from "react";
 import { Avatar } from "./Avatar";
-import { CartaoDaMagiaNoChat } from "./CartaoDaMagia";
-import { CartaoDeRolagem } from "./CartaoDeRolagem";
+import { CartaoDaCaracteristicaNoChat, CartaoDaMagiaNoChat } from "./CartaoDaMagia";
+import { CartaoDeRolagem, ChipsDoD20 } from "./CartaoDeRolagem";
 import type { ImagensDoMapa } from "./mapa/mapaPixi";
 
 type Props = {
@@ -34,64 +34,110 @@ function textoComRolagens(mensagem: Mensagem): ReactNode[] {
   });
 }
 
+function textoDaVantagem(v: "normal" | "vantagem" | "desvantagem"): string {
+  return v === "normal" ? "" : ROTULO_DA_VANTAGEM[v];
+}
+
+/** "1d20+6" com espaços, para o texto de apoio do bloco. */
+function formula(expressao: string): string {
+  return expressao.replace(/([+-])/g, " $1 ").trim();
+}
+
+/**
+ * A rolagem de um teste ou ataque no chat (V4a): um bloco baixo. O nome do teste fica em destaque, o total é o
+ * número grande e os d20 ficam discretos (com vantagem ou desvantagem aparecem os dois, o descartado esmaecido). O
+ * crítico (verde) e o 1 natural (vermelho) são iguais em todos os temas.
+ */
 function ResultadoDoModelo({ mensagem }: { mensagem: Mensagem }) {
   const m = mensagem.modelo;
   if (!m) return null;
   if (m.modelo === "ataque") {
+    const meio = m.salvaguarda?.sucesso === "metade" ? Math.floor(m.dano.total / 2) : null;
     return (
       <div
-        className="modelo"
+        className="modelo modelo-bloco ataque"
         data-testid="modelo-ataque"
         data-critico={m.critico || undefined}
         data-falha-critica={m.falhaCritica || undefined}
       >
-        <div className="modelo-titulo">
-          <strong>Ataque: {m.nome}</strong>
+        <div className="bloco-cabeca">
+          <strong className="bloco-titulo">Ataque · {m.nome}</strong>
           {m.vantagem !== "normal" && (
-            <span className="etiqueta-vantagem">{ROTULO_DA_VANTAGEM[m.vantagem]}</span>
+            <span className="etiqueta-vantagem">{textoDaVantagem(m.vantagem)}</span>
           )}
         </div>
-        <div className="modelo-linha">
-          <CartaoDeRolagem rolagem={m.acerto} rotulo="Acerto" />
-          <CartaoDeRolagem rolagem={m.dano} rotulo={m.critico ? "Dano (dados dobrados)" : "Dano"} />
+        <div className="bloco-linha">
+          <CartaoDeRolagem rolagem={m.acerto} rotulo="Acerto" semExpressao />
+          <ChipsDoD20 rolagem={m.acerto} />
+          {m.critico && (
+            <span className="tag-natural critico" data-testid="modelo-veredito">
+              Crítico
+            </span>
+          )}
+          {m.falhaCritica && (
+            <span className="tag-natural falha" data-testid="modelo-veredito">
+              1 natural
+            </span>
+          )}
+          {m.salvaguarda && (
+            <span className="bloco-cd" data-testid="modelo-cd">
+              <span className="bloco-cd-valor">CD {m.salvaguarda.cd}</span>
+              <span className="bloco-sub">
+                {m.salvaguarda.atributo},{" "}
+                {m.salvaguarda.sucesso === "metade" ? "metade no sucesso" : "nada no sucesso"}
+              </span>
+            </span>
+          )}
+          <CartaoDeRolagem
+            rolagem={m.dano}
+            rotulo={m.critico ? "Dano crítico" : "Dano"}
+            dano
+            critico={m.critico}
+            semExpressao
+          />
+          <span className="bloco-formula" data-testid="modelo-dano-formula">
+            {formula(m.dano.expressao)}
+            {m.danoTipo ? ` ${m.danoTipo.toLowerCase()}` : ""}
+            {meio !== null ? ` · metade: ${meio}` : ""}
+          </span>
         </div>
-        {m.danoTipo && <p className="nota">{m.danoTipo}</p>}
-        {m.critico && (
-          <p className="veredito critico" data-testid="modelo-veredito">
-            Acerto crítico!
-          </p>
-        )}
-        {m.falhaCritica && (
-          <p className="veredito falha" data-testid="modelo-veredito">
-            Falha crítica
-          </p>
-        )}
       </div>
     );
   }
+  const veredito =
+    m.sucesso === undefined ? null : (
+      <span
+        className={`tag-natural ${m.sucesso ? "sucesso" : "falha"}`}
+        data-testid="modelo-veredito"
+      >
+        {m.sucesso ? "Sucesso" : "Falha"}
+      </span>
+    );
   return (
     <div
-      className="modelo"
+      className="modelo modelo-bloco teste"
       data-testid="modelo-teste"
       data-sucesso={m.sucesso === undefined ? undefined : String(m.sucesso)}
+      data-critico={m.critico || undefined}
+      data-falha-critica={m.falhaCritica || undefined}
     >
-      <div className="modelo-titulo">
-        <strong>{m.nome === "Iniciativa" ? "Iniciativa" : `Teste: ${m.nome}`}</strong>
-        {m.vantagem !== "normal" && (
-          <span className="etiqueta-vantagem">{ROTULO_DA_VANTAGEM[m.vantagem]}</span>
-        )}
-        {m.cd !== undefined && <span className="etiqueta-cd">CD {m.cd}</span>}
-      </div>
-      <div className="modelo-linha">
-        <CartaoDeRolagem rolagem={m.rolagem} />
-      </div>
-      {m.sucesso !== undefined && (
-        <p className={`veredito ${m.sucesso ? "sucesso" : "falha"}`} data-testid="modelo-veredito">
-          {m.sucesso ? "Sucesso" : "Falha"}
-        </p>
-      )}
-      {m.sucesso === undefined && m.critico && <p className="veredito critico">20 natural!</p>}
-      {m.sucesso === undefined && m.falhaCritica && <p className="veredito falha">1 natural</p>}
+      <CartaoDeRolagem rolagem={m.rolagem} semExpressao />
+      <span className="bloco-textos">
+        <strong className="bloco-titulo">{m.nome}</strong>
+        <span className="bloco-sub">
+          {formula(m.rolagem.expressao)}
+          {m.vantagem !== "normal" && ` · ${textoDaVantagem(m.vantagem).toLowerCase()}`}
+          {m.cd !== undefined && <span className="etiqueta-cd">CD {m.cd}</span>}
+          {veredito}
+          {m.sucesso === undefined && m.critico && (
+            <span className="tag-natural critico">20 natural</span>
+          )}
+          {m.sucesso === undefined && m.falhaCritica && (
+            <span className="tag-natural falha">1 natural</span>
+          )}
+        </span>
+      </span>
+      <ChipsDoD20 rolagem={m.rolagem} />
     </div>
   );
 }
@@ -140,6 +186,8 @@ export function MensagemDoChat({ mensagem, usuarios, euId, imagens, versaoDasIma
   let corpo: ReactNode;
   if (mensagem.tipo === "magia" && mensagem.magia) {
     corpo = <CartaoDaMagiaNoChat magia={mensagem.magia} />;
+  } else if (mensagem.tipo === "caracteristica" && mensagem.caracteristica) {
+    corpo = <CartaoDaCaracteristicaNoChat caracteristica={mensagem.caracteristica} />;
   } else if (mensagem.tipo === "modelo") {
     corpo = (
       <>

@@ -115,10 +115,11 @@ test("arrastar a ordem de turno e a ficha: ficam no lugar ao recarregar, só nes
   expect(Math.round(ordemDepois.x - ordemAntes.x)).toBe(-150);
   expect(Math.round(ordemDepois.y - ordemAntes.y)).toBe(120);
   const fichaAntes = await caixa(ficha);
-  await arrastar(p, ID_FICHA, 70, 50);
+  // V4a: a ficha abre com a altura da área, então o arrasto é só na horizontal
+  await arrastar(p, ID_FICHA, 70, 0);
   const fichaDepois = await caixa(ficha);
   expect(Math.round(fichaDepois.x - fichaAntes.x)).toBe(70);
-  expect(Math.round(fichaDepois.y - fichaAntes.y)).toBe(50);
+  expect(Math.round(fichaDepois.y - fichaAntes.y)).toBe(0);
 
   // guardado no navegador, por janela (em coordenadas da área)
   const g1 = await guardada(p, "ordem");
@@ -307,47 +308,30 @@ test("a janela é empurrada para dentro da área quando o painel direito alarga 
     .toBeLessThanOrEqual(1);
 });
 
-test("a última clicada fica por cima, entre a ordem de turno e a ficha", async ({ mesa }) => {
+test("a ficha fica na camada mais alta (acima da ordem de turno); entre fichas, a última clicada fica por cima", async ({
+  mesa,
+}) => {
   test.setTimeout(90_000);
   const s = await entrarNoMapa(mesa, "mestre");
   const p = s.pagina;
   await criarDarion(p);
   await ligarOrdem(p);
-  const ficha = await abrirFicha(p, DARION_ID, "principal");
+  await abrirFicha(p, DARION_ID, "principal");
+  await abrirFicha(p, "pers-aldric", "principal");
+  const idAldric = `ficha:pers-aldric`;
 
-  // a ficha abriu por último: está na frente
+  // a ficha está acima da ordem de turno mesmo depois de a ordem ser a última clicada
   expect(await zDe(p, ID_FICHA)).toBeGreaterThan(await zDe(p, "ordem"));
+  const po = await pontoDoCabecalho(p, "ordem");
+  await p.mouse.click(po.x, po.y);
+  expect(await zDe(p, ID_FICHA)).toBeGreaterThan(await zDe(p, "ordem"));
+  expect(await zDe(p, idAldric)).toBeGreaterThan(await zDe(p, "ordem"));
 
-  // põe a ordem de turno em cima de parte da ficha (ela passa a ser a última mexida)
-  const f = await caixa(ficha);
-  const o = await caixa(janela(p, "ordem"));
-  await arrastar(p, "ordem", f.x + f.width - 100 - o.x, f.y + 100 - o.y);
-  const ordem = await caixa(janela(p, "ordem"));
-  // o canto de cima à esquerda da ordem fica sobre a ficha; o resto, para fora dela
-  const ponto = { x: ordem.x + 40, y: ordem.y + 60 };
-  const foraDaFicha = { x: ordem.x + 200, y: ordem.y + 16 };
-  const quemEstaEm = (pt: { x: number; y: number }) =>
-    p.evaluate(
-      ({ x, y }) =>
-        document
-          .elementFromPoint(x, y)
-          ?.closest('[role="dialog"][data-testid^="janela-"]')
-          ?.getAttribute("data-testid") ?? null,
-      pt,
-    );
-  expect(await zDe(p, "ordem")).toBeGreaterThan(await zDe(p, ID_FICHA));
-  expect(await quemEstaEm(ponto)).toBe("janela-ordem");
-
-  // clicar no cabeçalho da ficha (fora da ordem) traz a ficha para a frente
+  // entre as fichas, a última clicada fica por cima
+  expect(await zDe(p, idAldric)).toBeGreaterThan(await zDe(p, ID_FICHA));
   const cf = await pontoDoCabecalho(p, ID_FICHA);
   await p.mouse.click(cf.x, cf.y);
-  expect(await zDe(p, ID_FICHA)).toBeGreaterThan(await zDe(p, "ordem"));
-  expect(await quemEstaEm(ponto)).toBe(`janela-${ID_FICHA}`);
-
-  // e clicar de novo na ordem devolve
-  await p.mouse.click(foraDaFicha.x, foraDaFicha.y);
-  expect(await zDe(p, "ordem")).toBeGreaterThan(await zDe(p, ID_FICHA));
-  expect(await quemEstaEm(ponto)).toBe("janela-ordem");
+  expect(await zDe(p, ID_FICHA)).toBeGreaterThan(await zDe(p, idAldric));
 });
 
 test("arrasto que começa num botão do cabeçalho não move a janela", async ({ mesa }) => {
@@ -419,18 +403,18 @@ test("em 1280×720 a ficha abre inteira dentro da área, a segunda desloca em ca
   const f1 = await abrirFicha(p, DARION_ID, "principal");
   const c1 = await caixa(f1);
   expect(dentro(c1, a)).toBe(true);
-  // ocupa no máximo ~60% da largura da área (o mínimo da ficha é 520)
-  expect(c1.width).toBeLessThanOrEqual(Math.max(520, a.width * 0.6) + 1);
-  // e não cobre a ordem de turno, no alto à direita
-  const ordem = await caixa(janela(p, "ordem"));
-  expect(c1.x + c1.width).toBeLessThanOrEqual(ordem.x + 1);
+  // V4a: abre com ~880 px (menos as folgas, se a área for menor). A ficha fica na camada mais alta e pode cobrir a
+  // ordem de turno: quem quer vê as duas move uma delas.
+  expect(c1.width).toBeLessThanOrEqual(880 + 1);
+  expect(c1.width).toBeGreaterThanOrEqual(520);
 
   // a segunda ficha (sem posição guardada) abre deslocada em cascata
   const f2 = await abrirFicha(p, "pers-aldric", "principal");
   const c2 = await caixa(f2);
   expect(dentro(c2, a)).toBe(true);
-  expect(c2.x - c1.x).toBeGreaterThanOrEqual(24);
-  expect(c2.y - c1.y).toBeGreaterThanOrEqual(24);
+  // V4a: a ficha é larga (~880 px), então a área limita o quanto a cascata anda na horizontal
+  expect(c2.x - c1.x).toBeGreaterThan(0);
+  expect(c2.y - c1.y).toBeGreaterThan(0); // a altura também é quase a da área
 
   // painel do token embaixo à direita (R6b: numa área apertada ele vai para a coluna da ordem de turno, acima do zoom)
   await f2.getByTestId("janela-ficha-fechar").click();

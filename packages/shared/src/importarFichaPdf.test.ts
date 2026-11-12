@@ -297,13 +297,22 @@ describe("importar o PDF do Darion (seção 8)", () => {
     ]);
   });
 
-  it("notas: personalidade e moedas", () => {
-    expect(r.ficha.notas).toContain("Ideais: Defender e proteger quem é importante para mim.");
-    expect(r.ficha.notas).toContain("Moedas: 7 GP");
+  it("personalidade e moedas vão para os campos da ficha de papel (V4a), não mais para as notas", () => {
+    expect(r.ficha.personalidade?.startsWith("Tendo vivido sozinho")).toBe(true);
+    expect(r.ficha.ideais).toBe("Defender e proteger quem é importante para mim.");
+    expect(r.ficha.ligacoes).toContain("Não me cansarei até alcançar a paz");
+    expect(r.ficha.defeitos).toContain("Trauma com grande quantidade de fogo");
+    expect(r.ficha.moedas).toEqual({ po: 7 });
+    expect(r.ficha.notas).toBeUndefined();
     // O texto do cabeçalho (Caótico Mau, ALINHAMENTO) não vaza para a personalidade.
-    expect(r.ficha.notas).not.toContain("ALINHAMENTO");
-    expect(r.ficha.notas).not.toContain("Caótico");
-    expect(r.ficha.notas?.startsWith("Traços de personalidade: Tendo vivido sozinho")).toBe(true);
+    for (const t of [r.ficha.personalidade, r.ficha.ideais, r.ficha.ligacoes, r.ficha.defeitos]) {
+      expect(t).not.toContain("ALINHAMENTO");
+      expect(t).not.toContain("Caótico");
+    }
+    // Sem XP, sem idade, sem história no PDF: ficam vazios.
+    expect(r.ficha.xp).toBeUndefined();
+    expect(r.ficha.historia).toBeUndefined();
+    expect(r.ficha.outrasProficiencias).toBeUndefined();
   });
 
   it("guarda o trecho de cada seção para a tela de revisão", () => {

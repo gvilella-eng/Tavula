@@ -1,0 +1,737 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>NPC N · Bestiário heráldico</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IM+Fell+English+SC&amp;family=EB+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&amp;display=swap">
+<style>
+body{margin:0}
+.fe{font-family:'IM Fell English SC','IM Fell English',Georgia,serif;font-weight:400}
+.eb{font-family:'EB Garamond',Georgia,serif}
+.rot{font-family:'IM Fell English SC',Georgia,serif;font-size:13px;letter-spacing:.06em;font-weight:400;line-height:1.1}
+.h2{font-family:'IM Fell English SC',Georgia,serif;font-size:20px;letter-spacing:.04em;font-weight:400;margin:0;line-height:1.1}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+button{font:inherit;color:inherit;margin:0;padding:0;background:none;border:0;cursor:pointer;text-align:inherit}
+button:disabled{cursor:default;opacity:.55}
+input,select,textarea{font:inherit;color:inherit;margin:0;box-sizing:border-box;min-width:0}
+.clk:hover{box-shadow:inset 0 0 0 999px rgba(127,127,127,.18)}
+.clk:active{transform:translateY(1px)}
+:focus-visible{outline:2px solid #FFFFFF;outline-offset:1px;box-shadow:0 0 0 4px #000000}
+.inp{background:transparent;border:0;border-bottom:1px dotted currentColor;padding:2px 4px;border-radius:0}
+.inp:hover{background:rgba(127,127,127,.12)}
+.inp::placeholder{color:inherit;opacity:.6}
+.rule{background-image:repeating-linear-gradient(transparent 0 27px,rgba(127,127,127,.4) 27px 28px);background-attachment:local;line-height:28px;resize:none;width:100%;border-bottom:0;padding:0 4px}
+.arr{cursor:grab}
+.cab{cursor:grab;touch-action:none;user-select:none}
+.cab:active{cursor:grabbing}
+input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+input[type=number]{-moz-appearance:textfield}
+</style>
+</helmet>
+<div class="eb" style="position: relative; width: 960px; height: 1500px; box-sizing: border-box; overflow: hidden; background: {{t.fundo}}; color: {{t.texto}}; font-size: 16px; line-height: 1.35;">
+
+  <!-- ===================== JANELA DO NPC (movel, por cima de tudo) ===================== -->
+  <section aria-label="Bloco de monstro: {{nome}}" style="position: absolute; left: {{win.left}}px; top: {{win.top}}px; width: {{win.w}}; z-index: 60; box-sizing: border-box; border: 1px solid {{t.borda}}; border-radius: 10px; overflow: hidden; background: {{t.capa}}; box-shadow: {{t.sombra}};">
+
+    <div class="cab" onPointerDown="{{cabDown}}" onPointerMove="{{cabMove}}" onPointerUp="{{cabUp}}" onPointerCancel="{{cabUp}}" onDoubleClick="{{cabDuplo}}" style="height: 42px; display: flex; align-items: center; gap: 10px; padding: 0 8px 0 12px; background: {{t.cabecalho}}; border-bottom: {{win.borda}};">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="{{t.acentoForte}}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none;"><path d="M12 6c-2-1.5-5-2-8-1.5v13c3-.5 6 0 8 1.5 2-1.5 5-2 8-1.5v-13C17 4 14 4.5 12 6z"></path><path d="M12 6v13"></path></svg>
+      <span class="fe" style="flex: 1; white-space: nowrap; font-size: 19px; letter-spacing: .04em;">{{nome}}</span>
+      <button type="button" class="clk" aria-label="{{win.minAria}}" aria-pressed="{{min}}" onClick="{{alternarMin}}" style="width: 32px; height: 32px; flex: none; border-radius: 6px; display: flex; align-items: center; justify-content: center; color: {{t.textoSuave}};"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{win.minIcone}}"></path></svg></button>
+      <sc-if value="{{naoMin}}" hint-placeholder-val="{{ true }}">
+        <button type="button" class="clk" aria-label="Fechar o bloco" style="width: 32px; height: 32px; flex: none; border-radius: 6px; display: flex; align-items: center; justify-content: center; color: {{t.textoSuave}};"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+      </sc-if>
+    </div>
+
+    <sc-if value="{{naoMin}}" hint-placeholder-val="{{ true }}">
+    <div style="position: relative; padding: 16px 16px 20px; background: radial-gradient(rgba(127,127,127,.16) 1px, transparent 1px) 0 0 / 7px 7px, linear-gradient(135deg, {{t.acentoSuave}}, rgba(0,0,0,0) 55%), {{t.capa}};">
+      <div aria-hidden="true" style="position: absolute; inset: 6px; border: 1px dashed {{t.acentoForte}}; border-radius: 8px; opacity: .45; pointer-events: none;"></div>
+
+      <!-- fita marcadora -->
+      <div aria-hidden="true" class="fe" style="position: absolute; top: 4px; right: 34px; z-index: 5; width: 94px; height: 58px; box-sizing: border-box; padding: 8px 6px 0; text-align: center; font-size: 15px; background: {{t.acento}}; color: {{t.acentoTexto}}; clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 84%, 0 100%); filter: drop-shadow(0 3px 2px rgba(0,0,0,.4));">Bestiário</div>
+
+      <!-- a pagina -->
+      <section aria-label="Página de bestiário" style="position: relative; box-sizing: border-box; padding: 50px 22px 24px 30px; background: {{t.painel}}; border-radius: 6px 8px 8px 6px; box-shadow: 0 3px 0 {{t.borda}}, 0 6px 0 {{t.painelTopo}}, 0 9px 0 {{t.borda}};">
+        <div aria-hidden="true" style="position: absolute; top: 0; bottom: 0; left: 0; width: 28px; background: linear-gradient(270deg, rgba(0,0,0,0), rgba(0,0,0,.22)); pointer-events: none;"></div>
+        <div aria-hidden="true" style="position: absolute; top: 14px; bottom: 14px; left: 10px; border-left: 2px dotted {{t.acentoForte}}; opacity: .5;"></div>
+        <svg aria-hidden="true" width="40" height="40" viewBox="0 0 44 44" fill="none" stroke="{{t.acentoForte}}" stroke-width="1.4" stroke-linecap="round" style="position: absolute; right: 6px; bottom: 6px; opacity: .8; transform: scale(-1, -1);"><path d="M3 40V14Q3 3 14 3H40M9 40V18Q9 9 18 9H40"></path><circle cx="3" cy="3" r="2"></circle></svg>
+        <svg aria-hidden="true" width="40" height="40" viewBox="0 0 44 44" fill="none" stroke="{{t.acentoForte}}" stroke-width="1.4" stroke-linecap="round" style="position: absolute; left: 14px; bottom: 6px; opacity: .8; transform: scaleY(-1);"><path d="M3 40V14Q3 3 14 3H40M9 40V18Q9 9 18 9H40"></path><circle cx="3" cy="3" r="2"></circle></svg>
+        <svg aria-hidden="true" width="40" height="40" viewBox="0 0 44 44" fill="none" stroke="{{t.acentoForte}}" stroke-width="1.4" stroke-linecap="round" style="position: absolute; left: 14px; top: 6px; opacity: .8;"><path d="M3 40V14Q3 3 14 3H40M9 40V18Q9 9 18 9H40"></path><circle cx="3" cy="3" r="2"></circle></svg>
+        <span class="rot" aria-hidden="true" style="position: absolute; left: 62px; top: 18px; color: {{t.textoSuave}};">Folha do bestiário</span>
+
+        <div style="display: flex; flex-direction: column; gap: 14px;">
+
+          <!-- estandarte com o nome -->
+          <div style="position: relative; height: 104px;">
+            <span aria-hidden="true" style="position: absolute; left: 0; top: 0; right: 0; bottom: 0; background: {{t.acentoForte}}; clip-path: polygon(0 0, 100% 0, 96% 50%, 100% 100%, 0 100%, 4% 50%);"></span>
+            <span aria-hidden="true" style="position: absolute; left: 4px; top: 4px; right: 4px; bottom: 4px; background: {{t.painelTopo}}; clip-path: polygon(0 0, 100% 0, 96.5% 50%, 100% 100%, 0 100%, 3.5% 50%);"></span>
+            <div style="position: absolute; left: 0; top: 0; right: 0; bottom: 0; display: flex; align-items: center; gap: 12px; padding: 0 34px 0 30px;">
+              <div aria-hidden="true" class="fe" style="width: 62px; height: 70px; flex: none; box-sizing: border-box; border: 2px solid {{t.acentoForte}}; border-radius: 6px; background: {{t.acentoSuave}}; display: flex; align-items: center; justify-content: center; font-size: 50px; line-height: 1; color: {{t.acentoForte}}; box-shadow: inset 0 0 0 3px {{t.painelTopo}}, inset 0 0 0 4px {{t.acentoForte}};">{{inicial}}</div>
+              <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center;">
+                <label><span class="sr">Nome do monstro</span><input type="text" class="fe inp" value="{{nome}}" onChange="{{setNome}}" style="width: 100%; font-size: 36px; line-height: 1.1; padding: 0 2px;"></label>
+                <label><span class="sr">Tipo e tendência</span><input type="text" class="inp" value="{{tipo}}" onChange="{{setTipo}}" style="width: 100%; font-size: 17px; font-style: italic; color: {{t.textoSuave}};"></label>
+              </div>
+            </div>
+          </div>
+
+          <!-- CA, PV, deslocamento -->
+          <div style="display: flex; align-items: center; gap: 14px;">
+            <div style="position: relative; width: 96px; height: 112px; flex: none;">
+              <span aria-hidden="true" style="position: absolute; left: 0; top: 0; right: 0; bottom: 0; background: {{t.acentoForte}}; clip-path: polygon(0 0, 100% 0, 100% 55%, 94% 70%, 82% 83%, 66% 94%, 50% 100%, 34% 94%, 18% 83%, 6% 70%, 0 55%);"></span>
+              <span aria-hidden="true" style="position: absolute; left: 3px; top: 3px; right: 3px; bottom: 4px; background: {{t.painelTopo}}; clip-path: polygon(0 0, 100% 0, 100% 55%, 94% 70%, 82% 83%, 66% 94%, 50% 100%, 34% 94%, 18% 83%, 6% 70%, 0 55%);"></span>
+              <div style="position: absolute; left: 0; top: 6px; right: 0; display: flex; flex-direction: column; align-items: center;">
+                <span class="rot" style="color: {{t.textoSuave}};">Armadura</span>
+                <label><span class="sr">Classe de Armadura</span><input type="number" class="fe" value="{{ca}}" onChange="{{setCa}}" style="width: 64px; height: 56px; border: 0; background: transparent; text-align: center; font-size: 46px; padding: 0; color: {{t.texto}};"></label>
+              </div>
+              <label style="position: absolute; left: 14px; right: 14px; bottom: 16px;"><span class="sr">Tipo de armadura</span><input type="text" class="inp" value="{{armadura}}" onChange="{{setArmadura}}" style="width: 100%; border-bottom-color: transparent; text-align: center; font-size: 13px; font-style: italic; color: {{t.textoSuave}}; padding: 0;"></label>
+            </div>
+
+            <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px;">
+              <div style="display: flex; align-items: baseline; justify-content: space-between;"><span class="h2" style="color: {{t.acentoForte}};">Pontos de Vida</span><span style="font-size: 15px; color: {{t.textoSuave}};">59 (7d10 + 21)</span></div>
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <button type="button" class="clk" aria-label="Tirar 1 ponto de vida" onClick="{{pvMenos}}" style="width: 38px; height: 38px; border-radius: 50%; border: 1.5px solid {{t.perigo}}; color: {{t.perigo}}; display: flex; align-items: center; justify-content: center;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14"></path></svg></button>
+                <label><span class="sr">PV atuais</span><input type="number" class="fe" value="{{pvAtual}}" onChange="{{onPv}}" style="width: 66px; height: 46px; border: 0; background: transparent; text-align: center; font-size: 38px; padding: 0; color: {{t.texto}};"></label>
+                <span class="fe" style="font-size: 24px; color: {{t.textoSuave}};">/ 59</span>
+                <button type="button" class="clk" aria-label="Somar 1 ponto de vida" onClick="{{pvMais}}" style="width: 38px; height: 38px; border-radius: 50%; border: 1.5px solid {{t.sucesso}}; color: {{t.sucesso}}; display: flex; align-items: center; justify-content: center;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg></button>
+              </div>
+              <div role="img" aria-label="Barra de vida: {{pvAtual}} de 59" style="height: 12px; border-radius: 6px; border: 1px solid {{t.acentoForte}}; background: {{t.campo}}; overflow: hidden;"><div style="width: {{pvPct}}%; height: 100%; background: {{corPv}};"></div></div>
+            </div>
+
+            <div style="width: 84px; height: 70px; flex: none; box-sizing: border-box; border: 1.5px solid {{t.borda}}; border-radius: 10px; background: {{t.campo}}; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+              <label><span class="sr">Deslocamento</span><input type="text" class="fe" value="{{desl}}" onChange="{{setDesl}}" style="width: 72px; height: 36px; border: 0; background: transparent; text-align: center; font-size: 26px; padding: 0; color: {{t.texto}};"></label>
+              <span class="rot" style="color: {{t.textoSuave}};">Desloc.</span>
+            </div>
+          </div>
+
+          <!-- vantagem -->
+          <div role="group" aria-label="Rolagens com vantagem ou desvantagem" style="display: flex; align-items: center; gap: 6px;">
+            <span class="rot" style="color: {{t.textoSuave}}; margin-right: 4px;">Rolagens</span>
+            <sc-for list="{{modos}}" as="md" hint-placeholder-count="3">
+              <button type="button" class="clk" aria-pressed="{{md.ativo}}" onClick="{{md.ir}}" style="flex-grow: 1; box-sizing: border-box; {{md.est}}">{{md.nome}}</button>
+            </sc-for>
+          </div>
+
+          <!-- atributos -->
+          <div style="display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; justify-items: center;">
+            <sc-for list="{{escudos}}" as="e" hint-placeholder-count="6">
+              <div style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
+                <div style="position: relative; width: 70px; height: 92px;">
+                  <span aria-hidden="true" style="position: absolute; left: 0; top: 0; right: 0; bottom: 0; background: {{t.acentoForte}}; clip-path: polygon(0 0, 100% 0, 100% 55%, 94% 70%, 82% 83%, 66% 94%, 50% 100%, 34% 94%, 18% 83%, 6% 70%, 0 55%);"></span>
+                  <span aria-hidden="true" style="position: absolute; left: 2.5px; top: 2.5px; right: 2.5px; bottom: 3px; background: {{t.painelTopo}}; clip-path: polygon(0 0, 100% 0, 100% 55%, 94% 70%, 82% 83%, 66% 94%, 50% 100%, 34% 94%, 18% 83%, 6% 70%, 0 55%);"></span>
+                  <button type="button" class="clk" aria-label="{{e.aria}}" onClick="{{e.rolar}}" style="position: absolute; left: 4px; right: 4px; top: 5px; height: 56px; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; text-align: center;">
+                    <span class="rot" style="font-size: 14px; color: {{t.textoSuave}}; line-height: 1.3;">{{e.sigla}}</span>
+                    <span class="fe" style="font-size: 32px; line-height: 1; color: {{t.texto}};">{{e.mod}}</span>
+                  </button>
+                  <label style="position: absolute; left: 20px; bottom: 13px; width: 30px; height: 20px;"><span class="sr">Valor de {{e.nomeAttr}}</span><input type="number" value="{{e.valor}}" onChange="{{e.set}}" style="width: 30px; height: 20px; box-sizing: border-box; border-radius: 10px; border: 1.5px solid {{t.acentoForte}}; background: {{t.campo}}; color: {{t.texto}}; text-align: center; font-size: 13px; font-weight: 700; padding: 0;"></label>
+                </div>
+                <button type="button" class="clk" aria-label="{{e.ariaSalv}}" onClick="{{e.rolarSalv}}" style="min-width: 62px; height: 32px; padding: 0 6px; font-size: 14px; font-weight: 600; text-align: center; border: 1px solid {{t.acentoForte}}; border-radius: 6px; background: {{t.acentoSuave}}; color: {{t.acentoForte}};">Salv. {{e.mod}}</button>
+              </div>
+            </sc-for>
+          </div>
+
+          <!-- sentidos e afins -->
+          <div style="display: flex; flex-direction: column; gap: 6px; padding: 10px 4px; border-top: 1px solid {{t.borda}}; border-bottom: 1px solid {{t.borda}};">
+            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+              <span class="rot" style="width: 74px; color: {{t.textoSuave}};">Sentidos</span>
+              <span style="flex-grow: 1;">visão no escuro 18 m, Percepção passiva {{passiva}}</span>
+              <button type="button" class="clk" aria-label="{{percAria}}" onClick="{{rolarPerc}}" style="height: 32px; padding: 0 10px; border-radius: 6px; border: 1.5px solid {{t.acentoForte}}; color: {{t.acentoForte}}; font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px;"><span aria-hidden="true" style="width: 10px; height: 10px; transform: rotate(45deg); border: 1.5px solid {{t.acentoForte}}; background: transparent;"></span>{{percTxt}}</button>
+            </div>
+            <div style="display: flex; align-items: baseline; gap: 8px;"><span class="rot" style="width: 74px; color: {{t.textoSuave}};">Idiomas</span><span>Comum, Gigante</span></div>
+            <div style="display: flex; align-items: baseline; gap: 8px;"><span class="rot" style="width: 74px; color: {{t.textoSuave}};">Desafio</span><span>2 (450 XP)</span></div>
+          </div>
+
+          <!-- acoes, reacoes e lendarias -->
+          <div onDragOver="{{sobreZona}}" onDrop="{{soltarAcoes}}" style="position: relative; box-sizing: border-box; {{zAcoes.est}} border-radius: 6px; padding: 2px 0;">
+            <sc-for list="{{secoes}}" as="sc" hint-placeholder-count="1">
+              <div style="margin-bottom: 8px;">
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 2px;">
+                  <h3 class="h2" style="font-size: 22px; color: {{t.acentoForte}};">{{sc.titulo}}</h3>
+                  <span aria-hidden="true" style="flex: 1; height: 1px; background: linear-gradient(90deg, {{t.acentoForte}}, transparent);"></span>
+                  <svg width="30" height="12" viewBox="0 0 30 12" fill="{{t.acentoForte}}" aria-hidden="true"><path d="M15 0l4 6-4 6-4-6z"></path><circle cx="4" cy="6" r="1.6"></circle><circle cx="26" cy="6" r="1.6"></circle></svg>
+                </div>
+                <div aria-hidden="true" style="display: flex; align-items: center; gap: 6px; padding-right: 0; margin-bottom: 2px;">
+                  <span style="flex: 1;"></span>
+                  <span class="rot" style="width: 62px; flex: none; text-align: center; color: {{t.textoSuave}};">Acerto</span>
+                  <span class="rot" style="width: 96px; flex: none; text-align: center; color: {{t.textoSuave}};">Dano</span>
+                  <span style="width: 34px; flex: none;"></span>
+                </div>
+                <sc-for list="{{sc.itens}}" as="a" hint-placeholder-count="2">
+                  <div data-aid="{{a.id}}" data-cat="{{a.cat}}" onPointerDown="{{a.pd}}" onPointerMove="{{a.pm}}" onPointerUp="{{a.pu}}" onPointerCancel="{{a.pu}}" style="user-select: none; {{a.rowEst}}">
+                    <div style="display: flex; align-items: center; gap: 6px; min-height: 56px; padding: 4px 0;">
+                      <svg width="10" height="22" viewBox="0 0 14 22" fill="{{t.textoSuave}}" aria-hidden="true" class="arr" style="flex: none; opacity: .7;"><circle cx="4" cy="5" r="1.6"></circle><circle cx="10" cy="5" r="1.6"></circle><circle cx="4" cy="11" r="1.6"></circle><circle cx="10" cy="11" r="1.6"></circle><circle cx="4" cy="17" r="1.6"></circle><circle cx="10" cy="17" r="1.6"></circle></svg>
+                      <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px;">
+                        <button type="button" class="clk" aria-expanded="{{a.aberta}}" aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown" aria-label="{{a.ariaTitulo}}" onClick="{{a.alternar}}" onKeyDown="{{a.tecla}}" style="min-height: 30px; display: flex; align-items: center; gap: 6px; padding: 0 2px;">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="{{t.acentoForte}}" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none; transform: {{a.rot}};"><path d="M9 5l7 7-7 7"></path></svg>
+                          <span class="fe" style="font-size: 20px; line-height: 1.15; color: {{t.acentoForte}};">{{a.nome}}</span>
+                        </button>
+                        <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding-left: 20px;">
+                          <sc-for list="{{a.chips}}" as="c" hint-placeholder-count="2">
+                            <span style="font-size: 13px; line-height: 1.2; padding: 1px 7px; border-radius: 10px; border: 1px solid {{t.borda}}; background: {{t.campo}}; color: {{t.textoSuave}};">{{c.txt}}</span>
+                          </sc-for>
+                          <sc-if value="{{a.temUsos}}" hint-placeholder-val="{{ false }}">
+                            <span data-sem="1" style="display: inline-flex; align-items: center; gap: 0;">
+                              <span style="font-size: 13px; color: {{t.textoSuave}}; margin-right: 2px;">{{a.usosTxt}}</span>
+                              <sc-for list="{{a.pips}}" as="p" hint-placeholder-count="3">
+                                <button type="button" data-sem="1" class="clk" role="checkbox" aria-checked="{{p.cheio}}" aria-label="{{p.aria}}" onClick="{{p.alternar}}" style="width: 28px; height: 28px; border-radius: 6px; display: flex; align-items: center; justify-content: center;"><span style="width: 15px; height: 15px; border-radius: 50%; border: 1.5px solid {{t.acentoForte}}; background: {{p.fill}};"></span></button>
+                              </sc-for>
+                            </span>
+                          </sc-if>
+                          <sc-if value="{{a.temRec}}" hint-placeholder-val="{{ false }}">
+                            <button type="button" data-sem="1" class="clk" role="checkbox" aria-checked="{{a.recCheio}}" aria-label="{{a.recAria}}" onClick="{{a.recAlternar}}" style="height: 28px; padding: 0 6px; border-radius: 6px; display: flex; align-items: center; gap: 6px; font-size: 13px; color: {{t.textoSuave}};"><span style="width: 15px; height: 15px; border-radius: 50%; border: 1.5px solid {{t.acentoForte}}; background: {{a.recFill}};"></span>{{a.recTxt}}</button>
+                          </sc-if>
+                        </div>
+                      </div>
+                      <sc-if value="{{a.rola}}" hint-placeholder-val="{{ true }}">
+                        <button type="button" data-sem="1" class="clk fe" aria-label="{{a.ariaAcerto}}" onClick="{{a.rolar}}" style="width: 62px; height: 40px; flex: none; text-align: center; border-radius: 8px; background: {{t.acento}}; color: {{t.acentoTexto}}; font-size: 21px; line-height: 40px;">{{a.bonus}}</button>
+                        <button type="button" data-sem="1" class="clk fe" aria-label="{{a.ariaDano}}" onClick="{{a.rolarDano}}" style="width: 96px; height: 40px; flex: none; text-align: center; border-radius: 8px; border: 1.5px solid {{t.perigo}}; color: {{t.perigo}}; font-size: 18px; line-height: 37px;">{{a.dano}}</button>
+                      </sc-if>
+                      <sc-if value="{{a.semRolar}}" hint-placeholder-val="{{ false }}">
+                        <button type="button" data-sem="1" class="clk" aria-label="{{a.ariaChat}}" onClick="{{a.enviar}}" style="width: 164px; height: 40px; flex: none; text-align: center; border-radius: 8px; border: 1.5px solid {{t.acentoForte}}; color: {{t.acentoForte}}; font-size: 16px; font-weight: 600; line-height: 37px;">Conjurar</button>
+                      </sc-if>
+                      <button type="button" data-sem="1" class="clk" aria-label="{{a.ariaEd}}" aria-expanded="{{a.edAberto}}" onClick="{{a.editar}}" style="width: 34px; height: 34px; flex: none; border-radius: 6px; border: 1px solid {{a.gearBorda}}; background: {{a.gearBg}}; color: {{t.textoSuave}}; display: flex; align-items: center; justify-content: center;"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"></path></svg></button>
+                    </div>
+
+                    <sc-if value="{{a.aberta}}" hint-placeholder-val="{{ false }}">
+                      <div style="margin: 0 0 10px 20px; padding-left: 10px; border-left: 2px solid {{t.acentoForte}}; display: flex; flex-direction: column; gap: 6px; user-select: text;">
+                        <p style="margin: 0; font-size: 16.5px; line-height: 1.45;">{{a.texto}}</p>
+                        <div><button type="button" data-sem="1" class="clk" aria-label="{{a.ariaChat}}" onClick="{{a.enviar}}" style="height: 34px; padding: 0 12px; border-radius: 6px; border: 1.5px solid {{t.acentoForte}}; color: {{t.acentoForte}}; font-size: 15px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"></path></svg>Mandar ao chat</button></div>
+                      </div>
+                    </sc-if>
+
+                    <sc-if value="{{a.edAberto}}" hint-placeholder-val="{{ false }}">
+                      <div data-sem="1" style="margin: 0 0 12px 0; padding: 12px; border: 1.5px solid {{t.acentoForte}}; border-radius: 10px; background: {{t.campo}}; display: flex; flex-direction: column; gap: 12px; cursor: default; user-select: text;">
+                        <sc-for list="{{a.ed.secoes}}" as="s2" hint-placeholder-count="3">
+                          <div>
+                            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;"><h4 class="h2" style="font-size: 18px; color: {{t.acentoForte}};">{{s2.titulo}}</h4><span style="flex: 1; height: 1px; background: {{t.borda}};"></span></div>
+                            <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 10px;">
+                              <sc-for list="{{s2.campos}}" as="f" hint-placeholder-count="3">
+                                <div style="grid-column: {{f.span}}; display: flex; flex-direction: column; gap: 2px; min-width: 0;">
+                                  <span class="rot" style="color: {{t.textoSuave}};">{{f.rot}}</span>
+                                  <sc-if value="{{f.eTexto}}" hint-placeholder-val="{{ true }}"><input type="text" class="inp" value="{{f.valor}}" onChange="{{f.on}}" aria-label="{{f.rot}}" style="width: 100%; height: 34px; font-size: 16px;"></sc-if>
+                                  <sc-if value="{{f.eNum}}" hint-placeholder-val="{{ false }}"><input type="number" class="inp" value="{{f.valor}}" onChange="{{f.on}}" aria-label="{{f.rot}}" style="width: 100%; height: 34px; font-size: 16px;"></sc-if>
+                                  <sc-if value="{{f.eSel}}" hint-placeholder-val="{{ false }}">
+                                    <select value="{{f.valor}}" onChange="{{f.on}}" aria-label="{{f.rot}}" style="width: 100%; height: 34px; padding: 0 4px; border-radius: 6px; border: 1px solid {{t.borda}}; background: {{t.painel}}; color: {{t.texto}}; font-size: 15px;">
+                                      <sc-for list="{{f.opcoes}}" as="o" hint-placeholder-count="4"><option value="{{o.v}}">{{o.r}}</option></sc-for>
+                                    </select>
+                                  </sc-if>
+                                  <sc-if value="{{f.eTog}}" hint-placeholder-val="{{ false }}"><button type="button" class="clk" role="checkbox" aria-checked="{{f.valor}}" aria-label="{{f.rot}}" onClick="{{f.on}}" style="height: 34px; border-radius: 6px; display: flex; align-items: center; gap: 10px; padding: 0 4px; font-size: 15px;"><span style="width: 14px; height: 14px; flex: none; transform: rotate(45deg); border: 1.5px solid {{t.acentoForte}}; background: {{f.fill}};"></span>{{f.togTxt}}</button></sc-if>
+                                  <sc-if value="{{f.eArea}}" hint-placeholder-val="{{ false }}"><textarea class="inp rule eb" rows="3" value="{{f.valor}}" onChange="{{f.on}}" aria-label="{{f.rot}}" placeholder="Em branco: o texto é montado dos campos acima." style="font-size: 16px;"></textarea></sc-if>
+                                </div>
+                              </sc-for>
+                            </div>
+                          </div>
+                        </sc-for>
+                        <div aria-live="polite" style="border: 1.5px solid {{t.acentoForte}}; border-radius: 10px; background: {{t.acentoSuave}}; padding: 8px 12px; display: flex; flex-direction: column; gap: 2px;">
+                          <span class="rot" style="color: {{t.textoSuave}};">Prévia do resultado</span>
+                          <span class="fe" style="font-size: 20px; line-height: 1.25; color: {{t.texto}};">{{a.ed.previa}}</span>
+                        </div>
+                        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                          <button type="button" class="clk" onClick="{{a.ed.rolar}}" style="height: 38px; padding: 0 14px; border-radius: 8px; background: {{t.acento}}; color: {{t.acentoTexto}}; font-weight: 600; font-size: 16px; display: flex; align-items: center; gap: 6px;"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2l9 5v10l-9 5-9-5V7z"></path><path d="M12 2v20M3 7l18 10M21 7L3 17"></path></svg>Rolar</button>
+                          <button type="button" class="clk" onClick="{{a.ed.chat}}" style="height: 38px; padding: 0 14px; border-radius: 8px; border: 1.5px solid {{t.acentoForte}}; color: {{t.acentoForte}}; font-weight: 600; font-size: 16px;">Mandar ao chat</button>
+                          <button type="button" class="clk" onClick="{{a.ed.fechar}}" style="height: 38px; padding: 0 14px; border-radius: 8px; border: 1.5px solid {{t.borda}}; font-size: 16px;">Fechar editor</button>
+                          <button type="button" class="clk" onClick="{{a.ed.remover}}" style="height: 38px; padding: 0 12px; border-radius: 8px; border: 1.5px solid {{t.perigo}}; color: {{t.perigo}}; font-size: 16px; margin-left: auto;">Remover</button>
+                        </div>
+                      </div>
+                    </sc-if>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-for>
+            <div role="status" style="font-size: 14px; font-style: italic; color: {{t.textoSuave}};">Segure uma ação por meio segundo para arrastá-la, ou use Alt + seta no título.</div>
+            <sc-if value="{{zAcoes.lit}}" hint-placeholder-val="{{ false }}">
+              <div style="margin-top: 8px; padding: 10px; border: 2px dashed {{t.acentoForte}}; border-radius: 6px; background: {{t.acentoSuave}}; text-align: center; font-weight: 600; color: {{t.acentoForte}};">Solte aqui para pôr a ação ou a magia no monstro</div>
+            </sc-if>
+          </div>
+        </div>
+      </section>
+    </div>
+    </sc-if>
+  </section>
+
+  <!-- ===================== COLUNA LATERAL: COMPÊNDIO + CHAT ===================== -->
+  <aside aria-label="Compêndio e chat" style="position: absolute; left: 580px; top: 24px; width: 340px; z-index: 10; display: flex; flex-direction: column; gap: 16px;">
+
+    <section aria-label="Compêndio" style="box-sizing: border-box; border: 1px solid {{t.borda}}; border-radius: 10px; overflow: hidden; background: linear-gradient(180deg, {{t.painelTopo}} 0px, {{t.painel}} 160px); box-shadow: {{t.sombra}}; display: flex; flex-direction: column; height: 560px;">
+      <div style="display: flex; align-items: center; gap: 8px; height: 42px; flex: none; padding: 0 12px; background: {{t.cabecalho}}; border-bottom: 1px solid {{t.borda}};">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="{{t.acentoForte}}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z"></path><path d="M5 17a3 3 0 0 1 3-3h11"></path></svg>
+        <span class="fe" style="font-size: 19px;">Compêndio</span>
+        <span style="margin-left: auto; font-size: 14px; color: {{t.textoSuave}}; font-style: italic;">arraste para as ações</span>
+      </div>
+      <div style="padding: 10px 12px 6px; flex: none;">
+        <label><span class="sr">Buscar no compêndio</span><input type="search" value="{{busca}}" placeholder="Buscar magias, armas e itens" onChange="{{onBusca}}" style="width: 100%; height: 38px; padding: 0 10px; border-radius: 8px; border: 1px solid {{t.borda}}; background: {{t.campo}}; color: {{t.texto}}; font-size: 16px;"></label>
+      </div>
+      <div style="flex-grow: 1; min-height: 0; overflow-y: auto; padding: 0 12px 12px;">
+        <sc-for list="{{compGrupos}}" as="cg" hint-placeholder-count="3">
+          <div style="display: flex; flex-direction: column; margin-top: 8px;">
+            <span class="h2" style="font-size: 16px; color: {{t.acentoForte}};">{{cg.titulo}}</span>
+            <sc-for list="{{cg.itens}}" as="ci" hint-placeholder-count="3">
+              <div draggable="true" class="arr" onDragStart="{{ci.arrastar}}" onDragEnd="{{ci.fim}}" style="display: flex; align-items: center; gap: 8px; box-sizing: border-box; min-height: 52px; margin-top: 6px; padding: 6px 8px; {{ci.est}}">
+                <svg width="12" height="16" viewBox="0 0 12 16" fill="{{t.textoSuave}}" aria-hidden="true" style="flex: none;"><circle cx="3" cy="3" r="1.3"></circle><circle cx="9" cy="3" r="1.3"></circle><circle cx="3" cy="8" r="1.3"></circle><circle cx="9" cy="8" r="1.3"></circle><circle cx="3" cy="13" r="1.3"></circle><circle cx="9" cy="13" r="1.3"></circle></svg>
+                <div style="flex-grow: 1; min-width: 0; display: flex; flex-direction: column;">
+                  <span style="font-size: 17px; font-weight: 600; line-height: 1.2;">{{ci.nome}}</span>
+                  <span style="font-size: 14px; font-style: italic; color: {{t.textoSuave}};">{{ci.meta}}</span>
+                </div>
+                <button type="button" class="clk" aria-label="{{ci.aria}}" onClick="{{ci.adicionar}}" style="height: 34px; padding: 0 9px; flex: none; border-radius: 6px; border: 1.5px solid {{t.acentoForte}}; color: {{t.acentoForte}}; font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 4px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>Adicionar</button>
+              </div>
+            </sc-for>
+          </div>
+        </sc-for>
+        <sc-if value="{{compVazio}}" hint-placeholder-val="{{ false }}">
+          <p style="margin: 14px 0 0; font-style: italic; color: {{t.textoSuave}};">Nada encontrado para essa busca.</p>
+        </sc-if>
+      </div>
+      <div role="status" style="min-height: 34px; flex: none; box-sizing: border-box; padding: 6px 12px; border-top: 1px solid {{t.borda}}; background: {{t.cabecalho}}; font-size: 14.5px; display: flex; align-items: center;">{{toastTxt}}</div>
+    </section>
+
+    <section aria-label="Chat de prévia" style="box-sizing: border-box; border: 1px solid {{t.borda}}; border-radius: 10px; overflow: hidden; background: linear-gradient(180deg, {{t.painelTopo}} 0px, {{t.painel}} 160px); box-shadow: {{t.sombra}}; display: flex; flex-direction: column; height: 620px;">
+      <div style="display: flex; align-items: center; gap: 8px; height: 42px; flex: none; padding: 0 12px; background: {{t.cabecalho}}; border-bottom: 1px solid {{t.borda}};">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="{{t.acentoForte}}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"></path></svg>
+        <span class="fe" style="font-size: 19px;">Chat</span>
+      </div>
+      <div role="log" aria-label="Mensagens do chat" style="flex-grow: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column-reverse; gap: 8px; padding: 10px 12px;">
+        <sc-for list="{{mensagens}}" as="m" hint-placeholder-count="3">
+          <div style="flex: none; box-sizing: border-box; padding: 5px 10px; display: flex; flex-direction: column; gap: 3px; background: {{t.campo}}; border: 1px solid {{t.borda}}; border-radius: 8px;">
+            <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 8px; line-height: 16px;">
+              <span class="fe" style="font-size: 16px; line-height: 16px; letter-spacing: .02em; color: {{t.texto}};">{{m.nome}}</span>
+              <span style="display: flex; align-items: center; gap: 6px; flex: none;">
+                <sc-if value="{{m.temTag}}" hint-placeholder-val="{{ false }}"><span style="font-size: 12px; font-weight: 700; line-height: 14px; padding: 0 6px; border-radius: 8px; {{m.tagEst}}">{{m.tagTxt}}</span></sc-if>
+                <span style="font-size: 13px; font-style: italic; color: {{t.textoSuave}};">{{m.quem}}</span>
+              </span>
+            </div>
+            <sc-if value="{{m.temLinha}}" hint-placeholder-val="{{ true }}">
+              <div style="display: flex; align-items: center; gap: 6px; height: 32px;">
+                <sc-if value="{{m.temD20}}" hint-placeholder-val="{{ true }}">
+                  <sc-for list="{{m.dice}}" as="d" hint-placeholder-count="1">
+                    <span aria-label="d20: {{d.n}}" style="width: 28px; height: 32px; flex: none; display: block; opacity: {{d.op}}; {{d.est}}"><span style="display: flex; align-items: center; justify-content: center; width: 24px; height: 28px; margin: 2px; font-size: 13px; font-weight: 700; {{d.estIn}}">{{d.n}}</span></span>
+                  </sc-for>
+                  <span style="font-size: 15px; color: {{t.textoSuave}};">{{m.bonusTxt}}</span>
+                  <span style="font-size: 15px; color: {{t.textoSuave}};">=</span>
+                  <span class="fe" style="font-size: 26px; line-height: 32px; height: 32px; padding: 0 8px; box-sizing: border-box; border-radius: 6px; {{m.totEst}}">{{m.totTxt}}</span>
+                </sc-if>
+                <sc-if value="{{m.temCd}}" hint-placeholder-val="{{ false }}">
+                  <span style="display: flex; align-items: baseline; gap: 6px; padding: 0 8px; height: 32px; box-sizing: border-box; border-radius: 6px; border: 1px solid {{t.acentoForte}}; background: {{t.acentoSuave}};"><span class="fe" style="font-size: 22px; line-height: 30px; color: {{t.texto}};">{{m.cdTxt}}</span><span style="font-size: 13px; line-height: 30px; color: {{t.textoSuave}};">{{m.cdSub}}</span></span>
+                </sc-if>
+                <sc-for list="{{m.danos}}" as="dn" hint-placeholder-count="1">
+                  <span style="margin-left: auto; display: flex; align-items: center; gap: 6px; height: 32px; box-sizing: border-box; padding: 0 8px; border-radius: 6px; border: 1px solid {{t.perigo}};"><span class="fe" style="font-size: 24px; line-height: 30px; color: {{t.perigo}};">{{dn.total}}</span><span style="font-size: 12px; line-height: 13px; color: {{t.textoSuave}};">{{dn.formula}}<br>{{dn.tipo}}</span></span>
+                </sc-for>
+              </div>
+            </sc-if>
+            <sc-if value="{{m.temSub}}" hint-placeholder-val="{{ false }}"><span style="font-size: 14px; font-style: italic; color: {{t.textoSuave}};">{{m.sub}}</span></sc-if>
+            <sc-if value="{{m.temTexto}}" hint-placeholder-val="{{ false }}"><span style="font-size: 15px; line-height: 1.4;">{{m.texto}}</span></sc-if>
+          </div>
+        </sc-for>
+      </div>
+      <form onSubmit="{{enviarMsg}}" style="display: flex; flex: none; gap: 8px; padding: 10px 12px 12px; border-top: 1px solid {{t.borda}};">
+        <label style="flex-grow: 1; display: flex;"><span class="sr">Mensagem do chat</span><input type="text" value="{{msg}}" placeholder="Escreva uma mensagem" onChange="{{onMsg}}" style="width: 100%; height: 40px; padding: 0 10px; border-radius: 8px; border: 1px solid {{t.borda}}; background: {{t.campo}}; color: {{t.texto}}; font-size: 16px;"></label>
+        <button type="submit" class="clk" aria-label="Enviar mensagem" style="width: 40px; height: 40px; border-radius: 8px; background: {{t.acento}}; color: {{t.acentoTexto}}; display: flex; align-items: center; justify-content: center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12l16-8-6 16-2-6z"></path></svg></button>
+      </form>
+    </section>
+  </aside>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"tema":{"editor":"enum","options":["Grimório","Pergaminho","Vampiro","Edgerunner","Élfico"],"default":"Grimório"},"$preview":{"width":960,"height":1500}}'>
+const N = (v) => { const n = Number(v); return isNaN(n) ? 0 : n; };
+const sg = (n) => (n < 0 ? '−' : '+') + Math.abs(n);
+const sf = (n) => (n > 0 ? '+' + n : n < 0 ? '-' + Math.abs(n) : '');
+const D = (f) => 1 + Math.floor(Math.random() * f);
+const semAcento = (s) => String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+const HEX = 'clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%);';
+const VERDE = '#2FA46A'; const VERDE_TX = '#0B2416'; const VERM = '#C9302C'; const VERM_TX = '#FFFFFF';
+const PB = 2;
+
+const ATTR = [
+  { k: 'for', n: 'Força', s: 'FOR' }, { k: 'des', n: 'Destreza', s: 'DES' }, { k: 'con', n: 'Constituição', s: 'CON' },
+  { k: 'int', n: 'Inteligência', s: 'INT' }, { k: 'sab', n: 'Sabedoria', s: 'SAB' }, { k: 'car', n: 'Carisma', s: 'CAR' }
+];
+const TIPOS = { cac: 'Corpo a corpo', dist: 'À distância', cacdist: 'Corpo a corpo ou à distância', magia: 'Magia', esp: 'Especial' };
+const TIPO_TXT = { cac: 'Ataque corpo a corpo com arma', dist: 'Ataque à distância com arma', cacdist: 'Ataque corpo a corpo ou à distância com arma', magia: 'Magia', esp: 'Ação especial' };
+const CATS = { acao: 'Ações', reacao: 'Reações', lendaria: 'Ações lendárias' };
+const TDANO = ['ácido', 'contundente', 'cortante', 'elétrico', 'força', 'fogo', 'gélido', 'necrótico', 'perfurante', 'psíquico', 'radiante', 'trovejante', 'venenoso'];
+const EFEITO = { nenhum: 'dano total no sucesso', metade: 'metade do dano no sucesso', anula: 'nenhum dano no sucesso' };
+
+const TEMAS = {
+  'Grimório': { id: 'grimorio', fundo: '#0C0C0C', capa: '#121212', painelTopo: '#202020', painel: '#252525', borda: '#3C3C3C', cabecalho: '#2A2A2A', campo: '#121212', texto: '#EDEDED', textoSuave: '#A8A8A8', acento: '#E2AE4F', acentoTexto: '#1E150B', acentoSuave: 'rgba(226, 174, 79, 0.18)', acentoForte: '#F0C46E', perigo: '#EE8A55', sucesso: '#7BCB8B', aviso: '#F5C542', sombra: '0 6px 24px rgba(0, 0, 0, 0.5)' },
+  'Pergaminho': { id: 'claro', fundo: '#EFEBE4', capa: '#CFC8BC', painelTopo: '#FBF9F5', painel: '#FFFFFF', borda: '#DCD4C6', cabecalho: '#F3EEE6', campo: '#FFFFFF', texto: '#231E19', textoSuave: '#675D52', acento: '#E2AE4F', acentoTexto: '#231E19', acentoSuave: 'rgba(226, 174, 79, 0.24)', acentoForte: '#8A5D10', perigo: '#A83A15', sucesso: '#1F7A3D', aviso: '#8A6500', sombra: '0 6px 20px rgba(60, 45, 25, 0.2)' },
+  'Vampiro': { id: 'vampiro', fundo: '#0A0405', capa: '#140608', painelTopo: '#340E17', painel: '#261015', borda: '#4F232C', cabecalho: '#331219', campo: '#140608', texto: '#F6E9E9', textoSuave: '#CBA5AB', acento: '#C41E37', acentoTexto: '#FFF1F1', acentoSuave: 'rgba(196, 30, 55, 0.18)', acentoForte: '#FF7389', perigo: '#FF9568', sucesso: '#82CBA0', aviso: '#F2B79A', sombra: '0 6px 24px rgba(0, 0, 0, 0.5)' },
+  'Edgerunner': { id: 'edgerunner', fundo: '#0B0912', capa: '#110D1D', painelTopo: '#241F36', painel: '#272238', borda: '#4C4468', cabecalho: '#2F2850', campo: '#110D1D', texto: '#EFEBF8', textoSuave: '#B4AACB', acento: '#2DF08B', acentoTexto: '#04160C', acentoSuave: 'rgba(45, 240, 139, 0.18)', acentoForte: '#5CFFA6', perigo: '#FF5C93', sucesso: '#4CE3B6', aviso: '#FFE14A', sombra: '0 6px 24px rgba(0, 0, 0, 0.5)' },
+  'Élfico': { id: 'elfico', fundo: '#D9E7D5', capa: '#B0C2AD', painelTopo: '#EBF4E8', painel: '#FFFFFF', borda: '#B3C9AF', cabecalho: '#DCEAD8', campo: '#FFFFFF', texto: '#18281D', textoSuave: '#3F5845', acento: '#67BC74', acentoTexto: '#0C2212', acentoSuave: 'rgba(103, 188, 116, 0.26)', acentoForte: '#26683A', perigo: '#A83A15', sucesso: '#1D7440', aviso: '#7A5A00', sombra: '0 6px 20px rgba(30, 55, 35, 0.2)' }
+};
+
+const COMP = [
+  { id: 'c1', tipo: 'magia', nome: 'Escudo da Fé', nivel: 1, escola: 'Abjuração', alcance: '18 m', dur: 'Concentração, até 10 minutos', texto: 'Ação bônus. Um campo cintilante envolve uma criatura que você veja ao alcance e concede +2 de CA enquanto durar.', meta: '1º nível · abjuração' },
+  { id: 'c2', tipo: 'magia', nome: 'Arma Espiritual', nivel: 2, escola: 'Evocação', alcance: '18 m', dur: '1 minuto', texto: 'Ação bônus. Cria uma arma espectral flutuante que faz um ataque mágico corpo a corpo, causando 1d8 mais o modificador de conjuração de dano de força.', meta: '2º nível · evocação', atk: { atr: 'sab', q: 1, f: 8, tipo: 'força' } },
+  { id: 'c3', tipo: 'magia', nome: 'Revivificar', nivel: 3, escola: 'Necromancia', alcance: 'Toque', dur: 'Instantânea', texto: 'Você toca uma criatura que morreu há no máximo 1 minuto e ela volta à vida com 1 ponto de vida.', meta: '3º nível · necromancia' },
+  { id: 'c4', tipo: 'magia', nome: 'Guardião da Fé', nivel: 4, escola: 'Conjuração', alcance: '9 m', dur: '8 horas', texto: 'Um guardião espectral Grande paira no local por 8 horas. Criatura hostil que se aproxima a até 3 m dele faz salvaguarda de Destreza: 20 de dano radiante, ou metade no sucesso. Some depois de causar 60 de dano.', meta: '4º nível · conjuração' },
+  { id: 'c5', tipo: 'arma', nome: 'Machado de batalha', q: 1, f: 8, dtipo: 'cortante', attr: 'for', alcance: '1,5 m', props: 'versátil (1d10)', meta: '1d8 cortante · versátil 1d10' },
+  { id: 'c6', tipo: 'arma', nome: 'Besta leve', q: 1, f: 8, dtipo: 'perfurante', attr: 'des', alcance: '24/96 m', props: 'munição, recarga', meta: '1d8 perfurante · 24/96 m' },
+  { id: 'c7', tipo: 'item', nome: 'Poção de Cura', meta: 'cura 2d4+2' },
+  { id: 'c8', tipo: 'item', nome: 'Corda de seda (15 m)', meta: 'equipamento de aventura' }
+];
+
+class Component extends DCLogic {
+  constructor(...args) {
+    super(...args);
+    this._n = 100; this._h = null; this._tm = null; this._d = null; this._sup = false;
+    this.state = {
+      pos: { x: 0, y: 0 }, min: false, modo: 'normal', pv: 59,
+      nome: 'Ogro', tipo: 'Gigante Grande, Caótico Mau', ca: 11, armadura: 'peles', desl: '12 m',
+      attr: { for: 19, des: 8, con: 16, int: 5, sab: 7, car: 7 },
+      acoes: [
+        this.nova('k1', 'Clava Grande', { tipo: 'cac', alcance: '1,5 m', atr: 'for', prof: true, d1: { q: 2, f: 8, bonus: 0, atr: 'for', tipo: 'contundente' } }),
+        this.nova('k2', 'Azagaia', { tipo: 'cacdist', alcance: '1,5 m ou 9/36 m', atr: 'for', prof: true, d1: { q: 2, f: 6, bonus: 0, atr: 'for', tipo: 'perfurante' } })
+      ],
+      exp: {}, ed: null, hold: null, alvo: null,
+      chat: [
+        { id: 'm1', quem: 'Ogro', nome: 'Ataque · Clava Grande', tipo: 'ataque', d20: { dados: [14], pick: 14, modo: 'normal', bonus: 6, total: 20 }, danos: [{ formula: '2d8+4', total: 13, tipo: 'contundente' }] },
+        { id: 'm2', quem: 'Ogro', nome: 'Furtividade', tipo: 'teste', d20: { dados: [1], pick: 1, modo: 'normal', bonus: -1, total: 0 } }
+      ],
+      busca: '', arrasto: null, toast: 'Arraste uma arma ou magia para as ações, ou use Adicionar.', msg: ''
+    };
+  }
+
+  nova(id, nome, o) {
+    return Object.assign({ id, cat: 'acao', nome, tipo: 'cac', chipTipo: '', atr: 'for', extra: 0, prof: true, alcance: '1,5 m', magico: 0, crit: 20,
+      d1: { q: 1, f: 8, bonus: 0, atr: 'nenhum', tipo: 'contundente' }, critExtra: '', d2: { on: false, q: 1, f: 6, bonus: 0, tipo: 'fogo' },
+      salva: { atr: 'nenhum', cd: 13, efeito: 'metade' }, desc: '', recarga: '', usosMax: 0, usosGastos: 0, recOk: true }, o || {});
+  }
+
+  uid() { this._n += 1; return 'x' + this._n; }
+  mod(k) { if (k === 'nenhum') return 0; return Math.floor((N(this.state.attr[k]) - 10) / 2); }
+  avisar(txt) { this.setState({ toast: txt }); }
+  addChat(msg) { return [...this.state.chat, { id: this.uid(), quem: this.state.nome, ...msg }].slice(-24); }
+  upd(id, fn) { this.setState({ acoes: this.state.acoes.map((x) => (x.id === id ? fn(x) : x)) }); }
+
+  bonusAtk(a) { return this.mod(a.atr) + (a.prof ? PB : 0) + N(a.extra) + N(a.magico); }
+  bonusDano(a) { return N(a.d1.bonus) + this.mod(a.d1.atr); }
+  fd(q, f, b) { return q + 'd' + f + sf(b); }
+  media(q, f, b) { return Math.floor((q * (f + 1)) / 2 + b); }
+  temSalva(a) { return a.salva.atr !== 'nenhum'; }
+  rola(a) { return a.d1.q > 0 || this.temSalva(a); }
+
+  previa(a) {
+    if (!this.rola(a)) return 'Sem jogada: o texto da ação vai ao chat.';
+    const b = this.bonusDano(a);
+    const d1 = a.d1.q > 0 ? this.fd(a.d1.q, a.d1.f, b) + ' ' + a.d1.tipo : '';
+    const d2 = a.d2.on ? ' + ' + this.fd(a.d2.q, a.d2.f, N(a.d2.bonus)) + ' ' + a.d2.tipo : '';
+    if (this.temSalva(a)) return 'CD ' + a.salva.cd + ' ' + a.salva.atr.toUpperCase() + ' · ' + d1 + d2 + '; ' + EFEITO[a.salva.efeito];
+    return sg(this.bonusAtk(a)) + ' para acertar · ' + d1 + d2 + '; crítico ' + this.fd(a.d1.q * 2, a.d1.f, b) + (a.crit < 20 ? ' (a partir de ' + a.crit + ')' : '');
+  }
+
+  texto(a) {
+    if (a.desc) return a.desc;
+    const tt = TIPO_TXT[a.tipo];
+    if (!this.rola(a)) return tt + '.';
+    const b = this.bonusDano(a);
+    const dano = this.media(a.d1.q, a.d1.f, b) + ' (' + a.d1.q + 'd' + a.d1.f + (b ? (b > 0 ? ' + ' : ' − ') + Math.abs(b) : '') + ') de dano ' + a.d1.tipo;
+    if (this.temSalva(a)) return tt + ': CD ' + a.salva.cd + ' de ' + ATTR.find((x) => x.k === a.salva.atr).n + '. Falha: ' + dano + '; ' + EFEITO[a.salva.efeito] + '.';
+    return tt + ': ' + sg(this.bonusAtk(a)) + ' para acertar, alcance ' + a.alcance + ', um alvo. Acerto: ' + dano + '.';
+  }
+
+  tirar20() {
+    const modo = this.state.modo; const a = D(20);
+    if (modo === 'normal') return { dados: [a], pick: a, modo };
+    const b = D(20);
+    return { dados: [a, b], pick: modo === 'vantagem' ? Math.max(a, b) : Math.min(a, b), modo };
+  }
+  teste(nome, bonus) {
+    const r = this.tirar20();
+    this.setState({ chat: this.addChat({ nome, tipo: 'teste', d20: { ...r, bonus, total: r.pick + bonus } }) });
+  }
+  rolarDano(a, crit) {
+    const out = [];
+    const um = (q, f, b, tipo) => { const n = crit ? q * 2 : q; let s = 0; for (let i = 0; i < n; i++) s += D(f); out.push({ formula: this.fd(n, f, b), total: s + b, tipo }); };
+    if (a.d1.q > 0) um(a.d1.q, a.d1.f, this.bonusDano(a), a.d1.tipo);
+    if (a.d2.on) um(a.d2.q, a.d2.f, N(a.d2.bonus), a.d2.tipo);
+    return out;
+  }
+  gastar(a) {
+    if (a.usosMax > 0) {
+      if (a.usosGastos >= a.usosMax) { this.avisar(a.nome + ': sem usos restantes hoje.'); return false; }
+      this.upd(a.id, (x) => ({ ...x, usosGastos: x.usosGastos + 1 })); return true;
+    }
+    if (a.recarga) {
+      if (!a.recOk) { this.avisar(a.nome + ' ainda não recarregou (' + a.recarga + ').'); return false; }
+      this.upd(a.id, (x) => ({ ...x, recOk: false })); return true;
+    }
+    return true;
+  }
+  atacar(a, semGasto) {
+    if (!semGasto && !this.gastar(a)) return;
+    if (this.temSalva(a)) {
+      this.setState({ chat: this.addChat({ nome: 'Salvaguarda · ' + a.nome, tipo: 'salva', cd: { cd: a.salva.cd, atr: a.salva.atr.toUpperCase() }, danos: this.rolarDano(a, false) }) });
+      return;
+    }
+    const r = this.tirar20(); const b = this.bonusAtk(a); const crit = r.pick >= a.crit;
+    this.setState({ chat: this.addChat({ nome: 'Ataque · ' + a.nome, tipo: 'ataque', d20: { ...r, bonus: b, total: r.pick + b, critForcado: crit }, danos: this.rolarDano(a, crit) }) });
+  }
+  danoSo(a) { this.setState({ chat: this.addChat({ nome: 'Dano · ' + a.nome, tipo: 'dano', danos: this.rolarDano(a, false) }) }); }
+  cartao(a) { this.setState({ chat: this.addChat({ nome: a.nome, tipo: 'carta', sub: (a.chipTipo || TIPOS[a.tipo]) + ' · ' + CATS[a.cat], texto: this.texto(a) }) }); }
+
+  adicionar(id) {
+    const e = COMP.find((x) => x.id === id); if (!e) return;
+    const st = this.state;
+    if (e.tipo === 'item') { this.avisar('Itens não entram no bloco de monstro: use uma arma ou uma magia.'); return; }
+    if (st.acoes.some((a) => a.nome === e.nome)) { this.avisar(e.nome + ' já está nas ações.'); return; }
+    const nid = this.uid(); let a;
+    if (e.tipo === 'arma') {
+      a = this.nova(nid, e.nome, { tipo: e.attr === 'for' ? 'cac' : 'dist', atr: e.attr, prof: true, alcance: e.alcance, d1: { q: e.q, f: e.f, bonus: 0, atr: e.attr, tipo: e.dtipo } });
+      this.setState({ acoes: [...st.acoes, a], exp: { ...st.exp, [nid]: true }, toast: e.nome + ' virou uma ação (' + sg(this.bonusAtk(a)) + ' para acertar, ' + this.fd(a.d1.q, a.d1.f, this.bonusDano(a)) + ').' });
+    } else {
+      const k = e.atk;
+      a = this.nova(nid, e.nome, { tipo: 'magia', chipTipo: 'Magia · ' + e.nivel + 'º nível', atr: k ? k.atr : 'nenhum', prof: !!k, alcance: e.alcance, desc: e.texto,
+        d1: k ? { q: k.q, f: k.f, bonus: 0, atr: k.atr, tipo: k.tipo } : { q: 0, f: 8, bonus: 0, atr: 'nenhum', tipo: 'fogo' } });
+      this.setState({ acoes: [...st.acoes, a], exp: { ...st.exp, [nid]: true }, toast: e.nome + ' entrou nas ações' + (k ? ' (' + sg(this.bonusAtk(a)) + ' para acertar).' : '.') });
+    }
+  }
+  soltar() {
+    return (ev) => {
+      ev.preventDefault();
+      let id = this.state.arrasto;
+      try { id = id || ev.dataTransfer.getData('text/plain'); } catch (x) { /* ok */ }
+      this.setState({ arrasto: null });
+      if (id) this.adicionar(id);
+    };
+  }
+
+  /* mover a janela */
+  cabDown(ev) {
+    if (ev.target.closest && ev.target.closest('button')) return;
+    this._d = { sx: ev.clientX, sy: ev.clientY, ox: this.state.pos.x, oy: this.state.pos.y };
+    try { ev.currentTarget.setPointerCapture(ev.pointerId); } catch (x) { /* ok */ }
+  }
+  cabMove(ev) {
+    const d = this._d; if (!d) return;
+    const x = Math.max(-30, Math.min(820, d.ox + ev.clientX - d.sx));
+    const y = Math.max(-24, Math.min(1440, d.oy + ev.clientY - d.sy));
+    this.setState({ pos: { x, y } });
+  }
+  cabUp() { this._d = null; }
+
+  /* segurar para reordenar */
+  holdIni(ev, id) {
+    if (ev.pointerType === 'mouse' && ev.button !== 0) return;
+    if (ev.target.closest && ev.target.closest('[data-sem]')) return;
+    clearTimeout(this._tm);
+    this._h = { id, x: ev.clientX, y: ev.clientY, on: false, el: ev.currentTarget, pid: ev.pointerId };
+    this._tm = setTimeout(() => {
+      const h = this._h; if (!h) return;
+      h.on = true;
+      try { h.el.setPointerCapture(h.pid); } catch (x) { /* ok */ }
+      this.setState({ hold: id, toast: 'Segurando: solte sobre outra ação para mudar a posição.' });
+    }, 300);
+  }
+  holdMov(ev) {
+    const h = this._h; if (!h) return;
+    if (!h.on) {
+      if (Math.abs(ev.clientX - h.x) > 6 || Math.abs(ev.clientY - h.y) > 6) { clearTimeout(this._tm); this._h = null; }
+      return;
+    }
+    const el = document.elementFromPoint(ev.clientX, ev.clientY);
+    const row = el && el.closest ? el.closest('[data-aid]') : null;
+    const al = this.state.alvo;
+    if (!row || row.getAttribute('data-aid') === h.id) { if (al) this.setState({ alvo: null }); return; }
+    const me = this.state.acoes.find((x) => x.id === h.id);
+    if (!me || row.getAttribute('data-cat') !== me.cat) return;
+    const rid = row.getAttribute('data-aid'); const r = row.getBoundingClientRect();
+    const depois = ev.clientY > r.top + r.height / 2;
+    if (!al || al.id !== rid || al.depois !== depois) this.setState({ alvo: { id: rid, depois } });
+  }
+  holdFim() {
+    clearTimeout(this._tm);
+    const h = this._h; this._h = null; if (!h || !h.on) return;
+    this._sup = true; setTimeout(() => { this._sup = false; }, 120);
+    const al = this.state.alvo;
+    const arr = this.state.acoes.slice();
+    const i = arr.findIndex((x) => x.id === h.id);
+    if (al && i >= 0) {
+      const [it] = arr.splice(i, 1);
+      const j = arr.findIndex((x) => x.id === al.id);
+      arr.splice(j + (al.depois ? 1 : 0), 0, it);
+      this.setState({ acoes: arr, hold: null, alvo: null, toast: it.nome + ' mudou de posição.' });
+    } else this.setState({ hold: null, alvo: null });
+  }
+  deslocar(id, d) {
+    const arr = this.state.acoes.slice(); const me = arr.find((x) => x.id === id); if (!me) return;
+    const idx = arr.map((x, i) => (x.cat === me.cat ? i : -1)).filter((i) => i >= 0);
+    const p = idx.findIndex((i) => arr[i].id === id); const np = p + d;
+    if (np < 0 || np >= idx.length) return;
+    const t = arr[idx[p]]; arr[idx[p]] = arr[idx[np]]; arr[idx[np]] = t;
+    this.setState({ acoes: arr, toast: me.nome + ': posição ' + (np + 1) + ' de ' + idx.length + '.' });
+  }
+
+  viewMsg(m, t) {
+    const d20 = m.d20; let dice = []; let totEst = ''; let tag = ''; let tagEst = '';
+    if (d20) {
+      const nat20 = d20.pick === 20 || !!d20.critForcado; const nat1 = d20.pick === 1;
+      let usado = false;
+      dice = d20.dados.map((n) => {
+        const esc = !(!usado && n === d20.pick); if (!esc) usado = true;
+        const base = !esc && n === 20 ? [VERDE, VERDE, VERDE_TX] : !esc && n === 1 ? [VERM, VERM, VERM_TX] : [t.borda, t.painel, t.texto];
+        return { n, op: esc ? '0.4' : '1', est: HEX + 'background:' + base[0] + ';', estIn: HEX + 'background:' + base[1] + ';color:' + base[2] + ';' };
+      });
+      totEst = nat20 ? 'background:' + VERDE + ';color:' + VERDE_TX + ';' : nat1 ? 'background:' + VERM + ';color:' + VERM_TX + ';' : 'color:' + t.texto + ';';
+      if (nat20) { tag = 'Crítico'; tagEst = 'background:' + VERDE + ';color:' + VERDE_TX + ';'; }
+      else if (nat1) { tag = '1 natural'; tagEst = 'background:' + VERM + ';color:' + VERM_TX + ';'; }
+      else if (d20.modo !== 'normal') { tag = d20.modo; tagEst = 'border:1px solid ' + t.acentoForte + ';color:' + t.acentoForte + ';'; }
+    }
+    const danos = (m.danos || []).map((d) => ({ total: String(d.total), formula: d.formula, tipo: d.tipo }));
+    const temD20 = !!d20; const temCd = !!m.cd;
+    return {
+      id: m.id, nome: m.nome, quem: m.quem, temTag: !!tag, tagTxt: tag, tagEst,
+      temLinha: temD20 || temCd || danos.length > 0, temD20, dice, bonusTxt: d20 ? (d20.bonus < 0 ? '−' : '+') + ' ' + Math.abs(d20.bonus) : '', totTxt: d20 ? String(d20.total) : '', totEst,
+      temCd, cdTxt: temCd ? 'CD ' + m.cd.cd : '', cdSub: temCd ? m.cd.atr : '', danos,
+      temSub: !!m.sub, sub: m.sub || '', temTexto: !!m.texto, texto: m.texto || ''
+    };
+  }
+
+  renderVals() {
+    const st = this.state; const T = TEMAS[this.props.tema] || TEMAS['Grimório'];
+    const t = T;
+    const F = { t: "'IM Fell English SC','IM Fell English',Georgia,serif", c: "'EB Garamond',Georgia,serif" };
+    const s = {};
+    const lit = (() => { const e = st.arrasto ? COMP.find((x) => x.id === st.arrasto) : null; return !!e && (e.tipo === 'arma' || e.tipo === 'magia'); })();
+    const zAcoes = { lit, est: lit ? 'outline:2px dashed ' + t.acentoForte + ';outline-offset:3px;' : '' };
+
+    const modos = [['vantagem', 'Vantagem'], ['normal', 'Normal'], ['desvantagem', 'Desvantagem']].map(([k, nome]) => {
+      const ativo = st.modo === k; const cor = k === 'vantagem' ? t.sucesso : k === 'desvantagem' ? t.perigo : t.acentoForte;
+      return { nome, ativo, ir: () => this.setState({ modo: k }),
+        est: 'height:32px;border-radius:6px;text-align:center;font-family:' + F.c + ';font-size:15px;font-weight:600;' + (ativo ? 'background:' + t.acentoSuave + ';border:1.5px solid ' + cor + ';color:' + cor + ';' : 'background:transparent;border:1px solid ' + t.borda + ';color:' + t.textoSuave + ';') };
+    });
+
+    const escudos = ATTR.map((a) => { const m = this.mod(a.k); return {
+      sigla: a.s, mod: sg(m), valor: st.attr[a.k], nomeAttr: a.n, aria: 'Rolar teste de ' + a.n + ', modificador ' + sg(m), ariaSalv: 'Rolar salvaguarda de ' + a.n + ', ' + sg(m),
+      set: (e) => this.setState({ attr: { ...this.state.attr, [a.k]: Math.max(1, Math.min(30, N(e.target.value) || 1)) } }),
+      rolar: () => this.teste(a.n, m), rolarSalv: () => this.teste('Salvaguarda de ' + a.n, m) }; });
+
+    const pct = Math.max(0, Math.min(100, Math.round((N(st.pv) / 59) * 100)));
+    const corPv = pct > 50 ? t.sucesso : pct > 25 ? t.aviso : t.perigo;
+    const clamp = (v) => Math.max(0, Math.min(59, v));
+    const sab = this.mod('sab');
+
+    const linha = (a) => {
+      const i = st.acoes.findIndex((x) => x.id === a.id);
+      const ab = !!st.exp[a.id]; const edAb = st.ed === a.id; const seg = st.hold === a.id;
+      const alvo = st.alvo && st.alvo.id === a.id ? st.alvo : null;
+      const rolaA = this.rola(a);
+      let rowEst = 'border-bottom:1px solid ' + t.borda + ';';
+      if (seg) rowEst += 'background:' + t.acentoSuave + ';outline:2px solid ' + t.acentoForte + ';outline-offset:-2px;border-radius:6px;';
+      if (alvo) rowEst += 'box-shadow:inset 0 ' + (alvo.depois ? '-4px' : '4px') + ' 0 ' + t.acentoForte + ';';
+      const chips = [{ txt: a.chipTipo || TIPOS[a.tipo] }];
+      if (a.alcance) chips.push({ txt: a.tipo === 'magia' || a.tipo === 'esp' ? a.alcance : 'alcance ' + a.alcance });
+      const temUsos = a.usosMax > 0;
+      const pips = []; for (let k = 0; k < a.usosMax; k++) { const cheio = k >= a.usosGastos; pips.push({ cheio, fill: cheio ? t.acentoForte : 'transparent', aria: 'Uso ' + (k + 1) + ' de ' + a.nome + ': ' + (cheio ? 'disponível' : 'gasto'),
+        alternar: () => this.upd(a.id, (x) => ({ ...x, usosGastos: cheio ? Math.min(x.usosMax, x.usosGastos + 1) : Math.max(0, x.usosGastos - 1) })) }); }
+      const recMin = parseInt(String(a.recarga).replace(/[^0-9]/g, '').charAt(0), 10) || 6;
+      const b = this.bonusAtk(a); const bd = this.bonusDano(a);
+      const dano = a.d1.q > 0 ? this.fd(a.d1.q, a.d1.f, bd) : '—';
+      const ed = edAb ? this.editorDe(a, t) : { secoes: [], previa: '', rolar: () => {}, chat: () => {}, fechar: () => {}, remover: () => {} };
+      return {
+        id: a.id, cat: a.cat, nome: a.nome, chips, aberta: ab, rot: ab ? 'rotate(90deg)' : 'rotate(0deg)', texto: this.texto(a), rowEst,
+        ariaTitulo: a.nome + ': expandir a descrição. Alt mais seta para cima ou para baixo muda a posição.',
+        temUsos, usosTxt: a.usosMax + ' por dia', pips,
+        temRec: !!a.recarga, recCheio: a.recOk, recFill: a.recOk ? t.acentoForte : 'transparent', recTxt: 'Recarga ' + a.recarga,
+        recAria: 'Recarga ' + a.recarga + ' de ' + a.nome + ': ' + (a.recOk ? 'disponível' : 'gasta. Ativar para tentar recarregar'),
+        recAlternar: () => { if (a.recOk) this.upd(a.id, (x) => ({ ...x, recOk: false })); else { const r = D(6); if (r >= recMin) { this.upd(a.id, (x) => ({ ...x, recOk: true })); this.avisar('Recarga de ' + a.nome + ': d6 = ' + r + '. Recarregou.'); } else this.avisar('Recarga de ' + a.nome + ': d6 = ' + r + '. Ainda não.'); } },
+        rola: rolaA, semRolar: !rolaA,
+        bonus: this.temSalva(a) ? 'CD ' + a.salva.cd : sg(b), dano,
+        ariaAcerto: this.temSalva(a) ? 'Rolar o dano de ' + a.nome + ' com salvaguarda CD ' + a.salva.cd : 'Rolar acerto e dano de ' + a.nome + ', ' + sg(b),
+        ariaDano: 'Rolar só o dano de ' + a.nome + ', ' + dano, ariaChat: (rolaA ? 'Mandar ' : 'Conjurar ') + a.nome + ' ao chat',
+        ariaEd: 'Editar ' + a.nome, edAberto: edAb, gearBg: edAb ? t.acentoSuave : 'transparent', gearBorda: edAb ? t.acentoForte : t.borda, ed,
+        alternar: () => { if (this._sup) return; this.setState({ exp: { ...this.state.exp, [a.id]: !this.state.exp[a.id] } }); },
+        tecla: (ev) => { if (ev.altKey && (ev.key === 'ArrowUp' || ev.key === 'ArrowDown')) { ev.preventDefault(); this.deslocar(a.id, ev.key === 'ArrowUp' ? -1 : 1); } },
+        rolar: () => this.atacar(a), rolarDano: () => this.danoSo(a), enviar: () => this.cartao(a),
+        editar: () => this.setState({ ed: edAb ? null : a.id }),
+        pd: (ev) => this.holdIni(ev, a.id), pm: (ev) => this.holdMov(ev), pu: () => this.holdFim()
+      };
+    };
+    const secoes = ['acao', 'reacao', 'lendaria'].map((c) => ({ titulo: CATS[c], itens: st.acoes.filter((x) => x.cat === c).map(linha) })).filter((x, i) => i === 0 || x.itens.length > 0);
+
+    const q = semAcento(st.busca || '').trim();
+    const grupoComp = (titulo, tipo) => ({ titulo, itens: COMP.filter((e) => e.tipo === tipo && (!q || semAcento(e.nome).indexOf(q) >= 0)).map((e) => ({
+      nome: e.nome, meta: e.meta, aria: 'Adicionar ' + e.nome + ' ao monstro',
+      est: 'background:' + (st.arrasto === e.id ? t.acentoSuave : t.campo) + ';border:1px solid ' + (st.arrasto === e.id ? t.acentoForte : t.borda) + ';border-radius:8px;',
+      arrastar: (ev) => { try { ev.dataTransfer.setData('text/plain', e.id); ev.dataTransfer.effectAllowed = 'copy'; } catch (x) { /* ok */ } setTimeout(() => this.setState({ arrasto: e.id }), 0); },
+      fim: () => this.setState({ arrasto: null }), adicionar: () => this.adicionar(e.id) })) });
+    const compGrupos = [grupoComp('Magias', 'magia'), grupoComp('Armas', 'arma'), grupoComp('Itens', 'item')].filter((g) => g.itens.length > 0);
+
+    const win = {
+      left: 30 + st.pos.x, top: 24 + st.pos.y, w: st.min ? 'max-content' : '520px', borda: st.min ? '0' : '1px solid ' + t.borda,
+      minAria: st.min ? 'Restaurar a ficha' : 'Minimizar a ficha', minIcone: st.min ? 'M5 5h14v14H5z' : 'M5 12h14'
+    };
+
+    return {
+      t, s, temaId: t.id, win, min: st.min, naoMin: !st.min, nome: st.nome, tipo: st.tipo, inicial: (st.nome || '?').charAt(0).toUpperCase(),
+      setNome: (e) => this.setState({ nome: e.target.value }), setTipo: (e) => this.setState({ tipo: e.target.value }),
+      ca: st.ca, setCa: (e) => this.setState({ ca: Math.max(0, N(e.target.value)) }), armadura: st.armadura, setArmadura: (e) => this.setState({ armadura: e.target.value }),
+      desl: st.desl, setDesl: (e) => this.setState({ desl: e.target.value }),
+      cabDown: (ev) => this.cabDown(ev), cabMove: (ev) => this.cabMove(ev), cabUp: () => this.cabUp(),
+      cabDuplo: (ev) => { if (ev.target.closest && ev.target.closest('button')) return; this.setState({ min: !this.state.min }); },
+      alternarMin: () => this.setState({ min: !this.state.min }),
+      modos, escudos, secoes, zAcoes,
+      pvAtual: st.pv, pvPct: pct, corPv,
+      onPv: (e) => this.setState({ pv: e.target.value === '' ? '' : clamp(Number(e.target.value)) }),
+      pvMenos: () => this.setState({ pv: clamp(N(this.state.pv) - 1) }), pvMais: () => this.setState({ pv: clamp(N(this.state.pv) + 1) }),
+      passiva: 10 + sab, percTxt: 'Percepção ' + sg(sab), percAria: 'Rolar Percepção, Sabedoria ' + sg(sab), rolarPerc: () => this.teste('Percepção', sab),
+      sobreZona: (ev) => { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'copy'; } catch (x) { /* ok */ } },
+      soltarAcoes: this.soltar(),
+      busca: st.busca, onBusca: (e) => this.setState({ busca: e.target.value }), compGrupos, compVazio: compGrupos.length === 0, toastTxt: st.toast,
+      mensagens: [...st.chat].reverse().map((m) => this.viewMsg(m, t)), msg: st.msg, onMsg: (e) => this.setState({ msg: e.target.value }),
+      enviarMsg: (e) => { if (e && e.preventDefault) e.preventDefault(); const txt = String(this.state.msg || '').trim(); if (!txt) return; this.setState({ msg: '', chat: this.addChat({ nome: 'Mestre', quem: '', tipo: 'fala', texto: txt }) }); }
+    };
+  }
+
+  editorDe(a, t) {
+    const patch = (p) => this.upd(a.id, (x) => ({ ...x, ...p }));
+    const OA = [{ v: 'nenhum', r: 'Nenhum' }].concat(ATTR.map((x) => ({ v: x.k, r: x.n })));
+    const OT = TDANO.map((x) => ({ v: x, r: cap(x) }));
+    const OE = [{ v: 'nenhum', r: 'Dano total' }, { v: 'metade', r: 'Metade do dano' }, { v: 'anula', r: 'Anula o dano' }];
+    const OTIPO = Object.keys(TIPOS).map((k) => ({ v: k, r: TIPOS[k] }));
+    const OCAT = Object.keys(CATS).map((k) => ({ v: k, r: CATS[k] }));
+    const Fd = (tipo, rot, valor, fn, span, ops) => ({
+      rot, span: 'span ' + span, valor, opcoes: ops || [],
+      eTexto: tipo === 't', eNum: tipo === 'n', eSel: tipo === 's', eTog: tipo === 'g', eArea: tipo === 'a',
+      togTxt: valor ? 'Sim' : 'Não', fill: valor ? t.acentoForte : 'transparent',
+      on: tipo === 'g' ? () => patch(fn(!valor)) : tipo === 'n' ? (e) => patch(fn(N(e.target.value))) : (e) => patch(fn(e.target.value))
+    });
+    const d1 = a.d1; const d2 = a.d2;
+    const secoes = [
+      { titulo: 'Ataque', campos: [
+        Fd('t', 'Nome', a.nome, (v) => ({ nome: v }), 2), Fd('s', 'Seção', a.cat, (v) => ({ cat: v }), 1, OCAT),
+        Fd('s', 'Tipo', a.tipo, (v) => ({ tipo: v, chipTipo: '' }), 1, OTIPO), Fd('t', 'Alcance', a.alcance, (v) => ({ alcance: v }), 2),
+        Fd('s', 'Atributo do ataque', a.atr, (v) => ({ atr: v }), 1, OA), Fd('n', 'Bônus extra', a.extra, (v) => ({ extra: v }), 1),
+        Fd('n', 'Bônus mágico', a.magico, (v) => ({ magico: v }), 1), Fd('g', 'Proficiente (+2)', a.prof, (v) => ({ prof: v }), 1),
+        Fd('n', 'Crítico a partir de', a.crit, (v) => ({ crit: Math.max(2, Math.min(20, v)) }), 1)
+      ] },
+      { titulo: 'Dano', campos: [
+        Fd('n', 'Quantidade de dados', d1.q, (v) => ({ d1: { ...d1, q: Math.max(0, v) } }), 1), Fd('n', 'Faces do dado', d1.f, (v) => ({ d1: { ...d1, f: Math.max(2, v) } }), 1),
+        Fd('n', 'Bônus de dano', d1.bonus, (v) => ({ d1: { ...d1, bonus: v } }), 1), Fd('s', 'Atributo do dano', d1.atr, (v) => ({ d1: { ...d1, atr: v } }), 1, OA),
+        Fd('s', 'Tipo de dano', d1.tipo, (v) => ({ d1: { ...d1, tipo: v } }), 2, OT), Fd('g', 'Dano 2 (opcional)', d2.on, (v) => ({ d2: { ...d2, on: v } }), 1)
+      ].concat(d2.on ? [
+        Fd('n', 'Dados do dano 2', d2.q, (v) => ({ d2: { ...d2, q: Math.max(1, v) } }), 1), Fd('n', 'Faces do dano 2', d2.f, (v) => ({ d2: { ...d2, f: Math.max(2, v) } }), 1),
+        Fd('n', 'Bônus do dano 2', d2.bonus, (v) => ({ d2: { ...d2, bonus: v } }), 1), Fd('s', 'Tipo do dano 2', d2.tipo, (v) => ({ d2: { ...d2, tipo: v } }), 3, OT)
+      ] : []) },
+      { titulo: 'Salvaguarda', campos: [
+        Fd('s', 'Atributo da salvaguarda', a.salva.atr, (v) => ({ salva: { ...a.salva, atr: v } }), 1, OA), Fd('n', 'CD', a.salva.cd, (v) => ({ salva: { ...a.salva, cd: v } }), 1),
+        Fd('s', 'Efeito no sucesso', a.salva.efeito, (v) => ({ salva: { ...a.salva, efeito: v } }), 1, OE)
+      ] },
+      { titulo: 'Recarga e usos', campos: [
+        Fd('t', 'Recarga (ex.: 5–6)', a.recarga, (v) => ({ recarga: v, recOk: true }), 2), Fd('n', 'Usos por dia', a.usosMax, (v) => ({ usosMax: Math.max(0, Math.min(6, v)), usosGastos: 0 }), 1)
+      ] },
+      { titulo: 'Descrição', campos: [Fd('a', 'Descrição', a.desc, (v) => ({ desc: v }), 3)] }
+    ];
+    return {
+      secoes, previa: this.previa(a),
+      rolar: () => this.atacar(a, true), chat: () => this.cartao(a),
+      fechar: () => this.setState({ ed: null }),
+      remover: () => this.setState({ acoes: this.state.acoes.filter((x) => x.id !== a.id), ed: null, toast: a.nome + ' saiu das ações.' })
+    };
+  }
+}
+</script>
+</body>
+</html>

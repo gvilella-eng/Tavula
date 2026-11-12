@@ -1,4 +1,5 @@
 export * from "./assets.ts";
+export * from "./ataques.ts";
 export * from "./capacidades.ts";
 export * from "./chat.ts";
 export * from "./cifra.ts";

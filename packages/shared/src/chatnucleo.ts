@@ -9,7 +9,7 @@ import { rolarAtaque, rolarTeste } from "./rolagens.ts";
 
 export type IntencaoDeChat = Extract<
   Intencao,
-  { tipo: "chat.enviar" | "dado.rolar" | "chat.modelo" | "chat.magia" }
+  { tipo: "chat.enviar" | "dado.rolar" | "chat.modelo" | "chat.magia" | "chat.caracteristica" }
 >;
 
 export type ResultadoDaMensagem =
@@ -80,6 +80,19 @@ export function criarMensagem(
     return {
       ok: true,
       mensagem: { ...base, tipo: "magia", magia: intencao.dados.magia, visivelPara: "todos" },
+    };
+  }
+
+  // Mensagem `caracteristica` (V4a): pública, de um personagem que quem fala edita (`como` é obrigatório).
+  if (intencao.tipo === "chat.caracteristica") {
+    return {
+      ok: true,
+      mensagem: {
+        ...base,
+        tipo: "caracteristica",
+        caracteristica: intencao.dados.caracteristica,
+        visivelPara: "todos",
+      },
     };
   }
 

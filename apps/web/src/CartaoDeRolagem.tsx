@@ -67,17 +67,52 @@ type Props = {
   rotulo?: string;
   /** Tamanho pequeno, para o meio de uma frase (`[[1d20+5]]`). */
   embutido?: boolean;
+  /** O total de um dano (borda de perigo, como no desenho da ficha). */
+  dano?: boolean;
+  /** O dano de um acerto crítico: o total fica no verde do crítico. */
+  critico?: boolean;
+  /** Sem a expressão ao lado do total (o bloco do chat a mostra no texto). */
+  semExpressao?: boolean;
 };
+
+/** Os d20 de uma rolagem (os dois, com vantagem ou desvantagem): o descartado esmaecido, o 20 e o 1 naturais coloridos. */
+export function ChipsDoD20({ rolagem }: { rolagem: Rolagem }) {
+  const termo = rolagem.termos.find((t) => t.tipo === "dados" && t.faces === 20 && t.sinal === 1);
+  if (termo?.tipo !== "dados") return null;
+  return (
+    <span className="chips-d20" data-testid="chips-d20">
+      {termo.dados.map((d, i) => (
+        <span
+          // biome-ignore lint/suspicious/noArrayIndexKey: a lista é fixa
+          key={i}
+          className={[
+            "chip-d20",
+            d.descartado ? "descartado" : "usado",
+            !d.descartado && d.valor === 20 ? "nat20" : "",
+            !d.descartado && d.valor === 1 ? "nat1" : "",
+          ]
+            .filter(Boolean)
+            .join(" ")}
+          data-testid="d20-chip"
+          data-valor={d.valor}
+          data-descartado={d.descartado ? "true" : undefined}
+        >
+          {d.valor}
+        </span>
+      ))}
+    </span>
+  );
+}
 
 /**
  * O resultado de uma rolagem: o total grande, a expressão pequena e, ao passar o mouse (ou focar),
  * os dados um a um. 20 natural em dourado, 1 natural em vermelho.
  */
-export function CartaoDeRolagem({ rolagem, rotulo, embutido }: Props) {
+export function CartaoDeRolagem({ rolagem, rotulo, embutido, dano, critico, semExpressao }: Props) {
   const natural = naturalDe(rolagem);
   return (
     <span
-      className={`cartao-rolagem ${embutido ? "embutido" : ""}`}
+      className={`cartao-rolagem ${embutido ? "embutido" : ""} ${dano ? "dano" : ""} ${critico ? "critico" : ""}`}
       data-testid="cartao-rolagem"
       data-natural={natural || undefined}
       // biome-ignore lint/a11y/noNoninteractiveTabindex: o foco mostra os dados, como o mouse
@@ -87,9 +122,11 @@ export function CartaoDeRolagem({ rolagem, rotulo, embutido }: Props) {
       <span className="rolagem-total" data-testid="rolagem-total">
         {rolagem.total}
       </span>
-      <span className="rolagem-expressao" data-testid="rolagem-expressao">
-        {expressaoLegivel(rolagem.expressao)}
-      </span>
+      {!semExpressao && (
+        <span className="rolagem-expressao" data-testid="rolagem-expressao">
+          {expressaoLegivel(rolagem.expressao)}
+        </span>
+      )}
       <Detalhe rolagem={rolagem} />
     </span>
   );

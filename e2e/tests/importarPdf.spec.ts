@@ -104,8 +104,8 @@ test("importar o PDF do Darion pela aba Configurar da ficha: revisão com incert
     "Patrulheiro 5 / Clérigo 5",
   );
   await expect(janela.getByTestId("janela-ficha-resumo")).toContainText("Elfo da floresta");
-  await expect(janela.getByTestId("ataque-nome-1")).toHaveValue("Machadinho de Mão");
-  await expect(janela.getByTestId("ataque-nome-2")).toHaveValue("Machadinho …");
+  await expect(janela.getByTestId("ataque-nome-1")).toContainText("Machadinho de Mão");
+  await expect(janela.getByTestId("ataque-nome-2")).toContainText("Machadinho …");
   await expect(janela.getByTestId("atributo-mod-for")).toHaveText("+7");
   await expect(janela.getByTestId("pericia-total-atletismo")).toHaveText("+11");
   await expect(janela.getByTestId("percepcao-passiva")).toHaveText("12");

@@ -455,6 +455,11 @@ export function lerExportacao(
     }
   }
   for (const p of personagens) {
+    for (const h of [p.ficha?.aparenciaHash, p.ficha?.simboloHash]) {
+      if (h !== undefined && !porHash.has(h)) {
+        return { ok: false, motivo: `imagem da ficha sem meta no personagem ${p.id}` };
+      }
+    }
     if (p.tokenPadrao.assetHash !== undefined && !porHash.has(p.tokenPadrao.assetHash)) {
       return { ok: false, motivo: `imagem sem meta no personagem ${p.id}` };
     }
@@ -1213,6 +1218,17 @@ export function processar(
       }
       const r = aplicarOperacoes(atual.ficha, operacoes);
       if (!r.ok) return recusa("dados_invalidos", r.motivo);
+      // A aparência e o símbolo (V4a) são imagens que já estão na mesa: hash sem meta é recusado.
+      for (const h of [r.ficha.aparenciaHash, r.ficha.simboloHash]) {
+        if (
+          h !== undefined &&
+          h !== atual.ficha?.aparenciaHash &&
+          h !== atual.ficha?.simboloHash &&
+          !estado.assets?.some((a) => a.hash === h)
+        ) {
+          return recusa("dados_invalidos", "Imagem da ficha desconhecida.");
+        }
+      }
       // Só o mestre repõe tochas (e outros itens de modelo): quem edita a própria ficha só gasta.
       if (usuario.papel !== "mestre" && modelosAumentados(atual.ficha, r.ficha).length > 0) {
         return recusa("sem_permissao", "Só o mestre repõe tochas e outros objetos de luz.");
@@ -1942,7 +1958,8 @@ export function processar(
     case "chat.enviar":
     case "dado.rolar":
     case "chat.modelo":
-    case "chat.magia": {
+    case "chat.magia":
+    case "chat.caracteristica": {
       const r = criarMensagem(estado, usuario, intencao, agoraMs, aleatorio);
       if (!r.ok) return { ok: false, erro: r.erro };
       if (r.mensagem) emitir({ tipo: "chat.mensagem", dados: { mensagem: r.mensagem } });

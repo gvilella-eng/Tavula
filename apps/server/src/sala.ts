@@ -61,6 +61,7 @@ const INTENCOES_DE_CHAT = new Set<string>([
   "dado.rolar",
   "chat.modelo",
   "chat.magia",
+  "chat.caracteristica",
 ]);
 /** Quantas linhas do histórico a sala lê de cada vez ao procurar o que o usuário pode ver. */
 const PAGINA_DO_HISTORICO = 400;

@@ -5,6 +5,8 @@ import { useSyncExternalStore } from "react";
 
 /** O `z-index` da janela de trás; as outras somam a posição na pilha. Abaixo dos menus e dos avisos. */
 export const BASE_DO_Z = 25;
+/** O `z-index` da camada alta (a ficha, V4a): acima dos painéis (até 40) e abaixo dos avisos e menus (60 ou mais). */
+export const CAMADA_ALTA_DO_Z = 45;
 
 let ordem: string[] = [];
 const ouvintes = new Set<() => void>();

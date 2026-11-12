@@ -37,6 +37,14 @@ export function expressaoDoD20(bonus: number, vantagem: Vantagem = "normal"): st
 const Nome = z.string().trim().min(1).max(64);
 const Bonus = z.number().int().min(-50).max(50);
 
+/** A salvaguarda do alvo mostrada no chat: "CD 15 de Destreza, metade se passar". */
+export const SalvaguardaNoChatSchema = z.object({
+  cd: z.number().int().min(0).max(100),
+  atributo: z.string().trim().min(1).max(24),
+  sucesso: z.enum(["metade", "nenhum"]),
+});
+export type SalvaguardaNoChat = z.infer<typeof SalvaguardaNoChatSchema>;
+
 /** O que o cliente pede (nunca traz resultado). */
 export const PedidoDeModeloSchema = z.discriminatedUnion("modelo", [
   z.object({
@@ -46,7 +54,13 @@ export const PedidoDeModeloSchema = z.discriminatedUnion("modelo", [
     bonus: Bonus,
     /** Dano em notação (`1d8+3`). No crítico os dados dobram, o modificador não. */
     dano: z.string().max(LIMITES_DE_DADOS.caracteres),
-    danoTipo: z.string().trim().max(32).optional(),
+    danoTipo: z.string().trim().max(80).optional(),
+    /** Crítico a partir deste natural (20 padrão; 19 ou 18). */
+    margemCritico: z.number().int().min(18).max(20).optional(),
+    /** Dados a mais no crítico (`1d6`), depois de dobrar os do dano. */
+    danoCritico: z.string().max(60).optional(),
+    /** A salvaguarda do alvo, só para mostrar no chat. */
+    salvaguarda: SalvaguardaNoChatSchema.optional(),
     vantagem: VantagemSchema.optional(),
     oculta: z.boolean().optional(),
     /** Fala como este personagem (id). */
@@ -73,8 +87,9 @@ export const ResultadoDeModeloSchema = z.discriminatedUnion("modelo", [
     vantagem: VantagemSchema,
     acerto: RolagemSchema,
     dano: RolagemSchema,
-    danoTipo: z.string().max(32).optional(),
-    /** 20 natural: os dados do dano foram dobrados. */
+    danoTipo: z.string().max(80).optional(),
+    salvaguarda: SalvaguardaNoChatSchema.optional(),
+    /** Crítico (20 natural ou a margem do ataque): os dados do dano foram dobrados. */
     critico: z.boolean(),
     /** 1 natural. */
     falhaCritica: z.boolean(),
@@ -123,8 +138,15 @@ export function rolarAtaque(
   if (!acertoLido.ok) return { ok: false, motivo: acertoLido.motivo };
   const acerto = rolar(acertoLido.expressao, fonte);
   const natural = d20Natural(acerto);
-  const critico = natural === 20;
-  const rolado = rolar(critico ? dobrarDados(dano.expressao) : dano.expressao, fonte);
+  const critico = natural !== null && natural >= (pedido.margemCritico ?? 20);
+  let expressaoDoDano = critico ? dobrarDados(dano.expressao) : dano.expressao;
+  const extra = critico ? (pedido.danoCritico?.trim() ?? "") : "";
+  if (extra !== "") {
+    const lida = lerExpressao(extra);
+    if (!lida.ok) return { ok: false, motivo: `Dano do crítico inválido: ${lida.motivo}` };
+    expressaoDoDano = { termos: [...expressaoDoDano.termos, ...lida.expressao.termos] };
+  }
+  const rolado = rolar(expressaoDoDano, fonte);
   return {
     ok: true,
     resultado: {
@@ -134,6 +156,7 @@ export function rolarAtaque(
       acerto,
       dano: rolado,
       ...(pedido.danoTipo ? { danoTipo: pedido.danoTipo } : {}),
+      ...(pedido.salvaguarda ? { salvaguarda: pedido.salvaguarda } : {}),
       critico,
       falhaCritica: natural === 1,
     },

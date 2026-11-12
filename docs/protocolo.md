@@ -648,7 +648,7 @@ Ficha { raca?, antecedente?, alinhamento?, classes?: { classe, subclasse?, nivel
 - **Tocha na mão e quem edita**: o objeto com portador `mao` agora chega também a **quem edita o personagem**, mesmo com o token fora da cena ativa
   (`luzVisivelPara`). Quando muda quem edita ou a pasta do personagem, a sala reenvia os objetos que ele carrega (`fonte.editada`) e o filtro de
   cada jogador decide: aparece, some (`fonte.apagada`) ou nada muda.
-- **Arquivo da ficha** (exportar/importar, sem protocolo): `{ formato: "tabletop-ficha", versao: 1, nome?, exportadoEm?, ficha }`. Importar manda
+- **Arquivo da ficha** (exportar/importar, sem protocolo): `{ formato: "tabletop-ficha", versao: 2, nome?, exportadoEm?, ficha }` (a versão 1, sem os campos da ficha de papel do V4a, continua lendo). Importar manda
   `ficha.alterar` com `{ caminho: "", valor: ficha }` (troca tudo).
 - **Rolar da ficha** usa o que já existe: `chat.modelo` (ataque e teste, com `como` o personagem) e, para dano solto, `chat.enviar` com `/r <dano> <nome>`.
 
@@ -687,7 +687,7 @@ A vez é sempre o **id da entrada**, nunca um índice (o índice revelaria quant
 
 **V2 (2026-11-11):** a interface deixou de usar `combate.adicionar` (só o "Entrar na iniciativa" do menu do token), `combate.rolar` e `combate.passar`; as intenções continuam na sala. `combate.encerrar` continua limpando a lista e a rodada, e a ordem aberta (`ordemDeTurno.definir`) não muda. Intenções novas: `combate.entrar`, `combate.rodada`, `combate.darVez`. Sem evento novo e sem campo novo no estado.
 
-**Capacidade nova**: `combate.gerir` (só do mestre). **Evento novo**: `combate.alterado`. **Intenções novas**: `combate.adicionar`, `combate.tirar`, `combate.editar`, `combate.mover`, `combate.ordenar`, `combate.rolar`, `combate.proximo`, `combate.anterior`, `combate.passar`, `combate.encerrar`, `token.condicoes`.
+**Capacidade nova**: `combate.gerir` (só do mestre). **Evento novo**: `combate.alterado`. **Intenções novas** (o pedido `chat.modelo` de ataque ganhou `margemCritico`, `danoCritico` e `salvaguarda { cd, atributo, sucesso }`, todos opcionais, V4a refeito): `combate.adicionar`, `combate.tirar`, `combate.editar`, `combate.mover`, `combate.ordenar`, `combate.rolar`, `combate.proximo`, `combate.anterior`, `combate.passar`, `combate.encerrar`, `token.condicoes`.
 
 ### Pincel e desenhos (Lote 13)
 
@@ -742,7 +742,7 @@ Limites: arquivo **8 MB** (`LIMITES_DE_ASSET.bytesDoCompendio`), **2000 magias**
 
 **Fluxo no navegador**: o mestre lê `compendio/magias.json` da pasta (ou do arquivo escolhido à mão), valida com `lerCompendio` e, se válido e diferente do que a mesa tem, guarda os bytes no cache, manda `asset.registrar` (só a meta) + `asset.tenho` + `compendio.definir`. Arquivo inválido: o erro aparece só ao mestre e **nada é enviado**. Os jogadores veem `Estado.compendio`, pedem o asset (`asset.pedir`) e leem o JSON do cache. "Recarregar" repete a leitura.
 
-**Intenções novas**: `compendio.definir`, `chat.magia`. **Evento novo**: `compendio.alterado`. **Tipo de asset novo**: `compendio`. **Tipo de mensagem novo**: `magia`. Sem capacidade nem código de erro novos.
+**Intenções novas**: `compendio.definir`, `chat.magia`. (V4a, 2026-11-11: `chat.caracteristica { caracteristica: { nome (1 a 80), descricao (até 12000), origem? (até 80) }, como }`: publica uma mensagem `tipo: "caracteristica"` pública com a característica da ficha; `como` é obrigatório e é um personagem que quem fala edita (o mestre: qualquer um); sem capacidade; passa pelo mesmo limite de 10 mensagens por segundo. A `ficha.alterar` passou a recusar `aparenciaHash` e `simboloHash` sem meta registrada, com `dados_invalidos`.) **Evento novo**: `compendio.alterado`. **Tipo de asset novo**: `compendio`. **Tipo de mensagem novo**: `magia`. Sem capacidade nem código de erro novos.
 
 ### Contador de uso
 

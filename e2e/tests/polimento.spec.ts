@@ -30,7 +30,7 @@ const centrarEm = (p: Page, x: number, y: number) =>
 const paraTela = (p: Page, x: number, y: number) =>
   p.evaluate(([a, b]) => (window as unknown as Hook).__tabletop.paraTela(a, b), [x, y] as const);
 
-base("a ficha a 520 px não corta Raça, Antecedente nem Alinhamento", async ({ mesa }) => {
+base("a ficha estreita (520 px) não corta Raça, Antecedente nem Alinhamento", async ({ mesa }) => {
   base.setTimeout(90_000);
   const p = (await entrarNoMapa(mesa, "mestre")).pagina;
   await criarDarion(p);
@@ -52,6 +52,10 @@ base("a ficha a 520 px não corta Raça, Antecedente nem Alinhamento", async ({ 
   await expect
     .poll(async () => Math.round((await caixa(janela(p, `ficha:${DARION_ID}`))).width))
     .toBe(520);
+
+  // V4a: a 520 px a ficha é a estreita; os campos de identidade moram na seção Identidade (acordeão)
+  await expect(ficha.getByTestId("ficha-raiz")).toHaveAttribute("data-estreita", "true");
+  await ficha.getByTestId("acordeao-identidade-alternar").click();
 
   // valores longos, de verdade: o texto inteiro tem de caber no campo
   const longos = {
@@ -110,9 +114,9 @@ base(
         expect(c.x + c.width, nome).toBeLessThanOrEqual(area.x + area.width + 1);
         expect(c.y + c.height, nome).toBeLessThanOrEqual(area.y + area.height + 1);
       }
-      expect(sobrepoe(caixas.ordem, caixas.ficha), "ordem × ficha").toBe(false);
+      // V4a: a ficha (~880 px, na camada mais alta) pode cobrir a ordem de turno e o painel do token; quem quer
+      // ver tudo move uma delas. A ordem, o token e o zoom seguem sem se cobrir.
       expect(sobrepoe(caixas.ordem, caixas.token), "ordem × token").toBe(false);
-      expect(sobrepoe(caixas.ficha, caixas.token), "ficha × token").toBe(false);
       // o controle de zoom, no canto da área, também fica livre
       const zoom = await caixa(p.getByTestId("zoom-flutuante"));
       expect(sobrepoe(caixas.token, zoom), "token × zoom").toBe(false);
@@ -128,6 +132,8 @@ base(
 
     // sem o painel do token, a ordem volta a poder crescer (o teto da coluna só vale com os dois abertos)
     const comDivisao = (await caixa(janela(p, "ordem"))).height;
+    // V4a: a ficha larga cobre o painel do token; fecha a ficha antes de chegar ao botão dele
+    await ficha.getByTestId("janela-ficha-fechar").click();
     await janela(p, "token").getByRole("button", { name: "Fechar" }).click();
     await expect(janela(p, "token")).toHaveCount(0);
     await expect

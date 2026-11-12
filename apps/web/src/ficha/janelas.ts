@@ -2,11 +2,10 @@ import { useCallback, useState } from "react";
 import { trazerParaFrente } from "../janelas/pilha";
 
 export const ABAS_DA_FICHA = [
-  ["principal", "Principal"],
+  // As quatro abas do desenho aprovado (V4a). O id `principal` é o da aba Personagem.
+  ["principal", "Personagem"],
   ["magias", "Magias"],
-  ["caracteristicas", "Características"],
-  ["equipamento", "Equipamento"],
-  ["notas", "Notas"],
+  ["historia", "História"],
   ["configurar", "Configurar"],
 ] as const;
 export type AbaDaFicha = (typeof ABAS_DA_FICHA)[number][0];
@@ -17,7 +16,10 @@ export type JanelaDeFicha = {
   aba: AbaDaFicha;
 };
 
-export const LARGURA_MINIMA = 520;
+/** Abaixo disso a ficha vira o layout estreito (cabeçalho grudado e acordeão), pela medida da janela. */
+export const LARGURA_DA_FICHA_ESTREITA = 620;
+export const LARGURA_PADRAO = 880;
+export const LARGURA_MINIMA = 420;
 export const ALTURA_MINIMA = 360;
 
 /** O id da `Janela` de uma ficha: uma por personagem (guarda posição e tamanho de cada uma). */

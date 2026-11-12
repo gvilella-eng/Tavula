@@ -1,0 +1,1095 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Ficha A · Clássica refinada</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&amp;family=Cormorant+SC:wght@600;700&amp;family=Alegreya:ital,wght@0,400;0,500;0,700;1,400&amp;display=swap">
+<style>
+body{margin:0}
+*{box-sizing:border-box}
+button{font:inherit;color:inherit;background:transparent;border:0;padding:0;margin:0;cursor:pointer;text-align:inherit}
+input,select,textarea{font:inherit;color:inherit;margin:0}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--fo,#F0C46E);outline-offset:1px}
+.in:focus-visible,.fld:focus-visible{outline-offset:-2px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.lbl{font-family:'Cormorant SC',Georgia,serif;font-weight:700;font-size:13px;letter-spacing:.07em;line-height:1.1;color:var(--ts,#A8A8A8)}
+.cin{font-family:'Cinzel',Georgia,serif}
+.cx{background:var(--cx,#121212);border:1px solid var(--bd,#3C3C3C);border-radius:8px}
+.fr{box-shadow:inset 0 0 0 2px var(--cx,#121212),inset 0 0 0 3px var(--bd,#3C3C3C)}
+.ib{width:32px;height:32px;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;border-radius:6px;color:var(--ts,#A8A8A8)}
+.ib:hover{background:var(--as,rgba(226,174,79,.18));color:var(--af,#F0C46E)}
+.rl{border-radius:6px}
+.rl:hover{background:var(--as,rgba(226,174,79,.18))}
+.rl:hover .rn{color:var(--af,#F0C46E)}
+.in{background:transparent;border:1px solid transparent;border-radius:4px;color:var(--tx,#EDEDED);min-width:0;width:100%}
+.in:hover{border-color:var(--bd,#3C3C3C);background:var(--as,rgba(226,174,79,.18))}
+.ln{border-bottom:1px solid var(--bd,#3C3C3C);border-radius:0}
+.sec{display:flex;align-items:center;gap:8px;margin:0;font-family:'Cinzel',Georgia,serif;font-weight:700;font-size:12.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--af,#F0C46E)}
+.sec::before,.sec::after{content:"";flex:1;height:1px;background:linear-gradient(90deg,transparent,var(--bd,#3C3C3C))}
+.sec::before{background:linear-gradient(270deg,transparent,var(--bd,#3C3C3C))}
+.row{border-bottom:1px dotted var(--bd,#3C3C3C)}
+.dotb{width:30px;height:32px;display:inline-flex;align-items:center;justify-content:center;border-radius:6px}
+.dotb:hover{background:var(--as,rgba(226,174,79,.18))}
+.dot{display:block;width:18px;height:18px;border-radius:50%;border:2px solid var(--af,#F0C46E)}
+.dot.on{background:var(--af,#F0C46E)}
+.dot.fl{border-color:var(--pg,#EE8A55)}
+.dot.fl.on{background:var(--pg,#EE8A55)}
+.pm{display:block;width:14px;height:14px;border-radius:50%;border:2px solid var(--af,#F0C46E)}
+.pm.on{background:var(--af,#F0C46E)}
+.lz{fill:none}
+.lz.on{fill:var(--af,#F0C46E)}
+.seg{height:34px;padding:0 12px;font-family:'Cinzel',Georgia,serif;font-weight:700;font-size:12px;letter-spacing:.04em;color:var(--ts,#A8A8A8)}
+.seg:hover{background:var(--as,rgba(226,174,79,.18))}
+.seg.on{background:var(--ac,#E2AE4F);color:var(--at,#1E150B)}
+.tab{height:42px;padding:0 20px;font-family:'Cinzel',Georgia,serif;font-weight:700;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--ts,#A8A8A8);border-bottom:3px solid transparent}
+.tab:hover{color:var(--tx,#EDEDED)}
+.tab.on{color:var(--af,#F0C46E);border-bottom-color:var(--ac,#E2AE4F)}
+.zona.alvo{outline:2px dashed var(--ac,#E2AE4F);outline-offset:3px;background:var(--as,rgba(226,174,79,.18))}
+.d20{display:inline-flex;min-width:30px;height:30px;padding:0 4px;align-items:center;justify-content:center;border-radius:6px;border:1px solid var(--bd,#3C3C3C);background:var(--cp,#121212);font-family:'Cinzel',Georgia,serif;font-weight:700;font-size:15px}
+.d20.desc{opacity:.6;text-decoration:line-through}
+.d20.uso{border-color:var(--af,#F0C46E)}
+.d20.nat20{background:var(--ac,#E2AE4F);color:var(--at,#1E150B);border-color:var(--ac,#E2AE4F)}
+.d20.nat1{background:var(--pg,#EE8A55);color:var(--pgt,#1E0F08);border-color:var(--pg,#EE8A55)}
+.nt20{color:var(--af,#F0C46E);font-weight:700}
+.nt1{color:var(--pg,#EE8A55);font-weight:700}
+.pri{height:36px;padding:0 14px;border-radius:6px;background:var(--ac,#E2AE4F);color:var(--at,#1E150B);font-weight:700;font-size:14px;display:inline-flex;align-items:center;justify-content:center;gap:6px}
+.pri:hover{filter:brightness(1.08)}
+.sec2{height:36px;padding:0 12px;border-radius:6px;border:1px solid var(--bd,#3C3C3C);font-weight:500;font-size:14px;display:inline-flex;align-items:center;justify-content:center;gap:6px}
+.sec2:hover{background:var(--as,rgba(226,174,79,.18));border-color:var(--af,#F0C46E)}
+.pill{height:32px;padding:0 10px;border-radius:6px;border:1px solid var(--bd,#3C3C3C);display:inline-flex;align-items:center;gap:6px;font-size:14px}
+.pill:hover{background:var(--as,rgba(226,174,79,.18));border-color:var(--af,#F0C46E)}
+.fld{width:100%;height:34px;padding:0 8px;border-radius:5px;border:1px solid var(--bd,#3C3C3C);background:var(--cp,#121212);color:var(--tx,#EDEDED);font-size:14.5px}
+.fld:hover{border-color:var(--af,#F0C46E)}
+.chk{width:20px;height:20px;accent-color:var(--ac,#E2AE4F);margin:0}
+.chipf{height:32px;padding:0 12px;border-radius:16px;border:1px solid var(--bd,#3C3C3C);font-size:13px;color:var(--ts,#A8A8A8)}
+.chipf:hover{background:var(--as,rgba(226,174,79,.18))}
+.chipf.on{background:var(--ac,#E2AE4F);color:var(--at,#1E150B);border-color:var(--ac,#E2AE4F);font-weight:700}
+.ent{cursor:grab}
+.ent:hover{background:var(--as,rgba(226,174,79,.18))}
+p{margin:0}
+</style>
+</helmet>
+<div style="width: 1240px; height: 1560px; padding: 24px; display: flex; gap: 32px; align-items: flex-start; background: {{c.fm}}; color: {{c.tx}}; font-family: Alegreya, Georgia, serif; font-size: 15px; line-height: 1.35; --fm: {{c.fm}}; --pn: {{c.pn}}; --pt: {{c.pt}}; --pf: {{c.pf}}; --bd: {{c.bd}}; --cb: {{c.cb}}; --cp: {{c.cp}}; --cx: {{c.cx}}; --tx: {{c.tx}}; --ts: {{c.ts}}; --ac: {{c.ac}}; --at: {{c.at}}; --as: {{c.as}}; --af: {{c.af}}; --fo: {{c.fo}}; --pg: {{c.pg}}; --pgt: {{c.pgt}}; --pgf: {{c.pgf}}; --su: {{c.su}}; --sus: {{c.sus}}; --sut: {{c.sut}}; --av: {{c.av}}; --avt: {{c.avt}}; --avf: {{c.avf}}; --sb: {{c.sb}};">
+
+  <!-- ===================== JANELA DA FICHA ===================== -->
+  <section aria-label="Ficha de personagem" style="position: relative; width: 820px; height: 1512px; flex-shrink: 0; display: flex; flex-direction: column; border: 1px solid {{c.bd}}; border-radius: 10px; background: {{c.pn}}; box-shadow: {{c.sb}}; overflow: hidden;">
+
+    <div style="height: 42px; flex-shrink: 0; display: flex; align-items: center; gap: 10px; padding: 0 6px 0 14px; background: {{c.cb}}; border-bottom: 1px solid {{c.bd}};">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="{{c.af}}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h10a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z"></path><path d="M5 17a3 3 0 0 1 3-3h10"></path></svg>
+      <span class="cin" style="font-weight: 700; font-size: 15px; letter-spacing: 0.04em;">Ficha · {{nomeCurto}}</span>
+      <span style="flex-grow: 1; font-size: 13px; color: {{c.ts}};">Personagem de jogador</span>
+      <button type="button" class="ib" aria-label="Fechar a ficha"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+    </div>
+
+    <!-- identidade -->
+    <div style="flex-shrink: 0; padding: 14px 22px 10px; display: flex; flex-direction: column; gap: 12px; background: linear-gradient(180deg, {{c.pt}}, {{c.pn}});">
+      <div style="display: flex; align-items: flex-end; gap: 16px;">
+        <label style="flex-grow: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px;">
+          <input type="text" class="in cin ln" style="height: 48px; padding: 0 4px; font-size: 32px; font-weight: 700; letter-spacing: 0.02em; border-bottom: 2px solid {{c.ac}};" value="{{nomeV}}" onChange="{{nomeH}}">
+          <span class="lbl">Nome do personagem</span>
+        </label>
+        <div role="group" aria-label="Modo das rolagens" style="display: flex; border: 1px solid {{c.bd}}; border-radius: 8px; overflow: hidden; background: {{c.cx}};">
+          <sc-for list="{{modos}}" as="mo" hint-placeholder-count="3">
+            <button type="button" class="{{mo.cls}}" aria-pressed="{{mo.on}}" onClick="{{mo.fn}}">{{mo.nome}}</button>
+          </sc-for>
+        </div>
+      </div>
+      <div style="display: flex; gap: 10px;">
+        <sc-for list="{{campos}}" as="f" hint-placeholder-count="6">
+          <label style="flex: {{f.flex}}; min-width: 0; display: flex; flex-direction: column; gap: 3px;">
+            <input type="text" class="in ln" style="height: 32px; padding: 0 4px; font-size: 14.5px;" value="{{f.v}}" onChange="{{f.h}}">
+            <span class="lbl">{{f.nome}}</span>
+          </label>
+        </sc-for>
+      </div>
+    </div>
+
+    <!-- abas -->
+    <div role="tablist" aria-label="Abas da ficha" style="flex-shrink: 0; display: flex; padding: 0 12px; gap: 2px; background: {{c.cb}}; border-top: 1px solid {{c.bd}}; border-bottom: 1px solid {{c.bd}};">
+      <sc-for list="{{tabs}}" as="t" hint-placeholder-count="4">
+        <button type="button" role="tab" aria-selected="{{t.on}}" class="{{t.cls}}" onClick="{{t.fn}}" onDragOver="{{t.over}}" onDrop="{{t.drop}}">{{t.nome}}</button>
+      </sc-for>
+    </div>
+
+    <div style="position: relative; flex-grow: 1; min-height: 0;">
+      <div style="height: 100%; overflow: auto;">
+
+        <!-- ================= PERSONAGEM ================= -->
+        <sc-if value="{{ehPers}}" hint-placeholder-val="{{ true }}">
+        <div style="padding: 16px 22px 24px; display: grid; grid-template-columns: 270px 256px minmax(0, 1fr); gap: 12px; align-items: start;">
+
+          <!-- coluna esquerda -->
+          <div style="display: flex; gap: 8px; align-items: flex-start;">
+            <div style="width: 72px; flex-shrink: 0; display: flex; flex-direction: column; gap: 6px;">
+              <sc-for list="{{atributos}}" as="a" hint-placeholder-count="6">
+                <div class="cx fr" style="display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 7px 0 8px; border-radius: 12px;">
+                  <span class="lbl" style="font-size: 14px;">{{a.ab}}</span>
+                  <button type="button" class="rl" aria-label="{{a.aria}}" onClick="{{a.rola}}" style="width: 60px; height: 44px; display: flex; align-items: center; justify-content: center;">
+                    <span class="cin rn" style="font-size: 30px; font-weight: 700; line-height: 1;">{{a.mod}}</span>
+                  </button>
+                  <label style="display: block;">
+                    <span class="sr">Valor de {{a.nome}}</span>
+                    <input type="text" inputmode="numeric" class="in cin" style="width: 46px; height: 26px; padding: 0; text-align: center; font-size: 14px; font-weight: 600; border: 1px solid {{c.bd}}; border-radius: 999px; background: {{c.cp}};" value="{{a.val}}" onChange="{{a.set}}">
+                  </label>
+                </div>
+              </sc-for>
+              <div class="cx" style="display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 8px 2px;">
+                <span class="cin" style="font-size: 22px; font-weight: 700; line-height: 1;">{{passiva}}</span>
+                <span class="lbl" style="font-size: 11.5px; text-align: center;">Percepção passiva</span>
+              </div>
+            </div>
+
+            <div style="flex-grow: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px;">
+              <button type="button" class="cx rl" aria-pressed="{{insp.on}}" onClick="{{insp.fn}}" style="height: 40px; display: flex; align-items: center; gap: 10px; padding: 0 10px;">
+                <span class="dot {{insp.cls}}"></span>
+                <span class="lbl" style="font-size: 14px;">Inspiração</span>
+              </button>
+              <div class="cx" style="height: 40px; display: flex; align-items: center; gap: 10px; padding: 0 10px;">
+                <span class="cin" style="font-size: 18px; font-weight: 700; width: 30px;">{{pbTxt}}</span>
+                <span class="lbl" style="font-size: 13px; line-height: 1.05;">Bônus de proficiência</span>
+              </div>
+
+              <h3 class="sec" style="margin-top: 4px;">Salvaguardas</h3>
+              <div style="display: flex; flex-direction: column;">
+                <sc-for list="{{salvs}}" as="r" hint-placeholder-count="6">
+                  <div class="row" style="display: flex; align-items: center; height: 31px;">
+                    <button type="button" aria-label="{{r.aria}}" aria-pressed="{{r.prof}}" onClick="{{r.alterna}}" style="width: 26px; height: 31px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;"><span class="pm {{r.on}}"></span></button>
+                    <button type="button" class="rl" aria-label="{{r.rolaAria}}" onClick="{{r.rola}}" style="flex-grow: 1; min-width: 0; height: 30px; display: flex; align-items: center; gap: 6px; padding: 0 4px;">
+                      <span class="cin rn" style="width: 34px; font-size: 14px; font-weight: 700;">{{r.bonus}}</span>
+                      <span style="font-size: 14.5px;">{{r.nome}}</span>
+                    </button>
+                  </div>
+                </sc-for>
+              </div>
+
+              <h3 class="sec" style="margin-top: 6px;">Perícias</h3>
+              <div style="display: flex; flex-direction: column;">
+                <sc-for list="{{pericias}}" as="r" hint-placeholder-count="18">
+                  <div class="row" style="display: flex; align-items: center; height: 31px;">
+                    <button type="button" aria-label="{{r.aria}}" aria-pressed="{{r.prof}}" onClick="{{r.alterna}}" style="width: 26px; height: 31px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;"><span class="pm {{r.on}}"></span></button>
+                    <button type="button" class="rl" aria-label="{{r.rolaAria}}" onClick="{{r.rola}}" style="flex-grow: 1; min-width: 0; height: 30px; display: flex; align-items: center; gap: 6px; padding: 0 4px;">
+                      <span class="cin rn" style="width: 34px; font-size: 14px; font-weight: 700;">{{r.bonus}}</span>
+                      <span style="font-size: 14.5px;">{{r.nome}}</span>
+                    </button>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+
+          <!-- coluna do meio -->
+          <div style="display: flex; flex-direction: column; gap: 10px; min-width: 0;">
+            <div style="display: flex; gap: 8px;">
+              <div style="position: relative; width: 80px; height: 92px; display: flex; flex-direction: column; align-items: center;">
+                <svg width="80" height="92" viewBox="0 0 80 92" fill="none" aria-hidden="true" style="position: absolute; left: 0; top: 0;"><path d="M40 4 L72 15 V46 C72 66 58 80 40 88 C22 80 8 66 8 46 V15 Z" fill="{{c.cx}}" stroke="{{c.bd}}" stroke-width="1.5"></path><path d="M40 9 L67 18 V46 C67 63 55 75 40 82 C25 75 13 63 13 46 V18 Z" stroke="{{c.bd}}" stroke-width="1"></path></svg>
+                <span class="lbl" style="position: relative; margin-top: 14px; font-size: 13px;">CA</span>
+                <label style="position: relative; display: block;">
+                  <span class="sr">Classe de armadura</span>
+                  <input type="text" inputmode="numeric" class="in cin" style="width: 50px; height: 38px; padding: 0; text-align: center; font-size: 28px; font-weight: 700;" value="{{ca.v}}" onChange="{{ca.h}}">
+                </label>
+              </div>
+              <div class="cx" style="flex: 1; min-width: 0; height: 92px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;">
+                <span class="lbl" style="font-size: 12px;">Iniciativa</span>
+                <button type="button" class="rl" aria-label="Rolar iniciativa" onClick="{{inic.fn}}" style="width: 66px; height: 44px; display: flex; align-items: center; justify-content: center;"><span class="cin rn" style="font-size: 28px; font-weight: 700;">{{inic.tx}}</span></button>
+              </div>
+              <div class="cx" style="flex: 1; min-width: 0; height: 92px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;">
+                <span class="lbl" style="font-size: 12px;">Deslocamento</span>
+                <label style="display: block;">
+                  <span class="sr">Deslocamento</span>
+                  <input type="text" class="in cin" style="width: 66px; height: 44px; padding: 0; text-align: center; font-size: 22px; font-weight: 700;" value="{{desl.v}}" onChange="{{desl.h}}">
+                </label>
+              </div>
+            </div>
+
+            <div class="cx fr" style="padding: 10px 11px 12px; display: flex; flex-direction: column; gap: 8px;">
+              <h3 class="sec">Pontos de Vida</h3>
+              <div style="display: flex; align-items: center; justify-content: center; gap: 6px;">
+                <button type="button" class="ib" aria-label="Tirar 1 PV" onClick="{{pv.menos}}" style="width: 36px; height: 36px; border: 1px solid {{c.bd}};"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14"></path></svg></button>
+                <label style="display: block;">
+                  <span class="sr">PV atuais</span>
+                  <input type="text" inputmode="numeric" class="in cin" style="width: 84px; height: 50px; padding: 0; text-align: center; font-size: 38px; font-weight: 700;" value="{{pv.atual.v}}" onChange="{{pv.atual.h}}">
+                </label>
+                <button type="button" class="ib" aria-label="Somar 1 PV" onClick="{{pv.mais}}" style="width: 36px; height: 36px; border: 1px solid {{c.bd}};"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg></button>
+              </div>
+              <div role="img" aria-label="{{pv.resumo}}" style="height: 8px; border-radius: 4px; background: {{c.cp}}; border: 1px solid {{c.bd}}; overflow: hidden;"><div style="height: 100%; width: {{pv.pct}}%; background: {{pv.cor}};"></div></div>
+              <div style="display: flex; gap: 8px; align-items: flex-end;">
+                <label style="flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 2px;">
+                  <input type="text" inputmode="numeric" class="in cin" style="height: 34px; padding: 0; text-align: center; font-size: 22px; font-weight: 700; border: 1px solid {{c.bd}};" value="{{pv.max.v}}" onChange="{{pv.max.h}}">
+                  <span class="lbl" style="font-size: 12px;">Máximo</span>
+                </label>
+                <div style="flex: 1.35; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 2px;">
+                  <div style="display: flex; align-items: center;">
+                    <button type="button" class="ib" aria-label="Tirar 1 PV temporário" onClick="{{pv.tMenos}}" style="width: 30px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14"></path></svg></button>
+                    <label style="display: block;">
+                      <span class="sr">PV temporários</span>
+                      <input type="text" inputmode="numeric" class="in cin" style="width: 40px; height: 34px; padding: 0; text-align: center; font-size: 22px; font-weight: 700; border: 1px solid {{c.bd}};" value="{{pv.temp.v}}" onChange="{{pv.temp.h}}">
+                    </label>
+                    <button type="button" class="ib" aria-label="Somar 1 PV temporário" onClick="{{pv.tMais}}" style="width: 30px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg></button>
+                  </div>
+                  <span class="lbl" style="font-size: 12px;">Temporários</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="cx" style="padding: 10px 11px 8px; display: flex; flex-direction: column; gap: 4px;">
+              <h3 class="sec">Dados de Vida</h3>
+              <sc-for list="{{dvs}}" as="d" hint-placeholder-count="2">
+                <div style="display: flex; align-items: center; gap: 4px;">
+                  <button type="button" class="pill cin" aria-label="{{d.aria}}" onClick="{{d.rola}}" style="width: 62px; justify-content: center; font-weight: 700;">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"></path><path d="M12 3v18M4 7.5l16 9M20 7.5l-16 9"></path></svg>
+                    <span>{{d.nome}}</span>
+                  </button>
+                  <div style="display: flex;">
+                    <sc-for list="{{d.dots}}" as="p" hint-placeholder-count="5">
+                      <button type="button" class="dotb" aria-label="{{p.aria}}" aria-pressed="{{p.pressed}}" onClick="{{p.fn}}"><span class="dot {{p.on}}"></span></button>
+                    </sc-for>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+
+            <div class="cx" style="padding: 10px 11px 10px; display: flex; flex-direction: column; gap: 4px;">
+              <h3 class="sec">Contra a Morte</h3>
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <div style="flex-grow: 1; display: flex; flex-direction: column;">
+                  <div style="display: flex; align-items: center;">
+                    <span class="lbl" style="width: 62px; font-size: 12.5px;">Sucessos</span>
+                    <sc-for list="{{morte.s}}" as="p" hint-placeholder-count="3">
+                      <button type="button" class="dotb" aria-label="{{p.aria}}" aria-pressed="{{p.pressed}}" onClick="{{p.fn}}"><span class="dot {{p.on}}"></span></button>
+                    </sc-for>
+                  </div>
+                  <div style="display: flex; align-items: center;">
+                    <span class="lbl" style="width: 62px; font-size: 12.5px;">Falhas</span>
+                    <sc-for list="{{morte.f}}" as="p" hint-placeholder-count="3">
+                      <button type="button" class="dotb" aria-label="{{p.aria}}" aria-pressed="{{p.pressed}}" onClick="{{p.fn}}"><span class="dot fl {{p.on}}"></span></button>
+                    </sc-for>
+                  </div>
+                </div>
+                <button type="button" class="sec2" aria-label="Rolar teste contra a morte" onClick="{{morte.rola}}" style="width: 52px; height: 62px; flex-direction: column; gap: 2px; padding: 0;">
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"></path><path d="M12 3v18M4 7.5l16 9M20 7.5l-16 9"></path></svg>
+                  <span style="font-size: 12px;">Rolar</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="cx zona {{zAtq.on}}" onDragOver="{{zAtq.over}}" onDrop="{{zAtq.drop}}" style="padding: 10px 11px 8px; display: flex; flex-direction: column;">
+              <h3 class="sec" style="margin-bottom: 4px;">Ataques e Magias</h3>
+              <sc-for list="{{ataquesV}}" as="a" hint-placeholder-count="4">
+                <div class="row" style="padding: 6px 0 7px; display: flex; flex-direction: column; gap: 4px;">
+                  <div style="display: flex; align-items: center; gap: 4px;">
+                    <span style="flex-grow: 1; min-width: 0; font-weight: 700; font-size: 15.5px; line-height: 1.15;">{{a.nome}}</span>
+                    <button type="button" class="ib" aria-label="{{a.engAria}}" onClick="{{a.eng}}"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"></path></svg></button>
+                  </div>
+                  <div style="display: flex; gap: 6px;">
+                    <button type="button" class="pill" aria-label="{{a.b1Aria}}" onClick="{{a.b1Fn}}" style="min-width: 0;"><span class="cin" style="font-weight: 700; font-size: 13.5px;">{{a.b1Tx}}</span></button>
+                    <sc-if value="{{a.temB2}}" hint-placeholder-val="{{ true }}">
+                      <button type="button" class="pill" aria-label="{{a.b2Aria}}" onClick="{{a.b2Fn}}" style="min-width: 0;"><span class="cin" style="font-weight: 700; font-size: 13.5px;">{{a.b2Tx}}</span></button>
+                    </sc-if>
+                  </div>
+                  <span style="font-size: 13px; font-style: italic; color: {{c.ts}};">{{a.sub}}</span>
+                </div>
+              </sc-for>
+              <p style="padding-top: 8px; font-size: 13px; font-style: italic; color: {{c.ts}};">Arraste uma arma do compêndio para criar uma linha de ataque.</p>
+            </div>
+
+            <div class="cx zona {{zEq.on}}" onDragOver="{{zEq.over}}" onDrop="{{zEq.drop}}" style="padding: 10px 11px 10px; display: flex; flex-direction: column; gap: 4px;">
+              <h3 class="sec" style="margin-bottom: 2px;">Equipamento</h3>
+              <sc-for list="{{equipV}}" as="q" hint-placeholder-count="6">
+                <div class="row" style="display: flex; align-items: center; min-height: 34px;">
+                  <span style="flex-grow: 1; min-width: 0; font-size: 14.5px;">{{q.nome}}</span>
+                  <button type="button" class="ib" aria-label="{{q.aria}}" onClick="{{q.rem}}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"></path></svg></button>
+                </div>
+              </sc-for>
+              <div style="display: flex; gap: 4px; padding-top: 6px;">
+                <sc-for list="{{moedasV}}" as="m" hint-placeholder-count="5">
+                  <label style="flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 2px;">
+                    <input type="text" inputmode="numeric" class="in cin" style="height: 30px; padding: 0; text-align: center; font-size: 15px; font-weight: 700; border: 1px solid {{c.bd}};" value="{{m.v}}" onChange="{{m.h}}">
+                    <span class="lbl" style="font-size: 12px;">{{m.nome}}</span>
+                  </label>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+
+          <!-- coluna direita -->
+          <div style="display: flex; flex-direction: column; gap: 8px; min-width: 0;">
+            <sc-for list="{{textosP}}" as="t" hint-placeholder-count="4">
+              <label class="cx" style="display: flex; flex-direction: column; padding: 6px 4px 8px 6px; gap: 3px;">
+                <textarea class="in" style="height: {{t.alt}}px; resize: none; padding: 3px 6px; font-size: 14px; line-height: 1.32;" value="{{t.v}}" onChange="{{t.h}}"></textarea>
+                <span class="lbl" style="padding: 0 6px; font-size: 12.5px;">{{t.nome}}</span>
+              </label>
+            </sc-for>
+
+            <h3 class="sec" style="margin-top: 8px;">Características e Talentos</h3>
+            <div style="display: flex; flex-direction: column;">
+              <sc-for list="{{feats}}" as="f" hint-placeholder-count="6">
+                <div class="row" style="padding: 2px 0;">
+                  <div style="display: flex; align-items: center;">
+                    <button type="button" class="rl" aria-expanded="{{f.aberta}}" onClick="{{f.fn}}" style="flex-grow: 1; min-width: 0; min-height: 40px; display: flex; align-items: center; gap: 4px; padding: 2px 2px;">
+                      <sc-if value="{{f.fechada}}" hint-placeholder-val="{{ true }}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="{{c.ts}}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink: 0;"><path d="M9 6l6 6-6 6"></path></svg></sc-if>
+                      <sc-if value="{{f.aberta}}" hint-placeholder-val="{{ false }}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="{{c.ts}}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink: 0;"><path d="M6 9l6 6 6-6"></path></svg></sc-if>
+                      <span style="display: flex; flex-direction: column; min-width: 0;">
+                        <span class="rn" style="font-weight: 700; font-size: 15px; line-height: 1.15; color: {{c.af}};">{{f.nome}}</span>
+                        <span style="font-style: italic; font-size: 12.5px; color: {{c.ts}};">{{f.origem}}</span>
+                      </span>
+                    </button>
+                    <button type="button" class="ib" aria-label="{{f.chatAria}}" onClick="{{f.chat}}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"></path></svg></button>
+                  </div>
+                  <sc-if value="{{f.aberta}}" hint-placeholder-val="{{ false }}">
+                    <p style="margin: 0 4px 8px 18px; font-size: 13.5px; line-height: 1.4;">{{f.texto}}</p>
+                  </sc-if>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+        </sc-if>
+
+        <!-- ================= MAGIAS ================= -->
+        <sc-if value="{{ehMag}}" hint-placeholder-val="{{ false }}">
+        <div style="padding: 16px 22px 24px; display: flex; flex-direction: column; gap: 14px;">
+          <div style="display: flex; gap: 10px; align-items: stretch;">
+            <div class="cx fr" style="flex: 1.4; padding: 10px 14px; display: flex; flex-direction: column; justify-content: center; gap: 3px;">
+              <span class="cin" style="font-size: 20px; font-weight: 700;">Sabedoria</span>
+              <span class="lbl">Atributo de conjuração</span>
+            </div>
+            <div class="cx fr" style="flex: 1; padding: 10px 14px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;">
+              <span class="cin" style="font-size: 30px; font-weight: 700; line-height: 1;">{{mag.cd}}</span>
+              <span class="lbl">CD das magias</span>
+            </div>
+            <button type="button" class="cx fr rl" aria-label="Rolar ataque de magia" onClick="{{mag.rola}}" style="flex: 1; padding: 10px 14px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;">
+              <span class="cin rn" style="font-size: 30px; font-weight: 700; line-height: 1;">{{mag.atq}}</span>
+              <span class="lbl">Ataque de magia</span>
+            </button>
+            <button type="button" class="sec2" onClick="{{mag.recupera}}" style="height: auto; width: 110px; flex-direction: column; gap: 4px; text-align: center;">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-3-6.2M20 4v5h-5"></path></svg>
+              <span style="font-size: 13px; line-height: 1.15;">Recuperar espaços</span>
+            </button>
+          </div>
+
+          <div class="zona {{zMag.on}}" onDragOver="{{zMag.over}}" onDrop="{{zMag.drop}}" style="display: flex; flex-direction: column; gap: 14px; border-radius: 8px;">
+            <sc-for list="{{niveis}}" as="nv" hint-placeholder-count="5">
+              <section class="cx" style="padding: 10px 14px 6px; display: flex; flex-direction: column;">
+                <div style="display: flex; align-items: center; gap: 12px; padding-bottom: 4px; border-bottom: 1px solid {{c.bd}};">
+                  <h3 class="cin" style="margin: 0; flex-grow: 1; font-size: 16px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: {{c.af}};">{{nv.titulo}}</h3>
+                  <sc-if value="{{nv.temEspacos}}" hint-placeholder-val="{{ true }}">
+                    <span class="lbl">Espaços</span>
+                    <div style="display: flex;">
+                      <sc-for list="{{nv.dots}}" as="p" hint-placeholder-count="3">
+                        <button type="button" class="dotb" aria-label="{{p.aria}}" aria-pressed="{{p.pressed}}" onClick="{{p.fn}}"><span class="dot {{p.on}}"></span></button>
+                      </sc-for>
+                    </div>
+                    <span class="cin" style="width: 54px; text-align: right; font-size: 13px; color: {{c.ts}};">{{nv.resumo}}</span>
+                  </sc-if>
+                </div>
+                <sc-for list="{{nv.magias}}" as="m" hint-placeholder-count="3">
+                  <div class="row">
+                    <div style="display: flex; align-items: center; gap: 2px; min-height: 44px;">
+                      <sc-if value="{{m.preparavel}}" hint-placeholder-val="{{ true }}">
+                        <button type="button" class="ib" aria-label="{{m.prepAria}}" aria-pressed="{{m.prepOn}}" onClick="{{m.prepFn}}" style="color: {{c.af}};"><svg class="lz {{m.prepCls}}" width="18" height="18" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 9-7 9-7-9z"></path></svg></button>
+                      </sc-if>
+                      <sc-if value="{{m.truque}}" hint-placeholder-val="{{ false }}">
+                        <span style="width: 32px; flex-shrink: 0;"></span>
+                      </sc-if>
+                      <button type="button" class="rl" aria-expanded="{{m.aberta}}" onClick="{{m.abre}}" style="flex-grow: 1; min-width: 0; min-height: 40px; display: flex; align-items: center; gap: 6px; padding: 2px 4px;">
+                        <sc-if value="{{m.fechada}}" hint-placeholder-val="{{ true }}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="{{c.ts}}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink: 0;"><path d="M9 6l6 6-6 6"></path></svg></sc-if>
+                        <sc-if value="{{m.aberta}}" hint-placeholder-val="{{ false }}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="{{c.ts}}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink: 0;"><path d="M6 9l6 6 6-6"></path></svg></sc-if>
+                        <span style="display: flex; flex-direction: column; min-width: 0;">
+                          <span class="rn" style="font-weight: 700; font-size: 16px; line-height: 1.15; opacity: {{m.opac}};">{{m.nome}}</span>
+                          <span style="font-style: italic; font-size: 12.5px; color: {{c.ts}};">{{m.sub}}</span>
+                        </span>
+                      </button>
+                      <sc-if value="{{m.temChip}}" hint-placeholder-val="{{ true }}">
+                        <span class="cin" style="padding: 3px 8px; border-radius: 12px; background: {{c.as}}; color: {{c.af}}; font-size: 12px; font-weight: 700; white-space: nowrap;">{{m.chip}}</span>
+                      </sc-if>
+                      <button type="button" class="pill" aria-label="{{m.acaoAria}}" onClick="{{m.conjura}}" style="width: 92px; justify-content: center; font-weight: 600;">{{m.acao}}</button>
+                      <button type="button" class="ib" aria-label="{{m.engAria}}" onClick="{{m.eng}}"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"></path></svg></button>
+                    </div>
+                    <sc-if value="{{m.aberta}}" hint-placeholder-val="{{ false }}">
+                      <div style="margin: 0 0 10px 36px; padding: 10px 14px; border-left: 3px solid {{c.ac}}; background: {{c.cp}}; border-radius: 0 6px 6px 0; display: flex; flex-direction: column; gap: 8px;">
+                        <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 14px;">
+                          <sc-for list="{{m.detalhes}}" as="d" hint-placeholder-count="5">
+                            <div style="display: flex; flex-direction: column; gap: 1px;">
+                              <span class="lbl" style="font-size: 12px;">{{d.k}}</span>
+                              <span style="font-size: 14px;">{{d.v}}</span>
+                            </div>
+                          </sc-for>
+                        </div>
+                        <p style="font-size: 14.5px; line-height: 1.45;">{{m.texto}}</p>
+                      </div>
+                    </sc-if>
+                  </div>
+                </sc-for>
+                <sc-if value="{{nv.vazio}}" hint-placeholder-val="{{ false }}">
+                  <p style="padding: 12px 4px; font-style: italic; font-size: 14px; color: {{c.ts}};">{{nv.hint}}</p>
+                </sc-if>
+              </section>
+            </sc-for>
+          </div>
+        </div>
+        </sc-if>
+
+        <!-- ================= HISTÓRIA ================= -->
+        <sc-if value="{{ehHist}}" hint-placeholder-val="{{ false }}">
+        <div style="padding: 16px 22px 24px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: start;">
+          <sc-for list="{{textosH}}" as="t" hint-placeholder-count="8">
+            <label class="cx fr" style="display: flex; flex-direction: column; gap: 4px; padding: 10px 10px 10px 12px;">
+              <span class="cin" style="padding: 0 4px; font-size: 13px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: {{c.af}};">{{t.nome}}</span>
+              <textarea class="in" placeholder="{{t.dica}}" style="height: {{t.alt}}px; resize: none; padding: 4px 6px; font-size: 15px; line-height: 1.4;" value="{{t.v}}" onChange="{{t.h}}"></textarea>
+            </label>
+          </sc-for>
+        </div>
+        </sc-if>
+
+        <!-- ================= CONFIGURAR ================= -->
+        <sc-if value="{{ehConf}}" hint-placeholder-val="{{ false }}">
+        <div style="padding: 16px 22px 24px; display: flex; flex-direction: column; gap: 14px;">
+          <section class="cx fr" style="padding: 14px 16px; display: flex; flex-direction: column; gap: 10px;">
+            <h3 class="sec">Importar PDF</h3>
+            <p style="font-size: 14.5px;">Leia uma ficha em PDF e revise os campos encontrados antes de aplicar à ficha.</p>
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <button type="button" class="pri"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5M4 20h16"></path></svg>Importar PDF</button>
+              <span style="font-size: 13.5px; font-style: italic; color: {{c.ts}};">Nenhum arquivo escolhido</span>
+            </div>
+          </section>
+          <section class="cx fr" style="padding: 14px 16px; display: flex; flex-direction: column; gap: 10px;">
+            <h3 class="sec">Quem pode ver e editar</h3>
+            <div style="display: flex; align-items: center; gap: 12px; min-height: 40px;">
+              <span style="flex-grow: 1; font-size: 15px;">Você (dono da ficha)</span>
+              <span class="cin" style="font-size: 13px; color: {{c.ts}};">Ver e editar</span>
+            </div>
+            <label style="display: flex; align-items: center; gap: 12px; min-height: 40px; border-top: 1px dotted {{c.bd}};">
+              <span style="flex-grow: 1; font-size: 15px;">Mestre</span>
+              <select class="fld" style="width: 160px;" value="{{permM.v}}" onChange="{{permM.h}}">
+                <sc-for list="{{optPerm}}" as="o" hint-placeholder-count="3"><option value="{{o.v}}">{{o.t}}</option></sc-for>
+              </select>
+            </label>
+            <label style="display: flex; align-items: center; gap: 12px; min-height: 40px; border-top: 1px dotted {{c.bd}};">
+              <span style="flex-grow: 1; font-size: 15px;">Outros jogadores</span>
+              <select class="fld" style="width: 160px;" value="{{permJ.v}}" onChange="{{permJ.h}}">
+                <sc-for list="{{optPerm}}" as="o" hint-placeholder-count="3"><option value="{{o.v}}">{{o.t}}</option></sc-for>
+              </select>
+            </label>
+          </section>
+          <section class="cx fr" style="padding: 14px 16px; display: flex; flex-direction: column; gap: 10px;">
+            <h3 class="sec">Usar como token</h3>
+            <div style="display: flex; align-items: center; gap: 14px;">
+              <p style="flex-grow: 1; font-size: 14.5px;">O token no mapa passa a seguir os PV desta ficha.</p>
+              <button type="button" role="switch" aria-checked="{{token.on}}" aria-label="Usar esta ficha como token" onClick="{{token.fn}}" style="width: 52px; height: 32px; border-radius: 16px; border: 1px solid {{c.bd}}; background: {{token.fundo}}; position: relative; flex-shrink: 0;"><span style="position: absolute; top: 3px; left: {{token.pos}}px; width: 24px; height: 24px; border-radius: 50%; background: {{token.bola}};"></span></button>
+            </div>
+          </section>
+        </div>
+        </sc-if>
+      </div>
+
+      <!-- ================= EDITOR DA ENGRENAGEM ================= -->
+      <sc-if value="{{temEd}}" hint-placeholder-val="{{ false }}">
+      <aside aria-label="{{ed.titulo}}" style="position: absolute; top: 0; right: 0; bottom: 0; width: 486px; display: flex; flex-direction: column; background: {{c.pn}}; border-left: 1px solid {{c.ac}}; box-shadow: -16px 0 32px rgba(0,0,0,0.35);">
+        <div style="flex-shrink: 0; display: flex; align-items: center; gap: 8px; padding: 10px 8px 10px 16px; background: {{c.cb}}; border-bottom: 1px solid {{c.bd}};">
+          <span class="cin" style="flex-grow: 1; font-size: 15px; font-weight: 700; letter-spacing: 0.06em;">{{ed.titulo}}</span>
+          <sc-if value="{{ed.ehMagia}}" hint-placeholder-val="{{ false }}">
+            <label style="display: flex; align-items: center; gap: 6px; font-size: 14px;"><input type="checkbox" class="chk" checked="{{ed.prep.on}}" onChange="{{ed.prep.h}}">Preparada</label>
+          </sc-if>
+          <button type="button" class="ib" aria-label="Fechar o editor" onClick="{{ed.fechar}}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+        </div>
+
+        <div style="flex-grow: 1; min-height: 0; overflow: auto; padding: 14px 16px 12px; display: flex; flex-direction: column; gap: 14px;">
+          <div style="display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 10px;">
+            <label style="display: flex; flex-direction: column; gap: 3px;"><span class="lbl">Nome</span><input type="text" class="fld" value="{{ed.f.nome.v}}" onChange="{{ed.f.nome.h}}"></label>
+            <label style="display: flex; flex-direction: column; gap: 3px;"><span class="lbl">Alcance</span><input type="text" class="fld" value="{{ed.f.alcance.v}}" onChange="{{ed.f.alcance.h}}"></label>
+          </div>
+
+          <section class="cx" style="padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 10px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <h4 class="cin" style="margin: 0; flex-grow: 1; font-size: 13px; letter-spacing: 0.12em; text-transform: uppercase; color: {{c.af}};">Ataque</h4>
+              <label style="display: flex; align-items: center; gap: 6px; font-size: 14px;"><input type="checkbox" class="chk" checked="{{ed.f.atqUsa.on}}" onChange="{{ed.f.atqUsa.h}}">Tem jogada de ataque</label>
+            </div>
+            <sc-if value="{{ed.f.atqUsa.on}}" hint-placeholder-val="{{ true }}">
+              <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px;">
+                <label style="display: flex; flex-direction: column; gap: 3px;"><span class="lbl">Atributo</span>
+                  <select class="fld" value="{{ed.f.atqAtr.v}}" onChange="{{ed.f.atqAtr.h}}"><sc-for list="{{optAtrN}}" as="o" hint-placeholder-count="7"><option value="{{o.v}}">{{o.t}}</option></sc-for></select></label>
+                <label style="display: flex; flex-direction: column; gap: 3px;"><span class="lbl">Bônus extra</span><input type="text" inputmode="numeric" class="fld" value="{{ed.f.atqExtra.v}}" onChange="{{ed.f.atqExtra.h}}"></label>
+                <label style="display: flex; flex-direction: column; gap: 3px;"><span class="lbl">Bônus mágico</span><input type="text" inputmode="numeric" class="fld" value="{{ed.f.atqMagico.v}}" onChange="{{ed.f.atqMagico.h}}"></label>
+                <label style="display: flex; align-items: center; gap: 8px; height: 34px; align-self: end; font-size: 14.5px;"><input type="checkbox" class="chk" checked="{{ed.f.atqProf.on}}" onChange="{{ed.f.atqProf.h}}">Proficiente</label>
+                <label style="display: flex; flex-direction: column; gap: 3px; grid-column: span 2;"><span class="lbl">Margem de crítico</span>
+                  <select class="fld" value="{{ed.f.atqCrit.v}}" onChange="{{ed.f.atqCrit.h}}"><sc-for list="{{optCrit}}" as="o" hint-placeholder-count="3"><option value="{{o.v}}">{{o.t}}</option></sc-for></select></label>
+              </div>
+              <span style="font-size: 12.5px; font-style: italic; color: {{c.ts}};">O bônus mágico vale para o acerto e para o dano.</span>
+            </sc-if>
+          </section>
+
+          <section class="cx" style="padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 10px;">
+            <h4 class="cin" style="margin: 0; font-size: 13px; letter-spacing: 0.12em; text-transform: uppercase; color: {{c.af}};">Dano</h4>
+            <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px;">
+              <label style="display: flex; flex-direction: column; gap: 3px;"><span class="lbl">Dados</span><input type="text" class="fld" value="{{ed.f.dDados.v}}" onChange="{{ed.f.dDados.h}}"></label>
+              <label style="display: flex; flex-direction: column; gap: 3px;"><span class="lbl">Atributo</span>
+                <select class="fld" value="{{ed.f.dAtr.v}}" onChange="{{ed.f.dAtr.h}}"><sc-for list="{{optAtrN}}" as="o" hint-placeholder-count="7"><option value="{{o.v}}">{{o.t}}</option></sc-for></select></label>
+              <label style="display: flex; flex-direction: column; gap: 3px;"><span class="lbl">Bônus</span><input type="text" inputmode="numeric" class="fld" value="{{ed.f.dBonus.v}}" onChange="{{ed.f.dBonus.h}}"></label>
+              <label style="display: flex; flex-direction: column; gap: 3px;"><span class="lbl">Tipo</span>
+                <select class="fld" value="{{ed.f.dTipo.v}}" onChange="{{ed.f.dTipo.h}}"><sc-for list="{{optTipos}}" as="o" hint-placeholder-count="5"><option value="{{o.v}}">{{o.t}}</option></sc-for></select></label>
+            </div>
+            <label style="display: flex; flex-direction: column; gap: 3px; width: 50%;"><span class="lbl">Dados extras no crítico</span><input type="text" class="fld" value="{{ed.f.dCrit.v}}" onChange="{{ed.f.dCrit.h}}"></label>
+            <div style="display: flex; align-items: center; gap: 8px; padding-top: 4px; border-top: 1px dotted {{c.bd}};">
+              <span class="lbl" style="flex-grow: 1; font-size: 14px;">Dano 2 (opcional)</span>
+              <label style="display: flex; align-items: center; gap: 6px; font-size: 14px;"><input type="checkbox" class="chk" checked="{{ed.f.d2Usa.on}}" onChange="{{ed.f.d2Usa.h}}">Usar</label>
+            </div>
+            <sc-if value="{{ed.f.d2Usa.on}}" hint-placeholder-val="{{ false }}">
+              <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px;">
+                <label style="display: flex; flex-direction: column; gap: 3px;"><span class="lbl">Dados</span><input type="text" class="fld" value="{{ed.f.d2Dados.v}}" onChange="{{ed.f.d2Dados.h}}"></label>
+                <label style="display: flex; flex-direction: column; gap: 3px;"><span class="lbl">Atributo</span>
+                  <select class="fld" value="{{ed.f.d2Atr.v}}" onChange="{{ed.f.d2Atr.h}}"><sc-for list="{{optAtrN}}" as="o" hint-placeholder-count="7"><option value="{{o.v}}">{{o.t}}</option></sc-for></select></label>
+                <label style="display: flex; flex-direction: column; gap: 3px;"><span class="lbl">Bônus</span><input type="text" inputmode="numeric" class="fld" value="{{ed.f.d2Bonus.v}}" onChange="{{ed.f.d2Bonus.h}}"></label>
+                <label style="display: flex; flex-direction: column; gap: 3px;"><span class="lbl">Tipo</span>
+                  <select class="fld" value="{{ed.f.d2Tipo.v}}" onChange="{{ed.f.d2Tipo.h}}"><sc-for list="{{optTipos}}" as="o" hint-placeholder-count="5"><option value="{{o.v}}">{{o.t}}</option></sc-for></select></label>
+              </div>
+            </sc-if>
+          </section>
+
+          <section class="cx" style="padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 10px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <h4 class="cin" style="margin: 0; flex-grow: 1; font-size: 13px; letter-spacing: 0.12em; text-transform: uppercase; color: {{c.af}};">Salvaguarda</h4>
+              <label style="display: flex; align-items: center; gap: 6px; font-size: 14px;"><input type="checkbox" class="chk" checked="{{ed.f.sUsa.on}}" onChange="{{ed.f.sUsa.h}}">Exige salvaguarda</label>
+            </div>
+            <sc-if value="{{ed.f.sUsa.on}}" hint-placeholder-val="{{ false }}">
+              <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px;">
+                <label style="display: flex; flex-direction: column; gap: 3px;"><span class="lbl">Teste do alvo</span>
+                  <select class="fld" value="{{ed.f.sAtrAlvo.v}}" onChange="{{ed.f.sAtrAlvo.h}}"><sc-for list="{{optAtr}}" as="o" hint-placeholder-count="6"><option value="{{o.v}}">{{o.t}}</option></sc-for></select></label>
+                <label style="display: flex; flex-direction: column; gap: 3px;"><span class="lbl">CD usa</span>
+                  <select class="fld" value="{{ed.f.sCdAtr.v}}" onChange="{{ed.f.sCdAtr.h}}"><sc-for list="{{optAtr}}" as="o" hint-placeholder-count="6"><option value="{{o.v}}">{{o.t}}</option></sc-for></select></label>
+                <label style="display: flex; flex-direction: column; gap: 3px;"><span class="lbl">Bônus na CD</span><input type="text" inputmode="numeric" class="fld" value="{{ed.f.sCdExtra.v}}" onChange="{{ed.f.sCdExtra.h}}"></label>
+                <div style="display: flex; flex-direction: column; gap: 3px;"><span class="lbl">CD</span><span class="cin" style="height: 34px; display: flex; align-items: center; font-size: 22px; font-weight: 700; color: {{c.af}};">{{ed.cd}}</span></div>
+              </div>
+              <label style="display: flex; flex-direction: column; gap: 3px; width: 60%;"><span class="lbl">Efeito no sucesso</span>
+                <select class="fld" value="{{ed.f.sSuc.v}}" onChange="{{ed.f.sSuc.h}}"><sc-for list="{{optSuc}}" as="o" hint-placeholder-count="2"><option value="{{o.v}}">{{o.t}}</option></sc-for></select></label>
+            </sc-if>
+          </section>
+
+          <section class="cx" style="padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 6px;">
+            <h4 class="cin" style="margin: 0; font-size: 13px; letter-spacing: 0.12em; text-transform: uppercase; color: {{c.af}};">Descrição</h4>
+            <label><span class="sr">Descrição</span><textarea class="fld" style="height: 74px; padding: 6px 8px; resize: none; line-height: 1.4;" value="{{ed.f.desc.v}}" onChange="{{ed.f.desc.h}}"></textarea></label>
+          </section>
+        </div>
+
+        <div style="flex-shrink: 0; padding: 12px 16px 14px; display: flex; flex-direction: column; gap: 10px; background: {{c.cb}}; border-top: 1px solid {{c.bd}};">
+          <div aria-live="polite" style="padding: 8px 12px; border-radius: 6px; background: {{c.cp}}; border: 1px solid {{c.bd}}; display: flex; flex-direction: column; gap: 2px;">
+            <span class="lbl" style="font-size: 12px;">Prévia ao vivo</span>
+            <span style="font-size: 15px; line-height: 1.4;">
+              <sc-if value="{{ed.temPrevAcerto}}" hint-placeholder-val="{{ true }}"><b style="color: {{c.af}};">{{ed.prevAcerto}}</b></sc-if>
+              <sc-if value="{{ed.temPrevDano}}" hint-placeholder-val="{{ true }}"><span> · {{ed.prevDano}}</span></sc-if>
+              <sc-if value="{{ed.temPrevSalv}}" hint-placeholder-val="{{ false }}"><span> · {{ed.prevSalv}}</span></sc-if>
+              <sc-if value="{{ed.semPrev}}" hint-placeholder-val="{{ false }}"><i style="color: {{c.ts}};">Sem rolagem configurada: só manda o texto ao chat.</i></sc-if>
+            </span>
+          </div>
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <button type="button" class="pri" onClick="{{ed.rolar}}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"></path><path d="M12 3v18M4 7.5l16 9M20 7.5l-16 9"></path></svg>Rolar</button>
+            <button type="button" class="sec2" onClick="{{ed.mandar}}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"></path></svg>Mandar ao chat</button>
+            <span style="flex-grow: 1;"></span>
+            <button type="button" class="sec2" onClick="{{ed.remover}}" style="color: {{c.pg}};">Remover da ficha</button>
+          </div>
+        </div>
+      </aside>
+      </sc-if>
+    </div>
+  </section>
+
+  <!-- ===================== COLUNA LATERAL ===================== -->
+  <div style="width: 340px; flex-shrink: 0; display: flex; flex-direction: column; gap: 16px;">
+
+    <aside aria-label="Compêndio" style="height: 560px; display: flex; flex-direction: column; border: 1px solid {{c.bd}}; border-radius: 10px; background: {{c.pn}}; box-shadow: {{c.sb}}; overflow: hidden;">
+      <div style="height: 42px; flex-shrink: 0; display: flex; align-items: center; gap: 8px; padding: 0 12px; background: {{c.cb}}; border-bottom: 1px solid {{c.bd}};">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="{{c.af}}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h10a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z"></path><path d="M5 17a3 3 0 0 1 3-3h10"></path></svg>
+        <span class="cin" style="flex-grow: 1; font-weight: 700; font-size: 14px; letter-spacing: 0.06em;">Compêndio</span>
+        <span style="font-size: 12.5px; font-style: italic; color: {{c.ts}};">arraste para a ficha</span>
+      </div>
+      <div style="flex-shrink: 0; padding: 10px 12px 6px; display: flex; flex-direction: column; gap: 8px;">
+        <label style="position: relative; display: block;">
+          <span class="sr">Buscar no compêndio</span>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="{{c.ts}}" stroke-width="2" stroke-linecap="round" aria-hidden="true" style="position: absolute; left: 10px; top: 9px;"><circle cx="11" cy="11" r="6"></circle><path d="M20 20l-4.5-4.5"></path></svg>
+          <input type="text" class="fld" placeholder="Buscar magia, arma ou item" style="padding-left: 32px; height: 34px;" value="{{busca.v}}" onChange="{{busca.h}}">
+        </label>
+        <div style="display: flex; gap: 6px;">
+          <sc-for list="{{filtros}}" as="f" hint-placeholder-count="4">
+            <button type="button" class="{{f.cls}}" aria-pressed="{{f.on}}" onClick="{{f.fn}}">{{f.nome}}</button>
+          </sc-for>
+        </div>
+      </div>
+      <div style="flex-grow: 1; min-height: 0; overflow: auto; padding: 0 0 6px;">
+        <sc-for list="{{entradas}}" as="e" hint-placeholder-count="8">
+          <div class="ent row" draggable="true" onDragStart="{{e.arrasta}}" onDragEnd="{{e.fim}}" style="display: flex; align-items: center; gap: 6px; padding: 7px 10px 7px 8px;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="{{c.ts}}" stroke-width="3" stroke-linecap="round" aria-hidden="true" style="flex-shrink: 0;"><path d="M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01"></path></svg>
+            <div style="flex-grow: 1; min-width: 0; display: flex; flex-direction: column;">
+              <span style="font-weight: 700; font-size: 15px; line-height: 1.15;">{{e.nome}}</span>
+              <span style="font-size: 12.5px; font-style: italic; color: {{c.ts}};">{{e.sub}}</span>
+            </div>
+            <button type="button" class="pill" aria-label="{{e.aria}}" onClick="{{e.add}}" style="font-size: 13px;">Adicionar</button>
+          </div>
+        </sc-for>
+        <sc-if value="{{semEntradas}}" hint-placeholder-val="{{ false }}"><p style="padding: 14px 14px; font-style: italic; color: {{c.ts}};">Nada encontrado para essa busca.</p></sc-if>
+      </div>
+    </aside>
+
+    <aside aria-label="Chat de prévia" style="height: 640px; display: flex; flex-direction: column; border: 1px solid {{c.bd}}; border-radius: 10px; background: {{c.pn}}; box-shadow: {{c.sb}}; overflow: hidden;">
+      <div style="height: 42px; flex-shrink: 0; display: flex; align-items: center; gap: 8px; padding: 0 12px; background: {{c.cb}}; border-bottom: 1px solid {{c.bd}};">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="{{c.af}}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"></path></svg>
+        <span class="cin" style="flex-grow: 1; font-weight: 700; font-size: 14px; letter-spacing: 0.06em;">Chat de prévia</span>
+      </div>
+      <div style="flex-grow: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column-reverse; gap: 10px; padding: 12px;">
+        <sc-for list="{{chatV}}" as="m" hint-placeholder-count="3">
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            <sc-if value="{{m.ehSistema}}" hint-placeholder-val="{{ false }}">
+              <p style="font-size: 13.5px; font-style: italic; color: {{c.ts}}; padding: 0 4px;">{{m.texto}}</p>
+            </sc-if>
+            <sc-if value="{{m.ehCartao}}" hint-placeholder-val="{{ false }}">
+              <div class="cx" style="padding: 10px 12px; display: flex; flex-direction: column; gap: 4px; border-left: 3px solid {{c.ac}};">
+                <span style="font-size: 12.5px; color: {{c.ts}};">{{m.autor}}</span>
+                <span class="cin" style="font-weight: 700; font-size: 15px; color: {{c.af}};">{{m.titulo}}</span>
+                <span style="font-size: 12.5px; font-style: italic; color: {{c.ts}};">{{m.sub}}</span>
+                <p style="font-size: 14px; line-height: 1.4;">{{m.texto}}</p>
+              </div>
+            </sc-if>
+            <sc-if value="{{m.ehRolagem}}" hint-placeholder-val="{{ true }}">
+              <div class="cx" style="padding: 10px 12px; display: flex; flex-direction: column; gap: 8px;">
+                <span style="font-size: 14px; font-weight: 700;">{{m.linha}}</span>
+                <sc-if value="{{m.temD20}}" hint-placeholder-val="{{ true }}">
+                  <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                    <span class="cin" style="min-width: 54px; height: 44px; padding: 0 8px; display: inline-flex; align-items: center; justify-content: center; border-radius: 8px; background: {{c.cp}}; border: 1px solid {{c.af}}; font-size: 24px; font-weight: 700;">{{m.total}}</span>
+                    <sc-for list="{{m.chips}}" as="k" hint-placeholder-count="1"><span class="{{k.cls}}">{{k.v}}</span></sc-for>
+                    <span style="font-size: 13px; color: {{c.ts}};">{{m.formula}} {{m.modoTxt}}</span>
+                    <span class="{{m.natCls}}" style="font-size: 13.5px;">{{m.natTxt}}</span>
+                  </div>
+                </sc-if>
+                <sc-if value="{{m.temCd}}" hint-placeholder-val="{{ false }}"><span style="font-size: 14px; font-weight: 700; color: {{c.af}};">{{m.cdTxt}}</span></sc-if>
+                <sc-for list="{{m.danos}}" as="d" hint-placeholder-count="1">
+                  <div style="display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: 8px; background: {{c.cp}}; border: 1px solid {{c.bd}};">
+                    <span class="cin" style="min-width: 44px; text-align: center; font-size: 22px; font-weight: 700; color: {{c.pg}};">{{d.total}}</span>
+                    <span style="display: flex; flex-direction: column; gap: 1px; min-width: 0;">
+                      <span style="font-size: 14px; font-weight: 700;">{{d.rot}}: {{d.formula}} {{d.tipo}}</span>
+                      <span style="font-size: 12.5px; color: {{c.ts}};">dados: {{d.det}} {{d.extra}}</span>
+                    </span>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-if>
+          </div>
+        </sc-for>
+      </div>
+      <div style="flex-shrink: 0; padding: 8px 12px 10px; border-top: 1px solid {{c.bd}}; background: {{c.cb}}; font-size: 13px; color: {{c.ts}};">Rolando: <b style="color: {{c.tx}};">{{modoAtual}}</b>. Clique em qualquer valor da ficha.</div>
+    </aside>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"tema":{"editor":"enum","options":["Grimório","Pergaminho","Vampiro","Edgerunner","Élfico"],"default":"Grimório"},"$preview":{"width":1240,"height":1560}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    const mk = (o) => this.mk(o);
+    const S = (id, nivel, nome, escola, tempo, alcance, comp, dur, texto, extra, prep) => ({ id, nivel, escola, tempo, alcance, comp, dur, texto, prep: prep !== false, cfg: mk({ nome, alcance, ...(extra || {}) }) });
+    this.state = {
+      aba: 'personagem', modo: 0, insp: false,
+      ident: { nome: 'Darion Vael', classe: 'Patrulheiro 5 / Clérigo 5 (Domínio da Luz)', antec: 'Forasteiro', raca: 'Humano', tend: 'Caótico Mau', xp: '64.000', nivel: '10' },
+      atr: { for: '25', des: '18', con: '14', int: '14', sab: '14', car: '10' },
+      profSalv: { for: true, des: true },
+      profPer: { adestrar: true, atletismo: true, natureza: true, percepcao: true, sobrevivencia: true, furtividade: true },
+      ca: '18', desl: '9 m', pvMax: '97', pv: '71', pvTemp: '0',
+      dv: { d10: 5, d8: 5 }, morteS: 0, morteF: 0,
+      ataques: [
+        { id: 'a1', tipo: 'arma', cfg: mk({ nome: 'Lâmina Solar', alcance: '1,5 m · acuidade', desc: 'Acuidade: use Força ou Destreza no ataque e no dano.', atq: { usa: true, atr: 'for', prof: true, magico: '2' }, dano: { dados: '1d8', atr: 'for', tipo: 'radiante' } }) },
+        { id: 'a2', tipo: 'arma', cfg: mk({ nome: 'Arco longo', alcance: '45/180 m', desc: 'Munição. O +2 extra vem do Estilo de Luta: Arquearia.', atq: { usa: true, atr: 'des', prof: true, magico: '3', extra: '2' }, dano: { dados: '1d8', atr: 'des', tipo: 'perfurante' } }) },
+        { id: 'a3', tipo: 'magia', cfg: mk({ nome: 'Arma Espiritual', alcance: '18 m', desc: 'Ataque de magia com a arma flutuante.', atq: { usa: true, atr: 'sab', prof: true }, dano: { dados: '1d8', atr: 'sab', tipo: 'força' } }) },
+        { id: 'a4', tipo: 'magia', cfg: mk({ nome: 'Mãos Flamejantes', alcance: 'cone de 4,5 m', desc: 'Cada criatura no cone faz a salvaguarda.', dano: { dados: '3d6', tipo: 'fogo' }, salv: { usa: true, atrAlvo: 'des', cdAtr: 'sab', sucesso: 'metade' } }) }
+      ],
+      magias: [
+        S('m-luz', 0, 'Luz', 'Evocação', '1 ação', 'toque', 'V, M (um vaga-lume ou musgo fosforescente)', '1 hora', 'Um objeto tocado emite luz plena num raio de 6 m e penumbra por mais 6 m.'),
+        S('m-chama', 0, 'Chama Sagrada', 'Evocação', '1 ação', '18 m', 'V, S', 'Instantânea', 'Uma criatura que você veja faz uma salvaguarda de Destreza ou sofre dano radiante; cobertura não ajuda.', { dano: { dados: '2d8', tipo: 'radiante' }, salv: { usa: true, atrAlvo: 'des', cdAtr: 'sab', sucesso: 'nenhum' } }),
+        S('m-taum', 0, 'Taumaturgia', 'Transmutação', '1 ação', '9 m', 'V', 'Até 1 minuto', 'Você manifesta um sinal de poder sobrenatural: voz estrondosa, chamas que tremem ou um tremor leve.'),
+        S('m-maos', 1, 'Mãos Flamejantes', 'Evocação', '1 ação', 'cone de 4,5 m', 'V, S', 'Instantânea', 'Chamas jorram dos seus dedos. Cada criatura no cone faz uma salvaguarda de Destreza: 3d6 de fogo, ou metade se passar.', { dano: { dados: '3d6', tipo: 'fogo' }, salv: { usa: true, atrAlvo: 'des', cdAtr: 'sab', sucesso: 'metade' } }),
+        S('m-fogof', 1, 'Fogo Feérico', 'Evocação', '1 ação', '18 m', 'V', 'Concentração, até 1 minuto', 'Objetos num cubo de 6 m ficam delineados de luz. Quem falhar na salvaguarda de Destreza não se beneficia de invisibilidade e os atacantes têm vantagem.', { salv: { usa: true, atrAlvo: 'des', cdAtr: 'sab', sucesso: 'nenhum' } }),
+        S('m-curar', 1, 'Curar Ferimentos', 'Evocação', '1 ação', 'toque', 'V, S', 'Instantânea', 'Uma criatura tocada recupera 1d8 PV mais o seu modificador de conjuração.', { dano: { dados: '1d8', atr: 'sab', tipo: 'cura' } }),
+        S('m-marca', 1, 'Marca do Caçador', 'Adivinhação', '1 ação bônus', '27 m', 'V', 'Concentração, até 1 hora', 'Você marca uma criatura: +1d6 de dano com armas contra ela e vantagem para rastreá-la.'),
+        S('m-bencao', 1, 'Bênção', 'Encantamento', '1 ação', '9 m', 'V, S, M (um aspersório de água benta)', 'Concentração, até 1 minuto', 'Até três criaturas somam 1d4 nas jogadas de ataque e nas salvaguardas.', null, false),
+        S('m-esfera', 2, 'Esfera Flamejante', 'Conjuração', '1 ação', '18 m', 'V, S, M (sebo, enxofre e pó de ferro)', 'Concentração, até 1 minuto', 'Uma esfera de fogo de 1,5 m. Salvaguarda de Destreza: 2d6 de fogo, ou metade. Mover a esfera é ação bônus (até 9 m).', { dano: { dados: '2d6', tipo: 'fogo' }, salv: { usa: true, atrAlvo: 'des', cdAtr: 'sab', sucesso: 'metade' } }),
+        S('m-raio', 2, 'Raio Ardente', 'Evocação', '1 ação', '36 m', 'V, S', 'Instantânea', 'Três raios: cada um é um ataque à distância de magia que causa 2d6 de fogo.', { atq: { usa: true, atr: 'sab', prof: true }, dano: { dados: '2d6', tipo: 'fogo' } }),
+        S('m-armae', 2, 'Arma Espiritual', 'Evocação', '1 ação bônus', '18 m', 'V, S', '1 minuto', 'Uma arma flutuante ataca como ação bônus: ataque corpo a corpo de magia, 1d8 mais o modificador de conjuração de dano de força.', { atq: { usa: true, atr: 'sab', prof: true }, dano: { dados: '1d8', atr: 'sab', tipo: 'força' } }),
+        S('m-dia', 3, 'Luz do Dia', 'Evocação', '1 ação', '18 m', 'V, S', '1 hora', 'Esfera de luz de 18 m de raio, com penumbra por mais 18 m. Dissipa trevas mágicas de 3º nível ou menos.'),
+        S('m-bola', 3, 'Bola de Fogo', 'Evocação', '1 ação', '45 m', 'V, S, M (uma bolinha de guano e enxofre)', 'Instantânea', 'Explosão de 6 m de raio. Salvaguarda de Destreza: 8d6 de fogo, ou metade se passar.', { dano: { dados: '8d6', tipo: 'fogo' }, salv: { usa: true, atrAlvo: 'des', cdAtr: 'sab', sucesso: 'metade' } }),
+        S('m-espi', 3, 'Espíritos Guardiões', 'Conjuração', '1 ação', 'pessoal (4,5 m de raio)', 'V, S, M (um símbolo sagrado)', 'Concentração, até 10 minutos', 'Espíritos giram ao seu redor. Criaturas hostis na área ficam com metade do deslocamento e sofrem 3d8 radiante ou necrótico (Sabedoria, metade).', { dano: { dados: '3d8', tipo: 'radiante' }, salv: { usa: true, atrAlvo: 'sab', cdAtr: 'sab', sucesso: 'metade' } })
+      ],
+      slots: { 1: { t: 4, g: 1 }, 2: { t: 3, g: 1 }, 3: { t: 3, g: 0 }, 4: { t: 1, g: 0 } },
+      equip: [
+        { id: 'e1', nome: 'Lâmina Solar' }, { id: 'e2', nome: 'Arco longo' }, { id: 'e3', nome: 'Aljava com 20 flechas' },
+        { id: 'e4', nome: 'Armadura de couro batido' }, { id: 'e5', nome: 'Kit de explorador' }, { id: 'e6', nome: '3 tochas' }
+      ],
+      moedas: { pc: '0', pp: '30', pe: '0', po: '12', pl: '0' },
+      feats: { estilo: true }, abertas: { 'm-bola': true },
+      textos: {
+        tracos: 'Vivi sozinho muito tempo depois do incêndio na floresta do norte; ainda não me acostumei a conviver e prefiro ficar recluso. Observo e penso mais do que falo.',
+        ideais: 'Defender e proteger quem é importante para mim.',
+        vinculos: 'Não vou descansar até alcançar a paz e a vingança.',
+        defeitos: 'Desconfio de quem acabei de conhecer.',
+        aparencia: '', aliados: '',
+        historia: 'Sobrevivente do incêndio na floresta do norte, Darion viveu recluso por anos até aprender a confiar de novo.',
+        tesouro: ''
+      },
+      editando: null, arrasto: null, busca: '', filtro: 'todos',
+      perm: { mestre: 'edita', jogadores: 've' }, token: true,
+      chat: [
+        { id: 's1', tipo: 'teste', autor: 'Darion', titulo: 'Percepção', bonus: 6, modo: 0, dados: [11], uso: 11 },
+        { id: 's2', tipo: 'acao', autor: 'Darion', titulo: 'Lâmina Solar', bonus: 13, modo: 0, dados: [20], uso: 20, crit: true, danos: [{ rot: 'Dano crítico', total: 23, formula: '2d8+9', tipo: 'radiante', faces: [6, 8], extra: '' }] },
+        { id: 's3', tipo: 'teste', autor: 'Darion', titulo: 'Furtividade', bonus: 8, modo: -1, dados: [1, 12], uso: 1 }
+      ],
+      seq: 10
+    };
+  }
+
+  /* ---------- utilidades ---------- */
+  N(v) { const n = parseInt(String(v), 10); return isNaN(n) ? 0 : n; }
+  mod(v) { return Math.floor((this.N(v) - 10) / 2); }
+  sg(n) { return (n < 0 ? '−' : '+') + Math.abs(n); }
+  pb() { return Math.max(2, Math.ceil(this.N(this.state.ident.nivel) / 4) + 1); }
+  rnd(f) { return 1 + Math.floor(Math.random() * f); }
+  nomeP() { return (this.state.ident.nome || 'Personagem').split(' ')[0]; }
+  ATR() { return [['for', 'FOR', 'Força'], ['des', 'DES', 'Destreza'], ['con', 'CON', 'Constituição'], ['int', 'INT', 'Inteligência'], ['sab', 'SAB', 'Sabedoria'], ['car', 'CAR', 'Carisma']]; }
+  mk(o) {
+    const b = { nome: '', alcance: '', desc: '', atq: { usa: false, atr: 'for', extra: '0', prof: true, magico: '0', crit: '20' }, dano: { dados: '', atr: 'nenhum', bonus: '0', tipo: 'cortante', critExtra: '' }, d2: { usa: false, dados: '', atr: 'nenhum', bonus: '0', tipo: 'fogo' }, salv: { usa: false, atrAlvo: 'des', cdAtr: 'sab', cdExtra: '0', sucesso: 'metade' } };
+    return { ...b, ...o, atq: { ...b.atq, ...(o.atq || {}) }, dano: { ...b.dano, ...(o.dano || {}) }, d2: { ...b.d2, ...(o.d2 || {}) }, salv: { ...b.salv, ...(o.salv || {}) } };
+  }
+  COMP() {
+    return [
+      { id: 'c1', kind: 'magia', nivel: 1, nome: 'Escudo da Fé', escola: 'Abjuração', tempo: '1 ação bônus', alcance: '18 m', comp: 'V, S, M (um pergaminho com texto sagrado)', dur: 'Concentração, até 10 minutos', texto: 'Um campo cintilante envolve uma criatura à sua escolha e concede +2 na CA.', sub: 'Magia · 1º nível · Abjuração' },
+      { id: 'c2', kind: 'magia', nivel: 2, nome: 'Arma Espiritual', escola: 'Evocação', tempo: '1 ação bônus', alcance: '18 m', comp: 'V, S', dur: '1 minuto', texto: 'Uma arma flutuante ataca como ação bônus: ataque corpo a corpo de magia, 1d8 mais o modificador de conjuração de dano de força.', sub: 'Magia · 2º nível · Evocação', extra: { atq: { usa: true, atr: 'sab', prof: true }, dano: { dados: '1d8', atr: 'sab', tipo: 'força' } } },
+      { id: 'c3', kind: 'magia', nivel: 3, nome: 'Revivificar', escola: 'Necromancia', tempo: '1 ação', alcance: 'toque', comp: 'V, S, M (diamantes no valor de 300 po)', dur: 'Instantânea', texto: 'Traz de volta uma criatura morta há não mais de 1 minuto, com 1 PV.', sub: 'Magia · 3º nível · Necromancia' },
+      { id: 'c4', kind: 'magia', nivel: 4, nome: 'Guardião da Fé', escola: 'Conjuração', tempo: '1 ação', alcance: '9 m', comp: 'V', dur: '8 horas', texto: 'Um guardião espectral paira no local. Criaturas hostis que se aproximem sofrem 20 de radiante (Destreza, metade), até ele causar 60 de dano.', sub: 'Magia · 4º nível · Conjuração' },
+      { id: 'c5', kind: 'arma', nome: 'Machado de batalha', dados: '1d8', tipoDano: 'cortante', atr: 'for', alcance: '1,5 m · versátil (1d10)', sub: 'Arma · 1d8 cortante · versátil 1d10' },
+      { id: 'c6', kind: 'arma', nome: 'Besta leve', dados: '1d8', tipoDano: 'perfurante', atr: 'des', alcance: '24/96 m', sub: 'Arma · 1d8 perfurante · 24/96 m' },
+      { id: 'c7', kind: 'item', nome: 'Poção de Cura (2d4+2)', sub: 'Item · recupera 2d4+2 PV' },
+      { id: 'c8', kind: 'item', nome: 'Corda de seda (15 m)', sub: 'Item · equipamento de aventura' }
+    ];
+  }
+  tema() {
+    const T = {
+      'Grimório': { fm: '#080808', pn: '#252525', pt: '#202020', pf: '#151515', bd: '#3C3C3C', cb: '#2A2A2A', cp: '#121212', cx: '#121212', tx: '#EDEDED', ts: '#A8A8A8', ac: '#E2AE4F', at: '#1E150B', as: 'rgba(226, 174, 79, 0.18)', af: '#F0C46E', fo: '#F0C46E', pg: '#EE8A55', pgt: '#1E0F08', pgf: '#4A2323', su: '#7BCB8B', sus: 'rgba(123, 203, 139, 0.16)', sut: '#0E2418', av: '#F5C542', avt: '#2A2100', avf: '#3A3622', sb: '0 6px 24px rgba(0, 0, 0, 0.5)' },
+      'Pergaminho': { fm: '#CFC8BC', pn: '#FFFFFF', pt: '#FBF9F5', pf: '#F5F1EA', bd: '#DCD4C6', cb: '#F3EEE6', cp: '#FFFFFF', cx: '#F7F4EE', tx: '#231E19', ts: '#675D52', ac: '#E2AE4F', at: '#231E19', as: 'rgba(226, 174, 79, 0.24)', af: '#8A5D10', fo: '#8A5D10', pg: '#A83A15', pgt: '#FFFFFF', pgf: '#FDEBE3', su: '#1F7A3D', sus: 'rgba(31, 122, 61, 0.14)', sut: '#FFFFFF', av: '#8A6500', avt: '#FFFFFF', avf: '#FFF1C2', sb: '0 6px 20px rgba(60, 45, 25, 0.2)' },
+      'Vampiro': { fm: '#050203', pn: '#261015', pt: '#340E17', pf: '#22090F', bd: '#4F232C', cb: '#331219', cp: '#140608', cx: '#140608', tx: '#F6E9E9', ts: '#CBA5AB', ac: '#C41E37', at: '#FFF1F1', as: 'rgba(196, 30, 55, 0.18)', af: '#FF7389', fo: '#FF7389', pg: '#FF9568', pgt: '#2A0A04', pgf: '#5C1A1B', su: '#82CBA0', sus: 'rgba(130, 203, 160, 0.16)', sut: '#0E2418', av: '#F2B79A', avt: '#2A1008', avf: '#4D2A24', sb: '0 6px 24px rgba(0, 0, 0, 0.5)' },
+      'Edgerunner': { fm: '#06050C', pn: '#272238', pt: '#241F36', pf: '#181524', bd: '#4C4468', cb: '#2F2850', cp: '#110D1D', cx: '#110D1D', tx: '#EFEBF8', ts: '#B4AACB', ac: '#2DF08B', at: '#04160C', as: 'rgba(45, 240, 139, 0.18)', af: '#5CFFA6', fo: '#5CFFA6', pg: '#FF5C93', pgt: '#1F0510', pgf: '#4D1632', su: '#4CE3B6', sus: 'rgba(76, 227, 182, 0.16)', sut: '#04221A', av: '#FFE14A', avt: '#241F00', avf: '#403818', sb: '0 6px 24px rgba(0, 0, 0, 0.5)' },
+      'Élfico': { fm: '#B0C2AD', pn: '#FFFFFF', pt: '#EBF4E8', pf: '#DFEBDB', bd: '#B3C9AF', cb: '#DCEAD8', cp: '#FFFFFF', cx: '#E4EFE1', tx: '#18281D', ts: '#3F5845', ac: '#67BC74', at: '#0C2212', as: 'rgba(103, 188, 116, 0.26)', af: '#26683A', fo: '#26683A', pg: '#A83A15', pgt: '#FFFFFF', pgf: '#FDEBE3', su: '#1D7440', sus: 'rgba(29, 116, 64, 0.14)', sut: '#FFFFFF', av: '#7A5A00', avt: '#FFFFFF', avf: '#FFF1C2', sb: '0 6px 20px rgba(30, 55, 35, 0.2)' }
+    };
+    return T[this.props.tema] || T['Grimório'];
+  }
+
+  /* ---------- chat e rolagens ---------- */
+  chatMais(st, e) { return { chat: [...st.chat, { ...e, id: 'x' + st.seq }].slice(-14), seq: st.seq + 1 }; }
+  empurra(e) { this.setState((st) => this.chatMais(st, e)); }
+  d20() {
+    const m = this.state.modo; const a = this.rnd(20);
+    if (m === 0) return { dados: [a], uso: a };
+    const b = this.rnd(20);
+    return { dados: [a, b], uso: m > 0 ? Math.max(a, b) : Math.min(a, b) };
+  }
+  teste(titulo, bonus) {
+    const r = this.d20();
+    this.empurra({ tipo: 'teste', autor: this.nomeP(), titulo, bonus, modo: this.state.modo, dados: r.dados, uso: r.uso });
+  }
+  fm(d, b) { const t = (d || '').trim(); const bs = b > 0 ? '+' + b : b < 0 ? String(b) : ''; return t ? t + bs : (b ? String(b) : ''); }
+  dobra(d) { return (d || '').trim().replace(/^(\d+)d/, (m, n) => (parseInt(n, 10) * 2) + 'd'); }
+  faces(txt, dobra) {
+    const m = /^\s*(\d+)\s*d\s*(\d+)\s*$/.exec(txt || ''); if (!m) return [];
+    const n = parseInt(m[1], 10) * (dobra ? 2 : 1); const out = [];
+    for (let i = 0; i < n; i++) out.push(this.rnd(parseInt(m[2], 10)));
+    return out;
+  }
+  get(cfg, path) { return path.split('.').reduce((o, k) => (o ? o[k] : undefined), cfg); }
+  calc(cfg) {
+    const s = this.state, pb = this.pb(), N = (v) => this.N(v);
+    const M = (k) => (k === 'nenhum' ? 0 : this.mod(s.atr[k]));
+    const a = cfg.atq, d = cfg.dano, d2 = cfg.d2, sv = cfg.salv;
+    const mag = a.usa ? N(a.magico) : 0;
+    const out = {};
+    out.acerto = a.usa ? M(a.atr) + (a.prof ? pb : 0) + N(a.extra) + mag : null;
+    out.critMin = Math.min(20, Math.max(2, N(a.crit) || 20));
+    const b1 = M(d.atr) + N(d.bonus) + mag;
+    out.d1 = { dados: (d.dados || '').trim(), bonus: b1, tipo: d.tipo, formula: this.fm(d.dados, b1), critFormula: this.fm(this.dobra(d.dados) + (d.critExtra && d.critExtra.trim() ? '+' + d.critExtra.trim() : ''), b1) };
+    const b2 = M(d2.atr) + N(d2.bonus);
+    out.d2 = d2.usa && (d2.dados || '').trim() ? { dados: d2.dados.trim(), bonus: b2, tipo: d2.tipo, formula: this.fm(d2.dados, b2) } : null;
+    out.cd = sv.usa ? 8 + pb + M(sv.cdAtr) + N(sv.cdExtra) : null;
+    return out;
+  }
+  tipoTxt(t) { return t === 'cura' ? 'de cura' : t; }
+  nomeAtr(k) { const x = this.ATR().find((r) => r[0] === k); return x ? x[2] : ''; }
+  sucTxt(cfg) { return cfg.salv.sucesso === 'metade' ? 'metade do dano no sucesso' : 'nenhum dano no sucesso'; }
+  rolarCfg(cfg, soDano) {
+    const c = this.calc(cfg), a = cfg.atq;
+    const e = { tipo: 'acao', autor: this.nomeP(), titulo: cfg.nome, modo: this.state.modo, danos: [] };
+    let crit = false, erro = false;
+    if (a.usa && !soDano) {
+      const r = this.d20(); e.dados = r.dados; e.uso = r.uso; e.bonus = c.acerto;
+      crit = r.uso >= c.critMin; erro = r.uso === 1; e.crit = crit; e.erro = erro;
+    }
+    if (cfg.salv.usa && !soDano) e.cd = 'CD ' + c.cd + ' · salvaguarda de ' + this.nomeAtr(cfg.salv.atrAlvo) + ' · ' + this.sucTxt(cfg);
+    if (!erro) {
+      const meta = cfg.salv.usa && cfg.salv.sucesso === 'metade';
+      [c.d1, c.d2].forEach((d, i) => {
+        if (!d || !d.dados) return;
+        const f = this.faces(d.dados, crit);
+        if (i === 0 && crit && cfg.dano.critExtra) this.faces(cfg.dano.critExtra, false).forEach((x) => f.push(x));
+        const total = Math.max(0, f.reduce((x, y) => x + y, 0) + d.bonus);
+        const formula = crit ? (i === 0 ? c.d1.critFormula : this.fm(this.dobra(d.dados), d.bonus)) : d.formula;
+        e.danos.push({ rot: d.tipo === 'cura' ? 'Cura' : (crit ? 'Dano crítico' : 'Dano'), total, formula, tipo: this.tipoTxt(d.tipo), faces: f, extra: meta ? '· metade no sucesso: ' + Math.floor(total / 2) : '' });
+      });
+    }
+    this.empurra(e);
+  }
+  mandarCfg(cfg) {
+    const c = this.calc(cfg); const p = [];
+    if (c.acerto !== null) p.push(this.sg(c.acerto) + ' para acertar');
+    if (c.d1.dados) p.push(c.d1.formula + ' ' + this.tipoTxt(c.d1.tipo));
+    if (c.cd !== null) p.push('CD ' + c.cd);
+    this.empurra({ tipo: 'cartao', autor: this.nomeP(), titulo: cfg.nome, sub: p.join(' · ') + (cfg.alcance ? (p.length ? ' · ' : '') + cfg.alcance : ''), texto: cfg.desc || '' });
+  }
+  conjura(m) {
+    const n = m.nivel, cfg = m.cfg;
+    if (n > 0) {
+      const sl = this.state.slots[n];
+      if (sl.t - sl.g <= 0) { this.empurra({ tipo: 'sistema', texto: 'Sem espaços de ' + n + 'º nível para ' + cfg.nome + '.' }); return; }
+      this.setState((st) => ({ slots: { ...st.slots, [n]: { ...st.slots[n], g: st.slots[n].g + 1 } } }));
+    }
+    if (cfg.atq.usa || cfg.salv.usa || (cfg.dano.dados || '').trim()) this.rolarCfg(cfg, false);
+    else this.empurra({ tipo: 'cartao', autor: this.nomeP(), titulo: this.nomeP() + ' conjura ' + cfg.nome, sub: (n === 0 ? 'Truque' : n + 'º nível') + ' · ' + m.escola + ' · ' + m.alcance, texto: m.texto });
+  }
+  rolaDV(t) {
+    const st = this.state; const f = t === 'd10' ? 10 : 8;
+    if (st.dv[t] <= 0) { this.empurra({ tipo: 'sistema', texto: 'Sem dados de vida ' + t + '.' }); return; }
+    const r = this.rnd(f), b = this.mod(st.atr.con), total = Math.max(0, r + b);
+    this.setState((x) => ({ dv: { ...x.dv, [t]: x.dv[t] - 1 }, pv: String(Math.min(this.N(x.pvMax), this.N(x.pv) + total)), ...this.chatMais(x, { tipo: 'acao', autor: this.nomeP(), titulo: 'Dado de vida (' + t + ')', danos: [{ rot: 'Recupera', total, formula: '1' + t + this.fm('', b), tipo: 'PV', faces: [r], extra: '' }] }) }));
+  }
+  rolaMorte() {
+    const r = this.rnd(20);
+    this.setState((x) => {
+      let s = x.morteS, fl = x.morteF;
+      if (r === 1) fl += 2; else if (r >= 10) s += 1; else fl += 1;
+      return { morteS: Math.min(3, s), morteF: Math.min(3, fl), ...this.chatMais(x, { tipo: 'teste', autor: this.nomeP(), titulo: 'Teste contra a morte', bonus: 0, modo: 0, dados: [r], uso: r }) };
+    });
+  }
+
+  /* ---------- edição ---------- */
+  setCfg(path, val) {
+    this.setState((s) => {
+      const ed = s.editando; if (!ed) return null;
+      const upd = (cfg) => { const c = JSON.parse(JSON.stringify(cfg)); const ks = path.split('.'); let o = c; for (let i = 0; i < ks.length - 1; i++) o = o[ks[i]]; o[ks[ks.length - 1]] = val; return c; };
+      if (ed.origem === 'ataque') return { ataques: s.ataques.map((a) => (a.id === ed.id ? { ...a, cfg: upd(a.cfg) } : a)) };
+      return { magias: s.magias.map((m) => (m.id === ed.id ? { ...m, cfg: upd(m.cfg) } : m)) };
+    });
+  }
+  ajustaPv(d) { this.setState((s) => ({ pv: String(Math.max(0, Math.min(this.N(s.pvMax), this.N(s.pv) + d))) })); }
+  ajustaTemp(d) { this.setState((s) => ({ pvTemp: String(Math.max(0, this.N(s.pvTemp) + d)) })); }
+
+  /* ---------- compêndio ---------- */
+  zonaDe(kind) { return { magia: 'mag', arma: 'atq', item: 'equip' }[kind]; }
+  adicionar(it, zona) {
+    if (this.zonaDe(it.kind) !== zona) {
+      const onde = { magia: 'a área de Magias', arma: 'Ataques', item: 'Equipamento' }[it.kind];
+      this.empurra({ tipo: 'sistema', texto: it.nome + ' vai em ' + onde + '. Solte lá.' }); return;
+    }
+    if (it.kind === 'magia') {
+      if (this.state.magias.some((m) => m.cfg.nome === it.nome)) { this.empurra({ tipo: 'sistema', texto: it.nome + ' já está na ficha.' }); return; }
+      this.setState((st) => ({ magias: [...st.magias, { id: 'n' + st.seq, nivel: it.nivel, escola: it.escola, tempo: it.tempo, alcance: it.alcance, comp: it.comp, dur: it.dur, texto: it.texto, prep: true, cfg: this.mk({ nome: it.nome, alcance: it.alcance, ...(it.extra || {}) }) }], ...this.chatMais(st, { tipo: 'sistema', texto: it.nome + ' entrou em Magias, no ' + it.nivel + 'º nível.' }) }));
+    } else if (it.kind === 'arma') {
+      this.setState((st) => ({ ataques: [...st.ataques, { id: 'n' + st.seq, tipo: 'arma', cfg: this.mk({ nome: it.nome, alcance: it.alcance, atq: { usa: true, atr: it.atr, prof: true }, dano: { dados: it.dados, atr: it.atr, tipo: it.tipoDano } }) }], ...this.chatMais(st, { tipo: 'sistema', texto: it.nome + ' virou uma linha de ataque, já preenchida.' }) }));
+    } else {
+      this.setState((st) => ({ equip: [...st.equip, { id: 'n' + st.seq, nome: it.nome }], ...this.chatMais(st, { tipo: 'sistema', texto: it.nome + ' foi para o Equipamento.' }) }));
+    }
+  }
+  solta(e, zona) {
+    e.preventDefault();
+    const id = e.dataTransfer ? e.dataTransfer.getData('text/plain') : '';
+    const it = this.COMP().find((x) => x.id === id);
+    this.setState({ arrasto: null });
+    if (it) this.adicionar(it, zona);
+  }
+  zona(zona, kind) {
+    return { on: this.state.arrasto === kind ? 'alvo' : '', over: (e) => e.preventDefault(), drop: (e) => this.solta(e, zona) };
+  }
+
+  /* ---------- vista do chat ---------- */
+  vista(e) {
+    const o = { id: e.id, ehRolagem: e.tipo === 'teste' || e.tipo === 'acao', ehCartao: e.tipo === 'cartao', ehSistema: e.tipo === 'sistema', texto: e.texto || '', titulo: e.titulo || '', sub: e.sub || '', autor: e.autor || '', linha: '', temD20: false, chips: [], total: 0, formula: '', natTxt: '', natCls: '', modoTxt: '', temCd: !!e.cd, cdTxt: e.cd || '', danos: [] };
+    if (o.ehRolagem) {
+      let l = e.autor + ' — ' + e.titulo;
+      if (e.dados) {
+        const b = e.bonus || 0, idx = e.dados.indexOf(e.uso);
+        o.temD20 = true; o.total = e.uso + b; o.formula = '1d20' + (b > 0 ? '+' + b : b < 0 ? String(b) : '');
+        o.chips = e.dados.map((v, i) => ({ v, cls: 'd20 ' + (i === idx ? 'uso' + (v === 20 ? ' nat20' : v === 1 ? ' nat1' : '') : 'desc') }));
+        o.natTxt = e.uso === 20 ? '20 natural' + (e.crit ? ' · crítico' : '') : e.uso === 1 ? '1 natural' + (e.erro ? ' · erro' : '') : (e.crit ? 'crítico' : '');
+        o.natCls = e.uso === 20 ? 'nt20' : e.uso === 1 ? 'nt1' : (e.crit ? 'nt20' : '');
+        o.modoTxt = e.modo > 0 ? '· com vantagem' : e.modo < 0 ? '· com desvantagem' : '';
+        l += ': ' + o.formula + ' → ' + o.total;
+      }
+      o.linha = l;
+      o.danos = (e.danos || []).map((d) => ({ rot: d.rot, total: d.total, formula: d.formula, tipo: d.tipo, det: d.faces.join(' + ') || '-', extra: d.extra }));
+    }
+    return o;
+  }
+
+  /* ---------- renderVals ---------- */
+  renderVals() {
+    const s = this.state, c = this.tema(), pb = this.pb();
+    const M = (k) => this.mod(s.atr[k]), sg = (n) => this.sg(n);
+    const ATR = this.ATR();
+    const set = (fn) => (e) => { const v = e.target.value; this.setState((st) => fn(st, v)); };
+
+    // identidade
+    const modos = [['Vantagem', 1], ['Normal', 0], ['Desvantagem', -1]].map(([nome, v]) => ({ nome, on: s.modo === v, cls: 'seg' + (s.modo === v ? ' on' : ''), fn: () => this.setState({ modo: v }) }));
+    const campos = [['Classe e nível', 'classe', 3], ['Antecedente', 'antec', 1.2], ['Raça', 'raca', 1], ['Tendência', 'tend', 1.2], ['XP', 'xp', 1], ['Nível', 'nivel', 0.55]].map(([nome, k, flex]) => ({ nome, flex, v: s.ident[k], h: set((st, v) => ({ ident: { ...st.ident, [k]: v } })) }));
+    const tabsDef = [['personagem', 'Personagem'], ['magias', 'Magias'], ['historia', 'História'], ['configurar', 'Configurar']];
+    const tabs = tabsDef.map(([id, nome]) => ({ nome, on: s.aba === id, cls: 'tab' + (id === 'magias' ? ' zona' : '') + (s.aba === id ? ' on' : '') + (id === 'magias' && s.arrasto === 'magia' ? ' alvo' : ''), fn: () => this.setState({ aba: id }), over: (e) => { if (id === 'magias') e.preventDefault(); }, drop: (e) => { if (id === 'magias') this.solta(e, 'mag'); } }));
+
+    // atributos, salvaguardas, perícias
+    const atributos = ATR.map(([k, ab, nome]) => ({ ab, nome, aria: 'Rolar teste de ' + nome, mod: sg(M(k)), val: s.atr[k], rola: () => this.teste(nome, M(k)), set: set((st, v) => ({ atr: { ...st.atr, [k]: v } })) }));
+    const salvs = ATR.map(([k, ab, nome]) => { const p = !!s.profSalv[k]; const b = M(k) + (p ? pb : 0); return { nome, bonus: sg(b), prof: p, on: p ? 'on' : '', aria: 'Proficiência na salvaguarda de ' + nome, rolaAria: 'Rolar salvaguarda de ' + nome + ', ' + sg(b), alterna: () => this.setState((st) => ({ profSalv: { ...st.profSalv, [k]: !st.profSalv[k] } })), rola: () => this.teste('Salvaguarda de ' + nome, b) }; });
+    const PER = [['acrobacia', 'Acrobacia', 'des'], ['adestrar', 'Adestrar Animais', 'sab'], ['arcanismo', 'Arcanismo', 'int'], ['atletismo', 'Atletismo', 'for'], ['atuacao', 'Atuação', 'car'], ['enganacao', 'Enganação', 'car'], ['furtividade', 'Furtividade', 'des'], ['historia', 'História', 'int'], ['intimidacao', 'Intimidação', 'car'], ['intuicao', 'Intuição', 'sab'], ['investigacao', 'Investigação', 'int'], ['medicina', 'Medicina', 'sab'], ['natureza', 'Natureza', 'int'], ['percepcao', 'Percepção', 'sab'], ['persuasao', 'Persuasão', 'car'], ['prestidigitacao', 'Prestidigitação', 'des'], ['religiao', 'Religião', 'int'], ['sobrevivencia', 'Sobrevivência', 'sab']];
+    const bonusPer = (id, at) => M(at) + (s.profPer[id] ? pb : 0);
+    const pericias = PER.map(([id, nome, at]) => { const p = !!s.profPer[id]; const b = bonusPer(id, at); return { nome, bonus: sg(b), prof: p, on: p ? 'on' : '', aria: 'Proficiência em ' + nome, rolaAria: 'Rolar ' + nome + ', ' + sg(b), alterna: () => this.setState((st) => ({ profPer: { ...st.profPer, [id]: !st.profPer[id] } })), rola: () => this.teste(nome, b) }; });
+    const passiva = 10 + bonusPer('percepcao', 'sab');
+
+    // combate
+    const pvN = this.N(s.pv), pvM = Math.max(1, this.N(s.pvMax));
+    const pct = Math.max(0, Math.min(100, Math.round((pvN / pvM) * 100)));
+    const pv = { atual: { v: s.pv, h: (e) => { const v = e.target.value; this.setState({ pv: v }); } } };
+    pv.max = { v: s.pvMax, h: (e) => { const v = e.target.value; this.setState({ pvMax: v }); } };
+    pv.temp = { v: s.pvTemp, h: (e) => { const v = e.target.value; this.setState({ pvTemp: v }); } };
+    pv.menos = () => this.ajustaPv(-1); pv.mais = () => this.ajustaPv(1);
+    pv.tMenos = () => this.ajustaTemp(-1); pv.tMais = () => this.ajustaTemp(1);
+    pv.pct = pct; pv.cor = pct > 50 ? c.su : pct > 25 ? c.av : c.pg;
+    pv.resumo = 'PV ' + pvN + ' de ' + pvM;
+
+    const dvs = ['d10', 'd8'].map((t) => ({
+      nome: t, aria: 'Gastar um dado de vida ' + t + ' e rolar', rola: () => this.rolaDV(t),
+      dots: Array.from({ length: 5 }, (_, i) => ({ on: i < s.dv[t] ? 'on' : '', pressed: i < s.dv[t], aria: 'Dado de vida ' + t + ' número ' + (i + 1), fn: () => this.setState((st) => ({ dv: { ...st.dv, [t]: i < st.dv[t] ? i : i + 1 } })) }))
+    }));
+    const dots3 = (chave) => Array.from({ length: 3 }, (_, i) => ({ on: i < s[chave] ? 'on' : '', pressed: i < s[chave], aria: (chave === 'morteS' ? 'Sucesso ' : 'Falha ') + (i + 1), fn: () => this.setState((st) => ({ [chave]: i < st[chave] ? i : i + 1 })) }));
+    const morte = { s: dots3('morteS'), f: dots3('morteF'), rola: () => this.rolaMorte() };
+
+    // ataques
+    const ataquesV = s.ataques.map((a) => {
+      const cfg = a.cfg, cc = this.calc(cfg), dano = cc.d1.dados;
+      const o = { nome: cfg.nome, engAria: 'Configurar ' + cfg.nome, eng: () => this.setState({ editando: { origem: 'ataque', id: a.id } }), temB2: false, b2Tx: '', b2Aria: '', b2Fn: () => {} };
+      if (cc.acerto !== null) {
+        o.b1Tx = 'Atacar ' + sg(cc.acerto); o.b1Aria = 'Atacar com ' + cfg.nome + ', ' + sg(cc.acerto) + ' para acertar'; o.b1Fn = () => this.rolarCfg(cfg, false);
+        if (dano) { o.temB2 = true; o.b2Tx = 'Dano ' + cc.d1.formula; o.b2Aria = 'Rolar o dano de ' + cfg.nome; o.b2Fn = () => this.rolarCfg(cfg, true); }
+      } else if (cc.cd !== null) {
+        o.b1Tx = 'CD ' + cc.cd + ' ' + this.ATR().find((r) => r[0] === cfg.salv.atrAlvo)[1] + (dano ? ' · ' + cc.d1.formula : ''); o.b1Aria = 'Conjurar ' + cfg.nome + ', CD ' + cc.cd; o.b1Fn = () => this.rolarCfg(cfg, false);
+      } else { o.b1Tx = 'Dano ' + (cc.d1.formula || ''); o.b1Aria = 'Rolar o dano de ' + cfg.nome; o.b1Fn = () => this.rolarCfg(cfg, true); }
+      o.sub = [dano ? this.tipoTxt(cc.d1.tipo) : '', cfg.alcance].filter(Boolean).join(' · ');
+      return o;
+    });
+    const equipV = s.equip.map((q) => ({ nome: q.nome, aria: 'Remover ' + q.nome, rem: () => this.setState((st) => ({ equip: st.equip.filter((x) => x.id !== q.id) })) }));
+    const moedasV = [['PC', 'pc'], ['PP', 'pp'], ['PE', 'pe'], ['PO', 'po'], ['PL', 'pl']].map(([nome, k]) => ({ nome, v: s.moedas[k], h: (e) => { const v = e.target.value; this.setState((st) => ({ moedas: { ...st.moedas, [k]: v } })); } }));
+
+    // textos
+    const tx = (k) => ({ v: s.textos[k], h: (e) => { const v = e.target.value; this.setState((st) => ({ textos: { ...st.textos, [k]: v } })); } });
+    const textosP = [['Traços de personalidade', 'tracos', 112], ['Ideais', 'ideais', 62], ['Vínculos', 'vinculos', 62], ['Defeitos', 'defeitos', 62]].map(([nome, k, alt]) => ({ nome, alt, ...tx(k) }));
+    const textosH = [['Traços de personalidade', 'tracos', 130, ''], ['Ideais', 'ideais', 130, ''], ['Vínculos', 'vinculos', 100, ''], ['Defeitos', 'defeitos', 100, ''], ['Aparência', 'aparencia', 150, 'Descreva a aparência do personagem.'], ['Aliados e organizações', 'aliados', 150, 'Liste aliados, contatos e grupos.'], ['História do personagem', 'historia', 200, ''], ['Tesouro', 'tesouro', 200, 'Anote tesouros e recompensas.']].map(([nome, k, alt, dica]) => ({ nome, alt, dica, ...tx(k) }));
+
+    // características
+    const FE = [
+      ['inimigo', 'Inimigo Favorito', 'Classe: Patrulheiro', 'Vantagem em testes de Sabedoria (Sobrevivência) para rastrear seus inimigos favoritos e em testes de Inteligência para lembrar informações sobre eles.'],
+      ['explorador', 'Explorador Natural', 'Classe: Patrulheiro', 'No terreno favorito, terreno difícil não atrasa o grupo, você não se perde e encontra o dobro de alimento ao forragear.'],
+      ['estilo', 'Estilo de Luta: Arquearia', 'Classe: Patrulheiro', '+2 nas jogadas de ataque com armas à distância.'],
+      ['extra', 'Ataque Extra', 'Classe: Patrulheiro', 'Quando usa a ação Atacar, você pode atacar duas vezes em vez de uma.'],
+      ['canalizar', 'Canalizar Divindade: Radiância do Amanhecer', 'Classe: Clérigo', 'Com uma ação, uma luz solar dissipa trevas mágicas a até 9 m e causa 2d10 + nível de Clérigo de dano radiante a criaturas hostis a até 9 m (Constituição, metade).'],
+      ['labareda', 'Labareda Protetora', 'Classe: Clérigo (Domínio da Luz)', 'Reação: quando uma criatura que você vê a até 9 m o atacar, você impõe desvantagem na jogada. Usos por descanso longo: seu modificador de Sabedoria (mín. 1).']
+    ];
+    const feats = FE.map(([id, nome, origem, texto]) => { const ab = !!s.feats[id]; return { nome, origem, texto, aberta: ab, fechada: !ab, fn: () => this.setState((st) => ({ feats: { ...st.feats, [id]: !st.feats[id] } })), chatAria: 'Mandar ' + nome + ' ao chat', chat: () => this.empurra({ tipo: 'cartao', autor: this.nomeP(), titulo: nome, sub: origem, texto }) }; });
+
+    // magias
+    const mcd = 8 + pb + M('sab'), matq = pb + M('sab');
+    const mag = { cd: mcd, atq: sg(matq), rola: () => this.teste('Ataque de magia', matq), recupera: () => this.setState((st) => ({ slots: Object.fromEntries(Object.entries(st.slots).map(([k, v]) => [k, { ...v, g: 0 }])), ...this.chatMais(st, { tipo: 'sistema', texto: 'Espaços de magia recuperados.' }) })) };
+    const niveis = [0, 1, 2, 3, 4].map((n) => {
+      const sl = s.slots[n];
+      const lista = s.magias.filter((m) => m.nivel === n).map((m) => {
+        const cfg = m.cfg, cc = this.calc(cfg), ab = !!s.abertas[m.id];
+        const chip = cc.acerto !== null ? 'Ataque ' + sg(cc.acerto) : cc.cd !== null ? 'CD ' + cc.cd : (cfg.dano.dados && cfg.dano.tipo === 'cura') ? 'Cura ' + cc.d1.formula : '';
+        return {
+          id: m.id, nome: cfg.nome, sub: m.escola + ' · ' + m.tempo + ' · ' + m.alcance, aberta: ab, fechada: !ab,
+          abre: () => this.setState((st) => ({ abertas: { ...st.abertas, [m.id]: !st.abertas[m.id] } })),
+          preparavel: n > 0, truque: n === 0, prepOn: m.prep, prepCls: m.prep ? 'on' : '', opac: (n > 0 && !m.prep) ? 0.6 : 1,
+          prepAria: (m.prep ? 'Despreparar ' : 'Preparar ') + cfg.nome,
+          prepFn: () => this.setState((st) => ({ magias: st.magias.map((x) => (x.id === m.id ? { ...x, prep: !x.prep } : x)) })),
+          temChip: !!chip, chip,
+          acao: n === 0 ? 'Lançar' : 'Conjurar', acaoAria: (n === 0 ? 'Lançar ' : 'Conjurar ') + cfg.nome + (n > 0 ? ' gastando um espaço de ' + n + 'º nível' : ''),
+          conjura: () => this.conjura(m),
+          engAria: 'Configurar ' + cfg.nome, eng: () => this.setState({ editando: { origem: 'magia', id: m.id } }),
+          detalhes: [{ k: 'Escola', v: m.escola }, { k: 'Tempo de conjuração', v: m.tempo }, { k: 'Alcance', v: m.alcance }, { k: 'Componentes', v: m.comp }, { k: 'Duração', v: m.dur }], texto: m.texto
+        };
+      });
+      const dots = n > 0 ? Array.from({ length: sl.t }, (_, i) => { const livre = i < sl.t - sl.g; return { on: livre ? 'on' : '', pressed: livre, aria: 'Espaço de ' + n + 'º nível ' + (i + 1) + (livre ? ', disponível. Gastar' : ', gasto. Recuperar'), fn: () => this.setState((st) => ({ slots: { ...st.slots, [n]: { ...st.slots[n], g: Math.max(0, Math.min(st.slots[n].t, st.slots[n].g + (livre ? 1 : -1))) } } })) }; }) : [];
+      return { titulo: n === 0 ? 'Truques' : n + 'º nível', temEspacos: n > 0, dots, resumo: n > 0 ? (sl.t - sl.g) + ' de ' + sl.t : '', magias: lista, vazio: lista.length === 0, hint: 'Arraste uma magia de ' + n + 'º nível do compêndio para cá.' };
+    });
+
+    // configurar
+    const optPerm = [{ v: 'edita', t: 'Ver e editar' }, { v: 've', t: 'Só ver' }, { v: 'nada', t: 'Sem acesso' }];
+    const permM = { v: s.perm.mestre, h: (e) => { const v = e.target.value; this.setState((st) => ({ perm: { ...st.perm, mestre: v } })); } };
+    const permJ = { v: s.perm.jogadores, h: (e) => { const v = e.target.value; this.setState((st) => ({ perm: { ...st.perm, jogadores: v } })); } };
+    const token = { on: s.token, fn: () => this.setState((st) => ({ token: !st.token })), fundo: s.token ? c.ac : c.cp, pos: s.token ? 24 : 3, bola: s.token ? c.at : c.ts };
+
+    // editor
+    const ed0 = s.editando;
+    let alvo = null;
+    if (ed0) alvo = ed0.origem === 'ataque' ? s.ataques.find((a) => a.id === ed0.id) : s.magias.find((m) => m.id === ed0.id);
+    const cfg = alvo ? alvo.cfg : this.mk({});
+    const cc = this.calc(cfg);
+    const F = (p) => ({ v: String(this.get(cfg, p) == null ? '' : this.get(cfg, p)), h: (e) => this.setCfg(p, e.target.value) });
+    const K = (p) => ({ on: !!this.get(cfg, p), h: () => this.setCfg(p, !this.get(cfg, p)) });
+    const prevAcerto = cc.acerto !== null ? sg(cc.acerto) + ' para acertar' + (cc.critMin < 20 ? ' (crítico ' + cc.critMin + '–20)' : '') : '';
+    let prevDano = '';
+    if (cc.d1.dados) { prevDano = cc.d1.formula + ' ' + this.tipoTxt(cc.d1.tipo); if (cc.acerto !== null) prevDano += '; crítico ' + cc.d1.critFormula; }
+    if (cc.d2) prevDano += (prevDano ? ' + ' : '') + cc.d2.formula + ' ' + this.tipoTxt(cc.d2.tipo);
+    const prevSalv = cc.cd !== null ? 'CD ' + cc.cd + ' (salvaguarda de ' + this.nomeAtr(cfg.salv.atrAlvo) + '), ' + this.sucTxt(cfg) : '';
+    const ed = {
+      titulo: ed0 && ed0.origem === 'magia' ? 'Configurar magia' : 'Configurar ataque', ehMagia: !!ed0 && ed0.origem === 'magia',
+      prep: { on: !!(alvo && alvo.prep), h: () => this.setState((st) => ({ magias: st.magias.map((x) => (alvo && x.id === alvo.id ? { ...x, prep: !x.prep } : x)) })) },
+      f: { nome: F('nome'), alcance: F('alcance'), desc: F('desc'), atqUsa: K('atq.usa'), atqAtr: F('atq.atr'), atqExtra: F('atq.extra'), atqProf: K('atq.prof'), atqMagico: F('atq.magico'), atqCrit: F('atq.crit'), dDados: F('dano.dados'), dAtr: F('dano.atr'), dBonus: F('dano.bonus'), dTipo: F('dano.tipo'), dCrit: F('dano.critExtra'), d2Usa: K('d2.usa'), d2Dados: F('d2.dados'), d2Atr: F('d2.atr'), d2Bonus: F('d2.bonus'), d2Tipo: F('d2.tipo'), sUsa: K('salv.usa'), sAtrAlvo: F('salv.atrAlvo'), sCdAtr: F('salv.cdAtr'), sCdExtra: F('salv.cdExtra'), sSuc: F('salv.sucesso') },
+      cd: cc.cd === null ? '' : cc.cd,
+      prevAcerto, temPrevAcerto: !!prevAcerto, prevDano, temPrevDano: !!prevDano, prevSalv, temPrevSalv: !!prevSalv, semPrev: !prevAcerto && !prevDano && !prevSalv,
+      fechar: () => this.setState({ editando: null }),
+      rolar: () => { if (cc.acerto !== null || cc.cd !== null || cc.d1.dados) this.rolarCfg(cfg, false); else this.mandarCfg(cfg); },
+      mandar: () => this.mandarCfg(cfg),
+      remover: () => this.setState((st) => (ed0 ? (ed0.origem === 'ataque' ? { ataques: st.ataques.filter((a) => a.id !== ed0.id), editando: null } : { magias: st.magias.filter((m) => m.id !== ed0.id), editando: null }) : null))
+    };
+    const optAtr = ATR.map(([k, , nome]) => ({ v: k, t: nome }));
+    const optAtrN = [{ v: 'nenhum', t: 'Nenhum' }, ...optAtr];
+    const optTipos = ['ácido', 'contundente', 'cortante', 'elétrico', 'força', 'fogo', 'gélido', 'necrótico', 'perfurante', 'psíquico', 'radiante', 'trovejante', 'venenoso', 'cura'].map((t) => ({ v: t, t: t.charAt(0).toUpperCase() + t.slice(1) }));
+    const optCrit = [{ v: '20', t: '20' }, { v: '19', t: '19–20' }, { v: '18', t: '18–20' }];
+    const optSuc = [{ v: 'metade', t: 'Metade do dano' }, { v: 'nenhum', t: 'Nenhum dano' }];
+
+    // compêndio
+    const norm = (t) => String(t).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+    const q = norm(s.busca);
+    const entradasL = this.COMP().filter((it) => (s.filtro === 'todos' || it.kind === s.filtro) && (!q || norm(it.nome).includes(q) || norm(it.sub).includes(q)));
+    const entradas = entradasL.map((it) => ({ nome: it.nome, sub: it.sub, aria: 'Adicionar ' + it.nome + ' à ficha', add: () => this.adicionar(it, this.zonaDe(it.kind)), arrasta: (e) => { e.dataTransfer.setData('text/plain', it.id); e.dataTransfer.effectAllowed = 'copy'; this.setState({ arrasto: it.kind }); }, fim: () => this.setState({ arrasto: null }) }));
+    const filtros = [['todos', 'Todos'], ['magia', 'Magias'], ['arma', 'Armas'], ['item', 'Itens']].map(([k, nome]) => ({ nome, on: s.filtro === k, cls: 'chipf' + (s.filtro === k ? ' on' : ''), fn: () => this.setState({ filtro: k }) }));
+
+    const zAtq = this.zona('atq', 'arma'), zEq = this.zona('equip', 'item'), zMag = this.zona('mag', 'magia');
+    const chatV = s.chat.map((e) => this.vista(e)).reverse();
+
+    return {
+      c, nomeCurto: this.nomeP(), nomeV: s.ident.nome, nomeH: set((st, v) => ({ ident: { ...st.ident, nome: v } })),
+      modos, campos, tabs,
+      ehPers: s.aba === 'personagem', ehMag: s.aba === 'magias', ehHist: s.aba === 'historia', ehConf: s.aba === 'configurar',
+      atributos, passiva, insp: { on: s.insp, cls: s.insp ? 'on' : '', fn: () => this.setState((st) => ({ insp: !st.insp })) }, pbTxt: sg(pb), salvs, pericias,
+      ca: { v: s.ca, h: (e) => { const v = e.target.value; this.setState({ ca: v }); } }, inic: { tx: sg(M('des')), fn: () => this.teste('Iniciativa', M('des')) }, desl: { v: s.desl, h: (e) => { const v = e.target.value; this.setState({ desl: v }); } },
+      pv: { ...pv, atual: pv.atual }, dvs, morte, ataquesV, zAtq, equipV, zEq, moedasV, textosP, feats,
+      mag, niveis, zMag, textosH, optPerm, permM, permJ, token,
+      temEd: !!alvo, ed, optAtr, optAtrN, optTipos, optCrit, optSuc,
+      busca: { v: s.busca, h: (e) => { const v = e.target.value; this.setState({ busca: v }); } }, filtros, entradas, semEntradas: entradas.length === 0,
+      chatV, modoAtual: s.modo > 0 ? 'com vantagem' : s.modo < 0 ? 'com desvantagem' : 'normal'
+    };
+  }
+}
+</script>
+</body>
+</html>

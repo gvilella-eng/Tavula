@@ -1,6 +1,11 @@
 import { z } from "zod";
 import type { Estado, Usuario } from "./estado.ts";
-import { handoutVisivelPara, personagemVisivelPara, tokenVisivelPara } from "./mapa.ts";
+import {
+  fichaVisivelPara,
+  handoutVisivelPara,
+  personagemVisivelPara,
+  tokenVisivelPara,
+} from "./mapa.ts";
 
 // ---------------------------------------------------------------------------------------------
 // Limites e constantes (PROJETO.md 4.3)
@@ -358,6 +363,9 @@ export function hashesUsados(
   for (const p of estado.personagens) {
     usar(p.tokenPadrao.assetHash);
     usar(p.retratoHash);
+    // A aparência e o símbolo da ficha de papel (V4a).
+    usar(p.ficha?.aparenciaHash);
+    usar(p.ficha?.simboloHash);
   }
   // A imagem de preview dos handouts (V3).
   for (const h of estado.handouts ?? []) usar(h.imagemHash);
@@ -402,7 +410,7 @@ export function hashesPreparaveis(
 export function assetVisivelPara(
   hash: string,
   estado: Pick<Estado, "assets" | "cenas" | "cenaAtivaId" | "tokens" | "personagens" | "pastas"> &
-    Partial<Pick<Estado, "retratosDoChat" | "compendio" | "handouts">>,
+    Partial<Pick<Estado, "retratosDoChat" | "compendio" | "handouts" | "permissoes">>,
   usuario: Quem,
 ): boolean {
   const meta = metaDe(estado, hash);
@@ -424,6 +432,19 @@ export function assetVisivelPara(
       (p) =>
         (p.tokenPadrao.assetHash === hash || p.retratoHash === hash) &&
         personagemVisivelPara(p, usuario, estado.pastas),
+    )
+  ) {
+    return true;
+  }
+  // A aparência e o símbolo da ficha de um personagem cuja ficha ele vê (V4a).
+  const permissoes = estado.permissoes;
+  if (
+    permissoes !== undefined &&
+    estado.personagens.some(
+      (p) =>
+        (p.ficha?.aparenciaHash === hash || p.ficha?.simboloHash === hash) &&
+        personagemVisivelPara(p, usuario, estado.pastas) &&
+        fichaVisivelPara(p, usuario, permissoes),
     )
   ) {
     return true;

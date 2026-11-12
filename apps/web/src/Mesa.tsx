@@ -1439,6 +1439,7 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
                   cenaVista={cenaVista}
                   tempo={tempo}
                   fontes={fontes}
+                  gerente={gerente}
                   aoFechar={() => fecharFicha(j.personagemId)}
                   aoMudar={(mudancas) => atualizarFicha(j.personagemId, mudancas)}
                 />

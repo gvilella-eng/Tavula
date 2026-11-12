@@ -2,12 +2,26 @@ import "@fontsource-variable/caveat/wght.css";
 import "@fontsource-variable/inter";
 import "@fontsource-variable/lora/wght.css";
 import "@fontsource-variable/space-grotesk";
+import "@fontsource/alegreya/latin-400.css";
+import "@fontsource/alegreya/latin-400-italic.css";
+import "@fontsource/alegreya/latin-500.css";
+import "@fontsource/alegreya/latin-700.css";
+import "@fontsource/cinzel/latin-600.css";
+import "@fontsource/cinzel/latin-700.css";
+import "@fontsource/cormorant-sc/latin-600.css";
+import "@fontsource/cormorant-sc/latin-700.css";
+import "@fontsource/eb-garamond/latin-400.css";
+import "@fontsource/eb-garamond/latin-400-italic.css";
+import "@fontsource/eb-garamond/latin-500.css";
+import "@fontsource/eb-garamond/latin-600.css";
+import "@fontsource/im-fell-english-sc/latin-400.css";
 import "@fontsource/medievalsharp/latin-400.css";
 import "@fontsource/special-elite/latin-400.css";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
 import "./styles.css";
+import "./ficha/ficha.css";
 import { aplicarTema, lerTema } from "./tema/temas";
 
 // O tema vale desde antes da primeira renderização (preferência deste navegador).

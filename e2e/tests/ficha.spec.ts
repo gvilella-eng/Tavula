@@ -25,9 +25,10 @@ test("a janela da ficha mostra os números do Darion; o jogador altera o PV e o 
   await criarDarion(mestre.pagina);
 
   const janela = await abrirFicha(j1.pagina, DARION_ID, "principal");
-  await expect(janela.getByTestId("janela-ficha-resumo")).toContainText(
-    "Patrulheiro 5 / Clérigo 5",
-  );
+  // V4a: a classe e o nível moram no cabeçalho da ficha (campos editáveis)
+  await expect(janela.getByTestId("classe-nome-0")).toHaveValue("Patrulheiro");
+  await expect(janela.getByTestId("classe-nivel-0")).toHaveValue("5");
+  await expect(janela.getByTestId("classe-nome-1")).toHaveValue("Clérigo");
   // os derivados da seção 8, na tela
   await expect(janela.getByTestId("atributo-mod-for")).toHaveText("+7");
   await expect(janela.getByTestId("atributo-mod-des")).toHaveText("+4");
@@ -119,9 +120,10 @@ test("clicar num ataque ou numa perícia (com vantagem) manda o cartão para o c
   await criarDarion(mestre.pagina);
   const janela = await abrirFicha(j1.pagina, DARION_ID, "principal");
 
-  // o ataque da fixture: Cimitarra +7, 1d6+7 (valor fixo)
+  // o ataque da fixture: Cimitarra +7, 1d6+7 (valor fixo). O nome rola acerto e dano juntos (V4a).
   await expect(janela.getByTestId("ataque-rolar-0")).toHaveText("+7");
-  await janela.getByTestId("ataque-rolar-0").click();
+  await expect(janela.getByTestId("ataque-dano-0")).toHaveText("1d6+7");
+  await janela.getByTestId("ataque-nome-0").click();
   for (const outro of [mestre, j2]) {
     await abrirAba(outro.pagina, "chat");
     const cartao = outro.pagina.getByTestId("modelo-ataque").filter({ hasText: "Cimitarra" });
@@ -135,20 +137,31 @@ test("clicar num ataque ou numa perícia (com vantagem) manda o cartão para o c
     ).toHaveText("Darion");
   }
 
-  // vantagem vale para o próximo d20 e depois volta a normal
+  // o botão Acerto rola só o ataque (um teste "Ataque · Nome"), sem dano
+  await janela.getByTestId("ataque-rolar-0").click();
+  await abrirAba(j2.pagina, "chat");
+  await expect(
+    j2.pagina.getByTestId("modelo-teste").filter({ hasText: "Ataque · Cimitarra" }),
+  ).toBeVisible();
+
+  // a faixa Vantagem / Normal / Desvantagem vale para as rolagens da ficha até trocá-la (V4a)
   await janela.getByTestId("vantagem-vantagem").click();
   await expect(janela.getByTestId("vantagem-vantagem")).toHaveAttribute("aria-pressed", "true");
   await janela.getByTestId("pericia-total-percepcao").click();
   await abrirAba(j2.pagina, "chat");
   const teste = j2.pagina.getByTestId("modelo-teste").filter({ hasText: "Percepção" });
   await expect(teste).toBeVisible();
-  await expect(teste).toContainText("Vantagem");
-  await expect(janela.getByTestId("vantagem-normal")).toHaveAttribute("aria-pressed", "true");
+  await expect(teste).toContainText("vantagem");
+  await expect(janela.getByTestId("vantagem-vantagem")).toHaveAttribute("aria-pressed", "true");
+  // com vantagem os dois d20 aparecem, o descartado esmaecido
+  await expect(teste.getByTestId("d20-chip")).toHaveCount(2);
+  await expect(teste.locator('[data-testid="d20-chip"][data-descartado="true"]')).toHaveCount(1);
   // sem vantagem, a mesma perícia não leva a etiqueta
+  await janela.getByTestId("vantagem-normal").click();
   await janela.getByTestId("pericia-total-furtividade").click();
   const furtividade = j2.pagina.getByTestId("modelo-teste").filter({ hasText: "Furtividade" });
   await expect(furtividade).toBeVisible();
-  await expect(furtividade).not.toContainText("Vantagem");
+  await expect(furtividade).not.toContainText("vantagem");
   // o dano solto (Hunter's Mark, sem rolagem de acerto) vai pelo chat também
   await janela.getByTestId("ataque-dano-5").click();
   await expect(
@@ -174,13 +187,14 @@ test("exportar e depois importar devolve a mesma ficha (com confirmação)", asy
     nome: string;
     ficha: unknown;
   };
-  expect(arquivo).toMatchObject({ formato: "tabletop-ficha", versao: 1, nome: "Darion" });
+  expect(arquivo).toMatchObject({ formato: "tabletop-ficha", versao: 2, nome: "Darion" });
   expect(arquivo.ficha).toEqual(FICHA_DARION);
 
   // muda a ficha (PV e um ataque) e importa de volta
   await janela.getByTestId("ficha-aba-principal").click();
   await janela.getByTestId(pvAtual(DARION_ID)).fill("7");
-  await janela.getByTestId("ataque-remover-0").click();
+  await janela.getByTestId("ataque-editar-0").click();
+  await janela.getByTestId("editor-remover").click();
   await expect(janela.getByTestId("ataque-19")).toHaveCount(0);
   await janela.getByTestId("ficha-aba-configurar").click();
   await janela.getByTestId("ficha-importar-arquivo").setInputFiles(caminho);
@@ -288,7 +302,7 @@ test("descanso longo e curto pedem confirmação e restauram PV, espaços e recu
 
   // ffica ferido, gasta um dado de vida e um recurso
   await janela.getByTestId(pvAtual(DARION_ID)).fill("20");
-  await janela.getByTestId("dv-menos-d10").click();
+  await janela.getByTestId("dv-bolinha-d10-5").uncheck();
   await expect(janela.getByTestId("dv-restantes-d10")).toHaveText("4/5");
   await janela.getByTestId("ficha-aba-magias").click();
   await expect(janela.getByTestId("conjuracao-cd-Patrulheiro")).toHaveText("14");
@@ -296,10 +310,12 @@ test("descanso longo e curto pedem confirmação e restauram PV, espaços e recu
   await expect(janela.getByTestId("espacos-resumo-1")).toHaveText("4/4");
   await expect(janela.getByTestId("espacos-resumo-4")).toHaveText("1/1");
   await expect(janela.getByTestId("espacos-9")).toHaveCount(0);
-  await janela.getByTestId("espaco-1-1").check();
-  await janela.getByTestId("espaco-1-2").check();
+  // V4a: bolinha cheia = espaço disponível; clicar gasta
+  await janela.getByTestId("espaco-1-4").uncheck();
+  await janela.getByTestId("espaco-1-3").uncheck();
   await expect(janela.getByTestId("espacos-resumo-1")).toHaveText("2/4");
-  await janela.getByTestId("ficha-aba-equipamento").click();
+  // V4a: os recursos moram embaixo da página Personagem
+  await janela.getByTestId("ficha-aba-principal").click();
   await janela.getByTestId("recurso-menos-2").click(); // Radiação do Amanhecer (curto): 1 -> 0
   await expect(janela.getByTestId("recurso-atual-2")).toHaveValue("0");
   await janela.getByTestId("recurso-menos-1").click(); // Labareda (longo): 2 -> 1
@@ -361,32 +377,32 @@ test("várias janelas ao mesmo tempo, arrastáveis e redimensionáveis", async (
   };
   await p.mouse.move(cab.x + 250, cab.y + 10);
   await p.mouse.down();
-  await p.mouse.move(cab.x + 310, cab.y + 50, { steps: 5 });
+  // V4a: a ficha abre com ~880 px e quase a altura da área, então o arrasto de teste é curto e só na horizontal
+  await p.mouse.move(cab.x + 262, cab.y + 10, { steps: 5 });
   await p.mouse.up();
   const depois = (await darion.boundingBox()) as typeof antes;
-  expect(Math.round(depois.x - antes.x)).toBe(60);
-  expect(Math.round(depois.y - antes.y)).toBe(40);
+  expect(Math.round(depois.x - antes.x)).toBe(12);
+  expect(Math.round(depois.y - antes.y)).toBe(0);
 
-  // redimensionar pela quina (R3: a ficha agora abre no tamanho mínimo em 1280×720, então o teste aumenta
-  // a janela em vez de diminuir)
+  // redimensionar pela quina (V4a: a ficha abre larga e alta, então o teste diminui a janela)
   const alca = (await darion.getByTestId("janela-ficha-redimensionar").boundingBox()) as {
     x: number;
     y: number;
   };
   await p.mouse.move(alca.x + 8, alca.y + 8);
   await p.mouse.down();
-  await p.mouse.move(alca.x + 108, alca.y + 68, { steps: 5 });
+  await p.mouse.move(alca.x - 42, alca.y - 52, { steps: 5 });
   await p.mouse.up();
   const maior = (await darion.boundingBox()) as typeof antes;
-  expect(Math.round(maior.width - depois.width)).toBe(100);
-  expect(Math.round(maior.height - depois.height)).toBe(60);
+  expect(Math.round(depois.width - maior.width)).toBe(50);
+  expect(Math.round(depois.height - maior.height)).toBe(60);
 
   // fechar uma não fecha a outra
   await darion.getByTestId("janela-ficha-fechar").click();
   await expect(p.getByTestId("janela-ficha")).toHaveCount(1);
 });
 
-test("a tocha na mão chega a quem edita o personagem mesmo sem o token na cena (aparece no Equipamento)", async ({
+test("a tocha na mão chega a quem edita o personagem mesmo sem o token na cena (aparece embaixo da página Personagem)", async ({
   mesa,
 }) => {
   test.setTimeout(60_000);
@@ -395,7 +411,7 @@ test("a tocha na mão chega a quem edita o personagem mesmo sem o token na cena 
   const j2 = await entrarNoMapa(mesa, "jogador-2");
   await criarDarion(mestre.pagina); // sem token em cena nenhuma
 
-  const janela = await abrirFicha(j1.pagina, DARION_ID, "equipamento");
+  const janela = await abrirFicha(j1.pagina, DARION_ID, "principal");
   // o Darion tem 9 tochas (como no PDF da ficha)
   await expect(janela.getByTestId("mochila-resumo-modelo-tocha")).toHaveText("9 novas, 0 usadas");
   await janela.getByTestId("mochila-acender-modelo-tocha").click();
@@ -407,7 +423,7 @@ test("a tocha na mão chega a quem edita o personagem mesmo sem o token na cena 
   // quem não edita o Darion não recebe a tocha dele (nenhum frame de luz com o portador)
   expect(texto(j2)).not.toContain('"personagemId":"pers-darion"');
   // e o jogador não repõe tochas pela ficha (só o mestre): subir a quantidade é recusado
-  await abrirFicha(j1.pagina, DARION_ID, "equipamento");
+  await abrirFicha(j1.pagina, DARION_ID, "principal");
   const forjada = intencaoCrua("ficha.alterar", {
     personagemId: DARION_ID,
     operacoes: [{ caminho: "itens.12.quantidade", valor: 99 }],

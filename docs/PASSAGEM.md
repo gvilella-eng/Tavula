@@ -85,7 +85,7 @@ Tudo em `apps/web/src/`.
     tocha.
   - `SubBarraPincel.tsx`, `DadosRapidos.tsx`, `ZoomFlutuante.tsx`: sub-barra do pincel, grade de dados
     rápidos e controle de zoom no canto inferior direito da área do mapa.
-  - `ficha/JanelaDaFicha.tsx` e as demais em `ficha/`: a janela da ficha 5e e a revisão da importação de PDF.
+  - `ficha/JanelaDaFicha.tsx` e as demais em `ficha/`: a janela da ficha 5e e a revisão da importação de PDF. Desde o V4a (refeito) a ficha é o desenho aprovado em `docs/desenho/`: `JanelaDaFicha.tsx` (cabeçalho, fitas, estreita por `ResizeObserver`), `AbaPrincipal.tsx` (Personagem, 3 colunas e acordeão; as peças são exportadas), `AbaMagias.tsx`, `AbaHistoria.tsx`, a Configurar (`EditorDoItem` mais a Aparência), `EditorDeAtaque.tsx` (a engrenagem), `conjurar.ts`, `rolador.ts`, `aparencia.ts` (Livro/Clássica, `localStorage`), `livro.tsx` (título, caixa, bolinha, acordeão), `ListaDeTitulos.tsx` (características), `PainelExtra.tsx` (condições, luz, recursos) e `ficha.css` (tudo sob `.fl-raiz`; a pele vem de `data-pele`). A janela usa `camadaAlta` e `cabecalhoMinimizado` da `Janela`.
   - `Avatar.tsx`, `MensagemDoChat.tsx`, `CartaoDeRolagem.tsx`, `CartaoDaMagia.tsx`: avatar com iniciais e
     cartões do chat.
 
@@ -507,6 +507,16 @@ Redesign R2
 Itens de interface que o "Em aberto" do `REDESIGN` mandava para o R5/R6: a dica das condições abrir por clique
 e as alças de tocha sobrepostas ao ícone de ponto foram resolvidos no R5a. O que sobra, **seleção múltipla no
 mapa**, não existe ainda; aparece em `PERGUNTAS:58` e `PERGUNTAS:69`.
+
+### V4a (ficha no desenho aprovado)
+
+- `ficha.css` repete `.fl-raiz` em todo seletor e só reseta botões com classe `fl-*` (`:where(.fl-raiz) button[class*="fl-"]`), para ganhar do `button` global. Os blocos do fim ("ajustes por contexto") precisam ficar depois dos base: o Biome acusa especificidade descendente e a janela estreita some do lugar.
+- A ficha é estreita pela **largura da janela** (`LARGURA_DA_FICHA_ESTREITA`, 620 em `janelas.ts`), não por container query: o arranjo muda a estrutura (acordeão), então o React precisa saber. O acordeão desmonta o que está fechado.
+- As bolinhas de espaço e de dado de vida são `checkbox` estilizados: **cheia = disponível** (o primeiro V4a marcava o gasto).
+- O editor da engrenagem edita `ficha.ataques[i]` ou `ficha.magias[i]` pelos mesmos campos (`CamposDeRolagem` em `ficha.ts`); a lista de Ataques mostra as magias com `emAtaques`. O dano final sai de `expressaoDeDano` (dados + atributo + bônus + mágico + segundo dano); um dano antigo "1d8+7" sem campos novos sai como estava.
+- Rolagem: `criarRolador` não zera mais a vantagem; o d20 de teste e o de ataque usam `vantagem` da janela. O crítico por margem e o dano extra são feitos em `rolarAtaque` (sala).
+- O nome do personagem na ficha é edição de `personagem.editar` ao sair do campo (a capitular e o resto são dois campos).
+- Não verificado em Firefox e Safari (`color-mix`, `clip-path`).
 
 ## 6. Roteiros manuais pendentes
 

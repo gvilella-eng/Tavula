@@ -40,6 +40,20 @@ export const ComoSchema = z.object({
 });
 export type Como = z.infer<typeof ComoSchema>;
 
+/** Uma característica da ficha mandada ao chat (V4a): título e descrição, com os limites do formato. */
+export const LIMITES_DA_CARACTERISTICA_NO_CHAT = {
+  nome: 80,
+  descricao: 12_000,
+  origem: 80,
+} as const;
+export const CaracteristicaNoChatSchema = z.object({
+  nome: z.string().trim().min(1).max(LIMITES_DA_CARACTERISTICA_NO_CHAT.nome),
+  descricao: z.string().max(LIMITES_DA_CARACTERISTICA_NO_CHAT.descricao),
+  /** De onde vem ("Classe: Patrulheiro"), em itálico embaixo do título. */
+  origem: z.string().max(LIMITES_DA_CARACTERISTICA_NO_CHAT.origem).optional(),
+});
+export type CaracteristicaNoChat = z.infer<typeof CaracteristicaNoChatSchema>;
+
 export const MensagemSchema = z.object({
   id: Id,
   /** O `seq` do evento que a criou: a ordem da conversa. */
@@ -50,7 +64,7 @@ export const MensagemSchema = z.object({
   emReal: z.number().nonnegative(),
   autorId: Id,
   como: ComoSchema.optional(),
-  tipo: z.enum(["texto", "rolagem", "modelo", "magia"]),
+  tipo: z.enum(["texto", "rolagem", "modelo", "magia", "caracteristica"]),
   texto: z.string().max(LIMITES_DO_CHAT.caracteres).optional(),
   /** `/em`: ação em terceira pessoa ("Brisa olha em volta"). */
   acao: z.boolean().optional(),
@@ -60,6 +74,8 @@ export const MensagemSchema = z.object({
   modelo: ResultadoDeModeloSchema.optional(),
   /** Mensagem `magia` (Lote 14): a magia do compêndio, inteira, com os limites do formato. */
   magia: MagiaDoCompendioSchema.optional(),
+  /** Mensagem `caracteristica` (V4a): o título e a descrição de uma característica da ficha. */
+  caracteristica: CaracteristicaNoChatSchema.optional(),
   visivelPara: VisibilidadeDaMensagemSchema,
   /** Rolagem oculta (`/gr`): só o autor e o mestre. */
   oculta: z.boolean().optional(),
