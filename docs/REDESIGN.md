@@ -1024,6 +1024,38 @@ Dois pedidos do Vilella, o lote deixado sem ninguém para perguntar: tudo o que 
 - Magia inata ("1/dia cada") no bloco de NPC (está em `docs/IDEIAS.md`).
 - Espaços de pacto do Bruxo no bloco de NPC.
 
+## V5 — como ficou (2026-11-12)
+
+Um pedido do Vilella: paredes e portas só para o mestre, "Visão do mestre", encaixe em meia célula e arcos. O lote foi feito sem ninguém para perguntar: o que o brief não dizia foi assumido e está marcado.
+
+**O que foi feito**
+- **Quem vê os contornos** (só desenho; visão, luz e bloqueio usam as paredes como antes). O mapa recebe a opção `contornos`: o mestre com a Visão do mestre ligada, ou o jogador numa cena com "Mostrar paredes e portas aos jogadores" (campo novo `Cena.mostrarParedesAosJogadores`, desligado por padrão; cena antiga = desligado). A ferramenta Paredes mostra sempre (para editar).
+  - Jogador sem a opção: nenhuma linha de parede, janela ou porta e nenhum ícone de porta. Com a opção: parede e janela discretas, porta colorida como antes, ícone da porta. A parede `invisivel` nunca é desenhada para o jogador.
+  - Com os contornos escondidos o jogador (e o mestre) continua abrindo a porta pelo clique no lugar dela; passar o mouse destaca a porta (contorno e ícone) e o cursor vira mão (`pointer`). A secreta continua sem chegar ao jogador.
+- **"Visão noturna" virou "Visão do mestre"** (mesmo botão da lua, `menu-visao-noturna`). Ligada (padrão): visão noturna e os contornos. Desligada: mapa claro e sem contornos. Preferência só da tela dele, como antes.
+- **Encaixe em meia célula:** `encaixarMeiaCelula` (`shared/src/paredes.ts`) leva o ponto à rede de meia célula (9 pontos por quadrado: cantos, meios das arestas e centro). Qualquer direção entre os pontos vale (diagonal) e o menor segmento é meia célula. Alt continua soltando do grid. Enquanto desenha, o ponto de fixação sob o cursor é circulado e os pontos de meia célula em volta aparecem como pontinhos (só com o encaixe ligado).
+- **Arco (tecla A):** a sequência é encadeada como sempre (clique, clique...; Esc, duplo clique e agora também o clique direito encerram). A tecla A alterna linha e arco. No modo arco, o próximo trecho é um arco **tangente** ao trecho anterior (reta ou arco), com prévia ao vivo; sem trecho anterior, é o **arco de 3 pontos** (início, fim e o terceiro clique dá a curvatura). Encaixa na meia célula também. O modo volta a "linha" ao encerrar a sequência. O painel mostra "Desenhar como (linha/arco)".
+- **Modelo:** `Parede.meio?` (um ponto do arco entre `a` e `b`; a parede passa por `a`, `meio` e `b`). Sem o campo é reta (toda parede antiga). `segmentosDaParede` transforma o arco em segmentos de ~10° e é o que a visão (`mapaPixi`), a luz e a passagem (`trajetoBloqueado`) leem. `meioDaParede` devolve o meio do arco (onde fica o ícone da porta).
+- **Selecionar, mover pontas, apagar e mudar o tipo** funcionam no arco como na reta; mover uma ponta leva o ponto do arco junto (ele anda com o meio da corda). O painel mostra "(Arco)" no item selecionado.
+- **Intenções:** `parede.criar` aceita `meio` em cada parede; `parede.editar` aceita `meio` (`null` endireita); `cena.editar` aceita `mostrarParedesAosJogadores`. Três pontos alinhados não fazem arco (a parede nasce reta).
+- Tecla A na tabela de atalhos (grupo Ferramentas) e no texto da ferramenta (tour).
+
+**Decisões (assumido)**
+- (assumido) A opção por cena fica no "Configurar cena", desligada por padrão, e só entra no estado quando está ligada.
+- (assumido) Com os contornos escondidos a porta sob o mouse se destaca (contorno e ícone) e o cursor vira `pointer`; vale também para o mestre com a Visão do mestre desligada.
+- (assumido) O arco de 3 pontos usa o terceiro clique como um ponto por onde o arco passa (pode estar do lado que quiser; o arco vai de `a` a `b` passando por ele, até mais de 180°).
+- (assumido) O arco tangente com o fim sobre a tangente vira reta; com o fim "atrás" vira arco maior que meia volta.
+- (assumido) Clicar duas vezes no ponto final de um arco de 3 pontos fecha só uma reta.
+- (assumido) O modo arco é zerado ao encerrar a sequência e ao trocar de ferramenta.
+- (assumido) O jogador numa cena com contornos ligados vê parede e janela em linha fina; a invisível nunca.
+- (assumido) O passo do arco é 10° (erro de corda de cerca de 0,4% do raio); um arco inteiro tem no máximo 36 segmentos.
+- (assumido) "Ver como o jogador X" desenha como o jogador (a opção da cena), não como o mestre.
+
+**O que ficou para depois**
+- Alça no meio do arco para ajustar a curvatura arrastando (hoje: mover uma ponta, ou apagar e redesenhar; `parede.editar` com `meio` já existe para a futura ferramenta).
+- O ícone da porta em arco fica no meio do arco; não gira com a parede.
+- A ferramenta do MCP para paredes (PROJETO 4.12 descreve os campos).
+
 ## Em aberto
 
 - **O plano R1 a R6 terminou** (R1, R2, R2b, R3, R4 em 2026-11-10; R5a, R5b, R6a e R6b em 2026-11-11). Agora o Vilella faz os ajustes

@@ -10,7 +10,8 @@ export const TEXTOS_DO_TOUR: Readonly<Record<string, string>> = {
   "ferramenta-regua": "Mede a distância no mapa. Shift ao soltar deixa a medida na tela.",
   "ferramenta-dados": "Rola dados no chat. Shift ao clicar rola oculto (mestre).",
   "ferramenta-pincel": "Desenha formas e traços para todos; borracha e seleção.",
-  "ferramenta-paredes": "Desenha as paredes que bloqueiam a luz. Clique de novo para sair.",
+  "ferramenta-paredes":
+    "Desenha as paredes que bloqueiam a luz, em meia célula e em qualquer direção. A troca linha e arco. Clique de novo para sair.",
   // Sub-barra do pincel
   "pincel-desfazer": "Apaga o meu desenho mais recente desta cena.",
   "pincel-selecionar": "Seleciona desenhos para mover ou apagar.",
@@ -23,7 +24,7 @@ export const TEXTOS_DO_TOUR: Readonly<Record<string, string>> = {
     "Escolhe em que camada você trabalha (mapa, tokens, mestre ou desenho) e limpa os desenhos.",
   "novo-token": "Pede o nome, a cor e o tamanho; depois você clica no mapa para pôr o token.",
   "menu-visao-noturna":
-    "Liga: você vê a cena iluminada só pelas fontes de luz. Desliga: você vê a cena toda clara. Só na sua tela.",
+    "Liga: você vê a cena iluminada só pelas fontes de luz, com os contornos de paredes e portas. Desliga: cena toda clara, sem os contornos. Só na sua tela.",
   "menu-iluminacao":
     "Liga e desliga a iluminação dinâmica, abre as fontes de luz e os ajustes. Desligada, os jogadores veem tudo.",
   "menu-ordem-turno": "Mostra ou esconde a ordem de turno para todos.",

@@ -1,5 +1,6 @@
 import {
   ESTADOS_DE_PORTA,
+  ehArco,
   type Parede,
   TIPOS_DE_PAREDE,
   type TipoDeParede,
@@ -22,6 +23,8 @@ type Props = {
   /** Tipo das paredes que a ferramenta desenha. */
   tipoNovo: TipoDeParede;
   aoEscolherTipoNovo: (t: TipoDeParede) => void;
+  /** V5: o próximo trecho é um arco (tecla A). */
+  arco: boolean;
   /** A parede selecionada, se houver. */
   selecionada: Parede | null;
   enviar: (tipo: string, dados: object) => string | null;
@@ -49,11 +52,13 @@ export function PainelDasParedes(p: Props) {
       testidDoFechar="paredes-fechar"
     >
       <p className="nota">
-        Clique para desenhar em sequência (duplo clique ou Esc encerra; Alt solta do grid). Clique
-        numa parede para editar; Delete apaga.
+        Clique para desenhar em sequência; Esc ou duplo clique encerra. Alt solta do grid.{" "}
+        <kbd>A</kbd> alterna linha e arco.
       </p>
       <fieldset className="quem-controla">
-        <legend>Desenhar como</legend>
+        <legend>
+          Desenhar como <span data-testid="parede-modo">({p.arco ? "arco" : "linha"})</span>
+        </legend>
         <div className="chips">
           {TIPOS_DE_PAREDE.map((t) => (
             <button
@@ -71,7 +76,7 @@ export function PainelDasParedes(p: Props) {
       </fieldset>
       {s && (
         <fieldset className="quem-controla" data-testid="parede-selecionada">
-          <legend>Parede selecionada</legend>
+          <legend>Parede selecionada{ehArco(s) ? " (Arco)" : ""}</legend>
           <label>
             Tipo
             <select

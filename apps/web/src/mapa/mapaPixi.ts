@@ -17,6 +17,7 @@ import {
   dentroDoAlcance,
   desenhoTocadoEm,
   deslocamentoNaCena,
+  encaixarMeiaCelula,
   encaixarNoGrid,
   esquecerAlemDoAlcance,
   esquecerTudo,
@@ -35,16 +36,20 @@ import {
   marcarVisto,
   medirRegua,
   meioDaParede,
+  meioDoArcoTangente,
   nivelDeLuz,
   opacidadeNoPonto,
   type Parede,
   type PontoDeLuz,
+  pontosDaParede,
   prepararTraco,
   resolverLuzes,
   SEGURAR_PADRAO_S,
+  segmentosDaParede,
   suavizar,
   type TipoDeParede,
   type Token,
+  tangenteNoFim,
   trajetoBloqueado,
   veNoPonto,
   visaoNoPonto,
@@ -144,6 +149,12 @@ export type OpcoesDoMapa = {
   paredeSelecionadaId: string | null;
   /** Tipo das paredes que a ferramenta de paredes desenha. */
   tipoDaNovaParede: TipoDeParede;
+  /**
+   * V5: desenha os contornos de parede, janela e porta (e os ícones das portas) fora da ferramenta de
+   * paredes: o mestre com a "Visão do mestre" ligada, ou o jogador numa cena com a opção. Só desenho: a
+   * visão, a luz e o bloqueio não dependem disso.
+   */
+  contornos: boolean;
   visao: ConfigDeVisao;
   /** O painel das fontes de luz está aberto: o mestre vê, arrasta e seleciona as luzes no mapa. */
   mostrarLuzes: boolean;
@@ -202,7 +213,13 @@ export type RetornosDoMapa = {
   /** Clique num marcador de condição: abre a regra (popover) na posição da página. */
   abrirRegra: (regra: DicaDoMapa) => void;
   /** Uma sequência desenhada vira paredes (numa mensagem só). */
-  criarParedes: (cenaId: string, segmentos: { a: Ponto; b: Ponto }[], tipo: TipoDeParede) => void;
+  criarParedes: (
+    cenaId: string,
+    segmentos: { a: Ponto; b: Ponto; meio?: Ponto }[],
+    tipo: TipoDeParede,
+  ) => void;
+  /** V5: a tecla A trocou linha e arco na ferramenta de paredes (para o painel mostrar). */
+  modoDeArco: (arco: boolean) => void;
   /** Arrastou uma ponta da parede. */
   moverPonta: (id: string, ponta: "a" | "b", ponto: Ponto) => void;
   selecionarParede: (id: string | null) => void;
@@ -397,6 +414,16 @@ export class MapaPixi {
   private chaveDaVisao = "";
   /** Pontos já clicados da sequência de paredes em desenho. */
   private desenhando: Ponto[] | null = null;
+  /** V5: o ponto do arco de cada trecho já fechado da sequência (`undefined`: trecho reto). */
+  private meiosDoDesenho: (Ponto | undefined)[] = [];
+  /** V5: tecla A: o próximo trecho é um arco. */
+  private modoArco = false;
+  /** V5: arco de 3 pontos em andamento: a ponta final já clicada, falta a curvatura. */
+  private fimDoArco3: Ponto | null = null;
+  /** V5: a porta sob o cursor (destaque e mão mesmo com os contornos escondidos). */
+  private portaSob: string | null = null;
+  /** V5: o último ponto da parede foi encaixado (o Alt inverte); decide se os pontos de fixação aparecem. */
+  private encaixaPonteiro = true;
   private cursorDaParede: Ponto | null = null;
   private pontaArrastada: { id: string; ponta: "a" | "b"; pos: Ponto } | null = null;
   private readonly desenhoDaRegua = new Graphics();
@@ -701,8 +728,7 @@ export class MapaPixi {
     this.atualizarPrevia();
     if (trocouFerramenta) {
       this.limparRegua();
-      this.desenhando = null;
-      this.cursorDaParede = null;
+      this.zerarDesenho();
     }
     const chave = this.chaveDe_visao();
     if (chave !== this.chaveDaVisao) {
@@ -1299,7 +1325,7 @@ export class MapaPixi {
     }
     const segmentos = this.paredes
       .filter((p) => p.cenaId === cena.id && bloqueiaVisao(p))
-      .map((p) => ({ a: p.a, b: p.b }));
+      .flatMap((p) => segmentosDaParede(p));
     const olhos = fontes.flatMap((f) => {
       const v = this.visuais.get(f.tokenId);
       return v ? [{ x: v.x, y: v.y, alcanceM: f.alcanceM, visaoNoEscuroM: f.visaoNoEscuroM }] : [];
@@ -1956,7 +1982,61 @@ export class MapaPixi {
   private comPontaArrastada(p: Parede): Parede {
     const a = this.pontaArrastada;
     if (!a || a.id !== p.id) return p;
-    return a.ponta === "a" ? { ...p, a: a.pos } : { ...p, b: a.pos };
+    const nova = a.ponta === "a" ? { ...p, a: a.pos } : { ...p, b: a.pos };
+    if (!p.meio) return nova;
+    // O arco acompanha: o ponto dele anda com o meio da corda (a sala faz o mesmo ao confirmar).
+    return {
+      ...nova,
+      meio: {
+        x: p.meio.x + (nova.a.x + nova.b.x) / 2 - (p.a.x + p.b.x) / 2,
+        y: p.meio.y + (nova.a.y + nova.b.y) / 2 - (p.a.y + p.b.y) / 2,
+      },
+    };
+  }
+
+  /** Marca no `Graphics` o caminho da parede (reta ou arco em segmentos curtos), em pixels do mapa. */
+  private tracarParede(g: Graphics, p: Pick<Parede, "a" | "b" | "meio">): void {
+    const [primeiro, ...resto] = pontosDaParede(p);
+    if (!primeiro) return;
+    g.moveTo(primeiro.x * PX_POR_M, primeiro.y * PX_POR_M);
+    for (const q of resto) g.lineTo(q.x * PX_POR_M, q.y * PX_POR_M);
+  }
+
+  /** Os contornos aparecem (a ferramenta de paredes sempre mostra; fora dela, a opção de quem olha). */
+  private contornosVisiveis(): boolean {
+    return this.ferramentaDeParedes() || this.opcoes.contornos;
+  }
+
+  /** Zera a sequência em desenho (e o modo de arco). */
+  private zerarDesenho(): void {
+    this.desenhando = null;
+    this.meiosDoDesenho = [];
+    this.fimDoArco3 = null;
+    this.cursorDaParede = null;
+    if (this.modoArco) {
+      this.modoArco = false;
+      this.retornos().modoDeArco(false);
+    }
+  }
+
+  /** O trecho que o próximo clique fecharia, para a prévia: reta, arco tangente ou arco de 3 pontos. */
+  private trechoEmPrevia(cursor: Ponto): { a: Ponto; b: Ponto; meio?: Ponto } | null {
+    const pontos = this.desenhando;
+    const ultimo = pontos?.[pontos.length - 1];
+    if (!pontos || !ultimo) return null;
+    if (!this.modoArco) return { a: ultimo, b: cursor };
+    if (pontos.length >= 2) {
+      const i = pontos.length - 2;
+      const t = tangenteNoFim({
+        a: pontos[i] as Ponto,
+        b: ultimo,
+        ...(this.meiosDoDesenho[i] ? { meio: this.meiosDoDesenho[i] as Ponto } : {}),
+      });
+      const meio = meioDoArcoTangente(ultimo, t, cursor);
+      return meio ? { a: ultimo, b: cursor, meio } : { a: ultimo, b: cursor };
+    }
+    if (this.fimDoArco3) return { a: ultimo, b: this.fimDoArco3, meio: cursor };
+    return { a: ultimo, b: cursor };
   }
 
   /** Ícone no meio da porta: sempre do mesmo tamanho na tela. Fechada, aberta ou trancada. */
@@ -2000,29 +2080,32 @@ export class MapaPixi {
     const z = this.vista.zoom;
     const mestre = this.opcoes.modoMestre;
     const ferramenta = this.ferramentaDeParedes();
+    const mostrar = this.contornosVisiveis();
     const g = mestre ? acima : abaixo;
     for (const original of this.paredes) {
       if (original.cenaId !== cena.id) continue;
       const parede = this.comPontaArrastada(original);
       const ehPorta = parede.tipo === "porta" || (mestre && parede.tipo === "secreta");
-      const a = { x: parede.a.x * PX_POR_M, y: parede.a.y * PX_POR_M };
-      const b = { x: parede.b.x * PX_POR_M, y: parede.b.y * PX_POR_M };
-      if (mestre) {
-        const estilo = ESTILO_DA_PAREDE[parede.tipo];
-        if (ferramenta) {
-          g.moveTo(a.x, a.y)
-            .lineTo(b.x, b.y)
-            .stroke({ width: estilo.largura / z, color: estilo.cor });
-        } else {
-          g.moveTo(a.x, a.y)
-            .lineTo(b.x, b.y)
-            .stroke({ width: 2 / z, color: 0xc9d1dc, alpha: 0.4 });
-        }
+      // Contornos escondidos: só a porta sob o cursor se destaca (para o clique ficar descobrível).
+      const destaque = !mostrar && ehPorta && parede.id === this.portaSob;
+      if (!mostrar && !destaque) continue;
+      const estilo = ESTILO_DA_PAREDE[parede.tipo];
+      if (destaque) {
+        this.tracarParede(g, parede);
+        g.stroke({ width: 4 / z, color: estilo.cor, alpha: 0.95 });
+      } else if (mestre) {
+        this.tracarParede(g, parede);
+        if (ferramenta) g.stroke({ width: estilo.largura / z, color: estilo.cor });
+        else g.stroke({ width: 2 / z, color: 0xc9d1dc, alpha: 0.4 });
       } else if (parede.tipo === "porta") {
         const cor = parede.estado === "aberta" ? 0x6fcf97 : 0xe0a030;
-        g.moveTo(a.x, a.y)
-          .lineTo(b.x, b.y)
-          .stroke({ width: (parede.estado === "aberta" ? 2 : 4) / z, color: cor, alpha: 0.85 });
+        this.tracarParede(g, parede);
+        g.stroke({ width: (parede.estado === "aberta" ? 2 : 4) / z, color: cor, alpha: 0.85 });
+      } else if (parede.tipo !== "invisivel") {
+        // O jogador numa cena com os contornos ligados: parede e janela, discretas. A parede invisível
+        // nunca é desenhada para ele.
+        this.tracarParede(g, parede);
+        g.stroke({ width: 2 / z, color: estilo.cor, alpha: 0.7 });
       }
       if (ehPorta) this.desenharIcone(g, parede, z);
     }
@@ -2032,10 +2115,8 @@ export class MapaPixi {
       const parede = this.comPontaArrastada(sel);
       const a = { x: parede.a.x * PX_POR_M, y: parede.a.y * PX_POR_M };
       const b = { x: parede.b.x * PX_POR_M, y: parede.b.y * PX_POR_M };
-      acima
-        .moveTo(a.x, a.y)
-        .lineTo(b.x, b.y)
-        .stroke({ width: 9 / z, color: ACENTO, alpha: 0.35 });
+      this.tracarParede(acima, parede);
+      acima.stroke({ width: 9 / z, color: ACENTO, alpha: 0.35 });
       for (const q of [a, b]) {
         acima
           .circle(q.x, q.y, RAIO_DA_ALCA / z)
@@ -2043,17 +2124,43 @@ export class MapaPixi {
           .stroke({ width: 2 / z, color: ACENTO });
       }
     }
+    // Os pontos de fixação da meia célula em volta do cursor, e o que será fixado.
+    const cursor = this.cursorDaParede;
+    if (cursor) {
+      if (this.encaixaPonteiro) {
+        const passo = this.quadradoM() / 2;
+        for (let i = -2; i <= 2; i++) {
+          for (let j = -2; j <= 2; j++) {
+            acima
+              .circle((cursor.x + i * passo) * PX_POR_M, (cursor.y + j * passo) * PX_POR_M, 1.8 / z)
+              .fill({ color: ACENTO, alpha: 0.6 });
+          }
+        }
+      }
+      acima
+        .circle(cursor.x * PX_POR_M, cursor.y * PX_POR_M, 5 / z)
+        .stroke({ width: 2 / z, color: ACENTO });
+    }
     const pontos = this.desenhando;
     if (pontos && pontos.length > 0) {
       const cor = ESTILO_DA_PAREDE[this.opcoes.tipoDaNovaParede].cor;
-      const todos = this.cursorDaParede ? [...pontos, this.cursorDaParede] : pontos;
-      const [primeiro, ...resto] = todos;
-      if (primeiro) {
-        acima.moveTo(primeiro.x * PX_POR_M, primeiro.y * PX_POR_M);
-        for (const q of resto) acima.lineTo(q.x * PX_POR_M, q.y * PX_POR_M);
-        acima.stroke({ width: 4 / z, color: cor, alpha: 0.85 });
+      for (let i = 1; i < pontos.length; i++) {
+        this.tracarParede(acima, {
+          a: pontos[i - 1] as Ponto,
+          b: pontos[i] as Ponto,
+          ...(this.meiosDoDesenho[i - 1] ? { meio: this.meiosDoDesenho[i - 1] as Ponto } : {}),
+        });
+      }
+      acima.stroke({ width: 4 / z, color: cor, alpha: 0.85 });
+      const previa = cursor ? this.trechoEmPrevia(cursor) : null;
+      if (previa) {
+        this.tracarParede(acima, previa);
+        acima.stroke({ width: 4 / z, color: cor, alpha: 0.6 });
       }
       for (const q of pontos) acima.circle(q.x * PX_POR_M, q.y * PX_POR_M, 4 / z).fill(cor);
+      if (this.fimDoArco3) {
+        acima.circle(this.fimDoArco3.x * PX_POR_M, this.fimDoArco3.y * PX_POR_M, 4 / z).fill(cor);
+      }
     }
   }
 
@@ -2110,7 +2217,12 @@ export class MapaPixi {
       const a = this.paraTela(parede.a.x, parede.a.y);
       const b = this.paraTela(parede.b.x, parede.b.y);
       if (Math.hypot(p.x - a.x, p.y - a.y) < 10 || Math.hypot(p.x - b.x, p.y - b.y) < 10) continue;
-      const d = distanciaAoSegmento(p, a, b);
+      let d = Number.POSITIVE_INFINITY;
+      for (const seg of segmentosDaParede(parede)) {
+        const sa = this.paraTela(seg.a.x, seg.a.y);
+        const sb = this.paraTela(seg.b.x, seg.b.y);
+        d = Math.min(d, distanciaAoSegmento(p, sa, sb));
+      }
       if (d <= melhor) {
         melhor = d;
         achada = parede;
@@ -2119,9 +2231,10 @@ export class MapaPixi {
     return achada;
   }
 
-  /** Ponto do mundo para a parede: encaixa nos cantos do grid (Alt solta). */
+  /** Ponto do mundo para a parede: encaixa na rede de meia célula, 9 pontos por quadrado (Alt solta). */
   private pontoDaParede(m: Ponto, alt: boolean): Ponto {
-    const ponto = this.encaixaAgora(alt) ? encaixarNoGrid(m, 2, this.quadradoM()) : m;
+    this.encaixaPonteiro = this.encaixaAgora(alt);
+    const ponto = this.encaixaPonteiro ? encaixarMeiaCelula(m, this.quadradoM()) : m;
     return this.cena ? limitarNaCena(ponto, this.cena) : ponto;
   }
 
@@ -2129,10 +2242,7 @@ export class MapaPixi {
   private apertarComParedes(p: Ponto, e: PointerEvent): void {
     const ponto = this.pontoDaParede(this.paraMundo(p), e.altKey);
     if (this.desenhando) {
-      const ultimo = this.desenhando[this.desenhando.length - 1];
-      if (!ultimo || Math.hypot(ultimo.x - ponto.x, ultimo.y - ponto.y) > 0.05) {
-        this.desenhando.push(ponto);
-      }
+      this.fecharTrecho(ponto);
       this.cursorDaParede = ponto;
       this.desenharParedes();
       return;
@@ -2156,17 +2266,61 @@ export class MapaPixi {
     }
     this.retornos().selecionarParede(null);
     this.desenhando = [ponto];
+    this.meiosDoDesenho = [];
+    this.fimDoArco3 = null;
     this.cursorDaParede = ponto;
     this.desenharParedes();
+  }
+
+  /**
+   * Um clique com a sequência em andamento. Linha: fecha um trecho reto e começa o próximo no mesmo
+   * ponto. Arco (tecla A): com trecho anterior, fecha um arco tangente a ele; sem trecho anterior, faz
+   * o arco de 3 pontos (início, fim e o terceiro clique dá a curvatura).
+   */
+  private fecharTrecho(ponto: Ponto): void {
+    const pontos = this.desenhando;
+    const ultimo = pontos?.[pontos.length - 1];
+    if (!pontos || !ultimo) return;
+    const longe = (a: Ponto, b: Ponto) => Math.hypot(a.x - b.x, a.y - b.y) > 0.05;
+    if (this.modoArco && pontos.length === 1) {
+      const fim = this.fimDoArco3;
+      if (!fim) {
+        if (longe(ultimo, ponto)) this.fimDoArco3 = ponto;
+        return;
+      }
+      this.fimDoArco3 = null;
+      // Clicar de novo na ponta final (duplo clique) fecha só uma reta.
+      const meio = longe(fim, ponto) && longe(ultimo, ponto) ? ponto : undefined;
+      pontos.push(fim);
+      this.meiosDoDesenho.push(meio);
+      return;
+    }
+    if (!longe(ultimo, ponto)) return;
+    let meio: Ponto | undefined;
+    if (this.modoArco && pontos.length >= 2) {
+      const i = pontos.length - 2;
+      const t = tangenteNoFim({
+        a: pontos[i] as Ponto,
+        b: ultimo,
+        ...(this.meiosDoDesenho[i] ? { meio: this.meiosDoDesenho[i] as Ponto } : {}),
+      });
+      meio = meioDoArcoTangente(ultimo, t, ponto) ?? undefined;
+    }
+    pontos.push(ponto);
+    this.meiosDoDesenho.push(meio);
   }
 
   /** Esc ou duplo clique: a sequência vira paredes (com menos de dois pontos não vira nada). */
   private encerrarDesenho(): void {
     const pontos = this.desenhando;
-    this.desenhando = null;
-    this.cursorDaParede = null;
+    const meios = this.meiosDoDesenho;
+    this.zerarDesenho();
     if (pontos && pontos.length >= 2 && this.cena) {
-      const segmentos = pontos.slice(1).map((b, i) => ({ a: pontos[i] as Ponto, b }));
+      const segmentos = pontos.slice(1).map((b, i) => ({
+        a: pontos[i] as Ponto,
+        b,
+        ...(meios[i] ? { meio: meios[i] as Ponto } : {}),
+      }));
       this.retornos().criarParedes(this.cena.id, segmentos, this.opcoes.tipoDaNovaParede);
     }
     this.desenharParedes();
@@ -2361,6 +2515,11 @@ export class MapaPixi {
       return;
     }
     if (e.button === 2) {
+      // Clique direito com a ferramenta de paredes e a sequência em desenho: encerra a corrente.
+      if (this.ferramentaDeParedes() && this.desenhando) {
+        this.encerrarDesenho();
+        return;
+      }
       // Clique direito na alça da tocha (ou no objeto de um ponto): o menu da tocha.
       const alca = this.opcoes.ferramenta === "selecionar" ? this.alcaEm(p) : null;
       if (alca) {
@@ -2642,6 +2801,10 @@ export class MapaPixi {
       this.retornos().dica(null);
     }
     this.ponteiroNoMapa = null;
+    if (this.portaSob !== null) {
+      this.portaSob = null;
+      this.desenharParedes();
+    }
     this.atualizarPrevia();
   };
 
@@ -2649,9 +2812,16 @@ export class MapaPixi {
     const g = this.gesto;
     const p = this.posicaoNaTela(e);
     if (!g) {
-      if (this.ferramentaDeParedes() && this.desenhando) {
-        this.cursorDaParede = this.pontoDaParede(this.paraMundo(p), e.altKey);
-        this.desenharParedes();
+      if (this.ferramentaDeParedes()) {
+        const antes = this.cursorDaParede;
+        const agora = this.pontoDaParede(this.paraMundo(p), e.altKey);
+        this.cursorDaParede = agora;
+        if (!antes || antes.x !== agora.x || antes.y !== agora.y) this.desenharParedes();
+      }
+      const sob = this.portaEm(p)?.id ?? null;
+      if (sob !== this.portaSob) {
+        this.portaSob = sob;
+        if (!this.contornosVisiveis()) this.desenharParedes();
       }
       this.atualizarCursor(this.tokenEm(p), this.sobreABandeira(p), this.alcaEm(p) !== null);
       const marca = this.marcaEm(p);
@@ -2910,6 +3080,21 @@ export class MapaPixi {
       this.apagarSelecionado();
       return;
     }
+    if (
+      (e.key === "a" || e.key === "A") &&
+      !e.ctrlKey &&
+      !e.metaKey &&
+      !e.altKey &&
+      this.ferramentaDeParedes()
+    ) {
+      // V5: A alterna linha e arco (como no SolidWorks).
+      e.preventDefault();
+      this.modoArco = !this.modoArco;
+      this.fimDoArco3 = null;
+      this.retornos().modoDeArco(this.modoArco);
+      this.desenharParedes();
+      return;
+    }
     if (e.key === "Escape") {
       this.limparRegua();
       this.cancelarGestoEmAndamento();
@@ -2979,6 +3164,7 @@ export class MapaPixi {
     else if (sobreAlca && this.opcoes.ferramenta === "selecionar") cursor = "grab";
     else if (this.espaco || this.opcoes.ferramenta === "mao") cursor = "grab";
     else if (sobreBandeira && this.opcoes.ferramenta === "selecionar") cursor = "grab";
+    else if (this.portaSob !== null && this.opcoes.ferramenta === "selecionar") cursor = "pointer";
     else if (this.opcoes.ferramenta === "pincel") {
       cursor =
         this.opcoes.podeDesenhar && this.opcoes.pincel.modo !== "selecionar"
@@ -3336,7 +3522,22 @@ export class MapaPixi {
           )
           .map((q) => ({ id: q.id, tipo: q.tipo, estado: q.estado, meio: meioDaParede(q) })),
       /** Quantas paredes a tela tem (o que a sala mandou para quem olha). */
-      paredes: () => this.paredes.map((q) => ({ id: q.id, tipo: q.tipo, estado: q.estado })),
+      paredes: () =>
+        this.paredes.map((q) => ({
+          id: q.id,
+          tipo: q.tipo,
+          estado: q.estado,
+          a: q.a,
+          b: q.b,
+          meio: q.meio,
+        })),
+      /** V5: os contornos estão desenhados (ferramenta de paredes, Visão do mestre ou opção da cena)? */
+      contornos: () => this.contornosVisiveis(),
+      /** V5: a porta sob o cursor (destaque), o modo de arco, o cursor do mouse e o ponto de fixação. */
+      portaDestacada: () => this.portaSob,
+      modoArco: () => this.modoArco,
+      cursor: () => this.app.canvas.style.cursor,
+      pontoDeFixacao: () => this.cursorDaParede,
       /** A visão: modo, fontes e quantos polígonos; e se um ponto (metros) está dentro da união. */
       visao: () => ({
         modo: this.opcoes.visao.modo,

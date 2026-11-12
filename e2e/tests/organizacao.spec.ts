@@ -21,7 +21,7 @@ const BOTOES: { testid: string; nome: string; grupo: (typeof GRUPOS)[number] }[]
   { testid: "menu-cenas", nome: "Cenas", grupo: "cena" },
   { testid: "menu-camadas", nome: "Camadas", grupo: "cena" },
   { testid: "novo-token", nome: "Novo token", grupo: "mapa" },
-  { testid: "menu-visao-noturna", nome: "Visão noturna", grupo: "luz" },
+  { testid: "menu-visao-noturna", nome: "Visão do mestre", grupo: "luz" },
   { testid: "menu-iluminacao", nome: "Iluminação", grupo: "luz" },
   { testid: "menu-ordem-turno", nome: "Ordem de turno", grupo: "combate" },
   { testid: "menu-ver-como", nome: "Ver como", grupo: "ver-como" },

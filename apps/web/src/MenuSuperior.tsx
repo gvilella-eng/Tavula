@@ -29,8 +29,8 @@ type Props = {
   aoAlternarFaixa: () => void;
   camadaTrabalho: CamadaDeTrabalho;
   aoEscolherCamada: (c: CamadaDeTrabalho) => void;
-  visaoNoturna: boolean;
-  aoAlternarVisaoNoturna: () => void;
+  visaoDoMestre: boolean;
+  aoAlternarVisaoDoMestre: () => void;
   aoNovoToken: () => void;
   /** Apaga todos os desenhos da cena que o mestre está vendo (a tela pede a confirmação). */
   aoLimparDesenhos: () => void;
@@ -181,7 +181,7 @@ type PainelAberto = "camadas" | "iluminacao" | "verComo" | null;
 
 /**
  * Menu do mestre, no topo da mesa depois do nome da cena (a pausa e o relógio estão em `EstadoDaMesa`).
- * Grupos com nome: Cena (cenas, camadas), Mapa (novo token), Luz (visão noturna, iluminação), Combate
+ * Grupos com nome: Cena (cenas, camadas), Mapa (novo token), Luz (visão do mestre, iluminação), Combate
  * (ordem de turno) e Ver como. Paredes e portas é ferramenta da barra da esquerda.
  */
 export function MenuSuperior(p: Props) {
@@ -227,9 +227,9 @@ export function MenuSuperior(p: Props) {
           <Botao
             testid="menu-visao-noturna"
             grupo="Luz"
-            nome="Visão noturna"
-            ativo={p.visaoNoturna}
-            aoClicar={p.aoAlternarVisaoNoturna}
+            nome="Visão do mestre"
+            ativo={p.visaoDoMestre}
+            aoClicar={p.aoAlternarVisaoDoMestre}
           >
             <Moon size={20} />
           </Botao>

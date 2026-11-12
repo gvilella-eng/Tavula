@@ -587,6 +587,8 @@ export const IntencaoSchema = z.discriminatedUnion("tipo", [
         .object({ x: z.number().min(0), y: z.number().min(0) })
         .nullable()
         .optional(),
+      /** V5: os jogadores veem as linhas de parede e porta da cena (sem o campo: não veem). */
+      mostrarParedesAosJogadores: z.boolean().optional(),
     }),
   ),
   intencao("cena.duplicar", z.object({ cenaId: IdSchema, novoId: IdSchema })),
@@ -613,6 +615,8 @@ export const IntencaoSchema = z.discriminatedUnion("tipo", [
       id: IdSchema,
       a: PontoSchema.optional(),
       b: PontoSchema.optional(),
+      /** V5: ponto do arco (a parede curva); `null` endireita. Sem o campo, o arco acompanha as pontas. */
+      meio: PontoSchema.nullable().optional(),
       tipo: TipoDeParedeSchema.optional(),
       estado: EstadoDePortaSchema.optional(),
     }),

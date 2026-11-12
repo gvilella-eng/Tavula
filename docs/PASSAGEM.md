@@ -64,7 +64,7 @@ Tudo em `apps/web/src/`.
   - `area.ts`: onde fica a área do mapa na página (`caixaDaArea`), para prender menus, dicas e janelas a ela. `larguraDoPainel.ts` e `preferencias.ts`: a largura do painel direito (300 px a 1/4 da janela, `tabletop:pref:larguraDoPainel`).
   - `mapa/Mapa.tsx`, `mapa/mapaPixi.ts`, `mapa/camadaDeLuz.ts`, `mapa/camadaDeDesenho.ts`: o mapa em PixiJS.
     **Não muda com o tema** (`REDESIGN:138-139`).
-  - `MenuSuperior.tsx`: os menus do mestre em grupos (Cena, Mapa, Luz, Combate, Ver como; **desde o V3 sem rótulo desenhado**: o grupo vai na dica, "Luz · Visão noturna"), todos os botões com o mesmo tamanho e espaço, cada um com dica de uma linha no mouse (700 ms) e no foco, dentro do topo (a pausa e o relógio estão em `EstadoDaMesa.tsx`).
+  - `MenuSuperior.tsx`: os menus do mestre em grupos (Cena, Mapa, Luz, Combate, Ver como; **desde o V3 sem rótulo desenhado**: o grupo vai na dica, "Luz · Visão do mestre", antiga Visão noturna), todos os botões com o mesmo tamanho e espaço, cada um com dica de uma linha no mouse (700 ms) e no foco, dentro do topo (a pausa e o relógio estão em `EstadoDaMesa.tsx`).
   - `BarraDeFerramentas.tsx`: barra fixa de 52 px à esquerda (selecionar, mão, régua, dados rápidos, pincel e, só do mestre, Paredes e portas, que liga o modo; o selo do modo está em `Mesa.tsx`); a sub-barra do pincel abre ao lado dela.
   - `BarraLateral.tsx`: painel direito de cima a baixo, recolhível, com abas de ícone e nome (todas da mesma largura; nome cortado com reticências e dica com o nome inteiro só quando cortado, V3 e V3b) e a alça de largura.
   - `abas.tsx`: `AbaPreferencias` (usuário, tema, encaixe, pasta local de imagens, status dos arquivos). A `AbaNotas` saiu no V3.
@@ -517,6 +517,13 @@ mapa**, não existe ainda; aparece em `PERGUNTAS:58` e `PERGUNTAS:69`.
 - Rolagem: `criarRolador` não zera mais a vantagem; o d20 de teste e o de ataque usam `vantagem` da janela. O crítico por margem e o dano extra são feitos em `rolarAtaque` (sala).
 - O nome do personagem na ficha é edição de `personagem.editar` ao sair do campo (V4b2: peça única `ficha/NomeComCapitular.tsx`; a capitular é só desenho e o campo mostra o nome inteiro enquanto se edita).
 - Não verificado em Firefox e Safari (`color-mix`, `clip-path`).
+
+V5 (paredes e portas, 2026-11-12)
+- Os contornos são só desenho: `opcoes.contornos` (Mesa) decide e `desenharParedes` (`mapaPixi.ts`) desenha; a visão, a luz e a passagem leem as paredes por `segmentosDaParede` (`shared/src/paredes.ts`) e **não** dependem dos contornos. Parede nova que bloqueia algo precisa passar por essa função (arco vira segmentos de ~10°). (`REDESIGN`, "V5")
+- Porta escondida: o clique e o destaque no hover usam `portaEm` (o ícone invisível continua clicável); `portaSob` é só estado de tela. O mesmo `portaEm` roda a cada `pointermove`. (`REDESIGN`, "V5")
+- Desenho encadeado: `desenhando` (pontos), `meiosDoDesenho` (o ponto do arco de cada trecho), `modoArco` (tecla A) e `fimDoArco3` (arco de 3 pontos em andamento). `encerrarDesenho` manda tudo numa `parede.criar` só. `parede.editar` leva o `meio` junto quando uma ponta muda (`nucleo.ts`). (`REDESIGN`, "V5")
+- Encaixe: `encaixarMeiaCelula` (não `encaixarNoGrid`) vale para parede, janela, porta, secreta e invisível; Alt inverte. A tecla A só age com a ferramenta Paredes e fora de campos de texto. (`REDESIGN`, "V5")
+- Painel das paredes: o texto é curto de propósito (um painel mais alto cobre o ponto onde os E2E desenham). Guarde a altura. (`REDESIGN`, "V5")
 
 ## 6. Roteiros manuais pendentes
 

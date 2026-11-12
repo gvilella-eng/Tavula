@@ -259,6 +259,7 @@ interface Desenho {                // lote 13: Estado.desenhos; chega a quem rec
 interface Parede {
   id: string; cenaId: string;
   a: { x: number; y: number }; b: { x: number; y: number };
+  meio?: { x: number; y: number };   // V5 (2026-11-12): ponto do arco entre a e b; sem ele a parede é reta
   tipo: 'parede' | 'porta' | 'janela' | 'secreta' | 'invisivel';
   estado?: 'aberta' | 'fechada' | 'trancada';   // só para portas
 }
@@ -361,7 +362,7 @@ quando ele muda de cena.
   chega inteiro. Pedido sobre token invisível responde igual a token inexistente (`token_inexistente`).
 - O documento `docs/protocolo.md` lista todas as mensagens e é atualizado em todo lote que mexer nelas.
 
-Exemplos de intenções do cliente: `entrar`, `token.mover`, `token.soltar`, `parede.criar`,
+Exemplos de intenções do cliente (V5: `parede.criar` e `parede.editar` aceitam `meio`, o ponto do arco; `cena.editar` aceita `mostrarParedesAosJogadores`): `entrar`, `token.mover`, `token.soltar`, `parede.criar`,
 `porta.alternar`, `ficha.alterar` (patch), `dado.rolar`, `chat.enviar`, `asset.registrar`, `asset.pedir`
 (com os pedaços que faltam), `asset.inventario`, `asset.tenho`, `asset.naoTenho`, `cena.definirMapa`,
 `token.definirImagem`, `cena.ativar`, `grupo.moverPara`, `objeto.acender`, `objeto.apagar`, `objeto.mover`
@@ -504,6 +505,19 @@ quem escolhe o usuário mestre na tela de entrada é mestre.
 - **Paredes** são segmentos com tipo: `parede`; `porta` (aberta/fechada/trancada); `janela` (bloqueia
   passagem, não visão); `secreta` (para jogadores é parede comum, para o mestre é porta); `invisivel`
   (bloqueia passagem, não visão).
+- **Quem vê os contornos** (V5, 2026-11-12; só desenho, a visão, a luz e o bloqueio usam as paredes como sempre):
+  o **jogador** não vê as linhas de parede, janela e porta nem os ícones das portas, salvo se a cena
+  tiver "Mostrar paredes e portas aos jogadores" (campo `Cena.mostrarParedesAosJogadores`, desligado por
+  padrão). Ele continua abrindo e fechando a porta pelo clique no lugar dela, e a porta sob o mouse se
+  destaca. A secreta nunca chega a ele. O **mestre** vê os contornos com a Visão do mestre ligada (4.7,
+  "Visão do mestre") e sempre com a ferramenta Paredes ativa.
+- **Encaixe em meia célula** (V5): os pontos de fixação são a rede de meia célula (cantos, meios das
+  arestas e centro: 9 por quadrado), em qualquer direção (diagonal), e o menor segmento é meia célula; Alt
+  solta do grid. Vale para todos os tipos.
+- **Arcos** (V5): `Parede.meio?` guarda um ponto do arco entre `a` e `b`. A função pura `segmentosDaParede`
+  (`packages/shared/src/paredes.ts`) transforma o arco em segmentos de ~10° e é o que a visão, a luz e a
+  passagem leem. Ao desenhar, a tecla A alterna linha e arco tangente (sem trecho anterior, arco de 3
+  pontos), como no SolidWorks. Arco de porta abre e fecha como a reta.
 - **Polígono de visibilidade** por fonte (luz ou olho do token): raios até as pontas dos segmentos e
   varredura angular (algoritmo "2D visibility" da Red Blob Games). Recalcula só quando algo se move.
 - **Render:** camada de escuridão sobre o mapa; cada luz desenha o próprio polígono com raio de luz
@@ -541,6 +555,9 @@ quem escolhe o usuário mestre na tela de entrada é mestre.
 - **Visão do mestre:** o mestre é o único que vê o mapa inteiro sem precisar de luz. É uma escolha
   **só da tela dele** (não vai para a sala nem afeta os jogadores). Modos (definidos pelo Vilella em
   2026-11-06):
+  - **Visão do mestre** (V5, 2026-11-12; antes "visão noturna"; o mesmo ícone da lua no menu
+    superior). Ligada junta a visão noturna abaixo e os contornos das paredes e portas; desligada é o
+    mapa claro sem contornos;
   - **visão noturna ligada** (padrão; ícone no menu superior): o que os jogadores estão iluminando
     aparece claro e normal, e o resto do mapa aparece num tom mais apagado, para distinguir o que está
     de fato iluminado. A união sai barata: a máscara de cada jogador é desenhada na mesma
@@ -705,6 +722,11 @@ criar cenas, notas do mestre, modelos de objeto, pontos, zonas, ciclos, reaçõe
   navegador do mestre busca na pasta dele.
 - Bom para regras, objetos, NPCs, notas e automações (pode ler a bíblia de uma campanha e popular a
   mesa). Ruim para desenhar paredes em cima de imagem: para isso, o editor de paredes.
+- **Paredes pelo MCP** (V5, só anotado): a futura ferramenta usa os mesmos campos da intenção
+  `parede.criar`: `a`, `b`, `tipo`, `estado?` e, para arco, `meio` (um ponto por onde o arco passa, entre `a` e
+  `b`). Os pontos vão na rede de meia célula (múltiplos de `quadradoM / 2`), e a função `encaixarMeiaCelula`
+  da `shared` faz a conta. A IA pode pedir "arco de a até b passando por c" e a ferramenta devolve a
+  parede já com `meio`; arcos tangentes saem de `meioDoArcoTangente`. Nada disso exige campo novo.
 - **Fácil de usar para a IA, com pouco desgaste** (pedido do Vilella, 2026-11-11): poucas ferramentas,
   com nomes e descrições claros. Elas aceitam e devolvem dados compactos: nomes em vez de ids sempre que
   possível, resumo por padrão e detalhe só quando a IA pedir. Ações em lote ("criar estes 6 NPCs") são
@@ -749,7 +771,7 @@ Base do Lote 4b. **Em definição:** o que cada ícone do menu superior abre o V
   Só o mestre vê. Ícones:
   - cenas;
   - camadas (4: **mapa**, tokens, mestre, desenho);
-  - visão noturna: liga/desliga o modo do mestre descrito na 4.7 (só a tela dele);
+  - Visão do mestre (antes visão noturna): liga/desliga o modo do mestre descrito na 4.7 (só a tela dele);
   - novo token;
   - eventos (as automações da seção 4.11);
   - iluminação (lanterna): abre uma lista logo abaixo com:

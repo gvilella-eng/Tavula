@@ -18,6 +18,7 @@ export function ConfigurarCena({ cena, enviar, pedirImagem, aoFechar }: Props) {
   const [px, setPx] = useState(String(cena.mapa?.pxPorQuadrado ?? PX_POR_QUADRADO_PADRAO));
   const [gridVisivel, setGridVisivel] = useState(cena.grid.visivel);
   const [quadradoM, setQuadradoM] = useState(String(cena.grid.quadradoM));
+  const [mostrarParedes, setMostrarParedes] = useState(cena.mostrarParedesAosJogadores === true);
   // `undefined`: não mexe; `null`: tira o mapa; texto: o mapa novo (já processado e registrado).
   const [novoMapa, setNovoMapa] = useState<string | null | undefined>(undefined);
   const [erro, setErro] = useState<string | null>(null);
@@ -50,7 +51,14 @@ export function ConfigurarCena({ cena, enviar, pedirImagem, aoFechar }: Props) {
       setErro("A cena precisa de um nome.");
       return;
     }
-    if (limpo !== cena.nome) enviar("cena.editar", { cenaId: cena.id, nome: limpo });
+    const mudouParedes = mostrarParedes !== (cena.mostrarParedesAosJogadores === true);
+    if (limpo !== cena.nome || mudouParedes) {
+      enviar("cena.editar", {
+        cenaId: cena.id,
+        ...(limpo !== cena.nome ? { nome: limpo } : {}),
+        ...(mudouParedes ? { mostrarParedesAosJogadores: mostrarParedes } : {}),
+      });
+    }
     if (gridVisivel !== cena.grid.visivel || quadradoNumero !== cena.grid.quadradoM) {
       enviar("cena.configurarGrid", {
         cenaId: cena.id,
@@ -170,6 +178,15 @@ export function ConfigurarCena({ cena, enviar, pedirImagem, aoFechar }: Props) {
             />
           </label>
         </fieldset>
+        <label className="linha-opcao">
+          <input
+            type="checkbox"
+            data-testid="cfg-mostrar-paredes"
+            checked={mostrarParedes}
+            onChange={(e) => setMostrarParedes(e.target.checked)}
+          />
+          Mostrar paredes e portas aos jogadores
+        </label>
         {erro && (
           <p className="nota erro" role="alert" data-testid="cfg-erro">
             {erro}

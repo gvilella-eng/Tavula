@@ -33,6 +33,11 @@ export const ATALHOS = {
     grupo: "Ferramentas",
     teclas: [["R"]],
   },
+  arco: {
+    descricao: "Ferramenta Paredes: alternar entre linha e arco (tangente ao trecho anterior)",
+    grupo: "Ferramentas",
+    teclas: [["A"]],
+  },
   arrastarVista: {
     descricao: "Segurar e arrastar o mapa, com qualquer ferramenta",
     grupo: "Mapa",

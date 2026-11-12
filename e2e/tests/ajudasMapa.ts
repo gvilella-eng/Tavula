@@ -36,7 +36,21 @@ export type GanchoDoMapa = {
   quadradoM(): number;
   bandeira(): { x: number; y: number } | null;
   portas(): { id: string; tipo: string; estado?: string; meio: { x: number; y: number } }[];
-  paredes(): { id: string; tipo: string; estado?: string }[];
+  paredes(): {
+    id: string;
+    tipo: string;
+    estado?: string;
+    a: { x: number; y: number };
+    b: { x: number; y: number };
+    meio?: { x: number; y: number };
+  }[];
+  /** V5: os contornos de parede e porta estão desenhados (ferramenta, Visão do mestre ou opção da cena)? */
+  contornos(): boolean;
+  /** V5: a porta sob o cursor, o modo de arco, o cursor do mouse e o ponto de fixação (metros). */
+  portaDestacada(): string | null;
+  modoArco(): boolean;
+  cursor(): string;
+  pontoDeFixacao(): { x: number; y: number } | null;
   visao(): { modo: "jogador" | "noturna" | "claro"; poligonos: number };
   veNoPonto(x: number, y: number): boolean;
   veuVisivel(): boolean;

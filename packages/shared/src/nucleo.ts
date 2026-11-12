@@ -52,6 +52,7 @@ import type {
   Parede,
   Pasta,
   Personagem,
+  Ponto,
   PontoDeLuz,
   PortadorFixo,
   Token,
@@ -92,6 +93,7 @@ import {
   ALCANCE_INTERACAO_PADRAO_M,
   alternarPortaDoJogador,
   alternarPortaDoMestre,
+  arcoPorTresPontos,
   iluminacaoDinamicaLigada,
   paredeParaJogador,
   trajetoBloqueado,
@@ -1486,15 +1488,18 @@ export function processar(
     }
 
     case "cena.editar": {
-      const { cenaId, nome, chegada } = intencao.dados;
+      const { cenaId, nome, chegada, mostrarParedesAosJogadores } = intencao.dados;
       const atual = estado.cenas.find((c) => c.id === cenaId);
       if (!atual) return recusa("cena_inexistente", SEM_CENA);
-      const { chegada: _antiga, ...semChegada } = atual;
+      const { chegada: _antiga, mostrarParedesAosJogadores: _mostrar, ...semChegada } = atual;
       const nova = chegada === undefined ? atual.chegada : (chegada ?? undefined);
+      // Sem o campo (ou desligado) os jogadores não veem os contornos: só gravamos quando liga.
+      const mostrar = mostrarParedesAosJogadores ?? atual.mostrarParedesAosJogadores ?? false;
       const cena: Cena = {
         ...semChegada,
         nome: nome ?? atual.nome,
         ...(nova ? { chegada: limitarNaCena(nova, atual) } : {}),
+        ...(mostrar ? { mostrarParedesAosJogadores: true } : {}),
       };
       if (JSON.stringify(cena) === JSON.stringify(atual)) return aplicado();
       emitir({ tipo: "cena.editada", dados: { cena } });
@@ -1653,11 +1658,14 @@ export function processar(
         const a = limitarNaCena(n.a, cena);
         const b = limitarNaCena(n.b, cena);
         if (a.x === b.x && a.y === b.y) return recusa("dados_invalidos", "Parede sem comprimento.");
+        const meio = n.meio ? limitarNaCena(n.meio, cena) : undefined;
         novas.push({
           id: n.id,
           cenaId: cena.id,
           a,
           b,
+          // Os três pontos alinhados não fazem arco: a parede fica reta.
+          ...(meio && arcoPorTresPontos(a, meio, b) ? { meio } : {}),
           tipo: n.tipo,
           ...estadoDaParede(n.tipo, n.estado),
         });
@@ -1667,16 +1675,33 @@ export function processar(
     }
 
     case "parede.editar": {
-      const { id, a, b, tipo, estado: novoEstado } = intencao.dados;
+      const { id, a, b, meio: novoMeio, tipo, estado: novoEstado } = intencao.dados;
       const atual = estado.paredes.find((p) => p.id === id);
       if (!atual) return recusa("parede_inexistente", "Parede não encontrada.");
       const cena = estado.cenas.find((c) => c.id === atual.cenaId) ?? cenaAtiva(estado);
       const novoTipo = tipo ?? atual.tipo;
+      const pa = a ? limitarNaCena(a, cena) : atual.a;
+      const pb = b ? limitarNaCena(b, cena) : atual.b;
+      // `meio`: `null` endireita; ponto novo troca; sem o campo, o arco acompanha a mudança das pontas
+      // (o ponto do arco anda com o meio da corda).
+      let meio: Ponto | undefined;
+      if (novoMeio === null) meio = undefined;
+      else if (novoMeio) meio = limitarNaCena(novoMeio, cena);
+      else if (atual.meio) {
+        meio = limitarNaCena(
+          {
+            x: atual.meio.x + (pa.x + pb.x) / 2 - (atual.a.x + atual.b.x) / 2,
+            y: atual.meio.y + (pa.y + pb.y) / 2 - (atual.a.y + atual.b.y) / 2,
+          },
+          cena,
+        );
+      }
       const parede: Parede = {
         id: atual.id,
         cenaId: atual.cenaId,
-        a: a ? limitarNaCena(a, cena) : atual.a,
-        b: b ? limitarNaCena(b, cena) : atual.b,
+        a: pa,
+        b: pb,
+        ...(meio && arcoPorTresPontos(pa, meio, pb) ? { meio } : {}),
         tipo: novoTipo,
         ...estadoDaParede(novoTipo, novoEstado ?? atual.estado),
       };

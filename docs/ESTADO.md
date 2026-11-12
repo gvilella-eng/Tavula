@@ -2602,4 +2602,55 @@ Detalhes em `docs/REDESIGN.md` ("V4b2 — como ficou"). O Vilella deixou o lote 
 
 ---
 
-## Próximo: ajustes V5; depois 7b e 12
+## Ajustes V5 — Paredes e portas: quem vê, Visão do mestre, meia célula e arcos (entregue, aguardando o roteiro manual)
+
+Detalhes em `docs/REDESIGN.md` ("V5 — como ficou"). O Vilella deixou o lote sem ninguém para perguntar: o que o brief não dizia foi assumido (marcado).
+
+### O que foi entregue
+
+- **Contornos só para o mestre por padrão**: o jogador não vê linhas de parede, janela e porta nem os ícones das portas; opção por cena "Mostrar paredes e portas aos jogadores" no Configurar cena (campo novo `Cena.mostrarParedesAosJogadores`). A porta continua abrindo pelo clique e se destaca ao passar o mouse.
+- **"Visão do mestre"** (antes "Visão noturna"): ligada = visão noturna e contornos; desligada = mapa claro, sem contornos. Com a ferramenta Paredes os contornos aparecem sempre.
+- **Encaixe em meia célula** (9 pontos por quadrado, diagonal, menor passo meia célula; Alt solta) e o ponto de fixação à vista.
+- **Arcos**: tecla A alterna linha e arco tangente; sem trecho anterior faz o arco de 3 pontos. `Parede.meio?`, `segmentosDaParede` na visão, na luz e na passagem. Clique direito também encerra a sequência.
+
+### Como rodar
+
+- `pnpm verify` (uma vez). Prints: `$env:PRINTS_DIR="<pasta>"; pnpm --filter @tabletop/e2e prints v5`.
+
+### Verificação
+
+- Unidade (`packages/shared/src/paredesV5.test.ts`, 25 testes): rede de meia célula (os 9 pontos, diagonal, menor passo), arco para segmentos (3 pontos, pequeno, grande, tangente, fim sobre a tangente), visão, luz e passagem bloqueadas pelo arco (e porta em arco aberta/fechada), migração da parede (sem `meio`) e da cena (sem o campo), criar, editar e endireitar o arco, o jogador sem a secreta nos frames (também em arco), exportar e importar (com e sem os campos novos).
+- E2E novos (`e2e/tests/paredes-v5.spec.ts`, 7 testes): o jogador sem contornos por padrão e com a opção da cena (e sem a secreta nos frames); o jogador abre a porta escondida pelo clique e vê o destaque e a mão no hover; a Visão do mestre liga e desliga os contornos (e a ferramenta Paredes mostra); meia célula e diagonal, menor passo e Alt; linha, A, arco tangente, A, linha; arco de 3 pontos, selecionar, mudar o tipo e apagar com Delete; o token não atravessa o arco.
+- E2E antigos alterados: `organizacao.spec.ts` e `topo-e-abas.spec.ts` (nome "Visão do mestre" e a dica "Luz · Visão do mestre") e o título de um teste de `paredes.spec.ts`. Nenhuma asserção foi afrouxada.
+- Ver o fim desta seção para os números do `pnpm verify`.
+
+### Decisões
+
+- (assumido) Ver `REDESIGN`, "V5 — como ficou", Decisões.
+
+### Estado, protocolo e migração
+
+- Campos opcionais novos: `Parede.meio` e `Cena.mostrarParedesAosJogadores`. Parede e cena antigas carregam sem mudança (sem `meio` = reta; sem o campo = desligado). **Não há migração de banco nem de arquivo**: as paredes e as cenas são gravadas como JSON, o arquivo de exportação continua v13 e abre com e sem os campos (teste de unidade).
+- `parede.criar` e `parede.editar` ganharam `meio`; `cena.editar` ganhou `mostrarParedesAosJogadores` (todas com a capacidade `cena.editar` de antes). `docs/protocolo.md` e `PROJETO.md` (4.1, 4.2, 4.7, 4.12) atualizados.
+
+### Desvios do plano
+
+- Nenhum desvio. A seção de atalhos ganhou a tecla A; a dica da ferramenta fica no texto do tour e no painel (o botão da barra não mostra o "A", porque a tecla só vale dentro da ferramenta).
+
+### Frágil / não verificado
+
+- O ponteiro sobre o ícone da porta destaca a porta em todo movimento do mouse (`portaEm` roda a cada `pointermove`); com milhares de portas pode pesar (não medido).
+- O ponto do arco acompanha o meio da corda ao mover uma ponta: arcos com pontas movidas para longe podem ficar achatados; endireitar (`meio: null`) ou refazer resolve.
+- O clique direito na ferramenta Paredes só encerra com uma sequência em andamento; sem ela, o clique direito na porta ainda tranca (como antes).
+- A ferramenta de paredes usa a tecla A mesmo com o foco num botão (só não age em campos de texto).
+
+### Roteiro manual (pendente)
+
+1. Entre como jogador e como mestre. Ao jogador, as paredes e portas não aparecem; passe o mouse na porta ao lado do seu token (ela se destaca, o cursor vira mão) e clique: abre.
+2. No mestre, Configurar cena: ligue "Mostrar paredes e portas aos jogadores"; o jogador passa a ver as linhas. Desligue a Visão do mestre (lua): os contornos somem na sua tela.
+3. Paredes e portas: desenhe uma linha, aperte A, desenhe um arco (sai tangente), aperte A, uma linha; Esc. Depois A no começo: início, fim e o ponto da curva. Veja os pontos de meia célula e use Alt para soltar.
+4. Selecione um arco, mude para Porta e apague com Delete. Mande o token de um jogador por cima: ele não atravessa.
+
+---
+
+## Próximo: bugs conhecidos; depois tela inicial e contas, tour; depois 7b e 12

@@ -181,8 +181,11 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
     definir: ajustarPainel,
   } = useLarguraDoPainel();
   const [faixaAberta, setFaixaAberta] = useState(false);
-  // Visão noturna do mestre: ligada por padrão; só da tela dele (nunca vai para a sala).
-  const [visaoNoturna, setVisaoNoturna] = useState(true);
+  // Visão do mestre (V5, antes "Visão noturna"): ligada por padrão; só da tela dele (nunca vai para a sala).
+  // Ligada: a visão noturna e os contornos das paredes e portas. Desligada: o mapa claro, sem contornos.
+  const [visaoDoMestre, setVisaoDoMestre] = useState(true);
+  // V5: a tecla A da ferramenta de paredes (linha ou arco), só para o painel mostrar.
+  const [arcoLigado, setArcoLigado] = useState(false);
   const [paredeSelecionadaId, setParedeSelecionadaId] = useState<string | null>(null);
   const [tipoDaNovaParede, setTipoDaNovaParede] = useState<TipoDeParede>("parede");
   // Painéis do mestre (menu da lanterna): fontes de luz e configurações de iluminação.
@@ -562,8 +565,8 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
   }, [ferramenta, podeDesenhar]);
 
   // A visão é só de tela. Jogador (ou o mestre "vendo como" um): enxerga o que os tokens que ele
-  // controla veem; o mestre com visão noturna: o que algum jogador vê aparece normal. Cena com a
-  // iluminação dinâmica desligada, ou sem nenhum jogador (visão noturna), fica toda clara.
+  // controla veem; o mestre com a visão do mestre: o que algum jogador vê aparece normal. Cena com a
+  // iluminação dinâmica desligada, ou sem nenhum jogador (visão do mestre), fica toda clara.
   const iluminada = cena ? iluminacaoDinamicaLigada(cena) : true;
   const visaoCalculada: ConfigDeVisao = (() => {
     const semMemoria = { ligada: false, tom: "#56627a", usuarioId: "", esquecimento: 0 };
@@ -591,7 +594,7 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
         memoriaM: alcanceDaMemoria(configLuz, modInteligenciaDe(t, estado.personagens)),
       }));
     if (!modoMestre) return { modo: "jogador", fontes, memoria };
-    return { modo: visaoNoturna && fontes.length > 0 ? "noturna" : "claro", fontes, memoria };
+    return { modo: visaoDoMestre && fontes.length > 0 ? "noturna" : "claro", fontes, memoria };
   })();
   const chaveDaVisao = JSON.stringify(visaoCalculada);
   const visao = useMemo(() => JSON.parse(chaveDaVisao) as ConfigDeVisao, [chaveDaVisao]);
@@ -624,9 +627,11 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
             id: `par-${crypto.randomUUID().slice(0, 8)}`,
             a: seg.a,
             b: seg.b,
+            ...(seg.meio ? { meio: seg.meio } : {}),
             tipo,
           })),
         }),
+      modoDeArco: setArcoLigado,
       moverPonta: (id, ponta, ponto) => enviar("parede.editar", { id, [ponta]: ponto }),
       selecionarParede: setParedeSelecionadaId,
       apagarParede: (id) => {
@@ -735,6 +740,9 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
       modoMestre,
       paredeSelecionadaId: paredeSelecionada?.id ?? null,
       tipoDaNovaParede,
+      // V5: o mestre vê os contornos com a Visão do mestre ligada; quem joga (ou o mestre "vendo como"),
+      // só se a cena pedir.
+      contornos: modoMestre ? visaoDoMestre : cena?.mostrarParedesAosJogadores === true,
       visao,
       camadaTrabalho,
       encaixe,
@@ -774,6 +782,8 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
       usuarioVisto,
       paredeSelecionada?.id,
       tipoDaNovaParede,
+      visaoDoMestre,
+      cena?.mostrarParedesAosJogadores,
       visao,
       camadaTrabalho,
       encaixe,
@@ -1084,8 +1094,8 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
                   aoAlternarFaixa={() => setFaixaAberta(!faixaAberta)}
                   camadaTrabalho={camadaTrabalho}
                   aoEscolherCamada={escolherCamada}
-                  visaoNoturna={visaoNoturna}
-                  aoAlternarVisaoNoturna={() => setVisaoNoturna(!visaoNoturna)}
+                  visaoDoMestre={visaoDoMestre}
+                  aoAlternarVisaoDoMestre={() => setVisaoDoMestre(!visaoDoMestre)}
                   aoNovoToken={abrirNovoToken}
                   aoLimparDesenhos={() => enviar("desenho.limpar", { cenaId: cena.id })}
                   desenhosNaCena={estado.desenhos.filter((d) => d.cenaId === cena.id).length}
@@ -1300,6 +1310,7 @@ export function Mesa({ aoSair, aoPerderSessao }: Props) {
               <PainelDasParedes
                 tipoNovo={tipoDaNovaParede}
                 aoEscolherTipoNovo={setTipoDaNovaParede}
+                arco={arcoLigado}
                 selecionada={paredeSelecionada}
                 enviar={enviar}
                 aoApagar={(id) => {

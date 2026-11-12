@@ -78,6 +78,11 @@ export const CenaSchema = z.object({
   luzAmbiente: z.number().min(0).max(1).optional(),
   /** Fator geral das fontes de luz da cena (o slider do topo do painel): 0 a 1; sem o campo vale 1. */
   fatorDeLuz: z.number().min(0).max(1).optional(),
+  /**
+   * V5: os jogadores veem as linhas de parede, janela e porta desta cena. Sem o campo (toda cena
+   * antiga) vale desligado: só o mestre vê os contornos. Não muda visão, luz nem bloqueio.
+   */
+  mostrarParedesAosJogadores: z.boolean().optional(),
 });
 export type Cena = z.infer<typeof CenaSchema>;
 
@@ -405,6 +410,11 @@ export const ParedeSchema = z.object({
   cenaId: z.string().min(1).max(64),
   a: PontoSchema,
   b: PontoSchema,
+  /**
+   * V5: um ponto qualquer do arco entre `a` e `b` (a parede em arco passa por `a`, `meio` e `b`, nessa
+   * ordem). Sem o campo a parede é reta (toda parede antiga). Ver `segmentosDaParede`.
+   */
+  meio: PontoSchema.optional(),
   tipo: TipoDeParedeSchema,
   estado: EstadoDePortaSchema.optional(),
 });

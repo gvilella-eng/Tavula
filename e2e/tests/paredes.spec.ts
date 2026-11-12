@@ -274,7 +274,7 @@ test("iluminação dinâmica desligada mostra tudo ao jogador", async ({ mesa })
   await expect.poll(() => ve(50, 40)).toBe(false);
 });
 
-test("visão noturna e 'ver como o jogador X' mudam a tela do mestre", async ({ mesa }) => {
+test("visão do mestre e 'ver como o jogador X' mudam a tela do mestre", async ({ mesa }) => {
   const mestre = await entrarNoMapa(mesa, "mestre");
   const j1 = await entrarNoMapa(mesa, "jogador-1");
   const p = mestre.pagina;

@@ -376,7 +376,7 @@ depois da exportação) entra com o padrão da mesa.
 
 ### Paredes, portas e linha de visão (Lote 5)
 
-`Parede { id, cenaId, a: {x,y}, b: {x,y} (metros), tipo: "parede" | "porta" | "janela" | "secreta" | "invisivel", estado?: "aberta" | "fechada" | "trancada" }`.
+`Parede { id, cenaId, a: {x,y}, b: {x,y} (metros), meio?: {x,y} (V5: um ponto do arco entre a e b; sem ele a parede é reta), tipo: "parede" | "porta" | "janela" | "secreta" | "invisivel", estado?: "aberta" | "fechada" | "trancada" }`.
 `estado` só existe em `porta` e `secreta` (sem ele nascem fechadas; outro tipo perde o estado). `Estado.paredes` guarda todas.
 
 **O que bloqueia** (`bloqueiaVisao` / `bloqueiaPassagem` em `shared/src/paredes.ts`): visão: parede, porta fechada ou trancada, secreta
@@ -386,8 +386,9 @@ fechada. Passagem: o mesmo, mais janela e invisível. Porta e secreta **abertas*
 
 | `tipo` | `dados` | Efeito |
 |---|---|---|
-| `parede.criar` | `{ cenaId?, paredes: [{ id, a, b, tipo, estado? }] }` (1 a 200) | cria a sequência numa mensagem; um `parede.criada` por parede; pontas limitadas à cena; recusa id repetido e parede sem comprimento |
-| `parede.editar` | `{ id, a?, b?, tipo?, estado? }` | `parede.editada`; `parede_inexistente` se não existe |
+| `parede.criar` | `{ cenaId?, paredes: [{ id, a, b, meio?, tipo, estado? }] }` (1 a 200) | cria a sequência numa mensagem; um `parede.criada` por parede; pontas limitadas à cena; recusa id repetido e parede sem comprimento |
+| `parede.editar` | `{ id, a?, b?, meio?, tipo?, estado? }` | `parede.editada`; `parede_inexistente` se não existe. `meio`: `null` endireita; sem o campo o arco acompanha as pontas (o ponto anda com o meio da corda); três pontos alinhados não fazem arco |
+| `cena.editar` | `{ cenaId, nome?, chegada?, mostrarParedesAosJogadores? }` | V5: `mostrarParedesAosJogadores` liga os contornos de parede e porta para os jogadores (campo opcional da cena, sem ele desligado). Só desenho: não muda visão, luz nem bloqueio |
 | `parede.apagar` | `{ id }` | `parede.apagada` |
 | `cena.configurarIluminacao` | `{ cenaId?, dinamica }` | muda `Cena.iluminacaoDinamica` (sem o campo vale ligada); emite `cena.editada`, que o jogador recebe se for a cena ativa |
 | `porta.alternar` | `{ id }` | capacidade `porta.abrir`. Ver abaixo |
