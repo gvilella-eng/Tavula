@@ -2,9 +2,13 @@ import { describe, expect, it } from "vitest";
 import {
   criarLimitador,
   encaixarNoGrid,
+  formatarDistancia,
   INTERVALO_MINIMO_MOVIMENTO_MS,
   limitarNaCena,
+  medirPercurso,
   medirRegua,
+  metrosParaUnidade,
+  numeroDaDistancia,
   PERMISSOES_PADRAO,
   type Permissoes,
   type Personagem,
@@ -12,6 +16,7 @@ import {
   suavizar,
   type Token,
   tokenVisivelPara,
+  unidadeParaMetros,
 } from "./index.ts";
 
 /** Relógio e agendador falsos: `avancar(ms)` dispara o que vencer no caminho. */
@@ -226,5 +231,70 @@ describe("visibilidade e quem pode mover", () => {
   it("o jogador não move token que controla mas não vê (oculto ou do mestre)", () => {
     expect(podeMoverToken(token({ oculto: true }), j1, estadoCom(permissoes))).toBe(false);
     expect(podeMoverToken(token({ camada: "mestre" }), j1, estadoCom(permissoes))).toBe(false);
+  });
+});
+
+describe("unidade de distância (V13)", () => {
+  it("1,5 m = 5 pés, 9 m = 30 pés, 18 m = 60 pés", () => {
+    expect(metrosParaUnidade(1.5, "pes")).toBe(5);
+    expect(metrosParaUnidade(9, "pes")).toBe(30);
+    expect(metrosParaUnidade(18, "pes")).toBe(60);
+    expect(metrosParaUnidade(1.5, "m")).toBe(1.5);
+  });
+  it("de volta para metros (o que se guarda)", () => {
+    expect(unidadeParaMetros(5, "pes")).toBe(1.5);
+    expect(unidadeParaMetros(30, "pes")).toBe(9);
+    expect(unidadeParaMetros(2.5, "m")).toBe(2.5);
+  });
+  it("formata metros com uma casa e pés inteiros, com singular", () => {
+    expect(formatarDistancia(1.5)).toBe("1,5 m");
+    expect(formatarDistancia(3)).toBe("3,0 m");
+    expect(formatarDistancia(1.5, "pes")).toBe("5 pés");
+    expect(formatarDistancia(9, "pes")).toBe("30 pés");
+    expect(formatarDistancia(0.3, "pes")).toBe("1 pé");
+    expect(formatarDistancia(0, "pes")).toBe("0 pés");
+    expect(formatarDistancia(7.26, "pes")).toBe("24 pés");
+    expect(formatarDistancia(1.25, "m", 2)).toBe("1,25 m");
+  });
+  it("número para campo de formulário", () => {
+    expect(numeroDaDistancia(1.5)).toBe("1,5");
+    expect(numeroDaDistancia(1.5, "pes")).toBe("5");
+  });
+  it("régua em pés e livre", () => {
+    expect(medirRegua({ x: 0, y: 0 }, { x: 1.5, y: 0 }, 1.5, { unidade: "pes" }).rotulo).toBe(
+      "5 pés (1 quadrado)",
+    );
+    expect(medirRegua({ x: 0, y: 0 }, { x: 3, y: 4 }, 1.5, { livre: true }).rotulo).toBe("5,0 m");
+    expect(
+      medirRegua({ x: 0, y: 0 }, { x: 3, y: 4 }, 1.5, { livre: true, unidade: "pes" }).rotulo,
+    ).toBe("17 pés");
+  });
+});
+
+describe("régua com pontos de virada (V13)", () => {
+  const pontos = [
+    { x: 0, y: 0 },
+    { x: 3, y: 0 },
+    { x: 3, y: 4 },
+    { x: 6, y: 8 },
+  ];
+  it("livre: o total é a soma das distâncias em linha reta de cada trecho", () => {
+    const r = medirPercurso(pontos, 1.5, { livre: true });
+    expect(r.trechos.map((t) => t.rotulo)).toEqual(["3,0 m", "4,0 m", "5,0 m"]);
+    expect(r.total.metros).toBeCloseTo(12);
+    expect(r.total.rotulo).toBe("12,0 m");
+  });
+  it("grudada: cada trecho segue a regra das diagonais e o total soma os quadrados", () => {
+    const r = medirPercurso(pontos, 1.5);
+    expect(r.trechos.map((t) => t.quadrados)).toEqual([2, 3, 3]);
+    expect(r.total.quadrados).toBe(8);
+    expect(r.total.rotulo).toBe("12,0 m (8 quadrados)");
+  });
+  it("em pés", () => {
+    expect(medirPercurso(pontos, 1.5, { livre: true, unidade: "pes" }).total.rotulo).toBe("40 pés");
+  });
+  it("com menos de dois pontos não há trecho", () => {
+    expect(medirPercurso([{ x: 1, y: 1 }], 1.5).trechos).toEqual([]);
+    expect(medirPercurso([], 1.5).total.metros).toBe(0);
   });
 });

@@ -35,7 +35,7 @@ import {
   type Medida,
   type ModeloDeLuz,
   marcarVisto,
-  medirRegua,
+  medirPercurso,
   meioDaParede,
   meioDoArcoTangente,
   nivelDeLuz,
@@ -52,6 +52,7 @@ import {
   type Token,
   tangenteNoFim,
   trajetoBloqueado,
+  type UnidadeDeDistancia,
   veNoPonto,
   visaoNoPonto,
 } from "@tabletop/shared";
@@ -165,6 +166,10 @@ export type OpcoesDoMapa = {
   ehDoGrupo: (token: Token) => boolean;
   /** Encaixe ligado (preferência); segurar Alt enquanto arrasta inverte. */
   encaixe: boolean;
+  /** V13: a régua encaixa no grid (preferência; Alt inverte na hora). Desligado = régua livre. */
+  reguaGrudar: boolean;
+  /** V13: a unidade das distâncias mostradas (a régua). */
+  unidade: UnidadeDeDistancia;
   selecionadoId: string | null;
   podeMover: (token: Token) => boolean;
   /** O jogador seleciona (só na tela dele) os tokens que controla (V2); o mestre seleciona qualquer um. */
@@ -237,10 +242,26 @@ export type ImagensDoMapa = {
 };
 
 /** A medida em andamento (ou solta, esperando o "fixar") e onde o rótulo fica (px do mapa). */
-export type MedicaoNaTela = { medida: Medida; x: number; y: number; solta: boolean };
+export type MedicaoNaTela = {
+  medida: Medida;
+  x: number;
+  y: number;
+  solta: boolean;
+  /** V13: os pontos de virada, com a distância do trecho que termina em cada um (px do mapa). */
+  pontos: PontoDeVirada[];
+};
+
+/** V13: o rótulo do trecho que termina num ponto de virada da régua. */
+export type PontoDeVirada = { x: number; y: number; rotulo: string };
 
 /** Uma medida fixada na tela (só de quem mediu), com o rótulo. */
-export type MedicaoFixa = { id: number; medida: Medida; x: number; y: number };
+export type MedicaoFixa = {
+  id: number;
+  medida: Medida;
+  x: number;
+  y: number;
+  pontos: PontoDeVirada[];
+};
 
 export type RetornosDoMapa = {
   mover: (id: string, x: number, y: number) => void;
@@ -533,11 +554,16 @@ export class MapaPixi {
   private vista = { zoom: 1, x: 0, y: 0 };
   private gesto: Gesto | null = null;
   private espaco = false;
-  private reguaAtual: { a: Ponto; b: Ponto } | null = null;
+  /** `pontos`: o começo e os pontos de virada já marcados (V13); `b`: a ponta que segue o ponteiro. */
+  private reguaAtual: { pontos: Ponto[]; b: Ponto } | null = null;
+  /** V13: a medida atual está livre (sem grid)? Vale o modo da última vez que o ponteiro mexeu. */
+  private reguaLivre = false;
+  /** V13: o botão direito já foi contado neste aperto (o clique direito marca um ponto só). */
+  private direitoDaReguaAbaixo = false;
   /** A medida atual já foi solta (o botão "fixar" do rótulo aparece). */
   private reguaSolta = false;
   /** Medidas fixadas na tela (só de quem mediu): somem com Esc, com um clique nelas ou ao trocar de ferramenta. */
-  private reguasFixadas: { id: number; a: Ponto; b: Ponto }[] = [];
+  private reguasFixadas: { id: number; pontos: Ponto[]; livre: boolean }[] = [];
   private proximaReguaFixa = 1;
   private fixasAvisadas = false;
   /** Prévia do token do modo "pôr token" e onde o ponteiro está no mapa (para ela seguir o cursor). */
@@ -815,8 +841,10 @@ export class MapaPixi {
 
   definirOpcoes(opcoes: OpcoesDoMapa): void {
     const trocouFerramenta = opcoes.ferramenta !== this.opcoes.ferramenta;
+    const trocouUnidade = opcoes.unidade !== this.opcoes.unidade;
     this.opcoes = opcoes;
     if (!this.pronto) return;
+    if (trocouUnidade && !trocouFerramenta) this.desenharRegua();
     if (trocouFerramenta || !opcoes.podeDesenhar) this.cancelarTraco();
     this.redesenharDesenhos();
     this.atualizarPrevia();
@@ -2677,6 +2705,7 @@ export class MapaPixi {
     this.sujo = true;
     this.reguaAtual = null;
     this.reguaSolta = false;
+    this.direitoDaReguaAbaixo = false;
     this.reguasFixadas = [];
     this.desenhoDaRegua.clear();
     this.desenhoDasFixas.clear();
@@ -2687,11 +2716,20 @@ export class MapaPixi {
     }
   }
 
+  /** Todos os pontos da medida atual: o começo, as viradas e a ponta. */
+  private pontosDaReguaAtual(): Ponto[] {
+    const r = this.reguaAtual;
+    return r ? [...r.pontos, r.b] : [];
+  }
+
   /** Fixa a medida atual na tela (botão "Fixar" ou Shift ao soltar); dá para medir outra em seguida. */
   fixarRegua(): void {
-    const r = this.reguaAtual;
-    if (!r || (r.a.x === r.b.x && r.a.y === r.b.y)) return;
-    this.reguasFixadas.push({ id: this.proximaReguaFixa++, a: r.a, b: r.b });
+    const pontos = this.pontosDaReguaAtual();
+    const ultimo = pontos[pontos.length - 1];
+    if (pontos.length < 2 || !ultimo || pontos.every((q) => q.x === ultimo.x && q.y === ultimo.y)) {
+      return;
+    }
+    this.reguasFixadas.push({ id: this.proximaReguaFixa++, pontos, livre: this.reguaLivre });
     this.reguaAtual = null;
     this.reguaSolta = false;
     this.desenhoDaRegua.clear();
@@ -2708,22 +2746,78 @@ export class MapaPixi {
   /** A medida fixada cuja linha passa perto do ponto da tela (até 8 px), se houver. */
   private reguaFixadaEm(p: Ponto): number | null {
     for (const f of this.reguasFixadas) {
-      const a = this.paraTela(f.a.x, f.a.y);
-      const b = this.paraTela(f.b.x, f.b.y);
-      if (distanciaAoSegmento(p, a, b) <= 8) return f.id;
+      for (let i = 1; i < f.pontos.length; i++) {
+        const a0 = f.pontos[i - 1];
+        const b0 = f.pontos[i];
+        if (!a0 || !b0) continue;
+        const a = this.paraTela(a0.x, a0.y);
+        const b = this.paraTela(b0.x, b0.y);
+        if (distanciaAoSegmento(p, a, b) <= 8) return f.id;
+      }
     }
     return null;
   }
 
-  private tracarRegua(g: Graphics, r: { a: Ponto; b: Ponto }): void {
+  /** V13: o clique direito com o esquerdo segurado marca um ponto de virada onde a ponta está. */
+  private marcarPontoDeVirada(): void {
+    const r = this.reguaAtual;
+    if (!r || this.gesto?.tipo !== "regua") return;
+    const ultimo = r.pontos[r.pontos.length - 1];
+    if (ultimo && ultimo.x === r.b.x && ultimo.y === r.b.y) return;
+    r.pontos.push({ ...r.b });
+    this.desenharRegua();
+  }
+
+  /** V13: Backspace com o botão segurado tira o último ponto de virada. */
+  private tirarUltimoPontoDeVirada(): boolean {
+    const r = this.reguaAtual;
+    if (!r || this.gesto?.tipo !== "regua" || r.pontos.length < 2) return false;
+    r.pontos.pop();
+    this.desenharRegua();
+    return true;
+  }
+
+  /** A régua encaixa no grid? A preferência desta pessoa; segurar Alt inverte na hora. */
+  private reguaGruda(alt: boolean): boolean {
+    return alt ? !this.opcoes.reguaGrudar : this.opcoes.reguaGrudar;
+  }
+
+  private tracarRegua(g: Graphics, pontos: Ponto[]): void {
     const z = this.vista.zoom;
-    const a = { x: r.a.x * PX_POR_M, y: r.a.y * PX_POR_M };
-    const b = { x: r.b.x * PX_POR_M, y: r.b.y * PX_POR_M };
-    g.moveTo(a.x, a.y)
-      .lineTo(b.x, b.y)
-      .stroke({ width: 3 / z, color: ACENTO });
-    g.circle(a.x, a.y, 5 / z).fill(ACENTO);
-    g.circle(b.x, b.y, 5 / z).fill(ACENTO);
+    const px = pontos.map((q) => ({ x: q.x * PX_POR_M, y: q.y * PX_POR_M }));
+    const primeiro = px[0];
+    if (!primeiro) return;
+    g.moveTo(primeiro.x, primeiro.y);
+    for (const q of px.slice(1)) g.lineTo(q.x, q.y);
+    g.stroke({ width: 3 / z, color: ACENTO });
+    for (const q of px) g.circle(q.x, q.y, 5 / z).fill(ACENTO);
+  }
+
+  /** Os rótulos da medida: um por ponto de virada e o da ponta (o trecho e, com viradas, o total). */
+  private rotulosDaRegua(
+    pontos: Ponto[],
+    livre: boolean,
+  ): { medida: Medida; fim: Ponto; viradas: PontoDeVirada[] } {
+    const percurso = medirPercurso(pontos, this.quadradoM(), {
+      unidade: this.opcoes.unidade,
+      livre,
+    });
+    const viradas: PontoDeVirada[] = [];
+    for (let i = 1; i < pontos.length - 1; i++) {
+      const q = pontos[i];
+      const trecho = percurso.trechos[i - 1];
+      if (!q || !trecho) continue;
+      const t = this.paraTela(q.x, q.y);
+      viradas.push({ x: t.x, y: t.y, rotulo: trecho.rotulo });
+    }
+    const ultimo = pontos[pontos.length - 1] ?? { x: 0, y: 0 };
+    const fim = this.paraTela(ultimo.x, ultimo.y);
+    const ponta = percurso.trechos[percurso.trechos.length - 1] ?? percurso.total;
+    const medida: Medida =
+      pontos.length > 2
+        ? { ...percurso.total, rotulo: `${ponta.rotulo} · total ${percurso.total.rotulo}` }
+        : ponta;
+    return { medida, fim, viradas };
   }
 
   private desenharRegua(): void {
@@ -2731,14 +2825,9 @@ export class MapaPixi {
     this.desenhoDasFixas.clear();
     if (this.reguasFixadas.length > 0 || this.fixasAvisadas) {
       const lista = this.reguasFixadas.map((f) => {
-        this.tracarRegua(this.desenhoDasFixas, f);
-        const fim = this.paraTela(f.b.x, f.b.y);
-        return {
-          id: f.id,
-          medida: medirRegua(f.a, f.b, this.quadradoM()),
-          x: fim.x,
-          y: fim.y,
-        };
+        this.tracarRegua(this.desenhoDasFixas, f.pontos);
+        const { medida, fim, viradas } = this.rotulosDaRegua(f.pontos, f.livre);
+        return { id: f.id, medida, x: fim.x, y: fim.y, pontos: viradas };
       });
       this.fixasAvisadas = lista.length > 0;
       this.retornos().reguasFixas(lista);
@@ -2746,14 +2835,10 @@ export class MapaPixi {
     const r = this.reguaAtual;
     if (!r) return;
     this.desenhoDaRegua.clear();
-    this.tracarRegua(this.desenhoDaRegua, r);
-    const fim = this.paraTela(r.b.x, r.b.y);
-    this.retornos().medir({
-      medida: medirRegua(r.a, r.b, this.quadradoM()),
-      x: fim.x,
-      y: fim.y,
-      solta: this.reguaSolta,
-    });
+    const pontos = this.pontosDaReguaAtual();
+    this.tracarRegua(this.desenhoDaRegua, pontos);
+    const { medida, fim, viradas } = this.rotulosDaRegua(pontos, this.reguaLivre);
+    this.retornos().medir({ medida, x: fim.x, y: fim.y, solta: this.reguaSolta, pontos: viradas });
   }
 
   // --- ponteiro e teclado ---------------------------------------------------------------------
@@ -2802,6 +2887,13 @@ export class MapaPixi {
       return;
     }
     if (e.button === 2) {
+      // V13: com a régua sendo puxada (botão esquerdo segurado), o clique direito marca um ponto de virada
+      // (e não abre o menu de nada).
+      if (this.gesto?.tipo === "regua") {
+        if (!this.direitoDaReguaAbaixo) this.marcarPontoDeVirada();
+        this.direitoDaReguaAbaixo = true;
+        return;
+      }
       // Clique direito com a ferramenta de paredes e a sequência em desenho: encerra a corrente.
       if (this.ferramentaDeParedes() && this.desenhando) {
         this.encerrarDesenho();
@@ -2851,9 +2943,11 @@ export class MapaPixi {
         this.removerReguaFixa(fixada);
         return;
       }
+      this.reguaLivre = !this.reguaGruda(e.altKey);
       const a = this.pontoDaRegua(this.paraMundo(p), e.altKey);
-      this.reguaAtual = { a, b: a };
+      this.reguaAtual = { pontos: [a], b: a };
       this.reguaSolta = false;
+      this.direitoDaReguaAbaixo = (e.buttons & 2) !== 0;
       this.gesto = { tipo: "regua" };
       this.app.canvas.setPointerCapture(e.pointerId);
       this.desenharRegua();
@@ -3045,7 +3139,7 @@ export class MapaPixi {
   }
 
   private pontoDaRegua(m: Ponto, alt: boolean): Ponto {
-    return this.encaixaAgora(alt) ? encaixarNoGrid(m, 1, this.quadradoM()) : m;
+    return this.reguaGruda(alt) ? encaixarNoGrid(m, 1, this.quadradoM()) : m;
   }
 
   /** Avisa a tela da dica sob o ponteiro (e que ela acompanha o movimento). */
@@ -3229,7 +3323,12 @@ export class MapaPixi {
     }
     if (g.tipo === "regua") {
       if (this.reguaAtual) {
+        // O botão direito chegou no meio do arrasto: o navegador avisa pela mudança de `buttons`.
+        const direito = (e.buttons & 2) !== 0;
+        this.reguaLivre = !this.reguaGruda(e.altKey);
         this.reguaAtual.b = this.pontoDaRegua(this.paraMundo(p), e.altKey);
+        if (direito && !this.direitoDaReguaAbaixo) this.marcarPontoDeVirada();
+        this.direitoDaReguaAbaixo = direito;
         this.desenharRegua();
       }
       return;
@@ -3409,6 +3508,10 @@ export class MapaPixi {
       this.espaco = true;
       e.preventDefault();
       this.atualizarCursor();
+    }
+    if (e.key === "Backspace" && !e.repeat && this.tirarUltimoPontoDeVirada()) {
+      e.preventDefault();
+      return;
     }
     if (e.key === "Escape" && this.gesto?.tipo === "traco") {
       // Esc cancela o traço em andamento: nada é gravado e o rascunho some para os outros.

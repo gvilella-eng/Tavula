@@ -96,6 +96,7 @@ import type {
 import { menuNativoDeveSumir } from "./menuNativo";
 import { NovoToken, type NovoTokenPedido } from "./NovoToken";
 import { OrdemDeTurno } from "./OrdemDeTurno";
+import { PainelDaRegua } from "./PainelDaRegua";
 import { PainelDasParedes } from "./PainelDasParedes";
 import { PainelDeFontesDeLuz } from "./PainelDeFontesDeLuz";
 import { PainelDeIluminacao } from "./PainelDeIluminacao";
@@ -103,13 +104,19 @@ import { PainelDoToken } from "./PainelDoToken";
 import { useFecharFora } from "./Popover";
 import { PresencaNoTopo } from "./PresencaNoTopo";
 import { type ConfigDoPincel, PINCEL_PADRAO } from "./pincel";
-import { gravarEncaixePadrao, lerEncaixePadrao } from "./preferencias";
+import {
+  gravarEncaixePadrao,
+  gravarReguaGrudar,
+  lerEncaixePadrao,
+  lerReguaGrudar,
+} from "./preferencias";
 import { tituloDaMesa } from "./rotas";
 import { SeletorDeImagem } from "./SeletorDeImagem";
 import { Topo } from "./Topo";
 import { useTempoDaSala } from "./tempo";
 import { passosDoPapel } from "./tour/passos";
 import { Tour } from "./tour/Tour";
+import { useUnidade } from "./unidade";
 import { haDialogoAberto } from "./useDialogo";
 import { useSala } from "./useSala";
 import { ZoomFlutuante } from "./ZoomFlutuante";
@@ -219,6 +226,9 @@ export function Mesa({
   const [pincel, setPincel] = useState<ConfigDoPincel>(PINCEL_PADRAO);
   const [desenhoSelecionadoId, setDesenhoSelecionadoId] = useState<string | null>(null);
   const [encaixe, setEncaixe] = useState(lerEncaixePadrao);
+  // V13: a régua gruda no grid (preferência desta pessoa) e a unidade das distâncias (metros ou pés).
+  const [reguaGrudar, setReguaGrudar] = useState(lerReguaGrudar);
+  const unidade = useUnidade();
   const [zoom, setZoom] = useState(1);
   const [medicao, setMedicao] = useState<MedicaoNaTela | null>(null);
   // Régua (R5a): as medidas fixadas na tela (só de quem mediu).
@@ -956,6 +966,8 @@ export function Mesa({
       visao,
       camadaTrabalho,
       encaixe,
+      reguaGrudar,
+      unidade,
       selecionadoId,
       // O mestre vê o grupo todo; o jogador só conhece os personagens dele (os outros não chegam).
       tokenDaVezId,
@@ -1001,6 +1013,8 @@ export function Mesa({
       visao,
       camadaTrabalho,
       encaixe,
+      reguaGrudar,
+      unidade,
       selecionadoId,
       tokenDaVezId,
       pincel,
@@ -1163,6 +1177,11 @@ export function Mesa({
 
   const pedirImagem: PedirImagem = (titulo, tipo, aoUsar) =>
     setPedidoDeImagem({ titulo, tipo, aoUsar });
+
+  function mudarReguaGrudar(v: boolean) {
+    setReguaGrudar(v);
+    gravarReguaGrudar(v);
+  }
 
   function mudarEncaixe(v: boolean) {
     setEncaixe(v);
@@ -1505,6 +1524,16 @@ export function Mesa({
                 {medicao.medida.rotulo}
               </div>
             )}
+            {medicao?.pontos.map((q) => (
+              <div
+                key={`${q.x}:${q.y}`}
+                className="regua-rotulo regua-trecho"
+                data-testid="regua-trecho"
+                style={{ left: q.x + 8, top: q.y + 8 }}
+              >
+                {q.rotulo}
+              </div>
+            ))}
             {medicao?.solta && (
               <button
                 type="button"
@@ -1515,6 +1544,18 @@ export function Mesa({
               >
                 <Pin size={13} /> Fixar
               </button>
+            )}
+            {reguasFixas.flatMap((f) =>
+              f.pontos.map((q) => (
+                <div
+                  key={`${f.id}:${q.x}:${q.y}`}
+                  className="regua-rotulo regua-trecho regua-fixa"
+                  data-testid="regua-fixa-trecho"
+                  style={{ left: q.x + 8, top: q.y + 8 }}
+                >
+                  {q.rotulo}
+                </div>
+              )),
             )}
             {reguasFixas.map((f) => (
               <BotaoComDica
@@ -1574,6 +1615,13 @@ export function Mesa({
                 dividirColuna={
                   modoMestre && ferramenta !== "paredes" && !!selecionado && painelDoTokenAberto
                 }
+              />
+            )}
+            {ferramenta === "regua" && (
+              <PainelDaRegua
+                grudar={reguaGrudar}
+                aoMudarGrudar={mudarReguaGrudar}
+                aoFechar={() => setFerramenta("selecionar")}
               />
             )}
             {modoMestre && ferramenta === "paredes" && (

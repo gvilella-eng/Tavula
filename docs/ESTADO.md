@@ -3311,4 +3311,43 @@ Ver `docs/ROTEIRO-DE-TESTES.md`, "V12".
 
 ---
 
-## Próximo: bugs que sobrarem e acabamentos das contas; depois 7b e 12 (o C4, a tela inicial, o V10, o V10b, o V10c, o V11 e o V12 estão entregues)
+## Ajustes V13 — Régua livre, pontos de virada e metros ou pés (entregue, aguardando o roteiro manual)
+
+Detalhes em `docs/REDESIGN.md` ("V13 — como ficou").
+
+### O que foi entregue
+
+- Painel da ferramenta Régua com "Grudar no grid" (lembrado por pessoa); Alt inverte. Régua livre: linha reta, sem quadrados.
+- Clique direito com o botão esquerdo segurado marca ponto de virada; rótulos por trecho e "trecho · total"; Backspace tira o último ponto; a fixa guarda os pontos.
+- Unidade (Metros / Pés) em Preferências: régua, resumo do raio de luz dos modelos e o campo do quadrado no Configurar cena. O estado continua em metros.
+
+### Como rodar
+
+`pnpm dev` como sempre. Sem migração e sem mudança de protocolo ou de sala.
+
+### Verificação
+
+- Unidade (`packages/shared/src/mapa.test.ts`): conversão (1,5 m = 5 pés, 9 m = 30 pés), formatação, régua livre e em pés, soma dos trechos (grudada e livre). `apps/web/src/preferencias.test.ts`: os padrões e as chaves.
+- E2E novo: `v13.spec.ts` (5 testes): régua livre e lembrada, Alt inverte, três trechos com dois cliques direitos (e nenhum menu), pontos grudados, preferência em pés e Configurar cena.
+- E2E antigo alterado: nenhum.
+
+### Decisões
+
+- (assumido) Ver `REDESIGN`, "V13 — como ficou", Decisões.
+
+### Desvios do plano
+
+- A dica e o menu da tocha não mostram raio (só o tempo): não havia o que converter. Os campos de edição de raio seguem em metros.
+
+### Frágil / não verificado
+
+- O clique direito durante o arrasto chega ao mapa pelo `pointerdown` ou, se o navegador só avisar a mudança dos botões, pelo `buttons` do `pointermove`; os dois caminhos estão tratados, com um flag para contar um clique só. Em trackpad e toque não foi verificado.
+- O painel da Régua fica sobre o mapa, no canto de cima à esquerda; em telas pequenas pode cobrir o ponto onde se começa a medir (a janela se arrasta).
+
+### Roteiro manual (pendente)
+
+Ver `docs/ROTEIRO-DE-TESTES.md`, "V13".
+
+---
+
+## Próximo: bugs que sobrarem e acabamentos das contas; depois 7b e 12 (o C4, a tela inicial, o V10, o V10b, o V10c, o V11, o V12 e o V13 estão entregues)

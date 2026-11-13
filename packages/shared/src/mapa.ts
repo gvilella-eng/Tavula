@@ -194,25 +194,105 @@ export function limitarNaCena(
 
 export type Medida = { metros: number; quadrados: number; rotulo: string };
 
-function formatarMetros(m: number): string {
-  return (Math.round(m * 10) / 10).toFixed(1).replace(".", ",");
+/** V13: a unidade em que o app mostra as distâncias no mapa. O estado continua sempre em metros. */
+export type UnidadeDeDistancia = "m" | "pes";
+
+export const UNIDADES_DE_DISTANCIA: readonly UnidadeDeDistancia[] = ["m", "pes"];
+
+/** A conversão do D&D em português: 1 pé = 0,3 m (1,5 m = 5 pés). */
+export const METROS_POR_PE = 0.3;
+
+/** Metros para o valor na unidade (pés sem arredondar; 1,5 m = 5). */
+export function metrosParaUnidade(metros: number, unidade: UnidadeDeDistancia): number {
+  return unidade === "pes" ? limpar(metros / METROS_POR_PE) : metros;
+}
+
+/** O valor na unidade de volta para metros (o que se guarda no estado). */
+export function unidadeParaMetros(valor: number, unidade: UnidadeDeDistancia): number {
+  return unidade === "pes" ? limpar(valor * METROS_POR_PE) : valor;
+}
+
+/** O nome curto da unidade para rótulos: "m" ou "pés". */
+export function nomeDaUnidade(unidade: UnidadeDeDistancia): string {
+  return unidade === "pes" ? "pés" : "m";
+}
+
+/**
+ * O texto de uma distância na unidade escolhida. Metros: uma casa decimal ("1,5 m"). Pés: o inteiro
+ * mais próximo, no singular quando é 1 ("5 pés", "1 pé"). Com `casas` (só metros) muda a precisão.
+ */
+export function formatarDistancia(
+  metros: number,
+  unidade: UnidadeDeDistancia = "m",
+  casas = 1,
+): string {
+  if (unidade === "pes") {
+    const pes = Math.round(metrosParaUnidade(metros, "pes"));
+    return `${pes} ${pes === 1 ? "pé" : "pés"}`;
+  }
+  const f = 10 ** casas;
+  return `${(Math.round(metros * f) / f).toFixed(casas).replace(".", ",")} m`;
+}
+
+/** O número da distância na unidade, sem o nome, para campos de formulário ("1,5" ou "5"). */
+export function numeroDaDistancia(metros: number, unidade: UnidadeDeDistancia = "m"): string {
+  if (unidade === "pes") return String(Math.round(metrosParaUnidade(metros, "pes")));
+  return String(limpar(metros)).replace(".", ",");
+}
+
+export type OpcoesDaRegua = {
+  unidade?: UnidadeDeDistancia;
+  /** Régua livre: só a distância em linha reta, sem a regra de quadrados do grid. */
+  livre?: boolean;
+};
+
+function rotuloDaMedida(
+  metros: number,
+  quadrados: number,
+  { unidade = "m", livre = false }: OpcoesDaRegua,
+): string {
+  const distancia = formatarDistancia(metros, unidade);
+  if (livre) return distancia;
+  return `${distancia} (${quadrados} ${quadrados === 1 ? "quadrado" : "quadrados"})`;
 }
 
 /**
  * Régua. Os metros são em linha reta. Os quadrados seguem o 5e 2014: cada diagonal conta 1, então
- * são os quadrados do maior dos dois eixos.
+ * são os quadrados do maior dos dois eixos. Livre (V13): só a distância, sem quadrados.
  */
 export function medirRegua(
   a: { x: number; y: number },
   b: { x: number; y: number },
   quadradoM: number,
+  opcoes: OpcoesDaRegua = {},
 ): Medida {
   const dx = Math.abs(b.x - a.x);
   const dy = Math.abs(b.y - a.y);
   const metros = Math.hypot(dx, dy);
   const quadrados = Math.round(Math.max(dx, dy) / quadradoM);
-  const sufixo = quadrados === 1 ? "quadrado" : "quadrados";
-  return { metros, quadrados, rotulo: `${formatarMetros(metros)} m (${quadrados} ${sufixo})` };
+  return { metros, quadrados, rotulo: rotuloDaMedida(metros, quadrados, opcoes) };
+}
+
+/** V13: a régua com pontos de virada: a medida de cada trecho e o total (a soma dos trechos). */
+export type Percurso = { trechos: Medida[]; total: Medida };
+
+export function medirPercurso(
+  pontos: readonly { x: number; y: number }[],
+  quadradoM: number,
+  opcoes: OpcoesDaRegua = {},
+): Percurso {
+  const trechos: Medida[] = [];
+  for (let i = 1; i < pontos.length; i++) {
+    const a = pontos[i - 1];
+    const b = pontos[i];
+    if (a && b) trechos.push(medirRegua(a, b, quadradoM, opcoes));
+  }
+  const metros = trechos.reduce((soma, t) => soma + t.metros, 0);
+  const quadrados = trechos.reduce((soma, t) => soma + t.quadrados, 0);
+  return {
+    trechos,
+    total: { metros, quadrados, rotulo: rotuloDaMedida(metros, quadrados, opcoes) },
+  };
 }
 
 /**

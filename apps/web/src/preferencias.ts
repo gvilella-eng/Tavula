@@ -19,6 +19,27 @@ export function gravarEncaixePadrao(ligado: boolean): void {
   }
 }
 
+// --- régua (V13) -------------------------------------------------------------------------------
+
+const CHAVE_REGUA_GRUDAR = "tabletop:pref:reguaGrudar";
+
+/** A régua encaixa no grid: ligada por padrão (Alt inverte na hora). Livre = desligada. */
+export function lerReguaGrudar(): boolean {
+  try {
+    return localStorage.getItem(CHAVE_REGUA_GRUDAR) !== "0";
+  } catch {
+    return true;
+  }
+}
+
+export function gravarReguaGrudar(ligado: boolean): void {
+  try {
+    localStorage.setItem(CHAVE_REGUA_GRUDAR, ligado ? "1" : "0");
+  } catch {
+    // sem localStorage: vale só nesta sessão
+  }
+}
+
 // --- largura do painel direito (só deste navegador) --------------------------------------------
 
 const CHAVE_LARGURA_DO_PAINEL = "tabletop:pref:larguraDoPainel";

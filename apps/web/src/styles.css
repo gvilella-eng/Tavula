@@ -573,6 +573,14 @@ textarea {
 .regua-rotulo.regua-fixa:hover {
   border-color: var(--texto);
 }
+/* V13: o rótulo de um trecho, num ponto de virada: menor e só para ler. */
+.regua-rotulo.regua-trecho {
+  padding: 1px 6px;
+  font-size: 12px;
+  font-weight: 500;
+  pointer-events: none;
+  cursor: default;
+}
 
 /* --- painel do token ---------------------------------------------------------------------- */
 

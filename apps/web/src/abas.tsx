@@ -8,6 +8,7 @@ import { TrocarSenha } from "./contas/TrocarSenha";
 import { definirDicasLigadas, useDicasLigadas } from "./dicasLigadas";
 import { ListaDeAtalhos } from "./ListaDeAtalhos";
 import { SeletorDeTema } from "./SeletorDeTema";
+import { definirUnidade, useUnidade } from "./unidade";
 
 const ROTULO_DO_ESTADO: Record<StatusDeAsset["estado"], string> = {
   pedindo: "pedindo",
@@ -148,6 +149,7 @@ export function AbaPreferencias({
   gerente,
 }: PropsPreferencias) {
   const dicas = useDicasLigadas();
+  const unidade = useUnidade();
   return (
     <>
       <p>
@@ -174,6 +176,27 @@ export function AbaPreferencias({
         />
         Encaixar tokens no grid (segure Alt ao arrastar para soltar sem encaixe)
       </label>
+      <fieldset className="quem-controla" data-testid="pref-unidade">
+        <legend>Unidade de distância</legend>
+        <div className="chips">
+          {(["m", "pes"] as const).map((u) => (
+            <button
+              key={u}
+              type="button"
+              className="chip"
+              data-testid={`pref-unidade-${u}`}
+              aria-pressed={unidade === u}
+              onClick={() => definirUnidade(u)}
+            >
+              {u === "m" ? "Metros" : "Pés"}
+            </button>
+          ))}
+        </div>
+        <p className="nota">
+          Vale para a régua, as luzes e o quadrado da cena. A mesa guarda tudo em metros (1,5 m = 5
+          pés).
+        </p>
+      </fieldset>
       <label className="linha-opcao">
         <input
           type="checkbox"

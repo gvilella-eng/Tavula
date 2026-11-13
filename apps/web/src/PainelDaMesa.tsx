@@ -1,12 +1,14 @@
 import {
   type ConfigDaMesa,
   type Estado,
+  formatarDistancia,
   type ModeloDeObjeto,
   TEMPOS_PARA_JOGADORES,
   type TempoParaJogadores,
 } from "@tabletop/shared";
 import { Plus, Trash2 } from "lucide-react";
 import { Campo } from "./Campo";
+import { useUnidade } from "./unidade";
 
 type Enviar = (tipo: string, dados: object) => string | null;
 
@@ -117,6 +119,7 @@ export function SecaoMesa({ config, enviar }: { config: ConfigDaMesa; enviar: En
 
 function LinhaDoModelo({ modelo: m, enviar }: { modelo: ModeloDeObjeto; enviar: Enviar }) {
   const editar = (mudancas: object) => enviar("modelo.editar", { id: m.id, mudancas });
+  const unidade = useUnidade();
   const infinito = m.duracaoS === null;
   return (
     <details className="modelo-de-objeto" data-testid={`modelo-${m.id}`}>
@@ -125,8 +128,8 @@ function LinhaDoModelo({ modelo: m, enviar }: { modelo: ModeloDeObjeto; enviar: 
           {m.nome}
         </span>
         <span className="nota">
-          {m.luz.claraM} m + {m.luz.penumbraM} m ·{" "}
-          {infinito ? "infinita" : `${Math.round(((m.duracaoS ?? 0) / 60) * 100) / 100} min`}
+          {formatarDistancia(m.luz.claraM, unidade)} + {formatarDistancia(m.luz.penumbraM, unidade)}{" "}
+          · {infinito ? "infinita" : `${Math.round(((m.duracaoS ?? 0) / 60) * 100) / 100} min`}
           {m.ocupaMao ? " · ocupa a mão" : ""}
         </span>
       </summary>

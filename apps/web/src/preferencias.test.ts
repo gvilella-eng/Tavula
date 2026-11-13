@@ -3,9 +3,12 @@ import {
   ajustarLarguraDoPainel,
   chaveDaJanela,
   gravarJanela,
+  gravarReguaGrudar,
   lerJanela,
+  lerReguaGrudar,
   limitesDoPainel,
 } from "./preferencias";
+import { lerUnidade } from "./unidade";
 
 // Redesign R2: a largura do painel direito vai de 300 px a 1/4 da janela (se 1/4 for menos que 300, 300).
 describe("largura do painel direito", () => {
@@ -72,5 +75,43 @@ describe("preferência das janelas", () => {
     delete (globalThis as { localStorage?: unknown }).localStorage;
     expect(lerJanela("a")).toEqual({});
     expect(() => gravarJanela("a", { x: 1, y: 1 })).not.toThrow();
+  });
+});
+
+// V13: a régua gruda no grid por padrão e a unidade é metros por padrão; sem localStorage nada quebra.
+describe("preferências da régua e da unidade", () => {
+  const guardado = new Map<string, string>();
+  beforeEach(() => {
+    guardado.clear();
+    (globalThis as { localStorage?: unknown }).localStorage = {
+      getItem: (k: string) => guardado.get(k) ?? null,
+      setItem: (k: string, v: string) => void guardado.set(k, v),
+      removeItem: (k: string) => void guardado.delete(k),
+    };
+  });
+  afterEach(() => {
+    delete (globalThis as { localStorage?: unknown }).localStorage;
+  });
+
+  it("a régua gruda por padrão e lembra a escolha em tabletop:pref:reguaGrudar", () => {
+    expect(lerReguaGrudar()).toBe(true);
+    gravarReguaGrudar(false);
+    expect(guardado.get("tabletop:pref:reguaGrudar")).toBe("0");
+    expect(lerReguaGrudar()).toBe(false);
+  });
+
+  it("a unidade é metros por padrão e lembra os pés em tabletop:pref:unidade", () => {
+    expect(lerUnidade()).toBe("m");
+    guardado.set("tabletop:pref:unidade", "pes");
+    expect(lerUnidade()).toBe("pes");
+    guardado.set("tabletop:pref:unidade", "lixo");
+    expect(lerUnidade()).toBe("m");
+  });
+
+  it("sem localStorage, os padrões valem", () => {
+    delete (globalThis as { localStorage?: unknown }).localStorage;
+    expect(lerReguaGrudar()).toBe(true);
+    expect(lerUnidade()).toBe("m");
+    expect(() => gravarReguaGrudar(false)).not.toThrow();
   });
 });

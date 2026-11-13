@@ -1,9 +1,17 @@
-import { type Cena, cenaEhCartao, PX_POR_QUADRADO_PADRAO } from "@tabletop/shared";
+import {
+  type Cena,
+  cenaEhCartao,
+  formatarDistancia,
+  metrosParaUnidade,
+  PX_POR_QUADRADO_PADRAO,
+  unidadeParaMetros,
+} from "@tabletop/shared";
 import { ImagePlus, X } from "lucide-react";
 import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { BotaoComDica } from "./BotaoComDica";
 import type { PedirImagem } from "./FaixaDeCenas";
+import { useUnidade } from "./unidade";
 import { useDialogo } from "./useDialogo";
 
 type Props = {
@@ -18,7 +26,12 @@ export function ConfigurarCena({ cena, enviar, pedirImagem, aoFechar }: Props) {
   const [nome, setNome] = useState(cena.nome);
   const [px, setPx] = useState(String(cena.mapa?.pxPorQuadrado ?? PX_POR_QUADRADO_PADRAO));
   const [gridVisivel, setGridVisivel] = useState(cena.grid.visivel);
-  const [quadradoM, setQuadradoM] = useState(String(cena.grid.quadradoM));
+  // V13: o campo mostra o quadrado na unidade escolhida (metros ou pés); o que vai para a sala é sempre em metros.
+  const unidade = useUnidade();
+  const [quadradoInicial] = useState(() =>
+    String(Math.round(metrosParaUnidade(cena.grid.quadradoM, unidade) * 100) / 100),
+  );
+  const [quadradoM, setQuadradoM] = useState(quadradoInicial);
   const [mostrarParedes, setMostrarParedes] = useState(cena.mostrarParedesAosJogadores === true);
   const [cartao, setCartao] = useState(cenaEhCartao(cena));
   // `undefined`: não mexe; `null`: tira o mapa; texto: o mapa novo (já processado e registrado).
@@ -37,9 +50,15 @@ export function ConfigurarCena({ cena, enviar, pedirImagem, aoFechar }: Props) {
       setErro("Pixels por quadrado: entre 10 e 1000.");
       return;
     }
-    const quadradoNumero = Number(quadradoM);
-    if (!(quadradoNumero >= 0.3 && quadradoNumero <= 10)) {
-      setErro("Quadrado do grid: entre 0,3 e 10 metros.");
+    // Sem mexer no campo o valor da sala fica como está (a conversão para pés arredonda).
+    const quadradoNumero =
+      quadradoM === quadradoInicial
+        ? cena.grid.quadradoM
+        : unidadeParaMetros(Number(quadradoM), unidade);
+    if (!(quadradoNumero >= 0.3 - 1e-9 && quadradoNumero <= 10 + 1e-9)) {
+      setErro(
+        `Quadrado do grid: entre ${formatarDistancia(0.3, unidade)} e ${formatarDistancia(10, unidade)}.`,
+      );
       return;
     }
     const limpo = nome.trim();
@@ -165,12 +184,12 @@ export function ConfigurarCena({ cena, enviar, pedirImagem, aoFechar }: Props) {
             Grid visível
           </label>
           <label className="campo-coluna">
-            Quadrado (metros)
+            Quadrado ({unidade === "pes" ? "pés" : "metros"})
             <input
               type="number"
-              min={0.3}
-              max={10}
-              step={0.25}
+              min={unidade === "pes" ? 1 : 0.3}
+              max={unidade === "pes" ? 33 : 10}
+              step={unidade === "pes" ? 1 : 0.25}
               data-testid="grid-quadrado"
               value={quadradoM}
               onChange={(e) => setQuadradoM(e.target.value)}

@@ -1481,6 +1481,36 @@ O ping no mapa, a pedido do Vilella: segurar o clique num ponto faz um círculo 
 - Um aviso para quem passou do limite de frequência.
 - Vários mestres olhando cenas diferentes, e o ping só "chega" a quem vê a cena: hoje o mestre recebe tudo e filtra no cliente.
 
+## V13 — como ficou (2026-11-13)
+
+A régua livre, os pontos de virada e a unidade (metros ou pés), a pedido do Vilella. Ninguém para perguntar: o que o brief não dizia foi assumido.
+
+**O que foi feito**
+- **Painel da Régua** (`PainelDaRegua.tsx`, no desenho do painel das Paredes, para todos): "Grudar no grid" (ligado por padrão) e duas linhas de dica (Alt inverte e Shift fixa; o clique direito marca ponto de virada). A escolha é lembrada por pessoa em `tabletop:pref:reguaGrudar`, com try/catch. **Alt** inverte na hora, nos dois sentidos.
+- **Régua livre**: as pontas não encaixam; a medida é a distância em linha reta; o rótulo mostra só a distância ("5,0 m"), sem quadrados. Grudada fica como era ("4,5 m (3 quadrados)").
+- **Pontos de virada**: com o botão esquerdo segurado, o **clique direito** marca um ponto onde a ponta está e a medida continua dali. Em cada ponto aparece a distância do trecho; na ponta, "trecho · total X" (por exemplo "5,0 m · total 8,0 m"). **Backspace** tira o último ponto; **Esc** cancela tudo. Soltar termina; com Shift fixa, e a fixa guarda os pontos e os rótulos (clicar na fixa a tira inteira). O clique direito não abre o menu do token nem o do navegador. No modo grudado cada ponto de virada encaixa no grid, cada trecho segue a regra das diagonais e o total é a soma dos trechos. A régua é **só local** (sempre foi): nada vai para a sala.
+- **Unidade** em Preferências ("Unidade de distância: Metros / Pés", `tabletop:pref:unidade`, padrão metros). Conversão do D&D em português: 1 pé = 0,3 m (1,5 m = 5 pés, 9 m = 30 pés). Uma função só de formatação, no shared (`formatarDistancia` em `mapa.ts`, com `metrosParaUnidade`, `unidadeParaMetros`, `numeroDaDistancia`, e `medirRegua` e `medirPercurso` aceitando a unidade). Metros mantêm uma casa decimal; pés vão ao inteiro mais próximo ("1 pé", "5 pés"). O cliente lê a unidade por `unidade.ts` (`useUnidade`, `definirUnidade`).
+- **Onde a unidade vale**: a régua (trechos e total, também a fixa); o resumo do raio de luz dos modelos (aba Mesa); o campo "Quadrado" do "Configurar cena" (rótulo, valor, limites e a mensagem de erro; o que vai para a sala continua em metros e, sem mexer no campo, o valor da sala não é tocado).
+- Atalhos novos na lista de Preferências: clique direito e Backspace da régua.
+
+**Decisões (assumido)**
+- (assumido) A escolha de grudar é só da régua (chave própria); não mexe no encaixe dos tokens.
+- (assumido) Livre: a distância é em linha reta, sem a regra das diagonais; o total é a soma das retas.
+- (assumido) Com viradas, o total no modo grudado traz também a soma dos quadrados ("4,5 m (3 quadrados) · total 7,5 m (5 quadrados)").
+- (assumido) O modo (grudado ou livre) vale para a medida inteira e segue o Alt da última vez que o ponteiro mexeu.
+- (assumido) Clique direito sem mexer o ponteiro desde o último ponto não marca outro (evita ponto repetido).
+- (assumido) O arrasto do token não mostra distância hoje; nada a converter ali.
+- (assumido) A dica e o menu da tocha (V11) mostram só o tempo, não o raio; não havia o que converter. Os campos de **edição** de raio ("Luz plena (m)", "Penumbra (m)", "Alcance da visão (m)", "Visão no escuro (m)", "Alcance de interação (m)") continuam em metros, com "(m)" no rótulo, para não haver número editável que muda de significado com a preferência.
+- (assumido) Pés no campo do quadrado: aceita decimais (mostra até 2 casas); 1 a 33 pés cobrem os 0,3 a 10 m da sala.
+- (assumido) Fichas, compêndio (alcances, deslocamento) e o estado da mesa ficam como estão, em metros.
+- O ping do V12 não existe com a ferramenta Régua, então o Alt e o clique direito da régua não conflitam com ele.
+- O painel da Régua mede ~250 px de largura, no mesmo canto das Paredes, e é curto para não cobrir a área onde se começa a medir.
+
+**O que ficou para depois**
+- Converter os campos de edição de raio (luz, visão, alcance) para a unidade escolhida.
+- Mostrar a régua aos outros (continua local).
+- Marcar ponto de virada sem o mouse.
+
 ## Em aberto
 
 - **O plano R1 a R6 terminou** (R1, R2, R2b, R3, R4 em 2026-11-10; R5a, R5b, R6a e R6b em 2026-11-11). Agora o Vilella faz os ajustes

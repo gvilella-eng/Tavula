@@ -86,6 +86,17 @@ export const ATALHOS = {
     grupo: "Mapa",
     teclas: [["Shift"]],
   },
+  pontoDaRegua: {
+    descricao:
+      "Régua: com o botão esquerdo segurado, o clique direito marca um ponto de virada e a medida continua dali",
+    grupo: "Mapa",
+    teclas: [["Clique direito"]],
+  },
+  tirarPontoDaRegua: {
+    descricao: "Régua: com o botão esquerdo segurado, tira o último ponto de virada",
+    grupo: "Mapa",
+    teclas: [["Backspace"]],
+  },
   menuDoToken: {
     descricao: "Abrir o menu do token selecionado (foco no mapa)",
     grupo: "Menus",

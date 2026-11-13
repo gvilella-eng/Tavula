@@ -251,6 +251,23 @@ as mãos. Cada item diz **o que fazer** e, depois de "→", **o que deve acontec
     não chega ao jogador. Numa **cena-cartão** o ping funciona igual.
 11. Recarregue a página: nenhum ping fica guardado, e o chat não ganha nada.
 
+## V13 — Régua livre, pontos de virada e metros ou pés
+1. Aperte **R** (Régua). Abre o painel **Régua** com "Grudar no grid" marcado. Arraste de um ponto a outro: a medida
+   encaixa no grid e mostra os quadrados ("4,5 m (3 quadrados)").
+2. Desmarque **Grudar no grid** e arraste de novo: as pontas ficam onde você puxou e o rótulo mostra só a distância
+   ("5,0 m"). Recarregue a página: a escolha continua.
+3. Com o grid ligado, segure **Alt** ao arrastar: mede livre. Com o grid desligado, **Alt** gruda.
+4. Arraste com o botão esquerdo e, **sem soltar, clique com o botão direito**: surge um ponto e a medida continua dali. Em
+   cada ponto aparece a distância do trecho; na ponta, "trecho · total ...". Faça dois pontos (três trechos) e confira o
+   total. Nenhum menu abre (nem o do token, nem o do navegador), mesmo sobre um token.
+5. Ainda segurando, aperte **Backspace**: o último ponto sai. **Esc** cancela tudo. Solte com **Shift**: a medida fica
+   fixa com os pontos e o total; clique nela para tirar.
+6. Em **Preferências**, "Unidade de distância": escolha **Pés**. Meça um quadrado de 1,5 m: **5 pés**. Na aba Mesa, os
+   modelos de luz mostram o raio em pés.
+7. **Configurar cena** (menu da cena): o campo vira "Quadrado (pés)" com 5 (para 1,5 m). Digite 10 e salve: a cena passa
+   a ter 3 m de quadrado (volte para Metros para conferir). Salvar sem mexer no campo não muda o quadrado.
+8. Fichas e compêndio continuam como estão escritos. Volte para **Metros**: tudo igual ao que era.
+
 ## Se algo der errado
 - Anote a tela, o que fez e o que esperava, e mande para mim. Bug confirmado vai para `docs/BUGS.md`.
 - Para voltar à campanha de antes de mesas e contas, use a cópia de segurança indicada no topo.
