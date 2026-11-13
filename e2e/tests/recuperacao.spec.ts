@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test";
-import { abrirAba, expect, test } from "./ajudas";
+import { abrirAba, continuarParaAPasta, expect, preencherMesaEConta, test } from "./ajudas";
 
 // C3: pasta da mesa com chave (ECDSA), código de recuperação mostrado uma vez, recuperação do mestre pela pasta e
 // pelo código, pasta de outra mesa recusada, "Proteger com a pasta da mesa" e a conferência da Origin. A pasta
@@ -35,11 +35,13 @@ async function criarMesa(
 ): Promise<{ id: string; codigo: string }> {
   const senha = o.senha ?? SENHA;
   await p.goto("/");
-  await p.getByTestId("inicio-criar-nome").fill(o.mesa);
-  await p.getByTestId("inicio-criar-login").fill(o.login);
-  await p.getByTestId("inicio-criar-nome-do-mestre").fill("Mestre do Teste");
-  await p.getByTestId("inicio-criar-senha").fill(senha);
-  await p.getByTestId("inicio-criar-confirmar").fill(senha);
+  await preencherMesaEConta(p, {
+    mesa: o.mesa,
+    login: o.login,
+    nome: "Mestre do Teste",
+    senha,
+  });
+  await continuarParaAPasta(p);
   if (o.pasta) {
     await escolherPasta(p, o.pasta);
     await p.getByTestId("inicio-criar-pasta").click();

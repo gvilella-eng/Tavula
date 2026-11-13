@@ -11,11 +11,14 @@ as mãos. Cada item diz **o que fazer** e, depois de "→", **o que deve acontec
 - Para ver como jogador, use outro perfil do navegador ou uma janela anônima.
 
 ## C1 — Tela inicial e várias mesas
-1. Abra `http://127.0.0.1:5173/` → aparece a tela inicial com "Entrar numa mesa", "Criar mesa" e "Mesas neste
-   computador". A campanha aparece como **"Campanha"**, com o id embaixo do nome.
-2. Copie o id da Campanha, cole em "Entrar numa mesa" em MAIÚSCULAS e com espaços, e clique em Entrar → abre a
+1. Abra `http://127.0.0.1:5173/` → aparece um **cartão com três abas** ("Minhas mesas (N)", "Entrar com código" e "Criar mesa"),
+   sem barra de rolagem na página. Abre em "Minhas mesas", com a campanha como **"Campanha"** (id embaixo do nome).
+   Teste as setas ← → e Home/End nas abas.
+2. Na aba **Entrar com código**, copie o id da Campanha, cole em MAIÚSCULAS e com espaços e clique em Entrar → abre a
    Campanha.
-3. Volte ao início e cole o link inteiro (`http://127.0.0.1:5173/m/...`) → abre igual.
+3. Volte ao início, vá em "Entrar com código" e cole o link inteiro (`http://127.0.0.1:5173/m/...`) → abre igual.
+   Na aba **Criar mesa**, confira o passo a passo: o passo 1 não avança com senha curta ou confirmação diferente; o passo 2
+   mostra a pasta, com "Voltar" e "Criar". Trocar de aba volta ao passo 1 sem perder o que foi digitado.
 4. Digite um id inventado → aparece "mesa inexistente" com "Voltar ao início".
 5. Dentro da Campanha, abra a aba **Mesa** → no alto, "Esta mesa" mostra o nome e o id, com os botões de copiar.
    Troque o nome → o nome novo aparece no título da aba do navegador e para quem estiver na mesa, sem recarregar.

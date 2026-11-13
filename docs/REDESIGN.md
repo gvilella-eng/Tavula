@@ -1290,6 +1290,33 @@ Um pedido do Vilella: transformar qualquer ficha numa janela do navegador, para 
 - O navegador decide se respeita `left`/`top` (outro monitor, tela que foi desligada): ele pode abrir a janela em outro lugar.
 - Mudar o tema na mesa depois de a janela da ficha abrir só vale na janela da ficha na próxima carga (a aparência da ficha já ouve o `storage`).
 
+## C4 — como ficou (2026-11-12)
+
+O Vilella escolheu o modelo B ("o B é perfeito") para a tela inicial. A tela de antes tinha três defeitos: "Entrar numa mesa" baixo ao lado de um "Criar mesa" alto, "Mesas neste computador" abaixo da dobra e uma barra de rolagem sem sentido. Ninguém para perguntar: o que o brief não dizia foi assumido.
+
+**O que foi feito**
+- **Um cartão central com abas** (`TelaInicial.tsx`, `.inicio-*` em `styles.css`): no alto o logo, "Távola" e a frase; embaixo um cartão de 560 px de largura e **altura fixa** (520 px; 440 px abaixo de 800 px de altura de tela). O conteúdo da aba rola por dentro do cartão só se precisar; a página não rola em 1600×900 nem em 1280×720 (um E2E mede). Em telas baixas o logo encolhe para 36 px e o nome para 30 px. No celular (< 600 px) o cartão ocupa a largura com 16 px de margem e a página pode rolar.
+- **Seletor segmentado** com `role="tablist"`: "Minhas mesas (N)", "Entrar com código" e "Criar mesa". A aba ativa é preenchida com o acento. ← e → movem (dando a volta), Home e End vão às pontas; só a aba ativa entra na ordem do Tab. As três ficam montadas (as outras com `hidden`), então o que foi digitado fica ao trocar de aba.
+- **Minhas mesas**: uma linha-botão por mesa (pastilha com a inicial, nome, id em mono, "aberta hoje", "ontem", "há N dias" ou a data, e seta), na ordem de último uso de antes. Enquanto procura, três linhas de esqueleto. Sem mesas: "Nenhuma mesa neste computador ainda." com os botões "Entrar com código" e "Criar mesa".
+- **Entrar com código**: o texto, um campo de 48 px e o botão "Entrar" na largura toda; o erro embaixo, como antes.
+- **Criar mesa em 2 passos** ("Passo 1 de 2" e duas bolinhas). Passo 1, "Mesa e conta": grade de 2 colunas (nome da mesa nas duas; login ao lado de nome; senha ao lado de confirmação) e "Continuar", que valida com as mesmas regras e mensagens de antes. Passo 2, "Pasta da mesa": o texto, "Escolher a pasta"/"Trocar a pasta" com o nome da pasta, o aviso de navegador sem suporte, "Voltar" e "Criar"; os erros da criação aparecem aqui. Enter no passo 1 também continua.
+- **Depois de criar**: o id grande, o código de recuperação e "Abrir a mesa"/"Criar outra" ocupam o cartão no lugar das abas (a lógica é a de antes: os botões esperam o "Anotei o código"). Neste estado o cartão fica mais alto (620 px, sem passar da tela menos 102 px) e a frase "Sua mesa de RPG..." some, para o id, o código inteiro, "Anotei o código" e os botões aparecerem de uma vez, sem rolar por dentro, também em 1280×720 (um E2E confere). Os botões ficam num rodapé fixo.
+- **Testids novos**: `inicio-aba-mesas`, `inicio-aba-entrar`, `inicio-aba-criar`, `inicio-criar-continuar`, `inicio-criar-voltar`, `inicio-criar-passo`, `inicio-mesas-ir-entrar`, `inicio-mesas-ir-criar`, `inicio-mesas-carregando`. Os antigos continuam, menos o texto "Mesas neste computador" (agora é a aba "Minhas mesas"). As rotas `/`, `/m/<id>` e `/m/<id>/ficha/<fichaId>` não mudaram.
+- Nenhuma cor nova: tudo vem dos tokens do tema. Nenhuma mudança na sala, no protocolo nem no estado.
+
+**Decisões (assumido)**
+- (assumido) Aba inicial: "Minhas mesas" se houver mesas neste computador; senão "Entrar com código". Enquanto a lista carrega, "Minhas mesas" com o esqueleto; se a lista vier vazia, a tela passa para "Entrar com código" (só se o usuário ainda não escolheu uma aba).
+- (assumido) Trocar de aba volta o passo de Criar para 1 e mantém o que foi digitado; "Criar outra" volta ao passo 1 com os campos limpos.
+- (assumido) "Continuar" fica desabilitado enquanto o nome da mesa está vazio (era o "Criar" que ficava).
+- (assumido) A pasta da mesa continua opcional. No passo 2 o texto é o de antes, inteiro.
+- (assumido) A página rola só no celular (< 600 px); o cartão mantém a altura fixa.
+- (assumido) "há N dias" vale até 30 dias; depois, a data.
+- (assumido) A pastilha usa a cor `--acento-forte` (a do texto em destaque) sobre `--campo`.
+
+**O que ficou para depois**
+- Nada de ordenar ou apagar mesas da lista por aqui.
+- Não foi medido em telas menores que 1280×720 (o cartão de 440 px cabe a partir de ~560 px de altura).
+
 ## Em aberto
 
 - **O plano R1 a R6 terminou** (R1, R2, R2b, R3, R4 em 2026-11-10; R5a, R5b, R6a e R6b em 2026-11-11). Agora o Vilella faz os ajustes

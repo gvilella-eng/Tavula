@@ -1,7 +1,17 @@
 import type { APIRequestContext, Page } from "@playwright/test";
 import { derivarSenha } from "../../packages/shared/src/contas.ts";
 import { gerarIdDeMesa } from "../../packages/shared/src/mesas.ts";
-import { abrirAba, esperarMapa, expect, ID_DA_MESA, Mesa, test } from "./ajudas";
+import {
+  abrirAba,
+  abrirAbaInicial,
+  continuarParaAPasta,
+  esperarMapa,
+  expect,
+  ID_DA_MESA,
+  Mesa,
+  preencherMesaEConta,
+  test,
+} from "./ajudas";
 import { criarToken, tokensDe } from "./ajudasMapa";
 
 // C1: várias mesas no mesmo servidor, id amigável e a tela inicial. A mesa legada (o DO "campanha", com a
@@ -61,9 +71,17 @@ test("a tela inicial em / mostra entrar, criar e a lista, com a mesa legada", as
   await expect(page.getByTestId("tela-inicial")).toBeVisible();
   await expect(page).toHaveTitle("Távola");
   await expect(page.getByTestId("logo")).toBeVisible();
+  // C4: um cartão com três abas; com mesas por aqui abre "Minhas mesas"
+  await expect(page.getByTestId("inicio-aba-mesas")).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByTestId("inicio-aba-entrar")).toHaveText("Entrar com código");
+  await expect(page.getByTestId("inicio-aba-criar")).toHaveText("Criar mesa");
+  await expect(page.getByTestId("inicio-mesas")).toBeVisible();
+  await expect(page.getByTestId("inicio-entrar")).toBeHidden();
+  await abrirAbaInicial(page, "entrar");
   await expect(page.getByTestId("inicio-entrar")).toBeVisible();
+  await abrirAbaInicial(page, "criar");
   await expect(page.getByTestId("inicio-criar")).toBeVisible();
-  await expect(page.getByTestId("inicio-mesas")).toContainText("Mesas neste computador");
+  await abrirAbaInicial(page, "mesas");
   // no E2E o servidor lista as mesas (LISTAR_MESAS=1): a campanha de sempre está lá, com o id fixo
   const cartao = page.getByTestId(`inicio-mesa-${ID_DA_MESA}`);
   await expect(cartao).toContainText("Campanha");
@@ -85,18 +103,23 @@ test("criar uma mesa mostra o id grande, copia o id e o link e abre uma mesa vaz
     const s = await mesa.abrir();
     const p = s.pagina;
     await p.goto("/");
-    await expect(p.getByTestId("inicio-criar-botao")).toBeDisabled();
-    await p.getByTestId("inicio-criar-nome").fill("Masmorra do teste");
-    // C2: a mesa nasce com a conta do mestre (login, nome e senha com confirmação)
-    await p.getByTestId("inicio-criar-login").fill("vila");
-    await p.getByTestId("inicio-criar-nome-do-mestre").fill("Vilela");
-    await p.getByTestId("inicio-criar-senha").fill("senha-boa-1");
-    await p.getByTestId("inicio-criar-confirmar").fill("senha-boa-2");
-    await p.getByTestId("inicio-criar-botao").click();
+    await abrirAbaInicial(p, "criar");
+    await expect(p.getByTestId("inicio-criar-continuar")).toBeDisabled();
+    // C2: a mesa nasce com a conta do mestre (login, nome e senha com confirmação); C4: no passo 1, que não avança
+    await preencherMesaEConta(p, {
+      mesa: "Masmorra do teste",
+      login: "vila",
+      nome: "Vilela",
+      senha: "senha-boa-1",
+      confirmar: "senha-boa-2",
+    });
+    await p.getByTestId("inicio-criar-continuar").click();
     await expect(p.getByTestId("inicio-criar-erro")).toHaveText(
       "A confirmação não é igual à senha.",
     );
+    await expect(p.getByTestId("inicio-criar-passo")).toHaveText("Passo 1 de 2");
     await p.getByTestId("inicio-criar-confirmar").fill("senha-boa-1");
+    await continuarParaAPasta(p);
     await p.getByTestId("inicio-criar-botao").click();
 
     const idGrande = p.getByTestId("inicio-criada-id");
@@ -142,6 +165,7 @@ test("abre pelo id digitado com maiúsculas e espaços e pelo link colado", asyn
   const digitado = id.toUpperCase().replaceAll("-", " ");
 
   await page.goto("/");
+  await abrirAbaInicial(page, "entrar");
   await page.getByTestId("inicio-entrar-campo").fill(`  ${digitado}  `);
   await page.getByTestId("inicio-entrar-botao").click();
   await expect(page).toHaveURL(new RegExp(`/m/${id}$`));
@@ -151,6 +175,7 @@ test("abre pelo id digitado com maiúsculas e espaços e pelo link colado", asyn
   await page.getByTestId("entrada-trocar-de-mesa").click();
   await expect(page.getByTestId("tela-inicial")).toBeVisible();
   await expect(page).toHaveURL(/\/$/);
+  await abrirAbaInicial(page, "entrar");
   await page.getByTestId("inicio-entrar-campo").fill(`http://127.0.0.1:5174/m/${id.toUpperCase()}`);
   await page.getByTestId("inicio-entrar-campo").press("Enter");
   await expect(page).toHaveURL(new RegExp(`/m/${id}$`));
@@ -159,6 +184,7 @@ test("abre pelo id digitado com maiúsculas e espaços e pelo link colado", asyn
   // o botão de voltar do navegador volta à tela inicial
   await page.goBack();
   await expect(page.getByTestId("tela-inicial")).toBeVisible();
+  await abrirAbaInicial(page, "entrar");
 
   // o que não parece id é recusado na própria tela
   await page.getByTestId("inicio-entrar-campo").fill("campanha");

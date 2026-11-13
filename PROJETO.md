@@ -848,6 +848,8 @@ por mesa".
 **Ordem do marco**
 1. **C1** (entregue em 2026-11-12): tela inicial, várias mesas no mesmo servidor, id amigável, a campanha de hoje
    vira a primeira mesa. Ainda **sem contas**: dentro da mesa a escolha de usuário de hoje continua.
+   (C4, 2026-11-12: a tela inicial é um cartão central com abas "Minhas mesas", "Entrar com código" e "Criar mesa"; criar é um
+   passo a passo de 2 passos, "Mesa e conta" e "Pasta da mesa". Só a disposição mudou; as rotas e as regras são as mesmas.)
 2. **C2**: contas por mesa, com senha, pedido de entrada aprovado pelo mestre, sessões, limite de tentativas e
    redefinição aprovada pelo mestre (completa esta seção).
 3. **C3**: pasta do mestre com chave (WebCrypto) e código de recuperação (completa esta seção).

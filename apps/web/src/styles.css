@@ -198,83 +198,6 @@ textarea {
 .entrada-trocar-de-mesa {
   margin-top: 22px;
 }
-.inicio {
-  max-width: 920px;
-  margin: 0 auto;
-  height: 100vh;
-  padding: 6vh 24px 32px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  overflow-y: auto;
-  background: radial-gradient(ellipse at 50% 0%, var(--acento-suave), transparent 60%);
-}
-.inicio-grade {
-  width: 100%;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
-  align-items: start;
-}
-.cartao-inicio {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  min-width: 0;
-  padding: 18px;
-  background: var(--painel);
-  border: 1px solid var(--borda);
-  border-radius: 14px;
-  box-shadow: var(--sombra);
-}
-.cartao-inicio.largo {
-  grid-column: 1 / -1;
-}
-.cartao-inicio h2 {
-  margin: 0;
-  font-size: 18px;
-}
-.cartao-inicio input[type="text"] {
-  width: 100%;
-  padding: 8px 10px;
-}
-.inicio-lista {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 10px;
-}
-.cartao-de-mesa {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-  padding: 10px 12px;
-  text-align: left;
-  background: var(--cabecalho);
-  border-radius: 10px;
-}
-.cartao-de-mesa:hover {
-  border-color: var(--acento);
-}
-.cartao-de-mesa-nome {
-  max-width: 100%;
-  font-weight: 600;
-  font-size: 15px;
-  overflow-wrap: anywhere;
-}
-.cartao-de-mesa-id {
-  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
-  font-size: 12px;
-  color: var(--texto-suave);
-}
-.cartao-de-mesa-quando {
-  font-size: 12px;
-  color: var(--texto-suave);
-}
 .id-da-mesa {
   display: flex;
   flex-direction: column;
@@ -306,9 +229,6 @@ textarea {
   min-width: 0;
 }
 @media (max-width: 720px) {
-  .inicio-grade {
-    grid-template-columns: minmax(0, 1fr);
-  }
   .id-da-mesa-valor.grande {
     font-size: 26px;
   }
@@ -4865,4 +4785,334 @@ kbd {
   flex: none;
   color: var(--acento-texto);
   background: var(--acento);
+}
+
+/* A tela inicial (C4, modelo B): logo no alto e um cartão de altura fixa com abas. A página nunca rola em
+   telas de notebook; o conteúdo da aba rola por dentro do cartão. No celular (< 600 px) a página pode rolar. */
+.inicio {
+  height: 100vh;
+  display: flex;
+  padding: 16px;
+  overflow-y: auto;
+  background: radial-gradient(ellipse 60% 40% at 50% 0%, var(--acento-suave), transparent 70%);
+}
+.inicio-coluna {
+  margin: auto;
+  width: 100%;
+  max-width: 560px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 28px;
+}
+.inicio-cabecalho {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+}
+:where(.inicio) .logo-nome {
+  font-size: 44px;
+  line-height: 1;
+}
+:where(.inicio) .entrada-frase {
+  margin: 0;
+  font-family: var(--fonte-interface);
+  font-size: 16px;
+}
+.inicio-cartao {
+  width: 100%;
+  height: 520px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  background: var(--painel);
+  border: 1px solid var(--borda);
+  border-radius: 14px;
+  box-shadow: var(--sombra);
+}
+@media (max-height: 799px) {
+  .inicio-coluna {
+    gap: 14px;
+  }
+  :where(.inicio) .logo-nome {
+    font-size: 30px;
+  }
+  :where(.inicio) .simbolo-tavola {
+    width: 36px;
+    height: 36px;
+  }
+  :where(.inicio) .entrada-frase {
+    font-size: 14px;
+  }
+  .inicio-cartao {
+    height: 440px;
+  }
+}
+/* Depois de criar a mesa: o cartão fica mais alto (até 620 px, sem passar da tela) para mostrar o id, o código
+   de recuperação inteiro, "Anotei o código" e os botões de uma vez, sem rolar por dentro. */
+.inicio-cartao.criada {
+  height: min(620px, calc(100dvh - 32px - 70px));
+}
+.inicio-cabecalho.compacto .entrada-frase {
+  display: none;
+}
+.inicio-abas {
+  flex: none;
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  background: var(--campo);
+  border: 1px solid var(--borda);
+  border-radius: 10px;
+}
+.inicio-aba {
+  flex: 1;
+  height: 40px;
+  padding: 0 8px;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 600;
+  background: transparent;
+  border: 0;
+  border-radius: 7px;
+  transition: background-color 140ms ease-out;
+}
+.inicio-aba:hover {
+  background: var(--cabecalho);
+}
+.inicio-aba[aria-selected="true"],
+.inicio-aba[aria-selected="true"]:hover {
+  background: var(--acento);
+  color: var(--acento-texto);
+}
+.inicio-aba-painel {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.inicio-aba-painel[hidden] {
+  display: none;
+}
+.inicio-painel {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.inicio-painel-corpo {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--borda) transparent;
+}
+.inicio-painel-rodape {
+  flex: none;
+}
+.inicio-titulo {
+  margin: 0;
+  font-size: 20px;
+}
+.inicio-nota {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.4;
+}
+.inicio-painel-rodape.com-divisor {
+  padding-top: 10px;
+  border-top: 1px solid var(--borda);
+}
+.inicio-painel .id-da-mesa-valor.grande {
+  padding: 8px 12px;
+  font-size: 28px;
+}
+.inicio-nota.erro {
+  margin-bottom: 8px;
+}
+:where(.inicio-painel-rodape) .linha-botoes.fim {
+  margin-top: 0;
+}
+:where(.inicio-painel) button:not(.inicio-mesa) {
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.inicio-entrar-corpo {
+  gap: 14px;
+  padding-top: 6px;
+}
+.inicio-campo-grande {
+  width: 100%;
+  height: 48px;
+  padding: 0 14px;
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-size: 16px;
+  border-radius: 8px;
+}
+button.inicio-botao-largo {
+  width: 100%;
+  height: 48px;
+  font-size: 15px;
+}
+.inicio-passos {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.inicio-passos .nota {
+  font-weight: 500;
+}
+.inicio-bolinhas {
+  display: flex;
+  gap: 6px;
+}
+.inicio-bolinhas span {
+  width: 10px;
+  height: 10px;
+  border: 1.5px solid var(--texto-suave);
+  border-radius: 50%;
+}
+.inicio-bolinhas span.ativa {
+  background: var(--acento);
+  border-color: var(--acento);
+}
+.inicio-grade-de-campos {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 12px;
+}
+.inicio-grade-de-campos .inteira {
+  grid-column: 1 / -1;
+}
+.inicio-pasta {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.inicio-lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.inicio-mesa {
+  width: 100%;
+  min-height: 64px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 14px;
+  text-align: left;
+  background: var(--cabecalho);
+  border-radius: 10px;
+  transition:
+    background-color 140ms ease-out,
+    border-color 140ms ease-out;
+}
+.inicio-mesa:hover {
+  border-color: var(--acento);
+}
+.inicio-mesa > svg {
+  flex: none;
+  color: var(--texto-suave);
+}
+.inicio-mesa-inicial {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  font-family: var(--fonte-titulo);
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--acento-forte);
+  background: var(--campo);
+  border: 1px solid var(--borda);
+  border-radius: 10px;
+}
+.inicio-mesa-textos {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.inicio-mesa-nome {
+  font-size: 16px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.inicio-mesa-id {
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-size: 13px;
+  color: var(--texto-suave);
+}
+.inicio-mesa-quando {
+  flex: none;
+  font-size: 13px;
+  color: var(--texto-suave);
+}
+.inicio-esqueleto {
+  height: 64px;
+  background: var(--cabecalho);
+  border: 1px solid var(--borda);
+  border-radius: 10px;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .inicio-esqueleto {
+    animation: pulsar 1.2s ease-in-out infinite;
+  }
+}
+.inicio-vazio {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-top: 6px;
+}
+.visualmente-oculto {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+:where(.inicio-grade-de-campos) .campo-de-conta label {
+  font-size: 13px;
+}
+:where(.inicio-grade-de-campos) .campo-de-conta input {
+  height: 40px;
+  padding: 0 12px;
+  font-size: 14px;
+  border-radius: 8px;
+}
+@media (max-width: 599px) {
+  .inicio {
+    height: 100dvh;
+    padding: 16px;
+  }
+  .inicio-aba {
+    padding: 0 4px;
+    font-size: 13px;
+  }
+  .inicio-grade-de-campos {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .inicio-mesa-quando {
+    display: none;
+  }
 }

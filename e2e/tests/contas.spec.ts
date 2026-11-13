@@ -2,7 +2,16 @@ import type { APIRequestContext, Page } from "@playwright/test";
 // Só a derivação da senha e o sorteio do id (puros, sem navegador): o teste fala com a API como a tela fala.
 import { derivarSenha } from "../../packages/shared/src/contas.ts";
 import { gerarIdDeMesa } from "../../packages/shared/src/mesas.ts";
-import { abrirAba, esperarMapa, expect, ID_DA_MESA, type Mesa, test } from "./ajudas";
+import {
+  abrirAba,
+  continuarParaAPasta,
+  esperarMapa,
+  expect,
+  ID_DA_MESA,
+  type Mesa,
+  preencherMesaEConta,
+  test,
+} from "./ajudas";
 import { arrastarToken, tokenDe } from "./ajudasMapa";
 
 // C2: contas por mesa (login e senha), pedidos de entrada aprovados pelo mestre, sessões, limite de tentativas
@@ -22,11 +31,8 @@ async function criarMesaComConta(
 ): Promise<string> {
   const senha = o.senha ?? SENHA;
   await p.goto("/");
-  await p.getByTestId("inicio-criar-nome").fill(o.mesa);
-  await p.getByTestId("inicio-criar-login").fill(o.login);
-  await p.getByTestId("inicio-criar-nome-do-mestre").fill(o.nome);
-  await p.getByTestId("inicio-criar-senha").fill(senha);
-  await p.getByTestId("inicio-criar-confirmar").fill(senha);
+  await preencherMesaEConta(p, { mesa: o.mesa, login: o.login, nome: o.nome, senha });
+  await continuarParaAPasta(p);
   await p.getByTestId("inicio-criar-botao").click();
   await expect(p.getByTestId("inicio-criada-id")).toBeVisible();
   return (await p.getByTestId("inicio-criada-id").textContent()) ?? "";

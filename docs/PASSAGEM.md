@@ -653,6 +653,13 @@ Continua em aberto, por ser decisão e não erro de doc: `ficha.verOutras` (seç
 - Frágil: o bloco colado depende de `.cartao-colado > .modelo-bloco` (o cartão de cima perde a borda de baixo); mexer no CSS do `.modelo-bloco` pode abrir uma fresta entre os dois.
 - Suposições: ver `REDESIGN`, "V6 — como ficou".
 
+## C4 (2026-11-12): a tela inicial em abas
+
+- Onde mexer: `apps/web/src/TelaInicial.tsx` (`TelaInicial`, `MinhasMesas`, `EntrarNumaMesa`, `CriarMesa`, `CartaoMesaCriada`) e o bloco `.inicio-*` no **fim** de `styles.css` (fica no fim de propósito: vence os `.nota` e `.campo-de-conta` mais antigos sem subir a especificidade, e o biome reclama de `noDescendingSpecificity` se mudar de lugar).
+- Frágil: as três abas ficam montadas (`hidden`), por isso o digitado sobrevive à troca de aba; o passo de Criar volta a 1 por um efeito em `ativa`. A altura do cartão é fixa (520/440 px): conteúdo novo rola por dentro.
+- Os E2E que passam pela tela inicial usam `abrirAbaInicial`, `preencherMesaEConta` e `continuarParaAPasta` (`e2e/tests/ajudas.ts`).
+- Suposições: ver `REDESIGN`, "C4 — como ficou".
+
 ## V9 (2026-11-12): a ficha numa janela própria do navegador
 
 - Onde mexer: `ficha/foraDaMesa.ts` (abrir a janela, medida guardada, Web Locks e `BroadcastChannel`; `useAcompanharFichasFora` na `Mesa`, `useFichasFora` na lista de Fichas e no compêndio), `ficha/FichaEmJanelaPropria.tsx` (a página da rota: `useSala` própria, gerente de arquivos, toast), `ficha/JanelaDaFicha.tsx` (props `aoAbrirEmJanela` e `propria`), `rotas.ts` (`caminhoDaFicha`, `Rota.fichaId`), `App.tsx` e o fim do `styles.css` (`.ficha-propria*`, `.selo-fora`).

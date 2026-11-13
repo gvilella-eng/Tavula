@@ -215,3 +215,29 @@ export async function enviarCru(
 export function intencaoCrua(tipo: string, dados: object): string {
   return JSON.stringify({ v: 1, id: `teste-${Math.random().toString(36).slice(2)}`, tipo, dados });
 }
+
+/** C4: a tela inicial é um cartão com abas; clica na aba (`mesas`, `entrar` ou `criar`) e espera ela abrir. */
+export async function abrirAbaInicial(pagina: Page, aba: "mesas" | "entrar" | "criar") {
+  const botao = pagina.getByTestId(`inicio-aba-${aba}`);
+  await botao.click();
+  await expect(botao).toHaveAttribute("aria-selected", "true");
+}
+
+/** C4: abre a aba "Criar mesa" e preenche o passo 1 (mesa e conta). A senha repetida é `confirmar` (padrão: a mesma). */
+export async function preencherMesaEConta(
+  pagina: Page,
+  o: { mesa: string; login: string; nome: string; senha: string; confirmar?: string },
+) {
+  await abrirAbaInicial(pagina, "criar");
+  await pagina.getByTestId("inicio-criar-nome").fill(o.mesa);
+  await pagina.getByTestId("inicio-criar-login").fill(o.login);
+  await pagina.getByTestId("inicio-criar-nome-do-mestre").fill(o.nome);
+  await pagina.getByTestId("inicio-criar-senha").fill(o.senha);
+  await pagina.getByTestId("inicio-criar-confirmar").fill(o.confirmar ?? o.senha);
+}
+
+/** C4: do passo 1 ao passo 2 ("Pasta da mesa"). */
+export async function continuarParaAPasta(pagina: Page) {
+  await pagina.getByTestId("inicio-criar-continuar").click();
+  await expect(pagina.getByTestId("inicio-criar-passo")).toHaveText("Passo 2 de 2");
+}

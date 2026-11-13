@@ -3060,6 +3060,49 @@ Ver `docs/ROTEIRO-DE-TESTES.md`, "V9".
 
 ---
 
+## Ajustes C4 — Tela inicial no modelo B, o cartão central com abas (entregue, aguardando o roteiro manual)
+
+Detalhes em `docs/REDESIGN.md` ("C4 — como ficou"). O Vilella escolheu o modelo B; o que o brief não dizia foi assumido (marcado).
+
+### O que foi entregue
+
+- A tela inicial virou **um cartão de altura fixa com três abas** ("Minhas mesas (N)", "Entrar com código", "Criar mesa"), com o logo e a frase no alto. A página não rola em 1600×900 nem em 1280×720; o que passar rola dentro do cartão.
+- Abas com `role="tablist"`: ← →, Home e End; `aria-selected`.
+- "Minhas mesas": linhas com pastilha, nome, id, "aberta hoje"/"ontem"/"há N dias" e seta; esqueleto enquanto procura; vazio com dois botões.
+- "Entrar com código": campo de 48 px e botão na largura toda.
+- "Criar mesa" em **2 passos** (Mesa e conta; Pasta da mesa) com "Passo N de 2" e bolinhas; depois de criar, o id, o código e "Abrir a mesa" ocupam o cartão.
+- Rotas, sala, protocolo e estado não mudaram.
+
+### Como rodar
+
+- `pnpm verify` (uma vez). Prints: `$env:PRINTS_DIR="<pasta>"; pnpm --filter @tabletop/e2e prints c4`.
+
+### Verificação
+
+- E2E novo: `inicio.spec.ts` (a página não rola em 1600×900 e 1280×720 nas abas e nos dois passos de Criar; setas, Home e End; a aba inicial com e sem mesas e o vazio levando às outras abas; o passo 1 não avança com senha curta ou diferente; trocar de aba volta ao passo 1 sem perder o digitado).
+- E2E alterados (só o caminho até a tela, o comportamento é o mesmo): `mesas.spec.ts`, `contas.spec.ts` e `recuperacao.spec.ts` clicam na aba certa e passam pelo "Continuar" (helpers `abrirAbaInicial`, `preencherMesaEConta` e `continuarParaAPasta` em `ajudas.ts`). Em `mesas.spec.ts` o botão "Criar" desabilitado virou "Continuar" desabilitado, o erro da confirmação aparece no passo 1 e o texto "Mesas neste computador" virou a aba "Minhas mesas".
+- Não verificado com a campanha real.
+
+### Decisões
+
+- (assumido) Ver `REDESIGN`, "C4 — como ficou", Decisões.
+
+### Desvios do plano
+
+- Nenhum.
+
+### Frágil / não verificado
+
+- As três abas ficam montadas e as inativas usam `hidden`; quem mexer no CSS dos painéis precisa manter `.inicio-aba-painel[hidden] { display: none }`.
+- O cartão tem altura fixa: um passo novo com mais conteúdo passa a rolar por dentro (o rodapé de botões fica fixo).
+- Em telas com menos de ~560 px de altura o cartão (440 px) não cabe e a página rola.
+
+### Roteiro manual (pendente)
+
+Ver `docs/ROTEIRO-DE-TESTES.md`, "C1".
+
 ---
 
-## Próximo: bugs que sobrarem e acabamentos da tela inicial e contas; depois 7b e 12 (o V9 está entregue)
+---
+
+## Próximo: bugs que sobrarem e acabamentos das contas; depois 7b e 12 (o C4, a tela inicial, está entregue)
