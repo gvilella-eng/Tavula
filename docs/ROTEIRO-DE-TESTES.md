@@ -1,6 +1,7 @@
 # Roteiro de testes manuais (lotes de 2026-11-12)
 
-Este roteiro cobre o que entrou no plano autônomo de 2026-11-12: V4a3, V4b, V4b2, V5, B1, C1, C2, C3 e o tour. Os
+Este roteiro cobre o que entrou no plano autônomo de 2026-11-12 (V4a3, V4b, V4b2, V5, B1, C1, C2, C3 e o tour) e
+nos ajustes da noite (V6, V7, V8, V9 e a tela inicial C4). Os
 testes automáticos (o `pnpm verify`) passaram em todos os lotes; aqui fica o que só dá para conferir com os olhos e
 as mãos. Cada item diz **o que fazer** e, depois de "→", **o que deve acontecer**.
 
@@ -63,6 +64,39 @@ as mãos. Cada item diz **o que fazer** e, depois de "→", **o que deve acontec
 4. Preferências → **"Fazer o tour de novo"** → ele abre.
 5. Faça o tour do mestre (~10 passos) e o do jogador (~6) → cada passo aponta para a opção certa e os textos falam do
    que existe hoje.
+
+## V6 — Conjurar com espaço maior
+1. Numa ficha de mago com espaços de 3º, 4º e 5º, clique em **Conjurar** na Bola de Fogo → abre o menu "Conjurar
+   Bola de Fogo com espaço de:", só com os níveis que ainda têm espaço (com quantos restam). Use 1 a 9, as setas,
+   Enter e Esc.
+2. Gaste todos os espaços de 3º e conjure de novo → o menu oferece só 4º e 5º (antes, o app recusava).
+3. Escolha o 5º → no chat, o cartão da Bola de Fogo e, **colado embaixo**, "Espaço de 5º · +2d6" com o extra, o
+   total e a metade. Um espaço de 5º é gasto.
+4. Repita com uma magia de ataque até sair um crítico → o bloco colado mostra o extra dobrado ("Dobrado").
+5. Clique no ícone ao lado do Conjurar ("Mandar ao chat") → vai o cartão completo da magia, sem gastar espaço.
+6. Faça o mesmo em Ataques e magias (Personagem) e na Conjuração de um NPC → o menu e o ícone funcionam igual.
+7. Uma magia sem dado por nível (por exemplo, uma que ganha mais alvos) → o cartão diz só "com espaço de 5º". Na
+   engrenagem da magia, o campo **"Por nível acima"** pode ser preenchido à mão.
+
+## V7 — Só quem entrou aparece na mesa
+1. Abra a Campanha como mestre → no topo, em Mesa → Papéis e em Permissões aparecem só você e o Uker. Nenhum
+   "Jogador 2…7".
+2. Abra um handout → o "Quem vê" lista só quem entrou. O mesmo vale para "Quem controla" da ficha e do token, e
+   para o "Ver como".
+3. Aceite um pedido de entrada com **"Ficha dele: Nenhuma"** → a pessoa aparece com o nome dela em todas as listas.
+4. Aceite outro pedido escolhendo a ficha de um antigo "Jogador N" → a pessoa controla aquela ficha e o token dela.
+   NPCs (como o Ogro) não aparecem nessa lista.
+5. Remova a conta → a pessoa some das listas; a ficha e o token continuam na mesa.
+6. Crie uma mesa nova → ela nasce só com você.
+
+## V8 — Ficha de NPC: fitas, sem moldura e duas colunas
+1. Abra o Ogro → no alto, as fitas **Bestiário** e **Conjuração**. Sem a moldura com degradê: o conteúdo vai quase
+   até a borda da janela.
+2. Clique em Conjuração → só a conjuração (atributo, CD, ataque, círculos). O Bestiário não tem mais essa seção.
+   Teste as setas ← → e Home/End nas fitas.
+3. Alargue a janela → Traços, Ações, Reações e Lendárias vão para a direita. Estreite → volta a uma coluna.
+4. Com o Bestiário aberto, arraste uma magia do compêndio para o NPC → a fita Conjuração acende e a magia cai lá.
+5. Como jogador, abra um NPC sem magias → a fita Conjuração não aparece.
 
 ## V9 — A ficha numa janela própria
 1. Abra uma ficha (PJ e depois NPC) → no cabeçalho, antes do minimizar, o ícone de janela ("Abrir em janela própria").
