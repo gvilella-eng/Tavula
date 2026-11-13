@@ -721,17 +721,39 @@ Regras do motor:
    enfraquece chamas, ar rarefeito).
 7. Automações são dados do mestre: nunca chegam ao navegador do jogador, só os efeitos delas.
 
+**Decidido pelo Vilella (2026-11-13):** a ação `som.tocar` fica fora do 7b. Ela entra junto com um lote de som
+ambiente, com os arquivos de som na pasta local, como as imagens. O 7b se divide em três lotes, 7b-1 a 7b-3
+(seção 7).
+
 ### 4.12 MCP (configurar a mesa com IA)
 
 Servidor MCP local (stdio) em `apps/mcp`, usado pelo Claude (Code ou Desktop) para construir o mundo:
 criar cenas, notas do mestre, modelos de objeto, pontos, zonas, ciclos, reações e NPCs.
 
+**Revisto pelo Vilella (2026-11-13): o MCP é de todos, não só do mestre.**
+- **Usos:**
+  - o mestre monta o mundo;
+  - **o jogador automatiza a criação do personagem**;
+  - todos editam fichas, notas (handouts) e objetos.
+- **Cada um só alcança o que está liberado para ele.**
+  - Cada usuário gera **o próprio token de acesso** em Preferências ("Conectar o Claude"). O token aparece uma
+    vez, a sala guarda só o hash e o usuário pode revogá-lo.
+  - O MCP entra na sala **como esse usuário**, com as mesmas capacidades, a mesma visão filtrada e as mesmas
+    recusas.
+  - A conexão do Claude ainda tem uma lista de coisas proibidas: mudar papéis, permissões e contas, importar
+    campanha e trocar a chave da pasta.
+- **O jogador cria as próprias fichas e handouts.** É a capacidade nova "Criar fichas e notas próprias", ligada
+  por padrão.
+  - Vale pela mesa e pelo Claude, sem limite prático, com um teto de 20 fichas e 20 handouts por jogador para não
+    ser infinito.
+  - O que ele cria é dele: ele edita, ele escolhe quem vê, e o mestre sempre vê e pode apagar.
+- **O que o Claude cria para o mestre entra como rascunho**, invisível para os jogadores até o mestre publicar.
+  Há um **"Desfazer tudo o que o Claude fez"**, para o mestre e para o jogador.
+- **O Claude pode rolar dados.** Quem rola é a sala, e a rolagem aparece no chat com a marca "pelo Claude".
+
+Regras que continuam:
 - **É mais um cliente da sala, não uma porta dos fundos:** passa pelas mesmas intenções, schemas zod e
   capacidades. As ferramentas do MCP são geradas a partir dos schemas.
-- Conecta no `localhost` da sala com um **token gerado pelo mestre** e entra com o papel `assistente`:
-  cria e edita conteúdo, mas não mexe em fichas de jogador, não rola dados e não muda papéis.
-- **Tudo o que a IA cria entra como rascunho**, invisível para os jogadores até o mestre publicar, com
-  **desfazer em lote**.
 - **Não envia imagens** (premissa das imagens locais): refere-se aos arquivos pelo nome ou hash, e o
   navegador do mestre busca na pasta dele.
 - Bom para regras, objetos, NPCs, notas e automações (pode ler a bíblia de uma campanha e popular a
@@ -1554,6 +1576,26 @@ assumido sem o Vilella está marcado com "(assumido)" e entra nas perguntas do f
 **Roteiro manual:** carregar a campanha de referência, entrar na cena do Pulmão com ciclo encurtado
 para 30 s, ver a inspiração reduzir e apagar tochas, pausar e retomar pelo botão.
 
+**Divisão em três lotes (2026-11-13), cada um com o seu `pnpm verify`:**
+- **7b-1, o motor:**
+  - os schemas de ciclo, evento, reação, ação, condição e modificador com prazo;
+  - as automações guardadas na campanha;
+  - as fases dos ciclos no agendador e os eventos do sistema;
+  - as ações da lista fechada (menos `som.tocar` e a zona);
+  - o sorteio pela semente da sala, o limite de encadeamento e o escopo por cena;
+  - pausar a mesa pausa os ciclos;
+  - nada de automação chega ao jogador;
+  - exportar e importar levam tudo.
+- **7b-2, as zonas:**
+  - polígonos por cena, desenhados pelo mestre;
+  - efeitos enquanto algo está dentro;
+  - os eventos `token.entrouNaZona` e `token.saiuDaZona`, e a ação `zona.ativar`;
+  - nada da zona chega ao jogador, só o efeito.
+- **7b-3, o editor e as campanhas:**
+  - o painel de automações do mestre (formulário e o JSON ao lado);
+  - botões de ciclo e de evento fixáveis na barra, que podem ser liberados aos jogadores;
+  - as campanhas `chama-primordial.json` e `5e-padrao.json`.
+
 **Pronto quando:** `pnpm verify` verde.
 
 ---
@@ -1895,6 +1937,22 @@ tokens que controla (só na tela dele) e, com a ordem aberta, entra clicando em 
 
 **Roteiro manual:** pedir ao Claude para montar uma cena da campanha de referência a partir da bíblia
 dela e revisar o rascunho antes de publicar.
+
+**Revisto em 2026-11-13** (seção 4.12): o MCP é de todos, com o token de cada usuário e as capacidades dele.
+O papel `assistente` deixa de existir. Divisão em dois lotes:
+- **12-1, o acesso do Claude** (sala e web):
+  - token por usuário em Preferências: gerar, ver uma vez, listar e revogar;
+  - a conexão do Claude, com a lista de proibidos e um limite de frequência;
+  - a capacidade "Criar fichas e notas próprias", com teto de 20 de cada;
+  - os rascunhos do mestre, com Publicar e Descartar;
+  - o "Desfazer tudo o que o Claude fez";
+  - a marca "pelo Claude" no chat.
+- **12-2, o servidor MCP** (`apps/mcp`):
+  - poucas ferramentas, com nomes em vez de ids: panorama, ler, fichas, compêndio, notas, objetos, cenas,
+    automações, rolar, rascunhos e desfazer;
+  - cada usuário só vê as ferramentas que pode usar;
+  - as instruções para o Claude Code e o Desktop;
+  - um E2E com o mestre e o jogador, cada um com o próprio token.
 
 **Pronto quando:** `pnpm verify` verde.
 
