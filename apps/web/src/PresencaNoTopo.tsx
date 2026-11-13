@@ -1,4 +1,5 @@
 import type { Presenca, Usuario } from "@tabletop/shared";
+import { Bot } from "lucide-react";
 import { useId, useRef, useState } from "react";
 import { iniciais } from "./Avatar";
 import { BotaoComDica } from "./BotaoComDica";
@@ -9,6 +10,8 @@ type Props = {
   usuarios: Usuario[];
   presenca: Record<string, Presenca>;
   euId: string;
+  /** 12-1: quem tem o Claude conectado (uma marca pequena na bolinha; o Claude nunca vira outra pessoa aqui). */
+  claude?: readonly string[];
 };
 
 const ROTULO: Record<Presenca, string> = {
@@ -25,24 +28,37 @@ function Item({
   estado,
   euId,
   naLista,
+  comClaude,
 }: {
   u: Usuario;
   estado: Presenca;
   euId: string;
   naLista?: boolean;
+  comClaude?: boolean;
 }) {
-  const dica = `${u.nome} (${u.papel})${u.id === euId ? " — você" : ""}: ${ROTULO[estado]}`;
+  const dica = `${u.nome} (${u.papel})${u.id === euId ? " — você" : ""}: ${ROTULO[estado]}${comClaude ? " · Claude conectado" : ""}`;
   return (
     <li
       className={naLista ? "presenca-item presenca-linha" : "presenca-item"}
       data-testid={`presenca-${u.id}`}
       data-estado={estado}
+      data-claude={comClaude ? "sim" : undefined}
       // Na lista o nome está à vista; só os avatares de iniciais precisam do nome e do estado.
       title={naLista ? undefined : dica}
     >
       <span className="avatar" style={{ background: u.cor, color: corDoTextoSobre(u.cor) }}>
         {iniciais(u.nome)}
         <span className="ponto-estado" aria-hidden="true" />
+        {comClaude && (
+          <span
+            className="marca-claude"
+            data-testid={`presenca-claude-${u.id}`}
+            title="Claude conectado"
+          >
+            <Bot size={9} aria-hidden="true" />
+            <span className="so-leitor">Claude conectado</span>
+          </span>
+        )}
       </span>
       {naLista && (
         <span className="presenca-nome">
@@ -65,7 +81,7 @@ function Item({
  * Quem está na mesa, como avatares no topo (nome e estado na dica; offline esmaecido). Com mais de
  * {VISIVEIS} pessoas, aparecem os que estão online primeiro e um "+N" abre a lista dos outros.
  */
-export function PresencaNoTopo({ usuarios, presenca, euId }: Props) {
+export function PresencaNoTopo({ usuarios, presenca, euId, claude = [] }: Props) {
   const [aberta, setAberta] = useState(false);
   const idDaLista = useId();
   const ref = useRef<HTMLDivElement>(null);
@@ -91,7 +107,13 @@ export function PresencaNoTopo({ usuarios, presenca, euId }: Props) {
     <div className="presenca-topo" ref={ref}>
       <ul className="presenca-avatares" data-testid="presenca" aria-label="Quem está na mesa">
         {visiveis.map((u) => (
-          <Item key={u.id} u={u} estado={estadoDe(u)} euId={euId} />
+          <Item
+            key={u.id}
+            u={u}
+            estado={estadoDe(u)}
+            euId={euId}
+            comClaude={claude.includes(u.id)}
+          />
         ))}
       </ul>
       {outros.length > 0 && (
@@ -117,7 +139,14 @@ export function PresencaNoTopo({ usuarios, presenca, euId }: Props) {
             hidden={!aberta}
           >
             {outros.map((u) => (
-              <Item key={u.id} u={u} estado={estadoDe(u)} euId={euId} naLista />
+              <Item
+                key={u.id}
+                u={u}
+                estado={estadoDe(u)}
+                euId={euId}
+                naLista
+                comClaude={claude.includes(u.id)}
+              />
             ))}
           </ul>
         </>

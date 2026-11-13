@@ -70,6 +70,8 @@ export const CicloCamposSchema = z.object({
   liberadoParaJogadores: z.boolean().optional(),
   /** 7b-3: o chip do ciclo fica na barra de cima do mestre (preferência dele, guardada com a campanha; assumido). */
   fixado: z.boolean().optional(),
+  /** 12-1: rascunho do Claude do mestre: não roda e o jogador não o recebe. */
+  rascunho: z.boolean().optional(),
 });
 export const CicloSchema = CicloCamposSchema.superRefine((c, ctx) => {
   const vistos = new Set<number>();
@@ -267,6 +269,8 @@ export const ReacaoSchema = z.object({
   ao: NomeDeEventoSchema,
   se: z.array(CondicaoDeReacaoSchema).max(8).default([]),
   fazer: z.array(AcaoSchema).min(1).max(20),
+  /** 12-1: rascunho do Claude do mestre: não roda e o jogador não o recebe. */
+  rascunho: z.boolean().optional(),
 });
 export type Reacao = z.infer<typeof ReacaoSchema>;
 
@@ -286,6 +290,8 @@ export const BotaoDeEventoSchema = z.object({
   cenaId: Id.optional(),
   fixado: z.boolean().optional(),
   liberadoParaJogadores: z.boolean().optional(),
+  /** 12-1: rascunho do Claude do mestre: não roda e o jogador não o recebe. */
+  rascunho: z.boolean().optional(),
 });
 export type BotaoDeEvento = z.infer<typeof BotaoDeEventoSchema>;
 export const MAXIMO_DE_BOTOES = 30;
@@ -376,7 +382,7 @@ export function botoesParaJogador(
   automacoes: Pick<Automacoes, "ciclos" | "execucao"> & { botoes?: Automacoes["botoes"] },
 ): BotaoParaJogador[] {
   const doCiclo = automacoes.ciclos
-    .filter((c) => c.liberadoParaJogadores === true)
+    .filter((c) => c.liberadoParaJogadores === true && c.rascunho !== true)
     .map(
       (c): BotaoParaJogador => ({
         id: idDoBotaoDeCiclo(c.id),
@@ -386,7 +392,7 @@ export function botoesParaJogador(
       }),
     );
   const doEvento = (automacoes.botoes ?? [])
-    .filter((b) => b.liberadoParaJogadores === true)
+    .filter((b) => b.liberadoParaJogadores === true && b.rascunho !== true)
     .map((b): BotaoParaJogador => ({ id: idDoBotaoDeEvento(b.id), tipo: "evento", nome: b.nome }));
   return [...doCiclo, ...doEvento];
 }
@@ -545,6 +551,7 @@ export function proximoMarcoDasAutomacoes(
   const a = automacoesDe(estado);
   const candidatos: number[] = [];
   for (const c of a.ciclos) {
+    if (c.rascunho) continue;
     const exec = a.execucao[c.id];
     if (!cicloRodando(exec)) continue;
     if (exec === undefined) {

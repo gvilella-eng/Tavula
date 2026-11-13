@@ -97,6 +97,8 @@ export const CenaSchema = z.object({
    * mapa, como sempre foi; voltar a ser mapa devolve tudo.
    */
   cartao: z.boolean().optional(),
+  /** 12-1: rascunho do Claude do mestre: a cena em rascunho não pode virar a cena do grupo. */
+  rascunho: z.boolean().optional(),
 });
 export type Cena = z.infer<typeof CenaSchema>;
 
@@ -132,6 +134,8 @@ export const TokenSchema = z.object({
   exaustao: z.number().int().min(1).max(6).optional(),
   /** Concentração: o nome da magia mantida (sem o campo, não concentra). */
   concentracao: z.string().trim().min(1).max(64).optional(),
+  /** 12-1: rascunho do Claude do mestre: o jogador não o recebe. */
+  rascunho: z.boolean().optional(),
 });
 export type Token = z.infer<typeof TokenSchema>;
 
@@ -235,6 +239,8 @@ export const ObjetoDeLuzSchema = z.object({
   fatorDeRaio: z.number().positive().optional(),
   /** 7b-1: soma dos `raioSomaM` que valem agora, em metros (o jogador só recebe este total). */
   somaDeRaioM: z.number().min(-1000).max(1000).optional(),
+  /** 12-1: rascunho do Claude do mestre: o jogador não o recebe. */
+  rascunho: z.boolean().optional(),
 });
 export type ObjetoDeLuz = z.infer<typeof ObjetoDeLuzSchema>;
 /** Nome do Lote 6, mantido porque muita coisa (mapa, painel) o usa. */
@@ -289,6 +295,8 @@ export const ModeloDeObjetoSchema = z.object({
   ocupaMao: z.boolean(),
   /** Ex.: "chama": usadas pelas automações (Lote 7b). */
   tags: z.array(z.string().min(1).max(32)).max(12),
+  /** 12-1: rascunho do Claude do mestre: o jogador não o recebe. */
+  rascunho: z.boolean().optional(),
 });
 export type ModeloDeObjeto = z.infer<typeof ModeloDeObjetoSchema>;
 
@@ -310,6 +318,8 @@ export const PontoDeLuzSchema = z.object({
   /** Inflamável: segundos segurando a tocha acesa em cima (padrão 3). */
   segurarS: z.number().min(0).max(60).optional(),
   visivelParaJogadores: z.boolean(),
+  /** 12-1: rascunho do Claude do mestre: o jogador não o recebe. */
+  rascunho: z.boolean().optional(),
 });
 export type PontoDeLuz = z.infer<typeof PontoDeLuzSchema>;
 
@@ -460,6 +470,10 @@ export const PastaSchema = z.object({
   nome: z.string().min(1).max(64),
   ordem: z.number().int().min(0).max(10_000),
   visivel: VisibilidadeSchema,
+  /** 12-1: a pasta própria de um jogador (quem a criou; a sala a faz ao primeiro item dele). */
+  criadoPor: z.string().min(1).max(64).optional(),
+  /** 12-1: rascunho do Claude do mestre: o jogador não a recebe. */
+  rascunho: z.boolean().optional(),
 });
 export type Pasta = z.infer<typeof PastaSchema>;
 
@@ -491,6 +505,10 @@ export const HandoutSchema = z.object({
   /** Imagem de preview (asset do tipo retrato ou token). */
   imagemHash: HashSchema.optional(),
   visivel: VisibilidadeSchema,
+  /** 12-1: quem criou (o jogador que cria o próprio handout edita e apaga; sem o campo, é do mestre). */
+  criadoPor: z.string().min(1).max(64).optional(),
+  /** 12-1: rascunho do Claude do mestre: o jogador não o recebe. */
+  rascunho: z.boolean().optional(),
 });
 export type Handout = z.infer<typeof HandoutSchema>;
 
@@ -528,6 +546,10 @@ export const PersonagemSchema = z.object({
    * `ficha.verOutras`: o item chega só com o que o mapa e as listas precisam.
    */
   ficha: FichaSchema.optional(),
+  /** 12-1: quem criou (o jogador que cria a própria ficha a edita e apaga; sem o campo, é do mestre). */
+  criadoPor: z.string().min(1).max(64).optional(),
+  /** 12-1: rascunho do Claude do mestre: o jogador não o recebe. */
+  rascunho: z.boolean().optional(),
 });
 export type Personagem = z.infer<typeof PersonagemSchema>;
 

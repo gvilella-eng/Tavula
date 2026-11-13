@@ -14,6 +14,7 @@ import {
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { dentroDaArea } from "./area";
 import { ConfigurarCena } from "./ConfigurarCena";
+import { SeloDeRascunho } from "./claude/RascunhosDoClaude";
 import type { ImagensDoMapa } from "./mapa/mapaPixi";
 import { useFecharFora } from "./Popover";
 import { previaDoMapa } from "./previaDaCena";
@@ -270,6 +271,7 @@ function Card({
               {cena.nome}
             </span>
           )}
+          {cena.rascunho && <SeloDeRascunho testid={`cena-rascunho-${cena.id}`} />}
           {doGrupo && (
             <span
               className="marca-grupo"

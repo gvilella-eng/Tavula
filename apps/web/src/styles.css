@@ -5531,3 +5531,194 @@ button.inicio-botao-largo {
   gap: 4px;
   padding: 6px 0;
 }
+
+/* --- o acesso do Claude (12-1) ------------------------------------------------------------------------ */
+
+/* O selo "Rascunho": o que o Claude criou e os jogadores ainda não veem. Só tokens do tema. */
+.selo-rascunho {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  padding: 0 6px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--texto);
+  background: transparent;
+  border: 1px dashed var(--acento);
+  border-radius: 999px;
+}
+.rascunhos-area {
+  position: relative;
+  display: inline-flex;
+}
+.chip-rascunhos {
+  padding: 3px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  color: var(--texto);
+  background: var(--campo);
+  border: 1px dashed var(--acento);
+  border-radius: 999px;
+}
+.chip-rascunhos:hover {
+  border-color: var(--texto);
+}
+.popover.rascunhos-lista {
+  top: calc(100% + 8px);
+  right: 0;
+  width: 340px;
+  max-height: 60vh;
+  overflow: auto;
+}
+.rascunhos-itens {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.rascunho-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--borda);
+}
+.rascunho-nome {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rascunho-tipo {
+  color: var(--texto-suave);
+  font-size: 11px;
+}
+.rascunho-acoes {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 4px;
+}
+.rascunhos-lista .rascunho-item .rascunho-acoes button {
+  padding: 2px 8px;
+  font-size: 12px;
+}
+/* A marca "Claude conectado" na bolinha da pessoa. */
+.marca-claude {
+  position: absolute;
+  left: -4px;
+  bottom: -4px;
+  display: grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  color: var(--acento-texto);
+  background: var(--acento);
+  border: 2px solid var(--barra);
+  border-radius: 50%;
+}
+.presenca-lista .marca-claude {
+  border-color: var(--campo);
+}
+/* A marca "pelo Claude" no cabeçalho de uma mensagem do chat. */
+.selo-pelo-claude {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0 6px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+  color: var(--texto);
+  border: 1px solid var(--acento);
+  border-radius: 999px;
+}
+/* Preferências, "Conectar o Claude". */
+.claude-conectar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+.claude-gerar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 320px;
+}
+.claude-token-novo {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--cabecalho);
+  border: 1px solid var(--acento);
+  border-radius: 8px;
+}
+.claude-token-valor {
+  display: block;
+  padding: 6px 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  word-break: break-all;
+  user-select: all;
+  background: var(--campo);
+  border: 1px solid var(--borda);
+  border-radius: 6px;
+}
+.claude-trecho {
+  margin: 4px 0;
+  padding: 6px 8px;
+  max-height: 140px;
+  overflow: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  background: var(--campo);
+  border: 1px solid var(--borda);
+  border-radius: 6px;
+}
+.claude-tokens,
+.claude-lotes ul {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.claude-token,
+.claude-lote {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  margin: 0;
+  padding: 6px 8px;
+  background: var(--cabecalho);
+  border: 1px solid var(--borda);
+  border-radius: 8px;
+}
+.claude-token-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.claude-token .confirmar-limpar {
+  width: 100%;
+  margin-top: 0;
+}
+.claude-lote[data-desfeito="true"] {
+  opacity: 0.6;
+}
+.claude-lote-texto {
+  min-width: 0;
+  flex: 1 1 160px;
+}
+.claude-subtitulo {
+  margin: 8px 0 0;
+  font-size: 13px;
+}

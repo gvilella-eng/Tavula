@@ -43,6 +43,8 @@ export const ZonaSchema = z.object({
   /** Desligada: não tem ninguém dentro, não gera evento nem efeito. */
   ativa: z.boolean().default(true),
   efeitos: EfeitosDaZonaSchema.default({}),
+  /** 12-1: rascunho do Claude do mestre: não roda e o jogador não o recebe. */
+  rascunho: z.boolean().optional(),
 });
 export type Zona = z.infer<typeof ZonaSchema>;
 
@@ -143,7 +145,7 @@ export function objetoNaZona(
 export function paresNasZonas(e: Pick<Estado, "zonas" | "tokens">): Set<string> {
   const pares = new Set<string>();
   for (const z of zonasDe(e)) {
-    if (!z.ativa) continue;
+    if (!z.ativa || z.rascunho) continue;
     for (const t of e.tokens) if (tokenNaZona(t, z)) pares.add(`${z.id}|${t.id}`);
   }
   return pares;
@@ -167,8 +169,8 @@ export function entradasESaidas(
   const antesPares = paresNasZonas(antes);
   const depoisPares = paresNasZonas(depois);
   for (const z of zonasDepois) {
-    if (!z.ativa) continue;
-    if (!zonasDe(antes).some((x) => x.id === z.id && x.ativa)) continue;
+    if (!z.ativa || z.rascunho) continue;
+    if (!zonasDe(antes).some((x) => x.id === z.id && x.ativa && !x.rascunho)) continue;
     for (const t of depois.tokens) {
       const chave = `${z.id}|${t.id}`;
       if (depoisPares.has(chave) && !antesPares.has(chave)) {

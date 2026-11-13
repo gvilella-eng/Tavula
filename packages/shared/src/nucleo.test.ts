@@ -127,7 +127,6 @@ describe("processar()", () => {
   it("o jogador não executa ações de mestre", () => {
     const e = criarEstado();
     const proibidas: Intencao[] = [
-      intencao("handout.criar", { handout: handoutNovo("h1") }),
       intencao("handout.mostrar", { id: "h1" }),
       intencao("papel.alterar", { usuarioId: "j1", papel: "mestre" }),
       intencao("permissao.alterar", { capacidade: "nota.editar", valor: false }),

@@ -217,10 +217,9 @@ describe("handouts: as intenções", () => {
     expect(e.handouts).toEqual([]);
   });
 
-  it("o jogador não cria, edita, apaga nem mostra handout", () => {
+  it("o jogador não edita, apaga nem mostra o handout do mestre (o que ele cria é dele: 12-1)", () => {
     const e = comHandouts(handout("h1", { visivel: { tipo: "todos" } }));
     for (const i of [
-      intencao("handout.criar", { handout: handout("h2") }),
       intencao("handout.editar", { id: "h1", mudancas: { texto: "x" } }),
       intencao("handout.apagar", { id: "h1" }),
       intencao("handout.mostrar", { id: "h1" }),

@@ -10,6 +10,7 @@ import {
   normalizarLogin,
   type ResumoDaMesa,
   type SituacaoDaMesa,
+  type TokenDoClaudePublico,
 } from "@tabletop/shared";
 import { atrasoDaTentativa } from "./useSala";
 
@@ -278,6 +279,29 @@ export async function trocarSenha(
     derivarSenha(nova, mesaId, login),
   ]);
   await postar(daMesa(mesaId, "conta/trocar-senha"), { atual: a, nova: n });
+}
+
+// --- Tokens de acesso do Claude (12-1) ----------------------------------------------------------------
+
+/** Os tokens do Claude desta conta nesta mesa (nome, quando foi criado e o último uso; nunca o token). */
+export async function listarTokensDoClaude(mesaId: string): Promise<TokenDoClaudePublico[]> {
+  const r = await pedir(daMesa(mesaId, "conta/claude"));
+  if (!r.ok) throw await lerErro(r);
+  return ((await r.json()) as { tokens: TokenDoClaudePublico[] }).tokens;
+}
+
+/** Gera um token do Claude. O token vem só nesta resposta: quem chama o mostra uma vez e o esquece. */
+export async function gerarTokenDoClaude(
+  mesaId: string,
+  nome: string,
+): Promise<TokenDoClaudePublico & { token: string }> {
+  const r = await postar(daMesa(mesaId, "conta/claude/gerar"), nome.trim() ? { nome } : {});
+  return (await r.json()) as TokenDoClaudePublico & { token: string };
+}
+
+/** Revoga um token (vale na hora: a conexão aberta com ele cai). */
+export async function revogarTokenDoClaude(mesaId: string, id: string): Promise<void> {
+  await postar(daMesa(mesaId, "conta/claude/revogar"), { id });
 }
 
 /** A mesa legada sem conta de mestre: cria a conta dele (só de uma requisição local). */

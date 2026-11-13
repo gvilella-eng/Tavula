@@ -1639,3 +1639,41 @@ Os lotes 7b-1 a 7b-3 (motor, zonas, editor e campanhas) vêm depois dos ajustes 
 - Editar o desenho da zona e as reações dela de dentro da janela das Zonas (as reações da zona se editam no editor das automações; o painel da zona ainda só mostra a contagem).
 - Liberar só algumas ações de um ciclo (hoje: disparar, pausar e retomar juntos); atalhos de teclado para os chips; ordenar os chips.
 - `som.tocar` (lote de som); o MCP (12).
+
+
+### 12-1 — como ficou (2026-11-13)
+
+**O que foi feito**
+- **O token de acesso do Claude**, por conta e por mesa. Em Preferências, a seção "Conectar o Claude": "Gerar token" (nome opcional, até 5 por conta), o token aparece **uma vez** com Copiar e o trecho pronto para o Claude Code e para o Claude Desktop (`apps/web/src/claude/textosDoClaude.ts`, o lugar único que o 12-2 troca), a lista com nome, criação e último uso e "Revogar" com confirmação na página. A sala guarda só o SHA-256 (tabela `tokens_claude`, migração 13).
+- **A conexão do Claude**: o WebSocket abre com `Authorization: Bearer <token>` (sem cookie, sem sessão de navegador, nenhuma rota HTTP aceita o token). A sala marca o socket (`claude: true`, `tokenId`) e age como o usuário: `processar` recebe `{ claude: true }` e recusa a lista de proibidos (`PROIBIDAS_AO_CLAUDE`, mesmo para o mestre), marca as mensagens com `peloClaude` e, para o mestre, carimba o que ele cria como rascunho. Limite de 20 pedidos por segundo por token (rajada de 40). Revogar derruba a conexão (4001) na hora. Token errado, malformado ou revogado: o mesmo 401; cada falha entra no bloqueio por IP do login.
+- **Presença**: a conexão do Claude não vira outra pessoa (não conta como online nem segura a mesa sem mestre); a bolinha da pessoa ganha uma marca pequena "Claude conectado" (`presenca.claude`).
+- **"Pelo Claude"**: mensagem e rolagem criadas pela conexão do Claude levam a marca (um selo no cabeçalho da mensagem), visível para todos. A rolagem oculta segue a capacidade do usuário.
+- **A capacidade "Criar fichas e notas próprias"** (`personagem.criarProprio`, delegável, ligada por padrão, em Permissões e na exceção por jogador): o jogador cria a própria ficha e o próprio handout, com teto de 20 de cada. Na aba Fichas, "Nova ficha" e "Novo handout" para o jogador (o mesmo editor de hoje). O dono edita e apaga o que criou; o mestre sempre vê, edita e apaga.
+- **Rascunhos do mestre**: o que o Claude do mestre cria entra com `rascunho: true` (cenas, fichas e NPCs, handouts, pastas, modelos, pontos, luzes, tokens, zonas, ciclos, reações e botões). Invisível ao jogador (snapshot e evento), sem efeito (ciclo e reação não rodam; a cena não vira a do grupo). Para o mestre: selo "Rascunho" nas fichas, handouts, pastas, cenas, ciclos, reações e botões e o chip "Rascunhos do Claude (N)" no topo, com a lista, "Publicar" (por item ou tudo) e "Descartar" (com confirmação na página). Intenções `rascunho.publicar` e `rascunho.descartar`.
+- **"Desfazer o que o Claude fez"**: a sala anota o inverso de cada mudança do Claude (diário `claude_lotes`, migração 14, 50 lotes por usuário, fora da exportação), agrupado pelo `loteId` do envelope. Em Preferências, "O que o Claude fez" lista os lotes ("Claude: criou 6 NPCs · 6 itens · há 5 min") com Desfazer e há "Desfazer tudo o que o Claude fez". Desfaz na ordem inversa; o item que outra pessoa mudou depois é pulado e o aviso diz qual. Intenção `claude.desfazer`; mensagens `claude.lotes` e `claude.desfeito`.
+
+**Decisões (assumido)**
+- (assumido) O token tem o formato `tvc_` + 43 caracteres base64url (32 bytes do `crypto`); no máximo 5 por conta e mesa; `ultimo_uso` é gravado a cada conexão.
+- (assumido) O token só vale no WebSocket. As rotas HTTP (`eu`, `contas`, tokens...) ignoram o `Authorization` e respondem como sem sessão; gerar e revogar com o cabeçalho dá 403. Nenhum cookie nasce.
+- (assumido) A lista de proibidos fica em `packages/shared/src/claude.ts` e vai além da do brief nos arquivos: `asset.pedir`, `asset.inventario`, `asset.tenho` e `asset.naoTenho` (o Claude não tem arquivos e não envia imagens; assim ele também não vira um provedor de arquivos). Contas, chave da pasta, código de recuperação, apagar a mesa e tokens não são intenções: são rotas HTTP que o token nunca abre.
+- (assumido) A conexão do Claude não recebe `contas.aviso` nem `preparo.*`.
+- (assumido) Limite de 20 intenções por segundo por token, rajada de 40, em balde de fichas na memória da sala. O frame binário do Claude é descartado.
+- (assumido) Onde ficam as fichas e os handouts do jogador: uma **pasta própria** (`pasta-de-<id>`, "Fichas de <nome>", visível só a ele e ao mestre) que a sala cria no primeiro item dele. A ficha: `editores` só ele; o handout: ele escolhe quem vê; pastas de outros nunca. A pasta e os itens levam `criadoPor`.
+- (assumido) O dono muda a ficha toda (nome, token, visão, a ficha 5e), menos `editores` e `pastaId`; no handout, tudo menos a pasta. Desligar a capacidade bloqueia só criar.
+- (assumido) Item que o jogador vê e não é dele: `sem_permissao`; item que ele não vê: `*_inexistente`.
+- (assumido) Rascunho também vale para tokens (o brief dizia "token de rascunho não aparece"). Paredes, desenhos, configuração e chat que o Claude do mestre cria aplicam direto (entram no Desfazer, menos desenhos, configuração e chat).
+- (assumido) O que nasce numa cena em rascunho (tokens, pontos, luzes, zonas) não leva a marca: publicar a cena o publica. A marca é sempre posta pela sala; o `rascunho` que o cliente mandar é ignorado.
+- (assumido) O Claude do mestre também publica e descarta rascunhos (`mesa.configurar`). Editar um rascunho não o publica; editar o publicado aplica direto.
+- (assumido) Ciclo disparado à mão (`ciclo.disparar`) ou evento manual não roda reação em rascunho; o ciclo em rascunho não ganha execução, então ao publicar começa dali.
+- (assumido) O Desfazer cobre cenas, pastas, modelos, fichas, handouts, tokens, pontos, luzes, paredes, zonas, ciclos, reações e botões. **Publicar não conta como "mudou depois"**: o que o Claude criou e o mestre publicou ainda se desfaz. A publicação em si também é um passo desfazível.
+- (assumido) Lote sem `loteId` é um lote por pedido ("Mexeu na mesa"); só entram lotes que mudaram alguma coisa (rolar e conversar não entram). Passos com mais de ~1,5 MB: o lote fica listado, mas não se desfaz.
+- (assumido) O "Desfazer tudo" desfaz do lote mais novo ao mais velho, um pedido por lote.
+- (assumido) A presença do Claude é uma marca pequena (um robô) na bolinha, sem lista própria.
+- (assumido) O selo "Rascunho" não aparece em modelos, pontos, luzes, tokens e zonas na tela (eles estão na lista do chip); o token em rascunho só é visível ao mestre.
+- (assumido) O chip "Rascunhos do Claude" fica no topo à direita, antes da presença; a lista é um painel que fecha com Esc ou clicando fora.
+
+**O que ficou para depois**
+- O servidor MCP em si (`apps/mcp`, lote 12-2), com o comando final e as instruções (hoje o texto de "Conectar o Claude" é provisório).
+- Selo "Rascunho" nos painéis de modelos, pontos, luzes e zonas e um realce do token em rascunho no mapa.
+- Revogar e gerar tokens também pelo mestre para outras contas (hoje cada um gerencia o seu).
+- Desfazer para desenhos, configuração, permissões e relógio.

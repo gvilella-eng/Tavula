@@ -264,6 +264,8 @@ export const CODIGOS_DE_ERRO_DE_CONTA = [
   "recuperacao_invalida",
   "login_nao_confere",
   "origem_invalida",
+  "limite_de_tokens",
+  "token_inexistente",
 ] as const;
 export type CodigoDeErroDeConta = (typeof CODIGOS_DE_ERRO_DE_CONTA)[number];
 
@@ -325,6 +327,10 @@ export function mensagemDeErroDeConta(codigo: string, minutos?: number): string 
       return "Esse não é o login do mestre desta mesa.";
     case "origem_invalida":
       return "Pedido recusado: ele não veio desta página.";
+    case "limite_de_tokens":
+      return "Você já tem 5 tokens do Claude nesta mesa. Revogue um para gerar outro.";
+    case "token_inexistente":
+      return "Esse token não existe mais.";
   }
   return "Não foi possível concluir. Tente de novo.";
 }

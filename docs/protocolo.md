@@ -1,6 +1,6 @@
 # Protocolo cliente ↔ sala
 
-## Versão atual: v1 (Lotes 1, 2, 3, 4, 4b, 5, 6, 7, 8, 9, 10, 11, 13 e 14)
+## Versão atual: v1 (Lotes 1, 2, 3, 4, 4b, 5, 6, 7, 8, 9, 10, 11, 12-1, 13 e 14)
 
 Os schemas zod ficam em `packages/shared/src/protocolo.ts` e `estado.ts`; a lógica pura (conferir
 capacidade, aplicar, filtrar por papel) em `nucleo.ts` e `capacidades.ts`. O cliente e a sala validam
@@ -51,7 +51,8 @@ personagem, a camada `mapa` e a ordem de turno, tudo **sem mudar o número do pr
 | `GET /api/m/<id>/usuarios` e `POST /api/m/<id>/entrar` `{ usuarioId }` | **só com `MODO=teste`**: a escolha de usuário de desenvolvimento (cookie `tabletop_sessao`); fora dele 404 |
 | `GET /api/m/<id>/eu` | usuário da sessão nesta mesa (`{ id, nome, cor, login? }`) ou 401; renova o cookie se a sessão foi renovada |
 | `POST /api/m/<id>/renomear` `{ nome }` | muda o nome da mesa; só o mestre (403 aos outros, 401 sem sessão) |
-| `GET /api/m/<id>/ws` (Upgrade) | WebSocket da sala; sem usuário válido: 401 |
+| `GET /api/m/<id>/ws` (Upgrade) | WebSocket da sala; sem usuário válido: 401. 12-1: com `Authorization: Bearer <token do Claude>` abre a conexão do Claude (ver "O acesso do Claude") |
+| `GET /api/m/<id>/conta/claude`, `POST .../conta/claude/gerar` e `.../revogar` | 12-1: os tokens de acesso do Claude da própria pessoa (ver "O acesso do Claude") |
 | qualquer `/api/m/<id>/...` com id que não existe | 404 `{ erro: "mesa_inexistente" }` |
 | `POST /teste/zerar`, `POST /teste/reiniciar-sala` | **só com `MODO=teste`** (script `dev:e2e`); fora disso 404 |
 
@@ -96,9 +97,9 @@ fica dentro de `0..larguraM` × `0..alturaM`), não recusada.
 | `tipo` | `dados` | Capacidade exigida | Efeito |
 |---|---|---|---|
 | ~~`nota.editar`~~, ~~`notaMestre.editar`~~ | — | — | **saíram no V3** (a aba Notas virou handouts). A capacidade `nota.editar` continua no enum só por compatibilidade (banco e exportação antigos) e nenhuma intenção a exige |
-| `handout.criar` | `{ handout: { id, pastaId, titulo (1 a 80), texto (até 20 000), fonte: "simples" \| "livro" \| "manuscrito" \| "medieval" \| "datilografado", imagemHash?, visivel } }` | `mesa.configurar` (só do mestre) | cria o handout (V3). `dados_invalidos` (id repetido), `pasta_inexistente`, `usuario_inexistente`, `asset_inexistente` (imagem tipo retrato ou token). Se `visivel` não é `mestre`, manda **snapshot novo a todos** (a pasta chega junto) |
-| `handout.editar` | `{ id, mudancas: { pastaId?, titulo?, texto?, fonte?, imagemHash?: hash \| null, visivel? } }` | `mesa.configurar` | muda o que vier. `handout_inexistente`. Mudar `visivel` ou `pastaId` manda **snapshot novo a todos**; texto, título, fonte e imagem, não |
-| `handout.apagar` | `{ id }` | `mesa.configurar` | apaga; `handout_inexistente`. (`pasta.apagar` só vale com a pasta sem personagens **e** sem handouts) |
+| `handout.criar` | `{ handout: { id, pastaId, titulo (1 a 80), texto (até 20 000), fonte: "simples" \| "livro" \| "manuscrito" \| "medieval" \| "datilografado", imagemHash?, visivel } }` | nenhuma (`null`): o mestre; o jogador com `personagem.criarProprio` cria o **dele** (12-1: pasta própria, `criadoPor`, teto de 20; `limite_de_criacao`) | cria o handout (V3). `dados_invalidos` (id repetido), `pasta_inexistente`, `usuario_inexistente`, `asset_inexistente` (imagem tipo retrato ou token). Se `visivel` não é `mestre`, manda **snapshot novo a todos** (a pasta chega junto) |
+| `handout.editar` | `{ id, mudancas: { pastaId?, titulo?, texto?, fonte?, imagemHash?: hash \| null, visivel? } }` | nenhuma: o mestre, ou o jogador no handout que criou (sem mudar a pasta; handout que ele vê e não é dele: `sem_permissao`; que não vê: `handout_inexistente`) | muda o que vier. `handout_inexistente`. Mudar `visivel` ou `pastaId` manda **snapshot novo a todos**; texto, título, fonte e imagem, não |
+| `handout.apagar` | `{ id }` | nenhuma: o mestre, ou o jogador no handout que criou (12-1) | apaga; `handout_inexistente`. (`pasta.apagar` só vale com a pasta sem personagens **e** sem handouts) |
 | `handout.mostrar` | `{ id }` | `mesa.configurar` | "Mostrar agora": emite `handout.mostrado` (só para quem vê o handout); não grava nada. `handout_inexistente` |
 | `papel.alterar` | `{ usuarioId, papel: "mestre" \| "jogador" }` | `papel.alterar` (só do mestre) | muda o papel; recusa deixar a mesa sem mestre (`ultimo_mestre`) |
 | `permissao.alterar` | `{ capacidade, valor: boolean \| null, usuarioId? }` | `permissao.alterar` (só do mestre) | sem `usuarioId`: muda o padrão da mesa; com `usuarioId`: exceção do usuário; `valor: null` (só com `usuarioId`) remove a exceção. Capacidade exclusiva do mestre: `capacidade_nao_delegavel` |
@@ -118,13 +119,13 @@ fica dentro de `0..larguraM` × `0..alturaM`), não recusada.
 | `cena.configurarGrid` | `{ cenaId?, quadradoM?, visivel? }` (quadrado de 0,3 a 10 m) | `cena.editar` | muda o grid da cena (`cenaId`; padrão: a ativa) |
 | `token.mover` | `{ id, x, y }` (metros, centro do token) | `token.moverProprio` | **transitório**: não grava, não gera `seq`, não muda o estado; a sala repassa `token.movendo` (abaixo). Limite do cliente: 20 por segundo por arraste |
 | `token.soltar` | `{ id, x, y }` | `token.moverProprio` | grava e gera o evento `token.movido` (sempre, mesmo sem mudança de posição: quem viu o movimento ao vivo precisa da posição final) |
-| `personagem.criar` | `{ personagem }` (`id` do cliente; `pastaId`; `editores`: `{ tipo: "todos" }` ou `{ tipo: "jogadores", ids }` (NPC: `ids: []`); `retratoHash?`; `tokenPadrao { cor, tamanhoQuadrados, assetHash? }`; `visao { alcanceM \| null, visaoNoEscuroM }`; `ficha?` (Lote 9: ver "Ficha 5e"; PV mínimos `{ pvAtual, pvMax }`); a `mochila` do Lote 7, se vier, vira `ficha.itens`) | `cena.editar` (só do mestre) | cria o personagem. `dados_invalidos` (id repetido), `pasta_inexistente`, `usuario_inexistente` (editor que não é jogador), `asset_inexistente` (imagem) |
+| `personagem.criar` | `{ personagem }` (`id` do cliente; `pastaId`; `editores`: `{ tipo: "todos" }` ou `{ tipo: "jogadores", ids }` (NPC: `ids: []`); `retratoHash?`; `tokenPadrao { cor, tamanhoQuadrados, assetHash? }`; `visao { alcanceM \| null, visaoNoEscuroM }`; `ficha?` (Lote 9: ver "Ficha 5e"; PV mínimos `{ pvAtual, pvMax }`); a `mochila` do Lote 7, se vier, vira `ficha.itens`) | nenhuma (`null`): o mestre; o jogador com `personagem.criarProprio` cria a **própria** ficha (12-1: `editores` só ele, pasta própria, `criadoPor`, teto de 20; `limite_de_criacao`) | cria o personagem. `dados_invalidos` (id repetido), `pasta_inexistente`, `usuario_inexistente` (editor que não é jogador), `asset_inexistente` (imagem) |
 | `personagem.editar` | `{ id, mudancas: { nome?, editores?, pastaId?, cor?, tamanhoQuadrados?, assetHash?: hash \| null, retratoHash?: hash \| null, alcanceM?, visaoNoEscuroM?, pvAtual?, pvMax? } }` | nenhuma (`null`; a regra é de quem edita) | **mestre**: qualquer mudança. **Quem edita** o personagem (jogador): só `assetHash` (token padrão) e `retratoHash`, e com `asset.subir` (`sem_permissao` no resto). Personagem que a pessoa não vê: `personagem_inexistente`. `pasta_inexistente`, `usuario_inexistente`. Não muda os tokens já postos (cada token tem a própria cópia de nome, cor e imagem). Mudar `pastaId` ou `editores` faz o item aparecer ou sumir para os jogadores afetados (ver sigilo) |
 | `pasta.criar` | `{ pasta: { id, nome, ordem, visivel } }` (`visivel`: `{ tipo: "todos" }`, `{ tipo: "mestre" }` ou `{ tipo: "jogadores", ids }`) | `mesa.configurar` (só do mestre) | cria a pasta (sem subpastas). `dados_invalidos` (id repetido), `usuario_inexistente` |
 | `pasta.editar` | `{ id, nome?, visivel? }` | `mesa.configurar` | renomeia e/ou muda quem vê a pasta (e tudo o que está nela). Mudar `visivel` manda **snapshot novo a todos**. `pasta_inexistente` |
 | `pasta.apagar` | `{ id }` | `mesa.configurar` | só pasta **vazia** (`dados_invalidos` se tem itens). `pasta_inexistente` |
 | `ordemDeTurno.definir` | `{ visivel: boolean }` | `mesa.configurar` | mostra ou esconde o painel flutuante de ordem de turno **para todos, inclusive o mestre**; o campo `ordemDeTurnoVisivel` do estado entra na exportação. O conteúdo da ordem (iniciativa, turnos, condições) é do Lote 11: ver "Combate e condições" abaixo |
-| `personagem.apagar` | `{ id }` | `cena.editar` | apaga o personagem **e os tokens dele** (eventos `token.apagado` e depois `personagem.apagado`) |
+| `personagem.apagar` | `{ id }` | nenhuma: o mestre, ou o jogador na ficha que criou (12-1) | apaga o personagem **e os tokens dele** (eventos `token.apagado` e depois `personagem.apagado`) |
 | `personagem.colocar` | `{ personagemId, cenaId, tokenId, x?, y? }` | `cena.editar` | cria o token a partir do token padrão (camada `tokens`, visível, `personagemId`), na posição dada (a interface manda o ponto onde o item das Fichas foi **solto no mapa**) ou na **chegada** da cena (encaixada no grid). Personagem de jogador (com quem edite) só tem **um** token (`dados_invalidos` se já tem) |
 | `ficha.alterar` | `{ personagemId, operacoes: { caminho, valor }[] }` (1 a 200 operações; `caminho` com pontos, número = posição na lista, vazio = a ficha inteira; `valor: null` remove o campo ou o elemento) | nenhuma (a regra é de quem edita; `null` em `capacidadeDaIntencao`) | **quem edita** o personagem ou o mestre. A sala aplica as operações numa cópia, valida a **ficha inteira** (zod) e recusa com `dados_invalidos` se passar de **256 KB** ou ficar inválida (nada é gravado pela metade). `pvAtual` nunca passa de `pvMax`. Quem não é o mestre **não aumenta** a quantidade de item com `modeloId` (`sem_permissao`: só o mestre repõe tochas). Personagem que a pessoa não vê: `personagem_inexistente`; visível mas que ela não edita: `sem_permissao` (mesmo com `ficha.verOutras`). Substitui a forma antiga `{ personagemId, pvAtual?, pvMax? }` |
 | `cena.criar` | `{ id, nome }` | `cena.editar` | nova cena com o tamanho e o grid padrão (60 x 45 m, quadrado 1,5 m). `dados_invalidos` se o id existe |
@@ -135,6 +136,9 @@ fica dentro de `0..larguraM` × `0..alturaM`), não recusada.
 | `cena.preparar` | `{ cenaId, pacotes: [{ hashCifrado, hashOriginal, chave }] }` (1 a 200; hashes e chave em 64 hex) | `cena.editar` | guarda os pacotes e as chaves (SQLite, tabela `preparos`) e avisa os jogadores com `preparo.disponivel`. A sala só aceita pacote cujo `hashCifrado` é um asset `cifrado` registrado (`asset_inexistente`) e cujo `hashOriginal` é um arquivo que os jogadores veriam naquela cena (mapa e imagem de token visível; `dados_invalidos`). Não gera evento |
 | `desenho.criar`, `desenho.mover`, `desenho.apagar`, `desenho.voltar`, `desenho.limpar`, `desenho.rascunho` | ver "Pincel e desenhos (Lote 13)" | `desenho.criar` (`desenho.limpar`: `cena.editar`) | o pincel |
 | `compendio.definir`, `chat.magia` | ver "Compêndio de magias (Lote 14)" | `mesa.configurar` (só do mestre) e nenhuma | o compêndio da mesa e a magia no chat |
+| `rascunho.publicar` | `{ itens?: [{ tipo, id }] }` (sem `itens`: todos) | `mesa.configurar` | 12-1: tira a marca `rascunho` dos itens (o jogador passa a recebê-los); snapshot a todos. `dados_invalidos` se nenhum dos `itens` é rascunho |
+| `rascunho.descartar` | `{ itens: [{ tipo, id }] }` | `mesa.configurar` | 12-1: apaga os rascunhos com as regras de apagar de cada tipo; só vale para rascunho (`dados_invalidos`) |
+| `claude.desfazer` | `{ loteId }` | nenhuma (a sala confere que o lote é do usuário) | 12-1: desfaz um lote do Claude do próprio usuário; responde `claude.desfeito`; `lote_inexistente` |
 | `campanha.exportar` | `{}` | `campanha.exportar` (só do mestre) | a sala responde `exportacao` a quem pediu |
 | `campanha.importar` | `{ dados }`: o arquivo de exportação inteiro | `campanha.importar` (só do mestre) | substitui o estado inteiro e manda snapshot novo a todos |
 
@@ -380,12 +384,13 @@ snapshot completo e volta a acompanhar.
 - `online`: tem pelo menos um socket aberto.
 - `reconectando`: fechou o último socket há menos de 10 s; o fim do prazo vem pelo agendador (alarme).
 - `offline`: demais casos.
+- 12-1: a conexão do Claude (`Authorization: Bearer`) **não conta** como o usuário online; a mensagem `presenca` leva `claude: [ids]` (opcional) com quem tem o Claude conectado.
 
 ### Capacidades
 
 Delegáveis (o mestre liga ou desliga o padrão da mesa e abre exceção por usuário):
 `nota.editar` (entidade de teste do Lote 1), `token.moverProprio` (mover um token que controla), `porta.abrir`, `tocha.acender`,
-`tocha.entregar`, `ponto.usar`, `luz.apagar`, `ficha.verOutras` (Lote 9: ver a ficha completa dos personagens que ela só vê, sem editar; padrão desligado), `dado.rolarOculto`, `asset.subir`, `desenho.criar` (Lote 13: usar o pincel; **ligada por padrão**; cobre criar, mover, apagar e voltar os próprios desenhos e o rascunho), `token.colocarProprio` (V10b: pôr o token do personagem que controla na área da bandeira; **ligada por padrão**), `mapa.pingar` (V12: pingar o mapa e centralizar a tela de todos; **ligada por padrão**).
+`tocha.entregar`, `ponto.usar`, `luz.apagar`, `ficha.verOutras` (Lote 9: ver a ficha completa dos personagens que ela só vê, sem editar; padrão desligado), `dado.rolarOculto`, `asset.subir`, `desenho.criar` (Lote 13: usar o pincel; **ligada por padrão**; cobre criar, mover, apagar e voltar os próprios desenhos e o rascunho), `token.colocarProprio` (V10b: pôr o token do personagem que controla na área da bandeira; **ligada por padrão**), `mapa.pingar` (V12: pingar o mapa e centralizar a tela de todos; **ligada por padrão**), `personagem.criarProprio` (12-1, "Criar fichas e notas próprias": o jogador cria as próprias fichas e handouts, com teto de 20 de cada; **ligada por padrão**).
 
 Só do mestre, nunca delegáveis: `papel.alterar`, `permissao.alterar`, `mesa.configurar`,
 `automacao.editar`, `camadaMestre.ver`, `cena.editar` (tokens, grid, mapa e, desde o Lote 4, criar e apagar personagens, cenas, levar o grupo e preparar cena), `objeto.ajustar`,
@@ -885,6 +890,71 @@ O **ciclo** ganhou `fixado?` (o `liberadoParaJogadores?` já existia), editávei
 **Sigilo (nota de segurança).** O jogador recebe só o id, o tipo, o nome (o que o mestre escolheu mostrar) e, no ciclo, se está pausado. Nunca as fases, as cenas, os eventos, as reações nem o id do botão de evento além do prefixo `evento:`. Os testes (`botoes.test.ts`, `automacoes-editor.spec.ts`) conferem que nenhum frame do jogador traz a definição.
 
 **Guardar.** O `fixado` e a lista `botoes` moram com as automações (chave `automacoes` da `meta`; sem migração) e vão na exportação (campo opcional; a versão do arquivo continua 13).
+
+### O acesso do Claude (Lote 12-1)
+
+O Claude (o servidor MCP do lote 12-2) entra na mesa **como o próprio usuário** e nunca alcança mais do que ele: as mesmas capacidades, a mesma visão (`visaoPara`), os mesmos eventos (`eventoPara`) e as mesmas recusas de `processar`. Não há papel novo nem atalho: a conexão do Claude é uma conexão comum com uma marca (`claude: true` no anexo do socket) que a sala conhece pelo token, nunca por algo que o cliente diga. Decisão do Vilella (2026-11-13): o MCP é de todos; cada pessoa gera o próprio token.
+
+**O token**
+- Formato: `tvc_` + 43 caracteres em base64url (32 bytes do `crypto`), 47 no total (`^tvc_[A-Za-z0-9_-]{43}$`). Aparece **uma vez**, na resposta que o gera.
+- A sala guarda **só o SHA-256** dele, numa tabela própria (`tokens_claude`: `id`, `hash_token`, `conta_id`, `usuario_id`, `nome`, `criado_em`, `ultimo_uso`; migração 13, aditiva e idempotente). Cada token é de **uma conta nesta mesa** (sem conta, só com `MODO=teste`, do usuário do login solto). No máximo **5** por conta e mesa (assumido).
+- Remover, recusar ou trocar a vaga da conta **revoga** os tokens dela (e fecha as conexões abertas com 4001). A exportação e a importação da campanha não levam tokens.
+- Rotas (todas com a **sessão da pessoa**, o cookie; nunca com um token do Claude, que recebe 403 "O Claude não gera nem revoga tokens"):
+
+| Rota | O que faz |
+|---|---|
+| `GET /api/m/<id>/conta/claude` | `{ tokens: [{ id, nome, criadoEm, ultimoUso }] }` (nunca o token nem o hash) |
+| `POST /api/m/<id>/conta/claude/gerar` `{ nome? }` | cria um token (nome de até 40 caracteres; sem nome, "Claude") e responde 201 `{ token, id, nome, criadoEm, ultimoUso }`: o `token` só vem aqui. 409 `limite_de_tokens` |
+| `POST /api/m/<id>/conta/claude/revogar` `{ id }` | revoga na hora e **derruba a conexão aberta** com aquele token (close 4001, "token revogado"). 404 `token_inexistente` |
+
+**Como o cliente se conecta**
+- `GET /api/m/<id>/ws` (Upgrade) com `Authorization: Bearer <token>`. O Worker repassa o cabeçalho e **sempre refaz os internos** (`x-tavola-*`).
+- Com o cabeçalho, **só o token vale**: o cookie é ignorado e **nenhum cookie nasce** (a resposta 101 não tem `Set-Cookie`). O token não abre sessão de navegador e **nenhuma rota HTTP o aceita**: `eu`, `contas`, tokens etc. respondem 401 como sem sessão. Um navegador não consegue pôr esse cabeçalho num WebSocket, então o token não serve a uma página.
+- Token ausente no formato, errado ou revogado: **o mesmo 401** (`Não autenticado`), sem dizer qual dos casos. Cada falha entra no **mesmo bloqueio progressivo por IP do login** (30 falhas em 15 min bloqueiam o IP por 15 min; bloqueado, nem o token certo vale: 429 `ip_bloqueado` com `minutos` e `Retry-After`).
+- `Origin`: a checagem do C3 aceita pedido **sem** `Origin` (o MCP é um processo Node e não o manda) e, com ele, exige o host do pedido. Não foi preciso exceção.
+- Ao conectar, a sala manda o `snapshot` do usuário e, se há lotes, `claude.lotes`. A conexão do Claude **não** recebe `contas.aviso` nem `preparo.*` (o Claude não mexe em contas nem baixa arquivos).
+- Presença: a conexão do Claude **não** conta como o usuário online (não segura a mesa sem mestre nem apaga o "reconectando"). A mensagem `presenca` ganha `claude: ["<usuarioId>", ...]` (opcional) e a bolinha da pessoa mostra uma marca "Claude conectado".
+- Revogar, conta removida ou sala zerada (teste) fecham o socket com **4001**: o cliente do MCP não deve reconectar.
+
+**O envelope com `loteId`**
+
+```json
+{ "v": 1, "id": "<id do pedido>", "tipo": "personagem.criar", "dados": { ... },
+  "loteId": "<id do lote, 1 a 64 caracteres>", "lote": "<descrição curta, até 120>" }
+```
+
+`loteId` e `lote` são opcionais em **toda** intenção e **só a conexão do Claude os usa**; em qualquer outra conexão a sala os ignora. O MCP manda o mesmo `loteId` em todas as intenções de uma chamada de ferramenta e uma descrição curta ("criou 6 NPCs"). Sem `loteId`, cada intenção é um lote (o `id` do pedido); sem `lote`, a descrição é "Mexeu na mesa". Só entram no lote as intenções que **mudaram coisas** (ver "Desfazer").
+
+**A lista exata de proibidos** (`PROIBIDAS_AO_CLAUDE` em `packages/shared/src/claude.ts`, um lugar só). A conexão do Claude recusa, **mesmo para o mestre**, com `erro` `sem_permissao` e a mensagem "O Claude não pode <ação>: só a pessoa, pela mesa.":
+
+| Intenção | Ação na mensagem |
+|---|---|
+| `papel.alterar` | mudar papéis |
+| `permissao.alterar` | mudar permissões |
+| `campanha.exportar` | exportar a campanha |
+| `campanha.importar` | importar a campanha |
+| `asset.pedir`, `asset.inventario`, `asset.tenho`, `asset.naoTenho` | trocar arquivos (o Claude não tem arquivos e não envia imagens; assumido) |
+
+Fora do protocolo do WebSocket (rotas HTTP que o token nunca abre ou que não existem como intenção): aceitar, recusar ou mexer em contas, pedidos de entrada e redefinições de senha; trocar a chave da pasta ou o código de recuperação; apagar ou renomear a mesa; gerar ou revogar tokens.
+
+**Limite de frequência**: 20 intenções por segundo por token, com rajada de 40 (balde de fichas, memória da sala; assumido). O excesso responde `erro` `muitas_mensagens` ("Devagar: o Claude pode mandar no máximo 20 pedidos por segundo. Espere N s e tente de novo.") e não é processado.
+
+**A marca "pelo Claude"**: toda mensagem de chat e toda rolagem criada pela conexão do Claude leva `peloClaude: true` (opcional na `Mensagem`), visível para todos. Quem rola é sempre a sala; a rolagem oculta segue a capacidade `dado.rolarOculto` do usuário.
+
+**Rascunhos do mestre**
+- O que o Claude **do mestre** cria entra com `rascunho: true` (campo opcional): cenas, fichas e NPCs (`personagem`), handouts, pastas, modelos, pontos, luzes (`fonte`), tokens, zonas, ciclos, reações e botões. O que o mestre cria pela mesa nunca é rascunho; o cliente **nunca escolhe a marca** (a sala a põe ou a tira). Editar um item publicado aplica direto (e entra no Desfazer); editar um rascunho não o publica. O que nasce numa cena em rascunho não leva a marca (publicar a cena publica o que está nela).
+- O rascunho é **invisível ao jogador**: `visaoPara` e `eventoPara` o filtram (snapshot e evento); ciclo e reação em rascunho **não rodam** (não ganham execução; ao publicar, começam dali); botão e ciclo em rascunho não vão à barra do jogador (`botoes.alterados`/`Estado.botoes`) e `botao.usar` os recusa; a cena em rascunho não vira a do grupo (`grupo.moverPara` recusa).
+- `rascunho.publicar` `{ itens?: [{ tipo, id }] }` (sem `itens`: todos) e `rascunho.descartar` `{ itens: [{ tipo, id }] }` (apaga com as regras de apagar de cada tipo; só vale para rascunho). Os dois exigem `mesa.configurar`: só o mestre, e o Claude dele também (assumido). `tipo`: `cena`, `personagem`, `handout`, `pasta`, `modelo`, `ponto`, `luz`, `token`, `zona`, `ciclo`, `reacao`, `botao`. Publicar manda snapshot a todos.
+
+**Desfazer o que o Claude fez**
+- A cada intenção aplicada pela conexão do Claude, a sala compara o estado antes e depois, **por coleção e id**, e anota no diário (`claude_lotes`, migração 14) o **inverso**: criou (`antes: null`) apaga; editou volta à versão anterior; apagou devolve a cópia. Coleções cobertas: `cenas`, `pastas`, `modelos`, `personagens`, `handouts`, `tokens`, `pontos`, `luzes`, `paredes`, `zonas`, `ciclos`, `reacoes`, `botoes`. Não entram: relógio, permissões, configuração, chat, combate, desenhos e arquivos (assumido).
+- Um lote é o conjunto de passos de um `loteId` de um usuário. O diário guarda os últimos **50 lotes por usuário** e **não vai na exportação**. Lote com mais de ~1,5 MB de passos fica listado, mas não se desfaz.
+- `claude.desfazer` `{ loteId }` (qualquer mestre ou jogador, **só os lotes dele**; o Claude também pode): aplica o inverso dos passos do último para o primeiro (apaga dos filhos para os pais, devolve dos pais para os filhos). Um item só volta se ainda está como o Claude o deixou (**publicar não conta como mudança**); se mudou depois por outra pessoa, é **pulado**. A sala responde `claude.desfeito` `{ idPedido, loteId, aplicados, pulados: ["ficha \"Nome\"", ...] }` e manda snapshot a todos; lote inexistente, já desfeito ou grande demais: `erro` `lote_inexistente`.
+- `claude.lotes` `{ lotes: [{ loteId, descricao, emMs, itens, desfeito, desfazivel }] }` (do mais novo ao mais velho): só às conexões do usuário dono, ao conectar e a cada mudança.
+
+**O jogador cria as próprias fichas e handouts** (capacidade `personagem.criarProprio`, "Criar fichas e notas próprias": delegável, **ligada por padrão**, em Permissões e na exceção por jogador). `personagem.criar` e `handout.criar` deixam de exigir `cena.editar` e `mesa.configurar`: o mestre faz como sempre; o jogador, com a capacidade, cria o **dele**: a sala força `criadoPor`, a pasta própria (`pasta-de-<id do usuário>`, que ela cria no primeiro item, visível só a ele e ao mestre) e, na ficha, `editores` só ele. No handout ele escolhe quem vê. O dono edita (a ficha: tudo, menos `editores` e `pastaId`; o handout: tudo, menos a pasta) e apaga o que criou; o resto responde `sem_permissao` (se ele vê o item) ou `*_inexistente` (se não vê). **Teto de 20 fichas e 20 handouts por jogador** (`limite_de_criacao`, "Você já criou 20 fichas: apague uma para criar outra."); desligar a capacidade bloqueia só criar.
+
+**Nota de segurança (pense como se a mesa estivesse na internet)**: o token é um segredo (guarde como senha; quem o tem entra como a pessoa). A sala guarda só o hash, compara por consulta indexada ao hash (o segredo tem 256 bits), registra cada falha no bloqueio por IP e fecha a conexão na hora ao revogar. O token só abre o WebSocket (nunca HTTP, nunca cookie), a sala marca a conexão sozinha e a lista de proibidos vale para todos, mestre inclusive.
 
 ### Contador de uso
 

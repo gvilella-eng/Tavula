@@ -225,6 +225,8 @@ export function JanelaDoHandout({
   aoFechar,
 }: Props) {
   const euMestre = eu.papel === "mestre";
+  // 12-1: o jogador edita (e apaga) o handout que ele criou; só o mestre o "mostra agora".
+  const podeEditar = euMestre || h.criadoPor === eu.id;
   const jogadores = jogadoresDaMesa(estado);
   const urlDaImagem = useImagem(imagens, h.imagemHash, versaoDasImagens);
   const [avisoDeMostrar, setAvisoDeMostrar] = useState<string | null>(null);
@@ -277,7 +279,7 @@ export function JanelaDoHandout({
         </>
       }
     >
-      {euMestre ? (
+      {podeEditar ? (
         <div className="handout-editor" data-testid="handout-editor">
           <div className="handout-topo">
             <button
@@ -345,22 +347,24 @@ export function JanelaDoHandout({
           />
           <QuemVe handout={h} jogadores={jogadores} editar={editar} />
           <div className="handout-acoes">
-            <BotaoComDica
-              testid="handout-mostrar"
-              className="primario"
-              nome="Mostrar agora"
-              nomeVisivel
-              motivo={
-                soOMestre ? "Só você vê este handout: escolha quem vê antes de mostrar." : null
-              }
-              onClick={() => {
-                if (enviar("handout.mostrar", { id: h.id })) {
-                  setAvisoDeMostrar(`Aberto para ${quemVe}.`);
+            {euMestre && (
+              <BotaoComDica
+                testid="handout-mostrar"
+                className="primario"
+                nome="Mostrar agora"
+                nomeVisivel
+                motivo={
+                  soOMestre ? "Só você vê este handout: escolha quem vê antes de mostrar." : null
                 }
-              }}
-            >
-              <Send size={14} /> Mostrar agora
-            </BotaoComDica>
+                onClick={() => {
+                  if (enviar("handout.mostrar", { id: h.id })) {
+                    setAvisoDeMostrar(`Aberto para ${quemVe}.`);
+                  }
+                }}
+              >
+                <Send size={14} /> Mostrar agora
+              </BotaoComDica>
+            )}
             {apagando ? (
               <button
                 type="button"
@@ -384,13 +388,13 @@ export function JanelaDoHandout({
               </button>
             )}
           </div>
-          {soOMestre && (
+          {soOMestre && euMestre && (
             <p className="nota" data-testid="handout-mostrar-aviso">
               Só você vê este handout: ninguém mais o receberia. Escolha quem vê para poder
               mostrá-lo.
             </p>
           )}
-          {avisoDeMostrar && !soOMestre && (
+          {euMestre && avisoDeMostrar && !soOMestre && (
             <p className="nota" role="status" data-testid="handout-mostrado-aviso">
               {avisoDeMostrar}
             </p>

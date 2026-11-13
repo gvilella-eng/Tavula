@@ -467,7 +467,13 @@ describe("personagens: criar, editar, colocar, apagar", () => {
         }),
       ),
     ).toBe("asset_inexistente");
-    expect(codigo(e, "j1", intencao("personagem.criar", { personagem: novo }))).toBe(
+    // 12-1: o jogador cria a própria ficha com `personagem.criarProprio` (ligada por padrão); sem ela, recusa.
+    const semCapacidade = aplicar(
+      e,
+      "m",
+      intencao("permissao.alterar", { capacidade: "personagem.criarProprio", valor: false }),
+    ).estado;
+    expect(codigo(semCapacidade, "j1", intencao("personagem.criar", { personagem: novo }))).toBe(
       "sem_permissao",
     );
     const ed = aplicar(

@@ -4,11 +4,13 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import { type ArquivoDaFonte, temSeletorDePasta } from "./assets/fonte";
 import type { Fontes } from "./assets/fontes";
 import type { GerenteDeAssets, StatusDeAsset } from "./assets/gerente";
+import { ConectarOClaude } from "./claude/ConectarOClaude";
 import { TrocarSenha } from "./contas/TrocarSenha";
 import { definirDicasLigadas, useDicasLigadas } from "./dicasLigadas";
 import { ListaDeAtalhos } from "./ListaDeAtalhos";
 import { SeletorDeTema } from "./SeletorDeTema";
 import { definirUnidade, useUnidade } from "./unidade";
+import type { LoteDoClaude } from "./useSala";
 
 const ROTULO_DO_ESTADO: Record<StatusDeAsset["estado"], string> = {
   pedindo: "pedindo",
@@ -32,6 +34,9 @@ type PropsPreferencias = {
   login?: string | undefined;
   fontes: Fontes;
   gerente: GerenteDeAssets | null;
+  /** 12-1: os lotes recentes do Claude deste usuário e como mandar o "Desfazer". */
+  lotesDoClaude: readonly LoteDoClaude[];
+  enviar: (tipo: string, dados: object) => string | null;
 };
 
 /** A pasta local de imagens: escolher, reautorizar e ver o que há nela. */
@@ -147,6 +152,8 @@ export function AbaPreferencias({
   login,
   fontes,
   gerente,
+  lotesDoClaude,
+  enviar,
 }: PropsPreferencias) {
   const dicas = useDicasLigadas();
   const unidade = useUnidade();
@@ -164,6 +171,7 @@ export function AbaPreferencias({
         </button>
       </div>
       {login && <TrocarSenha mesaId={mesaId} login={login} />}
+      <ConectarOClaude mesaId={mesaId} lotes={lotesDoClaude} enviar={enviar} />
       <h3>Neste navegador</h3>
       <p className="nota">Só vale para você e fica guardado aqui, não vai para a mesa.</p>
       <SeletorDeTema />

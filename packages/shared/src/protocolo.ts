@@ -85,6 +85,7 @@ import {
   PersonagemAntigoSchema,
   pastasPadrao,
 } from "./pastas.ts";
+import { ItemDeRascunhoSchema, MAXIMO_DE_ITENS_POR_PEDIDO } from "./rascunhos.ts";
 import { EspacoDoPedidoSchema, PedidoDeModeloSchema } from "./rolagens.ts";
 import { MudancasDaZonaSchema, ZonaNovaSchema, ZonaSchema } from "./zonas.ts";
 
@@ -507,6 +508,12 @@ function intencao<T extends string, D extends z.ZodType>(tipo: T, dados: D) {
     id: z.string().min(1).max(64),
     tipo: z.literal(tipo),
     dados,
+    /**
+     * 12-1: só a conexão do Claude usa (o MCP manda um `loteId` por chamada de ferramenta e uma descrição curta do que ela
+     * fez, para o "Desfazer o que o Claude fez"). A sala os ignora em qualquer outra conexão.
+     */
+    loteId: z.string().min(1).max(64).optional(),
+    lote: z.string().trim().min(1).max(120).optional(),
   });
 }
 
@@ -961,6 +968,25 @@ export const IntencaoSchema = z.discriminatedUnion("tipo", [
     "evento.disparar",
     z.object({ evento: NomeDeEventoSchema, cenaId: IdSchema.optional() }),
   ),
+  /**
+   * 12-1: rascunhos do Claude do mestre (só o mestre, `mesa.configurar`). `publicar` sem `itens` publica todos; `descartar`
+   * apaga os itens (com as regras de apagar de cada um) e exige `itens`.
+   */
+  intencao(
+    "rascunho.publicar",
+    z.object({
+      itens: z.array(ItemDeRascunhoSchema).min(1).max(MAXIMO_DE_ITENS_POR_PEDIDO).optional(),
+    }),
+  ),
+  intencao(
+    "rascunho.descartar",
+    z.object({ itens: z.array(ItemDeRascunhoSchema).min(1).max(MAXIMO_DE_ITENS_POR_PEDIDO) }),
+  ),
+  /**
+   * 12-1: desfaz um lote do Claude do próprio usuário (a sala guarda o diário; quem pede só alcança os lotes dele). Quem
+   * responde é a sala (`claude.desfeito`), não `processar`.
+   */
+  intencao("claude.desfazer", z.object({ loteId: z.string().min(1).max(64) })),
   intencao("campanha.exportar", SemDados),
   intencao("campanha.importar", z.object({ dados: z.unknown() })),
 ]);
@@ -995,16 +1021,19 @@ export const capacidadeDaIntencao: Record<TipoIntencao, Capacidade | null> = {
   "asset.naoTenho": null,
   "cena.definirMapa": "cena.editar",
   "token.definirImagem": "asset.subir",
-  "personagem.criar": "cena.editar",
-  // Quem edita o personagem (só as imagens) ou o mestre: `processar` confere.
+  // 12-1: o mestre, ou o jogador com `personagem.criarProprio` (a própria ficha, com teto); `processar` confere.
+  "personagem.criar": null,
+  // Quem edita o personagem (só as imagens), o jogador na ficha que ele criou, ou o mestre: `processar` confere.
   "personagem.editar": null,
-  "personagem.apagar": "cena.editar",
+  // O mestre, ou o jogador na ficha que ele criou: `processar` confere.
+  "personagem.apagar": null,
   "pasta.criar": "mesa.configurar",
   "pasta.editar": "mesa.configurar",
   "pasta.apagar": "mesa.configurar",
-  "handout.criar": "mesa.configurar",
-  "handout.editar": "mesa.configurar",
-  "handout.apagar": "mesa.configurar",
+  // 12-1: o mestre, ou o jogador nos handouts que ele criou (`personagem.criarProprio`, com teto): `processar` confere.
+  "handout.criar": null,
+  "handout.editar": null,
+  "handout.apagar": null,
   "handout.mostrar": "mesa.configurar",
   "ordemDeTurno.definir": "mesa.configurar",
   "personagem.colocar": "cena.editar",
@@ -1099,6 +1128,10 @@ export const capacidadeDaIntencao: Record<TipoIntencao, Capacidade | null> = {
   "botao.apagar": "automacao.editar",
   // O jogador usa os botões que o mestre liberou: a conferência é feita na sala, a cada clique.
   "botao.usar": null,
+  "rascunho.publicar": "mesa.configurar",
+  "rascunho.descartar": "mesa.configurar",
+  // O lote é do usuário que pede: a sala confere (e só ela guarda o diário).
+  "claude.desfazer": null,
   "campanha.exportar": "campanha.exportar",
   "campanha.importar": "campanha.importar",
 };
@@ -1308,6 +1341,8 @@ export const CODIGOS_DE_ERRO = [
   "ciclo_inexistente",
   "reacao_inexistente",
   "zona_inexistente",
+  "limite_de_criacao",
+  "lote_inexistente",
 ] as const;
 export const CodigoDeErroSchema = z.enum(CODIGOS_DE_ERRO);
 export type CodigoDeErro = z.infer<typeof CodigoDeErroSchema>;
@@ -1330,7 +1365,45 @@ function mensagemDaSala<T extends string, D extends z.ZodType>(tipo: T, dados: D
 export const MensagemDaSalaSchema = z.discriminatedUnion("tipo", [
   mensagemDaSala("snapshot", z.object({ usuarioId: z.string(), estado: EstadoSchema })),
   mensagemDaSala("evento", EventoSalaSchema),
-  mensagemDaSala("presenca", z.object({ usuarios: z.record(z.string(), PresencaSchema) })),
+  mensagemDaSala(
+    "presenca",
+    z.object({
+      usuarios: z.record(z.string(), PresencaSchema),
+      /** 12-1: quem tem o Claude conectado (uma marca pequena na bolinha; o Claude nunca vira outra pessoa no topo). */
+      claude: z.array(z.string()).optional(),
+    }),
+  ),
+  /**
+   * 12-1: os lotes recentes do Claude do próprio usuário (o diário do Desfazer), do mais novo ao mais velho. Só o usuário
+   * dono os recebe.
+   */
+  mensagemDaSala(
+    "claude.lotes",
+    z.object({
+      lotes: z
+        .array(
+          z.object({
+            loteId: z.string().min(1).max(64),
+            descricao: z.string().max(120),
+            emMs: z.number().nonnegative(),
+            itens: z.number().int().nonnegative(),
+            desfeito: z.boolean(),
+            desfazivel: z.boolean(),
+          }),
+        )
+        .max(50),
+    }),
+  ),
+  /** 12-1: o resultado de um `claude.desfazer`: quantos itens voltaram e quais ficaram (mudaram depois). */
+  mensagemDaSala(
+    "claude.desfeito",
+    z.object({
+      idPedido: z.string(),
+      loteId: z.string(),
+      aplicados: z.number().int().nonnegative(),
+      pulados: z.array(z.string().max(120)).max(100),
+    }),
+  ),
   mensagemDaSala("uso", UsoSchema),
   /** Movimento ao vivo de um token (transitório: sem `seq`, não é gravado). */
   mensagemDaSala("token.movendo", PosicaoDoTokenSchema),

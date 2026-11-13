@@ -155,7 +155,7 @@ describe("migração das contas", () => {
 
     const reaberto = new Armazenamento(sql as never);
     reaberto.migrar();
-    expect(reaberto.lerMeta("versao_esquema")).toBe("12");
+    expect(reaberto.lerMeta("versao_esquema")).toBe("15");
     expect(tabelas()).toEqual(expect.arrayContaining(["contas", "sessoes", "limites_ip"]));
     expect(sql.exec("SELECT COUNT(*) AS n FROM contas").toArray()).toEqual([{ n: 0 }]);
     expect(reaberto.lerMeta("marca")).toBe("campanha-real");
@@ -692,7 +692,7 @@ describe("migração 12 (tour de introdução visto)", () => {
     const arm = new Armazenamento(sql as never);
     arm.gravarMeta("versao_esquema", "11");
     arm.migrar();
-    expect(arm.lerMeta("versao_esquema")).toBe("12");
+    expect(arm.lerMeta("versao_esquema")).toBe("15");
     expect(contas.existeMestre()).toBe(true);
     const login = await contas.entrar({ login: "mestre", derivada: SENHA_A }, "1.1.1.1", T0 + MIN);
     if (!login.ok) throw new Error("entrar");
@@ -710,6 +710,6 @@ describe("migração 12 (tour de introdução visto)", () => {
     // migrar de novo, com a coluna já criada
     arm.gravarMeta("versao_esquema", "11");
     arm.migrar();
-    expect(arm.lerMeta("versao_esquema")).toBe("12");
+    expect(arm.lerMeta("versao_esquema")).toBe("15");
   });
 });

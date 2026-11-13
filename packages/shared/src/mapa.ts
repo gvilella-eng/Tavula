@@ -28,6 +28,8 @@ type Quem = Pick<Usuario, "id" | "papel">;
  */
 export function tokenVisivelPara(token: Token, usuario: Quem, cenaAtivaId: string): boolean {
   if (usuario.papel === "mestre") return true;
+  // 12-1: o rascunho do Claude do mestre nunca chega ao jogador.
+  if (token.rascunho) return false;
   return (
     token.cenaId === cenaAtivaId &&
     (token.camada === "tokens" || token.camada === "mapa") &&
@@ -38,16 +40,21 @@ export function tokenVisivelPara(token: Token, usuario: Quem, cenaAtivaId: strin
 /** A pasta é visível para este usuário? O mestre vê todas; o jogador, as "todos" e as que o citam. */
 export function pastaVisivelPara(pasta: Pasta, usuario: Quem): boolean {
   if (usuario.papel === "mestre") return true;
-  if (usuario.papel !== "jogador") return false;
+  if (usuario.papel !== "jogador" || pasta.rascunho) return false;
   const v = pasta.visivel;
   if (v.tipo === "todos") return true;
   return v.tipo === "jogadores" && v.ids.includes(usuario.id);
 }
 
 /** O handout é visível para este usuário? O mestre vê todos; o jogador só os que `visivel` cita (V3). */
-export function handoutVisivelPara(handout: Pick<Handout, "visivel">, usuario: Quem): boolean {
+export function handoutVisivelPara(
+  handout: Pick<Handout, "visivel" | "rascunho" | "criadoPor">,
+  usuario: Quem,
+): boolean {
   if (usuario.papel === "mestre") return true;
-  if (usuario.papel !== "jogador") return false;
+  if (usuario.papel !== "jogador" || handout.rascunho) return false;
+  // 12-1: o jogador sempre vê o handout que ele criou, ainda que escolha "só o mestre".
+  if (handout.criadoPor === usuario.id) return true;
   const v = handout.visivel;
   if (v.tipo === "todos") return true;
   return v.tipo === "jogadores" && v.ids.includes(usuario.id);
@@ -59,7 +66,7 @@ export function handoutVisivelPara(handout: Pick<Handout, "visivel">, usuario: Q
  */
 export function pastaChegaPara(
   pasta: Pasta,
-  handouts: readonly Pick<Handout, "pastaId" | "visivel">[],
+  handouts: readonly Pick<Handout, "pastaId" | "visivel" | "rascunho" | "criadoPor">[],
   usuario: Quem,
 ): boolean {
   return (
@@ -95,7 +102,7 @@ export function personagemVisivelPara(
   pastas: readonly Pasta[],
 ): boolean {
   if (usuario.papel === "mestre") return true;
-  if (usuario.papel !== "jogador") return false;
+  if (usuario.papel !== "jogador" || personagem.rascunho) return false;
   if (podeEditarPersonagem(personagem, usuario)) return true;
   const pasta = pastas.find((p) => p.id === personagem.pastaId);
   return pasta !== undefined && pastaVisivelPara(pasta, usuario);

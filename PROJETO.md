@@ -145,7 +145,8 @@ type CapacidadeDelegavel =          // lista completa em docs/protocolo.md
   | 'token.moverProprio' | 'porta.abrir'
   | 'tocha.acender' | 'tocha.entregar' | 'ponto.usar' | 'luz.apagar' | 'ficha.verOutras'
   | 'dado.rolarOculto' | 'asset.subir' | 'desenho.criar' /* lote 13, ligada por padrão */
-  | 'token.colocarProprio' /* V10b */ | 'mapa.pingar' /* V12, 2026-11-13: pingar o mapa; ligada por padrão */;
+  | 'token.colocarProprio' /* V10b */ | 'mapa.pingar' /* V12, 2026-11-13: pingar o mapa; ligada por padrão */
+  | 'personagem.criarProprio' /* 12-1, 2026-11-13: criar as próprias fichas e handouts (teto de 20 de cada); ligada por padrão */;
 type CapacidadeDoMestre =           // só do mestre, nunca delegáveis
   | 'papel.alterar' | 'permissao.alterar' | 'mesa.configurar' | 'automacao.editar'
   | 'camadaMestre.ver' | 'objeto.ajustar' | 'campanha.exportar' | 'campanha.importar'
@@ -366,6 +367,7 @@ quando ele muda de cena.
   deixa de ser visível para ele, chega só `token.sumiu { id }`, sem motivo; quando passa a ser visível,
   chega inteiro. Pedido sobre token invisível responde igual a token inexistente (`token_inexistente`).
 - **Ping no mapa** (V12, 2026-11-13): `mapa.ping { cenaId, x, y, centralizar? }`, capacidade `mapa.pingar` (ligada por padrão). É efêmero como o movimento ao vivo: a sala valida (cena, quem vê, ponto dentro, no máximo 1 ping a cada 0,5 s e 1 centralização a cada 3 s por usuário) e repassa `mapa.pingado` com o autor e a cor dela a quem vê a cena, inclusive a quem pingou. Não é gravado, nem entra no histórico, no chat ou na exportação.
+- **O acesso do Claude** (12-1, 2026-11-13): o cliente do MCP abre o mesmo WebSocket com `Authorization: Bearer <token>` e a sala o trata como o próprio usuário, com a marca `claude` no socket (lista de proibidos, limite de frequência, marca "pelo Claude", rascunho para o mestre, diário do Desfazer). O envelope ganha `loteId` e `lote` (só a conexão do Claude os usa). Ver 4.12, 4.14 e `docs/protocolo.md`, "O acesso do Claude".
 - O documento `docs/protocolo.md` lista todas as mensagens e é atualizado em todo lote que mexer nelas.
 
 Exemplos de intenções do cliente (V5: `parede.criar` e `parede.editar` aceitam `meio`, o ponto do arco; `cena.editar` aceita `mostrarParedesAosJogadores`): `entrar`, `token.mover`, `token.soltar`, `parede.criar`,
@@ -836,6 +838,16 @@ Regras que continuam:
   uma chamada só. O erro diz o que corrigir. Uma ferramenta "o que existe na mesa" dá o panorama numa
   chamada, para a IA não precisar explorar.
 
+**12-1: como ficou** (2026-11-13; o lado da sala e da web; o servidor MCP é o 12-2)
+
+- **Token** (Preferências, "Conectar o Claude"): cada conta gera o próprio, por mesa. Formato `tvc_` + 43 caracteres base64url (32 bytes do `crypto`), mostrado **uma vez** com Copiar e o trecho do Claude Code e do Desktop (`apps/web/src/claude/textosDoClaude.ts`, provisório até o 12-2). A sala guarda **só o SHA-256**, ligado à conta (tabela `tokens_claude`, migração 13, aditiva e idempotente). Até 5 por conta e mesa (assumido). Revogar vale na hora e **derruba a conexão** (close 4001); remover, recusar ou trocar a vaga da conta revoga os tokens dela; a exportação não leva tokens.
+- **A conexão**: `Authorization: Bearer <token>` no upgrade do `/api/m/<id>/ws`. Só o token vale (o cookie é ignorado, nenhum cookie nasce) e **nenhuma rota HTTP o aceita**. Errado, malformado ou revogado: o mesmo 401, e as falhas entram no bloqueio progressivo por IP do login (4.14). Um cliente sem `Origin` (o MCP é um processo Node) passa pela checagem do C3 sem exceção.
+- **Regra que manda em tudo**: o Claude entra como o próprio usuário. As mesmas capacidades, a mesma visão e os mesmos eventos; `processar` recebe `{ claude: true }` e só acrescenta a lista de proibidos, a marca "pelo Claude" e, para o mestre, o rascunho. **Proibidos** (mesmo para o mestre, `sem_permissao`: "O Claude não pode ... só a pessoa, pela mesa"): `papel.alterar`, `permissao.alterar`, `campanha.exportar`, `campanha.importar` e, para o Claude não virar provedor de arquivos, `asset.pedir`, `asset.inventario`, `asset.tenho` e `asset.naoTenho` (assumido). Contas, pedidos, redefinições, chave da pasta, código de recuperação, apagar a mesa e tokens são rotas HTTP que o token nunca abre. Lista num lugar só: `packages/shared/src/claude.ts`.
+- **Limite** de 20 pedidos por segundo por token, rajada de 40 (assumido); o excesso responde `muitas_mensagens`. **Presença**: o Claude não conta como a pessoa online; a bolinha ganha uma marca "Claude conectado". **Chat**: mensagem e rolagem da conexão do Claude levam `peloClaude`, visível para todos; quem rola é a sala e a rolagem oculta segue `dado.rolarOculto`.
+- **O jogador cria as próprias fichas e handouts**: capacidade `personagem.criarProprio` ("Criar fichas e notas próprias"), delegável, ligada por padrão. A ficha nasce com `editores` só ele e o handout com a visibilidade que ele escolher, os dois numa **pasta própria** (`pasta-de-<id>`, que a sala cria; só ele e o mestre a veem; assumido) e com `criadoPor`. Ele edita e apaga o que criou; o mestre sempre vê, edita e apaga. Teto de 20 fichas e 20 handouts por jogador (`limite_de_criacao`).
+- **Rascunhos**: o que o Claude **do mestre** cria entra com `rascunho: true` (cenas, fichas e NPCs, handouts, pastas, modelos, pontos, luzes, tokens, zonas, ciclos, reações e botões). O jogador não o recebe (snapshot e evento); ciclo e reação em rascunho não rodam; a cena em rascunho não vira a do grupo. Para o mestre: selo "Rascunho" e o chip "Rascunhos do Claude (N)", com Publicar (por item ou tudo) e Descartar (`rascunho.publicar` e `rascunho.descartar`, `mesa.configurar`). O Claude do mestre também pode publicar (assumido).
+- **Desfazer**: a sala anota o inverso de cada mudança do Claude num diário (`claude_lotes`, migração 14, 50 lotes por usuário, fora da exportação), agrupado pelo `loteId` do envelope (cada chamada de ferramenta do MCP manda o seu e uma descrição curta). Preferências lista os lotes ("Claude: criou 6 NPCs, há 5 min") com Desfazer e há "Desfazer tudo o que o Claude fez". Desfaz na ordem inversa; o item que outra pessoa mudou depois é pulado e o aviso diz qual (publicar não conta como mudança). O jogador só desfaz o que o Claude dele fez.
+
 ### 4.13 Interface
 
 Layout no estilo dos VTTs de mesa (referência: a tela de outra mesa virtual que o Vilella usa): **o mapa ocupa a
@@ -1065,6 +1077,7 @@ por mesa".
 - **Recuperar o mestre** ("Sou o mestre e esqueci a senha", na entrada da mesa), duas saídas. Pela pasta: o navegador lê o arquivo, recusa a pasta de outra mesa antes de pedir o desafio ("Esta pasta é de outra mesa."), pede o desafio, assina `tavola-recuperar:<mesa>:<nonce>` e manda a assinatura com a senha nova derivada. Pelo código: código e senha nova. Os dois pedem o login do mestre (o sal da senha leva o login; assumido) e, se certos, trocam a senha, derrubam as sessões antigas e abrem uma nova. A mensagem de erro não diz se a mesa tem chave ou código; sem chave a conferência roda contra uma chave de mentira.
 - **Servidor**: migração 11 do `Armazenamento` (aditiva e idempotente): colunas `chave_publica` e `codigo_hash` em `contas` e a tabela `desafios` (nonce, criação, validade; no máximo 50 abertos). O nonce é gasto antes de conferir (certa ou errada); 5 minutos de validade. Limites: o do C2 por IP e 5 erros por mesa (1, 5, 15 e 60 min); desafios 20 por IP por hora. Nada disso vai a cliente: a lista do mestre só diz `protecao: { temChave, temCodigo }`. Rotas e corpos em `docs/protocolo.md`; regras puras e WebCrypto em `packages/shared/src/recuperacao.ts`.
 - **Tour de introdução** (lote T, 2026-11-12): no primeiro acesso de cada conta a cada mesa abre um tour (mestre, 10 passos; jogador, 6), com Pular e "Fazer o tour de novo" em Preferências. "Já viu" é um 0/1 por conta no servidor (migração 12, coluna `contas.tour_visto`; `GET eu` devolve `tourVisto` e `modoTeste`; `POST conta/tour-visto` marca). Com `MODO=teste` não abre sozinho (só com a chave `tabletop:pref:tourNoTeste` no navegador). Ver `docs/REDESIGN.md`, "T — como ficou". Também: o código de recuperação cabe numa linha e a mesa legada oferece "Proteger com a pasta da mesa" depois de anotar o código.
+- **Tokens do Claude** (12-1, 2026-11-13): ver 4.12. O token é um segredo por conta e mesa (só o SHA-256 no banco), abre só o WebSocket, não abre sessão de navegador nem gera cookie; as falhas contam no mesmo bloqueio por IP do login (30 em 15 minutos bloqueiam o IP por 15 minutos) e o 401 é igual para token errado e revogado. Revogar, remover a conta, recusá-la ou trocar a vaga dela fecham as conexões com 4001.
 - **Reforços do C2**: (1) Origin: no WebSocket e em todo POST de `/api/` o `Origin` tem de ser o host do pedido (sem `Origin`, aceita); (2) o bloqueio de login inexistente: as falhas contam por login normalizado na tabela de limites e, depois da 5ª, a espera é dita igual à de uma conta que existe.
 
 ## 5. Estrutura do repositório
@@ -2022,6 +2035,8 @@ O papel `assistente` deixa de existir. Divisão em dois lotes:
   - um E2E com o mestre e o jogador, cada um com o próprio token.
 
 **Pronto quando:** `pnpm verify` verde.
+
+**12-1 entregue (2026-11-13)**, aguardando o roteiro manual: o lado da sala e da web, como descrito em 4.12 ("12-1: como ficou"). Falta o **12-2**, o servidor MCP em `apps/mcp`, que constrói em cima disto (ver `docs/protocolo.md`, "O acesso do Claude").
 
 ---
 

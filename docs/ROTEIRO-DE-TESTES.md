@@ -339,6 +339,36 @@ Use uma mesa de teste, com o mestre numa janela e um jogador em outra. Importar 
 15. Ferramenta **Zonas** (Z) e ferramenta **Paredes**: o painel abre encostado à **direita** da área do mapa, abaixo do topo, sem cobrir o meio. Arraste-o e feche: na próxima vez abre onde você o deixou.
 16. Em **Preferências**, escolha **Pés**: "Luz ±" e "Visão máxima" do painel da zona mostram pés (3 m = 10 pés). O fator mostra **0,5** (vírgula) e aceita **0,5** ou **0.5**.
 
+## 12-1 — O acesso do Claude (sala e web)
+O servidor MCP ainda não existe (é o 12-2): aqui o teste é a tela e, para a conexão, um cliente de WebSocket simples (veja o passo 5). Use uma mesa de teste, com o mestre numa janela e um jogador em outra.
+
+**O token**
+1. Em **Preferências**, a seção **Conectar o Claude**. Escreva "Claude no meu PC" e clique em **Gerar token**. O token (`tvc_...`) aparece numa caixa, **uma vez**, com **Copiar o token** e os trechos do **Claude Code** e do **Claude Desktop**. Clique em **Já guardei**: o token some e não volta (nem recarregando a página).
+2. A lista mostra o nome, quando foi criado e "nunca usado". Gere até 5; o sexto botão fica desligado ("revogue um para gerar outro").
+3. **Revogar** pede confirmação na própria página. Confirme: o token some da lista.
+4. Troque de conta (ou use o jogador): cada pessoa só vê os próprios tokens.
+
+**A conexão**
+5. Com um cliente de WebSocket que aceite cabeçalho (o `ws` do Node, o `wscat`), abra `ws://127.0.0.1:8787/api/m/<id da mesa>/ws` com `Authorization: Bearer <o token>`. O cliente recebe o `snapshot`. Sem o cabeçalho (ou com o token revogado): 401, sem dizer qual dos dois.
+6. Com o Claude conectado, a bolinha da pessoa, no topo, ganha uma marca pequena (um robozinho). Revogue o token em Preferências: a conexão cai na hora e a marca some.
+7. Mande pelo cliente `{"v":1,"id":"a","tipo":"dado.rolar","dados":{"expressao":"1d20"}}`: no chat de todos a rolagem aparece com o selo **pelo Claude**. Mande `{"v":1,"id":"b","tipo":"papel.alterar","dados":{"usuarioId":"<jogador>","papel":"mestre"}}` (mesmo com o token do mestre): a resposta é um erro "O Claude não pode mudar papéis: só a pessoa, pela mesa."
+
+**Rascunhos (token do mestre)**
+8. Pelo cliente, crie um NPC: `{"v":1,"id":"c","tipo":"personagem.criar","loteId":"L1","lote":"criou 1 NPC","dados":{"personagem":{"id":"npc-1","pastaId":"pasta-npcs","editores":{"tipo":"jogadores","ids":[]},"nome":"Goblin","tokenPadrao":{"cor":"#c0392b","tamanhoQuadrados":1},"visao":{"alcanceM":null,"visaoNoEscuroM":0}}}}`. Na tela do mestre: o NPC aparece nas Fichas com o selo **Rascunho** e, no topo, o chip **Rascunhos do Claude (1)**.
+9. Crie também um handout para todos (`handout.criar`, `"visivel":{"tipo":"todos"}`) e um ciclo com `liberadoParaJogadores`: o jogador **não vê nada** (nem o handout, nem o botão do ciclo). O ciclo não roda.
+10. No chip: **Publicar** o handout: o jogador passa a vê-lo. **Descartar** outro item pede "Apagar mesmo". **Publicar tudo** esvazia o chip.
+
+**Desfazer**
+11. Em **Preferências → O que o Claude fez**: "Claude: criou 1 NPC · 1 item · agora" com **Desfazer**. Clique: o NPC some das Fichas e aparece o aviso "Desfeito: 1 item voltou."
+12. Faça o Claude criar dois NPCs no mesmo `loteId`, renomeie um deles pela mesa e clique em **Desfazer**: um sai, o que você renomeou fica e o aviso diz qual ("Desfeito, menos um item que mudou depois: ficha "...").
+13. **Desfazer tudo o que o Claude fez** pede confirmação e desfaz do mais novo ao mais velho.
+
+**O jogador cria as próprias fichas e handouts**
+14. Como jogador, na aba **Fichas**: **Nova ficha** e **Novo handout**. A ficha abre em Configurar (o nome se edita); ela é sua, numa pasta "Fichas de <você>" que só você e o mestre veem. O handout abre editável: escolha quem vê (o outro jogador o recebe na hora); não há "Mostrar agora".
+15. Crie 20 fichas: a 21ª responde "Você já criou 20 fichas: apague uma para criar outra." (o menu de botão direito da ficha tem **Apagar…**).
+16. Em **Mesa → Permissões**, a linha **Criar fichas e notas próprias** vem ligada. Desligue (ou desligue só para um jogador, na exceção): os botões somem para ele; o que ele já criou continua dele.
+17. O Claude do jogador (token dele) tenta editar a ficha de outro jogador, mexer num ciclo ou numa cena: sempre recusado, como o próprio jogador seria.
+
 ## Se algo der errado
 - Anote a tela, o que fez e o que esperava, e mande para mim. Bug confirmado vai para `docs/BUGS.md`.
 - Para voltar à campanha de antes de mesas e contas, use a cópia de segurança indicada no topo.

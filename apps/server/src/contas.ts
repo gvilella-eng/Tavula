@@ -10,6 +10,7 @@ import {
   DESAFIO_VALE_MS,
   DESAFIOS_POR_IP_POR_HORA,
   ESQUECI_POR_IP_POR_HORA,
+  FORMATO_DO_TOKEN_DO_CLAUDE,
   gerarCodigoDeRecuperacao,
   gerarParDeChaves,
   JANELA_DO_IP_MS,
@@ -18,10 +19,12 @@ import {
   MAXIMO_DE_DESAFIOS_ABERTOS,
   MAXIMO_DE_PEDIDOS_PENDENTES,
   MAXIMO_DE_SESSOES_POR_CONTA,
+  MAXIMO_DE_TOKENS_DO_CLAUDE,
   mensagemParaAssinar,
   minutosAte,
   normalizarCodigoDeRecuperacao,
   normalizarLogin,
+  novoTokenDoClaude,
   type PapelDeConta,
   PEDIDOS_POR_IP_POR_HORA,
   PEDIR_DE_NOVO_APOS_RECUSA_MS,
@@ -30,6 +33,8 @@ import {
   SESSAO_VALE_MS,
   type StatusDeConta,
   sessaoPrecisaRenovar,
+  TAMANHO_MAXIMO_DO_NOME_DO_TOKEN,
+  type TokenDoClaudePublico,
   type Usuario,
   verificarAssinatura,
 } from "@tabletop/shared";
@@ -919,6 +924,7 @@ export class ContasDaMesa {
       contaId,
     );
     this.derrubarSessoes(contaId);
+    this.revogarTokensDaConta(contaId);
     return certo(publica(conta));
   }
 
@@ -928,6 +934,7 @@ export class ContasDaMesa {
     if (!conta) return falha("conta_inexistente");
     if (conta.papel === "mestre") return falha("conta_do_mestre");
     this.derrubarSessoes(contaId);
+    this.revogarTokensDaConta(contaId);
     this.sql.exec("DELETE FROM contas WHERE id = ?", contaId);
     return certo(publica(conta));
   }
@@ -939,6 +946,8 @@ export class ContasDaMesa {
     if (conta.papel !== "jogador" || conta.status !== "ativa") return falha("sem_pedido");
     if (this.vagaOcupada(usuarioId, contaId)) return falha("vaga_invalida");
     this.sql.exec("UPDATE contas SET usuario_id = ? WHERE id = ?", usuarioId, contaId);
+    // O token é de uma pessoa nesta mesa: trocar a vaga da conta o revoga.
+    this.revogarTokensDaConta(contaId);
     return certo(publica(this.porId(contaId) as Linha));
   }
 
@@ -953,13 +962,139 @@ export class ContasDaMesa {
     for (const c of afetadas) {
       this.sql.exec("UPDATE contas SET usuario_id = NULL WHERE id = ?", c.id);
       this.derrubarSessoes(c.id);
+      this.revogarTokensDaConta(c.id);
     }
     return afetadas.map((c) => c.id);
+  }
+
+  // --- tokens de acesso do Claude (12-1) ---------------------------------------------------------------
+
+  /** Os tokens de quem pede: da conta; sem conta (só MODO=teste), do usuário do login solto. */
+  private tokensDe(contaId: string | null, usuarioId: string): TokenDoClaudePublico[] {
+    const linhas = (contaId === null
+      ? this.sql.exec(
+          "SELECT id, nome, criado_em, ultimo_uso FROM tokens_claude WHERE conta_id IS NULL AND usuario_id = ? ORDER BY criado_em",
+          usuarioId,
+        )
+      : this.sql.exec(
+          "SELECT id, nome, criado_em, ultimo_uso FROM tokens_claude WHERE conta_id = ? ORDER BY criado_em",
+          contaId,
+        )
+    ).toArray() as unknown as {
+      id: string;
+      nome: string;
+      criado_em: number;
+      ultimo_uso: number | null;
+    }[];
+    return linhas.map((l) => ({
+      id: l.id,
+      nome: l.nome,
+      criadoEm: l.criado_em,
+      ultimoUso: l.ultimo_uso,
+    }));
+  }
+
+  listarTokensDoClaude(contaId: string | null, usuarioId: string): TokenDoClaudePublico[] {
+    return this.tokensDe(contaId, usuarioId);
+  }
+
+  /**
+   * Gera um token do Claude para a conta (ou, sem conta, para o usuário do login solto de teste). O token vai só na
+   * resposta (a sala guarda o SHA-256); no máximo 5 por conta.
+   */
+  async gerarTokenDoClaude(
+    contaId: string | null,
+    usuarioId: string,
+    nome: string,
+    agora: number,
+  ): Promise<Resultado<{ token: string; publico: TokenDoClaudePublico }>> {
+    if (this.tokensDe(contaId, usuarioId).length >= MAXIMO_DE_TOKENS_DO_CLAUDE) {
+      return falha("limite_de_tokens");
+    }
+    const token = novoTokenDoClaude(this.sortear);
+    const id = bytesParaBase64Url(this.sortear(9));
+    const nomeFinal = nome.trim().slice(0, TAMANHO_MAXIMO_DO_NOME_DO_TOKEN) || "Claude";
+    this.sql.exec(
+      "INSERT INTO tokens_claude (id, hash_token, conta_id, usuario_id, nome, criado_em, ultimo_uso) VALUES (?, ?, ?, ?, ?, ?, NULL)",
+      id,
+      await hashDoToken(token),
+      contaId,
+      usuarioId,
+      nomeFinal,
+      agora,
+    );
+    return certo({ token, publico: { id, nome: nomeFinal, criadoEm: agora, ultimoUso: null } });
+  }
+
+  /** Revoga um token de quem pede (vale na hora). Devolve o id, ou falha se o token não é dele. */
+  revogarTokenDoClaude(
+    contaId: string | null,
+    usuarioId: string,
+    id: string,
+  ): Resultado<{ id: string }> {
+    if (!this.tokensDe(contaId, usuarioId).some((t) => t.id === id)) {
+      return falha("token_inexistente");
+    }
+    this.sql.exec("DELETE FROM tokens_claude WHERE id = ?", id);
+    return certo({ id });
+  }
+
+  /** Revoga todos os tokens de uma conta (a conta saiu da mesa, foi recusada ou trocou de vaga). Devolve os ids. */
+  revogarTokensDaConta(contaId: string): string[] {
+    const ids = (
+      this.sql
+        .exec("SELECT id FROM tokens_claude WHERE conta_id = ?", contaId)
+        .toArray() as unknown as {
+        id: string;
+      }[]
+    ).map((l) => l.id);
+    if (ids.length > 0) this.sql.exec("DELETE FROM tokens_claude WHERE conta_id = ?", contaId);
+    return ids;
+  }
+
+  /**
+   * De quem é este token (o do cabeçalho `Authorization: Bearer` do WebSocket)? Token fora do formato, que não existe ou
+   * que foi revogado dão a MESMA resposta (`null`), e cada falha entra no mesmo bloqueio progressivo por IP do login. Com
+   * o IP bloqueado nem se confere. `permitirSemConta`: só com MODO=teste (o login solto não tem conta).
+   */
+  async resolverTokenDoClaude(
+    token: string | null,
+    ip: string,
+    agora: number,
+    permitirSemConta: boolean,
+  ): Promise<
+    | { ok: true; usuarioId: string; contaId: string | null; tokenId: string }
+    | { ok: false; minutos: number }
+  > {
+    this.limpar(agora);
+    const espera = this.esperaDoIp(ip, agora);
+    if (espera) return { ok: false, minutos: espera };
+    const falhou = (): { ok: false; minutos: number } => {
+      this.registrarDoIp("falha", ip, agora);
+      return { ok: false, minutos: 0 };
+    };
+    if (token === null || !FORMATO_DO_TOKEN_DO_CLAUDE.test(token)) return falhou();
+    const l = this.sql
+      .exec("SELECT * FROM tokens_claude WHERE hash_token = ?", await hashDoToken(token))
+      .toArray()[0] as unknown as
+      | { id: string; conta_id: string | null; usuario_id: string }
+      | undefined;
+    if (!l) return falhou();
+    if (l.conta_id === null) {
+      if (!permitirSemConta) return falhou();
+    } else {
+      // O token só vale enquanto a conta está ativa e ligada à mesma vaga.
+      const conta = this.porId(l.conta_id);
+      if (conta?.status !== "ativa" || conta.usuario_id !== l.usuario_id) return falhou();
+    }
+    this.sql.exec("UPDATE tokens_claude SET ultimo_uso = ? WHERE id = ?", agora, l.id);
+    return { ok: true, usuarioId: l.usuario_id, contaId: l.conta_id, tokenId: l.id };
   }
 
   /** Só para o `/teste/zerar` (MODO=teste): esquece contas, sessões e limites. */
   apagarTudo(): void {
     this.sql.exec("DELETE FROM sessoes");
+    this.sql.exec("DELETE FROM tokens_claude");
     this.sql.exec("DELETE FROM limites_ip");
     this.sql.exec("DELETE FROM desafios");
     this.sql.exec("DELETE FROM contas");

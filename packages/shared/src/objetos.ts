@@ -217,16 +217,18 @@ export function modelosParaJogador(
   modelos: readonly ModeloDeObjeto[],
   config: Pick<ConfigDaMesa, "tempoParaJogadores">,
 ): ModeloDeObjeto[] {
-  if (config.tempoParaJogadores === "exato") return [...modelos];
-  return modelos.map((m) => ({ ...m, duracaoS: m.duracaoS === null ? null : 1 }));
+  // 12-1: o modelo em rascunho do Claude do mestre não chega ao jogador.
+  const publicados = modelos.filter((m) => !m.rascunho);
+  if (config.tempoParaJogadores === "exato") return publicados;
+  return publicados.map((m) => ({ ...m, duracaoS: m.duracaoS === null ? null : 1 }));
 }
 
 /** O ponto chega a este usuário? O mestre vê todos; os demais, só os visíveis da cena ativa. */
 export function pontoVisivelPara(
-  ponto: Pick<PontoDeLuz, "cenaId" | "visivelParaJogadores">,
+  ponto: Pick<PontoDeLuz, "cenaId" | "visivelParaJogadores" | "rascunho">,
   usuario: Visao,
   cenaAtivaId: string,
 ): boolean {
   if (usuario.papel === "mestre") return true;
-  return ponto.cenaId === cenaAtivaId && ponto.visivelParaJogadores;
+  return ponto.cenaId === cenaAtivaId && ponto.visivelParaJogadores && !ponto.rascunho;
 }

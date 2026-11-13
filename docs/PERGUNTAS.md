@@ -211,3 +211,7 @@ Sem pergunta nova para o Vilella: ele aprovou o plano do 7b. As suposições do 
 ## 7b-2: as zonas (2026-11-13)
 
 Sem pergunta nova para o Vilella: ele aprovou o plano do 7b. As suposições do lote estão em `docs/REDESIGN.md`, "7b-2 — como ficou" (todas com "(assumido)"). As que mais valem uma olhada: "dentro" é o centro do token no polígono (e a luz acompanha quem a carrega); a zona fica visível, fraca, para o mestre mesmo fora da ferramenta; a tecla é Z; Esc cancela o polígono (nas paredes, Esc encerra); as reações de modelo que ouvem `token.entrouNaZona` agem no token que entrou.
+
+## 12-1: o acesso do Claude (2026-11-13)
+
+Sem pergunta nova para o Vilella: ele aprovou o plano do MCP. As suposições do lote estão em `docs/REDESIGN.md`, "12-1 — como ficou" (todas com "(assumido)"). As que mais valem uma olhada: até 5 tokens por conta e mesa; 20 pedidos por segundo por token (rajada de 40); a ficha e o handout do jogador moram numa pasta própria ("Fichas de <nome>", só ele e o mestre a veem); o Claude do mestre também publica rascunhos; publicar o que o Claude criou não impede o Desfazer; o Desfazer não cobre relógio, permissões, configuração, chat, combate nem desenhos; e a lista de proibidos inclui o vaivém de arquivos (`asset.*`) além do que o brief dizia.

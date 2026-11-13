@@ -68,6 +68,7 @@ import { BarraDeFerramentas } from "./BarraDeFerramentas";
 import { BarraLateral, type PedidoDeAba } from "./BarraLateral";
 import { BotaoComDica } from "./BotaoComDica";
 import { type CamadaDeTrabalho, camadaDoNovoToken } from "./camadas";
+import { RascunhosDoClaude } from "./claude/RascunhosDoClaude";
 import { pedirTokenNoMapa, TEXTO_FORA_DA_BANDEIRA } from "./colocarNoMapa";
 import { ATRASO_DA_DICA } from "./Dica";
 import { EstadoDaMesa } from "./EstadoDaMesa";
@@ -211,6 +212,8 @@ export function Mesa({
     preparos,
     chatTemMais,
     avisoDeContas,
+    claudeConectado,
+    lotesDoClaude,
     enviar,
     enviarBinario,
     bufferizado,
@@ -1387,6 +1390,8 @@ export function Mesa({
                 login={login}
                 fontes={fontes}
                 gerente={gerente}
+                lotesDoClaude={lotesDoClaude}
+                enviar={enviar}
               />
             ),
           },
@@ -1504,7 +1509,13 @@ export function Mesa({
                 {textoDoAvisoDeContas(avisoDeContas)}
               </button>
             )}
-            <PresencaNoTopo usuarios={membrosDaMesa(estado)} presenca={presenca} euId={eu.id} />
+            {euMestre && <RascunhosDoClaude estado={estado} enviar={enviar} />}
+            <PresencaNoTopo
+              usuarios={membrosDaMesa(estado)}
+              presenca={presenca}
+              euId={eu.id}
+              claude={claudeConectado}
+            />
             <EstadoDaMesa
               pausada={estado.relogio.pausada}
               euMestre={euMestre}

@@ -745,3 +745,21 @@ Continua em aberto, por ser decisão e não erro de doc: `ficha.verOutras` (seç
 - Frágil: os schemas de mudanças (`MudancasDaZonaSchema` e os de ciclo e reação em `protocolo.ts`) não podem herdar os padrões do campo: o `.partial()` do zod os aplica e editar só o nome zeraria o resto.
 - Sem migração SQL: coleção `zonas` da tabela `entidades`. A importação a troca (`salvarTudo`).
 - Suposições novas (assumido): ver `REDESIGN`, "7b-2 — como ficou".
+
+## 12-1 (2026-11-13): o acesso do Claude (sala e web)
+
+**Onde mexer**
+- Token e conexão: `apps/server/src/contas.ts` (`gerarTokenDoClaude`, `revogarTokenDoClaude`, `resolverTokenDoClaude`, `revogarTokensDaConta`), `sala.ts` (`abrirSocket` com `Authorization`, `rotaDoToken`, a marca `claude` no `Identidade`, o balde de fichas, `usuariosComClaude`, `anotarNoDiario`, `desfazerLote`, `enviarLotes`), `armazenamento.ts` (migrações 13 e 14; `anotarLote`, `lotesDe`, `passosDoLote`), `index.ts` (`caminhoInterno`: `conta/claude`, `claude/gerar`, `claude/revogar`).
+- Regras puras em `packages/shared`: `claude.ts` (formato do token, **a lista de proibidos**, o balde, o teto de 20 e `idDaPastaDoJogador`), `rascunhos.ts` (`carimbarRascunho`, `listarRascunhos`, `eventosDePublicacao`, `intencaoDeDescarte`), `desfazer.ts` (`diffDoEstado`, `desfazerPassos`), `nucleo.ts` (`OpcoesDeProcessar`, `podeCriarDoJogador`, `garantirPastaDoJogador`, `negarHandout`, os casos `rascunho.*` e `claude.desfazer`; os filtros de rascunho estão em `tokenVisivelPara`, `pastaVisivelPara`, `handoutVisivelPara`, `personagemVisivelPara`, `pontoVisivelPara`, `luzVisivelPara`, `modelosParaJogador`, `botoesParaJogador` e no motor das automações).
+- Web: `apps/web/src/claude/` (`ConectarOClaude.tsx`, `RascunhosDoClaude.tsx`, `textosDoClaude.ts`), `useSala.ts` (`claudeConectado`, `lotesDoClaude`, o aviso do `claude.desfeito`), `AbaFichas.tsx` ("Nova ficha" e "Novo handout"), `JanelaDoHandout.tsx` e `EditorDoItem.tsx` (o dono edita), `PresencaNoTopo.tsx` (a marca) e `MensagemDoChat.tsx` ("pelo Claude").
+
+**Frágil**
+- O **carimbo de rascunho** vive no `emitir` do `processarIntencao`: qualquer evento de criação novo que o Claude do mestre dispare precisa estar em `carimbarRascunho` (e o tipo em `TIPOS_DE_RASCUNHO`, `eventosDePublicacao`, `intencaoDeDescarte` e `listarRascunhos`), senão o item nasce já publicado.
+- Quem criar um **tipo novo de entidade** precisa decidir o rascunho (filtro em `visaoPara` e `eventoPara`) e o Desfazer (`COLECOES_DESFAZIVEIS` e os dois `switch` de `desfazerPassos`).
+- O **diário** compara o estado antes e depois **por coleção e id**: o que não está em `COLECOES_DESFAZIVEIS` nunca é desfeito. Mudança de `luzes` que o tempo faz sozinho (consumo da tocha) pode fazer o item contar como "mudou depois" e ser pulado.
+- A conexão do Claude é identificada **só** pelo token (anexo do socket). Nunca ler `claude` de um cabeçalho ou de um campo do cliente; o `loteId` e o `lote` do envelope são ignorados em qualquer outra conexão.
+- O balde de fichas (20 por segundo, rajada de 40) fica na memória da sala: reiniciá-la o enche de novo.
+- O texto de "Conectar o Claude" (`textosDoClaude.ts`) é provisório até o 12-2 (o comando do servidor MCP não existe ainda).
+- O `packages/shared` é lido pelo Vite sem compilar: nada de propriedade de parâmetro no construtor nem enum.
+
+**Suposições**: ver `docs/REDESIGN.md`, "12-1 — como ficou".

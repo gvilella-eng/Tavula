@@ -10,6 +10,7 @@ import {
   type CompendioDaMesa,
   CompendioDaMesaSchema,
   configComPadrao,
+  contarItens,
   type Desenho,
   DesenhoSchema,
   type Efeito,
@@ -17,6 +18,7 @@ import {
   type Estado,
   type EventoSala,
   type Handout,
+  MAXIMO_DE_LOTES_POR_USUARIO,
   type Mensagem,
   MensagemSchema,
   type ModeloDeObjeto,
@@ -26,6 +28,7 @@ import {
   objetoDoBanco,
   type Pacote,
   type Parede,
+  type Passo,
   type Pasta,
   PERMISSOES_PADRAO,
   type Permissoes,
@@ -251,7 +254,79 @@ const MIGRACOES: Migracao[] = [
       sql.exec("ALTER TABLE contas ADD COLUMN tour_visto INTEGER NOT NULL DEFAULT 0");
     }
   },
+  // 12-1: os tokens de acesso do Claude (só o SHA-256 do token; o token em si aparece uma vez, na tela que o gera). Cada
+  // um é de uma conta (ou, só com MODO=teste, de um usuário do login solto: `conta_id` nulo) e dela morre. Aditiva e
+  // idempotente. Nada disso entra no estado, em frame algum nem na exportação.
+  (sql) => {
+    sql.exec(`CREATE TABLE IF NOT EXISTS tokens_claude (
+      id TEXT PRIMARY KEY,
+      hash_token TEXT NOT NULL UNIQUE,
+      conta_id TEXT,
+      usuario_id TEXT NOT NULL,
+      nome TEXT NOT NULL,
+      criado_em INTEGER NOT NULL,
+      ultimo_uso INTEGER
+    )`);
+    sql.exec("CREATE INDEX IF NOT EXISTS tokens_claude_conta ON tokens_claude (conta_id)");
+  },
+  // 12-1: o diário do "Desfazer o que o Claude fez": um lote por `loteId` de cada usuário, com os passos (o que cada
+  // intenção mudou, item a item). Guarda os últimos 50 lotes por usuário. Aditiva e idempotente; fora da exportação.
+  (sql) => {
+    sql.exec(`CREATE TABLE IF NOT EXISTS claude_lotes (
+      seq INTEGER PRIMARY KEY AUTOINCREMENT,
+      usuario_id TEXT NOT NULL,
+      lote_id TEXT NOT NULL,
+      descricao TEXT NOT NULL,
+      criado_em INTEGER NOT NULL,
+      passos TEXT NOT NULL,
+      itens INTEGER NOT NULL DEFAULT 0,
+      desfazivel INTEGER NOT NULL DEFAULT 1,
+      desfeito INTEGER NOT NULL DEFAULT 0,
+      UNIQUE (usuario_id, lote_id)
+    )`);
+  },
+  // 12-1 (conserto): uma versão anterior da migração 14 já rodou em bancos reais sem a coluna `itens`. Esta migração
+  // confere as colunas das duas tabelas do Claude e acrescenta as que faltam, com os padrões das versões finais. Aditiva
+  // e idempotente: com todas as colunas no lugar, não faz nada. Nunca edite as migrações 13 e 14: acrescente outra.
+  (sql) => {
+    const garantir = (tabela: string, colunas: Record<string, string>) => {
+      const tem = new Set(
+        (sql.exec(`PRAGMA table_info(${tabela})`).toArray() as { name: string }[]).map(
+          (c) => c.name,
+        ),
+      );
+      for (const [nome, definicao] of Object.entries(colunas)) {
+        if (!tem.has(nome)) sql.exec(`ALTER TABLE ${tabela} ADD COLUMN ${nome} ${definicao}`);
+      }
+    };
+    garantir("claude_lotes", {
+      descricao: "TEXT NOT NULL DEFAULT ''",
+      criado_em: "INTEGER NOT NULL DEFAULT 0",
+      passos: "TEXT NOT NULL DEFAULT '[]'",
+      itens: "INTEGER NOT NULL DEFAULT 0",
+      desfazivel: "INTEGER NOT NULL DEFAULT 1",
+      desfeito: "INTEGER NOT NULL DEFAULT 0",
+    });
+    garantir("tokens_claude", {
+      conta_id: "TEXT",
+      nome: "TEXT NOT NULL DEFAULT 'Claude'",
+      criado_em: "INTEGER NOT NULL DEFAULT 0",
+      ultimo_uso: "INTEGER",
+    });
+  },
 ];
+
+/** Um lote do diário do Claude, como a tela o lista (sem os passos). */
+export type LoteDoDiario = {
+  loteId: string;
+  descricao: string;
+  emMs: number;
+  itens: number;
+  desfeito: boolean;
+  desfazivel: boolean;
+};
+/** O mais que um lote guarda de passos (texto JSON): acima disso o lote não se desfaz (assumido). */
+const MAXIMO_DE_BYTES_DO_LOTE = 1_500_000;
 
 /** Um arquivo pré-enviado de uma cena. */
 export type PacoteDeCena = Pacote & { cenaId: string };
@@ -749,6 +824,115 @@ export class Armazenamento {
     this.gravarMeta("seq", String(estado.seq));
   }
 
+  // --- o diário do Claude (12-1) --------------------------------------------------------------
+
+  /** Acrescenta um passo ao lote (cria o lote no primeiro). A descrição do lote é a mais recente que vier. */
+  anotarLote(
+    usuarioId: string,
+    loteId: string,
+    descricao: string,
+    passo: Passo,
+    agora: number,
+  ): void {
+    const atual = this.sql
+      .exec<{ passos: string; desfazivel: number }>(
+        "SELECT passos, desfazivel FROM claude_lotes WHERE usuario_id = ? AND lote_id = ?",
+        usuarioId,
+        loteId,
+      )
+      .toArray()[0];
+    let passos: Passo[] = [];
+    let desfazivel = 1;
+    if (atual) {
+      passos = JSON.parse(atual.passos) as Passo[];
+      desfazivel = atual.desfazivel;
+    }
+    passos.push(passo);
+    const itens = contarItens(passos);
+    let texto = JSON.stringify(passos);
+    if (texto.length > MAXIMO_DE_BYTES_DO_LOTE) {
+      // Lote grande demais para o diário: continua listado, mas sem como desfazer.
+      desfazivel = 0;
+      texto = "[]";
+    }
+    if (atual) {
+      this.sql.exec(
+        "UPDATE claude_lotes SET passos = ?, itens = ?, desfazivel = ?, descricao = ? WHERE usuario_id = ? AND lote_id = ?",
+        texto,
+        itens,
+        desfazivel,
+        descricao,
+        usuarioId,
+        loteId,
+      );
+    } else {
+      this.sql.exec(
+        "INSERT INTO claude_lotes (usuario_id, lote_id, descricao, criado_em, passos, itens, desfazivel) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        usuarioId,
+        loteId,
+        descricao,
+        agora,
+        texto,
+        itens,
+        desfazivel,
+      );
+    }
+    // Os últimos 50 lotes por usuário.
+    this.sql.exec(
+      `DELETE FROM claude_lotes WHERE usuario_id = ? AND seq NOT IN (
+         SELECT seq FROM claude_lotes WHERE usuario_id = ? ORDER BY seq DESC LIMIT ?)`,
+      usuarioId,
+      usuarioId,
+      MAXIMO_DE_LOTES_POR_USUARIO,
+    );
+  }
+
+  /** Os lotes recentes do usuário, do mais novo ao mais velho. */
+  lotesDe(usuarioId: string): LoteDoDiario[] {
+    return this.sql
+      .exec<{
+        lote_id: string;
+        descricao: string;
+        criado_em: number;
+        itens: number;
+        desfazivel: number;
+        desfeito: number;
+      }>(
+        "SELECT lote_id, descricao, criado_em, itens, desfazivel, desfeito FROM claude_lotes WHERE usuario_id = ? ORDER BY seq DESC",
+        usuarioId,
+      )
+      .toArray()
+      .map((l) => ({
+        loteId: l.lote_id,
+        descricao: l.descricao,
+        emMs: l.criado_em,
+        itens: l.itens,
+        desfeito: l.desfeito === 1,
+        desfazivel: l.desfazivel === 1,
+      }));
+  }
+
+  /** Os passos de um lote do usuário (ou `null`: não existe, já foi desfeito ou é grande demais). */
+  passosDoLote(usuarioId: string, loteId: string): Passo[] | null {
+    const l = this.sql
+      .exec<{ passos: string; desfazivel: number; desfeito: number }>(
+        "SELECT passos, desfazivel, desfeito FROM claude_lotes WHERE usuario_id = ? AND lote_id = ?",
+        usuarioId,
+        loteId,
+      )
+      .toArray()[0];
+    if (!l || l.desfeito === 1 || l.desfazivel !== 1) return null;
+    return JSON.parse(l.passos) as Passo[];
+  }
+
+  marcarLoteDesfeito(usuarioId: string, loteId: string): void {
+    this.sql.exec(
+      "UPDATE claude_lotes SET desfeito = 1 WHERE usuario_id = ? AND lote_id = ?",
+      usuarioId,
+      loteId,
+    );
+  }
+
   // --- chat -----------------------------------------------------------------------------------
 
   /** Grava a mensagem no histórico (sem limite de gravação: a tabela só cresce, até o mestre limpar). */
@@ -896,6 +1080,7 @@ export class Armazenamento {
     this.sql.exec("DELETE FROM posse");
     this.sql.exec("DELETE FROM entidades");
     this.sql.exec("DELETE FROM agenda");
+    this.sql.exec("DELETE FROM claude_lotes");
     this.sql.exec("DELETE FROM meta WHERE chave <> 'versao_esquema'");
   }
 }

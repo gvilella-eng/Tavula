@@ -62,12 +62,12 @@ const HOSTS_LOCAIS = new Set(["127.0.0.1", "localhost", "[::1]"]);
  */
 function caminhoInterno(metodo: string, rota: string): string | null {
   if (rota === "ws") return "/ws";
-  if (metodo === "GET" && ["situacao", "usuarios", "eu", "contas"].includes(rota)) {
+  if (metodo === "GET" && ["situacao", "usuarios", "eu", "contas", "conta/claude"].includes(rota)) {
     return `/api/${rota}`;
   }
   if (metodo === "POST" && ["entrar", "sair"].includes(rota)) return `/api/${rota}`;
   const conta =
-    /^conta\/(entrar|pedir|sair|esqueci|redefinir|trocar-senha|tour-visto|mestre-inicial|chave|codigo|recuperar\/desafio|recuperar\/pasta|recuperar\/codigo)$/.exec(
+    /^conta\/(entrar|pedir|sair|esqueci|redefinir|trocar-senha|tour-visto|mestre-inicial|chave|codigo|claude\/gerar|claude\/revogar|recuperar\/desafio|recuperar\/pasta|recuperar\/codigo)$/.exec(
       rota,
     );
   if (metodo === "POST" && conta) {

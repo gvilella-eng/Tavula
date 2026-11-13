@@ -1,6 +1,7 @@
 import { DurableObject } from "cloudflare:workers";
 import {
   assetVisivelPara,
+  type BaldeDoClaude,
   botaoDentroDoLimite,
   type CodigoDeErro,
   CorpoAceitarSchema,
@@ -8,22 +9,27 @@ import {
   CorpoCodigoSchema,
   CorpoEntrarSchema,
   CorpoEsqueciSchema,
+  CorpoGerarTokenSchema,
   CorpoMestreInicialSchema,
   CorpoPedirSchema,
   CorpoRecuperarCodigoSchema,
   CorpoRecuperarPastaSchema,
   CorpoRedefinirSchema,
+  CorpoRevogarTokenSchema,
   CorpoTrocarSenhaSchema,
   calcularUso,
   derivarMembros,
   desenhoVisivelPara,
+  desfazerPassos,
   diaUtc,
+  diffDoEstado,
   type Estado,
   type EventoSala,
   estadoInicial,
   eventoPara,
   type FonteDeAleatoriedade,
   fonteComSemente,
+  gastarFicha,
   INTERVALO_MINIMO_DO_BOTAO_MS,
   type Intencao,
   idDoPedido,
@@ -55,6 +61,7 @@ import {
   registrarMensagem,
   type TokenApagadoRecente,
   tempoDaSala,
+  tokenDoCabecalho,
   tokenVisivelPara,
   type UltimoPing,
   type Usuario,
@@ -123,6 +130,10 @@ type Identidade = {
   /** Conta e sessão que abriram o socket (sem eles: o login solto de teste). Para fechar o socket quando a conta cai. */
   contaId?: string;
   sessaoHash?: string;
+  /** 12-1: a conexão do Claude (abriu com `Authorization: Bearer`): o mesmo usuário, com a marca e os limites do Claude. */
+  claude?: true;
+  /** 12-1: o token do Claude que abriu a conexão (revogá-lo derruba o socket). */
+  tokenId?: string;
 };
 
 /** Quem fez uma requisição, já resolvido pela sala. */
@@ -220,6 +231,8 @@ export class Sala extends DurableObject<Env> {
   private readonly ultimoPing = new Map<string, UltimoPing>();
   /** 7b-3: quando cada jogador usou um botão liberado pela última vez (só memória; o limite de frequência). */
   private readonly ultimoBotao = new Map<string, number>();
+  /** 12-1: o balde de fichas de cada token do Claude (o limite de frequência; só memória). */
+  private readonly baldes = new Map<string, BaldeDoClaude>();
   /** Quando cada conexão mandou o último rascunho aceito (o limite de frequência). */
   private readonly ultimoRascunho = new Map<WebSocket, number>();
   /** Quando cada conexão mandou as últimas mensagens de chat (só memória; a janela é de 1 s). */
@@ -501,6 +514,9 @@ export class Sala extends DurableObject<Env> {
     if (pathname.startsWith("/api/conta/") && request.method === "POST") {
       return this.rotaDeConta(request, pathname.slice("/api/conta/".length));
     }
+    if (pathname === "/api/conta/claude" && request.method === "GET") {
+      return this.listarTokensDoClaude(request);
+    }
     if (pathname === "/api/contas" && request.method === "GET") return this.listarContas(request);
     const doMestre = /^\/api\/contas\/([^/]+)\/([a-z-]+)$/.exec(pathname);
     if (doMestre && request.method === "POST") {
@@ -665,11 +681,18 @@ export class Sala extends DurableObject<Env> {
       if (!r.ok) return erroDeConta(r);
       const mantida = quem.sessaoHash;
       const conta = quem.conta.id;
-      this.fecharSockets((i) => i.contaId === conta && i.sessaoHash !== mantida, "senha trocada");
+      this.fecharSockets(
+        (i) => i.contaId === conta && i.claude !== true && i.sessaoHash !== mantida,
+        "senha trocada",
+      );
       return json({ ok: true });
     }
 
     if (acao === "mestre-inicial") return this.criarMestreInicial(request, agora, mesaId, seguro);
+
+    if (acao === "claude/gerar" || acao === "claude/revogar") {
+      return this.rotaDoToken(request, acao === "claude/gerar", agora);
+    }
 
     // --- C3: chave da pasta e código de recuperação ---------------------------------------------------
 
@@ -727,6 +750,61 @@ export class Sala extends DurableObject<Env> {
     }
 
     return new Response("Não encontrado", { status: 404 });
+  }
+
+  // --- Tokens de acesso do Claude (12-1) ---------------------------------------------------------
+
+  /**
+   * Quem gera e revoga tokens: a pessoa, com a sessão dela (ou, só com MODO=teste, o login solto). Nunca a conexão do
+   * Claude (ela nem tem cookie, mas o cabeçalho `Authorization` já é recusado aqui).
+   */
+  private async donoDosTokens(
+    request: Request,
+  ): Promise<{ contaId: string | null; usuarioId: string } | Response> {
+    if (request.headers.has("Authorization")) {
+      return json(
+        {
+          erro: "sem_permissao",
+          mensagem: "O Claude não gera nem revoga tokens: só a pessoa, pela mesa.",
+        },
+        403,
+      );
+    }
+    const quem = await this.identificar(request);
+    if (!quem) return erroDeConta({ ok: false, erro: "sem_sessao" });
+    return { contaId: quem.conta?.id ?? null, usuarioId: quem.usuarioId };
+  }
+
+  private async listarTokensDoClaude(request: Request): Promise<Response> {
+    const dono = await this.donoDosTokens(request);
+    if (dono instanceof Response) return dono;
+    return json({ tokens: this.contas.listarTokensDoClaude(dono.contaId, dono.usuarioId) });
+  }
+
+  /** `conta/claude/gerar {nome?}` e `conta/claude/revogar {id}`. */
+  private async rotaDoToken(request: Request, gerar: boolean, agora: number): Promise<Response> {
+    const dono = await this.donoDosTokens(request);
+    if (dono instanceof Response) return dono;
+    if (gerar) {
+      const c = await this.lerCorpo(request, CorpoGerarTokenSchema);
+      if (!c.ok) return c.resposta;
+      const r = await this.contas.gerarTokenDoClaude(
+        dono.contaId,
+        dono.usuarioId,
+        c.valor.nome ?? "",
+        agora,
+      );
+      if (!r.ok) return erroDeConta(r);
+      // O token vai só nesta resposta (mostrado uma vez); a sala guarda o hash.
+      return json({ token: r.valor.token, ...r.valor.publico }, 201);
+    }
+    const c = await this.lerCorpo(request, CorpoRevogarTokenSchema);
+    if (!c.ok) return c.resposta;
+    const r = this.contas.revogarTokenDoClaude(dono.contaId, dono.usuarioId, c.valor.id);
+    if (!r.ok) return erroDeConta(r);
+    // Vale na hora: a conexão aberta com esse token cai.
+    this.fecharSockets((i) => i.tokenId === r.valor.id, "token revogado");
+    return json({ ok: true });
   }
 
   /**
@@ -889,7 +967,35 @@ export class Sala extends DurableObject<Env> {
 
   private async abrirSocket(request: Request): Promise<Response> {
     if (!pedeWebSocket(request)) return new Response("Esperava WebSocket", { status: 426 });
-    const quem = await this.identificar(request);
+
+    // 12-1: o cliente do MCP abre o WebSocket com `Authorization: Bearer <token>`. Com o cabeçalho, só o token vale (o
+    // cookie é ignorado) e nenhum cookie nasce. Token errado, fora do formato ou revogado: o mesmo 401, sem dizer qual;
+    // cada falha entra no bloqueio progressivo por IP do login (com o IP bloqueado, 429 e quanto esperar).
+    const autorizacao = request.headers.get("Authorization");
+    let quem: Quem | null = null;
+    let doClaude: { tokenId: string; contaId: string | null } | null = null;
+    if (autorizacao !== null) {
+      const t = await this.contas
+        .resolverTokenDoClaude(
+          tokenDoCabecalho(autorizacao),
+          this.ipDe(request),
+          Date.now(),
+          this.ehTeste,
+        )
+        .catch((e: unknown) => {
+          console.error("tokens do Claude: falha ao resolver o token", e);
+          return { ok: false as const, minutos: 0 };
+        });
+      if (!t.ok) {
+        return t.minutos > 0
+          ? erroDeConta({ ok: false, erro: "ip_bloqueado", minutos: t.minutos })
+          : new Response("Não autenticado", { status: 401 });
+      }
+      quem = { usuarioId: t.usuarioId };
+      doClaude = { tokenId: t.tokenId, contaId: t.contaId };
+    } else {
+      quem = await this.identificar(request);
+    }
     const usuario = quem && this.estado.usuarios.find((u) => u.id === quem.usuarioId);
     if (!quem || !usuario) return new Response("Não autenticado", { status: 401 });
 
@@ -903,8 +1009,24 @@ export class Sala extends DurableObject<Env> {
       ...(quem.conta && quem.sessaoHash
         ? { contaId: quem.conta.id, sessaoHash: quem.sessaoHash }
         : {}),
+      ...(doClaude
+        ? {
+            claude: true as const,
+            tokenId: doClaude.tokenId,
+            ...(doClaude.contaId ? { contaId: doClaude.contaId } : {}),
+          }
+        : {}),
     };
     servidor.serializeAttachment(identidade);
+
+    // A conexão do Claude não vira outra pessoa: não conta como presença, não segura a mesa sem mestre, não baixa
+    // arquivos nem recebe os avisos de contas (o Claude não mexe em contas). Só a marca "Claude conectado" aparece.
+    if (doClaude) {
+      this.enviarSnapshot(servidor, usuario);
+      this.enviarLotes(usuario.id);
+      this.difundirPresenca();
+      return new Response(null, { status: 101, webSocket: cliente });
+    }
 
     this.agenda.cancelar("presenca.expirar", usuario.id);
     if (usuario.papel === "mestre") this.agenda.cancelar("mestre.ausente", "");
@@ -920,6 +1042,7 @@ export class Sala extends DurableObject<Env> {
       this.enviarProgresso();
       this.enviar(servidor, this.textoDoAvisoDeContas(null));
     }
+    this.enviarLotes(usuario.id);
     this.difundirPresenca();
     return new Response(null, { status: 101, webSocket: cliente });
   }
@@ -936,6 +1059,9 @@ export class Sala extends DurableObject<Env> {
       this.estado = estadoInicial(semente);
       this.fonteDeDadosDeTeste = null;
       this.taxaDoChat.clear();
+      this.baldes.clear();
+      // Os tokens do Claude morrem com as contas: as conexões abertas com eles também.
+      this.fecharSockets((i) => i.claude === true, "reiniciado");
       this.ultimoPing.clear();
       this.ultimoBotao.clear();
       this.banco.salvarTudo(this.estado);
@@ -1008,9 +1134,12 @@ export class Sala extends DurableObject<Env> {
       return;
     }
 
-    // Frame binário: só pedaço de arquivo, só de quem a sala pediu; o resto some em silêncio.
+    const identidade = this.identidadeDe(ws);
+    const doClaude = identidade?.claude === true;
+
+    // Frame binário: só pedaço de arquivo, só de quem a sala pediu; o resto some em silêncio (o Claude não troca arquivos).
     if (typeof bruta !== "string") {
-      this.tratarPedaco(ws, bruta);
+      if (!doClaude) this.tratarPedaco(ws, bruta);
       return;
     }
 
@@ -1020,6 +1149,27 @@ export class Sala extends DurableObject<Env> {
       return;
     }
     const intencao = lida.valor;
+
+    // 12-1: limite de frequência por token do Claude (20 por segundo, rajada de 40): o excesso é recusado com o aviso de esperar.
+    if (doClaude && identidade?.tokenId) {
+      const gasto = gastarFicha(this.baldes.get(identidade.tokenId), Date.now());
+      this.baldes.set(identidade.tokenId, gasto.balde);
+      if (!gasto.ok) {
+        this.erro(
+          ws,
+          intencao.id,
+          "muitas_mensagens",
+          `Devagar: o Claude pode mandar no máximo 20 pedidos por segundo. Espere ${Math.ceil(gasto.esperaMs / 100) / 10} s e tente de novo.`,
+        );
+        return;
+      }
+    }
+
+    // 12-1: desfazer um lote do Claude do próprio usuário (a sala guarda o diário; nada passa por `processar`).
+    if (intencao.tipo === "claude.desfazer") {
+      await this.desfazerLote(ws, usuario, intencao.id, intencao.dados.loteId);
+      return;
+    }
 
     // No máximo 10 mensagens de chat por segundo por conexão; o resto é recusado com aviso.
     if (INTENCOES_DE_CHAT.has(intencao.tipo)) {
@@ -1067,6 +1217,7 @@ export class Sala extends DurableObject<Env> {
       new Date(agoraMs).toISOString(),
       this.fonteDeDadosDeTeste ?? undefined,
       this.apagadosRecentes,
+      { claude: doClaude },
     );
     if (r.ok && limitaBotao) this.ultimoBotao.set(usuario.id, agoraMs);
     if (r.ok && r.apagado) this.apagadosRecentes.push({ ...r.apagado, emMs: agoraMs });
@@ -1098,6 +1249,10 @@ export class Sala extends DurableObject<Env> {
       intencao.tipo === "campanha.importar"
         ? { ...semChat, retratosDoChat: this.banco.retratosDoChat() }
         : semChat;
+    // 12-1: o que a conexão do Claude mudou entra no diário do Desfazer, agrupado pelo `loteId` do pedido.
+    if (doClaude && r.eventos.length > 0) {
+      this.anotarNoDiario(usuario.id, intencao, antes, r.estado, agoraMs);
+    }
     if (intencao.tipo === "chat.anteriores") {
       const pagina = this.chatVisivelPara(
         usuario,
@@ -1175,6 +1330,12 @@ export class Sala extends DurableObject<Env> {
     this.taxaDoChat.delete(ws);
     const identidade = this.identidadeDe(ws);
     if (!identidade) return;
+    this.baldes.delete(identidade.tokenId ?? "");
+    // A conexão do Claude não conta como presença: só some a marca "Claude conectado".
+    if (identidade.claude) {
+      this.difundirPresenca(ws);
+      return;
+    }
     this.banco.limparPosse(identidade.conexaoId);
     this.transferencias.conexaoSaiu(identidade.conexaoId);
     this.enviarProgresso();
@@ -1204,7 +1365,10 @@ export class Sala extends DurableObject<Env> {
       .getWebSockets()
       .filter(
         (s) =>
-          s !== ignorar && s.readyState === WebSocket.OPEN && this.usuarioDe(s)?.papel === "mestre",
+          s !== ignorar &&
+          s.readyState === WebSocket.OPEN &&
+          this.identidadeDe(s)?.claude !== true &&
+          this.usuarioDe(s)?.papel === "mestre",
       ).length;
   }
 
@@ -1225,6 +1389,91 @@ export class Sala extends DurableObject<Env> {
     this.estado = r.estado;
     await this.reagendarLuzes();
     this.distribuir(r.eventos, r.snapshotPara, antes);
+  }
+
+  // --- O diário do Claude e o Desfazer (12-1) -------------------------------------------------
+
+  /** Anota o que a intenção do Claude mudou (item a item) no lote dela (o `loteId` do pedido; sem ele, um lote por pedido). */
+  private anotarNoDiario(
+    usuarioId: string,
+    intencao: Intencao,
+    antes: Estado,
+    depois: Estado,
+    agoraMs: number,
+  ): void {
+    const passo = diffDoEstado(antes, depois);
+    if (passo.length === 0) return;
+    const loteId = intencao.loteId ?? intencao.id;
+    const descricao = intencao.lote ?? "Mexeu na mesa";
+    try {
+      this.banco.anotarLote(usuarioId, loteId, descricao, passo, agoraMs);
+    } catch (e) {
+      console.error("diário do Claude: falha ao anotar o lote", e);
+      return;
+    }
+    this.enviarLotes(usuarioId);
+  }
+
+  /** Manda os lotes recentes do Claude a todas as conexões do usuário dono (e só a elas). */
+  private enviarLotes(usuarioId: string): void {
+    // O diário nunca derruba quem entra na mesa: se a leitura falhar, registra e segue sem os lotes.
+    let lotes: ReturnType<Armazenamento["lotesDe"]>;
+    try {
+      lotes = this.banco.lotesDe(usuarioId);
+    } catch (e) {
+      console.error("diário do Claude: falha ao ler os lotes", e);
+      return;
+    }
+    if (lotes.length === 0) return;
+    const texto = mensagem({ tipo: "claude.lotes", dados: { lotes } });
+    for (const ws of this.ctx.getWebSockets()) {
+      if (this.identidadeDe(ws)?.usuarioId === usuarioId) this.enviar(ws, texto);
+    }
+  }
+
+  /**
+   * `claude.desfazer`: aplica o inverso do lote (só os lotes do próprio usuário), na ordem inversa. O item que mudou
+   * depois por outra pessoa fica como está e o aviso diz quais.
+   */
+  private async desfazerLote(
+    ws: WebSocket,
+    usuario: Usuario,
+    idPedido: string,
+    loteId: string,
+  ): Promise<void> {
+    let passos: ReturnType<Armazenamento["passosDoLote"]> = null;
+    try {
+      passos = this.banco.passosDoLote(usuario.id, loteId);
+    } catch (e) {
+      console.error("diário do Claude: falha ao ler o lote", e);
+    }
+    if (!passos) {
+      this.erro(
+        ws,
+        idPedido,
+        "lote_inexistente",
+        "Este lote não existe mais, já foi desfeito ou é grande demais para desfazer.",
+      );
+      return;
+    }
+    const r = desfazerPassos(this.estado, passos, { usuarioId: usuario.id, idPedido });
+    this.banco.marcarLoteDesfeito(usuario.id, loteId);
+    if (r.eventos.length > 0) {
+      this.banco.salvarEventos(r.estado, r.eventos);
+      const antes = this.estado;
+      this.estado = r.estado;
+      await this.reagendarLuzes();
+      // O que voltou ou saiu pode mudar o que cada pessoa vê: um snapshot novo para todos.
+      this.distribuir(r.eventos, "todos", antes);
+    }
+    this.enviar(
+      ws,
+      mensagem({
+        tipo: "claude.desfeito",
+        dados: { idPedido, loteId, aplicados: r.aplicados, pulados: r.pulados.slice(0, 100) },
+      }),
+    );
+    this.enviarLotes(usuario.id);
   }
 
   // --- Alarme (agendador único) ---------------------------------------------------------------
@@ -1312,8 +1561,20 @@ export class Sala extends DurableObject<Env> {
         (s) =>
           s !== ignorar &&
           s.readyState === WebSocket.OPEN &&
+          this.identidadeDe(s)?.claude !== true &&
           this.identidadeDe(s)?.usuarioId === usuarioId,
       );
+  }
+
+  /** 12-1: quem tem o Claude conectado agora (a marca pequena na bolinha da pessoa). */
+  private usuariosComClaude(ignorar?: WebSocket): string[] {
+    const ids = new Set<string>();
+    for (const s of this.ctx.getWebSockets()) {
+      if (s === ignorar || s.readyState !== WebSocket.OPEN) continue;
+      const i = this.identidadeDe(s);
+      if (i?.claude) ids.add(i.usuarioId);
+    }
+    return [...ids];
   }
 
   private presenca(ignorar?: WebSocket): Record<string, Presenca> {
@@ -1327,7 +1588,11 @@ export class Sala extends DurableObject<Env> {
   }
 
   private difundirPresenca(ignorar?: WebSocket): void {
-    const texto = mensagem({ tipo: "presenca", dados: { usuarios: this.presenca(ignorar) } });
+    const claude = this.usuariosComClaude(ignorar);
+    const texto = mensagem({
+      tipo: "presenca",
+      dados: { usuarios: this.presenca(ignorar), ...(claude.length > 0 ? { claude } : {}) },
+    });
     for (const ws of this.ctx.getWebSockets()) if (ws !== ignorar) this.enviar(ws, texto);
   }
 

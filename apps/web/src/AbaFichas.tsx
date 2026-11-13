@@ -1,12 +1,14 @@
 import {
   type Estado,
   type Handout,
+  idDaPastaDoJogador,
   jogadoresDaMesa,
   PASTA_HANDOUTS_ID,
   PASTA_NPCS_ID,
   PASTA_PERSONAGENS_ID,
   type Pasta,
   type Personagem,
+  pode,
   podeColocarProprioToken,
   podeEditarPersonagem,
   type Usuario,
@@ -29,6 +31,7 @@ import { type DragEvent, type KeyboardEvent, useEffect, useRef, useState } from 
 import { Avatar } from "./Avatar";
 import { definirItemEmArrasto, lerItemArrastado, TIPO_DE_ARRASTO_DA_FICHA } from "./arrasto";
 import { BotaoComDica } from "./BotaoComDica";
+import { SeloDeRascunho } from "./claude/RascunhosDoClaude";
 import { pedirTokenNoMapa } from "./colocarNoMapa";
 import { useFichasFora } from "./ficha/foraDaMesa";
 import type { AbaDaFicha } from "./ficha/janelas";
@@ -142,6 +145,7 @@ function Item({ p, eu, imagens, versao, podeColocar, aoColocar, aoAbrir, aoMenu 
           {p.nome}
         </span>
         {!euMestre && podeEditarPersonagem(p, eu) && <span className="selo">seu</span>}
+        {euMestre && p.rascunho && <SeloDeRascunho testid={`ficha-rascunho-${p.id}`} />}
         {emOutraJanela && (
           <span className="selo selo-fora" data-testid={`ficha-fora-${p.id}`}>
             <AppWindow size={12} aria-hidden /> em outra janela
@@ -181,6 +185,8 @@ type PropsHandout = {
 /** Um handout na árvore: a imagem pequena (ou o pergaminho) à esquerda e o título. */
 function ItemDeHandout({ h, eu, jogadores, imagens, versao, aoAbrir, aoMenu }: PropsHandout) {
   const euMestre = eu.papel === "mestre";
+  // 12-1: o jogador também abre o menu (quem vê, apagar) dos handouts que ele criou.
+  const podeMenu = euMestre || h.criadoPor === eu.id;
   const linha = useRef<HTMLLIElement>(null);
   const iniciarArrasto = (e: DragEvent) => {
     e.dataTransfer.setData(TIPO_DE_ARRASTO_DA_FICHA, JSON.stringify({ tipo: "handout", id: h.id }));
@@ -194,12 +200,12 @@ function ItemDeHandout({ h, eu, jogadores, imagens, versao, aoAbrir, aoMenu }: P
       data-testid={`handout-item-${h.id}`}
       data-handout-id={h.id}
       onContextMenu={(e) => {
-        if (!euMestre) return;
+        if (!podeMenu) return;
         e.preventDefault();
         aoMenu(e.clientX, e.clientY, false);
       }}
       onKeyDown={(e) => {
-        if (!euMestre || !ATALHO_DO_MENU(e)) return;
+        if (!podeMenu || !ATALHO_DO_MENU(e)) return;
         e.preventDefault();
         const ponto = pontoDoElemento(e.currentTarget);
         aoMenu(ponto.x, ponto.y, true);
@@ -217,7 +223,8 @@ function ItemDeHandout({ h, eu, jogadores, imagens, versao, aoAbrir, aoMenu }: P
         <span className="ficha-nome" data-testid={`handout-nome-${h.id}`}>
           {h.titulo}
         </span>
-        {euMestre && (
+        {euMestre && h.rascunho && <SeloDeRascunho testid={`handout-rascunho-${h.id}`} />}
+        {podeMenu && (
           <span
             className="handout-quem-ve"
             data-testid={`handout-quem-ve-${h.id}`}
@@ -400,6 +407,7 @@ function SecaoDaPasta({
             {pasta.nome}
           </button>
         )}
+        {euMestre && pasta.rascunho && <SeloDeRascunho testid={`pasta-rascunho-${pasta.id}`} />}
         <span className="ficha-pasta-total" data-testid={`ficha-pasta-total-${pasta.id}`}>
           {total}
         </span>
@@ -523,6 +531,40 @@ export function AbaFichas({
     if (enviado) setParaAbrir(id);
   }
 
+  /** 12-1: o jogador cria a própria ficha (na pasta dele, que a sala faz no primeiro item); o editor abre em Configurar. */
+  function criarFichaPropria() {
+    const id = `pers-${crypto.randomUUID().slice(0, 8)}`;
+    const enviado = enviar("personagem.criar", {
+      personagem: {
+        id,
+        pastaId: idDaPastaDoJogador(eu.id),
+        editores: { tipo: "jogadores", ids: [eu.id] },
+        nome: "Nova ficha",
+        tokenPadrao: { cor: "#3cb44b", tamanhoQuadrados: 1 },
+        visao: { alcanceM: null, visaoNoEscuroM: 0 },
+        ficha: { pvAtual: 10, pvMax: 10, apresentacao: "personagem" },
+      },
+    });
+    if (enviado) setParaAbrir(id);
+  }
+
+  /** 12-1: o jogador cria o próprio handout (só o mestre e ele o veem até ele escolher quem vê). */
+  function criarHandoutProprio() {
+    const id = `handout-${crypto.randomUUID().slice(0, 8)}`;
+    const enviado = enviar("handout.criar", {
+      handout: {
+        id,
+        pastaId: idDaPastaDoJogador(eu.id),
+        titulo: "Novo handout",
+        texto: "",
+        fonte: "livro",
+        visivel: { tipo: "mestre" },
+      },
+    });
+    if (enviado) setHandoutParaAbrir(id);
+  }
+  const podeCriarProprio = !euMestre && pode(eu, "personagem.criarProprio", estado.permissoes);
+
   function proximaOrdem(): number {
     return pastas.reduce((m, p) => Math.max(m, p.ordem), -1) + 1;
   }
@@ -640,6 +682,15 @@ export function AbaFichas({
           aoClicar: () => aoAbrirFicha(p.id, "configurar"),
         });
       }
+      if (!euMestre && p.criadoPor === eu.id) {
+        itens.push(
+          { tipo: "separador", chave: "s-dono" },
+          confirmarApagar(`p:${p.id}`, "apagar a ficha e os tokens", () => {
+            enviar("personagem.apagar", { id: p.id });
+            fechar();
+          }),
+        );
+      }
       if (euMestre) {
         const ids = p.editores.tipo === "jogadores" ? p.editores.ids : [];
         itens.push(
@@ -704,14 +755,18 @@ export function AbaFichas({
         titulo: h.titulo,
         itens: [
           { id: "abrir", rotulo: "Abrir o handout", aoClicar: () => aoAbrirHandout(h.id) },
-          {
-            id: "mostrar",
-            rotulo: "Mostrar agora",
-            ...(h.visivel.tipo === "mestre"
-              ? { motivo: "Só você vê este handout: escolha quem vê antes de mostrar." }
-              : {}),
-            aoClicar: () => enviar("handout.mostrar", { id: h.id }),
-          },
+          ...(euMestre
+            ? [
+                {
+                  id: "mostrar",
+                  rotulo: "Mostrar agora",
+                  ...(h.visivel.tipo === "mestre"
+                    ? { motivo: "Só você vê este handout: escolha quem vê antes de mostrar." }
+                    : {}),
+                  aoClicar: () => enviar("handout.mostrar", { id: h.id }),
+                } satisfies ItemDoMenu,
+              ]
+            : []),
           { tipo: "separador", chave: "s1" },
           { tipo: "titulo", chave: "t-quem", rotulo: "Quem vê" },
           {
@@ -745,8 +800,9 @@ export function AbaFichas({
             }),
           ),
           { tipo: "separador", chave: "s2" },
-          ...outrasPastas(h.pastaId),
-          { tipo: "separador", chave: "s3" },
+          ...(euMestre
+            ? [...outrasPastas(h.pastaId), { tipo: "separador" as const, chave: "s3" }]
+            : []),
           confirmarApagar(`h:${h.id}`, "apagar o handout", () => {
             enviar("handout.apagar", { id: h.id });
             fechar();
@@ -832,6 +888,20 @@ export function AbaFichas({
       }}
     >
       <section className="fichas-pastas">
+        {podeCriarProprio && (
+          <div className="fichas-barra" data-testid="fichas-barra-jogador">
+            <button type="button" data-testid="ficha-jogador-nova" onClick={criarFichaPropria}>
+              <Plus size={14} /> Nova ficha
+            </button>
+            <button
+              type="button"
+              data-testid="ficha-jogador-novo-handout"
+              onClick={criarHandoutProprio}
+            >
+              <ScrollText size={14} /> Novo handout
+            </button>
+          </div>
+        )}
         {euMestre && (
           <div className="fichas-barra">
             <span className="novo-area">

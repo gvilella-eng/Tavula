@@ -23,6 +23,12 @@ export type ProgressoDePreparo = Extract<
   { tipo: "preparo.progresso" }
 >["dados"]["preparos"][number];
 
+/** 12-1: um lote recente do Claude do próprio usuário (o diário do "Desfazer"). */
+export type LoteDoClaude = Extract<
+  MensagemDaSala,
+  { tipo: "claude.lotes" }
+>["dados"]["lotes"][number];
+
 export type StatusConexao = "conectando" | "conectado" | "reconectando";
 
 /** Algo que a sala contou e que os componentes (campos com rascunho) querem acompanhar. */
@@ -111,6 +117,9 @@ export function useSala(opcoes: Opcoes) {
   const [estado, setEstado] = useState<Estado | null>(null);
   const [usuarioId, setUsuarioId] = useState<string | null>(null);
   const [presenca, setPresenca] = useState<Record<string, Presenca>>({});
+  // 12-1: quem tem o Claude conectado (uma marca na bolinha) e os lotes do Claude deste usuário.
+  const [claudeConectado, setClaudeConectado] = useState<string[]>([]);
+  const [lotesDoClaude, setLotesDoClaude] = useState<LoteDoClaude[]>([]);
   const [uso, setUso] = useState<Uso | null>(null);
   const [aviso, setAviso] = useState<Aviso | null>(null);
   const [preparos, setPreparos] = useState<ProgressoDePreparo[]>([]);
@@ -183,7 +192,22 @@ export function useSala(opcoes: Opcoes) {
           break;
         case "presenca":
           setPresenca(m.dados.usuarios);
+          setClaudeConectado(m.dados.claude ?? []);
           break;
+        case "claude.lotes":
+          setLotesDoClaude(m.dados.lotes);
+          break;
+        case "claude.desfeito": {
+          const { aplicados, pulados } = m.dados;
+          avisar(
+            pulados.length === 0
+              ? `Desfeito: ${aplicados} ${aplicados === 1 ? "item voltou" : "itens voltaram"}.`
+              : `Desfeito, menos ${pulados.length === 1 ? "um item que mudou" : `${pulados.length} itens que mudaram`} depois: ${pulados.join(", ")}.`,
+            null,
+            null,
+          );
+          break;
+        }
         case "uso":
           setUso(m.dados);
           break;
@@ -340,6 +364,8 @@ export function useSala(opcoes: Opcoes) {
     preparos,
     chatTemMais,
     avisoDeContas,
+    claudeConectado,
+    lotesDoClaude,
     enviar,
     enviarBinario,
     bufferizado,

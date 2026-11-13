@@ -147,28 +147,33 @@ test("o jogador não recebe o handout só do mestre (frames) e recebe ao ganhar 
     await expect(j.pagina.getByTestId(`handout-item-${id}`)).toHaveCount(0);
     await expect(j.pagina.getByTestId("ficha-pasta-pasta-personagens")).toHaveCount(0);
   }
-  // forçando por fora, o jogador não cria, edita, apaga nem mostra
-  for (const [tipo, dados] of [
-    ["handout.editar", { id, mudancas: { visivel: { tipo: "todos" } } }],
-    ["handout.apagar", { id }],
-    ["handout.mostrar", { id }],
-    [
-      "handout.criar",
-      {
-        handout: {
-          id: "invasor",
-          pastaId: "pasta-personagens",
-          titulo: "x",
-          texto: "",
-          fonte: "livro",
-          visivel: { tipo: "todos" },
-        },
-      },
-    ],
+  // forçando por fora, o jogador não edita, apaga nem mostra o handout do mestre (12-1: o que ele não vê responde
+  // "inexistente", sem revelar nada; "mostrar" segue só do mestre)
+  for (const [tipo, dados, esperado] of [
+    ["handout.editar", { id, mudancas: { visivel: { tipo: "todos" } } }, "handout_inexistente"],
+    ["handout.apagar", { id }, "handout_inexistente"],
+    ["handout.mostrar", { id }, "sem_permissao"],
   ] as const) {
     const r = await enviarCru(j1.pagina, intencaoCrua(tipo, dados));
-    expect(r?.dados.codigo, tipo).toBe("sem_permissao");
+    expect(r?.dados.codigo, tipo).toBe(esperado);
   }
+  // 12-1: criar o próprio handout é permitido (capacidade "Criar fichas e notas próprias", ligada por padrão): ele
+  // nasce dele, na pasta dele, e o mestre o vê; o handout do mestre segue escondido
+  const proprio = await enviarCru(
+    j1.pagina,
+    intencaoCrua("handout.criar", {
+      handout: {
+        id: "invasor",
+        pastaId: "pasta-personagens",
+        titulo: "x",
+        texto: "",
+        fonte: "livro",
+        visivel: { tipo: "todos" },
+      },
+    }),
+  );
+  // (visível a todos: a sala responde com snapshot novo, não com evento; o que não pode ser é erro)
+  expect(proprio?.tipo).not.toBe("erro");
 
   // o mestre dá a permissão ao jogador 1 (na janela do handout): ele passa a ver; o jogador 2 não
   const janela = await abrirHandout(m, id);

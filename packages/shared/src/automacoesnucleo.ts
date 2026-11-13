@@ -524,7 +524,7 @@ function executar(m: Motor, ev: EventoDeAutomacao, profundidade: number): void {
   const antes = m.ctx.atual();
   const encadeados: Encadeado[] = [];
   for (const r of m.slice.reacoes) {
-    if (!r.ativa || r.ao !== ev.nome) continue;
+    if (!r.ativa || r.rascunho || r.ao !== ev.nome) continue;
     const cenas = escopoDaReacao(m, r, ev);
     if (cenas === "nunca") continue;
     for (const alvo of alvosDaReacao(m, r, ev, cenas)) {
@@ -645,7 +645,8 @@ function sincronizarZonas(m: Motor): void {
   const e = m.ctx.atual();
   const zonas = zonasDe(e);
   const sala = m.sala;
-  const comEfeito = (z: Zona) => z.ativa && Object.values(z.efeitos).some((v) => v !== undefined);
+  const comEfeito = (z: Zona) =>
+    z.ativa && !z.rascunho && Object.values(z.efeitos).some((v) => v !== undefined);
   // 1. As luzes.
   for (const l of e.luzes) {
     const atuais = l.modificadores.filter((x) => x.id.startsWith(PREFIXO_DE_ZONA));
@@ -760,6 +761,8 @@ function avancar(m: Motor): void {
   }
   // 3. As fases dos ciclos que rodam.
   for (const c of m.slice.ciclos) {
+    // 12-1: o ciclo em rascunho não roda (e nem ganha execução: ao publicar, ele começa dali).
+    if (c.rascunho) continue;
     let exec = m.slice.execucao[c.id];
     if (exec === undefined) {
       // Ciclo que ainda não começou (veio de um arquivo, ou foi criado com a mesa pausada): começa agora.
@@ -816,7 +819,7 @@ export function intencaoDoBotao(
   const a = automacoesDe(e);
   const ciclo = a.ciclos.find((c) => idDoBotaoDeCiclo(c.id) === botaoId);
   if (ciclo) {
-    if (!mestre && ciclo.liberadoParaJogadores !== true) return recusa;
+    if (!mestre && (ciclo.liberadoParaJogadores !== true || ciclo.rascunho === true)) return recusa;
     const tipo = { disparar: "ciclo.disparar", pausar: "ciclo.pausar", retomar: "ciclo.retomar" }[
       acao ?? "disparar"
     ] as "ciclo.disparar";
@@ -824,7 +827,7 @@ export function intencaoDoBotao(
   }
   const botao = (a.botoes ?? []).find((b) => idDoBotaoDeEvento(b.id) === botaoId);
   if (botao) {
-    if (!mestre && botao.liberadoParaJogadores !== true) return recusa;
+    if (!mestre && (botao.liberadoParaJogadores !== true || botao.rascunho === true)) return recusa;
     return {
       intencao: {
         ...intencao,

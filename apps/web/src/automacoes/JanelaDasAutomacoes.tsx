@@ -11,6 +11,7 @@ import {
 import { Pencil, Plus, Trash2, Workflow } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { BotaoComDica } from "../BotaoComDica";
+import { SeloDeRascunho } from "../claude/RascunhosDoClaude";
 import { MARGEM, noTopoAoCentro } from "../janelas/geometria";
 import { Janela } from "../janelas/Janela";
 import { useTic } from "../tempo";
@@ -247,6 +248,7 @@ function Lista(p: {
               <li key={c.id} className="peca-da-lista" data-testid={chave} data-pausado={s.pausado}>
                 <div className="peca-topo">
                   <strong className="peca-nome">{c.nome}</strong>
+                  {c.rascunho && <SeloDeRascunho testid={`${chave}-rascunho`} />}
                   <span className="nota">
                     a cada {duracaoCurta(c.periodoS * 1000)} ·{" "}
                     {c.cenas.length === 0
@@ -365,6 +367,7 @@ function Lista(p: {
                   <li key={r.id} className="peca-da-lista" data-testid={chave} data-ativa={r.ativa}>
                     <div className="peca-topo">
                       <strong className="peca-nome">{r.nome ?? "Reação sem nome"}</strong>
+                      {r.rascunho && <SeloDeRascunho testid={`${chave}-rascunho`} />}
                       <span className="peca-acoes">
                         <label className="linha-opcao nota">
                           <input
@@ -430,6 +433,7 @@ function Lista(p: {
               <li key={b.id} className="peca-da-lista" data-testid={chave}>
                 <div className="peca-topo">
                   <strong className="peca-nome">{b.nome}</strong>
+                  {b.rascunho && <SeloDeRascunho testid={`${chave}-rascunho`} />}
                   <span className="nota">dispara “{nomeDoEvento(b.evento)}”</span>
                 </div>
                 {apagando === chave ? (

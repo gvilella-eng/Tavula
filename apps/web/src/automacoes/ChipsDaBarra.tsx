@@ -29,8 +29,8 @@ type Props = {
 export function BotoesDaBarra({ estado, euMestre, enviar, salaMs }: Props) {
   if (euMestre) {
     const a = automacoesDe(estado);
-    const ciclos = a.ciclos.filter((c) => c.fixado === true);
-    const botoes = a.botoes.filter((b) => b.fixado === true);
+    const ciclos = a.ciclos.filter((c) => c.fixado === true && !c.rascunho);
+    const botoes = a.botoes.filter((b) => b.fixado === true && !b.rascunho);
     if (ciclos.length === 0 && botoes.length === 0) return null;
     return (
       <div className="botoes-da-barra" data-testid="botoes-da-barra">

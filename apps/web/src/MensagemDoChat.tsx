@@ -1,5 +1,5 @@
 import { type Mensagem, ROTULO_DA_VANTAGEM, type Usuario } from "@tabletop/shared";
-import { EyeOff, Lock } from "lucide-react";
+import { Bot, EyeOff, Lock } from "lucide-react";
 import type { ReactNode } from "react";
 import { Avatar } from "./Avatar";
 import { CartaoDaCaracteristicaNoChat, CartaoDaMagiaNoChat } from "./CartaoDaMagia";
@@ -336,6 +336,11 @@ export function MensagemDoChat({ mensagem, usuarios, euId, imagens, versaoDasIma
             {nome}
           </strong>
           {mensagem.como && autor && <span className="mensagem-por">({autor.nome})</span>}
+          {mensagem.peloClaude && (
+            <span className="selo-pelo-claude" data-testid="chat-pelo-claude">
+              <Bot size={11} aria-hidden="true" /> pelo Claude
+            </span>
+          )}
           <time className="mensagem-hora">{hora(mensagem.emReal)}</time>
         </header>
         {etiqueta}

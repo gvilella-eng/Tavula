@@ -155,11 +155,13 @@ export function resolverLuzes(
  *   jeito; ponto escondido nunca chega).
  */
 export function luzVisivelPara(
-  luz: Pick<FonteDeLuz, "cenaId" | "portador" | "estado">,
+  luz: Pick<FonteDeLuz, "cenaId" | "portador" | "estado" | "rascunho">,
   usuario: Pick<Usuario, "id" | "papel">,
   ctx: ContextoDeLuz,
 ): boolean {
   if (usuario.papel === "mestre") return true;
+  // 12-1: a luz em rascunho do Claude do mestre não chega ao jogador.
+  if (luz.rascunho) return false;
   const p = luz.portador;
   switch (p.tipo) {
     case "cena":

@@ -24,6 +24,7 @@ import {
 import { ehCapacidadeDelegavel, pode } from "./capacidades.ts";
 import { chatParaUsuario, mensagemParaUsuario } from "./chat.ts";
 import { criarMensagem, mensagemDeDadoDeVida } from "./chatnucleo.ts";
+import { idDaPastaDoJogador, recusaDoClaude, TETO_DE_CRIACAO_DO_JOGADOR } from "./claude.ts";
 import { combateParaUsuario } from "./combate.ts";
 import {
   type ContextoDeCombate,
@@ -125,6 +126,12 @@ import {
   type Pacote,
   VERSAO_EXPORTACAO,
 } from "./protocolo.ts";
+import {
+  carimbarRascunho,
+  eventosDePublicacao,
+  intencaoDeDescarte,
+  listarRascunhos,
+} from "./rascunhos.ts";
 import { marcoDoRelogio, restanteDoObjeto, tempoDaSala } from "./relogio.ts";
 import {
   type ContextoDeTochas,
@@ -146,6 +153,12 @@ export type ErroDaSala = { codigo: CodigoDeErro; mensagem: string };
 
 /** Quanto tempo, depois de apagado, um token ainda pode ser restaurado por quem o apagou (V10). */
 export const PRAZO_PARA_RESTAURAR_TOKEN_MS = 10_000;
+
+/**
+ * 12-1: o que a sala sabe da conexão que mandou a intenção. `claude`: é a conexão do Claude do usuário (a mesma
+ * capacidade e a mesma visão do usuário, mais a lista de proibidos, a marca "pelo Claude" e, para o mestre, o rascunho).
+ */
+export type OpcoesDeProcessar = { claude?: boolean };
 
 /** Um token que acabou de sair do mapa: a sala o guarda só na memória, pelo prazo acima. */
 export type TokenApagadoRecente = { token: Token; por: string; emMs: number };
@@ -269,6 +282,65 @@ function editoresValidos(estado: Estado, editores: Personagem["editores"]): bool
 
 function totalDeMestres(estado: Estado): number {
   return estado.usuarios.filter((u) => u.papel === "mestre").length;
+}
+
+/** 12-1: o jogador pode criar mais uma ficha (ou um handout) dele? A capacidade vale e o teto de 20 de cada. */
+function podeCriarDoJogador(
+  estado: Estado,
+  usuario: Usuario,
+  tipo: "personagem" | "handout",
+): Resultado | null {
+  if (!pode(usuario, "personagem.criarProprio", estado.permissoes)) {
+    return recusa("sem_permissao", "Sem permissão (personagem.criarProprio).");
+  }
+  const total =
+    tipo === "personagem"
+      ? estado.personagens.filter((p) => p.criadoPor === usuario.id).length
+      : estado.handouts.filter((h) => h.criadoPor === usuario.id).length;
+  if (total >= TETO_DE_CRIACAO_DO_JOGADOR) {
+    return recusa(
+      "limite_de_criacao",
+      tipo === "personagem"
+        ? `Você já criou ${TETO_DE_CRIACAO_DO_JOGADOR} fichas: apague uma para criar outra.`
+        : `Você já criou ${TETO_DE_CRIACAO_DO_JOGADOR} handouts: apague um para criar outro.`,
+    );
+  }
+  return null;
+}
+
+/** 12-1: a pasta própria do jogador (só ele e o mestre a veem) nasce no primeiro item dele. */
+function garantirPastaDoJogador(
+  estado: Estado,
+  usuario: Usuario,
+  emitir: (evento: NovoEvento) => void,
+): void {
+  const id = idDaPastaDoJogador(usuario.id);
+  if (pastaDe(estado, id)) return;
+  const ordem = Math.min(10_000, estado.pastas.reduce((m, p) => Math.max(m, p.ordem), -1) + 1);
+  emitir({
+    tipo: "pasta.alterada",
+    dados: {
+      pasta: {
+        id,
+        nome: `Fichas de ${usuario.nome}`.slice(0, 64),
+        ordem,
+        visivel: { tipo: "jogadores", ids: [usuario.id] },
+        criadoPor: usuario.id,
+      },
+    },
+  });
+}
+
+/**
+ * 12-1: o mestre mexe em qualquer handout; o jogador, só nos que ele criou. O resto: o que ele vê responde "sem permissão",
+ * o que ele não vê responde "inexistente" (não revela nada). `null`: pode.
+ */
+function negarHandout(h: Handout, usuario: Usuario): Resultado | null {
+  if (usuario.papel === "mestre") return null;
+  if (usuario.papel === "jogador" && h.criadoPor === usuario.id) return null;
+  return handoutVisivelPara(h, usuario)
+    ? recusa("sem_permissao", "Só o mestre mexe neste handout.")
+    : recusa("handout_inexistente", SEM_HANDOUT);
 }
 
 /** Só os metadados dos assets que a campanha usa (mapas, imagens de tokens e tiles): nunca bytes. */
@@ -907,8 +979,18 @@ export function processar(
   aleatorio: FonteDeAleatoriedade = fonteCrypto(),
   /** Os tokens apagados há pouco (só a sala os guarda), para o `token.restaurar`. */
   apagadosRecentes: readonly TokenApagadoRecente[] = [],
+  /** 12-1: de que conexão vem a intenção (a sala a conhece; o cliente nunca diz). */
+  opcoes: OpcoesDeProcessar = {},
 ): Resultado {
-  const r = processarIntencao(estado, usuarioId, intencao, agora, aleatorio, apagadosRecentes);
+  const r = processarIntencao(
+    estado,
+    usuarioId,
+    intencao,
+    agora,
+    aleatorio,
+    apagadosRecentes,
+    opcoes,
+  );
   // 7b-1: depois de qualquer intenção que mudou algo, as automações reagem ao que aconteceu (objeto que
   // acendeu ou apagou, cena ativada, vez de turno) e põem em dia o que já venceu. A importação não conta.
   if (!r.ok || r.eventos.length === 0) return r;
@@ -939,9 +1021,19 @@ function processarIntencao(
   agora: string,
   aleatorio: FonteDeAleatoriedade,
   apagadosRecentes: readonly TokenApagadoRecente[],
+  opcoes: OpcoesDeProcessar,
 ): Resultado {
   const usuario = estado.usuarios.find((u) => u.id === usuarioId);
   if (!usuario) return recusa("usuario_inexistente", "Usuário desconhecido.");
+
+  // 12-1: o que o Claude nunca faz, mesmo que o usuário possa (papéis, permissões, importar e exportar, arquivos).
+  const doClaude = opcoes.claude === true;
+  if (doClaude) {
+    const proibida = recusaDoClaude(intencao.tipo);
+    if (proibida) return recusa("sem_permissao", proibida);
+  }
+  // O que o Claude do MESTRE cria entra como rascunho; o jogador e o mestre pela mesa nunca criam rascunho.
+  const comoRascunho = doClaude && usuario.papel === "mestre";
 
   const exigida = capacidadeDaIntencao[intencao.tipo];
   // Sem capacidade (vaivém de arquivos): qualquer mestre ou jogador; o sigilo é do asset.
@@ -957,7 +1049,15 @@ function processarIntencao(
   let proximo = estado;
   const eventos: EventoSala[] = [];
   const emitir = (evento: NovoEvento) => {
-    const completo = { ...evento, seq: proximo.seq + 1, origem } as EventoSala;
+    let carimbado = carimbarRascunho(evento, proximo, comoRascunho);
+    // 12-1: tudo o que a conexão do Claude diz ou rola leva a marca "pelo Claude", visível para todos.
+    if (doClaude && carimbado.tipo === "chat.mensagem") {
+      const m = carimbado.dados.mensagem;
+      if (m.autorId === usuarioId) {
+        carimbado = { ...carimbado, dados: { mensagem: { ...m, peloClaude: true } } };
+      }
+    }
+    const completo = { ...carimbado, seq: proximo.seq + 1, origem } as EventoSala;
     eventos.push(completo);
     proximo = reduzir(proximo, completo);
   };
@@ -1307,11 +1407,23 @@ function processarIntencao(
 
     case "personagem.criar": {
       // A mochila do Lote 7 (se vier) vira itens da ficha; o personagem novo nunca a carrega.
-      const p = limitarPv(absorverMochila(intencao.dados.personagem, estado.modelos));
+      let p = limitarPv(absorverMochila(intencao.dados.personagem, estado.modelos));
       if (personagemDe(estado, p.id)) {
         return recusa("dados_invalidos", "Já existe um personagem com esse id.");
       }
-      if (!pastaDe(estado, p.pastaId)) return recusa("pasta_inexistente", SEM_PASTA);
+      if (usuario.papel !== "mestre") {
+        // 12-1: o jogador cria a própria ficha (capacidade e teto); ela é dele, na pasta dele.
+        const negado = podeCriarDoJogador(estado, usuario, "personagem");
+        if (negado) return negado;
+        p = {
+          ...p,
+          pastaId: idDaPastaDoJogador(usuario.id),
+          editores: { tipo: "jogadores", ids: [usuario.id] },
+          criadoPor: usuario.id,
+        };
+        garantirPastaDoJogador(estado, usuario, emitir);
+      }
+      if (!pastaDe(proximo, p.pastaId)) return recusa("pasta_inexistente", SEM_PASTA);
       if (!editoresValidos(estado, p.editores)) {
         return recusa("usuario_inexistente", "Editor não encontrado (precisa ser um jogador).");
       }
@@ -1321,7 +1433,7 @@ function processarIntencao(
         }
       }
       emitir({ tipo: "personagem.alterado", dados: { personagem: p } });
-      return aplicado();
+      return aplicado(usuario.papel === "mestre" ? [] : [usuario.id]);
     }
 
     case "personagem.editar": {
@@ -1332,14 +1444,22 @@ function processarIntencao(
       }
       const m = intencao.dados.mudancas;
       if (usuario.papel !== "mestre") {
-        // Quem edita (jogador) troca só as imagens, e precisa poder subir arquivos.
+        // Quem edita (jogador) troca só as imagens, e precisa poder subir arquivos. Na ficha que ele mesmo criou (12-1) muda
+        // tudo, menos quem edita e a pasta.
         if (!podeEditarPersonagem(atual, usuario)) {
           return recusa("sem_permissao", "Você não edita este personagem.");
         }
-        if (Object.keys(semIndefinidos(m)).some((k) => k !== "assetHash" && k !== "retratoHash")) {
+        const propria = atual.criadoPor === usuario.id;
+        const livres = propria
+          ? (k: string) => k !== "editores" && k !== "pastaId"
+          : (k: string) => k === "assetHash" || k === "retratoHash";
+        if (Object.keys(semIndefinidos(m)).some((k) => !livres(k))) {
           return recusa("sem_permissao", "Só o mestre muda isso.");
         }
-        if (!pode(usuario, "asset.subir", estado.permissoes)) {
+        if (
+          (m.assetHash !== undefined || m.retratoHash !== undefined) &&
+          !pode(usuario, "asset.subir", estado.permissoes)
+        ) {
           return recusa("sem_permissao", "Sem permissão (asset.subir).");
         }
       }
@@ -1526,11 +1646,18 @@ function processarIntencao(
     }
 
     case "handout.criar": {
-      const { handout } = intencao.dados;
+      let { handout } = intencao.dados;
       if (handoutDe(estado, handout.id)) {
         return recusa("dados_invalidos", "Já existe um handout com esse id.");
       }
-      if (!pastaDe(estado, handout.pastaId)) return recusa("pasta_inexistente", SEM_PASTA);
+      if (usuario.papel !== "mestre") {
+        // 12-1: o jogador cria o próprio handout (capacidade e teto), na pasta dele, escolhendo quem vê.
+        const negado = podeCriarDoJogador(estado, usuario, "handout");
+        if (negado) return negado;
+        handout = { ...handout, pastaId: idDaPastaDoJogador(usuario.id), criadoPor: usuario.id };
+        garantirPastaDoJogador(estado, usuario, emitir);
+      }
+      if (!pastaDe(proximo, handout.pastaId)) return recusa("pasta_inexistente", SEM_PASTA);
       if (
         handout.visivel.tipo === "jogadores" &&
         !handout.visivel.ids.every((id) => ehJogador(estado, id))
@@ -1548,7 +1675,11 @@ function processarIntencao(
     case "handout.editar": {
       const { id, mudancas: m } = intencao.dados;
       const atual = handoutDe(estado, id);
-      if (!atual) return recusa("handout_inexistente", SEM_HANDOUT);
+      const negado = atual && negarHandout(atual, usuario);
+      if (!atual || negado) return negado ?? recusa("handout_inexistente", SEM_HANDOUT);
+      if (usuario.papel !== "mestre" && m.pastaId !== undefined) {
+        return recusa("sem_permissao", "Só o mestre muda a pasta.");
+      }
       if (m.pastaId !== undefined && !pastaDe(estado, m.pastaId)) {
         return recusa("pasta_inexistente", SEM_PASTA);
       }
@@ -1581,7 +1712,8 @@ function processarIntencao(
     case "handout.apagar": {
       const { id } = intencao.dados;
       const atual = handoutDe(estado, id);
-      if (!atual) return recusa("handout_inexistente", SEM_HANDOUT);
+      const negado = atual && negarHandout(atual, usuario);
+      if (!atual || negado) return negado ?? recusa("handout_inexistente", SEM_HANDOUT);
       emitir({ tipo: "handout.apagado", dados: { id } });
       return aplicado(atual.visivel.tipo === "mestre" ? [] : "todos");
     }
@@ -1603,7 +1735,14 @@ function processarIntencao(
 
     case "personagem.apagar": {
       const { id } = intencao.dados;
-      if (!personagemDe(estado, id)) return recusa("personagem_inexistente", SEM_PERSONAGEM);
+      const alvo = personagemDe(estado, id);
+      // 12-1: o mestre apaga qualquer um; o jogador, só a ficha que ele criou (quem não pode responde "inexistente").
+      if (!alvo || !personagemVisivelPara(alvo, usuario, estado.pastas)) {
+        return recusa("personagem_inexistente", SEM_PERSONAGEM);
+      }
+      if (usuario.papel !== "mestre" && alvo.criadoPor !== usuario.id) {
+        return recusa("sem_permissao", "Só o mestre apaga esta ficha.");
+      }
       const tokensDele = estado.tokens.filter((x) => x.personagemId === id);
       for (const t of tokensDele) {
         for (const l of luzesDoToken(estado, t.id)) {
@@ -1867,6 +2006,12 @@ function processarIntencao(
     case "grupo.moverPara": {
       const destino = estado.cenas.find((c) => c.id === intencao.dados.cenaId);
       if (!destino) return recusa("cena_inexistente", SEM_CENA);
+      if (destino.rascunho) {
+        return recusa(
+          "dados_invalidos",
+          "Esta cena é um rascunho: publique-a antes de levar o grupo.",
+        );
+      }
       if (destino.id === estado.cenaAtivaId) return aplicado();
       // O grupo: tokens de personagens de jogador que estão na cena ativa. Os de NPC ficam.
       const grupo = estado.tokens.filter(
@@ -2415,6 +2560,55 @@ function processarIntencao(
       return aplicado();
     }
 
+    case "rascunho.publicar": {
+      const itens = intencao.dados.itens;
+      const alvo = itens ?? listarRascunhos(estado);
+      const eventosDePub = eventosDePublicacao(estado, itens);
+      if (itens !== undefined && eventosDePub.length === 0 && alvo.length > 0) {
+        return recusa("dados_invalidos", "Nenhum desses itens é um rascunho.");
+      }
+      // A publicação é do mestre (ou do Claude dele): o evento sai sem a marca, direto (sem o carimbo de rascunho).
+      for (const ev of eventosDePub) {
+        const completo = { ...ev, seq: proximo.seq + 1, origem } as EventoSala;
+        eventos.push(completo);
+        proximo = reduzir(proximo, completo);
+      }
+      return aplicado(eventosDePub.length > 0 ? "todos" : []);
+    }
+
+    case "rascunho.descartar": {
+      // Cada item é apagado com as regras de apagar dele (a cena leva o que há nela; a pasta só sai vazia).
+      const lista = listarRascunhos(proximo);
+      for (const item of intencao.dados.itens) {
+        if (!lista.some((r) => r.tipo === item.tipo && r.id === item.id)) {
+          return recusa("dados_invalidos", "Só dá para descartar o que é rascunho.");
+        }
+      }
+      for (const item of intencao.dados.itens) {
+        const noMomento = listarRascunhos(proximo);
+        // O item pode já ter saído junto com outro (a cena leva os tokens dela).
+        if (!noMomento.some((r) => r.tipo === item.tipo && r.id === item.id)) continue;
+        const sub = intencaoDeDescarte(item);
+        const r = processarIntencao(
+          proximo,
+          usuarioId,
+          { v: 1, id: intencao.id, ...sub } as Intencao,
+          agora,
+          aleatorio,
+          [],
+          { claude: false },
+        );
+        if (!r.ok) return r;
+        proximo = r.estado;
+        eventos.push(...r.eventos);
+      }
+      return aplicado("todos");
+    }
+
+    // A resposta (o diário do Claude) é da sala: ela intercepta este pedido antes de chegar aqui.
+    case "claude.desfazer":
+      return recusa("lote_inexistente", "Este lote não existe.");
+
     case "compendio.definir": {
       const { compendio } = intencao.dados;
       if (compendio === null) {
@@ -2793,6 +2987,8 @@ export function eventoPara(
     }
     case "modelo.alterado": {
       if (mestre) return evento;
+      // 12-1: o modelo em rascunho não chega ao jogador.
+      if (evento.dados.modelo.rascunho) return null;
       const cfg = (depois ?? antes)?.config;
       return cfg
         ? {
@@ -2803,8 +2999,12 @@ export function eventoPara(
           }
         : null;
     }
-    case "modelo.apagado":
-      return evento;
+    case "modelo.apagado": {
+      if (mestre) return evento;
+      // 12-1: o modelo em rascunho nunca chegou ao jogador: apagá-lo não lhe diz nada.
+      const antigo = antes?.modelos.find((m) => m.id === evento.dados.id);
+      return antigo?.rascunho ? null : evento;
+    }
     case "ponto.alterado": {
       if (mestre) return evento;
       const ponto = evento.dados.ponto;

@@ -82,6 +82,8 @@ export const MensagemSchema = z.object({
   visivelPara: VisibilidadeDaMensagemSchema,
   /** Rolagem oculta (`/gr`): só o autor e o mestre. */
   oculta: z.boolean().optional(),
+  /** 12-1: a mensagem ou rolagem saiu da conexão do Claude do autor ("pelo Claude"); a sala é quem rola e quem marca. */
+  peloClaude: z.boolean().optional(),
 });
 export type Mensagem = z.infer<typeof MensagemSchema>;
 

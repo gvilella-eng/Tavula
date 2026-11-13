@@ -3529,3 +3529,28 @@ Ver `docs/ROTEIRO-DE-TESTES.md`, "7b-3" (inclui o roteiro manual do Lote 7b).
 ---
 
 ## Próximo: o MCP (12) e os bugs que sobrarem (o 7b está entregue: 7b-1, 7b-2 e 7b-3; o C4, a tela inicial e o V10 ao V14 também)
+
+---
+
+## Ajustes 12-1 — O acesso do Claude, sala e web (entregue, aguardando o roteiro manual)
+
+Detalhes em `docs/REDESIGN.md` ("12-1 — como ficou"), `PROJETO.md` (4.12 e 4.14) e `docs/protocolo.md` ("O acesso do Claude").
+
+### O que foi entregue
+- Token por conta e mesa (Preferências, "Conectar o Claude"; só o SHA-256 no banco), conexão do Claude por `Authorization: Bearer`, lista de proibidos, limite de 20 pedidos por segundo, marca "pelo Claude", presença com marca, capacidade `personagem.criarProprio` (fichas e handouts próprios, teto de 20), rascunhos do mestre (selo, chip, Publicar e Descartar) e "Desfazer o que o Claude fez" (diário por `loteId`).
+
+### Como rodar
+`pnpm dev` como sempre. Migrações **13** (`tokens_claude`), **14** (`claude_lotes`) e **15** (conserto: confere as colunas das duas tabelas e acrescenta as que faltam; existe porque uma versão anterior da 14 rodou no banco real sem a coluna `itens`). Todas aditivas e idempotentes.
+
+### Verificação
+- Unidade: `claude.test.ts` (shared, 27), `tokensClaude.test.ts` (server, inclui as migrações 13 a 15 e o banco com a tabela na forma antiga). Total no verify: shared 934, server 123, web 131.
+- E2E novo: `claude-12-1.spec.ts` (8 testes). E2E antigo alterado: `handouts.spec.ts` (o jogador agora cria o próprio handout; editar e apagar o que ele não vê dá `handout_inexistente`).
+- Prints: `scratchpad/prints-12-1` (3 combinações).
+
+### Decisões e frágil
+Ver `REDESIGN.md` e `PASSAGEM.md` ("12-1").
+
+### Roteiro manual
+`docs/ROTEIRO-DE-TESTES.md`, "12-1".
+
+## Próximo: o 12-2 (o servidor MCP em `apps/mcp`) e os bugs que sobrarem

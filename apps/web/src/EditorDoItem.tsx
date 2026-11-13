@@ -65,6 +65,8 @@ export function EditorDoItem({
   importar,
 }: Props) {
   const euMestre = eu.papel === "mestre";
+  // 12-1: na ficha que o jogador criou ele muda o nome e o token padrão (quem edita e a pasta seguem do mestre).
+  const dono = p.criadoPor === eu.id;
   const editor = podeEditarPersonagem(p, eu);
   const podeTrocarImagem = editor && (euMestre || pode(eu, "asset.subir", estado.permissoes));
   const jogadores = jogadoresDaMesa(estado);
@@ -160,7 +162,7 @@ export function EditorDoItem({
             testid={`personagem-nome-${p.id}`}
             rotulo="Nome"
             valor={p.nome}
-            desabilitado={!euMestre}
+            desabilitado={!euMestre && !dono}
             aoConfirmar={(t) => t && editar({ nome: t })}
           />
           <p className="campo-coluna" data-testid="editor-pasta">
@@ -214,7 +216,7 @@ export function EditorDoItem({
               <p className="nota">Ninguém: só o mestre controla (como um NPC).</p>
             )}
           </fieldset>
-          {euMestre && (
+          {(euMestre || dono) && (
             <details className="avancado">
               <summary>Token padrão e visão</summary>
               <div className="linha-par">
