@@ -7,6 +7,7 @@ import {
   PASTA_PERSONAGENS_ID,
   type Pasta,
   type Personagem,
+  podeColocarProprioToken,
   podeEditarPersonagem,
   type Usuario,
   type Visibilidade,
@@ -18,6 +19,7 @@ import {
   Eye,
   FolderPlus,
   Lock,
+  MapPin,
   Plus,
   ScrollText,
   User,
@@ -25,8 +27,9 @@ import {
 } from "lucide-react";
 import { type DragEvent, type KeyboardEvent, useEffect, useRef, useState } from "react";
 import { Avatar } from "./Avatar";
-import { lerItemArrastado, TIPO_DE_ARRASTO_DA_FICHA } from "./arrasto";
+import { definirItemEmArrasto, lerItemArrastado, TIPO_DE_ARRASTO_DA_FICHA } from "./arrasto";
 import { BotaoComDica } from "./BotaoComDica";
+import { pedirTokenNoMapa } from "./colocarNoMapa";
 import { useFichasFora } from "./ficha/foraDaMesa";
 import type { AbaDaFicha } from "./ficha/janelas";
 import { MiniaturaDoHandout } from "./JanelaDoHandout";
@@ -77,22 +80,27 @@ type PropsItem = {
   eu: Usuario;
   imagens: ImagensDoMapa | null;
   versao: number;
+  /** V10b: o jogador pode pôr o token deste personagem no mapa (botão e arrasto). */
+  podeColocar: boolean;
+  aoColocar: () => void;
   aoAbrir: () => void;
   aoMenu: (x: number, y: number, teclado: boolean) => void;
 };
 
 /** Um personagem ou NPC na árvore: o retrato, o nome e, à direita, os PV. */
-function Item({ p, eu, imagens, versao, aoAbrir, aoMenu }: PropsItem) {
+function Item({ p, eu, imagens, versao, podeColocar, aoColocar, aoAbrir, aoMenu }: PropsItem) {
   const euMestre = eu.papel === "mestre";
   // V9: a ficha está numa janela própria do navegador; o clique traz essa janela para a frente.
   const emOutraJanela = useFichasFora().has(p.id);
   const linha = useRef<HTMLLIElement>(null);
   // O mestre arrasta o item inteiro para outra pasta ou para o mapa.
+  const podeArrastar = euMestre || podeColocar;
   const iniciarArrasto = (e: DragEvent) => {
     e.dataTransfer.setData(
       TIPO_DE_ARRASTO_DA_FICHA,
       JSON.stringify({ tipo: "personagem", id: p.id }),
     );
+    definirItemEmArrasto({ tipo: "personagem", id: p.id });
     e.dataTransfer.effectAllowed = "move";
     if (linha.current) e.dataTransfer.setDragImage(linha.current, 12, 12);
   };
@@ -117,8 +125,9 @@ function Item({ p, eu, imagens, versao, aoAbrir, aoMenu }: PropsItem) {
         className="ficha-abrir"
         testid={`ficha-abrir-${p.id}`}
         nomeVisivel
-        draggable={euMestre || undefined}
-        onDragStart={euMestre ? iniciarArrasto : undefined}
+        draggable={podeArrastar || undefined}
+        onDragStart={podeArrastar ? iniciarArrasto : undefined}
+        onDragEnd={podeArrastar ? () => definirItemEmArrasto(null) : undefined}
         onClick={aoAbrir}
       >
         <Avatar
@@ -144,6 +153,17 @@ function Item({ p, eu, imagens, versao, aoAbrir, aoMenu }: PropsItem) {
           </span>
         )}
       </BotaoComDica>
+      {podeColocar && (
+        <BotaoComDica
+          className="botao-icone pequeno"
+          testid={`ficha-colocar-${p.id}`}
+          nome="Colocar no mapa"
+          aria-label={`Colocar ${p.nome} no mapa`}
+          onClick={aoColocar}
+        >
+          <MapPin size={15} />
+        </BotaoComDica>
+      )}
     </li>
   );
 }
@@ -224,6 +244,7 @@ type PropsPasta = {
   imagens: ImagensDoMapa | null;
   versao: number;
   enviar: Enviar;
+  podeColocar: (p: Personagem) => boolean;
   aoAlternar: () => void;
   aoAbrirItem: (id: string) => void;
   aoAbrirHandout: (id: string) => void;
@@ -247,6 +268,7 @@ function SecaoDaPasta({
   imagens,
   versao,
   enviar,
+  podeColocar,
   aoAlternar,
   aoAbrirItem,
   aoAbrirHandout,
@@ -391,6 +413,8 @@ function SecaoDaPasta({
               eu={eu}
               imagens={imagens}
               versao={versao}
+              podeColocar={podeColocar(p)}
+              aoColocar={() => pedirTokenNoMapa(enviar, p.id)}
               aoAbrir={() => aoAbrirItem(p.id)}
               aoMenu={(x, y, teclado) => aoMenu({ tipo: "personagem", id: p.id }, x, y, teclado)}
             />
@@ -457,6 +481,8 @@ export function AbaFichas({
     }
   }, [handoutParaAbrir, estado.handouts, aoAbrirHandout]);
 
+  /** V10b: o jogador pode pôr o token deste personagem na bandeira (controla, tem a capacidade e ainda não tem token na cena). */
+  const podeColocar = (p: Personagem) => podeColocarProprioToken(estado, eu, p);
   const pastas = [...estado.pastas].sort((a, b) => a.ordem - b.ordem);
   const idsDePastas = new Set(pastas.map((p) => p.id));
   // Itens que o jogador edita numa pasta que ele não vê: ficam num grupo sem nome de pasta.
@@ -875,6 +901,7 @@ export function AbaFichas({
             imagens={imagens}
             versao={versaoDasImagens}
             enviar={enviar}
+            podeColocar={podeColocar}
             aoAlternar={() => alternar(pasta.id)}
             aoAbrirItem={(id) => aoAbrirFicha(id)}
             aoAbrirHandout={aoAbrirHandout}
@@ -897,6 +924,8 @@ export function AbaFichas({
                   eu={eu}
                   imagens={imagens}
                   versao={versaoDasImagens}
+                  podeColocar={podeColocar(p)}
+                  aoColocar={() => pedirTokenNoMapa(enviar, p.id)}
                   aoAbrir={() => aoAbrirFicha(p.id)}
                   aoMenu={(x, y, teclado) =>
                     abrirMenu({ tipo: "personagem", id: p.id }, x, y, teclado)

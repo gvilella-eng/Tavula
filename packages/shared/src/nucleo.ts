@@ -72,6 +72,7 @@ import {
   CENA_PADRAO,
   chegadaDaCena,
   controlaToken,
+  dentroDaAreaDaBandeira,
   ehPersonagemDeJogador,
   encaixarNoGrid,
   handoutVisivelPara,
@@ -793,6 +794,28 @@ function portadorValido(
   return estado.tokens.some((t) => t.id === id && t.cenaId === cena.id) ? portador : undefined;
 }
 
+/** O token de um personagem, com tudo tirado da ficha (nome, cor, tamanho, imagem); o cliente não manda nada disso. */
+function tokenDoPersonagem(
+  p: Personagem,
+  cena: Cena,
+  tokenId: string,
+  base: { x: number; y: number },
+): Token {
+  return {
+    id: tokenId,
+    cenaId: cena.id,
+    nome: p.nome,
+    cor: p.tokenPadrao.cor,
+    tamanhoQuadrados: p.tokenPadrao.tamanhoQuadrados,
+    ...limitarNaCena(base, cena),
+    camada: "tokens",
+    oculto: false,
+    controladoPor: [],
+    personagemId: p.id,
+    ...(p.tokenPadrao.assetHash === undefined ? {} : { assetHash: p.tokenPadrao.assetHash }),
+  };
+}
+
 /**
  * Processa uma intenção: confere a capacidade, valida as regras e devolve o novo estado e os
  * eventos (numerados a partir de `estado.seq`). Pura: não grava nem envia nada.
@@ -1499,19 +1522,48 @@ export function processar(
               p.tokenPadrao.tamanhoQuadrados,
               cena.grid.quadradoM,
             );
-      const token: Token = {
-        id: tokenId,
-        cenaId: cena.id,
-        nome: p.nome,
-        cor: p.tokenPadrao.cor,
-        tamanhoQuadrados: p.tokenPadrao.tamanhoQuadrados,
-        ...limitarNaCena(base, cena),
-        camada: "tokens",
-        oculto: false,
-        controladoPor: [],
-        personagemId: p.id,
-        ...(p.tokenPadrao.assetHash === undefined ? {} : { assetHash: p.tokenPadrao.assetHash }),
-      };
+      const token = tokenDoPersonagem(p, cena, tokenId, base);
+      emitir({ tipo: "token.criado", dados: { token } });
+      return aplicado();
+    }
+
+    case "token.colocarMeu": {
+      // V10b: a cena é a do grupo (a que o jogador vê); todos os campos vêm da ficha, aqui na sala.
+      const { personagemId, tokenId, x, y } = intencao.dados;
+      const p = personagemDe(estado, personagemId);
+      if (!p || !podeEditarPersonagem(p, usuario)) {
+        return recusa("sem_permissao", "Você só pode pôr no mapa o token de quem você controla.");
+      }
+      const cena = estado.cenas.find((c) => c.id === estado.cenaAtivaId);
+      if (!cena) return recusa("cena_inexistente", SEM_CENA);
+      if (estado.tokens.some((t) => t.id === tokenId)) {
+        return recusa("dados_invalidos", "Já existe um token com esse id.");
+      }
+      const doMestre = usuario.papel === "mestre";
+      const jaNaCena = estado.tokens.filter((t) => t.cenaId === cena.id);
+      if (!doMestre && jaNaCena.some((t) => t.personagemId === p.id)) {
+        return recusa("dados_invalidos", "Este personagem já tem um token nesta cena.");
+      }
+      if ((x === undefined) !== (y === undefined)) {
+        return recusa("dados_invalidos", "Informe o ponto inteiro (x e y) ou nenhum.");
+      }
+      let ponto: { x: number; y: number };
+      if (x !== undefined && y !== undefined) {
+        if (!doMestre && !dentroDaAreaDaBandeira(cena, { x, y })) {
+          return recusa("dados_invalidos", "Ponha o token perto da bandeira (o ponto de chegada).");
+        }
+        ponto = doMestre
+          ? { x, y }
+          : encaixarNoGrid({ x, y }, p.tokenPadrao.tamanhoQuadrados, cena.grid.quadradoM);
+      } else {
+        ponto = arrumarNoGrid(
+          chegadaDaCena(cena),
+          cena,
+          [p.tokenPadrao.tamanhoQuadrados],
+          jaNaCena.filter((t) => t.camada === "tokens"),
+        )[0] as { x: number; y: number };
+      }
+      const token = tokenDoPersonagem(p, cena, tokenId, ponto);
       emitir({ tipo: "token.criado", dados: { token } });
       return aplicado();
     }

@@ -3145,6 +3145,44 @@ Ver `docs/ROTEIRO-DE-TESTES.md`, "V10".
 
 ---
 
+## Ajustes V10b — O jogador põe o próprio token na bandeira (entregue, aguardando o roteiro manual)
+
+Detalhes em `docs/REDESIGN.md` ("V10b — como ficou").
+
+### O que foi entregue
+
+- Intenção `token.colocarMeu` e capacidade `token.colocarProprio` (ligada por padrão, visível em Permissões).
+- Botão "Colocar no mapa" na lista de Fichas e no cabeçalho da ficha; arrastar a ficha para o mapa com a área da bandeira acesa.
+- O jogador vê a bandeira quando não tem token dele na cena, com a dica de como pôr.
+
+### Como rodar
+
+`pnpm dev` como sempre.
+
+### Verificação
+
+- Unidade (`colocarMeu.test.ts`, 18 testes): controla, não controla, segundo token, fora e dentro da área, campos da ficha com campo extra ignorado, capacidade desligada, mestre sem limite, campanha antiga (capacidade nova ganha o padrão ao importar), regras do cliente.
+- E2E novo: `v10b.spec.ts` (3 testes).
+
+### Decisões
+
+- (assumido) Ver `REDESIGN`, "V10b — como ficou", Decisões.
+
+### Desvios do plano
+
+- Nenhum. A capacidade nova entra pelo mesmo caminho das outras (`PERMISSOES_PADRAO` completa campanha e exportação antigas): não há migração própria.
+
+### Frágil / não verificado
+
+- A bandeira do jogador e a área acesa dependem de `opcoes.mostrarBandeira` e `acenderAreaDaBandeira` (`Mesa.tsx` → `mapaPixi.ts`).
+- O arrasto da ficha usa o estado do módulo `arrasto.ts` (o navegador não deixa ler o conteúdo do arrasto antes de soltar).
+
+### Roteiro manual (pendente)
+
+Ver `docs/ROTEIRO-DE-TESTES.md`, "V10b".
+
 ---
 
-## Próximo: bugs que sobrarem e acabamentos das contas; depois 7b e 12 (o C4, a tela inicial, e o V10, bugs do mapa, estão entregues)
+---
+
+## Próximo: bugs que sobrarem e acabamentos das contas; depois 7b e 12 (o C4, a tela inicial, o V10 e o V10b estão entregues)

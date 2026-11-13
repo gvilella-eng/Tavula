@@ -35,6 +35,7 @@ export type GanchoDoMapa = {
   centrarEm(x: number, y: number): void;
   quadradoM(): number;
   bandeira(): { x: number; y: number } | null;
+  areaDaBandeiraAcesa(): boolean;
   portas(): { id: string; tipo: string; estado?: string; meio: { x: number; y: number } }[];
   paredes(): {
     id: string;

@@ -1344,6 +1344,31 @@ Bugs do mapa e o teclado do token, relatados pelo Vilella. Ninguém para pergunt
 - Seleção de vários tokens.
 - Restaurar também as luzes do token.
 
+## V10b — como ficou (2026-11-13)
+
+O jogador põe o próprio token no mapa, só na área da bandeira. Ninguém para perguntar: o que o brief não dizia foi assumido.
+
+**O que foi feito**
+- **Intenção `token.colocarMeu { personagemId, tokenId, x?, y? }`** e capacidade `token.colocarProprio` (delegável, ligada por padrão, em Permissões: "Pôr o próprio token no mapa (na bandeira)"). A sala decide a cena (a do grupo), confere o controle do personagem, que o personagem não tem token nessa cena e que o ponto cai na área da bandeira. Os campos do token vêm da ficha, na sala.
+- **A área da bandeira** é um círculo de 3 quadrados de raio em volta do ponto de chegada (centro da cena sem chegada). Constantes e contas em `mapa.ts` (`RAIO_DA_BANDEIRA_QUADRADOS`, `areaDaBandeira`, `dentroDaAreaDaBandeira`).
+- **Botão "Colocar no mapa"** (ícone `MapPin`): no item da lista de Fichas e no cabeçalho da ficha, para quem controla o personagem e ainda não tem token dele na cena. Põe o token no arranjo da chegada, ao lado dos outros e sem sobreposição (`arrumarNoGrid` agora conta os tokens que já estão na cena).
+- **Arrastar a ficha para o mapa**: o jogador arrasta o item que pode pôr; durante o arrasto a área se acende num círculo suave na cor do acento. Soltar dentro cria o token ali, encaixado no grid; fora mostra "Ponha o token perto da bandeira (o ponto de chegada)." e não cria nada. O mestre segue soltando em qualquer lugar.
+- **A bandeira para o jogador**: aparece quando ele controla algum personagem, tem a capacidade e não tem token dele na cena. A dica é "Ponto de chegada: Arraste a sua ficha para cá ou use "Colocar no mapa"." O jogador não a arrasta. Para o mestre nada mudou.
+- O caminho do V10 fecha: o jogador tira o token com Delete e, passado o prazo do Desfazer (ou sem ele), põe de novo na bandeira.
+
+**Decisões (assumido)**
+- (assumido) "Quem controla" é `editores` do personagem ("todos" conta). Token com `controladoPor` não dá direito a pôr outro.
+- (assumido) Um token por personagem por cena para o jogador. O mestre não tem limite (`token.colocarMeu` dele vale em qualquer ponto e mais de uma vez).
+- (assumido) A bandeira some se a capacidade está desligada, ou se o jogador não controla nenhum personagem, ou se ele já tem token (de qualquer personagem que controla) na cena.
+- (assumido) O jogador só pode pôr na cena do grupo (a única que ele recebe). O ponto é conferido cru (onde soltou) e só depois encaixado no grid.
+- (assumido) O botão não aparece para o mestre (ele põe pelo arrasto, como antes).
+- (assumido) O token não entra na ordem de turno nem leva luzes: como no `personagem.colocar`.
+- O cartão "Seu personagem não está nesta cena" ficava em cima da bandeira (o centro da mapa) e barrava o mouse. Agora deixa o mouse passar (`pointer-events: none`), sobe para o alto do mapa quando a bandeira está à vista e, para quem pode pôr o token, o texto diz como ("Colocar no mapa" ou arrastar a ficha até a bandeira).
+
+**O que ficou para depois**
+- Pôr o token com as setas ou por atalho de teclado (hoje o caminho do teclado é o botão "Colocar no mapa").
+- Restaurar as luzes do token junto (continua do V10).
+
 ## Em aberto
 
 - **O plano R1 a R6 terminou** (R1, R2, R2b, R3, R4 em 2026-11-10; R5a, R5b, R6a e R6b em 2026-11-11). Agora o Vilella faz os ajustes

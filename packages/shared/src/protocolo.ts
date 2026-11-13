@@ -487,6 +487,19 @@ export const IntencaoSchema = z.discriminatedUnion("tipo", [
   intencao("token.apagar", z.object({ id: IdSchema })),
   /** V10: desfaz o `token.apagar` dentro do prazo (quem apagou ou o mestre); a sala guarda o token só na memória. */
   intencao("token.restaurar", z.object({ id: IdSchema })),
+  /**
+   * V10b: quem controla o personagem põe o token dele na cena do grupo, na área da bandeira (o mestre, em qualquer
+   * lugar). Nome, imagem, tamanho e o resto vêm da ficha, na sala; sem `x` e `y` a sala usa o arranjo da chegada.
+   */
+  intencao(
+    "token.colocarMeu",
+    z.object({
+      personagemId: IdSchema,
+      tokenId: IdSchema,
+      x: z.number().optional(),
+      y: z.number().optional(),
+    }),
+  ),
   intencao(
     "cena.configurarGrid",
     z.object({
@@ -860,6 +873,8 @@ export const capacidadeDaIntencao: Record<TipoIntencao, Capacidade | null> = {
   // V10: o mestre apaga qualquer token; o jogador, o que controla (na camada `tokens`). `processar` confere.
   "token.apagar": null,
   "token.restaurar": null,
+  // V10b: `processar` confere o controle do personagem, a cena, um token por cena e a área da bandeira.
+  "token.colocarMeu": "token.colocarProprio",
   "cena.configurarGrid": "cena.editar",
   "token.mover": "token.moverProprio",
   "token.soltar": "token.moverProprio",

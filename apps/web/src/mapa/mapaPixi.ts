@@ -1,5 +1,6 @@
 import {
   type AssetMeta,
+  areaDaBandeira,
   arredondarPonto,
   bloqueiaVisao,
   CacheDeLuz,
@@ -171,8 +172,13 @@ export type OpcoesDoMapa = {
   visao: ConfigDeVisao;
   /** O painel das fontes de luz está aberto: o mestre vê, arrasta e seleciona as luzes no mapa. */
   mostrarLuzes: boolean;
-  /** V10: a bandeira do ponto de chegada só aparece (para o mestre) com a faixa de Cenas aberta. */
+  /**
+   * A bandeira do ponto de chegada: o mestre a vê com a faixa de Cenas aberta (V10); o jogador (V10b), quando não
+   * tem token dele na cena e pode pôr o próprio. Só o mestre a arrasta.
+   */
   mostrarBandeira: boolean;
+  /** V10b: a ficha de um personagem está sendo arrastada pelo jogador: a área da bandeira se acende. */
+  acenderAreaDaBandeira: boolean;
   luzSelecionadaId: string | null;
   /** O ponto que o mestre está editando e o tipo que a ferramenta "ponto" cria. */
   pontoSelecionadoId: string | null;
@@ -319,6 +325,8 @@ const LETRA_DO_TEMPO = 15;
 /** A dica da alça da tocha (o que ela faz). */
 const DICA_DA_BANDEIRA =
   'Os tokens do grupo aparecem aqui quando você usa "Levar grupo" para esta cena. Arraste para mudar.';
+/** V10b: a dica da bandeira para o jogador. */
+const DICA_DA_BANDEIRA_DO_JOGADOR = 'Arraste a sua ficha para cá ou use "Colocar no mapa".';
 const DICA_DA_TOCHA = "Dois cliques: apagar ou acender · Botão direito: mais ações";
 
 type Gesto =
@@ -462,6 +470,8 @@ export class MapaPixi {
   /** Bandeira do ponto de chegada do grupo (só o mestre a vê e arrasta). */
   private readonly bandeira = new Container();
   private posicaoDaBandeira: Ponto | null = null;
+  /** V10b: a área em volta da bandeira, acesa enquanto o jogador arrasta a ficha. */
+  private readonly areaDaBandeira = new Graphics();
   private focoPendente = false;
   private readonly visuais = new Map<string, Visual>();
   private readonly spritesDoMapa = new Map<string, Sprite>();
@@ -538,6 +548,7 @@ export class MapaPixi {
       this.marcasDeLuz,
       this.desenhoDosPontos,
       this.camadaDeAlcas,
+      this.areaDaBandeira,
       this.bandeira,
       this.desenhoDasFixas,
       this.desenhoDaRegua,
@@ -2405,7 +2416,8 @@ export class MapaPixi {
   private atualizarBandeira(posicao?: Ponto): void {
     this.sujo = true;
     const cena = this.cena;
-    const visivel = cena !== null && this.opcoes.euMestre && this.opcoes.mostrarBandeira;
+    const visivel = cena !== null && this.opcoes.mostrarBandeira;
+    this.desenharAreaDaBandeira();
     this.bandeira.visible = visivel;
     if (!cena || !visivel) {
       this.posicaoDaBandeira = null;
@@ -2418,9 +2430,24 @@ export class MapaPixi {
     this.escalarBandeira();
   }
 
+  /** V10b: o círculo suave na cor do acento em volta do ponto de chegada, só durante o arrasto da ficha. */
+  private desenharAreaDaBandeira(): void {
+    const g = this.areaDaBandeira;
+    g.clear();
+    const cena = this.cena;
+    this.sujo = true;
+    if (!cena || !this.opcoes.acenderAreaDaBandeira) return;
+    const a = areaDaBandeira(cena);
+    const raio = a.raioM * PX_POR_M;
+    g.circle(a.x * PX_POR_M, a.y * PX_POR_M, raio)
+      .fill({ color: ACENTO, alpha: 0.16 })
+      .stroke({ width: 2 / this.vista.zoom, color: ACENTO, alpha: 0.85 });
+  }
+
   /** A bandeira tem sempre o mesmo tamanho na tela, qualquer que seja o zoom. */
   private escalarBandeira(): void {
     this.sujo = true;
+    this.desenharAreaDaBandeira();
     this.bandeira.scale.set(1 / this.vista.zoom);
   }
 
@@ -2826,6 +2853,16 @@ export class MapaPixi {
 
   /** V10: a dica da bandeira do ponto de chegada sob o ponteiro (só o mestre a vê). */
   private dicaDaBandeira(p: Ponto): { titulo: string; texto: string; tipo: "bandeira" } | null {
+    if (!this.opcoes.euMestre) {
+      // V10b: o jogador vê a bandeira (quando pode pôr o token) e a dica diz como pôr; ele não a arrasta.
+      const b = this.posicaoDaBandeira;
+      if (!b || !this.bandeira.visible) return null;
+      const t = this.paraTela(b.x, b.y);
+      const em = p.x >= t.x - 10 && p.x <= t.x + 28 && p.y >= t.y - 36 && p.y <= t.y + 8;
+      return em
+        ? { titulo: "Ponto de chegada", texto: DICA_DA_BANDEIRA_DO_JOGADOR, tipo: "bandeira" }
+        : null;
+    }
     if (!this.sobreABandeira(p)) return null;
     return { titulo: "Ponto de chegada", texto: DICA_DA_BANDEIRA, tipo: "bandeira" };
   }
@@ -3666,6 +3703,8 @@ export class MapaPixi {
       zoom: () => this.vista.zoom,
       /** Ponto de chegada mostrado pela bandeira (só no mestre). */
       bandeira: () => this.posicaoDaBandeira,
+      /** V10b: a área em volta da bandeira está acesa (o jogador arrasta a ficha). */
+      areaDaBandeiraAcesa: () => this.opcoes.acenderAreaDaBandeira,
       definirZoom: (z: number) => this.definirZoom(z),
       centrarEm: (x: number, y: number) => this.centrarEm(x, y),
       quadradoM: () => this.quadradoM(),

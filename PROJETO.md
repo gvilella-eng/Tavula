@@ -1277,6 +1277,7 @@ no editor; ligar a ordem de turno.
   do mestre. Desenhar em sequência com cliques (Esc encerra), encaixe nos cantos do grid (Alt solta),
   arrastar as pontas, selecionar para mudar tipo e estado, Delete apaga.
   (V10, 2026-11-13: com um token selecionado, Delete o tira do mapa — mestre qualquer um, jogador o que controla, com "Desfazer" por ~6 s via `token.restaurar` — e as setas o andam um quadrado por `token.soltar`. A bandeira do ponto de chegada só aparece com a faixa de Cenas aberta.)
+  (V10b, 2026-11-13: **quem põe token no mapa.** O mestre, onde quiser (`personagem.colocar`, `token.criar`). O jogador põe o token do personagem que controla, na cena do grupo, **só na área da bandeira** (círculo de 3 quadrados de raio em volta do ponto de chegada) e só se esse personagem ainda não tem token nessa cena: pelo botão "Colocar no mapa" (lista de Fichas e cabeçalho da ficha) ou arrastando a ficha para o mapa (a área se acende). Intenção `token.colocarMeu`, capacidade `token.colocarProprio` (ligada por padrão, em Permissões). O jogador vê a bandeira quando não tem token dele na cena; só o mestre a arrasta. A sala confere tudo e tira os campos do token da ficha.)
 - **Portas:** ícone no meio da porta. O jogador abre ou fecha porta destrancada **ao alcance** de um token
   que controla (1,5 m por padrão; o mesmo `alcanceInteracaoM` da tocha), com `porta.abrir`. O mestre
   tranca, destranca e abre qualquer uma. Porta trancada avisa "trancada".

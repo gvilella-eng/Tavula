@@ -236,6 +236,8 @@ export function arrumarNoGrid(
   chegada: { x: number; y: number },
   cena: Pick<Cena, "larguraM" | "alturaM" | "grid">,
   tamanhos: number[],
+  /** V10b: os tokens que já estão na cena; as casas deles contam como ocupadas. */
+  jaNoMapa: readonly { x: number; y: number; tamanhoQuadrados: number }[] = [],
 ): { x: number; y: number }[] {
   const q = cena.grid.quadradoM;
   const raio = 20;
@@ -267,6 +269,9 @@ export function arrumarNoGrid(
         (i + 1) * q <= cena.larguraM + 1e-6 &&
         (j + 1) * q <= cena.alturaM + 1e-6,
     );
+  for (const t of jaNoMapa) {
+    for (const { i, j } of celulasDe(t, t.tamanhoQuadrados)) ocupadas.add(`${i},${j}`);
+  }
   return tamanhos.map((tamanho) => {
     for (const { dx, dy } of candidatos) {
       const centro = encaixarNoGrid({ x: chegada.x + dx * q, y: chegada.y + dy * q }, tamanho, q);
@@ -285,4 +290,63 @@ export function chegadaDaCena(cena: Pick<Cena, "larguraM" | "alturaM" | "chegada
   y: number;
 } {
   return cena.chegada ?? { x: cena.larguraM / 2, y: cena.alturaM / 2 };
+}
+
+/** V10b: o raio da área da bandeira, em quadrados da cena: só aí o jogador põe o próprio token. */
+export const RAIO_DA_BANDEIRA_QUADRADOS = 3;
+
+/** A área da bandeira: um círculo em volta do ponto de chegada (centro e raio, em metros). */
+export function areaDaBandeira(cena: Pick<Cena, "larguraM" | "alturaM" | "chegada" | "grid">): {
+  x: number;
+  y: number;
+  raioM: number;
+} {
+  return { ...chegadaDaCena(cena), raioM: RAIO_DA_BANDEIRA_QUADRADOS * cena.grid.quadradoM };
+}
+
+/** O ponto (metros) está dentro da área da bandeira da cena? */
+export function dentroDaAreaDaBandeira(
+  cena: Pick<Cena, "larguraM" | "alturaM" | "chegada" | "grid">,
+  ponto: { x: number; y: number },
+): boolean {
+  const a = areaDaBandeira(cena);
+  return Math.hypot(ponto.x - a.x, ponto.y - a.y) <= a.raioM + 1e-6;
+}
+
+/**
+ * V10b: este jogador pode pôr o token deste personagem na cena do grupo? Controla o personagem, tem a capacidade
+ * `token.colocarProprio` e o personagem ainda não tem token nessa cena (um por personagem por cena). O mestre não
+ * passa por aqui (ele põe onde quiser).
+ */
+export function podeColocarProprioToken(
+  estado: Pick<Estado, "permissoes" | "cenaAtivaId" | "tokens">,
+  usuario: Quem,
+  personagem: Pick<Personagem, "id" | "editores">,
+): boolean {
+  return (
+    usuario.papel === "jogador" &&
+    pode(usuario, "token.colocarProprio", estado.permissoes) &&
+    podeEditarPersonagem(personagem, usuario) &&
+    !estado.tokens.some((t) => t.cenaId === estado.cenaAtivaId && t.personagemId === personagem.id)
+  );
+}
+
+/**
+ * V10b: a bandeira aparece para o jogador que controla algum personagem, pode pôr o próprio token e não tem nenhum
+ * token dele na cena do grupo.
+ */
+export function jogadorVeABandeira(
+  estado: Pick<Estado, "permissoes" | "cenaAtivaId" | "tokens" | "personagens">,
+  usuario: Quem,
+): boolean {
+  if (usuario.papel !== "jogador" || !pode(usuario, "token.colocarProprio", estado.permissoes)) {
+    return false;
+  }
+  if (!estado.personagens.some((p) => podeEditarPersonagem(p, usuario))) return false;
+  return !estado.tokens.some(
+    (t) =>
+      t.cenaId === estado.cenaAtivaId &&
+      t.camada === "tokens" &&
+      controlaToken(t, usuario, estado.personagens),
+  );
 }

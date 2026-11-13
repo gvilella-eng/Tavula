@@ -186,6 +186,20 @@ as mãos. Cada item diz **o que fazer** e, depois de "→", **o que deve acontec
    mestre a vê, e só com a faixa de Cenas aberta. Passe o mouse para ver a dica.
 6. Clicar no mapa e apertar Delete, Espaço ou seta não pinta o contorno em volta do mapa; com Tab, ele aparece.
 
+## V10b — O jogador põe o próprio token na bandeira
+1. Entre como jogador com o token dele no mapa: **não há bandeira** e a lista de Fichas não mostra "Colocar no mapa".
+2. Selecione o seu token e aperte **Delete**. A **bandeira** aparece no ponto de chegada; passe o mouse: "Arraste a sua
+   ficha para cá ou use "Colocar no mapa"". Você não consegue arrastar a bandeira.
+3. Passado o aviso do Desfazer, na aba **Fichas** clique no ícone do **pino** ao lado do seu personagem: o token volta
+   ao lado da bandeira. O ícone e a bandeira somem. O mestre vê o token.
+4. Tire o token de novo, abra a **ficha** e use o pino do cabeçalho ("Colocar no mapa"). Mesmo resultado.
+5. Tire de novo e **arraste a ficha** da lista para o mapa. Durante o arrasto a **área em volta da bandeira se acende**.
+   Solte longe: aparece "Ponha o token perto da bandeira (o ponto de chegada)." e nada é criado. Solte dentro da
+   área: o token nasce ali, encaixado no grid.
+6. O mestre arrasta a ficha de qualquer personagem para qualquer ponto, como antes.
+7. Aba **Mesa**, em Permissões: "Pôr o próprio token no mapa (na bandeira)" vem ligada. Desligue: o jogador perde a
+   bandeira e o pino. Há também a exceção por jogador.
+
 ## Se algo der errado
 - Anote a tela, o que fez e o que esperava, e mande para mim. Bug confirmado vai para `docs/BUGS.md`.
 - Para voltar à campanha de antes de mesas e contas, use a cópia de segurança indicada no topo.

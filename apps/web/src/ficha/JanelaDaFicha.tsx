@@ -10,17 +10,19 @@ import {
   operacoesDeDiferenca,
   type Personagem,
   pode,
+  podeColocarProprioToken,
   podeEditarPersonagem,
   ROTULO_DA_VANTAGEM,
   type Usuario,
   VANTAGENS,
   type Vantagem,
 } from "@tabletop/shared";
-import { AppWindow, BedDouble, BookOpen, Coffee, Settings, Undo2 } from "lucide-react";
+import { AppWindow, BedDouble, BookOpen, Coffee, MapPin, Settings, Undo2 } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { Fontes } from "../assets/fontes";
 import type { GerenteDeAssets } from "../assets/gerente";
 import { BotaoComDica } from "../BotaoComDica";
+import { pedirTokenNoMapa } from "../colocarNoMapa";
 import { EditorDoItem } from "../EditorDoItem";
 import type { PedirImagem } from "../FaixaDeCenas";
 import { Janela } from "../janelas/Janela";
@@ -372,6 +374,17 @@ export function JanelaDaFicha({
           </BotaoComDica>
         </>
       ) : null}
+      {podeColocarProprioToken(estado, eu, p) && (
+        <BotaoComDica
+          className="botao-icone"
+          testid="ficha-colocar-no-mapa"
+          nome="Colocar no mapa"
+          aria-label="Colocar no mapa"
+          onClick={() => pedirTokenNoMapa(enviar, p.id)}
+        >
+          <MapPin size={16} />
+        </BotaoComDica>
+      )}
       {aoAbrirEmJanela && (
         <BotaoComDica
           className="botao-icone"

@@ -5,6 +5,7 @@ import {
   controlaToken,
   type DesenhoEmAndamento,
   type DesenhoNovo,
+  dentroDaAreaDaBandeira,
   type Exportacao,
   ehPersonagemDeJogador,
   encaixarNoGrid,
@@ -12,9 +13,11 @@ import {
   hashesPreparaveis,
   iluminacaoDinamicaLigada,
   jogadoresDaMesa,
+  jogadorVeABandeira,
   membrosDaMesa,
   modInteligenciaDe,
   pode,
+  podeColocarProprioToken,
   podeEditarPersonagem,
   podeMoverToken,
   type TipoDeParede,
@@ -48,7 +51,7 @@ import { AvisoPerto } from "./AvisoPerto";
 import { AbaPreferencias } from "./abas";
 import { type DadosDaMesa, marcarTourVisto } from "./api";
 import { caixaDaArea } from "./area";
-import { lerItemArrastado } from "./arrasto";
+import { itemEmArrastoAgora, lerItemArrastado, ouvirArrasto } from "./arrasto";
 import { CacheOpfs } from "./assets/cache";
 import { Fontes } from "./assets/fontes";
 import { ganchosDoTeste, instalarGanchoDeAssets } from "./assets/ganchoE2E";
@@ -58,6 +61,7 @@ import { BarraDeFerramentas } from "./BarraDeFerramentas";
 import { BarraLateral, type PedidoDeAba } from "./BarraLateral";
 import { BotaoComDica } from "./BotaoComDica";
 import { type CamadaDeTrabalho, camadaDoNovoToken } from "./camadas";
+import { pedirTokenNoMapa, TEXTO_FORA_DA_BANDEIRA } from "./colocarNoMapa";
 import { ATRASO_DA_DICA } from "./Dica";
 import { EstadoDaMesa } from "./EstadoDaMesa";
 import { FaixaDeCenas, type PedirImagem } from "./FaixaDeCenas";
@@ -884,6 +888,19 @@ export function Mesa({
     [enviar, mostrarDicaDoMapa],
   );
 
+  // V10b: o jogador vê a bandeira quando não tem token dele na cena; arrastando a ficha de um personagem que pode pôr
+  // no mapa, a área em volta dela se acende. O mestre segue a regra do V10 (faixa de Cenas aberta).
+  const itemEmArrasto = useSyncExternalStore(ouvirArrasto, itemEmArrastoAgora);
+  const bandeiraDoJogador = !euMestre && estado && eu ? jogadorVeABandeira(estado, eu) : false;
+  const areaAcesa: boolean =
+    !euMestre &&
+    estado !== null &&
+    eu !== null &&
+    itemEmArrasto?.tipo === "personagem" &&
+    estado.personagens.some(
+      (q) => q.id === itemEmArrasto.id && podeColocarProprioToken(estado, eu, q),
+    );
+
   const opcoes = useMemo(
     () => ({
       ferramenta:
@@ -891,7 +908,8 @@ export function Mesa({
           ? ("selecionar" as const)
           : ferramenta,
       mostrarLuzes: fontesAbertas,
-      mostrarBandeira: euMestre && faixaAberta,
+      mostrarBandeira: euMestre ? faixaAberta : bandeiraDoJogador,
+      acenderAreaDaBandeira: areaAcesa,
       luzSelecionadaId,
       pontoSelecionadoId,
       tipoDoNovoPonto,
@@ -944,6 +962,8 @@ export function Mesa({
           : false,
     }),
     [
+      bandeiraDoJogador,
+      areaAcesa,
       ferramenta,
       fontesAbertas,
       luzSelecionadaId,
@@ -1084,9 +1104,19 @@ export function Mesa({
   /** Um item das Fichas foi solto no mapa: o token dele nasce na cena que o mestre vê, onde soltou. */
   function soltarItemNoMapa(dados: string, x: number, y: number) {
     const item = lerItemArrastado(dados);
-    if (item?.tipo !== "personagem" || !euMestre || !cena) return;
+    if (item?.tipo !== "personagem" || !cena) return;
     const p = personagens?.find((q) => q.id === item.id);
     if (!p) return;
+    if (!euMestre) {
+      // V10b: o jogador só solta o token dele na área da bandeira; a sala confere de novo.
+      if (!estado || !eu || !podeColocarProprioToken(estado, eu, p)) return;
+      if (!dentroDaAreaDaBandeira(cena, { x, y })) {
+        avisar(TEXTO_FORA_DA_BANDEIRA);
+        return;
+      }
+      pedirTokenNoMapa(enviar, p.id, { x, y });
+      return;
+    }
     const ponto = encaixarNoGrid({ x, y }, p.tokenPadrao.tamanhoQuadrados, cena.grid.quadradoM);
     enviar("personagem.colocar", {
       personagemId: p.id,
@@ -1149,7 +1179,9 @@ export function Mesa({
       const nomes = meus.map((p) => p.nome).join(", ");
       return {
         titulo: "Seu personagem não está nesta cena",
-        texto: `O token de ${nomes} não está nesta cena, por isso o mapa fica escuro. Peça ao mestre para levar seu token até aqui ou para mover o grupo.`,
+        texto: bandeiraDoJogador
+          ? `O token de ${nomes} não está nesta cena, por isso o mapa fica escuro. Use "Colocar no mapa" na sua ficha ou arraste a ficha até a bandeira (o ponto de chegada). Também dá para pedir ao mestre para levar seu token até aqui.`
+          : `O token de ${nomes} não está nesta cena, por isso o mapa fica escuro. Peça ao mestre para levar seu token até aqui ou para mover o grupo.`,
       };
     }
     return {
@@ -1497,7 +1529,13 @@ export function Mesa({
               />
             )}
             {semTokenNaCena && (
-              <div className="estado-vazio-mapa" data-testid="sem-token" role="status">
+              <div
+                className="estado-vazio-mapa"
+                data-testid="sem-token"
+                // O cartão sai do centro (onde está a bandeira) e deixa o mouse passar: o jogador solta a ficha na área.
+                data-no-alto={bandeiraDoJogador || undefined}
+                role="status"
+              >
                 <strong>{semTokenNaCena.titulo}</strong>
                 <p>{semTokenNaCena.texto}</p>
               </div>
