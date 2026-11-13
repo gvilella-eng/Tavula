@@ -76,6 +76,14 @@ export const ZOOM_MIN = 0.1;
 export const ZOOM_MAX = 4;
 /** V10c: folga, em pixels de tela, entre a imagem enquadrada da cena-cartão e a borda da área. */
 const FOLGA_DO_CARTAO_PX = 24;
+/** V12: o ping. Segurar parado ~400 ms (o ponteiro não passa de ~5 px); o efeito dura ~1,2 s e abre até 2,5 quadrados. */
+const ESPERA_DO_PING_MS = 400;
+const TOLERANCIA_DO_PING_PX = 5;
+const DURACAO_DO_PING_MS = 1200;
+const RAIO_DO_PING_QUADRADOS = 2.5;
+/** O raio mínimo do ping na tela, para ser visto de longe com o mapa afastado. */
+const RAIO_MIN_DO_PING_PX = 56;
+const DURACAO_DA_CENTRALIZACAO_MS = 400;
 /** Constante de tempo da interpolação dos tokens movidos por outros (os envios chegam a cada 50 ms). */
 const TAU_MS = 70;
 const ACENTO = 0xe0a030;
@@ -206,6 +214,18 @@ export type OpcoesDoMapa = {
    * uma prévia segue o cursor e o próximo clique chama `colocarToken`.
    */
   tokenParaPor: { nome: string; cor: string; tamanhoQuadrados: number } | null;
+  /** V12: quem tem `mapa.pingar` (o mestre sempre) pinga segurando o clique ou com a tecla P. */
+  podePingar: boolean;
+};
+
+/** V12: um ping que a sala mandou (a cor e o autor são dela). */
+export type PingNoMapa = {
+  cenaId: string;
+  x: number;
+  y: number;
+  centralizar: boolean;
+  usuarioId: string;
+  cor: string;
 };
 
 /** O que o mapa precisa saber das imagens locais (o gerente de assets responde). */
@@ -277,6 +297,8 @@ export type RetornosDoMapa = {
   menuDoToken: (tokenId: string, x: number, y: number) => void;
   /** O ponteiro está sobre um marcador de condição (ou saiu dele: `null`): a dica, na posição da página. */
   dica: (dica: DicaDoMapa | null) => void;
+  /** V12: pingou no ponto (metros), com ou sem centralizar a tela de todos. */
+  pingar: (x: number, y: number, centralizar: boolean) => void;
   /** Pincel: soltou o traço (grava), arrastou um desenho, apagou (borracha ou Delete), selecionou. */
   criarDesenho: (desenho: DesenhoNovo) => void;
   moverDesenho: (id: string, dx: number, dy: number) => void;
@@ -523,6 +545,20 @@ export class MapaPixi {
   private chaveDaPrevia = "";
   private ponteiroNoMapa: { p: Ponto; alt: boolean } | null = null;
   private jaCentralizou = false;
+  /** V12: os pings na tela, o que já chegou (gancho de teste), a espera do clique segurado e a câmera animada. */
+  private readonly camadaDePings = new Container();
+  private pings: { g: Graphics; x: number; y: number; cor: string; inicio: number }[] = [];
+  private pingsRecebidos: (PingNoMapa & { exibido: boolean })[] = [];
+  private esperaDoPing: {
+    pointerId: number;
+    inicio: Ponto;
+    shift: boolean;
+    timer: ReturnType<typeof setTimeout>;
+  } | null = null;
+  private shiftAbaixo = false;
+  private ultimaPosicao: Ponto | null = null;
+  private panAnimado: { de: Ponto; para: Ponto; inicio: number } | null = null;
+  private centralizarPendente: Ponto | null = null;
   /** O tamanho da área do mapa na última vez que a vista foi acertada (para manter o centro ao redimensionar). */
   private telaAntes = { largura: 0, altura: 0 };
   private sujo = true;
@@ -579,6 +615,7 @@ export class MapaPixi {
       this.desenhoDasFixas,
       this.desenhoDaRegua,
       this.previaDoToken,
+      this.camadaDePings,
     );
     this.previaDoToken.visible = false;
     this.desenharBandeira();
@@ -637,6 +674,7 @@ export class MapaPixi {
     window.removeEventListener("keyup", this.aoTeclaCima);
     this.observador?.disconnect();
     this.observador = null;
+    this.cancelarEsperaDoPing();
     if (this.gesto?.tipo === "token" || this.gesto?.tipo === "traco")
       this.gesto.limitador.cancelar();
     this.gesto = null;
@@ -1423,6 +1461,8 @@ export class MapaPixi {
 
   private passo(agora: number, dt: number): void {
     this.animar(dt);
+    this.animarPings(agora);
+    this.animarCentralizacao(agora);
     this.passoDaContagem();
     this.ajustarMarcasAoZoom();
     this.desenharAlcas();
@@ -2749,8 +2789,13 @@ export class MapaPixi {
     const p = this.posicaoNaTela(e);
     const pan =
       e.button === 1 || (e.button === 0 && (this.espaco || this.opcoes.ferramenta === "mao"));
+    this.shiftAbaixo = e.shiftKey;
     if (pan) {
       e.preventDefault();
+      this.panAnimado = null;
+      this.centralizarPendente = null;
+      // V12: com a Mão, segurar parado faz o ping (arrastar continua sendo o pan); com o Espaço ou o botão do meio, não.
+      if (e.button === 0 && !this.espaco) this.esperarPing(e, p);
       this.gesto = { tipo: "pan", inicio: p, vistaInicial: { x: this.vista.x, y: this.vista.y } };
       this.app.canvas.setPointerCapture(e.pointerId);
       this.atualizarCursor();
@@ -2911,6 +2956,8 @@ export class MapaPixi {
     }
 
     const v = this.tokenEm(p);
+    // V12: no fundo ou num token (Selecionar), segurar parado faz o ping.
+    this.esperarPing(e, p);
     if (!v) {
       this.retornos().selecionar(null);
       if (this.marcasVisiveis()) {
@@ -3063,6 +3110,7 @@ export class MapaPixi {
   }
 
   private readonly aoSairDoMapa = () => {
+    this.ultimaPosicao = null;
     if (this.dicaAberta) {
       this.dicaAberta = false;
       this.retornos().dica(null);
@@ -3078,6 +3126,15 @@ export class MapaPixi {
   private readonly aoMover = (e: PointerEvent) => {
     const g = this.gesto;
     const p = this.posicaoNaTela(e);
+    this.ultimaPosicao = p;
+    const espera = this.esperaDoPing;
+    if (
+      espera &&
+      e.pointerId === espera.pointerId &&
+      Math.hypot(p.x - espera.inicio.x, p.y - espera.inicio.y) > TOLERANCIA_DO_PING_PX
+    ) {
+      this.cancelarEsperaDoPing();
+    }
     if (!g) {
       if (this.ferramentaDeParedes()) {
         const antes = this.cursorDaParede;
@@ -3207,6 +3264,7 @@ export class MapaPixi {
   };
 
   private readonly aoSoltar = (e: PointerEvent) => {
+    if (this.esperaDoPing?.pointerId === e.pointerId) this.cancelarEsperaDoPing();
     const g = this.gesto;
     if (!g) return;
     this.gesto = null;
@@ -3328,7 +3386,25 @@ export class MapaPixi {
   }
 
   private readonly aoTeclaBaixo = (e: KeyboardEvent) => {
+    if (e.key === "Shift") this.shiftAbaixo = true;
     if (this.digitando()) return;
+    if (
+      (e.key === "p" || e.key === "P") &&
+      !e.ctrlKey &&
+      !e.metaKey &&
+      !e.altKey &&
+      !e.repeat &&
+      !e.defaultPrevented &&
+      this.focoNoMapa(e.target)
+    ) {
+      // V12: P pinga no ponto sob o ponteiro (ou no centro da tela); Shift+P também centraliza a tela de todos.
+      e.preventDefault();
+      this.pingarNaTela(
+        this.ultimaPosicao ?? { x: this.largura() / 2, y: this.altura() / 2 },
+        e.shiftKey,
+      );
+      return;
+    }
     if (e.code === "Space" && !this.espacoEDeUmControle()) {
       this.espaco = true;
       e.preventDefault();
@@ -3405,6 +3481,7 @@ export class MapaPixi {
   }
 
   private readonly aoTeclaCima = (e: KeyboardEvent) => {
+    if (e.key === "Shift") this.shiftAbaixo = false;
     if (e.code === "Space") {
       this.espaco = false;
       this.atualizarCursor();
@@ -3743,6 +3820,159 @@ export class MapaPixi {
     this.retornos().selecionarDesenho(null);
   }
 
+  // --- ping (V12) -------------------------------------------------------------------------------
+
+  /** O foco está no próprio mapa (ou em nada): é onde a tecla P vale. */
+  private focoNoMapa(alvo: EventTarget | null): boolean {
+    return alvo === document.body || (alvo instanceof Node && this.host.contains(alvo));
+  }
+
+  private reduzirMovimento(): boolean {
+    try {
+      return window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true;
+    } catch {
+      return false;
+    }
+  }
+
+  private cancelarEsperaDoPing(): void {
+    if (!this.esperaDoPing) return;
+    clearTimeout(this.esperaDoPing.timer);
+    this.esperaDoPing = null;
+  }
+
+  /** Começa a contar o clique segurado; o movimento (acima da tolerância) ou soltar o cancela. */
+  private esperarPing(e: PointerEvent, p: Ponto): void {
+    this.cancelarEsperaDoPing();
+    if (e.button !== 0 || !this.opcoes.podePingar || !this.cena) return;
+    const pointerId = e.pointerId;
+    const timer = setTimeout(() => this.pingouSegurando(pointerId), ESPERA_DO_PING_MS);
+    this.esperaDoPing = { pointerId, inicio: p, shift: e.shiftKey, timer };
+  }
+
+  private pingouSegurando(pointerId: number): void {
+    const espera = this.esperaDoPing;
+    if (!espera || espera.pointerId !== pointerId) return;
+    this.esperaDoPing = null;
+    // O gesto de arrastar acaba aqui: depois do ping, soltar não faz mais nada (a seleção do token, se houve, fica).
+    if (this.gesto?.tipo === "token") this.cancelarGestoEmAndamento();
+    else if (this.gesto?.tipo === "pan") this.gesto = null;
+    if (this.app.canvas.hasPointerCapture(pointerId)) {
+      this.app.canvas.releasePointerCapture(pointerId);
+    }
+    this.atualizarCursor();
+    this.pingarNaTela(espera.inicio, espera.shift || this.shiftAbaixo);
+  }
+
+  /** Pinga no ponto da tela: pede à sala, que devolve o ping a todos que veem a cena (inclusive a mim). */
+  private pingarNaTela(p: Ponto, centralizar: boolean): void {
+    if (!this.opcoes.podePingar || !this.cena) return;
+    const m = limitarNaCena(this.paraMundo(p), this.cena);
+    this.retornos().pingar(m.x, m.y, centralizar);
+  }
+
+  /** A sala mandou um ping (`mapa.pingado`): mostra o efeito e, se pedido, leva a câmera ao ponto. */
+  pingRecebido(ping: PingNoMapa): void {
+    const exibido = this.pronto && this.cena !== null && this.cena.id === ping.cenaId;
+    this.pingsRecebidos.push({ ...ping, exibido });
+    if (this.pingsRecebidos.length > 50) this.pingsRecebidos.shift();
+    if (!exibido) return;
+    const g = new Graphics();
+    this.camadaDePings.addChild(g);
+    this.pings.push({ g, x: ping.x, y: ping.y, cor: ping.cor, inicio: performance.now() });
+    if (this.pings.length > 12) {
+      const velho = this.pings.shift();
+      velho?.g.destroy();
+    }
+    this.sujo = true;
+    if (ping.centralizar) {
+      // Não tira nada do lugar de quem está arrastando: a câmera só vai depois que a pessoa solta.
+      this.centralizarPendente = { x: ping.x, y: ping.y };
+    }
+  }
+
+  private animarPings(agora: number): void {
+    if (this.pings.length === 0) return;
+    this.sujo = true;
+    const parado = this.reduzirMovimento();
+    const zoom = this.vista.zoom;
+    const raioMax = Math.max(
+      RAIO_DO_PING_QUADRADOS * this.quadradoM() * PX_POR_M,
+      RAIO_MIN_DO_PING_PX / zoom,
+    );
+    this.pings = this.pings.filter((p) => {
+      const t = (agora - p.inicio) / DURACAO_DO_PING_MS;
+      if (t >= 1) {
+        p.g.destroy();
+        return false;
+      }
+      this.desenharPing(p, t, raioMax, zoom, parado);
+      return true;
+    });
+  }
+
+  /** Dois anéis que se abrem do centro (o segundo um pouco depois) e o centro marcado; sem movimento, um anel fixo. */
+  private desenharPing(
+    p: { g: Graphics; x: number; y: number; cor: string },
+    t: number,
+    raioMax: number,
+    zoom: number,
+    parado: boolean,
+  ): void {
+    const g = p.g.clear();
+    g.position.set(p.x * PX_POR_M, p.y * PX_POR_M);
+    const espessura = 4 / zoom;
+    const anel = (raio: number, alfa: number) => {
+      if (alfa <= 0 || raio <= 0) return;
+      g.circle(0, 0, raio).stroke({
+        width: espessura + 2 / zoom,
+        color: 0x000000,
+        alpha: alfa * 0.45,
+      });
+      g.circle(0, 0, raio).stroke({ width: espessura, color: p.cor, alpha: alfa });
+    };
+    const fim = Math.min(1, Math.max(0, (1 - t) * 1.25));
+    if (parado) {
+      anel(raioMax * 0.6, 1 - t);
+    } else {
+      const abrir = (x: number) => 1 - (1 - Math.min(1, Math.max(0, x))) ** 3;
+      anel(raioMax * abrir(t), 1 - t);
+      anel(raioMax * abrir((t - 0.22) / 0.78), (1 - t) * 0.9);
+    }
+    const r = 6 / zoom;
+    g.circle(0, 0, r + 2 / zoom).fill({ color: 0x000000, alpha: fim * 0.5 });
+    g.circle(0, 0, r).fill({ color: p.cor, alpha: fim });
+  }
+
+  /** A câmera vai ao ponto: pan de ~400 ms (sem animação com movimento reduzido), o zoom não muda. */
+  private animarCentralizacao(agora: number): void {
+    // Quem está arrastando algo (token, mapa, alça, traço...) só recebe a câmera depois de soltar.
+    if (this.centralizarPendente && !this.gesto) {
+      const alvo = this.centralizarPendente;
+      this.centralizarPendente = null;
+      const de = { x: this.vista.x, y: this.vista.y };
+      const para = {
+        x: this.largura() / 2 - alvo.x * PX_POR_M * this.vista.zoom,
+        y: this.altura() / 2 - alvo.y * PX_POR_M * this.vista.zoom,
+      };
+      if (this.reduzirMovimento()) {
+        this.vista.x = para.x;
+        this.vista.y = para.y;
+        this.aplicarVista();
+      } else {
+        this.panAnimado = { de, para, inicio: agora };
+      }
+    }
+    const a = this.panAnimado;
+    if (!a) return;
+    const t = Math.min(1, (agora - a.inicio) / DURACAO_DA_CENTRALIZACAO_MS);
+    const suave = t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2;
+    this.vista.x = a.de.x + (a.para.x - a.de.x) * suave;
+    this.vista.y = a.de.y + (a.para.y - a.de.y) * suave;
+    this.aplicarVista();
+    if (t >= 1) this.panAnimado = null;
+  }
+
   // --- gancho de teste (só no modo e2e) -------------------------------------------------------
 
   private instalarGanchoDeTeste(): void {
@@ -3885,6 +4115,10 @@ export class MapaPixi {
         return { x: r.left + p.x, y: r.top + p.y };
       },
       zoom: () => this.vista.zoom,
+      /** V12: o centro da tela em metros (a câmera), os pings que chegaram e os que estão na tela agora. */
+      centroDaVista: () => this.centroDaTelaEmMetros(),
+      pingsRecebidos: () => this.pingsRecebidos.map((p) => ({ ...p })),
+      pingsNaTela: () => this.pings.map((p) => ({ x: p.x, y: p.y, cor: p.cor })),
       /** V10c: a imagem da cena na página (canto e tamanho em pixels) e a área do mapa, para conferir o enquadramento. */
       quadroDaCena: () => {
         const r = this.app.canvas.getBoundingClientRect();

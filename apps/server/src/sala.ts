@@ -28,6 +28,7 @@ import {
   LIMITES_DO_CHAT,
   lerFrameDePedaco,
   lerIntencao,
+  limitarPing,
   type Mensagem,
   MestreDaMesaNovaSchema,
   mensagem,
@@ -35,10 +36,12 @@ import {
   mensagemParaUsuario,
   nomeDeExibicaoValido,
   type Pacote,
+  type PingRepassado,
   type PlanoDeAceite,
   PRAZO_PARA_RESTAURAR_TOKEN_MS,
   type Presenca,
   pausarSeSemMestre,
+  pingVisivelPara,
   planejarAceite,
   processar,
   processarSistema,
@@ -50,6 +53,7 @@ import {
   type TokenApagadoRecente,
   tempoDaSala,
   tokenVisivelPara,
+  type UltimoPing,
   type Usuario,
   visaoPara,
 } from "@tabletop/shared";
@@ -209,6 +213,8 @@ export class Sala extends DurableObject<Env> {
    * gravado). Quando o socket cai, os outros recebem o fim de cada um. Só memória.
    */
   private readonly rascunhos = new Map<WebSocket, Map<string, string>>();
+  /** V12: o último ping e a última centralização de cada usuário (só memória; o limite de frequência). */
+  private readonly ultimoPing = new Map<string, UltimoPing>();
   /** Quando cada conexão mandou o último rascunho aceito (o limite de frequência). */
   private readonly ultimoRascunho = new Map<WebSocket, number>();
   /** Quando cada conexão mandou as últimas mensagens de chat (só memória; a janela é de 1 s). */
@@ -925,6 +931,7 @@ export class Sala extends DurableObject<Env> {
       this.estado = estadoInicial(semente);
       this.fonteDeDadosDeTeste = null;
       this.taxaDoChat.clear();
+      this.ultimoPing.clear();
       this.banco.salvarTudo(this.estado);
       this.iniciarRelogio();
       this.uso = { dia: diaUtc(new Date()), mensagens: 0, conexoes: 0 };
@@ -1083,6 +1090,12 @@ export class Sala extends DurableObject<Env> {
     this.cuidarDeAsset(ws, usuario, intencao);
     this.cuidarDePreparo(intencao, r.preparo);
     if (r.eventos.length > 0 || intencao.tipo === "campanha.importar") await this.reagendarLuzes();
+
+    // Ping (V12): transitório, não grava; vai a quem vê a cena, inclusive a quem pingou.
+    if (r.ping) {
+      this.repassarPing(usuario.id, r.ping);
+      return;
+    }
 
     // Rascunho: transitório, não grava; só quem recebe a cena o recebe (menos o remetente).
     if (r.rascunho) {
@@ -1656,6 +1669,25 @@ export class Sala extends DurableObject<Env> {
       if (usuario && desenhoVisivelPara(cenaId, usuario, this.estado.cenaAtivaId)) {
         this.enviar(ws, texto);
       }
+    }
+  }
+
+  /**
+   * `mapa.pingado`: o limite de frequência é por usuário (o que passa do limite some em silêncio; a centralização que
+   * passa do limite vira só um ping). Vai a todo mestre e aos jogadores da cena do grupo, inclusive a quem pingou.
+   */
+  private repassarPing(usuarioId: string, ping: PingRepassado): void {
+    const limite = limitarPing(this.ultimoPing.get(usuarioId), Date.now(), ping.centralizar);
+    if (!limite) return;
+    this.ultimoPing.set(usuarioId, limite.proximo);
+    const texto = mensagem({
+      tipo: "mapa.pingado",
+      dados: { ...ping, centralizar: limite.centralizar },
+    });
+    for (const ws of this.ctx.getWebSockets()) {
+      const alvo = this.usuarioDe(ws);
+      if (alvo && pingVisivelPara(ping.cenaId, alvo, this.estado.cenaAtivaId))
+        this.enviar(ws, texto);
     }
   }
 

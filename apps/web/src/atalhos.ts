@@ -64,6 +64,18 @@ export const ATALHOS = {
     teclas: [["←"], ["↑"], ["↓"], ["→"]],
     juntas: true,
   },
+  pingar: {
+    descricao:
+      "Pingar o mapa: um círculo na sua cor, para todos (no ponto sob o ponteiro; segurar o clique parado faz o mesmo)",
+    grupo: "Mapa",
+    teclas: [["P"]],
+  },
+  pingarCentralizando: {
+    descricao:
+      "Pingar e centralizar a tela de todos no ponto (com o mouse: Shift e segurar o clique parado)",
+    grupo: "Mapa",
+    teclas: [["Shift", "P"]],
+  },
   encaixe: {
     descricao: "Segurar ao arrastar ou clicar: inverte o encaixe no grid",
     grupo: "Mapa",

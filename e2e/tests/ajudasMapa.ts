@@ -31,11 +31,24 @@ export type GanchoDoMapa = {
   previaDoToken(): { x: number; y: number } | null;
   paraTela(x: number, y: number): { x: number; y: number };
   zoom(): number;
+  ferramenta(): string;
   /** V10c: a imagem da cena e a área do mapa na página (pixels), para conferir o enquadramento. */
   quadroDaCena(): {
     cena: { x: number; y: number; largura: number; altura: number };
     area: { x: number; y: number; largura: number; altura: number };
   } | null;
+  /** V12: o centro da tela (a câmera), em metros; os pings que chegaram (`exibido`: eram da cena vista) e os na tela. */
+  centroDaVista(): { x: number; y: number };
+  pingsRecebidos(): {
+    cenaId: string;
+    x: number;
+    y: number;
+    centralizar: boolean;
+    usuarioId: string;
+    cor: string;
+    exibido: boolean;
+  }[];
+  pingsNaTela(): { x: number; y: number; cor: string }[];
   definirZoom(z: number): void;
   centrarEm(x: number, y: number): void;
   quadradoM(): number;

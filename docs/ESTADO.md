@@ -3269,4 +3269,46 @@ Ver `docs/ROTEIRO-DE-TESTES.md`, "V10c".
 
 ---
 
-## Próximo: bugs que sobrarem e acabamentos das contas; depois 7b e 12 (o C4, a tela inicial, o V10, o V10b, o V10c e o V11 estão entregues)
+## Ajustes V12 — Ping no mapa (entregue, aguardando o roteiro manual)
+
+Detalhes em `docs/REDESIGN.md` ("V12 — como ficou") e `docs/protocolo.md` ("Ping no mapa").
+
+### O que foi entregue
+
+- Segurar o botão esquerdo parado (~0,4 s) com Selecionar ou Mão, no fundo ou num token, faz um círculo (dois anéis e o centro) na cor do usuário, para todos que veem a cena. Shift (ou Shift+P) também leva a câmera de todos ao ponto. P pinga no ponto sob o ponteiro.
+- Na sala: intenção `mapa.ping`, mensagem `mapa.pingado`, capacidade `mapa.pingar` (ligada por padrão, em Permissões). Efêmero: nada é gravado.
+
+### Como rodar
+
+`pnpm dev` como sempre.
+
+### Verificação
+
+- Unidade (`packages/shared/src/ping.test.ts`): validação da cena e do ponto, quem não vê a cena, capacidade desligada (padrão e exceção por usuário), nada gravado (mesmo estado, nenhum evento), quem recebe, mensagem da sala e limite de frequência.
+- E2E novo: `v12.spec.ts` (10 testes, duas páginas): segurar parado, nada gravado, arrastar não pinga, Mão e token, Shift centraliza, teclas P e Shift+P, outra cena, capacidade desligada, cena-cartão e o movimento ligado.
+- E2E antigo alterado: nenhum.
+
+### Decisões
+
+- (assumido) Ver `REDESIGN`, "V12 — como ficou", Decisões.
+
+### Desvios do plano
+
+- Nenhum.
+
+### Frágil / não verificado
+
+- O ping usa um `setTimeout` de 400 ms desde o `pointerdown`; o toque (celular) não foi verificado.
+- O limite de frequência vive na memória da sala (`ultimoPing`): reinicia com ela, o que é inofensivo. Os E2E o zeram em `/teste/zerar`.
+- Os E2E rodam com `reducedMotion: "reduce"` (anel fixo e câmera instantânea); um E2E com movimento ligado cobre a animação.
+- O mestre recebe todo ping e o cliente filtra pela cena que ele olha.
+
+### Roteiro manual (pendente)
+
+Ver `docs/ROTEIRO-DE-TESTES.md`, "V12".
+
+---
+
+---
+
+## Próximo: bugs que sobrarem e acabamentos das contas; depois 7b e 12 (o C4, a tela inicial, o V10, o V10b, o V10c, o V11 e o V12 estão entregues)

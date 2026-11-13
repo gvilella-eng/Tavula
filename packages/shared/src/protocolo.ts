@@ -500,6 +500,19 @@ export const IntencaoSchema = z.discriminatedUnion("tipo", [
       y: z.number().optional(),
     }),
   ),
+  /**
+   * V12: um ping no mapa (efêmero: a sala valida, repassa e esquece). `x` e `y` em metros; `centralizar` pede que a
+   * tela de todos que veem a cena vá para o ponto. A cor e o autor vêm da sala.
+   */
+  intencao(
+    "mapa.ping",
+    z.object({
+      cenaId: IdSchema,
+      x: z.number().finite(),
+      y: z.number().finite(),
+      centralizar: z.boolean().optional(),
+    }),
+  ),
   intencao(
     "cena.configurarGrid",
     z.object({
@@ -877,6 +890,8 @@ export const capacidadeDaIntencao: Record<TipoIntencao, Capacidade | null> = {
   "token.restaurar": null,
   // V10b: `processar` confere o controle do personagem, a cena, um token por cena e a área da bandeira.
   "token.colocarMeu": "token.colocarProprio",
+  // V12: ping e centralizar numa só capacidade; `processar` confere a cena e o ponto.
+  "mapa.ping": "mapa.pingar",
   "cena.configurarGrid": "cena.editar",
   "token.mover": "token.moverProprio",
   "token.soltar": "token.moverProprio",
@@ -1185,6 +1200,21 @@ export const MensagemDaSalaSchema = z.discriminatedUnion("tipo", [
       idPedido: z.string().nullable(),
       codigo: CodigoDeErroSchema,
       mensagem: z.string(),
+    }),
+  ),
+  /**
+   * V12: um ping no mapa (transitório: sem `seq`, não é gravado nem entra no histórico). Vai a quem vê a cena,
+   * inclusive a quem pingou; `cor` é a do usuário, resolvida na sala.
+   */
+  mensagemDaSala(
+    "mapa.pingado",
+    z.object({
+      cenaId: IdSchema,
+      x: z.number(),
+      y: z.number(),
+      centralizar: z.boolean(),
+      usuarioId: z.string(),
+      cor: z.string(),
     }),
   ),
   /** Traço em andamento de outra pessoa (transitório: sem `seq`, não é gravado; nunca vai ao autor). */

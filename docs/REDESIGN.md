@@ -1451,6 +1451,36 @@ A cena como cartão, a pedido do Vilella: uma imagem de fundo ou o mapa de uma c
 - Um cartão sem tamanho próprio (a imagem sem o grid de metros): hoje o tamanho vem do px por quadrado.
 - A prévia da faixa mostra a imagem cortada (`object-fit: cover`), como nos mapas.
 
+## V12 — como ficou (2026-11-13)
+
+O ping no mapa, a pedido do Vilella: segurar o clique num ponto faz um círculo da cor do usuário se abrir ali, e com Shift a tela de todos vai para o ponto. Ninguém para perguntar: o que o brief não dizia foi assumido.
+
+**O que foi feito**
+- **O gesto**: com **Selecionar** ou **Mão**, segurar o botão esquerdo **parado** por ~400 ms (o ponteiro não passa de ~5 px) faz o ping, no fundo ou em cima de um token. Mexer antes é o arrastar de sempre (token, tocha, mapa) e não pinga. Depois do ping, soltar não seleciona nem abre nada. Com **Shift** (apertado ao começar ou na hora), o ping também centraliza a tela de todos. Segurar com o Espaço, com o botão do meio ou nas ferramentas de desenho, régua, paredes, luz e ponto não pinga: o gesto delas continua sendo delas.
+- **O efeito**, em `mapaPixi.ts` (`camadaDePings`): dois anéis que se abrem do ponto até 2,5 quadrados de raio em ~1,2 s, com o centro marcado, na cor do usuário (`usuario.cor`, posta pela sala), com um contorno escuro fino para o contraste. É em escala de mundo (acompanha o zoom), com um raio mínimo de 56 px na tela. Com `prefers-reduced-motion`: um anel fixo que esmaece.
+- **Centralizar**: pan de ~400 ms (instantâneo com `prefers-reduced-motion`), só da câmera: o zoom e as janelas não mudam. Quem está arrastando algo (token, mapa, alça, traço) recebe a câmera depois de soltar; se a pessoa começar a arrastar o mapa no meio do pan, o pan para.
+- **Na sala** (`packages/shared/src/ping.ts`, `nucleo.ts`, `sala.ts`): intenção `mapa.ping { cenaId, x, y, centralizar? }` com a capacidade nova `mapa.pingar`; mensagem `mapa.pingado { cenaId, x, y, centralizar, usuarioId, cor }`. É **efêmera**: sem `seq`, sem evento, sem banco, sem histórico, sem exportação. A sala valida a cena, que quem pinga a vê e que o ponto está dentro dela; o limite de frequência é por usuário (1 ping por 0,5 s; 1 centralização por 3 s). Detalhes em `docs/protocolo.md` ("Ping no mapa").
+- **Permissão**: `mapa.pingar` é delegável, **ligada por padrão**, e aparece em Permissões com o rótulo "Pingar o mapa e centralizar a tela de todos". O mestre pode sempre. Desligada, o jogador não pinga (o cliente nem pede) e a sala recusa com `sem_permissao`.
+- **Teclado**: **P** pinga no ponto sob o ponteiro (no centro da tela se o ponteiro está fora do mapa) e **Shift+P** também centraliza, com o foco no mapa ou em nada. Os dois entraram na lista de atalhos (Preferências).
+- **Tour**: a frase do passo do mapa (`area-do-mapa`) cita o ping; nenhum passo novo.
+
+**Decisões (assumido)**
+- (assumido) Vale com Selecionar e Mão; o Espaço (e o botão do meio) continua só arrastando a vista.
+- (assumido) Quem recebe: todo mestre (o cliente dele só mostra o ping da cena que ele está olhando, então um ping de outra cena não aparece nem move a câmera) e os jogadores da cena do grupo. O "Ver como" não muda nada; o mestre pinga mesmo "vendo como" um jogador.
+- (assumido) Quem pinga só vê o próprio ping quando a sala o devolve (sem desenho local), para ver exatamente o que os outros veem.
+- (assumido) O excesso do limite é ignorado em silêncio, sem aviso. A centralização que passa do limite de 3 s não é descartada: vira um ping simples.
+- (assumido) O ponto fora da cena, no cliente, é encostado na borda da cena antes de ir; a sala recusa o que ainda assim vier fora.
+- (assumido) O ping que chega com o mapa em outra cena, ou antes de o mapa subir, é descartado. Só os 12 últimos pings ficam na tela ao mesmo tempo.
+- (assumido) A seleção do token ao apertar sobre ele continua como sempre (acontece ao apertar); o ping não a desfaz.
+- (assumido) Perto da borda, a câmera centralizada obedece ao limite de sempre (a cena precisa continuar parcialmente à vista), então o ponto pode não ficar exatamente no centro.
+- Shift no mapa: com Selecionar ou Mão o Shift não fazia nada (a régua o usa ao soltar, e só na ferramenta Régua, onde o ping não existe), então não há choque.
+- Sem migração: a capacidade nova entra com o padrão ligado ao carregar a campanha e ao importar (já existia o mesclador `PERMISSOES_PADRAO`).
+
+**O que ficou para depois**
+- Ping por toque (celular): segurar com o dedo funciona como o mouse, mas não foi verificado.
+- Um aviso para quem passou do limite de frequência.
+- Vários mestres olhando cenas diferentes, e o ping só "chega" a quem vê a cena: hoje o mestre recebe tudo e filtra no cliente.
+
 ## Em aberto
 
 - **O plano R1 a R6 terminou** (R1, R2, R2b, R3, R4 em 2026-11-10; R5a, R5b, R6a e R6b em 2026-11-11). Agora o Vilella faz os ajustes

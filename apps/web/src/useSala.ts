@@ -9,6 +9,7 @@ import {
   LIMITES_DO_CHAT,
   lerMensagemDaSala,
   type MensagemDaSala,
+  type PingRepassado,
   type Presenca,
   reduzir,
   type Uso,
@@ -31,6 +32,8 @@ export type Ocorrencia =
   /** Traço em andamento de outra pessoa (Lote 13) e o fim dele (soltou, cancelou ou saiu). */
   | { tipo: "rascunho"; desenho: Desenho }
   | { tipo: "rascunhoFim"; id: string }
+  /** V12: um ping de alguém (ou meu) na cena; efêmero, só o mapa o usa. */
+  | { tipo: "ping"; ping: PingRepassado }
   | { tipo: "conectado" }
   /** Vaivém de arquivos: `asset.meta`, `asset.enviar`, `asset.indisponivel` e o pré-envio (`preparo.*`). */
   | { tipo: "asset"; mensagem: MensagemDaSala }
@@ -174,6 +177,9 @@ export function useSala(opcoes: Opcoes) {
           break;
         case "desenho.rascunhoFim":
           emitir({ tipo: "rascunhoFim", id: m.dados.id });
+          break;
+        case "mapa.pingado":
+          emitir({ tipo: "ping", ping: m.dados });
           break;
         case "presenca":
           setPresenca(m.dados.usuarios);

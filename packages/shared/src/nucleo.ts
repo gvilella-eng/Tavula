@@ -100,6 +100,7 @@ import {
   paredeParaJogador,
   trajetoBloqueado,
 } from "./paredes.ts";
+import { type PingRepassado, pingar } from "./ping.ts";
 import {
   type CodigoDeErro,
   capacidadeDaIntencao,
@@ -149,6 +150,8 @@ export type Resultado =
       movendo?: { id: string; x: number; y: number };
       /** Preenchido por `desenho.rascunho` (transitório): a sala repassa a quem recebe a cena. */
       rascunho?: RascunhoRepassado;
+      /** Preenchido por `mapa.ping` (transitório): a sala limita a frequência e repassa a quem vê a cena. */
+      ping?: PingRepassado;
       /** Preenchido por `cena.preparar`: a sala guarda os pacotes (chaves só dela e do mestre). */
       preparo?: { cenaId: string; pacotes: Pacote[] };
       /** Preenchido por `grupo.moverPara`: a sala entrega as chaves do preparo antes do snapshot. */
@@ -896,6 +899,13 @@ export function processar(
     "erro" in saida ? { ok: false, erro: saida.erro } : aplicado(saida.snapshotPara ?? []);
 
   switch (intencao.tipo) {
+    case "mapa.ping": {
+      const saida = pingar(estado, usuario, intencao.dados);
+      return "erro" in saida
+        ? { ok: false, erro: saida.erro }
+        : { ...aplicado(), ping: saida.ping };
+    }
+
     case "papel.alterar": {
       const { usuarioId: alvoId, papel } = intencao.dados;
       const alvo = estado.usuarios.find((u) => u.id === alvoId);

@@ -86,7 +86,7 @@ export const TEXTOS_DO_TOUR: Readonly<Record<string, string>> = {
   "tour-jogador-boas-vindas":
     "Vamos ver o essencial em poucos passos. Use as setas do teclado para andar e Esc para pular.",
   "area-do-mapa":
-    "Este é o mapa. Arraste o seu token para andar; a roda do mouse dá zoom e, com Espaço apertado, você arrasta o mapa.",
+    "Este é o mapa: arraste o seu token para andar, use a roda para o zoom e Espaço para arrastar a vista. Segurar o clique parado faz um ping na sua cor (com Shift, centraliza a tela de todos).",
   "tour-jogador-ficha":
     "Aqui ficam as suas fichas. Abra a sua para ver atributos e magias e rolar os dados dela.",
   "tour-jogador-chat":

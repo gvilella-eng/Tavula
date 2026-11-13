@@ -144,7 +144,8 @@ type CapacidadeDelegavel =          // lista completa em docs/protocolo.md
   | 'nota.editar' /* sem uso desde o V3 (a aba Notas saiu); fica só para o banco e as exportações antigas */
   | 'token.moverProprio' | 'porta.abrir'
   | 'tocha.acender' | 'tocha.entregar' | 'ponto.usar' | 'luz.apagar' | 'ficha.verOutras'
-  | 'dado.rolarOculto' | 'asset.subir' | 'desenho.criar' /* lote 13, ligada por padrão */;
+  | 'dado.rolarOculto' | 'asset.subir' | 'desenho.criar' /* lote 13, ligada por padrão */
+  | 'token.colocarProprio' /* V10b */ | 'mapa.pingar' /* V12, 2026-11-13: pingar o mapa; ligada por padrão */;
 type CapacidadeDoMestre =           // só do mestre, nunca delegáveis
   | 'papel.alterar' | 'permissao.alterar' | 'mesa.configurar' | 'automacao.editar'
   | 'camadaMestre.ver' | 'objeto.ajustar' | 'campanha.exportar' | 'campanha.importar'
@@ -361,6 +362,7 @@ quando ele muda de cena.
 - **Sigilo de token:** token da camada do mestre ou oculto não chega ao jogador de jeito nenhum. Quando
   deixa de ser visível para ele, chega só `token.sumiu { id }`, sem motivo; quando passa a ser visível,
   chega inteiro. Pedido sobre token invisível responde igual a token inexistente (`token_inexistente`).
+- **Ping no mapa** (V12, 2026-11-13): `mapa.ping { cenaId, x, y, centralizar? }`, capacidade `mapa.pingar` (ligada por padrão). É efêmero como o movimento ao vivo: a sala valida (cena, quem vê, ponto dentro, no máximo 1 ping a cada 0,5 s e 1 centralização a cada 3 s por usuário) e repassa `mapa.pingado` com o autor e a cor dela a quem vê a cena, inclusive a quem pingou. Não é gravado, nem entra no histórico, no chat ou na exportação.
 - O documento `docs/protocolo.md` lista todas as mensagens e é atualizado em todo lote que mexer nelas.
 
 Exemplos de intenções do cliente (V5: `parede.criar` e `parede.editar` aceitam `meio`, o ponto do arco; `cena.editar` aceita `mostrarParedesAosJogadores`): `entrar`, `token.mover`, `token.soltar`, `parede.criar`,
@@ -1279,6 +1281,7 @@ no editor; ligar a ordem de turno.
   do mestre. Desenhar em sequência com cliques (Esc encerra), encaixe nos cantos do grid (Alt solta),
   arrastar as pontas, selecionar para mudar tipo e estado, Delete apaga.
   (V10, 2026-11-13: com um token selecionado, Delete o tira do mapa — mestre qualquer um, jogador o que controla, com "Desfazer" por ~6 s via `token.restaurar` — e as setas o andam um quadrado por `token.soltar`. A bandeira do ponto de chegada só aparece com a faixa de Cenas aberta.)
+  (V12, 2026-11-13: **ping.** Segurar o botão esquerdo parado (~0,4 s) com Selecionar ou Mão, no fundo ou num token, ou apertar P, faz um círculo na cor do usuário que se abre até 2,5 quadrados em ~1,2 s, para todos que veem a cena. Shift (ou Shift+P) também leva a câmera de todos ao ponto, em ~0,4 s e sem mexer no zoom.)
   (V10b, 2026-11-13: **quem põe token no mapa.** O mestre, onde quiser (`personagem.colocar`, `token.criar`). O jogador põe o token do personagem que controla, na cena do grupo, **só na área da bandeira** (círculo de 3 quadrados de raio em volta do ponto de chegada) e só se esse personagem ainda não tem token nessa cena: pelo botão "Colocar no mapa" (lista de Fichas e cabeçalho da ficha) ou arrastando a ficha para o mapa (a área se acende). Intenção `token.colocarMeu`, capacidade `token.colocarProprio` (ligada por padrão, em Permissões). O jogador vê a bandeira quando não tem token dele na cena; só o mestre a arrasta. A sala confere tudo e tira os campos do token da ficha.)
 - **Portas:** ícone no meio da porta. O jogador abre ou fecha porta destrancada **ao alcance** de um token
   que controla (1,5 m por padrão; o mesmo `alcanceInteracaoM` da tocha), com `porta.abrir`. O mestre

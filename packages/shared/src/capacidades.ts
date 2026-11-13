@@ -14,6 +14,7 @@ export const CAPACIDADES_DELEGAVEIS = [
   "asset.subir",
   "desenho.criar",
   "token.colocarProprio",
+  "mapa.pingar",
 ] as const;
 
 /** Capacidades só do mestre: nunca delegáveis. */
@@ -57,6 +58,7 @@ export const PERMISSOES_PADRAO: Record<CapacidadeDelegavel, boolean> = {
   "asset.subir": true,
   "desenho.criar": true,
   "token.colocarProprio": true,
+  "mapa.pingar": true,
 };
 
 /** Rótulos em pt-BR para o painel do mestre. */
@@ -73,6 +75,7 @@ export const ROTULO_DA_CAPACIDADE: Record<CapacidadeDelegavel, string> = {
   "asset.subir": "Enviar arquivos",
   "desenho.criar": "Desenhar no mapa",
   "token.colocarProprio": "Pôr o próprio token no mapa (na bandeira)",
+  "mapa.pingar": "Pingar o mapa e centralizar a tela de todos",
 };
 
 type ComPapel = Pick<Usuario, "id" | "papel">;

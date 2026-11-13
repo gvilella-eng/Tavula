@@ -29,6 +29,7 @@ export * from "./nucleo.ts";
 export * from "./objetos.ts";
 export * from "./paredes.ts";
 export * from "./pastas.ts";
+export * from "./ping.ts";
 export * from "./protocolo.ts";
 export * from "./recuperacao.ts";
 export * from "./relogio.ts";

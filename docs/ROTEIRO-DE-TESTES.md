@@ -229,6 +229,28 @@ as mãos. Cada item diz **o que fazer** e, depois de "→", **o que deve acontec
 6. Os tokens continuam aparecendo e se mexendo; o token oculto continua oculto para o jogador.
 7. No menu Luz do mestre, o botão Iluminação diz "(sem efeito: cena como cartão)".
 
+## V12 — Ping no mapa (duas janelas: mestre e jogador, na mesma cena)
+1. Na janela do jogador, com a ferramenta **Selecionar**, **segure o botão esquerdo parado** num ponto vazio do mapa por
+   meio segundo. Um **círculo se abre** a partir dali (dois anéis e o centro marcado), na **cor do jogador**, e some. Na
+   janela do mestre o mesmo círculo aparece no mesmo ponto, na mesma cor.
+2. Faça o mesmo **em cima de um token**: o ping sai, o token não se mexe e, ao soltar, nada abre.
+3. Com a ferramenta **Mão** (H), segure parado: pinga. **Arraste** o mapa devagar: é só o arrastar, sem ping. **Arraste um
+   token** (mesmo devagar): ele anda, sem ping. O arrasto da tocha e o Espaço para arrastar continuam como eram.
+4. No mestre, faça o ping: o círculo chega ao jogador na **cor do mestre**.
+5. Deixe a tela do jogador olhando outro canto do mapa. No mestre, **segure Shift e segure o clique parado** num ponto: o
+   mapa do jogador (e o do mestre) **desliza para o ponto** e ele fica no centro. O zoom não muda e nenhuma janela sai do
+   lugar. Faça a mesma coisa do lado do jogador.
+6. Com o ponteiro sobre o mapa, aperte **P**: ping no ponto sob o ponteiro. **Shift+P**: ping e centraliza. Os dois estão
+   em Preferências, na lista de atalhos.
+7. Aperte **P** várias vezes seguidas: só sai um ping a cada meio segundo. Várias centralizações seguidas: só uma a cada
+   3 segundos (as outras saem como ping simples).
+8. **Permissões** (aba Mesa): "Pingar o mapa e centralizar a tela de todos" vem ligada. Desligue: o jogador segura o clique
+   e aperta P e nada acontece; o mestre continua pingando. Ligue de novo.
+9. Com o Windows em "reduzir movimento": o ping é um anel fixo que esmaece, e a câmera vai direto ao ponto.
+10. Mude o mestre de cena (olhando outra cena): o ping do jogador não aparece para ele. Um ping do mestre em outra cena
+    não chega ao jogador. Numa **cena-cartão** o ping funciona igual.
+11. Recarregue a página: nenhum ping fica guardado, e o chat não ganha nada.
+
 ## Se algo der errado
 - Anote a tela, o que fez e o que esperava, e mande para mim. Bug confirmado vai para `docs/BUGS.md`.
 - Para voltar à campanha de antes de mesas e contas, use a cópia de segurança indicada no topo.

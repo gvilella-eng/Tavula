@@ -527,6 +527,7 @@ export function Mesa({
         if (o.tipo === "movendo") mapa.current?.movendo(o.id, o.x, o.y);
         else if (o.tipo === "rascunho") mapa.current?.rascunhoRecebido(o.desenho);
         else if (o.tipo === "rascunhoFim") mapa.current?.rascunhoEncerrado(o.id);
+        else if (o.tipo === "ping") mapa.current?.pingRecebido(o.ping);
         else if (o.tipo === "conectado") mapa.current?.limparRascunhos();
         else if (o.tipo === "erro") mapa.current?.ressincronizar();
       }),
@@ -708,6 +709,9 @@ export function Mesa({
     usuarioVisto === null &&
     pode(eu, "desenho.criar", permissoes);
 
+  // V12: quem tem `mapa.pingar` (o mestre sempre) pinga segurando o clique ou com a tecla P; o "Ver como" não muda isso.
+  const podePingar = eu !== null && permissoes !== undefined && pode(eu, "mapa.pingar", permissoes);
+
   // O painel do token fecha sozinho quando não há mais token selecionado (a próxima seleção não o abre).
   const haSelecionado = selecionado !== null;
   useEffect(() => {
@@ -793,6 +797,10 @@ export function Mesa({
       selecionarDesenho: setDesenhoSelecionadoId,
       rascunhoDeDesenho: (id: string, desenho: DesenhoEmAndamento | null) =>
         enviar("desenho.rascunho", { id, desenho }),
+      pingar: (x, y, centralizar) => {
+        const cenaId = cenaIdAtual;
+        if (cenaId !== undefined) enviar("mapa.ping", { cenaId, x, y, centralizar });
+      },
       zoom: setZoom,
       medir: setMedicao,
       reguasFixas: setReguasFixas,
@@ -889,7 +897,7 @@ export function Mesa({
         });
       },
     }),
-    [enviar, mostrarDicaDoMapa],
+    [enviar, mostrarDicaDoMapa, cenaIdAtual],
   );
 
   // V10b: o jogador vê a bandeira quando não tem token dele na cena; arrastando a ficha de um personagem que pode pôr
@@ -953,6 +961,7 @@ export function Mesa({
       tokenDaVezId,
       pincel,
       podeDesenhar,
+      podePingar,
       usuarioId: euId ?? "",
       desenhoSelecionadoId,
       tokenParaPor,
@@ -996,6 +1005,7 @@ export function Mesa({
       tokenDaVezId,
       pincel,
       podeDesenhar,
+      podePingar,
       euId,
       desenhoSelecionadoId,
       tokenParaPor,
