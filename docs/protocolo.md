@@ -865,6 +865,27 @@ conferem que nenhum frame do jogador traz a zona.
 **Guardar.** Coleção nova `zonas` da tabela genérica `entidades` do SQLite (sem migração: o banco antigo não a tem e carrega sem zona). A exportação leva `zonas` (campo
 opcional; a versão do arquivo continua 13) e a importação confere ids únicos e cenas conhecidas. Duplicar a cena leva as zonas dela, com as reações (ids novos).
 
+### Botões das automações (Lote 7b-3)
+
+O mestre pode **fixar** um ciclo ou um botão de evento na barra de cima e **liberar** um deles aos jogadores. Nenhum campo novo da definição chega ao jogador.
+
+| Intenção | `dados` | Capacidade | Efeito |
+|---|---|---|---|
+| `botao.criar` | `{ botao }` | `automacao.editar` | `botao`: `{ id, nome (até 40), evento, cenaId?, fixado?, liberadoParaJogadores? }`. Recusa: id repetido, mais de 30 botões, cena inexistente |
+| `botao.editar` | `{ id, mudancas }` | `automacao.editar` | `mudancas`: `nome`, `evento`, `cenaId` (`null` tira a cena), `fixado`, `liberadoParaJogadores` |
+| `botao.apagar` | `{ id }` | `automacao.editar` | |
+| `botao.usar` | `{ botaoId, acao? }` | nenhuma (`null`): a liberação é a conferência | `botaoId`: `ciclo:<id>` ou `evento:<id>`, como o jogador o recebe. `acao` (só ciclo): `disparar` (padrão), `pausar` ou `retomar`. Vira `ciclo.disparar|pausar|retomar` ou `evento.disparar`. O **mestre** usa qualquer botão; o **jogador**, só os liberados, **conferido a cada clique**. Botão que não existe e botão não liberado dão o mesmo `sem_permissao` ("Este botão não está liberado.") |
+
+O **ciclo** ganhou `fixado?` (o `liberadoParaJogadores?` já existia), editáveis por `ciclo.editar`. `AutomacoesSchema` ganhou `botoes[]` (padrão vazio: a fatia antiga carrega igual).
+
+**Limite de frequência:** no máximo 1 `botao.usar` aceito a cada 2 s por **jogador** (a sala, na memória); o que passa disso volta `muitas_mensagens` ("Devagar: um botão a cada 2 segundos."). O mestre não é limitado.
+
+**Evento novo:** `botoes.alterados { botoes[] }`, **só para o jogador**: `botoes` = `[{ id, tipo: "ciclo" | "evento", nome, pausado? }]`, os que o mestre liberou. Nasce da filtragem de `automacoes.alterado` (o jogador nunca recebe a fatia) e só chega se a lista dele mudou; o mestre não o recebe. A visão do jogador traz a mesma lista em `Estado.botoes` (ausente quando não há nenhum liberado).
+
+**Sigilo (nota de segurança).** O jogador recebe só o id, o tipo, o nome (o que o mestre escolheu mostrar) e, no ciclo, se está pausado. Nunca as fases, as cenas, os eventos, as reações nem o id do botão de evento além do prefixo `evento:`. Os testes (`botoes.test.ts`, `automacoes-editor.spec.ts`) conferem que nenhum frame do jogador traz a definição.
+
+**Guardar.** O `fixado` e a lista `botoes` moram com as automações (chave `automacoes` da `meta`; sem migração) e vão na exportação (campo opcional; a versão do arquivo continua 13).
+
 ### Contador de uso
 
 A sala conta as mensagens recebidas por dia UTC e as conexões. `requisicoes = mensagens / 20 + conexoes`;

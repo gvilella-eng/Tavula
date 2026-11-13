@@ -3427,7 +3427,7 @@ Detalhes em `docs/REDESIGN.md` ("7b-1 — como ficou") e `PROJETO.md` (4.11, "De
 - O motor depende de duas coisas em `processar`: rodar depois de toda intenção com eventos e fora da importação e da exportação. Intenção nova que mude o estado sem emitir evento não dispara reação.
 - `reagendarLuzes` (`sala.ts`) também agenda o `automacao.marco`; quem mudar o agendador precisa manter os dois.
 - O limite de visão chega ao navegador do mestre por `Estado.efeitos` e muda o polígono de visão no `Mesa.tsx` (`limitarAlcance`); só há teste de unidade, não de tela.
-- O registro do mestre (encadeamento cortado, fases puladas) está só no estado: ainda não aparece na tela.
+- O registro do mestre (encadeamento cortado, fases puladas) está só no estado: ainda não aparece na tela (resolvido no 7b-3: "Avisos do motor" no editor).
 - O `packages/shared` é lido pelo Vite sem compilar (modo "strip types" do Node): nada de propriedade de parâmetro no construtor (`constructor(readonly x)`) nem enum.
 
 ### Roteiro manual (pendente)
@@ -3472,7 +3472,7 @@ Detalhes em `docs/REDESIGN.md` ("7b-2 — como ficou"), `PROJETO.md` (4.11, "Zon
 - A reconciliação (`sincronizarZonas`) roda dentro de `rodarAutomacoes` e `reagirAoSistema`, que o `processar` chama só quando a intenção emitiu evento. Mudança de posição que não emita evento de protocolo não atualiza os efeitos.
 - A zona e o efeito dela dependem de a luz e o token estarem no `Estado`: a mochila e o token fora da cena não contam como "dentro".
 - O sigilo: quem criar campo ou evento novo da zona precisa derrubá-lo em `visaoPara` e `eventoPara` e acrescentar o frame aos testes de sigilo (`zonas.test.ts`, `zonas.spec.ts`).
-- O painel da zona é largo e cobre o meio do mapa em 1280×720; a janela se move, mas o atalho Z abre sempre na posição padrão.
+- O painel da zona é largo e cobre o meio do mapa em 1280×720; a janela se move, mas o atalho Z abre sempre na posição padrão (resolvido no 7b-3: o painel abre à direita).
 - Os schemas de mudanças (`zona.editar`, e agora `ciclo.editar` e `reacao.editar`) não podem herdar os padrões do campo: o `.partial()` do zod os aplica e editar só o nome zeraria o resto.
 
 ### Roteiro manual (pendente)
@@ -3481,4 +3481,51 @@ Ver `docs/ROTEIRO-DE-TESTES.md`, "7b-2".
 
 ---
 
-## Próximo: 7b-3 (editor e campanhas de referência); depois o MCP (12) e os bugs que sobrarem (o C4, a tela inicial, o V10 ao V14, o 7b-1 e o 7b-2 estão entregues)
+## Lote 7b-3 — Automações da mesa: o editor, os botões e as campanhas (entregue, aguardando o roteiro manual)
+
+Detalhes em `docs/REDESIGN.md` ("7b-3 — como ficou"), `PROJETO.md` (4.11, "O editor e os botões (7b-3)") e `docs/protocolo.md` ("Botões das automações (Lote 7b-3)"). Com este lote o **Lote 7b está entregue** (7b-1, 7b-2 e 7b-3).
+
+### O que foi entregue
+
+- A janela "Automações" (aba Mesa → "Abrir as automações"): lista de ciclos com a fase ao vivo, reações agrupadas por onde ficam, botões de evento, eventos em uso e os "Avisos do motor"; um formulário para cada peça, com o "Ver como JSON" editável ao lado e os erros do zod em português; apagar com confirmação na própria janela.
+- Os botões na barra de cima: "Fixar na barra" (chip de ciclo e de evento) e "Liberar aos jogadores" (o jogador vê só o chip; a sala confere a liberação a cada clique e limita a 1 disparo a cada 2 s por jogador).
+- Intenções `botao.criar|editar|apagar` (`automacao.editar`) e `botao.usar` (sem capacidade; a liberação é a conferência); evento `botoes.alterados` (só para o jogador); `Estado.botoes` (visão do jogador); `Automacoes.botoes`; `fixado` no ciclo.
+- `fixtures/campanhas/chama-primordial.json` e `5e-padrao.json`, e a lista "Campanhas de exemplo" na aba Mesa → Campanha.
+- Os três acertos do 7b-2: painéis das Zonas e das Paredes à direita; distâncias das Zonas em metros ou pés; o fator com vírgula.
+- Meia frase sobre as Automações no passo da aba Mesa do tour.
+
+### Como rodar
+
+`pnpm dev` como sempre. **Sem migração SQL**: `botoes` e `fixado` são campos opcionais com padrão na leitura; a fatia guardada pelo 7b-1 e pelo 7b-2 carrega igual (a campanha real não muda sozinha) e só ganha os campos novos quando o mestre os usar. Para ver: aba Mesa → Automações → "Abrir as automações". As campanhas prontas: aba Mesa → Campanha → "Campanhas de exemplo" (numa mesa de teste, não na sua: importar troca a mesa).
+
+### Verificação
+
+- Unidade: `packages/shared/src/botoes.test.ts` (fixar e liberar; `botao.usar` do jogador liberado, desfeito e inexistente; o evento do jogador nasce de `automacoes.alterado` e não traz a fatia; sigilo da visão do jogador; `situacaoDoCiclo`), `campanhasProntas.test.ts` (os dois arquivos passam pelo schema de importação; a Chama Primordial roda: a inspiração reduz e apaga tochas, a expiração limita a visão, o aviso ao mestre; nada da história chega ao jogador; a 5e padrão roda sem automação), `apps/web`: `automacoes/erros.test.ts`, `decimal.test.ts`, `campanhasDeExemplo.test.ts`, e em `apps/server` a fatia antiga sem `botoes` (migração aditiva e idempotente).
+- E2E novo: `automacoes-editor.spec.ts` (8 testes): o mestre monta pelo formulário uma reação da tocha e um ciclo de 10 s e o raio cai à metade no mapa; JSON com erro mostra a mensagem em português e não envia, corrigido salva; fixar o ciclo na barra, pausar, retomar e disparar pelo chip, apagar com confirmação; o jogador vê o botão liberado e o dispara, a sala recusa sem a liberação e limita a frequência, nenhum frame dele traz a definição; ciclo liberado com chip de pausar; a 5e padrão carrega e roda sem automação; a Chama Primordial pela lista e, com o ciclo encurtado para 30 s, a inspiração reduz e apaga tochas e o chip pausa e retoma. `zonas.spec.ts` ganhou 1 teste (painéis à direita, distâncias em pés, o fator com vírgula).
+- Um E2E antigo alterado: `zonas.spec.ts` esperava `toHaveValue("0.5")` no fator; agora é `"0,5"` (a vírgula em pt-BR é pedido do lote).
+
+### Decisões
+
+- (assumido) Ver `REDESIGN`, "7b-3 — como ficou", Decisões.
+
+### Desvios do plano
+
+- O brief dizia "botão de ciclo e de evento"; o botão do ciclo é o próprio ciclo (`fixado` e `liberadoParaJogadores` nele), e o de evento é uma peça nova (`Automacoes.botoes`), já que o 7b-1 só tinha `evento.disparar` solto.
+- Os chips ficam à direita dos menus do topo, mas em 1280×720 o nome da cena e o texto do chip viram reticências: o topo não comporta tudo.
+
+### Frágil / não verificado
+
+- O sigilo do botão: o jogador recebe `Estado.botoes` e `botoes.alterados`, e só isso. Quem criar campo novo no botão precisa decidir se vai ao jogador (por padrão não vai) e acrescentar o frame ao teste de sigilo (`botoes.test.ts`, `automacoes-editor.spec.ts`).
+- O limite de 2 s por jogador está na memória da sala (`ultimoBotao`): reiniciar a sala o zera.
+- O rascunho do formulário e o JSON compartilham um objeto; o id novo acompanha o nome até alguém mexer no `id` pelo JSON.
+- A lista de exemplos substitui `usuarios` e `permissoes` do arquivo; o arquivo importado à mão só carrega em mesa cujos usuários incluam os do arquivo (`mestre`, `jogador-1` ... `jogador-7`).
+- Não testado em toque nem com leitor de tela; o editor ainda não foi visto pelo Vilella.
+- O `packages/shared` é lido pelo Vite sem compilar: nada de propriedade de parâmetro no construtor nem enum.
+
+### Roteiro manual (pendente)
+
+Ver `docs/ROTEIRO-DE-TESTES.md`, "7b-3" (inclui o roteiro manual do Lote 7b).
+
+---
+
+## Próximo: o MCP (12) e os bugs que sobrarem (o 7b está entregue: 7b-1, 7b-2 e 7b-3; o C4, a tela inicial e o V10 ao V14 também)

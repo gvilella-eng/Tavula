@@ -1,6 +1,7 @@
 import { DurableObject } from "cloudflare:workers";
 import {
   assetVisivelPara,
+  botaoDentroDoLimite,
   type CodigoDeErro,
   CorpoAceitarSchema,
   CorpoChaveSchema,
@@ -23,6 +24,7 @@ import {
   eventoPara,
   type FonteDeAleatoriedade,
   fonteComSemente,
+  INTERVALO_MINIMO_DO_BOTAO_MS,
   type Intencao,
   idDoPedido,
   LIMITES_DO_CHAT,
@@ -216,6 +218,8 @@ export class Sala extends DurableObject<Env> {
   private readonly rascunhos = new Map<WebSocket, Map<string, string>>();
   /** V12: o último ping e a última centralização de cada usuário (só memória; o limite de frequência). */
   private readonly ultimoPing = new Map<string, UltimoPing>();
+  /** 7b-3: quando cada jogador usou um botão liberado pela última vez (só memória; o limite de frequência). */
+  private readonly ultimoBotao = new Map<string, number>();
   /** Quando cada conexão mandou o último rascunho aceito (o limite de frequência). */
   private readonly ultimoRascunho = new Map<WebSocket, number>();
   /** Quando cada conexão mandou as últimas mensagens de chat (só memória; a janela é de 1 s). */
@@ -933,6 +937,7 @@ export class Sala extends DurableObject<Env> {
       this.fonteDeDadosDeTeste = null;
       this.taxaDoChat.clear();
       this.ultimoPing.clear();
+      this.ultimoBotao.clear();
       this.banco.salvarTudo(this.estado);
       this.iniciarRelogio();
       this.uso = { dia: diaUtc(new Date()), mensagens: 0, conexoes: 0 };
@@ -1031,6 +1036,19 @@ export class Sala extends DurableObject<Env> {
       }
     }
 
+    // Botão liberado (7b-3): um disparo a cada 2 s por jogador; o que passa disso é recusado com aviso. Só o pedido
+    // aceito conta no limite (o recusado não muda nada na mesa).
+    const limitaBotao = intencao.tipo === "botao.usar" && usuario.papel !== "mestre";
+    if (limitaBotao && !botaoDentroDoLimite(this.ultimoBotao.get(usuario.id), Date.now())) {
+      this.erro(
+        ws,
+        intencao.id,
+        "muitas_mensagens",
+        `Devagar: um botão a cada ${INTERVALO_MINIMO_DO_BOTAO_MS / 1000} segundos.`,
+      );
+      return;
+    }
+
     // Rascunho de desenho: o que chega rápido demais é descartado em silêncio (o próximo cobre).
     if (intencao.tipo === "desenho.rascunho" && intencao.dados.desenho !== null) {
       const agora = Date.now();
@@ -1050,6 +1068,7 @@ export class Sala extends DurableObject<Env> {
       this.fonteDeDadosDeTeste ?? undefined,
       this.apagadosRecentes,
     );
+    if (r.ok && limitaBotao) this.ultimoBotao.set(usuario.id, agoraMs);
     if (r.ok && r.apagado) this.apagadosRecentes.push({ ...r.apagado, emMs: agoraMs });
     if (r.ok && intencao.tipo === "token.restaurar") {
       this.apagadosRecentes = this.apagadosRecentes.filter((a) => a.token.id !== intencao.dados.id);

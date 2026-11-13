@@ -1576,7 +1576,7 @@ Os lotes 7b-1 a 7b-3 (motor, zonas, editor e campanhas) vêm depois dos ajustes 
 
 **O que ficou para depois**
 - O editor, os botões fixáveis, a liberação para jogadores e as campanhas de referência (7b-3); as zonas e `token.entrouNaZona` (7b-2); `som.tocar` (lote de som).
-- Mostrar o registro do mestre (encadeamento cortado) em algum lugar da tela: hoje só está no estado.
+- Mostrar o registro do mestre (encadeamento cortado) em algum lugar da tela: hoje só está no estado (resolvido no 7b-3: "Avisos do motor" no editor).
 
 ### 7b-2 — como ficou (2026-11-13)
 
@@ -1602,3 +1602,40 @@ Os lotes 7b-1 a 7b-3 (motor, zonas, editor e campanhas) vêm depois dos ajustes 
 **O que ficou para depois**
 - Editar as reações da zona (o editor do 7b-3; o painel só mostra a contagem); botões e liberação para jogadores; as campanhas de referência (7b-3); `som.tocar`.
 - Contagem de reações e nome da zona só no painel: a zona não aparece na lista de nada.
+
+### 7b-3 — como ficou (2026-11-13)
+
+**O que foi feito**
+- **O editor das automações** (`apps/web/src/automacoes/`): uma janela flutuante "Automações", aberta pela aba Mesa (seção nova "Automações", botão "Abrir as automações"). Só o mestre a vê. A lista mostra os **ciclos** (fase atual e tempo até a próxima ao vivo, disparar, pausar e retomar, "Fixar na barra", "Liberar aos jogadores", editar e apagar), as **reações** agrupadas por onde ficam (modelo, cena, zona, mesa; ligar e desligar sem apagar), os **botões de evento**, os **eventos em uso** (com quantas reações os ouvem) e, numa linha discreta no fim, os **Avisos do motor** (o `registro` do 7b-1, agora à vista).
+- **Um formulário para cada peça.** Ciclo: nome, período, cenas (nenhuma = todas), fases (em quantos segundos, evento, duração dos efeitos). Reação: nome, ligada, onde fica, evento, condições e ações em listas fechadas, cada ação com os campos dela em português. Os campos de distância (soma ao raio, alcance de visão) seguem metros ou pés. Botão de evento: nome, evento, cena.
+- **O JSON ao lado.** Um recolhível "Ver como JSON" com o mesmo rascunho, editável. O que se escreve vale na hora no formulário; os erros do zod aparecem **em português**, no campo e na lista do JSON ("Fase 2: Em quantos segundos: precisa ser pelo menos 0."), e **nada é enviado com erro** (Salvar mostra os erros e para). Erro de escrita do JSON também fala português.
+- **Nomes de evento.** Os do sistema aparecem amigáveis ("Uma luz acendeu"); os do mestre são texto livre, com sugestão dos que já existem.
+- **Os botões na barra de cima.** Cada ciclo e cada botão de evento ganha "Fixar na barra": um chip pequeno (ciclo: nome, fase e tempo até a próxima, disparar, pausar ou retomar; evento: nome e disparar).
+- **Liberar aos jogadores.** O jogador vê só o chip (nome, disparar e, no ciclo, pausar ou retomar), sem nada da definição. Nova intenção `botao.usar`; a sala confere a liberação **a cada clique** e limita a 1 disparo a cada 2 s por jogador.
+- **Botões de evento** (novo): `Automacoes.botoes`, com as intenções `botao.criar`, `botao.editar` e `botao.apagar` (`automacao.editar`). O ciclo ganhou `fixado` (o `liberadoParaJogadores` já existia).
+- **As campanhas prontas** (`fixtures/campanhas/`): `5e-padrao.json` (mesa limpa: tocha, lanterna e fogueira, nenhuma automação) e `chama-primordial.json` (a tabela de `docs/IDEIAS.md`). Carregam pelo caminho da importação, e há uma lista "Campanhas de exemplo" na aba Mesa → Campanha, com a mesma confirmação "Importar e substituir".
+- **Os três acertos do 7b-2.** Os painéis de ferramenta (Zonas e Paredes) abrem encostados à direita da área do mapa, abaixo do topo (`dasFerramentas` em `janelas/geometria.ts`), arrastáveis como antes e lembrando a posição. Os campos de distância das Zonas ("Luz ±", "Visão máxima") seguem metros ou pés (`CampoDeDistancia`). O fator ("Luz × fator") mostra vírgula ("0,5") e aceita vírgula ou ponto na digitação (`CampoDecimal`, `decimal.ts`).
+- **Tour:** meia frase sobre as Automações no passo da aba Mesa.
+
+**Decisões (assumido)**
+- (assumido) O editor é uma janela flutuante aberta da aba Mesa (a aba é estreita demais para o formulário); o padrão é o das outras janelas (`Janela`).
+- (assumido) O que se fixa na barra e o que se libera moram **com a campanha**: `fixado` e `liberadoParaJogadores` no ciclo e no botão de evento (guardados com as automações, exportados e importados). O botão de ciclo não tem lista própria: o botão de um ciclo é o próprio ciclo.
+- (assumido) O jogador recebe a lista dos botões liberados como `Estado.botoes` e o evento `botoes.alterados` (só o rótulo, o tipo e, no ciclo, se está pausado). O evento nasce da filtragem de `automacoes.alterado` (o jogador nunca recebe a fatia) e só chega se a lista dele mudou. O nome que o mestre dá ao ciclo ou ao botão liberado é o rótulo que o jogador vê: ele escolhe.
+- (assumido) `botao.usar` não tem capacidade (`null`): vale para mestre e jogador, e a conferência é a liberação do botão. Botão que não existe ou não está liberado dá o mesmo erro `sem_permissao` (o jogador não descobre o que há por trás). O mestre usa qualquer botão.
+- (assumido) Limite de frequência: 1 disparo a cada 2 s por jogador, na sala (memória, zerada em `/teste/zerar`); o que passa disso volta `muitas_mensagens`. Só o disparo aceito conta (o recusado não segura o próximo). O mestre não é limitado.
+- (assumido) O jogador pode disparar, pausar e retomar o ciclo que o mestre liberou (não há liberação por ação).
+- (assumido) Ciclo que ainda não começou (a mesa pausada, ou veio de um arquivo) mostra "no começo" e nenhum tempo até a próxima fase.
+- (assumido) Id novo de ciclo, reação e botão: o nome sem acento e com hífens ("Respiração de teste" vira `respiracao-de-teste`); sem o nome, `ciclo`, `reacao` ou `botao`; repetido, ganha `-2`. Dá para mudar pelo JSON.
+- (assumido) Editar um ciclo que mudou só `fixado`, `liberadoParaJogadores`, nome ou cenas não o reinicia (só período e fases reiniciam, como no 7b-1). A reação editada não consegue apagar o nome (o campo vazio some do envio).
+- (assumido) A chance aparece em % nos formulários (30 em vez de 0,3); o JSON continua de 0 a 1.
+- (assumido) Enter dentro de um campo do formulário só confirma o campo; quem salva é o botão Salvar.
+- (assumido) Apagar pede confirmação na própria janela ("Apagar “nome”? Apagar / Cancelar"), nada de `confirm()`.
+- (assumido) A Chama Primordial tem 3 cenas sem imagem (Entrada da Montanha, Pulmão da Montanha, Farol da Eclusa), só o modelo Tocha (1800 s, tag "chama", penalidade ao apagar de 60 s na configuração da mesa), o ciclo da respiração (180 s: inspiração aos 0 s, expiração aos 90 s, fixado na barra), 4 reações (a rajada que encolhe e pode apagar com 30% e 300 s, o vapor que limita a visão a 1,5 m na cena do Pulmão, o aviso ao mestre de que uma tocha foi reacesa, o aviso de quem entrou no Ar Morto), um botão "Rajada de vento", 2 zonas no Pulmão (Ar Morto, ×0,7; Câmara do Ar Rarefeito, ×0,5) e 2 suportes no Farol da Eclusa. Sem personagens, tokens, handouts nem notas: nada da história secreta da bíblia está em texto que o jogador veja (os textos das reações e os nomes das zonas são do mestre). A mesa começa pausada, como toda campanha importada.
+- (assumido) A lista de exemplos troca os `usuarios` e as `permissoes` do arquivo pelos da mesa de agora (`exemploParaEstaMesa`), senão quem importa não seria mestre na campanha nova e a sala recusaria. Importar o arquivo à mão só vale se os ids de usuário do arquivo forem os da mesa (é o caso da mesa de teste); pela lista de exemplos funciona em qualquer mesa.
+- (assumido) Os botões ficam à direita dos menus do topo; em tela estreita (1280×720) cedem o nome da cena e o texto do chip (reticências); os botões de ação do chip nunca somem.
+- (assumido) Sem atalho de teclado novo.
+
+**O que ficou para depois**
+- Editar o desenho da zona e as reações dela de dentro da janela das Zonas (as reações da zona se editam no editor das automações; o painel da zona ainda só mostra a contagem).
+- Liberar só algumas ações de um ciclo (hoje: disparar, pausar e retomar juntos); atalhos de teclado para os chips; ordenar os chips.
+- `som.tocar` (lote de som); o MCP (12).

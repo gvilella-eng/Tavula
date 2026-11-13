@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test";
-import { enviarCru, expect, intencaoCrua, test } from "./ajudas";
+import { enviarCru, esperarMapa, expect, intencaoCrua, test } from "./ajudas";
 import { entrarNoMapa, type GanchoDoMapa, pontoNaPagina } from "./ajudasMapa";
 
 // Lote 7b-2: as zonas das automações. O mestre desenha o polígono com a ferramenta, o token do jogador entra nele e a luz
@@ -104,7 +104,7 @@ test("o mestre desenha a zona com a ferramenta, edita o painel e Delete e Desfaz
   expect(deVolta).toMatchObject({ nome: "Gás", ativa: true });
   expect(deVolta?.pontos).toEqual(POLIGONO);
   // os efeitos voltaram também (o painel mostra os valores)
-  await expect(p.getByTestId("zona-luz-fator")).toHaveValue("0.5");
+  await expect(p.getByTestId("zona-luz-fator")).toHaveValue("0,5"); // pt-BR: vírgula na tela (7b-3)
   await expect(p.getByTestId("zona-visao")).toHaveValue("3");
 
   // Esc cancela um polígono em desenho (nada é criado)
@@ -173,4 +173,79 @@ test("o token do jogador entra na zona e a luz da tocha diminui; sai e a luz vol
   for (const proibido of [SEGREDO, "zona-gas", "zonas", "zona.alterada", "zona:", "luzRaioX"]) {
     expect(doJogador, `o frame do jogador trouxe "${proibido}"`).not.toContain(proibido);
   }
+});
+
+test("os painéis de ferramenta abrem à direita, sem cobrir a zona; as distâncias seguem a preferência em pés e o fator aceita vírgula", async ({
+  mesa,
+}) => {
+  const mestre = await entrarNoMapa(mesa, "mestre");
+  const p = mestre.pagina;
+  await ok(p, "zona.criar", {
+    zona: {
+      id: "zona-ar",
+      cenaId: "cena-1",
+      nome: "Ar",
+      pontos: POLIGONO,
+      efeitos: { visaoMaxM: 3, luzSomaM: -1.5 },
+    },
+  });
+  await p.evaluate(() => localStorage.setItem("tabletop:pref:unidade", "pes"));
+  await p.reload();
+  await expect(p.getByTestId("status-conexao")).toHaveText("conectado");
+  await esperarMapa(p);
+  await p.getByTestId("ferramenta-zonas").click();
+  await centrar(p, 29.5, 9.75);
+
+  // o painel nasce encostado à direita da área do mapa, abaixo do topo, e a zona fica à vista no meio
+  const caixa = async (id: string) => {
+    const b = await p.getByTestId(id).boundingBox();
+    if (!b) throw new Error(`sem caixa em ${id}`);
+    return b;
+  };
+  const area = await caixa("area-do-mapa");
+  const painel = await caixa("janela-zonas");
+  expect(painel.x + painel.width).toBeGreaterThan(area.x + area.width - 24);
+  expect(painel.y).toBeLessThan(area.y + 80);
+  const meio = await pontoNaPagina(p, 29.25, 9.75);
+  expect(meio.x).toBeLessThan(painel.x);
+
+  // as paredes abrem no mesmo lugar
+  await p.getByTestId("ferramenta-paredes").click();
+  const paredes = await caixa("janela-paredes");
+  expect(paredes.x + paredes.width).toBeGreaterThan(area.x + area.width - 24);
+  await p.getByTestId("ferramenta-zonas").click();
+
+  // selecionar a zona: o painel mostra os campos de distância em pés (5 pés por 1,5 m: 3 m = 10 pés; -1,5 m = -5 pés)
+  await p.mouse.click(meio.x, meio.y);
+  await expect(p.getByTestId("zona-selecionada")).toBeVisible();
+  await expect(p.getByTestId("zona-visao")).toHaveValue("10");
+  await expect(p.getByTestId("zona-luz-soma")).toHaveValue("-5");
+  await expect(p.getByText("Visão máxima (pés")).toBeVisible();
+
+  // o que foi para a sala na última edição dos efeitos
+  const efeitos = () => {
+    const ultima = mestre.enviados.filter((f) => f.includes('"zona.editar"')).at(-1) ?? "{}";
+    return (JSON.parse(ultima) as { dados?: { mudancas?: { efeitos?: Record<string, number> } } })
+      .dados?.mudancas?.efeitos;
+  };
+  // digitar 15 pés vale 4,5 m na sala; e o fator: vírgula na tela, vírgula ou ponto na digitação
+  await p.getByTestId("zona-visao").fill("15");
+  await p.getByTestId("zona-visao").press("Enter");
+  await expect.poll(() => efeitos()?.visaoMaxM).toBeCloseTo(4.5, 3);
+  await p.getByTestId("zona-luz-fator").fill("0,25");
+  await p.getByTestId("zona-luz-fator").press("Enter");
+  await expect.poll(() => efeitos()?.luzRaioX).toBe(0.25);
+  await expect(p.getByTestId("zona-luz-fator")).toHaveValue("0,25");
+  await p.getByTestId("zona-luz-fator").fill("1.5");
+  await p.getByTestId("zona-luz-fator").press("Enter");
+  await expect.poll(() => efeitos()?.luzRaioX).toBe(1.5);
+  await expect(p.getByTestId("zona-luz-fator")).toHaveValue("1,5");
+  // fora do limite é preso ao limite (0,1 a 5); vazio tira o efeito
+  await p.getByTestId("zona-luz-fator").fill("9");
+  await p.getByTestId("zona-luz-fator").press("Enter");
+  await expect.poll(() => efeitos()?.luzRaioX).toBe(5);
+  await expect(p.getByTestId("zona-luz-fator")).toHaveValue("5");
+  await p.getByTestId("zona-luz-fator").fill("");
+  await p.getByTestId("zona-luz-fator").press("Enter");
+  await expect.poll(() => efeitos() !== undefined && !("luzRaioX" in (efeitos() ?? {}))).toBe(true);
 });

@@ -6,7 +6,7 @@ import {
   type TipoDeParede,
 } from "@tabletop/shared";
 import { Trash2 } from "lucide-react";
-import { noCanto } from "./janelas/geometria";
+import { dasFerramentas } from "./janelas/geometria";
 import { Janela } from "./janelas/Janela";
 import { ListaDeTiposDeParede, ROTULO_DO_TIPO } from "./ListaDeTiposDeParede";
 
@@ -38,7 +38,7 @@ export function PainelDasParedes(p: Props) {
       titulo="Paredes e portas"
       testid="painel-paredes"
       classeDoCorpo="painel-token"
-      padrao={noCanto("topo-esquerda", 316)}
+      padrao={dasFerramentas}
       largura={236}
       aoFechar={p.aoFechar}
       rotuloDoFechar="Fechar a ferramenta"

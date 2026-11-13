@@ -10,9 +10,11 @@ import {
   TAMANHO_MAXIMO_DO_NOME_DA_MESA,
   type Uso,
 } from "@tabletop/shared";
-import { Download, Upload } from "lucide-react";
+import { Download, Upload, Workflow } from "lucide-react";
 import { type ChangeEvent, useEffect, useRef, useState } from "react";
 import { type DadosDaMesa, renomearMesa } from "./api";
+import { resumoDasAutomacoes } from "./automacoes/resumo";
+import { CAMPANHAS_DE_EXEMPLO, exemploParaEstaMesa } from "./campanhasDeExemplo";
 import { SecaoDeContas } from "./contas/SecaoDeContas";
 import { IdDaMesa } from "./IdDaMesa";
 import { SecaoMesa, SecaoObjetosDeLuz } from "./PainelDaMesa";
@@ -26,12 +28,15 @@ type Props = {
   /** C2: o resumo dos pedidos de entrada (chega pelo WebSocket, só ao mestre). */
   avisoDeContas: AvisoDeContas | null;
   enviar: (tipo: string, dados: object) => string | null;
+  /** 7b-3: abre o editor das automações (janela sobre o mapa). */
+  aoAbrirAutomacoes: () => void;
 };
 
 /** As seções da aba, na ordem em que aparecem; o índice do alto leva a cada uma (`data-testid` da seção). */
 export const SECOES_DA_MESA = [
   { id: "regras", rotulo: "Regras" },
   { id: "luz", rotulo: "Luz" },
+  { id: "automacoes", rotulo: "Automações" },
   { id: "papeis", rotulo: "Papéis" },
   { id: "contas", rotulo: "Contas" },
   { id: "permissoes", rotulo: "Permissões" },
@@ -123,7 +128,15 @@ function SecaoDaIdentificacao({
  * Aba Mesa (só o mestre): tudo o que vale para a sala. Regras, modelos de luz, papéis dos usuários,
  * capacidades dos jogadores, campanha (exportar e importar) e, recolhido no fim, o diagnóstico.
  */
-export function AbaMesa({ mesa, aoRenomear, estado, uso, avisoDeContas, enviar }: Props) {
+export function AbaMesa({
+  mesa,
+  aoRenomear,
+  estado,
+  uso,
+  avisoDeContas,
+  enviar,
+  aoAbrirAutomacoes,
+}: Props) {
   const jogadores = jogadoresDaMesa(estado);
   const [alvo, setAlvo] = useState<string>("");
   const alvoValido = jogadores.some((u) => u.id === alvo) ? alvo : (jogadores[0]?.id ?? "");
@@ -165,6 +178,14 @@ export function AbaMesa({ mesa, aoRenomear, estado, uso, avisoDeContas, enviar }
     setEscolhido({ nome: arquivo.name, dados, resumo: resumoDaCampanha(dados) });
   }
 
+  /** Um exemplo pronto espera a mesma confirmação "Importar e substituir" de um arquivo escolhido. */
+  function escolherExemplo(id: string) {
+    const exemplo = CAMPANHAS_DE_EXEMPLO.find((c) => c.id === id);
+    if (!exemplo) return;
+    const dados = exemploParaEstaMesa(exemplo.texto, estado);
+    setEscolhido({ nome: exemplo.nome, dados, resumo: resumoDaCampanha(dados) });
+  }
+
   function importarEscolhido() {
     if (!escolhido) return;
     enviar("campanha.importar", { dados: escolhido.dados });
@@ -198,6 +219,21 @@ export function AbaMesa({ mesa, aoRenomear, estado, uso, avisoDeContas, enviar }
       <div data-testid={testidDaSecaoDaMesa("luz")} className="secao-da-mesa">
         <SecaoObjetosDeLuz estado={estado} enviar={enviar} />
       </div>
+
+      <section data-testid={testidDaSecaoDaMesa("automacoes")} className="secao-da-mesa">
+        <h3>Automações</h3>
+        <p className="nota" data-testid="automacoes-resumo">
+          {resumoDasAutomacoes(estado)}
+        </p>
+        <button
+          type="button"
+          className="botao-do-bloco"
+          data-testid="automacoes-abrir"
+          onClick={aoAbrirAutomacoes}
+        >
+          <Workflow size={16} /> Abrir as automações
+        </button>
+      </section>
 
       <section data-testid={testidDaSecaoDaMesa("papeis")} className="secao-da-mesa">
         <h3>Papéis dos usuários</h3>
@@ -334,6 +370,24 @@ export function AbaMesa({ mesa, aoRenomear, estado, uso, avisoDeContas, enviar }
           >
             <Upload size={16} /> Escolher arquivo…
           </button>
+          <div className="campanhas-de-exemplo" data-testid="campanhas-de-exemplo">
+            <h5>Campanhas de exemplo</h5>
+            <ul className="lista-simples">
+              {CAMPANHAS_DE_EXEMPLO.map((c) => (
+                <li key={c.id} data-testid={`exemplo-${c.id}`}>
+                  <strong>{c.nome}</strong>
+                  <span className="nota">{c.descricao}</span>
+                  <button
+                    type="button"
+                    data-testid={`exemplo-${c.id}-escolher`}
+                    onClick={() => escolherExemplo(c.id)}
+                  >
+                    Escolher “{c.nome}”
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
           {escolhido && (
             <div className="importar-escolhido" data-testid="importar-escolhido">
               <p>

@@ -5,6 +5,7 @@ import {
   unidadeParaMetros,
 } from "@tabletop/shared";
 import { useEffect, useState } from "react";
+import { formatarDecimal, lerDecimal } from "./decimal";
 import { useUnidade } from "./unidade";
 
 /** Campo de texto ou número com rascunho: confirma ao sair (ou Enter) e acompanha a sala. */
@@ -107,5 +108,78 @@ export function CampoDeDistancia({
         if (Number.isFinite(n)) aoConfirmar(unidadeParaMetros(n, unidade));
       }}
     />
+  );
+}
+
+/**
+ * Campo de número decimal em português: mostra com vírgula ("0,5") e aceita vírgula ou ponto na digitação. Confirma ao
+ * sair do campo (ou Enter); vazio é `null`; texto que não é número volta ao valor da sala. Com `limitar`, o número
+ * confirmado fica entre `min` e `max` (sem isso, quem valida é o chamador).
+ */
+export function CampoDecimal({
+  testid,
+  rotulo,
+  valor,
+  min,
+  max,
+  limitar,
+  placeholder,
+  dica,
+  erro,
+  aoConfirmar,
+}: {
+  testid: string;
+  rotulo: string;
+  valor: number | null | undefined;
+  min?: number;
+  max?: number;
+  limitar?: boolean;
+  placeholder?: string;
+  dica?: string;
+  /** A mensagem de erro do campo (mostrada embaixo e lida pelo leitor de tela). */
+  erro?: string | undefined;
+  aoConfirmar: (n: number | null) => void;
+}) {
+  const daSala = valor === null || valor === undefined ? "" : formatarDecimal(valor);
+  const [texto, setTexto] = useState(daSala);
+  useEffect(() => setTexto(daSala), [daSala]);
+  function confirmar() {
+    const lido = lerDecimal(texto);
+    if (lido === "invalido") {
+      setTexto(daSala);
+      return;
+    }
+    if (lido === null) {
+      setTexto("");
+      if (valor !== null && valor !== undefined) aoConfirmar(null);
+      return;
+    }
+    const n = limitar === true ? Math.min(max ?? lido, Math.max(min ?? lido, lido)) : lido;
+    setTexto(formatarDecimal(n));
+    if (n !== valor) aoConfirmar(n);
+  }
+  return (
+    <label className="campo-coluna">
+      {rotulo}
+      <input
+        type="text"
+        inputMode="decimal"
+        data-testid={testid}
+        value={texto}
+        placeholder={placeholder}
+        title={dica}
+        aria-invalid={erro !== undefined}
+        onChange={(e) => setTexto(e.target.value)}
+        onBlur={confirmar}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") confirmar();
+        }}
+      />
+      {erro !== undefined && (
+        <span className="erro-do-campo" role="alert" data-testid={`${testid}-erro`}>
+          {erro}
+        </span>
+      )}
+    </label>
   );
 }

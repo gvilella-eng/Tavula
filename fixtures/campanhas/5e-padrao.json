@@ -1,0 +1,186 @@
+{
+  "formato": "tabletop-campanha",
+  "versao": 13,
+  "exportadoEm": "2026-11-13T12:00:00.000Z",
+  "dados": {
+    "seq": 0,
+    "usuarios": [
+      {
+        "id": "mestre",
+        "nome": "Mestre",
+        "papel": "mestre",
+        "cor": "#d4a017"
+      },
+      {
+        "id": "jogador-1",
+        "nome": "Jogador 1",
+        "papel": "jogador",
+        "cor": "#3cb44b"
+      },
+      {
+        "id": "jogador-2",
+        "nome": "Jogador 2",
+        "papel": "jogador",
+        "cor": "#4363d8"
+      },
+      {
+        "id": "jogador-3",
+        "nome": "Jogador 3",
+        "papel": "jogador",
+        "cor": "#f58231"
+      },
+      {
+        "id": "jogador-4",
+        "nome": "Jogador 4",
+        "papel": "jogador",
+        "cor": "#911eb4"
+      },
+      {
+        "id": "jogador-5",
+        "nome": "Jogador 5",
+        "papel": "jogador",
+        "cor": "#008080"
+      },
+      {
+        "id": "jogador-6",
+        "nome": "Jogador 6",
+        "papel": "jogador",
+        "cor": "#9a6324"
+      },
+      {
+        "id": "jogador-7",
+        "nome": "Jogador 7",
+        "papel": "jogador",
+        "cor": "#808000"
+      }
+    ],
+    "permissoes": {
+      "jogadores": {
+        "nota.editar": true,
+        "token.moverProprio": true,
+        "porta.abrir": true,
+        "tocha.acender": true,
+        "tocha.entregar": true,
+        "ponto.usar": true,
+        "luz.apagar": false,
+        "ficha.verOutras": false,
+        "dado.rolarOculto": false,
+        "asset.subir": true,
+        "desenho.criar": true,
+        "token.colocarProprio": true,
+        "mapa.pingar": true
+      },
+      "porUsuario": {}
+    },
+    "handouts": [],
+    "cenas": [
+      {
+        "id": "cena-1",
+        "nome": "Cena inicial",
+        "larguraM": 60,
+        "alturaM": 45,
+        "grid": {
+          "quadradoM": 1.5,
+          "visivel": true
+        },
+        "luzAmbiente": 1
+      }
+    ],
+    "cenaAtivaId": "cena-1",
+    "tokens": [],
+    "paredes": [],
+    "luzes": [],
+    "modelos": [
+      {
+        "id": "modelo-tocha",
+        "nome": "Tocha 5e",
+        "luz": {
+          "claraM": 6,
+          "penumbraM": 6,
+          "cor": "#ffb347",
+          "tremula": true
+        },
+        "duracaoS": 3600,
+        "ocupaMao": true,
+        "tags": [
+          "chama"
+        ]
+      },
+      {
+        "id": "modelo-lanterna",
+        "nome": "Lanterna",
+        "luz": {
+          "claraM": 9,
+          "penumbraM": 9,
+          "cor": "#ffd98a",
+          "tremula": false
+        },
+        "duracaoS": 21600,
+        "ocupaMao": true,
+        "tags": [
+          "chama"
+        ]
+      },
+      {
+        "id": "modelo-fogueira",
+        "nome": "Fogueira",
+        "luz": {
+          "claraM": 6,
+          "penumbraM": 6,
+          "cor": "#ff9d3c",
+          "tremula": true
+        },
+        "duracaoS": null,
+        "ocupaMao": false,
+        "tags": [
+          "chama"
+        ]
+      }
+    ],
+    "pontos": [],
+    "relogio": {
+      "pausada": true,
+      "acumuladoMs": 0
+    },
+    "config": {
+      "maosPorPersonagem": 2,
+      "penalidadeAoApagarS": 0,
+      "alcanceInteracaoM": 1.5,
+      "tempoParaJogadores": "exato",
+      "estagios": {
+        "fraca": 0.5,
+        "morrendo": 0.1
+      },
+      "iluminacao": {
+        "memoriaLigada": true,
+        "memoriaModo": "inteligencia",
+        "memoriaBaseM": 15,
+        "memoriaPorModM": 3,
+        "memoriaFixaM": 15,
+        "tomDaMemoria": "#6a7791"
+      }
+    },
+    "pastas": [
+      {
+        "id": "pasta-personagens",
+        "nome": "Personagens",
+        "ordem": 0,
+        "visivel": {
+          "tipo": "mestre"
+        }
+      },
+      {
+        "id": "pasta-npcs",
+        "nome": "NPCs",
+        "ordem": 1,
+        "visivel": {
+          "tipo": "mestre"
+        }
+      }
+    ],
+    "personagens": [],
+    "desenhos": [],
+    "ordemDeTurnoVisivel": false,
+    "assets": []
+  }
+}

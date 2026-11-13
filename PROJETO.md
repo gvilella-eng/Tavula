@@ -782,6 +782,12 @@ Regras do motor:
   cancela, Backspace tira o último ponto. Painel com nome, ligada, os três efeitos e a contagem de reações; as bolinhas movem os vértices; Delete apaga, com Desfazer no aviso.
   A zona aparece só para o mestre (polígono violeta translúcido, contorno tracejado, nome no meio; a desligada esmaecida).
 
+**O editor e os botões (7b-3, 2026-11-13).** A janela "Automações" (aba Mesa → "Abrir as automações"), só do mestre, e os botões na barra.
+- **A janela.** Lista os ciclos (fase atual e tempo até a próxima ao vivo; disparar, pausar, retomar; "Fixar na barra"; "Liberar aos jogadores"), as reações agrupadas por onde ficam (modelo, cena, zona, mesa; ligar e desligar sem apagar), os botões de evento, os eventos em uso (nomes amigáveis dos do sistema, texto livre com sugestão nos do mestre) e, numa linha discreta, os "Avisos do motor" (`automacoes.registro`). Apagar pede confirmação na própria janela.
+- **Formulário e JSON.** Cada peça tem um formulário (ciclo: nome, período, cenas, fases; reação: evento, condições e ações de listas fechadas, cada ação com os campos dela e a unidade metros ou pés nas distâncias; botão de evento: nome, evento, cena) e, ao lado, o mesmo rascunho como "Ver como JSON", editável. A validação usa os mesmos schemas zod da sala e mostra o erro **em português**, no campo e na lista do JSON; com erro, nada é enviado.
+- **Fixar e liberar.** `fixado` e `liberadoParaJogadores` moram **com a campanha**, no ciclo e no botão de evento (`Automacoes.botoes`, peça nova: nome, evento, cena, fixado, liberado). Um chip na barra de cima por item fixado: no ciclo, nome, fase, tempo até a próxima, disparar e pausar ou retomar; no evento, nome e disparar. O jogador vê **só o chip dos liberados**, com o nome e a ação (`Estado.botoes` e o evento `botoes.alterados`, nascidos da filtragem de `automacoes.alterado`; nada da definição). `botao.usar` (`ciclo:<id>` ou `evento:<id>`) não tem capacidade: a sala confere a liberação **a cada clique** e limita a 1 disparo aceito a cada 2 s por jogador (`muitas_mensagens`). Ver `docs/protocolo.md`, "Botões das automações (Lote 7b-3)".
+- **Campanhas prontas.** `fixtures/campanhas/chama-primordial.json` (a tabela de `docs/IDEIAS.md`: Tocha de 1800 s com penalidade de 60 s ao apagar, a respiração do Pulmão de 180 s, a rajada que encolhe e pode apagar, a expiração com visão de 1,5 m, as zonas Ar Morto e Câmara do Ar Rarefeito, o aviso ao mestre ao reacender, os suportes do Farol da Eclusa; sem imagens e sem nada da história secreta em texto que o jogador veja) e `5e-padrao.json` (mesa limpa, sem automação). Carregam pela importação de campanha (aba Mesa → Campanha → "Campanhas de exemplo", com a confirmação "Importar e substituir"); a lista troca os usuários e as permissões do arquivo pelos da mesa de agora.
+
 **Decidido pelo Vilella (2026-11-13):** a ação `som.tocar` fica fora do 7b. Ela entra junto com um lote de som
 ambiente, com os arquivos de som na pasta local, como as imagens. O 7b se divide em três lotes, 7b-1 a 7b-3
 (seção 7).
@@ -1614,7 +1620,7 @@ assumido sem o Vilella está marcado com "(assumido)" e entra nas perguntas do f
 
 ---
 
-### Lote 7b — Automações da mesa (G)
+### Lote 7b — Automações da mesa (G) — entregue (7b-1, 7b-2 e 7b-3, 2026-11-13)
 
 **Objetivo:** ciclos, eventos e reações configurados pelo mestre (seção 4.11).
 
@@ -1652,7 +1658,7 @@ para 30 s, ver a inspiração reduzir e apagar tochas, pausar e retomar pelo bot
   - efeitos enquanto algo está dentro;
   - os eventos `token.entrouNaZona` e `token.saiuDaZona`, e a ação `zona.ativar`;
   - nada da zona chega ao jogador, só o efeito.
-- **7b-3, o editor e as campanhas:**
+- **7b-3, o editor e as campanhas** (entregue em 2026-11-13; o desenho final está na 4.11):
   - o painel de automações do mestre (formulário e o JSON ao lado);
   - botões de ciclo e de evento fixáveis na barra, que podem ser liberados aos jogadores;
   - as campanhas `chama-primordial.json` e `5e-padrao.json`.

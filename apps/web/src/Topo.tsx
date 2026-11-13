@@ -6,12 +6,14 @@ type Props = {
   cena: string;
   /** Os menus do mestre (ficam como estão; o jogador não tem). */
   menus?: ReactNode;
+  /** 7b-3: os botões das automações (o mestre vê os fixados; o jogador, os que o mestre liberou). */
+  botoes?: ReactNode;
   /** Presença e estado da mesa, à direita. */
   children: ReactNode;
 };
 
 /** O topo fixo (48 px): marca e cena à esquerda, menus no meio e presença e estado da mesa à direita. */
-export function Topo({ cena, menus, children }: Props) {
+export function Topo({ cena, menus, botoes, children }: Props) {
   return (
     <header className="topo" data-testid="topo">
       <div className="topo-marca">
@@ -21,6 +23,7 @@ export function Topo({ cena, menus, children }: Props) {
         </span>
       </div>
       <div className="topo-menus">{menus}</div>
+      {botoes}
       <div className="topo-direita">{children}</div>
     </header>
   );

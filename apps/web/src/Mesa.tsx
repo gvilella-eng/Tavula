@@ -62,6 +62,8 @@ import { Fontes } from "./assets/fontes";
 import { ganchosDoTeste, instalarGanchoDeAssets } from "./assets/ganchoE2E";
 import { type Canal, GerenteDeAssets } from "./assets/gerente";
 import { Processador } from "./assets/processador";
+import { BotoesDaBarra } from "./automacoes/ChipsDaBarra";
+import { JanelaDasAutomacoes } from "./automacoes/JanelaDasAutomacoes";
 import { BarraDeFerramentas } from "./BarraDeFerramentas";
 import { BarraLateral, type PedidoDeAba } from "./BarraLateral";
 import { BotaoComDica } from "./BotaoComDica";
@@ -266,6 +268,8 @@ export function Mesa({
   // Painéis do mestre (menu da lanterna): fontes de luz e configurações de iluminação.
   const [fontesAbertas, setFontesAbertas] = useState(false);
   const [configAberta, setConfigAberta] = useState(false);
+  // 7b-3: o editor das automações (janela aberta pela aba Mesa; só do mestre).
+  const [automacoesAbertas, setAutomacoesAbertas] = useState(false);
   const [luzSelecionadaId, setLuzSelecionadaId] = useState<string | null>(null);
   // Pontos de luz (suporte e inflamável): o que o mestre edita e o tipo que a ferramenta cria.
   const [pontoSelecionadoId, setPontoSelecionadoId] = useState<string | null>(null);
@@ -1402,6 +1406,7 @@ export function Mesa({
                       uso={uso}
                       avisoDeContas={avisoDeContas}
                       enviar={enviar}
+                      aoAbrirAutomacoes={() => setAutomacoesAbertas(true)}
                     />
                   ),
                 },
@@ -1425,6 +1430,16 @@ export function Mesa({
         <>
           <Topo
             cena={cenaDoGrupo?.nome ?? cena.nome}
+            botoes={
+              euMestre && !modoMestre ? undefined : (
+                <BotoesDaBarra
+                  estado={estado}
+                  euMestre={euMestre}
+                  enviar={enviar}
+                  salaMs={tempo.salaMs}
+                />
+              )
+            }
             menus={
               euMestre ? (
                 <MenuSuperior
@@ -1756,6 +1771,14 @@ export function Mesa({
                 }}
                 enviar={enviar}
                 aoFechar={alternarFontes}
+              />
+            )}
+            {modoMestre && automacoesAbertas && (
+              <JanelaDasAutomacoes
+                estado={estado}
+                enviar={enviar}
+                salaMs={tempo.salaMs}
+                aoFechar={() => setAutomacoesAbertas(false)}
               />
             )}
             {modoMestre && configAberta && (

@@ -709,6 +709,29 @@ describe("Armazenamento: automações (7b-1)", () => {
     ).toEqual([]);
   });
 
+  it("a fatia guardada antes do 7b-3 (sem `botoes` nem `fixado`) carrega com a lista vazia e nada é reescrito", async () => {
+    const { sql } = await abrirBanco();
+    const banco = new Armazenamento(sql as never);
+    banco.migrar();
+    banco.salvarTudo(estadoInicial(semente));
+    // como a campanha real guardou no 7b-1 e no 7b-2: sem os campos novos
+    const antiga = {
+      ciclos: [{ id: "c", nome: "C", periodoS: 60, cenas: [], fases: [{ emS: 0, evento: "a" }] }],
+      reacoes: [],
+      execucao: {},
+      pendentes: [],
+      registro: [],
+    };
+    banco.gravarMeta("automacoes", JSON.stringify(antiga));
+    const carregado = banco.carregar();
+    expect(carregado?.automacoes?.botoes).toEqual([]);
+    expect(carregado?.automacoes?.ciclos[0]?.fixado).toBeUndefined();
+    expect(carregado?.automacoes?.ciclos[0]?.liberadoParaJogadores).toBeUndefined();
+    // abrir de novo não muda o que está guardado (a migração é só o padrão na leitura)
+    expect(JSON.parse(banco.lerMeta("automacoes") ?? "{}")).toEqual(antiga);
+    expect(banco.carregar()?.automacoes).toEqual(carregado?.automacoes);
+  });
+
   it("valor ilegível não derruba a sala: vira sem automação", async () => {
     const { sql } = await abrirBanco();
     const banco = new Armazenamento(sql as never);

@@ -2,12 +2,16 @@ import {
   type Acao,
   type Automacoes,
   automacoesDe,
+  BotaoDeEventoSchema,
   type Ciclo,
   CicloSchema,
   cicloRodando,
   DURACAO_PADRAO_S,
   type Efeito,
   type EventoDeAutomacao,
+  idDoBotaoDeCiclo,
+  idDoBotaoDeEvento,
+  MAXIMO_DE_BOTOES,
   MAXIMO_DE_EFEITOS,
   MAXIMO_DE_FASES_ATRASADAS,
   MAXIMO_DO_REGISTRO,
@@ -98,6 +102,7 @@ class Motor {
     this.ctx = ctx;
     const e = ctx.atual();
     this.slice = structuredClone(automacoesDe(e));
+    this.slice.botoes ??= [];
     this.efeitos = structuredClone(e.efeitos ?? []);
   }
 
@@ -794,6 +799,45 @@ function eventoDaFase(c: Ciclo, fase: Ciclo["fases"][number]): EventoDeAutomacao
 
 const SEM_CICLO = "Ciclo não encontrado.";
 const SEM_REACAO = "Reação não encontrada.";
+const SEM_BOTAO = "Botão não encontrado.";
+
+/**
+ * `botao.usar` vira a intenção de verdade (`ciclo.disparar`, `ciclo.pausar`, `ciclo.retomar` ou `evento.disparar`). O
+ * mestre usa qualquer botão; o jogador só os liberados, e a conferência é feita aqui, a cada clique. Botão que não existe
+ * ou não está liberado dá o mesmo erro (o jogador não descobre o que há por trás).
+ */
+export function intencaoDoBotao(
+  e: Estado,
+  intencao: Extract<Intencao, { tipo: "botao.usar" }>,
+  mestre: boolean,
+): { intencao: Intencao } | { erro: ErroDaSala } {
+  const recusa = erro("sem_permissao", "Este botão não está liberado.");
+  const { botaoId, acao } = intencao.dados;
+  const a = automacoesDe(e);
+  const ciclo = a.ciclos.find((c) => idDoBotaoDeCiclo(c.id) === botaoId);
+  if (ciclo) {
+    if (!mestre && ciclo.liberadoParaJogadores !== true) return recusa;
+    const tipo = { disparar: "ciclo.disparar", pausar: "ciclo.pausar", retomar: "ciclo.retomar" }[
+      acao ?? "disparar"
+    ] as "ciclo.disparar";
+    return { intencao: { ...intencao, tipo, dados: { id: ciclo.id } } as Intencao };
+  }
+  const botao = (a.botoes ?? []).find((b) => idDoBotaoDeEvento(b.id) === botaoId);
+  if (botao) {
+    if (!mestre && botao.liberadoParaJogadores !== true) return recusa;
+    return {
+      intencao: {
+        ...intencao,
+        tipo: "evento.disparar",
+        dados: {
+          evento: botao.evento,
+          ...(botao.cenaId === undefined ? {} : { cenaId: botao.cenaId }),
+        },
+      } as Intencao,
+    };
+  }
+  return recusa;
+}
 
 function cenasExistem(e: Estado, ids: readonly string[]): boolean {
   return ids.every((id) => e.cenas.some((c) => c.id === id));
@@ -919,6 +963,49 @@ export function tratarAutomacao(ctx: ContextoDoMotor, intencao: Intencao): Saida
       const { id } = intencao.dados;
       if (!m.slice.reacoes.some((r) => r.id === id)) return erro("reacao_inexistente", SEM_REACAO);
       m.slice.reacoes = m.slice.reacoes.filter((r) => r.id !== id);
+      break;
+    }
+    case "botao.criar": {
+      const { botao } = intencao.dados;
+      if (m.slice.botoes.some((b) => b.id === botao.id)) {
+        return erro("dados_invalidos", "Já existe um botão com esse id.");
+      }
+      if (m.slice.botoes.length >= MAXIMO_DE_BOTOES)
+        return erro("dados_invalidos", "Botões demais.");
+      if (botao.cenaId !== undefined && !e.cenas.some((c) => c.id === botao.cenaId)) {
+        return erro("cena_inexistente", "Cena não encontrada.");
+      }
+      m.slice.botoes = [...m.slice.botoes, botao];
+      break;
+    }
+    case "botao.editar": {
+      const { id, mudancas } = intencao.dados;
+      const atual = m.slice.botoes.find((b) => b.id === id);
+      if (!atual) return erro("dados_invalidos", SEM_BOTAO);
+      const { cenaId, ...resto } = semIndefinidos(mudancas);
+      const { cenaId: cenaAntiga, ...base } = atual;
+      // `cenaId: null` tira a cena do botão (volta a valer em todas); sem o campo, ela fica como estava.
+      const cenaNova = mudancas.cenaId === null ? undefined : (cenaId ?? cenaAntiga);
+      const juntado = BotaoDeEventoSchema.safeParse({
+        ...base,
+        ...resto,
+        ...(cenaNova === undefined ? {} : { cenaId: cenaNova }),
+        id,
+      });
+      if (!juntado.success) {
+        return erro("dados_invalidos", juntado.error.issues[0]?.message ?? "Botão inválido.");
+      }
+      const novo = juntado.data;
+      if (novo.cenaId !== undefined && !e.cenas.some((c) => c.id === novo.cenaId)) {
+        return erro("cena_inexistente", "Cena não encontrada.");
+      }
+      m.slice.botoes = m.slice.botoes.map((b) => (b.id === id ? novo : b));
+      break;
+    }
+    case "botao.apagar": {
+      const { id } = intencao.dados;
+      if (!m.slice.botoes.some((b) => b.id === id)) return erro("dados_invalidos", SEM_BOTAO);
+      m.slice.botoes = m.slice.botoes.filter((b) => b.id !== id);
       break;
     }
     case "evento.disparar": {

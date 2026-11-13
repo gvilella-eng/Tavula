@@ -204,6 +204,10 @@ entra nas perguntas do fim):**
 
 Sem pergunta nova para o Vilella: ele aprovou o plano do 7b. As suposições do lote estão em `docs/REDESIGN.md`, "7b-1 — como ficou" (todas com "(assumido)"). As que mais valem uma olhada quando o editor chegar (7b-3): um ciclo criado roda na hora (e há `pausado` para criar parado); a fase do segundo 0 dispara ao começar; `ciclo.disparar` pula para a fase seguinte; sem `porS` o prazo vem da fase (ou 30 s).
 
+## 7b-3: o editor, os botões e as campanhas (2026-11-13)
+
+Sem pergunta nova para o Vilella: ele aprovou o plano do 7b. As suposições do lote estão em `docs/REDESIGN.md`, "7b-3 — como ficou" (todas com "(assumido)"). As que mais valem uma olhada: o editor é uma janela aberta da aba Mesa; o nome que o mestre dá a um ciclo ou botão liberado é o que o jogador lê; o jogador pode disparar, pausar e retomar um ciclo liberado (não há liberação por ação); 1 disparo a cada 2 s por jogador; a chance aparece em % nos formulários; a Chama Primordial vem pausada, sem personagens e com a respiração fixada na barra.
+
 ## 7b-2: as zonas (2026-11-13)
 
 Sem pergunta nova para o Vilella: ele aprovou o plano do 7b. As suposições do lote estão em `docs/REDESIGN.md`, "7b-2 — como ficou" (todas com "(assumido)"). As que mais valem uma olhada: "dentro" é o centro do token no polígono (e a luz acompanha quem a carrega); a zona fica visível, fraca, para o mestre mesmo fora da ferramenta; a tecla é Z; Esc cancela o polígono (nas paredes, Esc encerra); as reações de modelo que ouvem `token.entrouNaZona` agem no token que entrou.

@@ -726,6 +726,17 @@ Continua em aberto, por ser decisão e não erro de doc: `ficha.verOutras` (seç
 - Sem migração SQL: as automações estão em duas chaves da `meta`. A importação as troca (`salvarTudo`), o `apagarTudo` as apaga.
 - Suposições novas (assumido): ver `REDESIGN`, "7b-1 — como ficou".
 
+## 7b-3 (2026-11-13): o editor, os botões e as campanhas prontas
+
+- Onde mexer: `apps/web/src/automacoes/` (`JanelaDasAutomacoes.tsx` a lista, `FormularioDoCiclo|DaReacao|DoBotao.tsx`, `Editor.tsx` a moldura e o "Ver como JSON", `campos.tsx`, `erros.ts` os erros do zod em português, `rascunho.ts` o rascunho por caminho e os rótulos das ações e condições, `ChipsDaBarra.tsx` os chips, `resumo.ts`); `AbaMesa.tsx` (seção Automações e a lista de exemplos), `Mesa.tsx` (janela e chips), `Topo.tsx` (`botoes`), `campanhasDeExemplo.ts`, `Campo.tsx` (`CampoDecimal`), `decimal.ts`, `janelas/geometria.ts` (`dasFerramentas`). Na `shared`: `automacoes.ts` (`botoes`, `fixado`, `botoesParaJogador`, `situacaoDoCiclo`, nomes amigáveis dos eventos, limite de frequência), `automacoesnucleo.ts` (`botao.criar|editar|apagar`, `intencaoDoBotao`), `nucleo.ts` (`botao.usar`, `visaoPara` e `eventoPara` dão ao jogador só `botoes`), `protocolo.ts`; na sala: `sala.ts` (`ultimoBotao`). As campanhas: `fixtures/campanhas/`.
+- Frágil: o jogador recebe `Estado.botoes` e `botoes.alterados`, só o rótulo. Campo novo no botão não vai ao jogador sem decisão e sem teste de sigilo.
+- Frágil: `botao.usar` não tem capacidade; a conferência é a liberação, dentro de `intencaoDoBotao`. Quem criar um botão novo precisa passar por lá.
+- Frágil: o rascunho do formulário é um objeto no formato do schema, editado por caminho (`definir`/`ler`); o id novo acompanha o nome até o `id` ser mexido no JSON. Campo novo de ação ou condição precisa de rótulo em `rascunho.ts`, campos em `FormularioDaReacao.tsx` e rótulo de erro em `erros.ts`.
+- Frágil: a lista de exemplos troca `usuarios` e `permissoes` do arquivo pelos da mesa; sem isso a sala recusa a importação.
+- Frágil: no topo, os menus não encolhem (`min-width: min-content`); quem cede é o nome da cena e o chip. Item novo no topo precisa caber ou ceder do mesmo jeito.
+- Sem migração SQL: `botoes` e `fixado` são opcionais com padrão na leitura.
+- Suposições novas (assumido): ver `REDESIGN`, "7b-3 — como ficou".
+
 ## 7b-2 (2026-11-13): as zonas das automações
 
 - Onde mexer: `packages/shared/src/zonas.ts` (schemas, `pontoNaZona`, `posicaoDoObjeto`, `entradasESaidas`), `automacoes.ts` (`zona.ativar`, `dentroDaZona`, `fica` de zona, `zonaId` do evento), `automacoesnucleo.ts` (`sincronizarZonas`, os alvos da reação de zona, `eventosDoSistema`), `nucleo.ts` (redutor, as três intenções, duplicar e apagar cena, `visaoPara`, `eventoPara`, `lerExportacao`), `protocolo.ts`, `apps/server/src/armazenamento.ts` (coleção `zonas`). Na tela: `mapa/mapaPixi.ts` (`desenharZonas`, `apertarComZonas`, `fecharZona`, gesto `vertice`), `PainelDasZonas.tsx`, `BarraDeFerramentas.tsx`, `Mesa.tsx` (`criarZona`, `apagarZonaAtual`, tecla Z) e `atalhos.ts`.

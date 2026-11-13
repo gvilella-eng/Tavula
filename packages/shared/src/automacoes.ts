@@ -66,8 +66,10 @@ export const CicloCamposSchema = z.object({
   /** As cenas onde o ciclo vale (regra 4). Vazia = todas (assumido). */
   cenas: z.array(Id).max(100).default([]),
   fases: z.array(FaseSchema).min(1).max(20),
-  /** Para o editor do 7b-3: o mestre pode liberar os botões do ciclo aos jogadores. */
+  /** 7b-3: o mestre pode liberar os botões do ciclo (disparar, pausar, retomar) a todos os jogadores. */
   liberadoParaJogadores: z.boolean().optional(),
+  /** 7b-3: o chip do ciclo fica na barra de cima do mestre (preferência dele, guardada com a campanha; assumido). */
+  fixado: z.boolean().optional(),
 });
 export const CicloSchema = CicloCamposSchema.superRefine((c, ctx) => {
   const vistos = new Set<number>();
@@ -270,6 +272,24 @@ export type Reacao = z.infer<typeof ReacaoSchema>;
 
 // --- A fatia do estado -----------------------------------------------------------------------
 
+// --- Botões de evento (7b-3) -----------------------------------------------------------------
+
+/**
+ * Um botão do mestre que dispara um evento ("Soprar o vento"): o nome é o rótulo do botão, `evento` o que ele dispara
+ * (em todas as cenas ou só em `cenaId`). `fixado`: o chip fica na barra de cima do mestre; `liberadoParaJogadores`: os
+ * jogadores veem o chip (só o rótulo) e podem dispará-lo.
+ */
+export const BotaoDeEventoSchema = z.object({
+  id: Id,
+  nome: z.string().trim().min(1).max(40),
+  evento: NomeDeEventoSchema,
+  cenaId: Id.optional(),
+  fixado: z.boolean().optional(),
+  liberadoParaJogadores: z.boolean().optional(),
+});
+export type BotaoDeEvento = z.infer<typeof BotaoDeEventoSchema>;
+export const MAXIMO_DE_BOTOES = 30;
+
 export const ItemDoRegistroSchema = z.object({
   emSala: z.number().nonnegative(),
   texto: z.string().max(200),
@@ -287,6 +307,8 @@ export const AutomacoesSchema = z.object({
   pendentes: z.array(PendenteSchema).max(200).default([]),
   /** O que o motor quis dizer ao mestre (encadeamento cortado, fases puladas). Só as últimas. */
   registro: z.array(ItemDoRegistroSchema).max(MAXIMO_DO_REGISTRO).default([]),
+  /** 7b-3: os botões de evento do mestre (os dos ciclos moram no próprio ciclo). */
+  botoes: z.array(BotaoDeEventoSchema).max(MAXIMO_DE_BOTOES).default([]),
 });
 export type Automacoes = z.infer<typeof AutomacoesSchema>;
 
@@ -296,10 +318,108 @@ export const AUTOMACOES_VAZIAS: Automacoes = {
   execucao: {},
   pendentes: [],
   registro: [],
+  botoes: [],
 };
 
 export function automacoesDe(estado: Pick<Estado, "automacoes">): Automacoes {
   return estado.automacoes ?? AUTOMACOES_VAZIAS;
+}
+
+// --- Os botões na barra (7b-3) ---------------------------------------------------------------
+
+/** Os eventos do sistema com o nome que o mestre lê no editor. */
+export const NOME_AMIGAVEL_DO_EVENTO: Record<(typeof EVENTOS_DO_SISTEMA)[number], string> = {
+  "objeto.acendeu": "Uma luz acendeu",
+  "objeto.apagou": "Uma luz apagou",
+  "turno.inicio": "Começou o turno de alguém",
+  "cena.ativada": "A cena do grupo mudou",
+  "token.entrouNaZona": "Um token entrou numa zona",
+  "token.saiuDaZona": "Um token saiu de uma zona",
+};
+
+export function ehEventoDoSistema(nome: string): nome is (typeof EVENTOS_DO_SISTEMA)[number] {
+  return (EVENTOS_DO_SISTEMA as readonly string[]).includes(nome);
+}
+
+/** O nome para mostrar: o amigável nos eventos do sistema, o próprio nome nos do mestre. */
+export function nomeDoEvento(nome: string): string {
+  return ehEventoDoSistema(nome) ? NOME_AMIGAVEL_DO_EVENTO[nome] : nome;
+}
+
+/** Um disparo por usuário a cada tanto (o limite de frequência dos botões liberados; assumido). */
+export const INTERVALO_MINIMO_DO_BOTAO_MS = 2000;
+
+/** Pode disparar agora? `ultimo` é o instante do último disparo aceito deste usuário (ms), se houve. */
+export function botaoDentroDoLimite(ultimo: number | undefined, agora: number): boolean {
+  return ultimo === undefined || agora - ultimo >= INTERVALO_MINIMO_DO_BOTAO_MS;
+}
+
+/**
+ * O botão como o JOGADOR o recebe: só o id (do ciclo ou do botão de evento, com o tipo na frente), o tipo e o rótulo.
+ * Nada da definição (fases, cenas, reações, o evento que ele dispara). Num ciclo vai também se está pausado, para o
+ * chip mostrar "Pausar" ou "Retomar".
+ */
+export const BotaoParaJogadorSchema = z.object({
+  id: z.string().min(1).max(80),
+  tipo: z.enum(["ciclo", "evento"]),
+  nome: z.string().min(1).max(64),
+  pausado: z.boolean().optional(),
+});
+export type BotaoParaJogador = z.infer<typeof BotaoParaJogadorSchema>;
+export const MAXIMO_DE_BOTOES_DO_JOGADOR = MAXIMO_DE_BOTOES + 50;
+
+export const idDoBotaoDeCiclo = (cicloId: string) => `ciclo:${cicloId}`;
+export const idDoBotaoDeEvento = (botaoId: string) => `evento:${botaoId}`;
+
+/** Os botões liberados, na ordem: ciclos e depois eventos. Vazio quando não há automação. */
+export function botoesParaJogador(
+  automacoes: Pick<Automacoes, "ciclos" | "execucao"> & { botoes?: Automacoes["botoes"] },
+): BotaoParaJogador[] {
+  const doCiclo = automacoes.ciclos
+    .filter((c) => c.liberadoParaJogadores === true)
+    .map(
+      (c): BotaoParaJogador => ({
+        id: idDoBotaoDeCiclo(c.id),
+        tipo: "ciclo",
+        nome: c.nome,
+        pausado: !cicloRodando(automacoes.execucao[c.id]),
+      }),
+    );
+  const doEvento = (automacoes.botoes ?? [])
+    .filter((b) => b.liberadoParaJogadores === true)
+    .map((b): BotaoParaJogador => ({ id: idDoBotaoDeEvento(b.id), tipo: "evento", nome: b.nome }));
+  return [...doCiclo, ...doEvento];
+}
+
+/**
+ * Onde o ciclo está agora, para o editor e o chip da barra: a fase atual (a última que já disparou neste período; `null`
+ * antes da primeira), a próxima e em quantos ms ela chega. Ciclo pausado não anda; ciclo que ainda não começou está no
+ * instante 0.
+ */
+export function situacaoDoCiclo(
+  ciclo: Pick<Ciclo, "periodoS" | "fases">,
+  exec: ExecucaoDoCiclo | undefined,
+  salaMs: number,
+): { pausado: boolean; atual: Fase | null; proxima: Fase | null; proximaEmMs: number | null } {
+  const tau = exec ? tauDoCiclo(exec, salaMs) : 0;
+  const periodo = ciclo.periodoS * 1000;
+  const dentro = tau % periodo;
+  let atual: Fase | null = null;
+  // Ciclo que ainda não começou (a mesa está pausada, ou veio de um arquivo) não está em fase nenhuma.
+  for (const f of exec === undefined ? [] : ciclo.fases) {
+    if (f.emS * 1000 <= dentro && (atual === null || f.emS > atual.emS)) atual = f;
+  }
+  // Ainda antes da primeira fase do período: vale a última do período anterior, se já houve um.
+  if (atual === null && tau >= periodo) {
+    for (const f of ciclo.fases) if (atual === null || f.emS > atual.emS) atual = f;
+  }
+  const proxima = proximaFaseDoCiclo(ciclo, exec?.disparadoAteTau ?? -1);
+  return {
+    pausado: !cicloRodando(exec),
+    atual,
+    proxima: proxima?.fase ?? null,
+    proximaEmMs: proxima ? Math.max(0, proxima.tauMs - tau) : null,
+  };
 }
 
 // --- Efeitos temporários em tokens ----------------------------------------------------------

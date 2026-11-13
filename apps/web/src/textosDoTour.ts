@@ -70,7 +70,7 @@ export const TEXTOS_DO_TOUR: Readonly<Record<string, string>> = {
   "ficha-pasta-nome": "Clique para renomear (F2).",
   // Passos do tour que não são de botão (o alvo é uma área da tela)
   "tour-mestre-boas-vindas":
-    "Esta é a sua mesa. Aqui está o id: quem tem o id ou o link pede para entrar, e você aceita.",
+    "Esta é a sua mesa. Quem tem o id ou o link pede para entrar, e você aceita; mais abaixo, as Automações montam ciclos e reações.",
   "barra-ferramentas":
     "Selecionar, mão, régua, dados rápidos e pincel. As letras V, H e R trocam de ferramenta.",
   "menu-grupo-luz":

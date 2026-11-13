@@ -8,12 +8,14 @@ import {
   validarMeta,
 } from "./assets.ts";
 import {
+  botoesParaJogador,
   converterAutomacoesDoArquivo,
   type EventoDeAutomacao,
   efeitosParaJogador,
 } from "./automacoes.ts";
 import {
   type ContextoDoMotor,
+  intencaoDoBotao,
   reagirAoSistema,
   rodarAutomacoes,
   rodarEvento,
@@ -789,6 +791,8 @@ export function reduzir(estado: Estado, evento: EventoSala): Estado {
       return { ...base, automacoes: evento.dados.automacoes };
     case "efeitos.alterados":
       return { ...base, efeitos: evento.dados.efeitos };
+    case "botoes.alterados":
+      return { ...base, botoes: evento.dados.botoes };
     case "zona.alterada": {
       const { zona } = evento.dados;
       const lista = base.zonas ?? [];
@@ -2359,8 +2363,17 @@ function processarIntencao(
     case "reacao.criar":
     case "reacao.editar":
     case "reacao.apagar":
+    case "botao.criar":
+    case "botao.editar":
+    case "botao.apagar":
     case "evento.disparar": {
       const saida = tratarAutomacao(contextoDoMotor, intencao);
+      return "erro" in saida ? { ok: false, erro: saida.erro } : aplicado(saida.snapshotPara ?? []);
+    }
+    case "botao.usar": {
+      const traduzida = intencaoDoBotao(estado, intencao, usuario.papel === "mestre");
+      if ("erro" in traduzida) return { ok: false, erro: traduzida.erro };
+      const saida = tratarAutomacao(contextoDoMotor, traduzida.intencao);
       return "erro" in saida ? { ok: false, erro: saida.erro } : aplicado(saida.snapshotPara ?? []);
     }
 
@@ -2603,10 +2616,13 @@ export function visaoPara(estado: Estado, usuario: Visao, agoraMs?: number): Est
     assets: _assets,
     memoriaEsquecida: _esquecida,
     automacoes: _automacoes,
+    botoes: _botoes,
     efeitos: _efeitos,
     zonas: _zonas,
     ...resto
   } = semPendencias;
+  // 7b-3: do que o mestre liberou, o jogador recebe só o rótulo de cada botão.
+  const botoesDele = estado.automacoes ? botoesParaJogador(estado.automacoes) : [];
   const efeitosDele = efeitosParaJogador(
     estado.efeitos,
     estado.tokens.filter((t) => controlaToken(t, usuario, estado.personagens)),
@@ -2619,6 +2635,7 @@ export function visaoPara(estado: Estado, usuario: Visao, agoraMs?: number): Est
     // A ordem de turno só com as entradas que ele vê; a Destreza e o valor oculto nunca viajam.
     ...(estado.combate ? { combate: combateParaUsuario(estado.combate, usuario, estado) } : {}),
     ...(efeitosDele.length > 0 ? { efeitos: efeitosDele } : {}),
+    ...(botoesDele.length > 0 ? { botoes: botoesDele } : {}),
     relogio: relogioParaVisao(estado.relogio, usuario, agora),
     modelos: modelosParaJogador(estado.modelos, estado.config),
     pontos: estado.pontos.filter((p) => pontoVisivelPara(p, usuario, estado.cenaAtivaId)),
@@ -2742,7 +2759,17 @@ export function eventoPara(
     case "mesa.relogioZerado":
       // V1: o marco é só do mestre; o jogador não recebe nada.
       return mestre ? evento : null;
-    case "automacoes.alterado":
+    case "automacoes.alterado": {
+      if (mestre) return evento;
+      // 7b-3: o jogador não recebe a fatia; recebe, se mudou, a lista dos botões que o mestre liberou (só os rótulos).
+      const novos = botoesParaJogador(evento.dados.automacoes);
+      const antigos = antes?.automacoes ? botoesParaJogador(antes.automacoes) : [];
+      return JSON.stringify(novos) === JSON.stringify(antigos)
+        ? null
+        : { ...evento, tipo: "botoes.alterados", dados: { botoes: novos } };
+    }
+    case "botoes.alterados":
+      return mestre ? null : evento;
     case "zona.alterada":
     case "zona.apagada":
       // 7b-1 e 7b-2 (regra 7): a definição das automações e as zonas (forma, nome, efeitos) são só do mestre.

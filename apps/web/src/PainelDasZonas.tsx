@@ -1,7 +1,8 @@
 import type { EfeitosDaZona, Zona } from "@tabletop/shared";
 import { Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { noCanto } from "./janelas/geometria";
+import { CampoDecimal, CampoDeDistancia } from "./Campo";
+import { dasFerramentas } from "./janelas/geometria";
 import { Janela } from "./janelas/Janela";
 
 type Props = {
@@ -16,55 +17,12 @@ type Props = {
 
 type EfeitoDaZona = "luzRaioX" | "luzSomaM" | "visaoMaxM";
 
-/** Um campo numérico que só envia ao sair do campo ou com Enter; vazio tira o efeito. */
-function CampoDoEfeito(p: {
-  testid: string;
-  rotulo: string;
-  dica: string;
-  valor: number | undefined;
-  min: number;
-  max: number;
-  passo: number;
-  aoConfirmar: (v: number | undefined) => void;
-}) {
-  const [texto, setTexto] = useState(p.valor === undefined ? "" : String(p.valor));
-  useEffect(() => setTexto(p.valor === undefined ? "" : String(p.valor)), [p.valor]);
-  function confirmar() {
-    const limpo = texto.trim().replace(",", ".");
-    if (limpo === "") {
-      if (p.valor !== undefined) p.aoConfirmar(undefined);
-      return;
-    }
-    const n = Number(limpo);
-    if (!Number.isFinite(n)) {
-      setTexto(p.valor === undefined ? "" : String(p.valor));
-      return;
-    }
-    const preso = Math.min(p.max, Math.max(p.min, n));
-    setTexto(String(preso));
-    if (preso !== p.valor) p.aoConfirmar(preso);
-  }
-  return (
-    <label>
-      {p.rotulo}
-      <input
-        type="number"
-        data-testid={p.testid}
-        value={texto}
-        min={p.min}
-        max={p.max}
-        step={p.passo}
-        placeholder="sem efeito"
-        title={p.dica}
-        onChange={(e) => setTexto(e.target.value)}
-        onBlur={confirmar}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") confirmar();
-        }}
-      />
-    </label>
-  );
-}
+/** Os limites de cada efeito (os do schema da zona); o valor fora deles é preso ao limite. Distâncias em metros. */
+const LIMITES: Record<EfeitoDaZona, { min: number; max: number }> = {
+  luzRaioX: { min: 0.1, max: 5 },
+  luzSomaM: { min: -100, max: 100 },
+  visaoMaxM: { min: 0.5, max: 1000 },
+};
 
 /**
  * Painel pequeno da ferramenta Zonas (só do mestre, 7b-2): como desenhar e, com uma zona selecionada, o nome, se está
@@ -88,11 +46,11 @@ export function PainelDasZonas(p: Props) {
     efeitosMandados.current = z?.efeitos ?? {};
   }, [zonaId, efeitosDaSala]);
 
-  function mudarEfeito(chave: EfeitoDaZona, valor: number | undefined) {
+  function mudarEfeito(chave: EfeitoDaZona, valor: number | null) {
     if (!z) return;
     const efeitos = { ...efeitosMandados.current };
-    if (valor === undefined) delete efeitos[chave];
-    else efeitos[chave] = valor;
+    if (valor === null) delete efeitos[chave];
+    else efeitos[chave] = Math.min(LIMITES[chave].max, Math.max(LIMITES[chave].min, valor));
     efeitosMandados.current = efeitos;
     p.enviar("zona.editar", { id: z.id, mudancas: { efeitos } });
   }
@@ -109,7 +67,7 @@ export function PainelDasZonas(p: Props) {
       titulo="Zonas"
       testid="painel-zonas"
       classeDoCorpo="painel-token"
-      padrao={noCanto("topo-esquerda", 316)}
+      padrao={dasFerramentas}
       largura={248}
       aoFechar={p.aoFechar}
       rotuloDoFechar="Fechar a ferramenta"
@@ -149,34 +107,33 @@ export function PainelDasZonas(p: Props) {
           </label>
           <fieldset className="quem-controla" data-testid="zona-efeitos">
             <legend>Enquanto algo está dentro</legend>
-            <CampoDoEfeito
+            <CampoDecimal
               testid="zona-luz-fator"
               rotulo="Luz × fator"
-              dica="Multiplica o raio das luzes dentro (0,5 = metade)."
+              dica="Multiplica o raio das luzes dentro (0,5 = metade). Vazio tira o efeito."
+              placeholder="sem efeito"
               valor={z.efeitos.luzRaioX}
-              min={0.1}
-              max={5}
-              passo={0.1}
+              min={LIMITES.luzRaioX.min}
+              max={LIMITES.luzRaioX.max}
+              limitar
               aoConfirmar={(v) => mudarEfeito("luzRaioX", v)}
             />
-            <CampoDoEfeito
+            <CampoDeDistancia
               testid="zona-luz-soma"
-              rotulo="Luz ± metros"
-              dica="Soma metros ao raio das luzes dentro (negativo diminui)."
-              valor={z.efeitos.luzSomaM}
-              min={-100}
-              max={100}
-              passo={0.5}
+              rotulo="Luz ±"
+              nota="negativo diminui"
+              valorM={z.efeitos.luzSomaM}
+              minM={LIMITES.luzSomaM.min}
+              maxM={LIMITES.luzSomaM.max}
               aoConfirmar={(v) => mudarEfeito("luzSomaM", v)}
             />
-            <CampoDoEfeito
+            <CampoDeDistancia
               testid="zona-visao"
-              rotulo="Visão máxima (m)"
-              dica="Limita o alcance de visão dos tokens dentro."
-              valor={z.efeitos.visaoMaxM}
-              min={0.5}
-              max={1000}
-              passo={0.5}
+              rotulo="Visão máxima"
+              nota="vazio tira o limite"
+              valorM={z.efeitos.visaoMaxM}
+              minM={LIMITES.visaoMaxM.min}
+              maxM={LIMITES.visaoMaxM.max}
               aoConfirmar={(v) => mudarEfeito("visaoMaxM", v)}
             />
           </fieldset>

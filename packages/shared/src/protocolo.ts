@@ -2,9 +2,12 @@ import { z } from "zod";
 import { AssetMetaSchema, HashSchema, LIMITES_DE_ASSET, MetaNovaSchema } from "./assets.ts";
 import {
   AutomacoesSchema,
+  BotaoDeEventoSchema,
+  BotaoParaJogadorSchema,
   CicloCamposSchema,
   CicloSchema,
   EfeitoSchema,
+  MAXIMO_DE_BOTOES_DO_JOGADOR,
   MAXIMO_DE_EFEITOS,
   NomeDeEventoSchema,
   ReacaoSchema,
@@ -413,6 +416,16 @@ const MudancasDoCicloSchema = z
     cenas: CicloCamposSchema.shape.cenas.unwrap(),
     fases: CicloCamposSchema.shape.fases,
     liberadoParaJogadores: CicloCamposSchema.shape.liberadoParaJogadores,
+    fixado: CicloCamposSchema.shape.fixado,
+  })
+  .partial();
+const MudancasDoBotaoSchema = z
+  .object({
+    nome: BotaoDeEventoSchema.shape.nome,
+    evento: BotaoDeEventoSchema.shape.evento,
+    cenaId: BotaoDeEventoSchema.shape.cenaId.nullable(),
+    fixado: BotaoDeEventoSchema.shape.fixado,
+    liberadoParaJogadores: BotaoDeEventoSchema.shape.liberadoParaJogadores,
   })
   .partial();
 const MudancasDaReacaoSchema = z
@@ -924,6 +937,25 @@ export const IntencaoSchema = z.discriminatedUnion("tipo", [
   intencao("zona.criar", z.object({ zona: ZonaNovaSchema })),
   intencao("zona.editar", z.object({ id: IdSchema, mudancas: MudancasDaZonaSchema })),
   intencao("zona.apagar", z.object({ id: IdSchema })),
+  /**
+   * 7b-3: os botões de evento do mestre (o botão de um ciclo é o próprio ciclo: `ciclo.editar` com `fixado` e
+   * `liberadoParaJogadores`). Só do mestre (`automacao.editar`).
+   */
+  intencao("botao.criar", z.object({ botao: BotaoDeEventoSchema })),
+  intencao("botao.editar", z.object({ id: IdSchema, mudancas: MudancasDoBotaoSchema })),
+  intencao("botao.apagar", z.object({ id: IdSchema })),
+  /**
+   * 7b-3: usa um botão (`ciclo:<id>` ou `evento:<id>`, como o jogador o recebe). Sem capacidade: o mestre usa qualquer
+   * um; o jogador só os que o mestre liberou, conferido a cada clique, e no máximo um a cada 2 s (a sala limita).
+   * `acao` só vale em ciclo (padrão: disparar).
+   */
+  intencao(
+    "botao.usar",
+    z.object({
+      botaoId: z.string().min(1).max(80),
+      acao: z.enum(["disparar", "pausar", "retomar"]).optional(),
+    }),
+  ),
   /** Dispara um evento agora, em todas as cenas ou só em `cenaId`. */
   intencao(
     "evento.disparar",
@@ -1062,6 +1094,11 @@ export const capacidadeDaIntencao: Record<TipoIntencao, Capacidade | null> = {
   "zona.editar": "automacao.editar",
   "zona.apagar": "automacao.editar",
   "evento.disparar": "automacao.editar",
+  "botao.criar": "automacao.editar",
+  "botao.editar": "automacao.editar",
+  "botao.apagar": "automacao.editar",
+  // O jogador usa os botões que o mestre liberou: a conferência é feita na sala, a cada clique.
+  "botao.usar": null,
   "campanha.exportar": "campanha.exportar",
   "campanha.importar": "campanha.importar",
 };
@@ -1217,6 +1254,14 @@ export const EventoSalaSchema = z.discriminatedUnion("tipo", [
    * recebe: o filtro a derruba para qualquer outro (regra 7).
    */
   eventoDe("automacoes.alterado", z.object({ automacoes: AutomacoesSchema })),
+  /**
+   * 7b-3: os botões liberados aos jogadores depois da mudança (só o rótulo; nada da definição). Quem recebe é o jogador:
+   * ele nasce da filtragem de `automacoes.alterado`, a sala nunca o emite.
+   */
+  eventoDe(
+    "botoes.alterados",
+    z.object({ botoes: z.array(BotaoParaJogadorSchema).max(MAXIMO_DE_BOTOES_DO_JOGADOR) }),
+  ),
   /** 7b-2: uma zona criada ou editada (o cliente faz upsert). SÓ o mestre recebe (regra 7). */
   eventoDe("zona.alterada", z.object({ zona: ZonaSchema })),
   /** 7b-2: uma zona apagada (as reações dela vão junto). SÓ o mestre recebe. */

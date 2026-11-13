@@ -119,6 +119,8 @@ async function conferirAbas(p: Page, ids: readonly string[], rotulo: string) {
 test("abas do painel: a mesma largura em 300 px e na largura máxima, nome numa linha, cortado com reticências e a dica com o nome inteiro só onde ele foi cortado", async ({
   mesa,
 }) => {
+  // O teste passa por 9 abas, em duas larguras, esperando a dica de cada uma: leva de 20 a 45 s conforme a máquina.
+  test.setTimeout(120_000);
   const m = (await entrarNoMapa(mesa, "mestre")).pagina;
   const j = (await entrarNoMapa(mesa, "jogador-1")).pagina;
   const nomes: Record<string, string> = {

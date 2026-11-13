@@ -1085,7 +1085,8 @@ button[aria-disabled="true"]:hover {
   display: flex;
   flex: 1 1 auto;
   justify-content: center;
-  min-width: 0;
+  /* 7b-3: os menus não encolhem por baixo dos botões das automações; quem cede é o nome da cena e o chip */
+  min-width: min-content;
 }
 .topo-direita {
   display: flex;
@@ -5301,4 +5302,232 @@ button.inicio-botao-largo {
 .menu-tempo {
   padding: 0 10px 6px;
   font-variant-numeric: tabular-nums;
+}
+
+/* --- 7b-3: os botões das automações na barra de cima ------------------------------------------ */
+.botoes-da-barra {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+}
+.chip-da-barra {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 0 1 auto;
+  min-width: 0;
+  padding: 1px 3px 1px 10px;
+  font-size: 12px;
+  white-space: nowrap;
+  background: var(--campo);
+  border: 1px solid var(--borda-barra);
+  border-radius: 999px;
+}
+.chip-nome {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+}
+.icone-do-chip {
+  flex: 0 0 auto;
+}
+.chip-fase {
+  flex: 0 100 auto;
+  min-width: 0;
+  max-width: 130px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-left: 2px;
+  font-size: 11px;
+  color: var(--texto-suave);
+  font-variant-numeric: tabular-nums;
+}
+.chip-da-barra[data-pausado="true"] {
+  border-color: var(--aviso-borda);
+}
+
+/* --- 7b-3: o editor das automações (janela) ---------------------------------------------------- */
+.janela-automacoes {
+  padding: 8px 12px 12px;
+}
+.secao-das-automacoes {
+  margin-top: 10px;
+}
+.secao-das-automacoes > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.titulo-da-automacao {
+  margin: 0;
+}
+.grupo-de-reacoes h4 {
+  margin: 8px 0 4px;
+  font-size: 12px;
+  color: var(--texto-suave);
+}
+.peca-da-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  margin-top: 6px;
+  background: var(--campo);
+  border: 1px solid var(--borda);
+  border-radius: 8px;
+}
+.peca-da-lista[data-ativa="false"] .peca-nome {
+  opacity: 0.6;
+}
+.peca-da-lista p {
+  margin: 0;
+}
+.peca-topo {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.peca-acoes {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.peca-acoes .botao-da-peca {
+  padding: 3px 10px;
+  font-size: 12px;
+}
+.peca-icones {
+  display: inline-flex;
+  gap: 2px;
+  margin-left: auto;
+}
+.confirmar-apagar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 13px;
+}
+.eventos-em-uso li {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+.avisos-do-motor {
+  margin-top: 14px;
+  font-size: 12px;
+  color: var(--texto-suave);
+}
+
+.editor-da-peca {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.cabecalho-da-peca {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.corpo-da-peca {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.editor-da-peca fieldset {
+  border: 1px solid var(--borda);
+  border-radius: 6px;
+  margin: 4px 0;
+}
+.editor-da-peca .campo-coluna {
+  margin: 4px 0;
+}
+.linha-da-fase {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) minmax(0, 1fr) auto;
+  gap: 6px;
+  align-items: start;
+}
+.linha-da-peca {
+  padding: 6px 8px;
+  margin: 6px 0;
+  background: var(--campo);
+  border: 1px solid var(--borda);
+  border-radius: 8px;
+}
+.linha-da-peca-topo {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+}
+.linha-da-peca-topo .campo-coluna {
+  flex: 1 1 auto;
+}
+.escolha-de-cenas {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.erro-do-campo {
+  font-size: 12px;
+  color: var(--perigo);
+}
+.resumo-de-erros {
+  padding: 6px 10px;
+  font-size: 12px;
+  color: var(--perigo);
+  border: 1px solid var(--perigo);
+  border-radius: 8px;
+}
+.resumo-de-erros p {
+  margin: 0 0 4px;
+}
+.resumo-de-erros ul,
+.erros-do-json {
+  margin: 0;
+  padding-left: 18px;
+}
+.erros-do-json {
+  font-size: 12px;
+  color: var(--perigo);
+}
+.json-da-peca {
+  width: 100%;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  background: var(--campo);
+  border: 1px solid var(--borda);
+  border-radius: 6px;
+  padding: 6px 8px;
+  resize: vertical;
+}
+.json-da-peca[aria-invalid="true"] {
+  border-color: var(--perigo);
+}
+
+/* 7b-3: a lista de campanhas de exemplo junto ao Importar */
+.campanhas-de-exemplo {
+  margin-top: 10px;
+}
+.campanhas-de-exemplo h5 {
+  margin: 0 0 4px;
+  font-size: 12px;
+  color: var(--texto-suave);
+}
+.campanhas-de-exemplo li {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 6px 0;
 }

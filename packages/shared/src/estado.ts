@@ -1,6 +1,12 @@
 import { z } from "zod";
 import { AssetMetaSchema, HashSchema } from "./assets.ts";
-import { AutomacoesSchema, EfeitoSchema, MAXIMO_DE_EFEITOS } from "./automacoes.ts";
+import {
+  AutomacoesSchema,
+  BotaoParaJogadorSchema,
+  EfeitoSchema,
+  MAXIMO_DE_BOTOES_DO_JOGADOR,
+  MAXIMO_DE_EFEITOS,
+} from "./automacoes.ts";
 import { CAPACIDADES_DELEGAVEIS } from "./capacidades.ts";
 import { MensagemSchema } from "./chat.ts";
 import { CombateSchema } from "./combate.ts";
@@ -614,6 +620,11 @@ export const EstadoSchema = z.object({
    * jogador não traz o campo); entra na exportação. Sem o campo não há automação (campanha antiga).
    */
   automacoes: AutomacoesSchema.optional(),
+  /**
+   * 7b-3: os botões que o mestre liberou aos jogadores (só o rótulo e, no ciclo, se está pausado). Existe só na visão do
+   * jogador; o mestre lê `automacoes`. Não entra na exportação (a sala nunca o guarda).
+   */
+  botoes: z.array(BotaoParaJogadorSchema).max(MAXIMO_DE_BOTOES_DO_JOGADOR).optional(),
   /**
    * Efeitos temporários em tokens (7b-1): limite de visão com prazo. O mestre recebe tudo; o jogador, só os
    * dos tokens que vê, sem prazo nem origem. Entra na exportação (o prazo é no tempo da sala).

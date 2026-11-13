@@ -54,6 +54,13 @@ export const alturaDaOrdemNaColuna = (area: Tam): number => Math.round(alturaDaC
 export const alturaDoTokenNaColuna = (area: Tam): number =>
   alturaDaColuna(area) - alturaDaOrdemNaColuna(area);
 
+/**
+ * Onde abrem os painéis das ferramentas do mapa (Paredes, Zonas): encostados à direita da área, um pouco abaixo do topo.
+ * No canto de cima à esquerda eles cobriam o meio do mapa e o que o mestre acabava de desenhar (7b-3).
+ */
+export const ABAIXO_DO_TOPO = 56;
+export const dasFerramentas: Padrao = noCanto("topo-direita", MARGEM, ABAIXO_DO_TOPO);
+
 /** Padrão "no alto, centralizada". */
 export function noTopoAoCentro(dy = MARGEM): Padrao {
   return (area, janela) => ({ x: Math.round((area.largura - janela.largura) / 2), y: dy });

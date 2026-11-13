@@ -310,6 +310,35 @@ Use uma mesa de teste, com o mestre numa janela e um jogador (com a tocha acesa 
 6. Duplique a cena (faixa de Cenas): a cópia tem a zona. Exporte e importe a campanha: a zona volta com os efeitos.
 7. Abra a lista de atalhos (Preferências): **Z** está em "Ferramentas".
 
+## 7b-3 — O editor das automações, os botões na barra e as campanhas prontas
+Use uma mesa de teste, com o mestre numa janela e um jogador em outra. Importar uma campanha **troca a mesa**: não faça isto na sua.
+
+**Roteiro manual do Lote 7b (a Chama Primordial)**
+1. Aba **Mesa → Campanha → Campanhas de exemplo → A Chama Primordial** → **Importar e substituir**. A mesa vem pausada. Na barra de cima aparece o chip **Respiração do Pulmão** ("no começo") e, na aba Mesa, a seção **Automações** diz "1 ciclo · 4 reações · 1 botão de evento".
+2. Abra **Automações → Abrir as automações**. Clique em **Editar** no ciclo "Respiração do Pulmão" e troque o **período** para 30 e a segunda fase (expiração) para 15 s: **Salvar**. (O JSON, em "Ver como JSON", mostra o mesmo.)
+3. Leve o grupo para a cena **Pulmão da Montanha** (faixa de Cenas) e ponha uma ou mais tochas acesas (aba Mesa → modelo Tocha, ou a mochila de um personagem com um token no Pulmão). Retome a mesa (botão do topo).
+4. A inspiração cai logo: o raio de cada tocha **cai pela metade** por 20 s e, com 30% de chance cada, ela **apaga** (perdendo 5 minutos do que sobra). Quinze segundos depois, a expiração **fecha a visão** dos tokens do Pulmão em 1,5 m por 30 s. O ciclo repete a cada 30 s.
+5. No chip da barra: o nome da fase e o tempo até a próxima andam sozinhos. **Pausar** (ícone de pausa) congela o ciclo e as tochas seguem queimando; **retomar** continua de onde parou; **disparar** (ícone de avançar) pula para a fase seguinte.
+6. Reacenda uma tocha apagada: o mestre (e só ele) lê no chat "Uma tocha foi reacesa. Gricks caçam no escuro...". O jogador não vê isso.
+
+**O editor**
+7. **Novo ciclo**: nome "Teste", período 10, fase 0 com o evento "rajada": **Salvar**. Em **Nova reação**: "pertence a" **Um modelo de objeto → Tocha**, evento **Um evento seu… → rajada**, ação **Mudar o raio da luz** com fator 0,5 (vírgula ou ponto) por 20 s: **Salvar**. O raio da tocha cai à metade na hora.
+8. Abra o formulário de uma peça e em **Ver como JSON** troque o período por -5: o erro aparece em português, embaixo ("Período (segundos): precisa ser maior que 0."), e **Salvar** mostra os erros e não envia nada. Escreva um JSON quebrado: "O JSON tem um erro de escrita..." Corrija: **Salvar** funciona.
+9. **Apagar** num ciclo, reação ou botão pede confirmação na própria janela ("Apagar “nome”?").
+10. No fim da janela, **Avisos do motor** fica discreto; abra se houver algo (encadeamento cortado, fases puladas).
+
+**Os botões**
+11. **Novo botão** ("Soprar o vento", evento "rajada"), **Fixar na barra** e **Liberar aos jogadores**. O chip aparece na barra do mestre e, **só com o nome**, na do jogador. O jogador clica: a reação roda. Dois cliques seguidos do jogador: o segundo é recusado ("Devagar: um botão a cada 2 segundos").
+12. Desmarque **Liberar aos jogadores**: o chip some da tela do jogador na hora e a sala passa a recusar.
+13. Nos ciclos, **Liberar aos jogadores** dá ao jogador o chip com disparar e pausar ou retomar. A tela dele nunca mostra fases, cenas, reações ou o nome dos eventos.
+
+**A 5e padrão**
+14. Aba Mesa → Campanha → **5e padrão** → **Importar e substituir**: uma mesa limpa, sem ciclos, reações nem botões ("Nenhuma automação nesta mesa."), com a Tocha 5e, a Lanterna e a Fogueira. Deixe a mesa correr: nada acontece sozinho.
+
+**Os acertos do 7b-2**
+15. Ferramenta **Zonas** (Z) e ferramenta **Paredes**: o painel abre encostado à **direita** da área do mapa, abaixo do topo, sem cobrir o meio. Arraste-o e feche: na próxima vez abre onde você o deixou.
+16. Em **Preferências**, escolha **Pés**: "Luz ±" e "Visão máxima" do painel da zona mostram pés (3 m = 10 pés). O fator mostra **0,5** (vírgula) e aceita **0,5** ou **0.5**.
+
 ## Se algo der errado
 - Anote a tela, o que fez e o que esperava, e mande para mim. Bug confirmado vai para `docs/BUGS.md`.
 - Para voltar à campanha de antes de mesas e contas, use a cópia de segurança indicada no topo.
