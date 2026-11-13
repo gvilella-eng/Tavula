@@ -1535,6 +1535,27 @@ Menus (tipos de parede, importar e exportar, atalhos) e dois acertos que sobrara
 - Converter os campos de memória (Base, Por modificador, Alcance fixo) para a unidade escolhida.
 - Home e End na lista de tipos de parede (os rádios nativos só andam com as setas).
 
+## P1 — como ficou (2026-11-13)
+
+**O que foi feito**
+- A aba Preferências virou uma **sanfona com resumo** (o Modelo B, escolhido pelo Vilella na maquete). Sete cartões recolhíveis, na ordem que ele pediu: **Conta**, **Aparência**, **No mapa**, **Ajuda e arquivos**, **Conectar o Claude**, **Segurança** (só com login) e **Atalhos do teclado**.
+- Cada cartão tem ícone, título, o resumo do estado numa linha (cortado com reticências, com a dica `title` do texto inteiro) e a seta. Aberto, o resumo some. É um `<details>` nativo (`SecaoDePreferencias.tsx`): Enter e Espaço abrem e fecham no título e o `aria-expanded` acompanha.
+- Resumos ao vivo: Conta "Nome (papel)"; Aparência, o nome do tema; No mapa "Metros · encaixe ligado · dicas ligadas"; Ajuda e arquivos "Pasta X" ou "Nenhuma pasta escolhida" e "· N transferências"; Conectar o Claude "N tokens · conectado · N lotes para desfazer" (ou "Nenhum token"); Segurança "Trocar a senha"; Atalhos "N atalhos" (de `IDS_DOS_ATALHOS`).
+- Só a Conta abre por padrão. O que a pessoa abre ou fecha fica em `tabletop:pref:secoes` (JSON, com try/catch, nunca vai à sala). Abrir um cartão não fecha os outros.
+- A marca pequena "só neste navegador" fica **dentro** de Aparência, No mapa e da "Pasta local de imagens" (substitui o aviso solto "Neste navegador"). Sem índice no alto.
+- Nenhuma função mudou e nenhum `data-testid` saiu. Novos: `preferencias`, `pref-secao-<id>`, `pref-secao-<id>-titulo`, `pref-resumo-<id>`, `pref-marca-navegador`.
+- As seções que traziam título próprio perderam o `<h3>` (o título está no cartão): "Conectar o Claude" e "Atalhos do teclado" viraram `aria-label`; "Pasta local de imagens", "Transferências" e "Trocar a senha" viraram `<h4>`.
+- Sem mudança de banco, sala ou protocolo (nenhuma migração).
+
+**Decisões (assumido)**
+- (assumido) Transferência em andamento não abre o cartão sozinha: o resumo de "Ajuda e arquivos" ganha o destaque (cor de acento e negrito). Assim a escolha da pessoa de deixar fechado vale.
+- (assumido) O resumo do Claude mostra "Carregando…" até a lista de tokens chegar, e "· conectado" vem da presença do Claude da própria pessoa (`claude` do snapshot de presença).
+- (assumido) O Segurança some sem login, como a troca de senha sempre foi; nesse caso o cartão nem existe.
+- (assumido) Em todos os 14 temas o cartão usa só tokens existentes (`--painel`, `--borda`, `--acento-forte`, `--texto-suave`); nenhum token novo.
+
+**O que ficou para depois**
+- Nada pedido. Se os cartões crescerem, vale um "abrir todos / fechar todos".
+
 ## Em aberto
 
 - **O plano R1 a R6 terminou** (R1, R2, R2b, R3, R4 em 2026-11-10; R5a, R5b, R6a e R6b em 2026-11-11). Agora o Vilella faz os ajustes

@@ -24,6 +24,8 @@ type Props = {
   mesaId: string;
   lotes: readonly LoteDoClaude[];
   enviar: Enviar;
+  /** P1: avisa quantos tokens a pessoa tem (para o resumo da seção). */
+  aoContarTokens?: (n: number) => void;
 };
 
 /** Copia para a área de transferência (sem ela, não faz nada: a pessoa seleciona o texto). */
@@ -248,7 +250,7 @@ function LotesDoClaude({ lotes, enviar }: { lotes: readonly LoteDoClaude[]; envi
  * Preferências, "Conectar o Claude" (12-1): cada pessoa gera o PRÓPRIO token (por mesa) para o Claude entrar na mesa como
  * ela, com as mesmas permissões e a mesma visão. O token aparece uma vez; a sala guarda só o hash; "Revogar" vale na hora.
  */
-export function ConectarOClaude({ mesaId, lotes, enviar }: Props) {
+export function ConectarOClaude({ mesaId, lotes, enviar, aoContarTokens }: Props) {
   const [tokens, setTokens] = useState<TokenDoClaudePublico[] | null>(null);
   const [novo, setNovo] = useState<(TokenDoClaudePublico & { token: string }) | null>(null);
   const [nome, setNome] = useState("");
@@ -265,6 +267,9 @@ export function ConectarOClaude({ mesaId, lotes, enviar }: Props) {
   useEffect(() => {
     void recarregar();
   }, [recarregar]);
+  useEffect(() => {
+    if (tokens !== null) aoContarTokens?.(tokens.length);
+  }, [tokens, aoContarTokens]);
 
   async function aoGerar(e: FormEvent) {
     e.preventDefault();
@@ -298,9 +303,8 @@ export function ConectarOClaude({ mesaId, lotes, enviar }: Props) {
     <section
       className="claude-conectar"
       data-testid="conectar-claude"
-      aria-labelledby="claude-titulo"
+      aria-label="Conectar o Claude"
     >
-      <h3 id="claude-titulo">Conectar o Claude</h3>
       <p className="nota">
         O Claude entra na mesa como você: tem as suas permissões e vê só o que você vê. Tudo o que
         ele diz ou rola leva a marca “pelo Claude”. Ele não muda papéis nem permissões, não mexe em

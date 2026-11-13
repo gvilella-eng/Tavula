@@ -1,4 +1,4 @@
-import { abrirAba, expect, ID_DA_MESA, type Sessao, test } from "./ajudas";
+import { abrirAba, abrirPreferencia, expect, ID_DA_MESA, type Sessao, test } from "./ajudas";
 import { ClaudeWs, gerarToken, SALA_E2E, tentarAbrir } from "./ajudasClaude";
 import { abrirHandout } from "./ajudasFicha";
 import { entrarNoMapa } from "./ajudasMapa";
@@ -25,7 +25,7 @@ test("gerar o token em Preferências (aparece uma vez), conectar com ele, o Clau
 }) => {
   const mestre = await entrarNoMapa(mesa, "mestre");
   const p = mestre.pagina;
-  await abrirAba(p, "preferencias");
+  await abrirPreferencia(p, "claude");
   const secao = p.getByTestId("conectar-claude");
   await expect(secao).toBeVisible();
   await expect(p.getByTestId("claude-tokens")).toHaveCount(0);
@@ -56,7 +56,7 @@ test("gerar o token em Preferências (aparece uma vez), conectar com ele, o Clau
   // recarregar não mostra o token de novo
   await p.reload();
   await expect(p.getByTestId("status-conexao")).toHaveText("conectado");
-  await abrirAba(p, "preferencias");
+  await abrirPreferencia(p, "claude");
   await expect(p.getByTestId("claude-token")).toHaveCount(1);
   expect(await p.content()).not.toContain(token);
 
@@ -66,6 +66,7 @@ test("gerar o token em Preferências (aparece uma vez), conectar com ele, o Clau
   // o Claude não vira outra pessoa no topo: a bolinha do usuário ganha uma marca pequena
   await expect(p.getByTestId("presenca-claude-mestre")).toBeVisible();
   await expect(p.getByTestId("presenca-mestre")).toHaveAttribute("data-claude", "sim");
+  await expect(p.getByTestId("pref-resumo-claude")).toHaveText("1 token · conectado");
   await expect(p.getByTestId("presenca-estado-mestre")).toHaveText("online");
   await expect(linha)
     .toContainText("último uso agora", { timeout: 15_000 })
@@ -78,6 +79,7 @@ test("gerar o token em Preferências (aparece uma vez), conectar com ele, o Clau
   await expect(p.getByTestId("claude-token")).toHaveCount(0);
   expect(await claude.esperarFechar()).toBe(4001);
   await expect(p.getByTestId("presenca-claude-mestre")).toHaveCount(0);
+  await expect(p.getByTestId("pref-resumo-claude")).toHaveText("Nenhum token");
   // e o token revogado não abre mais (a mesma resposta de um token errado)
   const revogado = await tentarAbrir({ Authorization: `Bearer ${token}` });
   const errado = await tentarAbrir({ Authorization: `Bearer tvc_${"x".repeat(43)}` });
@@ -394,7 +396,7 @@ test("Desfazer o que o Claude fez: o lote some com o que foi criado (mesmo publi
   );
 
   // os lotes do Claude do mestre aparecem em Preferências, do mais novo ao mais velho
-  await abrirAba(m, "preferencias");
+  await abrirPreferencia(m, "claude");
   const lotes = m.getByTestId("claude-lote");
   await expect(lotes).toHaveCount(3);
   await expect(lotes.nth(0)).toContainText("Claude: renomeou");
@@ -407,14 +409,14 @@ test("Desfazer o que o Claude fez: o lote some com o que foi criado (mesmo publi
   await expect(m.getByTestId("ficha-item-npc-1")).toHaveCount(0);
   await expect(m.getByTestId("ficha-item-npc-2")).toHaveCount(0);
   await expect(m.getByTestId("ficha-item-npc-3")).toBeVisible();
-  await abrirAba(m, "preferencias");
+  await abrirPreferencia(m, "claude");
   await expect(m.getByTestId("claude-lote").nth(2)).toHaveAttribute("data-desfeito", "true");
 
   // desfazer o lote L2 (criou o NPC-TRES, que a mesa/Claude depois mudou): o item é pulado e o aviso diz qual; o L3 antes
   await m.getByTestId("claude-lote").nth(0).getByTestId("claude-desfazer").click(); // L3: volta o nome
   await abrirAba(m, "fichas");
   await expect(m.getByTestId("ficha-nome-npc-3")).toHaveText("NPC-TRES");
-  await abrirAba(m, "preferencias");
+  await abrirPreferencia(m, "claude");
   await m.getByTestId("claude-lote").nth(1).getByTestId("claude-desfazer").click(); // L2: o NPC-TRES some
   await abrirAba(m, "fichas");
   await expect(m.getByTestId("ficha-item-npc-3")).toHaveCount(0);
@@ -445,7 +447,7 @@ test("'Desfazer tudo o que o Claude fez' (com confirmação) e o aviso do item q
     { id: "b", mudancas: { nome: "NPC-B2" } },
     { loteId: "C", lote: "renomeou B" },
   );
-  await abrirAba(m, "preferencias");
+  await abrirPreferencia(m, "claude");
   await m.getByTestId("claude-desfazer-tudo").click();
   await expect(m.getByTestId("claude-desfazer-tudo-confirmacao")).toBeVisible();
   await m.getByTestId("claude-desfazer-tudo-confirmar").click();

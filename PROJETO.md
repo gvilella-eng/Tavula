@@ -867,6 +867,7 @@ cores ou nomes de terceiros.
   mão (arrastar o mapa), régua; depois desenhar paredes (lote 5), luzes e pontos (lotes 6–7). No
   rodapé, o seletor de camada (tokens / mestre). Ferramenta só do mestre só aparece para o mestre.
 - **Controle de zoom flutuante** na borda direita do mapa: +/−, trilho, nível atual, centralizar.
+- **Aba Preferências** (P1, 2026-11-13): sanfona com resumo, sete cartões recolhíveis na ordem **Conta** (você é X, Sair ou Trocar usuário, Trocar de mesa), **Aparência** (tema), **No mapa** (unidade de distância, encaixe no grid, dicas), **Ajuda e arquivos** (tour, pasta local de imagens, transferências), **Conectar o Claude**, **Segurança** (trocar a senha; só com login) e **Atalhos do teclado**. Cada cartão mostra ícone, título e, fechado, o resumo do estado numa linha ("Metros · encaixe ligado · dicas ligadas", "2 tokens · conectado"). Só a Conta abre por padrão; o que a pessoa abre ou fecha fica no navegador (`tabletop:pref:secoes`). Aparência, No mapa e a pasta local levam a marca "só neste navegador".
 - **Barra lateral direita recolhível** com abas por ícone: Chat (lote 8), Jogadores (presença e
   papéis), Fichas (lote 9), Notas, Mestre (permissões, uso de hoje, exportar/importar; depois
   automações) e Configurações (hoje: Chat, Fichas, Compêndio, **Preferências** e, só do

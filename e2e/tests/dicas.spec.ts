@@ -1,5 +1,5 @@
 import type { Locator, Page } from "@playwright/test";
-import { abrirAba, expect, test } from "./ajudas";
+import { abrirAba, abrirPreferencia, expect, test } from "./ajudas";
 import { ATRASO_DA_DICA, congelarRelogio, PASSA_DO_ATRASO, passar } from "./ajudasDicas";
 import { entrarNoMapa } from "./ajudasMapa";
 
@@ -137,7 +137,7 @@ test("com as dicas desligadas nada aparece no mouse nem no foco, e o clique no d
 }) => {
   const s = await entrarNoMapa(mesa, "mestre");
   const p = s.pagina;
-  await abrirAba(p, "preferencias");
+  await abrirPreferencia(p, "mapa");
   const opcao = p.getByTestId("pref-dicas");
   await expect(opcao).toBeChecked();
   expect(await guardada(p)).toBeNull();
@@ -147,6 +147,7 @@ test("com as dicas desligadas nada aparece no mouse nem no foco, e o clique no d
   await expect.poll(() => guardada(p)).toBe("0");
   expect(s.enviados.length).toBe(enviadosAntes);
   // a lista de atalhos continua, e os botões continuam com nome e atalho para o leitor de tela
+  await abrirPreferencia(p, "atalhos");
   await expect(p.getByTestId("atalhos")).toBeVisible();
   await expect(p.getByTestId("ferramenta-regua")).toHaveAttribute("aria-label", "Régua");
   await expect(p.getByTestId("ferramenta-regua")).toHaveAttribute("aria-keyshortcuts", "R");
@@ -186,7 +187,7 @@ test("com as dicas desligadas nada aparece no mouse nem no foco, e o clique no d
 test("a opção sobrevive ao recarregar e não manda frame", async ({ mesa }) => {
   const s = await entrarNoMapa(mesa, "mestre");
   const p = s.pagina;
-  await abrirAba(p, "preferencias");
+  await abrirPreferencia(p, "mapa");
   const enviadosAntes = s.enviados.length;
   await p.getByTestId("pref-dicas").uncheck();
   await expect.poll(() => guardada(p)).toBe("0");
@@ -194,7 +195,7 @@ test("a opção sobrevive ao recarregar e não manda frame", async ({ mesa }) =>
 
   await p.reload();
   await expect(p.getByTestId("status-conexao")).toHaveText("conectado");
-  await abrirAba(p, "preferencias");
+  await abrirPreferencia(p, "mapa");
   await expect(p.getByTestId("pref-dicas")).not.toBeChecked();
   expect(await guardada(p)).toBe("0");
 

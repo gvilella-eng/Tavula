@@ -39,7 +39,7 @@ export function TrocarSenha({ mesaId, login }: { mesaId: string; login: string }
 
   return (
     <form className="trocar-senha" onSubmit={aoEnviar} data-testid="trocar-senha">
-      <h3 className="trocar-senha-titulo">Trocar a senha</h3>
+      <h4 className="trocar-senha-titulo">Trocar a senha</h4>
       <p className="nota">Entrar em outro lugar com a senha antiga deixa de valer.</p>
       <CampoDeConta
         testid="senha-atual"

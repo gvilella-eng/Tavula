@@ -1,4 +1,4 @@
-import { abrirAba, expect, ID_DA_MESA, type Sessao, test } from "./ajudas";
+import { abrirAba, abrirPreferencia, expect, ID_DA_MESA, type Sessao, test } from "./ajudas";
 import { gerarToken } from "./ajudasClaude";
 import { criarPastaDoGrupo, mandar, PASTA_GRUPO } from "./ajudasFicha";
 import { entrarNoMapa } from "./ajudasMapa";
@@ -311,7 +311,7 @@ test("token revogado: o MCP responde o erro claro, na hora e se já estava conec
   const p = mestre.pagina;
 
   // O texto de "Conectar o Claude" traz o comando final, com a origem da página, a mesa e o token já colados.
-  await abrirAba(p, "preferencias");
+  await abrirPreferencia(p, "claude");
   await p.getByTestId("claude-gerar").click();
   const token = (await p.getByTestId("claude-token-valor").textContent()) ?? "";
   const comando = (await p.getByTestId("claude-trecho-code").textContent()) ?? "";

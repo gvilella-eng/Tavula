@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import {
   abrirAba,
+  abrirPreferencia,
   CAMINHO_DA_MESA,
   enviarCru,
   expect,
@@ -27,7 +28,7 @@ test("a tela de entrada lista os 8 usuários e entrar abre a mesa", async ({ pag
   // a sessão continua depois do refresh; "trocar usuário" volta para a entrada
   await page.reload();
   await expect(page.getByTestId("eu-nome")).toHaveText("Jogador 3");
-  await abrirAba(page, "preferencias");
+  await abrirPreferencia(page, "conta");
   await page.getByTestId("trocar-usuario").click();
   await expect(page.getByTestId("entrar-mestre")).toBeVisible();
 });

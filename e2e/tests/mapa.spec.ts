@@ -1,6 +1,7 @@
 import type { Page } from "@playwright/test";
 import {
   abrirAba,
+  abrirPreferencia,
   enviarCru,
   escolherCamada,
   esperarMapa,
@@ -175,7 +176,7 @@ test("segurar Alt solta o token sem encaixe; a preferência desliga o encaixe", 
   await esperarPosicao(mestre.pagina, "tok-jogador-2", 19.75, 11.75);
   await esperarPosicao(j2.pagina, "tok-jogador-2", 19.75, 11.75);
 
-  await abrirAba(mestre.pagina, "preferencias");
+  await abrirPreferencia(mestre.pagina, "mapa");
   await mestre.pagina.getByTestId("pref-encaixe").uncheck();
   await arrastar(mestre.pagina, "tok-jogador-3", 1, 1);
   await esperarPosicao(mestre.pagina, "tok-jogador-3", 21.25, 10.75);
@@ -186,7 +187,7 @@ test("arrastar continuamente por 5 s envia no máximo ~110 token.mover", async (
   const mestre = await entrarNoMapa(mesa, "mestre");
   const j1 = await entrarNoMapa(mesa, "jogador-1");
   // sem encaixe, para cada pixel ser uma posição nova (o pior caso para o limitador)
-  await abrirAba(mestre.pagina, "preferencias");
+  await abrirPreferencia(mestre.pagina, "mapa");
   await mestre.pagina.getByTestId("pref-encaixe").uncheck();
 
   const p = mestre.pagina;

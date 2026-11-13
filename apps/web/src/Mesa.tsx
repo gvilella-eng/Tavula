@@ -1391,6 +1391,7 @@ export function Mesa({
                 fontes={fontes}
                 gerente={gerente}
                 lotesDoClaude={lotesDoClaude}
+                claudeConectado={claudeConectado.includes(eu.id)}
                 enviar={enviar}
               />
             ),

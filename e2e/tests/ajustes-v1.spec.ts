@@ -1,5 +1,5 @@
 import type { APIRequestContext, Page } from "@playwright/test";
-import { abrirAba, enviarCru, expect, intencaoCrua, test } from "./ajudas";
+import { abrirAba, abrirPreferencia, enviarCru, expect, intencaoCrua, test } from "./ajudas";
 import { entrarNoMapa, type GanchoDoMapa } from "./ajudasMapa";
 
 // Ajustes V1 (2026-11-11): temas com personalidade (Edgerunner, Élfico e Celestial novos; o antigo Edgerunner virou
@@ -20,7 +20,7 @@ test("Edgerunner, Élfico e Celestial aplicam as cores e sobrevivem ao recarrega
 }) => {
   const m = await mesa.entrar("mestre");
   const p = m.pagina;
-  await abrirAba(p, "preferencias");
+  await abrirPreferencia(p, "aparencia");
   for (const id of ["edgerunner", "elfico", "celestial"] as const) {
     await p.getByTestId(`tema-${id}`).click();
     await expect(p.locator("html")).toHaveAttribute("data-tema", id);
@@ -35,7 +35,7 @@ test("Edgerunner, Élfico e Celestial aplicam as cores e sobrevivem ao recarrega
     await expect(p.getByTestId("eu-nome")).toBeVisible();
     await expect(p.locator("html")).toHaveAttribute("data-tema", id);
     await expect(p.locator("body")).toHaveCSS("background-color", FUNDO_V1[id] as string);
-    await abrirAba(p, "preferencias");
+    await abrirPreferencia(p, "aparencia");
     await expect(p.getByTestId(`tema-${id}`)).toBeChecked();
   }
   // o acento do Edgerunner é o verde neon, não o dourado do Grimório

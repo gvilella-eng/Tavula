@@ -15,11 +15,12 @@ import {
  * rádio de verdade (mesmo `name`), então o grupo se anda com as setas. É preferência deste navegador:
  * nada vai para a sala.
  */
-export function SeletorDeTema() {
+export function SeletorDeTema({ aoEscolher }: { aoEscolher?: (id: IdDoTema) => void }) {
   const [atual, setAtual] = useState<IdDoTema>(() => lerTema());
   function escolher(id: IdDoTema) {
     escolherTema(id);
     setAtual(id);
+    aoEscolher?.(id);
   }
   return (
     <div

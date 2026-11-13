@@ -4,6 +4,7 @@ import { derivarSenha } from "../../packages/shared/src/contas.ts";
 import { gerarIdDeMesa } from "../../packages/shared/src/mesas.ts";
 import {
   abrirAba,
+  abrirPreferencia,
   continuarParaAPasta,
   esperarMapa,
   expect,
@@ -135,7 +136,7 @@ test("criar mesa com conta: o mestre entra, o cookie é da mesa e HttpOnly, sair
   await naMesa(p);
 
   // sair (Preferências) volta à tela de entrada e apaga o cookie
-  await abrirAba(p, "preferencias");
+  await abrirPreferencia(p, "conta");
   await expect(p.getByTestId("trocar-usuario")).toHaveText("Sair");
   await p.getByTestId("trocar-usuario").click();
   await expect(p.getByTestId("tela-de-entrada")).toBeVisible();
@@ -714,7 +715,7 @@ test("trocar a senha em Preferências derruba as outras sessões e mantém a atu
   await expect(outro.pagina.getByTestId("topo")).toBeVisible();
 
   // trocar a senha: a atual errada é recusada; a certa troca e derruba a outra sessão
-  await abrirAba(m.pagina, "preferencias");
+  await abrirPreferencia(m.pagina, "seguranca");
   await m.pagina.getByTestId("senha-atual").fill("errada-errada");
   await m.pagina.getByTestId("senha-nova").fill(OUTRA_SENHA);
   await m.pagina.getByTestId("senha-confirmar").fill("nao-bate");

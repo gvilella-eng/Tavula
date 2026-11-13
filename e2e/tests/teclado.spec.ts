@@ -1,7 +1,15 @@
 import type { Locator, Page } from "@playwright/test";
 import { ATALHOS, IDS_DOS_ATALHOS, textoDasTeclas } from "../../apps/web/src/atalhos";
 import { TEMAS } from "../../apps/web/src/tema/temas";
-import { abrirAba, enviarCru, expect, intencaoCrua, test, tornarMembros } from "./ajudas";
+import {
+  abrirAba,
+  abrirPreferencia,
+  enviarCru,
+  expect,
+  intencaoCrua,
+  test,
+  tornarMembros,
+} from "./ajudas";
 import { doTipo, entrarNoMapa, type GanchoDoMapa, soSelecionarToken } from "./ajudasMapa";
 
 // R6a: teclado, dicas com atalho, foco visível e contraste. Tudo o que se faz com o mouse tem caminho pelo
@@ -118,11 +126,11 @@ test("a dica vale no mouse e no foco por Tab, com o atalho: topo, barra esquerda
 test("a lista 'Atalhos do teclado' das Preferências bate com a tabela única", async ({ mesa }) => {
   const m = await entrarNoMapa(mesa, "mestre");
   const p = m.pagina;
-  await abrirAba(p, "preferencias");
+  await abrirPreferencia(p, "atalhos");
   const lista = p.getByTestId("atalhos");
   await lista.scrollIntoViewIfNeeded();
   await expect(lista).toBeVisible();
-  await expect(lista.getByRole("heading", { name: "Atalhos do teclado" })).toBeVisible();
+  await expect(p.getByTestId("pref-secao-atalhos-titulo")).toContainText("Atalhos do teclado");
   // uma linha por atalho da tabela, na mesma ordem, com as mesmas teclas e a mesma descrição
   const ids = await lista
     .locator("[data-testid^='atalho-']")
@@ -323,7 +331,7 @@ for (const tema of ["grimorio", "escuro", "claro"] as const) {
     await tornarMembros(request, ...TODOS_OS_JOGADORES);
     const m = await entrarNoMapa(mesa, "mestre");
     const p = m.pagina;
-    await abrirAba(p, "preferencias");
+    await abrirPreferencia(p, "aparencia");
     await p.getByTestId(`tema-${tema}`).check({ force: true });
     await expect(p.locator("html")).toHaveAttribute("data-tema", tema);
     await p.getByTestId("menu-ordem-turno").click();

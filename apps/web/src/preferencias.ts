@@ -132,3 +132,35 @@ export function gravarJanela(id: string, pref: PreferenciaDeJanela): void {
     // sem localStorage: vale só nesta sessão
   }
 }
+
+// --- seções abertas da aba Preferências (P1, só deste navegador) -------------------------------
+
+export const CHAVE_SECOES_DE_PREFERENCIAS = "tabletop:pref:secoes";
+
+/** Só a Conta abre por padrão. */
+export const SECAO_ABERTA_POR_PADRAO = "conta";
+
+/** O que a pessoa abriu (true) ou fechou (false) em cada seção; o que ela nunca mexeu não aparece. */
+export function lerSecoesDePreferencias(): Record<string, boolean> {
+  try {
+    const bruto = localStorage.getItem(CHAVE_SECOES_DE_PREFERENCIAS);
+    if (!bruto) return {};
+    const lido: unknown = JSON.parse(bruto);
+    if (typeof lido !== "object" || lido === null || Array.isArray(lido)) return {};
+    const saida: Record<string, boolean> = {};
+    for (const [id, v] of Object.entries(lido)) if (typeof v === "boolean") saida[id] = v;
+    return saida;
+  } catch {
+    return {};
+  }
+}
+
+export function gravarSecaoDePreferencias(id: string, aberta: boolean): void {
+  try {
+    const todas = lerSecoesDePreferencias();
+    todas[id] = aberta;
+    localStorage.setItem(CHAVE_SECOES_DE_PREFERENCIAS, JSON.stringify(todas));
+  } catch {
+    // sem localStorage: vale só nesta sessão
+  }
+}

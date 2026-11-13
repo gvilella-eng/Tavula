@@ -28,8 +28,7 @@ function Grupo({ grupo }: { grupo: GrupoDeAtalhos }) {
  */
 export function ListaDeAtalhos() {
   return (
-    <section className="lista-de-atalhos" data-testid="atalhos" aria-labelledby="atalhos-titulo">
-      <h3 id="atalhos-titulo">Atalhos do teclado</h3>
+    <section className="lista-de-atalhos" data-testid="atalhos" aria-label="Atalhos do teclado">
       <p className="nota">
         Os mesmos que aparecem nas dicas dos botões (se as dicas estiverem ligadas). Não valem
         enquanto você escreve num campo. Os atalhos recolhidos servem para usar tudo pelo teclado.

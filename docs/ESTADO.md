@@ -3575,4 +3575,24 @@ Ver `REDESIGN.md` e `PASSAGEM.md` ("12-2").
 ### Roteiro manual
 `docs/ROTEIRO-DE-TESTES.md`, "12-2".
 
-## Próximo: os bugs que sobrarem e o roteiro manual do Lote 12
+## Ajustes P1 — A aba Preferências em sanfona com resumo (entregue, aguardando o roteiro manual)
+
+Detalhes em `docs/REDESIGN.md` ("P1 — como ficou") e `PROJETO.md` (4.13).
+
+### O que foi entregue
+- Preferências reorganizada em sete cartões recolhíveis com resumo (Modelo B): Conta, Aparência, No mapa, Ajuda e arquivos, Conectar o Claude, Segurança e Atalhos do teclado. Só a Conta abre por padrão; o que a pessoa abre fica lembrado no navegador.
+
+### Como rodar
+`pnpm dev` como sempre. Sem migração, sem mudança de sala nem de protocolo.
+
+### Verificação
+- E2E novo: `p1.spec.ts` (4 testes). E2E antigos ajustados só no caminho até o controle: `abrirPreferencia(pagina, secao)` em `ajudas.ts` abre a aba e a seção; `claude-12-1.spec.ts` ganhou a conferência do resumo do Claude. `teclado.spec.ts` agora confere o título no cartão (o `<h3>` saiu).
+- Prints: `scratchpad/prints-p1` (3 combinações).
+
+### Decisões e frágil
+Ver `REDESIGN.md` e `PASSAGEM.md` ("P1").
+
+### Roteiro manual
+`docs/ROTEIRO-DE-TESTES.md`, "P1".
+
+## Próximo: os bugs que sobrarem e o roteiro manual dos Lotes 12 e P1

@@ -1,5 +1,12 @@
 import type { Page } from "@playwright/test";
-import { abrirAba, continuarParaAPasta, expect, preencherMesaEConta, test } from "./ajudas";
+import {
+  abrirAba,
+  abrirPreferencia,
+  continuarParaAPasta,
+  expect,
+  preencherMesaEConta,
+  test,
+} from "./ajudas";
 
 // C3: pasta da mesa com chave (ECDSA), código de recuperação mostrado uma vez, recuperação do mestre pela pasta e
 // pelo código, pasta de outra mesa recusada, "Proteger com a pasta da mesa" e a conferência da Origin. A pasta
@@ -67,7 +74,7 @@ async function naMesa(p: Page) {
 }
 
 async function sair(p: Page) {
-  await abrirAba(p, "preferencias");
+  await abrirPreferencia(p, "conta");
   await p.getByTestId("trocar-usuario").click();
   await expect(p.getByTestId("tela-de-entrada")).toBeVisible();
 }

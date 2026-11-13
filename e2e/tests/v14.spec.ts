@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import type { Page } from "@playwright/test";
-import { abrirAba, expect, test } from "./ajudas";
+import { abrirAba, abrirPreferencia, expect, test } from "./ajudas";
 import { entrarNoMapa, type GanchoDoMapa, pontoNaPagina } from "./ajudasMapa";
 
 // V14: o tipo de parede como lista com ícones, Exportar e Importar em dois blocos, a lista de atalhos enxuta, o
@@ -114,7 +114,7 @@ test("Exportar e Importar: dois blocos; escolher mostra o nome e o resumo; Cance
 test("atalhos: Os mais usados aberta, as outras seções recolhidas e se abrem", async ({ mesa }) => {
   const mestre = await entrarNoMapa(mesa, "mestre");
   const p = mestre.pagina;
-  await abrirAba(p, "preferencias");
+  await abrirPreferencia(p, "atalhos");
   const lista = p.getByTestId("atalhos");
   await lista.scrollIntoViewIfNeeded();
   await expect(lista).toContainText("Os atalhos recolhidos servem para usar tudo pelo teclado.");
@@ -137,7 +137,7 @@ test("atalhos: Os mais usados aberta, as outras seções recolhidas e se abrem",
 });
 
 async function emPes(p: Page) {
-  await abrirAba(p, "preferencias");
+  await abrirPreferencia(p, "mapa");
   await p.getByTestId("pref-unidade-pes").click();
   await expect(p.getByTestId("pref-unidade-pes")).toHaveAttribute("aria-pressed", "true");
 }
@@ -223,7 +223,7 @@ test("com a preferência em pés, os campos de raio mostram pés e gravam metros
     .toContain('"alcanceInteracaoM":3');
 
   // de volta aos metros, o campo mostra 3
-  await abrirAba(p, "preferencias");
+  await abrirPreferencia(p, "mapa");
   await p.getByTestId("pref-unidade-m").click();
   await abrirAba(p, "mesa");
   await expect(campo).toHaveValue("3");

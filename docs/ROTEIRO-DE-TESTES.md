@@ -396,6 +396,18 @@ Agora o Claude de verdade entra na mesa. Detalhes em `docs/MCP.md`. Use uma mesa
 **Se der errado**
 16. **Revogue** o token em Preferências: o Claude responde "Token inválido ou revogado: gere outro em Preferências → Conectar o Claude." e a bolinha perde o robozinho. Pare o `pnpm dev` e suba de novo: o MCP reconecta sozinho.
 
+## P1 — A aba Preferências em sanfona
+
+1. Abra a aba **Preferências**. Só a **Conta** está aberta ("Você é ..." com Sair/Trocar usuário e Trocar de mesa); os outros seis cartões mostram o resumo (sem login, Segurança não existe).
+2. A ordem é: Conta, Aparência, No mapa, Ajuda e arquivos, Conectar o Claude, Segurança, Atalhos do teclado.
+3. Abra **Aparência**: o resumo some, aparecem as bolinhas e a marca "só neste navegador". Troque o tema, feche o cartão: o resumo é o nome do tema novo.
+4. Abra **No mapa**: troque Metros/Pés e desmarque o encaixe e as dicas. Feche: o resumo acompanha ("Pés · encaixe desligado · dicas desligadas").
+5. Abra **Ajuda e arquivos**: o tour, a pasta local (com a marca) e as transferências. Escolha uma pasta: o resumo vira "Pasta <nome>". Arraste uma imagem de outro computador e, durante a transferência, o resumo fica em destaque ("· 1 transferência").
+6. **Conectar o Claude**: gere um token; o resumo conta "1 token". Com o Claude conectado vira "1 token · conectado"; com um lote do Claude, "· 1 lote para desfazer".
+7. Teclado: Tab até um título, Enter e Espaço abrem e fecham. Abra três cartões: nenhum fecha o outro.
+8. Recarregue a página: os cartões ficam como você deixou.
+9. Confira nos temas Pergaminho e Vampiro que os cartões ficam legíveis. Painel estreito (arraste a alça): os resumos cortam com reticências e a dica mostra o texto inteiro.
+
 ## Se algo der errado
 - Anote a tela, o que fez e o que esperava, e mande para mim. Bug confirmado vai para `docs/BUGS.md`.
 - Para voltar à campanha de antes de mesas e contas, use a cópia de segurança indicada no topo.

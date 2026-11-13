@@ -4,6 +4,7 @@ import { gerarIdDeMesa } from "../../packages/shared/src/mesas.ts";
 import {
   abrirAba,
   abrirAbaInicial,
+  abrirPreferencia,
   continuarParaAPasta,
   esperarMapa,
   expect,
@@ -308,7 +309,7 @@ test("a aba Mesa mostra o nome e o id; o mestre renomeia e o jogador não", asyn
   await expect(p).toHaveTitle(/^Távola · Nome novo da mesa/);
 
   // "Trocar de mesa" (Preferências) vai para a tela inicial, onde a mesa está com o nome novo
-  await abrirAba(p, "preferencias");
+  await abrirPreferencia(p, "conta");
   await p.getByTestId("trocar-de-mesa").click();
   await expect(p.getByTestId("tela-inicial")).toBeVisible();
   await expect(p.getByTestId(`inicio-mesa-${id}`)).toContainText("Nome novo da mesa");

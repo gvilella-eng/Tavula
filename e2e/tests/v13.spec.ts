@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test";
-import { abrirAba, expect, menuDaCena, test } from "./ajudas";
+import { abrirPreferencia, expect, menuDaCena, test } from "./ajudas";
 import { entrarNoMapa, type GanchoDoMapa, PX_POR_M } from "./ajudasMapa";
 
 // V13: a régua livre (sem grid), os pontos de virada com o clique direito e a unidade (metros ou pés).
@@ -168,7 +168,7 @@ test("a preferência em pés: 5 pés em um quadrado, e o campo do Configurar cen
   const quadrado = await p.evaluate(() =>
     (window as unknown as { __tabletop: GanchoDoMapa }).__tabletop.quadradoM(),
   );
-  await abrirAba(p, "preferencias");
+  await abrirPreferencia(p, "mapa");
   await expect(p.getByTestId("pref-unidade-m")).toHaveAttribute("aria-pressed", "true");
   await p.getByTestId("pref-unidade-pes").click();
   await expect(p.getByTestId("pref-unidade-pes")).toHaveAttribute("aria-pressed", "true");

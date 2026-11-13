@@ -1,5 +1,5 @@
 import type { Locator, Page } from "@playwright/test";
-import { abrirAba, expect, menuDaCena, test } from "./ajudas";
+import { abrirAba, abrirPreferencia, expect, menuDaCena, test } from "./ajudas";
 import { entrarNoMapa, type GanchoDoMapa, pontoNaPagina } from "./ajudasMapa";
 
 // Redesign R4: organização do mestre. Menu do topo em grupos e com nomes, "Ver como" em botão próprio,
@@ -249,7 +249,10 @@ test("Preferências (todos) e Mesa (só mestre) separam o pessoal do que vale pa
   const j = await entrarNoMapa(mesa, "jogador-1");
 
   for (const s of [mestre, j]) {
-    await abrirAba(s.pagina, "preferencias");
+    await abrirPreferencia(s.pagina, "conta");
+    await abrirPreferencia(s.pagina, "aparencia");
+    await abrirPreferencia(s.pagina, "mapa");
+    await abrirPreferencia(s.pagina, "ajuda");
     const painel = s.pagina.getByTestId("aba-painel-preferencias");
     await expect(painel.getByTestId("trocar-usuario")).toBeVisible();
     await expect(painel.getByTestId("seletor-de-tema")).toBeVisible();

@@ -1,14 +1,27 @@
 import type { Papel } from "@tabletop/shared";
-import { FolderOpen, ShieldCheck } from "lucide-react";
+import {
+  FolderOpen,
+  Map as IconeDoMapa,
+  Keyboard,
+  KeyRound,
+  LifeBuoy,
+  Lock,
+  Palette,
+  ShieldCheck,
+  User,
+} from "lucide-react";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { type ArquivoDaFonte, temSeletorDePasta } from "./assets/fonte";
 import type { Fontes } from "./assets/fontes";
 import type { GerenteDeAssets, StatusDeAsset } from "./assets/gerente";
+import { IDS_DOS_ATALHOS } from "./atalhos";
 import { ConectarOClaude } from "./claude/ConectarOClaude";
 import { TrocarSenha } from "./contas/TrocarSenha";
 import { definirDicasLigadas, useDicasLigadas } from "./dicasLigadas";
 import { ListaDeAtalhos } from "./ListaDeAtalhos";
+import { MarcaSoNesteNavegador, SecaoDePreferencias } from "./SecaoDePreferencias";
 import { SeletorDeTema } from "./SeletorDeTema";
+import { lerTema, NOMES_DOS_TEMAS } from "./tema/temas";
 import { definirUnidade, useUnidade } from "./unidade";
 import type { LoteDoClaude } from "./useSala";
 
@@ -36,6 +49,8 @@ type PropsPreferencias = {
   gerente: GerenteDeAssets | null;
   /** 12-1: os lotes recentes do Claude deste usuário e como mandar o "Desfazer". */
   lotesDoClaude: readonly LoteDoClaude[];
+  /** P1: o Claude desta pessoa está conectado agora (a presença do 12-1). */
+  claudeConectado: boolean;
   enviar: (tipo: string, dados: object) => string | null;
 };
 
@@ -57,7 +72,10 @@ function PastaLocal({ fontes }: { fontes: Fontes }) {
   }, [fontes, versao]);
   return (
     <>
-      <h3>Pasta local de imagens</h3>
+      <div className="pref-sub-titulo">
+        <h4>Pasta local de imagens</h4>
+        <MarcaSoNesteNavegador />
+      </div>
       <p className="nota">
         As imagens ficam no seu computador. A mesa só recebe o que você usa (retrato, token, mapa) e
         o servidor não guarda nada.
@@ -117,7 +135,7 @@ function Transferencias({ gerente }: { gerente: GerenteDeAssets }) {
   const prontos = gerente.inventario().length;
   return (
     <>
-      <h3>Transferências</h3>
+      <h4>Transferências</h4>
       <ul className="lista-simples transferencias" data-testid="transferencias">
         {emAndamento.map((s) => (
           <li key={s.hash} data-testid="transferencia" data-hash={s.hash} data-estado={s.estado}>
@@ -135,10 +153,21 @@ function Transferencias({ gerente }: { gerente: GerenteDeAssets }) {
   );
 }
 
+function plural(n: number, um: string, varios: string): string {
+  return `${n} ${n === 1 ? um : varios}`;
+}
+
+function assinarNada(): () => void {
+  return () => {};
+}
+function zero(): number {
+  return 0;
+}
+
 /**
- * Aba Preferências (todos): o que é de cada pessoa, no navegador. Trocar de usuário, tema de cor,
- * encaixe no grid, pasta local de imagens, transferências e a lista de atalhos do teclado. O que vale para a sala (regras, modelos de
- * luz, papéis) está na aba Mesa, só do mestre.
+ * Aba Preferências (todos): o que é de cada pessoa. Sete seções recolhíveis, cada uma com o resumo do estado (P1): Conta,
+ * Aparência, No mapa, Ajuda e arquivos, Conectar o Claude, Segurança (só com login) e Atalhos do teclado. O que vale para a
+ * sala (regras, modelos de luz, papéis) está na aba Mesa, só do mestre.
  */
 export function AbaPreferencias({
   nome,
@@ -153,75 +182,170 @@ export function AbaPreferencias({
   fontes,
   gerente,
   lotesDoClaude,
+  claudeConectado,
   enviar,
 }: PropsPreferencias) {
   const dicas = useDicasLigadas();
   const unidade = useUnidade();
+  const [tema, setTema] = useState(() => lerTema());
+  const [tokens, setTokens] = useState<number | null>(null);
+  useSyncExternalStore(fontes.assinar, fontes.versaoAtual);
+  useSyncExternalStore(
+    gerente ? gerente.assinar : assinarNada,
+    gerente ? gerente.versaoAtual : zero,
+  );
+  const emAndamento = gerente
+    ? gerente.listarStatus().filter((s) => s.estado !== "pronto").length
+    : 0;
+  const desfaziveis = lotesDoClaude.filter((l) => !l.desfeito && l.desfazivel).length;
+
+  const resumoDoMapa = [
+    unidade === "m" ? "Metros" : "Pés",
+    encaixe ? "encaixe ligado" : "encaixe desligado",
+    dicas ? "dicas ligadas" : "dicas desligadas",
+  ].join(" · ");
+  const resumoDaAjuda =
+    (fontes.nomeDaPasta ? `Pasta ${fontes.nomeDaPasta}` : "Nenhuma pasta escolhida") +
+    (emAndamento > 0 ? ` · ${plural(emAndamento, "transferência", "transferências")}` : "");
+  const resumoDoClaude =
+    tokens === null
+      ? "Carregando…"
+      : (tokens === 0 ? "Nenhum token" : plural(tokens, "token", "tokens")) +
+        (claudeConectado ? " · conectado" : "") +
+        (desfaziveis > 0 ? ` · ${plural(desfaziveis, "lote", "lotes")} para desfazer` : "");
+
   return (
-    <>
-      <p>
-        Você é <strong>{nome}</strong> ({papel}).
-      </p>
-      <div className="linha-botoes">
-        <button type="button" data-testid="trocar-usuario" onClick={aoSair}>
-          {login ? "Sair" : "Trocar usuário"}
-        </button>
-        <button type="button" data-testid="trocar-de-mesa" onClick={aoTrocarDeMesa}>
-          Trocar de mesa
-        </button>
-      </div>
-      {login && <TrocarSenha mesaId={mesaId} login={login} />}
-      <ConectarOClaude mesaId={mesaId} lotes={lotesDoClaude} enviar={enviar} />
-      <h3>Neste navegador</h3>
-      <p className="nota">Só vale para você e fica guardado aqui, não vai para a mesa.</p>
-      <SeletorDeTema />
-      <label className="linha-opcao">
-        <input
-          type="checkbox"
-          data-testid="pref-encaixe"
-          checked={encaixe}
-          onChange={(e) => aoMudarEncaixe(e.target.checked)}
-        />
-        Encaixar tokens no grid (segure Alt ao arrastar para soltar sem encaixe)
-      </label>
-      <fieldset className="quem-controla" data-testid="pref-unidade">
-        <legend>Unidade de distância</legend>
-        <div className="chips">
-          {(["m", "pes"] as const).map((u) => (
-            <button
-              key={u}
-              type="button"
-              className="chip"
-              data-testid={`pref-unidade-${u}`}
-              aria-pressed={unidade === u}
-              onClick={() => definirUnidade(u)}
-            >
-              {u === "m" ? "Metros" : "Pés"}
-            </button>
-          ))}
-        </div>
-        <p className="nota">
-          Vale para a régua, as luzes e o quadrado da cena. A mesa guarda tudo em metros (1,5 m = 5
-          pés).
+    <div className="pref-lista" data-testid="preferencias">
+      <SecaoDePreferencias
+        id="conta"
+        titulo="Conta"
+        icone={<User size={16} />}
+        resumo={`${nome} (${papel})`}
+      >
+        <p>
+          Você é <strong>{nome}</strong> ({papel}).
         </p>
-      </fieldset>
-      <label className="linha-opcao">
-        <input
-          type="checkbox"
-          data-testid="pref-dicas"
-          checked={dicas}
-          onChange={(e) => definirDicasLigadas(e.target.checked)}
+        <div className="linha-botoes">
+          <button type="button" data-testid="trocar-usuario" onClick={aoSair}>
+            {login ? "Sair" : "Trocar usuário"}
+          </button>
+          <button type="button" data-testid="trocar-de-mesa" onClick={aoTrocarDeMesa}>
+            Trocar de mesa
+          </button>
+        </div>
+      </SecaoDePreferencias>
+      <SecaoDePreferencias
+        id="aparencia"
+        titulo="Aparência"
+        icone={<Palette size={16} />}
+        resumo={NOMES_DOS_TEMAS[tema]}
+      >
+        <div className="pref-marca-linha">
+          <MarcaSoNesteNavegador />
+        </div>
+        <SeletorDeTema aoEscolher={setTema} />
+      </SecaoDePreferencias>
+      <SecaoDePreferencias
+        id="mapa"
+        titulo="No mapa"
+        icone={<IconeDoMapa size={16} />}
+        resumo={resumoDoMapa}
+      >
+        <div className="pref-marca-linha">
+          <MarcaSoNesteNavegador />
+        </div>
+        <fieldset className="quem-controla" data-testid="pref-unidade">
+          <legend>Unidade de distância</legend>
+          <div className="chips">
+            {(["m", "pes"] as const).map((u) => (
+              <button
+                key={u}
+                type="button"
+                className="chip"
+                data-testid={`pref-unidade-${u}`}
+                aria-pressed={unidade === u}
+                onClick={() => definirUnidade(u)}
+              >
+                {u === "m" ? "Metros" : "Pés"}
+              </button>
+            ))}
+          </div>
+          <p className="nota">
+            Vale para a régua, as luzes e o quadrado da cena. A mesa guarda tudo em metros (1,5 m =
+            5 pés).
+          </p>
+        </fieldset>
+        <label className="linha-opcao">
+          <input
+            type="checkbox"
+            data-testid="pref-encaixe"
+            checked={encaixe}
+            onChange={(e) => aoMudarEncaixe(e.target.checked)}
+          />
+          Encaixar tokens no grid (segure Alt ao arrastar para soltar sem encaixe)
+        </label>
+        <label className="linha-opcao">
+          <input
+            type="checkbox"
+            data-testid="pref-dicas"
+            checked={dicas}
+            onChange={(e) => definirDicasLigadas(e.target.checked)}
+          />
+          Dicas ao passar o mouse (o nome e o atalho dos botões só de ícone)
+        </label>
+      </SecaoDePreferencias>
+      <SecaoDePreferencias
+        id="ajuda"
+        titulo="Ajuda e arquivos"
+        icone={<LifeBuoy size={16} />}
+        resumo={resumoDaAjuda}
+        destaque={emAndamento > 0}
+      >
+        <div className="linha-botoes">
+          <button type="button" data-testid="tour-refazer" onClick={aoFazerOTour}>
+            Fazer o tour de novo
+          </button>
+        </div>
+        <div className="pref-sub">
+          <PastaLocal fontes={fontes} />
+        </div>
+        {gerente && (
+          <div className="pref-sub">
+            <Transferencias gerente={gerente} />
+          </div>
+        )}
+      </SecaoDePreferencias>
+      <SecaoDePreferencias
+        id="claude"
+        titulo="Conectar o Claude"
+        icone={<KeyRound size={16} />}
+        resumo={resumoDoClaude}
+      >
+        <ConectarOClaude
+          mesaId={mesaId}
+          lotes={lotesDoClaude}
+          enviar={enviar}
+          aoContarTokens={setTokens}
         />
-        Dicas ao passar o mouse (o nome e o atalho dos botões só de ícone)
-      </label>
-      <div className="linha-botoes">
-        <button type="button" data-testid="tour-refazer" onClick={aoFazerOTour}>
-          Fazer o tour de novo
-        </button>
-      </div>
-      <PastaLocal fontes={fontes} />
-      {gerente && <Transferencias gerente={gerente} />}
-      <ListaDeAtalhos />
-    </>
+      </SecaoDePreferencias>
+      {login && (
+        <SecaoDePreferencias
+          id="seguranca"
+          titulo="Segurança"
+          icone={<Lock size={16} />}
+          resumo="Trocar a senha"
+        >
+          <TrocarSenha mesaId={mesaId} login={login} />
+        </SecaoDePreferencias>
+      )}
+      <SecaoDePreferencias
+        id="atalhos"
+        titulo="Atalhos do teclado"
+        icone={<Keyboard size={16} />}
+        resumo={plural(IDS_DOS_ATALHOS.length, "atalho", "atalhos")}
+      >
+        <ListaDeAtalhos />
+      </SecaoDePreferencias>
+    </div>
   );
 }

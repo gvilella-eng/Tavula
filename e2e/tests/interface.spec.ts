@@ -3,6 +3,7 @@ import type { Page } from "@playwright/test";
 import {
   abrirAba,
   abrirFaixa,
+  abrirPreferencia,
   enviarCru,
   escolherCamada,
   esperarMapa,
@@ -323,7 +324,9 @@ test("barra da direita: Chat, Fichas, Compêndio, Preferências e Mesa (largura 
   await expect(p.getByTestId("compendio-recarregar")).toBeVisible();
 
   // Preferências: usuário, tema, encaixe, pasta local e transferências
-  await abrirAba(p, "preferencias");
+  await abrirPreferencia(p, "conta");
+  await abrirPreferencia(p, "mapa");
+  await abrirPreferencia(p, "ajuda");
   await expect(p.getByTestId("trocar-usuario")).toBeVisible();
   await expect(p.getByTestId("pref-encaixe")).toBeVisible();
   await expect(p.getByTestId("biblioteca-pasta-estado")).toBeVisible();
@@ -331,7 +334,7 @@ test("barra da direita: Chat, Fichas, Compêndio, Preferências e Mesa (largura 
   // o contador conta o cache do navegador (um mapa feito aqui entra, sem nenhuma transferência)
   await expect(p.getByTestId("transferencias-prontas")).toContainText("0 arquivos prontos");
   await definirMapa(p, "cena-1", arquivoPng("contador.png", pngDeRuido(300, 200, 91, 4)));
-  await abrirAba(p, "preferencias");
+  await abrirPreferencia(p, "ajuda");
   await expect(p.getByTestId("transferencias-prontas")).toContainText("1 arquivo pronto");
   await expect(p.getByTestId("transferencia")).toHaveCount(0);
 

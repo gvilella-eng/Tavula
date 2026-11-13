@@ -3,7 +3,15 @@ import { PASSOS_DO_JOGADOR, PASSOS_DO_MESTRE } from "../../apps/web/src/tour/pas
 // Só a derivação da senha e o sorteio do id (puros, sem navegador): o teste fala com a API como a tela fala.
 import { derivarSenha } from "../../packages/shared/src/contas.ts";
 import { gerarIdDeMesa } from "../../packages/shared/src/mesas.ts";
-import { abrirAba, expect, ID_DA_MESA, Mesa, test, tornarMembros } from "./ajudas";
+import {
+  abrirAba,
+  abrirPreferencia,
+  expect,
+  ID_DA_MESA,
+  Mesa,
+  test,
+  tornarMembros,
+} from "./ajudas";
 
 // Lote T: o tour de introdução (mestre ~10 passos, jogador ~6), o "já viu" por conta guardado no servidor, o teclado e
 // a garantia de que cada passo ainda acha o seu alvo na tela do papel certo, em 1600×900 e 1280×720. Com MODO=teste o
@@ -245,7 +253,7 @@ test("Fazer o tour de novo (Preferências) abre o tour outra vez, no primeiro pa
   const p = s.pagina;
   // usuário solto de teste (sem conta): nunca abre sozinho
   await expect(p.getByTestId("tour")).toHaveCount(0);
-  await abrirAba(p, "preferencias");
+  await abrirPreferencia(p, "ajuda");
   await p.getByTestId("tour-refazer").click();
   await expect(p.getByTestId("tour-titulo")).toHaveText("Bem-vindo à mesa");
   await expect(p.getByTestId("tour-proximo")).toHaveText("Próximo 1/6");
@@ -269,7 +277,7 @@ for (const t of TAMANHOS) {
     const m = new Mesa(browser, { viewport: { width: t.width, height: t.height } });
     try {
       const p = (await m.entrar("mestre")).pagina;
-      await abrirAba(p, "preferencias");
+      await abrirPreferencia(p, "ajuda");
       await p.getByTestId("tour-refazer").click();
       await percorrer(p, PASSOS_DO_MESTRE);
     } finally {
@@ -283,7 +291,7 @@ for (const t of TAMANHOS) {
     const m = new Mesa(browser, { viewport: { width: t.width, height: t.height } });
     try {
       const p = (await m.entrar("jogador-1")).pagina;
-      await abrirAba(p, "preferencias");
+      await abrirPreferencia(p, "ajuda");
       await p.getByTestId("tour-refazer").click();
       await percorrer(p, PASSOS_DO_JOGADOR);
     } finally {
@@ -302,7 +310,7 @@ test("passo cujo alvo não existe é pulado, nos dois sentidos, e o tour não tr
   await p.getByTestId("menu-ver-como").click();
   await p.getByTestId("ver-como-jogador-1").click();
   await expect(p.getByTestId("ferramenta-paredes")).toHaveCount(0);
-  await abrirAba(p, "preferencias");
+  await abrirPreferencia(p, "ajuda");
   await p.getByTestId("tour-refazer").click();
   for (let i = 0; i < 3; i++) await p.getByTestId("tour-proximo").click();
   await expect(p.getByTestId("tour")).toHaveAttribute("data-passo", "ferramentas");

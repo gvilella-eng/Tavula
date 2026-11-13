@@ -65,6 +65,24 @@ export async function abrirAba(pagina: Page, id: string): Promise<void> {
   await expect(pagina.getByTestId(`aba-painel-${id}`)).toBeVisible();
 }
 
+/** P1: as seções da aba Preferências, na ordem em que aparecem. */
+export type SecaoDePreferencias =
+  | "conta"
+  | "aparencia"
+  | "mapa"
+  | "ajuda"
+  | "claude"
+  | "seguranca"
+  | "atalhos";
+
+/** P1: abre a aba Preferências e a seção pedida (se já estiver aberta, não mexe). Só a Conta abre por padrão. */
+export async function abrirPreferencia(pagina: Page, secao: SecaoDePreferencias): Promise<void> {
+  await abrirAba(pagina, "preferencias");
+  const titulo = pagina.getByTestId(`pref-secao-${secao}-titulo`);
+  if ((await titulo.getAttribute("aria-expanded")) !== "true") await titulo.click();
+  await expect(titulo).toHaveAttribute("aria-expanded", "true");
+}
+
 /**
  * V14: escolhe o arquivo de uma campanha exportada na aba Mesa e confirma "Importar e substituir" (o arquivo escolhido
  * espera a confirmação na própria página). A aba Mesa precisa estar aberta.
