@@ -1511,6 +1511,30 @@ A régua livre, os pontos de virada e a unidade (metros ou pés), a pedido do Vi
 - Mostrar a régua aos outros (continua local).
 - Marcar ponto de virada sem o mouse.
 
+## V14 — como ficou (2026-11-13)
+
+Menus (tipos de parede, importar e exportar, atalhos) e dois acertos que sobraram do V13, a pedido do Vilella. Ninguém para perguntar: o que o brief não dizia foi assumido. Sem migração e sem mudança de protocolo ou de sala.
+
+**O que foi feito**
+- **Tipo de parede em lista** (`ListaDeTiposDeParede.tsx`, no painel Paredes e portas): radiogroup de verdade (rádios nativos: setas, foco visível, linha ativa destacada como as abas). Cada linha tem ícone (`BrickWall`, `DoorOpen`, `PanelTop`, `EyeOff`, `Ghost`), o nome e, à direita, a amostra do traço com a cor e a espessura do mapa (`ESTILO_DA_PAREDE`, agora exportado). A dica do que o tipo faz (conferida em `paredes.ts`) aparece ao lado, no mouse e no foco (`Dica`). Os testids `parede-novo-<tipo>` ficaram nos rádios. "Desenhar como (linha/arco)", o A e o texto de ajuda continuam.
+- **Exportar e Importar** (aba Mesa, Campanha): dois blocos iguais, cada um com título, frase e botão (`Exportar campanha` com ícone de download; `Escolher arquivo…` com ícone de upload). O input de arquivo ficou escondido (testid `importar-arquivo` mantido). Escolhido o arquivo, aparecem o nome, o resumo (cenas, fichas e tokens, `resumoDaCampanha.ts`), o aviso "Isto troca a mesa atual. Exporte antes, se quiser guardar." e os botões "Importar e substituir" (perigo) e "Cancelar". Nada de `confirm()` (nunca houve). O texto do Exportar diz o que vai e o que não vai (conferido em `criarExportacao`).
+- **Atalhos**: em Preferências, "Os mais usados" (Ferramentas e Mapa) aberta; Menus, Janelas e painéis e Campos em `<details>` recolhidos; frase no topo sobre os recolhidos. Saiu `menuAtivar` (Enter e Espaço no item do menu: é o comportamento nativo do botão, duplicava o navegador). Entrou `chatHistorico` (↑ e ↓ no campo vazio do chat trazem de volta o que foi enviado: já existia no código e faltava na lista). Os atalhos do V10 ao V13 já estavam na lista.
+- **Rótulos da régua dentro do mapa** (`PertoDoPonto.tsx`, `posicaoDaRegua.ts`): o rótulo da ponta, os dos trechos, os das fixas e o botão Fixar ficam sempre dentro da área visível. Tenta à direita e embaixo; se não couber, à esquerda; depois em cima; depois à esquerda e em cima. Foge do retângulo do zoom flutuante (com folga de 6 px).
+- **Campos de raio na unidade escolhida** (`CampoDeDistancia` em `Campo.tsx`): "Luz plena" e "Penumbra" (modelos e fontes de luz), "Alcance de interação" (regras da mesa), "Alcance da visão" e "Visão no escuro" (editor do personagem e painel do token). O rótulo vira "(m)" ou "(pés)", o campo mostra e aceita a unidade e a sala recebe metros. Sem mexer no campo nada é enviado.
+
+**Decisões (assumido)**
+- (assumido) `EyeOff` para Secreta (some para os jogadores) e `Ghost` para Invisível; `DoorClosedLocked` ficaria parecido com a porta trancada.
+- (assumido) A amostra do traço é contínua para todos os tipos: o mapa não usa tracejado em nenhum.
+- (assumido) A dica de cada tipo vai na dica do mouse (e do foco), não na linha: com a dica na linha o painel ficava alto e cobria o centro do mapa, onde se desenha. Ficou na mesma posição (x = 316) e na mesma largura.
+- (assumido) Um arquivo que não parece campanha também fica à espera da confirmação, com o aviso "Não parece uma campanha exportada: a sala vai recusar."; a sala recusa como antes, com a mesma mensagem.
+- (assumido) Em pés o campo aceita decimais (até 2 casas) e mostra o valor da sala convertido ("1,5 m" = 5).
+- (assumido) Os campos "Base", "Por modificador" e "Alcance fixo" da memória do mapa (aba Mesa, Iluminação) ficaram em metros: o brief não os cita.
+- (assumido) O resumo da importação conta cenas, personagens (fichas) e tokens do arquivo; arquivo antigo sem personagens conta zero fichas.
+
+**O que ficou para depois**
+- Converter os campos de memória (Base, Por modificador, Alcance fixo) para a unidade escolhida.
+- Home e End na lista de tipos de parede (os rádios nativos só andam com as setas).
+
 ## Em aberto
 
 - **O plano R1 a R6 terminou** (R1, R2, R2b, R3, R4 em 2026-11-10; R5a, R5b, R6a e R6b em 2026-11-11). Agora o Vilella faz os ajustes

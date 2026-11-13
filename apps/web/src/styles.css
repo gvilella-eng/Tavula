@@ -581,6 +581,20 @@ textarea {
   pointer-events: none;
   cursor: default;
 }
+/* V14: o invólucro que mantém o rótulo dentro da área do mapa; o rótulo de dentro deixa de ser absoluto. */
+.regua-posicao {
+  position: absolute;
+  z-index: 5;
+  width: max-content;
+  pointer-events: none;
+}
+.regua-posicao > .regua-rotulo,
+.regua-posicao > .regua-fixar {
+  position: static;
+}
+.regua-posicao > .regua-fixar {
+  pointer-events: auto;
+}
 
 /* --- painel do token ---------------------------------------------------------------------- */
 
@@ -605,6 +619,75 @@ textarea {
 }
 .painel-token label.linha-opcao {
   flex-direction: row;
+}
+
+/* V14: o tipo de parede como lista com ícone, nome, dica e amostra do traço. */
+.tipos-de-parede {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.painel-token .tipo-de-parede {
+  position: relative;
+  cursor: pointer;
+  display: grid;
+  grid-template-columns: 18px 1fr auto;
+  align-items: center;
+  column-gap: 8px;
+  row-gap: 0;
+  width: 100%;
+  color: var(--texto);
+  padding: 3px 8px;
+  text-align: left;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  transition:
+    background 140ms ease,
+    border-color 140ms ease;
+}
+.painel-token .tipo-de-parede:hover {
+  background: var(--cabecalho);
+}
+.tipo-de-parede-radio {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.painel-token .tipo-de-parede:has(input:focus-visible) {
+  outline: 2px solid var(--foco);
+  outline-offset: 1px;
+}
+.painel-token .tipo-de-parede[data-ativo="true"] {
+  color: var(--acento-forte);
+  background: var(--acento-suave);
+  border-color: var(--acento);
+}
+.tipo-de-parede-nome {
+  grid-column: 2;
+  grid-row: 1;
+  font-weight: 600;
+}
+.tipo-de-parede > svg:first-of-type {
+  grid-column: 1;
+  grid-row: 1;
+}
+/* A amostra é o traço sobre o fundo do mapa (escuro em todos os temas): conteúdo do mapa, não cor do tema. */
+.tipo-de-parede-amostra {
+  grid-column: 3;
+  grid-row: 1;
+  padding: 2px 3px;
+  background: #10141a;
+  border-radius: 4px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .painel-token .tipo-de-parede {
+    transition: none;
+  }
 }
 
 /* --- painel direito ------------------------------------------------------------------------ */
@@ -4096,10 +4179,41 @@ kbd {
   padding: 2px 8px;
   font-size: 12px;
 }
-.aba-mesa input[type="file"] {
-  display: block;
-  max-width: 100%;
+/* V14: Exportar e Importar, dois blocos iguais um embaixo do outro. */
+.bloco-da-campanha {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 10px;
+  padding: 10px 12px;
+  background: var(--cabecalho);
+  border: 1px solid var(--borda);
+  border-radius: 8px;
+}
+.bloco-da-campanha > h4,
+.bloco-da-campanha > p {
+  margin: 0;
+}
+.botao-do-bloco {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.importar-escolhido {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   margin-top: 4px;
+  padding: 8px 10px;
+  background: var(--painel);
+  border: 1px solid var(--acento);
+  border-radius: 8px;
+}
+.importar-escolhido p {
+  margin: 0;
+  overflow-wrap: anywhere;
 }
 .selo-modo {
   left: 12px;
@@ -4197,6 +4311,19 @@ kbd {
 }
 .lista-de-atalhos dl {
   margin: 0;
+}
+/* V14: "Os mais usados" aberta e as outras seções recolhidas. */
+.atalhos-secao {
+  margin-top: 10px;
+}
+.lista-de-atalhos .atalhos-secao > summary {
+  cursor: pointer;
+  font-weight: 600;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--borda);
+}
+.lista-de-atalhos .atalhos-secao.atalhos-grupo > summary {
+  color: var(--texto-suave);
 }
 .atalho-linha {
   display: grid;

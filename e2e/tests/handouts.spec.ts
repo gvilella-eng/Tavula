@@ -1,6 +1,14 @@
 import { readFileSync } from "node:fs";
 import type { Page } from "@playwright/test";
-import { abrirAba, enviarCru, expect, intencaoCrua, type Sessao, test } from "./ajudas";
+import {
+  abrirAba,
+  enviarCru,
+  expect,
+  importarCampanha,
+  intencaoCrua,
+  type Sessao,
+  test,
+} from "./ajudas";
 import { arquivoPng, escolherNoSeletor, pngDeRuido } from "./ajudasAssets";
 import { abrirHandout, criarHandoutPelaSala } from "./ajudasFicha";
 import { entrarNoMapa } from "./ajudasMapa";
@@ -400,7 +408,7 @@ test("migração: o estado com notaMesa e notaMestre vira dois handouts (a da me
       notaMestre: "O taverneiro é o vilão.",
     },
   };
-  await m.getByTestId("importar-arquivo").setInputFiles({
+  await importarCampanha(m, {
     name: "campanha-antiga.json",
     mimeType: "application/json",
     buffer: Buffer.from(JSON.stringify(antiga)),

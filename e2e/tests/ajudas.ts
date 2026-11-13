@@ -65,6 +65,18 @@ export async function abrirAba(pagina: Page, id: string): Promise<void> {
   await expect(pagina.getByTestId(`aba-painel-${id}`)).toBeVisible();
 }
 
+/**
+ * V14: escolhe o arquivo de uma campanha exportada na aba Mesa e confirma "Importar e substituir" (o arquivo escolhido
+ * espera a confirmação na própria página). A aba Mesa precisa estar aberta.
+ */
+export async function importarCampanha(
+  pagina: Page,
+  arquivo: string | { name: string; mimeType: string; buffer: Buffer },
+): Promise<void> {
+  await pagina.getByTestId("importar-arquivo").setInputFiles(arquivo);
+  await pagina.getByTestId("importar-confirmar").click();
+}
+
 /** Menu superior do mestre → Cenas: abre a faixa de cenas (se já não está aberta). */
 export async function abrirFaixa(pagina: Page): Promise<void> {
   if (!(await pagina.getByTestId("faixa-cenas").isVisible())) {

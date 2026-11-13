@@ -9,7 +9,7 @@ import {
 import { Flame, Minus, Plus, Power, Trash2, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { BotaoComDica } from "./BotaoComDica";
-import { Campo } from "./Campo";
+import { Campo, CampoDeDistancia } from "./Campo";
 import { noCanto } from "./janelas/geometria";
 import { Janela } from "./janelas/Janela";
 import { type TempoDaTela, useTic } from "./tempo";
@@ -360,26 +360,24 @@ export function PainelDeFontesDeLuz(p: Props) {
                   aoConfirmar={(t) => t !== "" && editar(selecionada.id, { nome: t })}
                 />
                 <div className="linha-par">
-                  <Campo
+                  <CampoDeDistancia
                     testid="luz-clara"
-                    rotulo="Luz plena (m)"
-                    tipo="number"
-                    min={0}
-                    max={500}
-                    valor={String(selecionada.luz.claraM)}
-                    aoConfirmar={(t) =>
-                      t !== "" && editar(selecionada.id, { luz: { claraM: Number(t) } })
+                    rotulo="Luz plena"
+                    minM={0}
+                    maxM={500}
+                    valorM={selecionada.luz.claraM}
+                    aoConfirmar={(n) =>
+                      n !== null && editar(selecionada.id, { luz: { claraM: n } })
                     }
                   />
-                  <Campo
+                  <CampoDeDistancia
                     testid="luz-penumbra"
-                    rotulo="Penumbra (m)"
-                    tipo="number"
-                    min={0}
-                    max={500}
-                    valor={String(selecionada.luz.penumbraM)}
-                    aoConfirmar={(t) =>
-                      t !== "" && editar(selecionada.id, { luz: { penumbraM: Number(t) } })
+                    rotulo="Penumbra"
+                    minM={0}
+                    maxM={500}
+                    valorM={selecionada.luz.penumbraM}
+                    aoConfirmar={(n) =>
+                      n !== null && editar(selecionada.id, { luz: { penumbraM: n } })
                     }
                   />
                 </div>

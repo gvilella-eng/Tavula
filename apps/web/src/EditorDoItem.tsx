@@ -11,7 +11,7 @@ import {
 import { Copy, Download, FileUp, MapPinPlus, Trash2 } from "lucide-react";
 import { useRef, useState } from "react";
 import { Avatar } from "./Avatar";
-import { Campo } from "./Campo";
+import { Campo, CampoDeDistancia } from "./Campo";
 import type { PedirImagem } from "./FaixaDeCenas";
 import { BotaoImportarPdf } from "./ficha/BotaoImportarPdf";
 import type { ImagensDoMapa } from "./mapa/mapaPixi";
@@ -244,23 +244,22 @@ export function EditorDoItem({
                   </select>
                 </label>
               </div>
-              <Campo
+              <CampoDeDistancia
                 testid={`personagem-alcance-${p.id}`}
-                rotulo="Alcance da visão (m; vazio = sem limite)"
-                tipo="number"
-                min={1}
-                max={1000}
-                valor={p.visao.alcanceM === null ? "" : String(p.visao.alcanceM)}
-                aoConfirmar={(t) => editar({ alcanceM: t === "" ? null : Number(t) })}
+                rotulo="Alcance da visão"
+                nota="vazio = sem limite"
+                minM={1}
+                maxM={1000}
+                valorM={p.visao.alcanceM}
+                aoConfirmar={(n) => editar({ alcanceM: n })}
               />
-              <Campo
+              <CampoDeDistancia
                 testid={`personagem-escuro-${p.id}`}
-                rotulo="Visão no escuro (m)"
-                tipo="number"
-                min={0}
-                max={1000}
-                valor={String(p.visao.visaoNoEscuroM)}
-                aoConfirmar={(t) => t !== "" && editar({ visaoNoEscuroM: Number(t) })}
+                rotulo="Visão no escuro"
+                minM={0}
+                maxM={1000}
+                valorM={p.visao.visaoNoEscuroM}
+                aoConfirmar={(n) => n !== null && editar({ visaoNoEscuroM: n })}
               />
               <Campo
                 testid={`personagem-int-${p.id}`}

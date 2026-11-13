@@ -181,7 +181,7 @@ test("a ferramenta Paredes e portas liga o modo visível, desenha e sai ao troca
 
   // desenha uma parede (clique, duplo clique)
   await p.evaluate(() =>
-    (window as unknown as { __tabletop: GanchoDoMapa }).__tabletop.centrarEm(45, 7.5),
+    (window as unknown as { __tabletop: GanchoDoMapa }).__tabletop.centrarEm(45, 5),
   );
   const a = await pontoNaPagina(p, 42, 6);
   const b = await pontoNaPagina(p, 48, 6);

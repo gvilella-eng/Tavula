@@ -101,6 +101,7 @@ import { PainelDasParedes } from "./PainelDasParedes";
 import { PainelDeFontesDeLuz } from "./PainelDeFontesDeLuz";
 import { PainelDeIluminacao } from "./PainelDeIluminacao";
 import { PainelDoToken } from "./PainelDoToken";
+import { PertoDoPonto } from "./PertoDoPonto";
 import { useFecharFora } from "./Popover";
 import { PresencaNoTopo } from "./PresencaNoTopo";
 import { type ConfigDoPincel, PINCEL_PADRAO } from "./pincel";
@@ -1515,59 +1516,56 @@ export function Mesa({
               aoPasso={(f) => mapa.current?.zoomPorPassos(f)}
               aoCentralizar={() => mapa.current?.centralizar()}
             />
+            {/* V14: cada rótulo da régua fica dentro da área visível do mapa (PertoDoPonto). */}
             {medicao && (
-              <div
-                className="regua-rotulo"
-                data-testid="regua-rotulo"
-                style={{ left: medicao.x + 14, top: medicao.y + 14 }}
-              >
-                {medicao.medida.rotulo}
-              </div>
+              <PertoDoPonto x={medicao.x} y={medicao.y} dx={14} dy={14} evitarTrechos>
+                <div className="regua-rotulo" data-testid="regua-rotulo">
+                  {medicao.medida.rotulo}
+                </div>
+              </PertoDoPonto>
             )}
             {medicao?.pontos.map((q) => (
-              <div
-                key={`${q.x}:${q.y}`}
-                className="regua-rotulo regua-trecho"
-                data-testid="regua-trecho"
-                style={{ left: q.x + 8, top: q.y + 8 }}
-              >
-                {q.rotulo}
-              </div>
+              <PertoDoPonto key={`${q.x}:${q.y}`} x={q.x} y={q.y} dx={8} dy={8} trecho>
+                <div className="regua-rotulo regua-trecho" data-testid="regua-trecho">
+                  {q.rotulo}
+                </div>
+              </PertoDoPonto>
             ))}
             {medicao?.solta && (
-              <button
-                type="button"
-                className="regua-fixar"
-                data-testid="regua-fixar"
-                style={{ left: medicao.x + 14, top: medicao.y + 46 }}
-                onClick={() => mapa.current?.fixarRegua()}
-              >
-                <Pin size={13} /> Fixar
-              </button>
+              <PertoDoPonto x={medicao.x} y={medicao.y} dx={14} dy={46} evitarTrechos>
+                <button
+                  type="button"
+                  className="regua-fixar"
+                  data-testid="regua-fixar"
+                  onClick={() => mapa.current?.fixarRegua()}
+                >
+                  <Pin size={13} /> Fixar
+                </button>
+              </PertoDoPonto>
             )}
             {reguasFixas.flatMap((f) =>
               f.pontos.map((q) => (
-                <div
-                  key={`${f.id}:${q.x}:${q.y}`}
-                  className="regua-rotulo regua-trecho regua-fixa"
-                  data-testid="regua-fixa-trecho"
-                  style={{ left: q.x + 8, top: q.y + 8 }}
-                >
-                  {q.rotulo}
-                </div>
+                <PertoDoPonto key={`${f.id}:${q.x}:${q.y}`} x={q.x} y={q.y} dx={8} dy={8} trecho>
+                  <div
+                    className="regua-rotulo regua-trecho regua-fixa"
+                    data-testid="regua-fixa-trecho"
+                  >
+                    {q.rotulo}
+                  </div>
+                </PertoDoPonto>
               )),
             )}
             {reguasFixas.map((f) => (
-              <BotaoComDica
-                key={f.id}
-                className="regua-rotulo regua-fixa"
-                testid="regua-fixa-rotulo"
-                nome="Tirar esta medida"
-                style={{ left: f.x + 14, top: f.y + 14 }}
-                onClick={() => mapa.current?.removerReguaFixa(f.id)}
-              >
-                <Pin size={12} /> {f.medida.rotulo}
-              </BotaoComDica>
+              <PertoDoPonto key={f.id} x={f.x} y={f.y} dx={14} dy={14} evitarTrechos>
+                <BotaoComDica
+                  className="regua-rotulo regua-fixa"
+                  testid="regua-fixa-rotulo"
+                  nome="Tirar esta medida"
+                  onClick={() => mapa.current?.removerReguaFixa(f.id)}
+                >
+                  <Pin size={12} /> {f.medida.rotulo}
+                </BotaoComDica>
+              </PertoDoPonto>
             ))}
             {modoMestre && tokenParaPor && (
               <div className="selo-modo" data-testid="modo-pondo-token-selo" role="status">

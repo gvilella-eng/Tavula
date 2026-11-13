@@ -7,7 +7,7 @@ import {
   type TempoParaJogadores,
 } from "@tabletop/shared";
 import { Plus, Trash2 } from "lucide-react";
-import { Campo } from "./Campo";
+import { Campo, CampoDeDistancia } from "./Campo";
 import { useUnidade } from "./unidade";
 
 type Enviar = (tipo: string, dados: object) => string | null;
@@ -66,14 +66,16 @@ export function SecaoMesa({ config, enviar }: { config: ConfigDaMesa; enviar: En
           aoConfirmar={numero("penalidadeAoApagarS", 0)}
         />
       </div>
-      <Campo
+      <CampoDeDistancia
         testid="cfg-alcance"
-        rotulo="Alcance de interação (m): entregar tocha, usar ponto"
-        tipo="number"
-        min={0}
-        max={30}
-        valor={String(config.alcanceInteracaoM)}
-        aoConfirmar={numero("alcanceInteracaoM", 0)}
+        rotulo="Alcance de interação"
+        nota="entregar tocha, usar ponto"
+        minM={0}
+        maxM={30}
+        valorM={config.alcanceInteracaoM}
+        aoConfirmar={(n) => {
+          if (n !== null && n >= 0) mudar({ alcanceInteracaoM: n });
+        }}
       />
       <label className="campo-coluna">
         O que os jogadores veem do tempo
@@ -141,27 +143,23 @@ function LinhaDoModelo({ modelo: m, enviar }: { modelo: ModeloDeObjeto; enviar: 
           aoConfirmar={(t) => t !== "" && editar({ nome: t })}
         />
         <div className="linha-par">
-          <Campo
+          <CampoDeDistancia
             testid={`modelo-clara-${m.id}`}
-            rotulo="Luz plena (m)"
-            tipo="number"
-            min={0}
-            max={500}
-            valor={String(m.luz.claraM)}
-            aoConfirmar={(t) => {
-              const n = numeroDe(t);
+            rotulo="Luz plena"
+            minM={0}
+            maxM={500}
+            valorM={m.luz.claraM}
+            aoConfirmar={(n) => {
               if (n !== null && n >= 0) editar({ luz: { claraM: n } });
             }}
           />
-          <Campo
+          <CampoDeDistancia
             testid={`modelo-penumbra-${m.id}`}
-            rotulo="Penumbra (m)"
-            tipo="number"
-            min={0}
-            max={500}
-            valor={String(m.luz.penumbraM)}
-            aoConfirmar={(t) => {
-              const n = numeroDe(t);
+            rotulo="Penumbra"
+            minM={0}
+            maxM={500}
+            valorM={m.luz.penumbraM}
+            aoConfirmar={(n) => {
               if (n !== null && n >= 0) editar({ luz: { penumbraM: n } });
             }}
           />

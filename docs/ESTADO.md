@@ -3350,4 +3350,46 @@ Ver `docs/ROTEIRO-DE-TESTES.md`, "V13".
 
 ---
 
-## Próximo: bugs que sobrarem e acabamentos das contas; depois 7b e 12 (o C4, a tela inicial, o V10, o V10b, o V10c, o V11, o V12 e o V13 estão entregues)
+## Ajustes V14 — Menus: tipos de parede, importar e exportar, atalhos (entregue, aguardando o roteiro manual)
+
+Detalhes em `docs/REDESIGN.md` ("V14 — como ficou").
+
+### O que foi entregue
+
+- Tipo de parede como lista (ícone, nome e amostra do traço; a dica aparece ao lado) no painel Paredes e portas.
+- Mesa → Campanha: Exportar e Importar em dois blocos iguais; escolher o arquivo mostra o nome e o resumo, com "Importar e substituir" e "Cancelar".
+- Atalhos: "Os mais usados" aberta e o resto recolhido; saiu `menuAtivar`, entrou `chatHistorico`.
+- Régua: os rótulos ficam dentro da área do mapa e longe do zoom.
+- Campos de raio (luz, visão, alcance) na unidade escolhida (metros ou pés); a sala continua em metros.
+
+### Como rodar
+
+`pnpm dev` como sempre. Sem migração e sem mudança de protocolo ou de sala.
+
+### Verificação
+
+- Unidade: `posicaoDaRegua.test.ts` (onde o rótulo cabe) e `resumoDaCampanha.test.ts`.
+- E2E novo: `v14.spec.ts` (5 testes): lista de tipos (setas e porta desenhada), Exportar e Importar (escolher, cancelar, confirmar), atalhos recolhidos, rótulo da régua na borda direita e junto do zoom, campos de raio em pés.
+- E2E antigo alterado: os que importam uma campanha (`sala.spec.ts` 2, `handouts.spec.ts` 1, `assets.spec.ts` 1) agora passam por `importarCampanha` (`ajudas.ts`), que escolhe o arquivo e clica "Importar e substituir": o arquivo escolhido espera a confirmação.
+  Os de desenhar paredes (`paredes.spec.ts`, `paredes-v5.spec.ts` ×3, `organizacao.spec.ts`) centram o mapa um pouco mais acima (`centrarEm`) para a lista de tipos, que é mais alta que os chips, não cobrir o primeiro clique; as coordenadas do mapa e as asserções são as mesmas (só o último trecho do teste do Alt foi de y 15,3 para 13,3, para continuar na tela).
+
+### Decisões
+
+- (assumido) Ver `REDESIGN`, "V14 — como ficou", Decisões.
+
+### Desvios do plano
+
+- A dica de cada tipo de parede vai na dica do mouse (`Dica`), não na linha, para o painel não ficar alto e cobrir o centro do mapa.
+
+### Frágil / não verificado
+
+- `PertoDoPonto` mede o rótulo a cada renderização (`useLayoutEffect`) e lê o retângulo do zoom pelo testid `zoom-flutuante`; se o zoom mudar de testid, o rótulo deixa de fugir dele.
+- A amostra do traço usa as cores fixas do mapa (`ESTILO_DA_PAREDE`), não os tokens do tema: é conteúdo do mapa.
+
+### Roteiro manual (pendente)
+
+Ver `docs/ROTEIRO-DE-TESTES.md`, "V14".
+
+---
+
+## Próximo: bugs que sobrarem e acabamentos das contas; depois 7b e 12 (o C4, a tela inicial, o V10, o V10b, o V10c, o V11, o V12, o V13 e o V14 estão entregues)

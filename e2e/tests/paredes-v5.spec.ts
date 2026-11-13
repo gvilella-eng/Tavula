@@ -138,7 +138,7 @@ test("desenhar encaixa na meia célula e em diagonal; o Alt solta do grid", asyn
   const p = mestre.pagina;
   const antes = (await paredesDe(p)).length;
   await p.getByTestId("ferramenta-paredes").click();
-  await centrar(p, 45, 7.5);
+  await centrar(p, 45, 6);
   expect(await gancho(p, "quadradoM")).toBe(1.5);
 
   // o ponto de fixação sob o cursor é o da rede de meia célula (0,75 m)
@@ -168,8 +168,8 @@ test("desenhar encaixa na meia célula e em diagonal; o Alt solta do grid", asyn
   expect(curta?.b).toEqual({ x: 43.5, y: 12 });
 
   // Alt inverte o encaixe: o ponto fica onde o mouse está
-  c = await pontoNaPagina(p, 42.4, 15.3);
-  const d = await pontoNaPagina(p, 44.1, 15.3);
+  c = await pontoNaPagina(p, 42.4, 13.3);
+  const d = await pontoNaPagina(p, 44.1, 13.3);
   await p.keyboard.down("Alt");
   await p.mouse.click(c.x, c.y);
   await p.mouse.dblclick(d.x, d.y);
@@ -190,7 +190,7 @@ test("linha, A, arco tangente, A, linha; Esc encerra e as três paredes chegam �
   const p = mestre.pagina;
   const antes = (await paredesDe(p)).length;
   await p.getByTestId("ferramenta-paredes").click();
-  await centrar(p, 45, 9);
+  await centrar(p, 45, 6.5);
   const pt = (x: number, y: number) => pontoNaPagina(p, x, y);
 
   await expect(p.getByTestId("parede-modo")).toContainText("linha");
@@ -230,7 +230,7 @@ test("arco de 3 pontos, seleção, e apagar o arco com Delete", async ({ mesa })
   const p = mestre.pagina;
   const antes = (await paredesDe(p)).length;
   await p.getByTestId("ferramenta-paredes").click();
-  await centrar(p, 45, 10.5);
+  await centrar(p, 45, 8);
   const pt = (x: number, y: number) => pontoNaPagina(p, x, y);
 
   await p.keyboard.press("a");

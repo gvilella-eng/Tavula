@@ -421,7 +421,7 @@ type Gesto =
   | { tipo: "borracha" };
 
 /** Cor e espessura (px na tela) de cada tipo de parede quando a ferramenta de paredes está ativa. */
-const ESTILO_DA_PAREDE: Record<TipoDeParede, { cor: number; largura: number }> = {
+export const ESTILO_DA_PAREDE: Record<TipoDeParede, { cor: number; largura: number }> = {
   parede: { cor: 0xf1f3f5, largura: 4 },
   porta: { cor: 0xe0a030, largura: 5 },
   janela: { cor: 0x4fc3f7, largura: 4 },

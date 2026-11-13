@@ -5,6 +5,7 @@ import {
   enviarCru,
   expect,
   ID_DA_MESA,
+  importarCampanha,
   intencaoCrua,
   test,
   tornarMembros,
@@ -357,7 +358,7 @@ test("exportar → zerar → importar devolve tudo igual", async ({ mesa, reques
   await expect(mestre.pagina.getByTestId("papel-jogador-1")).toHaveValue("jogador");
 
   // importa: o mestre e o jogador conectado recebem snapshot novo
-  await mestre.pagina.getByTestId("importar-arquivo").setInputFiles(antes.caminho);
+  await importarCampanha(mestre.pagina, antes.caminho);
   await expect(mestre.pagina.getByTestId("papel-jogador-1")).toHaveValue("mestre");
   await abrirAba(mestre.pagina, "fichas");
   await expect(mestre.pagina.getByTestId(`handout-nome-${daMesa}`)).toBeVisible();
@@ -376,7 +377,7 @@ test("importar um arquivo inválido mostra um aviso e não muda nada", async ({ 
   await abrirAba(mestre.pagina, "fichas");
   await expect(mestre.pagina.getByTestId(`handout-nome-${id}`)).toHaveText("Intacto");
   await abrirAba(mestre.pagina, "mesa");
-  await mestre.pagina.getByTestId("importar-arquivo").setInputFiles({
+  await importarCampanha(mestre.pagina, {
     name: "ruim.json",
     mimeType: "application/json",
     buffer: Buffer.from(JSON.stringify({ formato: "outro" })),

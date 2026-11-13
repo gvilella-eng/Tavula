@@ -112,11 +112,6 @@ export const ATALHOS = {
     grupo: "Menus",
     teclas: [["↑"], ["↓"], ["Home"], ["End"]],
   },
-  menuAtivar: {
-    descricao: "Ativar o item do menu em foco",
-    grupo: "Menus",
-    teclas: [["Enter"], ["Espaço"]],
-  },
   dicaFechar: {
     descricao: "Esconder a dica de um botão",
     grupo: "Menus",
@@ -160,6 +155,12 @@ export const ATALHOS = {
     grupo: "Campos",
     teclas: [["Shift", "Enter"]],
   },
+  chatHistorico: {
+    descricao: "Com a caixa do chat vazia: trazer de volta o que você enviou antes (↓ volta)",
+    grupo: "Campos",
+    teclas: [["↑"], ["↓"]],
+    juntas: true,
+  },
   renomearPasta: {
     descricao: "Renomear a pasta em foco (aba Fichas, mestre)",
     grupo: "Campos",
@@ -193,6 +194,12 @@ export const GRUPOS_DE_ATALHOS: readonly GrupoDeAtalhos[] = [
   "Janelas e painéis",
   "Campos",
 ];
+
+/** V14: os grupos que a lista de Preferências mostra abertos ("Os mais usados"); os outros ficam recolhidos. */
+export const GRUPOS_MAIS_USADOS: readonly GrupoDeAtalhos[] = ["Ferramentas", "Mapa"];
+export const GRUPOS_RECOLHIDOS: readonly GrupoDeAtalhos[] = GRUPOS_DE_ATALHOS.filter(
+  (g) => !GRUPOS_MAIS_USADOS.includes(g),
+);
 
 /** As combinações de um atalho como texto simples ("Shift + F10 ou Menu"), para `aria-keyshortcuts` e testes. */
 export function textoDasTeclas(teclas: readonly Combinacao[]): string {

@@ -10,11 +10,13 @@ import {
   TAMANHO_MAXIMO_DO_NOME_DA_MESA,
   type Uso,
 } from "@tabletop/shared";
-import { type ChangeEvent, useEffect, useState } from "react";
+import { Download, Upload } from "lucide-react";
+import { type ChangeEvent, useEffect, useRef, useState } from "react";
 import { type DadosDaMesa, renomearMesa } from "./api";
 import { SecaoDeContas } from "./contas/SecaoDeContas";
 import { IdDaMesa } from "./IdDaMesa";
 import { SecaoMesa, SecaoObjetosDeLuz } from "./PainelDaMesa";
+import { type ResumoDaCampanha, resumoDaCampanha, textoDoResumo } from "./resumoDaCampanha";
 
 type Props = {
   mesa: DadosDaMesa;
@@ -142,6 +144,14 @@ export function AbaMesa({ mesa, aoRenomear, estado, uso, avisoDeContas, enviar }
     });
   }
 
+  // V14: o arquivo escolhido espera aqui, com o nome e o resumo, até o mestre confirmar (ou cancelar).
+  const [escolhido, setEscolhido] = useState<{
+    nome: string;
+    dados: unknown;
+    resumo: ResumoDaCampanha | null;
+  } | null>(null);
+  const campoDoArquivo = useRef<HTMLInputElement>(null);
+
   async function aoEscolherArquivo(e: ChangeEvent<HTMLInputElement>) {
     const arquivo = e.target.files?.[0];
     e.target.value = "";
@@ -152,7 +162,13 @@ export function AbaMesa({ mesa, aoRenomear, estado, uso, avisoDeContas, enviar }
     } catch {
       dados = null; // a sala recusa e o aviso aparece
     }
-    enviar("campanha.importar", { dados });
+    setEscolhido({ nome: arquivo.name, dados, resumo: resumoDaCampanha(dados) });
+  }
+
+  function importarEscolhido() {
+    if (!escolhido) return;
+    enviar("campanha.importar", { dados: escolhido.dados });
+    setEscolhido(null);
   }
 
   const excecoes = estado.permissoes.porUsuario[alvoValido] ?? {};
@@ -281,24 +297,77 @@ export function AbaMesa({ mesa, aoRenomear, estado, uso, avisoDeContas, enviar }
 
       <section data-testid={testidDaSecaoDaMesa("campanha")} className="secao-da-mesa">
         <h3>Campanha</h3>
-        <p>
+        <div className="bloco-da-campanha" data-testid="campanha-exportar-bloco">
+          <h4>Exportar</h4>
+          <p>Baixa um arquivo com a mesa inteira para guardar ou levar para outro computador.</p>
+          <p className="nota">
+            Vão: cenas, tokens, fichas, handouts, luzes, paredes, desenhos, regras e quem é mestre
+            ou jogador. Não vão: o chat, as senhas e as sessões, nem as imagens em si (elas ficam na
+            pasta de imagens de cada computador).
+          </p>
           <button
             type="button"
+            className="botao-do-bloco"
             data-testid="exportar"
             onClick={() => enviar("campanha.exportar", {})}
           >
-            Exportar campanha
-          </button>{" "}
-          <label>
-            Importar campanha:{" "}
-            <input
-              type="file"
-              accept="application/json,.json"
-              data-testid="importar-arquivo"
-              onChange={aoEscolherArquivo}
-            />
-          </label>
-        </p>
+            <Download size={16} /> Exportar campanha
+          </button>
+        </div>
+        <div className="bloco-da-campanha" data-testid="campanha-importar-bloco">
+          <h4>Importar</h4>
+          <p>Troca a mesa atual pelo conteúdo de um arquivo exportado.</p>
+          <input
+            ref={campoDoArquivo}
+            type="file"
+            hidden
+            accept="application/json,.json"
+            aria-label="Arquivo da campanha para importar"
+            data-testid="importar-arquivo"
+            onChange={aoEscolherArquivo}
+          />
+          <button
+            type="button"
+            className="botao-do-bloco"
+            data-testid="importar-escolher"
+            onClick={() => campoDoArquivo.current?.click()}
+          >
+            <Upload size={16} /> Escolher arquivo…
+          </button>
+          {escolhido && (
+            <div className="importar-escolhido" data-testid="importar-escolhido">
+              <p>
+                <strong data-testid="importar-nome">{escolhido.nome}</strong>
+                <br />
+                <span className="nota" data-testid="importar-resumo">
+                  {escolhido.resumo
+                    ? textoDoResumo(escolhido.resumo)
+                    : "Não parece uma campanha exportada: a sala vai recusar."}
+                </span>
+              </p>
+              <p className="nota" data-testid="importar-aviso">
+                Isto troca a mesa atual. Exporte antes, se quiser guardar.
+              </p>
+              <div className="linha-botoes">
+                <button
+                  type="button"
+                  className="perigo"
+                  data-testid="importar-confirmar"
+                  onClick={importarEscolhido}
+                >
+                  Importar e substituir
+                </button>
+                <button
+                  type="button"
+                  data-testid="importar-cancelar"
+                  onClick={() => setEscolhido(null)}
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       </section>
 
       <details

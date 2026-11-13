@@ -268,6 +268,23 @@ as mãos. Cada item diz **o que fazer** e, depois de "→", **o que deve acontec
    a ter 3 m de quadrado (volte para Metros para conferir). Salvar sem mexer no campo não muda o quadrado.
 8. Fichas e compêndio continuam como estão escritos. Volte para **Metros**: tudo igual ao que era.
 
+## V14 — Menus: tipos de parede, importar e exportar, atalhos
+1. Aperte **Paredes e portas** (barra de ferramentas, só mestre). O painel abre com uma lista:
+   Parede, Porta, Janela, Secreta e Invisível, cada uma com ícone e a amostra do traço; passe o mouse (ou use as setas)
+   para ver a dica do que o tipo faz. Clique em uma linha, ou use as setas: a linha ativa fica destacada. Desenhe com **Porta**: sai uma porta.
+2. **Mesa → Campanha**: dois blocos iguais, Exportar e Importar. Clique **Exportar campanha** (baixa o arquivo). Clique
+   **Escolher arquivo…** e escolha o arquivo: aparecem o nome, "N cenas · N fichas · N tokens" e "Isto troca a mesa
+   atual. Exporte antes, se quiser guardar." **Cancelar** não muda nada. Só **Importar e substituir** troca a mesa. Teste
+   isto numa mesa de teste, não na sua.
+3. **Preferências → Atalhos do teclado**: "Os mais usados" abre sozinha; Menus, Janelas e painéis e Campos estão
+   recolhidos e abrem ao clicar.
+4. Régua (**R**): meça arrastando até colar na borda direita do mapa, e também perto do zoom no canto de baixo. Os
+   rótulos (ponta, trechos, fixas) ficam inteiros dentro do mapa e não ficam atrás do zoom.
+5. Em **Preferências**, escolha **Pés**. Na aba Mesa, "Alcance de interação" e "Luz plena" e "Penumbra" dos modelos viram
+   "(pés)": 1,5 m aparece como 5. Digite 10 em "Alcance de interação": a sala passa a ter 3 m (volte para Metros para
+   conferir). Abrir o campo e sair sem mexer não muda nada. No painel do token e no editor da ficha, "Alcance da visão" e
+   "Visão no escuro" também seguem a unidade.
+
 ## Se algo der errado
 - Anote a tela, o que fez e o que esperava, e mande para mim. Bug confirmado vai para `docs/BUGS.md`.
 - Para voltar à campanha de antes de mesas e contas, use a cópia de segurança indicada no topo.

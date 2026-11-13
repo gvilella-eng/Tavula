@@ -108,7 +108,7 @@ test("o mestre desenha um corredor com porta pela interface", async ({ mesa }) =
   await expect(p.getByTestId("painel-paredes")).toBeVisible();
 
   await p.evaluate(() =>
-    (window as unknown as { __tabletop: GanchoDoMapa }).__tabletop.centrarEm(45, 7.5),
+    (window as unknown as { __tabletop: GanchoDoMapa }).__tabletop.centrarEm(45, 5),
   );
   const pt = (x: number, y: number) => pontoNaPagina(p, x, y);
   // parede de cima: clique, duplo clique

@@ -1,4 +1,11 @@
-import type { Camada, Token, Usuario } from "@tabletop/shared";
+import {
+  type Camada,
+  metrosParaUnidade,
+  nomeDaUnidade,
+  type Token,
+  type Usuario,
+  unidadeParaMetros,
+} from "@tabletop/shared";
 import { ImagePlus, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { PedirImagem } from "./FaixaDeCenas";
@@ -10,6 +17,7 @@ import {
   RESERVA_DO_ZOOM,
 } from "./janelas/geometria";
 import { Janela } from "./janelas/Janela";
+import { useUnidade } from "./unidade";
 
 type Props = {
   token: Token;
@@ -30,6 +38,11 @@ export function PainelDoToken({ token, jogadores, enviar, pedirImagem, aoFechar 
   useEffect(() => setNome(token.nome), [token.id, token.nome]);
 
   const editar = (mudancas: object) => enviar("token.editar", { id: token.id, mudancas });
+  // V14: os campos de alcance mostram e aceitam a unidade das Preferências; a sala recebe metros.
+  const unidade = useUnidade();
+  const nomeDaUn = nomeDaUnidade(unidade);
+  const emUnidade = (m: number | undefined) =>
+    m === undefined ? "" : String(Math.round(metrosParaUnidade(m, unidade) * 100) / 100);
   const confirmarNome = () => {
     const limpo = nome.trim();
     if (limpo && limpo !== token.nome) editar({ nome: limpo });
@@ -109,20 +122,19 @@ export function PainelDoToken({ token, jogadores, enviar, pedirImagem, aoFechar 
       </label>
       {token.personagemId === undefined ? (
         <label>
-          Alcance da visão (m; vazio = sem limite)
+          Alcance da visão ({nomeDaUn}; vazio = sem limite)
           <input
             data-testid="token-alcance-visao"
             inputMode="decimal"
-            key={`alcance-${token.id}-${token.alcanceVisaoM ?? ""}`}
-            defaultValue={token.alcanceVisaoM === undefined ? "" : String(token.alcanceVisaoM)}
+            key={`alcance-${token.id}-${token.alcanceVisaoM ?? ""}-${unidade}`}
+            defaultValue={emUnidade(token.alcanceVisaoM)}
             onBlur={(e) => {
               const texto = e.target.value.trim().replace(",", ".");
-              const n = Number(texto);
+              const n = unidadeParaMetros(Number(texto), unidade);
+              if (texto === emUnidade(token.alcanceVisaoM)) return; // sem mexer: a sala não muda
               if (texto === "") editar({ alcanceVisaoM: null });
               else if (Number.isFinite(n) && n > 0 && n <= 1000) editar({ alcanceVisaoM: n });
-              else
-                e.target.value =
-                  token.alcanceVisaoM === undefined ? "" : String(token.alcanceVisaoM);
+              else e.target.value = emUnidade(token.alcanceVisaoM);
             }}
             onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
           />
@@ -132,20 +144,19 @@ export function PainelDoToken({ token, jogadores, enviar, pedirImagem, aoFechar 
       )}
       {token.personagemId === undefined && (
         <label>
-          Visão no escuro (m; vazio = nenhuma)
+          Visão no escuro ({nomeDaUn}; vazio = nenhuma)
           <input
             data-testid="token-visao-escuro"
             inputMode="decimal"
-            key={`escuro-${token.id}-${token.visaoNoEscuroM ?? ""}`}
-            defaultValue={token.visaoNoEscuroM === undefined ? "" : String(token.visaoNoEscuroM)}
+            key={`escuro-${token.id}-${token.visaoNoEscuroM ?? ""}-${unidade}`}
+            defaultValue={emUnidade(token.visaoNoEscuroM)}
             onBlur={(e) => {
               const texto = e.target.value.trim().replace(",", ".");
-              const n = Number(texto);
+              const n = unidadeParaMetros(Number(texto), unidade);
+              if (texto === emUnidade(token.visaoNoEscuroM)) return; // sem mexer: a sala não muda
               if (texto === "") editar({ visaoNoEscuroM: null });
               else if (Number.isFinite(n) && n >= 0 && n <= 1000) editar({ visaoNoEscuroM: n });
-              else
-                e.target.value =
-                  token.visaoNoEscuroM === undefined ? "" : String(token.visaoNoEscuroM);
+              else e.target.value = emUnidade(token.visaoNoEscuroM);
             }}
             onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
           />

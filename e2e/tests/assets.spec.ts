@@ -1,6 +1,15 @@
 import { readFileSync } from "node:fs";
 import type { Page } from "@playwright/test";
-import { abrirAba, enviarCru, esperarMapa, expect, intencaoCrua, type Mesa, test } from "./ajudas";
+import {
+  abrirAba,
+  enviarCru,
+  esperarMapa,
+  expect,
+  importarCampanha,
+  intencaoCrua,
+  type Mesa,
+  test,
+} from "./ajudas";
 import {
   arquivoPng,
   assets,
@@ -540,7 +549,7 @@ test("exportar → zerar → importar: o mapa e as imagens voltam só como metad
   await expect.poll(async () => (await imagensDoMapa(j1.pagina)).tiles.length).toBe(0);
   const binariosAntes = j1.binarios.length;
 
-  await mestre.pagina.getByTestId("importar-arquivo").setInputFiles(antes.caminho);
+  await importarCampanha(mestre.pagina, antes.caminho);
   // o jogador reconhece os mesmos hashes no próprio cache: o mapa volta sem nenhum pedaço novo
   await expect
     .poll(async () => (await imagensDoMapa(j1.pagina)).tiles.length)

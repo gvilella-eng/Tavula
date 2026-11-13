@@ -8,14 +8,7 @@ import {
 import { Trash2 } from "lucide-react";
 import { noCanto } from "./janelas/geometria";
 import { Janela } from "./janelas/Janela";
-
-export const ROTULO_DO_TIPO: Record<TipoDeParede, string> = {
-  parede: "Parede",
-  porta: "Porta",
-  janela: "Janela",
-  secreta: "Secreta",
-  invisivel: "Invisível",
-};
+import { ListaDeTiposDeParede, ROTULO_DO_TIPO } from "./ListaDeTiposDeParede";
 
 const ROTULO_DO_ESTADO = { aberta: "Aberta", fechada: "Fechada", trancada: "Trancada" } as const;
 
@@ -59,20 +52,7 @@ export function PainelDasParedes(p: Props) {
         <legend>
           Desenhar como <span data-testid="parede-modo">({p.arco ? "arco" : "linha"})</span>
         </legend>
-        <div className="chips">
-          {TIPOS_DE_PAREDE.map((t) => (
-            <button
-              key={t}
-              type="button"
-              className="chip"
-              data-testid={`parede-novo-${t}`}
-              aria-pressed={p.tipoNovo === t}
-              onClick={() => p.aoEscolherTipoNovo(t)}
-            >
-              {ROTULO_DO_TIPO[t]}
-            </button>
-          ))}
-        </div>
+        <ListaDeTiposDeParede valor={p.tipoNovo} aoEscolher={p.aoEscolherTipoNovo} />
       </fieldset>
       {s && (
         <fieldset className="quem-controla" data-testid="parede-selecionada">
