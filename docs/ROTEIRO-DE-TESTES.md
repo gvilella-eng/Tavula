@@ -200,6 +200,21 @@ as mãos. Cada item diz **o que fazer** e, depois de "→", **o que deve acontec
 7. Aba **Mesa**, em Permissões: "Pôr o próprio token no mapa (na bandeira)" vem ligada. Desligue: o jogador perde a
    bandeira e o pino. Há também a exceção por jogador.
 
+## V11 — Token: tochas nos cantos e condições com ícones
+1. Acenda uma tocha para um personagem com token: ela aparece como uma **bolinha pequena no canto superior direito** do
+   token, com a chama e um anel fino em volta. Não há mais círculo ao lado nem tempo escrito.
+2. Acenda a segunda: vai para o **canto superior esquerdo**. Passe o mouse numa delas: a dica mostra "Restam 59:52 ..." e
+   o nome. Clique direito: o menu da tocha, com a linha "Restam ...".
+3. Arraste a marca até outro token ao alcance: a tocha é entregue. Dois cliques apagam e acendem; apagada, a bolinha fica
+   esmaecida. Arraste o token: a marca vai junto.
+4. Deixe o tempo baixar (ou adiante o relógio): o anel esvazia e, no fim (menos de 10% ou 5 min), fica vermelho.
+5. A **luz** da tocha sai do centro do token, não da marca.
+6. Marque condições pelo menu do token: cada uma é um **ícone** diferente numa bolinha escura, num arco embaixo do token.
+   Com mais de 4, aparece "+N"; passe o mouse nele: a dica lista os nomes. Exaustão mostra o número do nível.
+7. Dê zoom para perto e para longe: as bolinhas (tochas e condições) ficam sempre pequenas e legíveis.
+8. No menu de condições do token há um ícone ao lado de cada condição, da exaustão e da concentração.
+9. Como jogador: você vê as tochas e condições dos tokens que enxerga; token escondido não mostra tocha.
+
 ## Se algo der errado
 - Anote a tela, o que fez e o que esperava, e mande para mim. Bug confirmado vai para `docs/BUGS.md`.
 - Para voltar à campanha de antes de mesas e contas, use a cópia de segurança indicada no topo.

@@ -3515,6 +3515,7 @@ kbd {
   gap: 2px;
 }
 .mt-condicao {
+  gap: 6px;
   padding: 5px 8px;
   font-size: 13px;
 }
@@ -5136,4 +5137,18 @@ button.inicio-botao-largo {
   .inicio-mesa-quando {
     display: none;
   }
+}
+
+/* V11: ícones das condições no menu do token e o tempo no menu da tocha */
+.mt-icone-condicao {
+  flex: none;
+}
+.mt-rotulo-icone {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.menu-tempo {
+  padding: 0 10px 6px;
+  font-variant-numeric: tabular-nums;
 }

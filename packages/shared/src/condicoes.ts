@@ -96,49 +96,33 @@ export function condicoesOrdenadas(condicoes: readonly Condicao[] | undefined): 
 export const RESUMO_DA_CONCENTRACAO =
   "Mantém uma magia de concentração. Ao sofrer dano, faz uma salvaguarda de Constituição (CD 10 ou metade do dano, a maior). Perde a concentração se ficar incapacitado, morrer ou conjurar outra magia de concentração.";
 
-const SIGLA_DA_CONDICAO: Record<Condicao, string> = {
-  agarrado: "Ag",
-  amedrontado: "Am",
-  atordoado: "At",
-  caido: "Ca",
-  cego: "Ce",
-  contido: "Ct",
-  enfeiticado: "En",
-  envenenado: "Ev",
-  incapacitado: "Ic",
-  inconsciente: "In",
-  invisivel: "Iv",
-  paralisado: "Pa",
-  petrificado: "Pe",
-  surdo: "Su",
-};
-
+/** Cor do ícone de cada condição no mapa: tons claros, para ler sobre o fundo escuro da bolinha (V11). */
 const COR_DA_CONDICAO: Record<Condicao, string> = {
-  agarrado: "#b8860b",
-  amedrontado: "#8e5bd6",
-  atordoado: "#d1495b",
-  caido: "#8a6d3b",
-  cego: "#5b6678",
-  contido: "#c76f2b",
-  enfeiticado: "#d6559b",
-  envenenado: "#3f9d4a",
-  incapacitado: "#a33c3c",
-  inconsciente: "#3a6fb0",
-  invisivel: "#4aa3b8",
-  paralisado: "#c4a000",
-  petrificado: "#7b7f86",
-  surdo: "#6b7f9e",
+  agarrado: "#e0b13a",
+  amedrontado: "#b48cf0",
+  atordoado: "#f0728a",
+  caido: "#c9a36a",
+  cego: "#9aa7bd",
+  contido: "#e8924a",
+  enfeiticado: "#f07ac0",
+  envenenado: "#5fcf6c",
+  incapacitado: "#e06a6a",
+  inconsciente: "#6fa2e6",
+  invisivel: "#5cc5dc",
+  paralisado: "#e6cc3a",
+  petrificado: "#a9aeb6",
+  surdo: "#8fa4c8",
 };
 
-/** Um marcador pequeno de condição, exaustão ou concentração (borda do token e lista da ficha). */
+/** Um marcador pequeno de condição, exaustão ou concentração (borda do token). O ícone vem de `chave` (no web). */
 export type IconeDeCondicao = {
   chave: string;
-  /** Duas letras para o ícone do mapa. */
-  sigla: string;
   titulo: string;
   resumo: string;
   /** `#rrggbb` */
   cor: string;
+  /** Só a exaustão: o nível, escrito junto do ícone. */
+  nivel?: number;
 };
 
 type ComMarcas = {
@@ -151,7 +135,6 @@ type ComMarcas = {
 export function iconesDoToken(t: ComMarcas): IconeDeCondicao[] {
   const icones: IconeDeCondicao[] = condicoesOrdenadas(t.condicoes).map((c) => ({
     chave: c,
-    sigla: SIGLA_DA_CONDICAO[c],
     titulo: NOME_DA_CONDICAO[c],
     resumo: RESUMO_DA_CONDICAO[c],
     cor: COR_DA_CONDICAO[c],
@@ -159,19 +142,18 @@ export function iconesDoToken(t: ComMarcas): IconeDeCondicao[] {
   if (t.exaustao !== undefined && t.exaustao > 0) {
     icones.push({
       chave: "exaustao",
-      sigla: `E${t.exaustao}`,
+      nivel: t.exaustao,
       titulo: `Exaustão ${t.exaustao}`,
       resumo: resumoDaExaustao(t.exaustao),
-      cor: "#d9822b",
+      cor: "#f0a04b",
     });
   }
   if (t.concentracao !== undefined) {
     icones.push({
       chave: "concentracao",
-      sigla: "Cn",
       titulo: `Concentração: ${t.concentracao}`,
       resumo: RESUMO_DA_CONCENTRACAO,
-      cor: "#7a5cd1",
+      cor: "#a88af0",
     });
   }
   return icones;

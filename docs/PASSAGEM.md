@@ -52,7 +52,7 @@ Tudo em `apps/web/src/`.
   reprova par de texto e fundo abaixo de 4,5:1 (AA) (`REDESIGN:125-140`). O `index.html` repete as 14 cores de
   fundo de propósito (anti-piscada); o mesmo teste confere que são iguais às do `temas.ts`.
 - `styles.css`: todo o resto do visual, usando as variáveis CSS dos tokens. Sobraram cores fixas só de
-  conteúdo (texto preto ou branco no avatar e nas iniciais do token, escolhido pela cor em `contrasteDeCor.ts` desde o R6a; contorno do ponto da ordem de turno, sigla das condições, roda de cores
+  conteúdo (texto preto ou branco no avatar e nas iniciais do token, escolhido pela cor em `contrasteDeCor.ts` desde o R6a; contorno do ponto da ordem de turno, fundo escuro das marcas do token e do olho cortado, roda de cores
   do pincel) (`REDESIGN:132-139`).
 - `SeletorDeTema.tsx`: o seletor de bolinhas (aba Preferências, desde o R4; grupo de rádio, setas).
 - `Logo.tsx`: símbolo SVG da mesa redonda com a chama, mais o nome em Space Grotesk. `../public/favicon.svg`:
@@ -82,6 +82,7 @@ Tudo em `apps/web/src/`.
   - `FaixaDeCenas.tsx`: faixa de cenas, com prévia do mapa e menu de contexto.
   - `ConfigurarCena.tsx`: nome, mapa, pixels por quadrado e o grid da cena (visível e quadrado em metros).
   - `PainelDasParedes.tsx`, `PainelDeFontesDeLuz.tsx`: paredes e portas; fontes de luz.
+  - `condicoesIcones.ts` (V11): a tabela condição → ícone do lucide e o SVG do ícone (o mapa o rasteriza numa textura; o menu do token o mostra). A tocha na mão é uma marca no canto do token (`desenharAlcas`, `ancoraDaAlca`, `anelDaTocha` em `mapaPixi.ts`); as condições são `desenharMarcas` e `ajustarMarcasAoZoom`.
   - `MenuDoToken.tsx`, `MenuDaTocha.tsx`: menus de botão direito no token (Editar token…, "Entrar na iniciativa" (sem valor; o mestre escreve o número), grupo Tocha e as condições direto como itens de marcar) e na alça da
     tocha.
   - `SubBarraPincel.tsx`, `DadosRapidos.tsx`, `ZoomFlutuante.tsx`: sub-barra do pincel, grade de dados
@@ -226,7 +227,7 @@ Lote 11 (`ESTADO:1395-1408`)
 62. Rodada 0 = "Não começou"; Anterior não volta antes da rodada 1 (`ESTADO:1403`)
 63. Só uma seleção de token na mesa; acrescentado "O grupo" (`ESTADO:1404`)
 64. Token de outra cena pode entrar na ordem; o jogador recebe só entradas da cena ativa (`ESTADO:1405`)
-65. Marcadores no mapa: duas letras e uma cor por condição; regra só em dica com o mouse (`ESTADO:1406`)
+65. ~~Marcadores no mapa: duas letras e uma cor por condição~~: no V11 viraram ícones (4 e um "+N"); a regra segue só em dica com o mouse (`ESTADO:1406`; `REDESIGN`, "V11")
 66. O mestre "vendo como" um jogador vê a ordem em só leitura e o menu do token fica desligado (`ESTADO:1407`)
 67. Concentração mostra só o texto da regra; nenhum teste automático (`ESTADO:1408`)
 

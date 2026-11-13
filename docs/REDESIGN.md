@@ -1369,6 +1369,56 @@ O jogador põe o próprio token no mapa, só na área da bandeira. Ninguém para
 - Pôr o token com as setas ou por atalho de teclado (hoje o caminho do teclado é o botão "Colocar no mapa").
 - Restaurar as luzes do token junto (continua do V10).
 
+## V11 — como ficou (2026-11-13)
+
+A tocha do token e as condições, a pedido do Vilella: a tocha vira uma marca pequena no canto do token, e as condições viram ícones. Ninguém para perguntar: o que o brief não dizia foi assumido.
+
+**O que foi feito**
+- **A tocha na mão é uma marca no token**, no lugar do círculo ao lado com o tempo embaixo. A 1ª mão fica no canto **superior direito**; a 2ª, no **superior esquerdo** (3ª e 4ª: meio da direita e da esquerda). Fica por cima da borda, como uma condição. A alça continua a mesma: arrastar entrega a tocha a outro token ou põe num suporte, dois cliques apagam ou acendem, o clique direito abre o menu da tocha, e `podeMexerNaTocha` manda em quem pode.
+- **O desenho**: bolinha escura com a chama em cor quente; apagada, esmaecida e sem brilho. O **anel fino** em volta é o tempo que falta e esvazia conforme a tocha queima. No fim o anel vira a cor de alerta.
+- **O tempo exato** ("59:52") saiu do mapa. Aparece na dica ao passar o mouse ("Restam 59:52. ...") e no menu da tocha (linha "Restam ...", atualizada a cada segundo). O gancho de teste `alcas()` continua devolvendo `rotulo` com o tempo.
+- **A luz** já saía do centro do token (`resolverLuzes`, portador `mao`); nada mudou. Um E2E confere que as luzes do token estão no centro dele.
+- **Tamanho**: a marca (tocha e condição) mede ~30% do raio do token, com limite de 9 a 15 px de raio na tela, qualquer que seja o zoom (`raioNaTelaDaMarca`). As marcas de condição são reescaladas a cada mudança de zoom (`ajustarMarcasAoZoom`).
+- **Condições com ícone**: cada uma das 14, mais a exaustão (com o nível escrito ao lado) e a concentração, tem um ícone do lucide, na cor da condição, sobre bolinha escura. Num arco na parte de baixo do token, acima do nome. No máximo **4 ícones e um "+N"** (a dica do "+N" lista os nomes). A dica ao passar o mouse e a regra por clique seguem como eram.
+- **Menu de condições do token**: o ícone (na cor do texto do tema) ao lado de cada condição, da exaustão e da concentração.
+- Os ícones são rasterizados do SVG do lucide numa textura do Pixi, com cache por ícone e cor (`texturaDoIcone`). Nada da internet.
+- O olho cortado do token oculto saiu do canto superior direito (agora é da tocha) e foi para o alto, no meio.
+
+**A tabela condição → ícone** (um lugar só: `apps/web/src/condicoesIcones.ts`, `ICONE_DA_CONDICAO`)
+
+| Chave | Ícone (lucide) |
+|---|---|
+| agarrado | `HandGrab` |
+| amedrontado | `Frown` |
+| atordoado | `Sparkles` |
+| caido | `ArrowDownToLine` |
+| cego | `EyeOff` |
+| contido | `Link` |
+| enfeiticado | `Heart` |
+| envenenado | `FlaskConical` |
+| incapacitado | `Ban` |
+| inconsciente | `Moon` |
+| invisivel | `Ghost` |
+| paralisado | `Snowflake` |
+| petrificado | `Mountain` |
+| surdo | `EarOff` |
+| exaustao | `BatteryLow` (com o nível) |
+| concentracao | `Brain` |
+
+**Decisões (assumido)**
+- (assumido) Os ícones são os da sugestão do brief, sem troca; um teste de unidade garante que todos existem e não se repetem.
+- (assumido) Cores: tons claros por condição (`COR_DA_CONDICAO` em `condicoes.ts`, mais claros que os de antes) sobre bolinha escura `0x10141a`, que é fixa como o resto do desenho do mapa (conteúdo). No menu o ícone usa a cor do texto do tema, para o contraste valer nos temas claros e escuros.
+- (assumido) Alerta do anel: tempo restante abaixo de 10% da duração ou de 5 min, a cor `0xff5b4a`. Sem a duração (o jogador com tempo por estágio), o anel fica cheio e só o estágio "morrendo" avisa.
+- (assumido) A duração do anel vem de `luz.duracaoMs` (mestre) ou do modelo (`duracaoS`); `opcoes.duracaoDe` na `Mesa.tsx`. Nada novo na sala nem no protocolo; o jogador sem tempo exato não recebe mais do que já recebia.
+- (assumido) 5 condições mostram 4 ícones e um "+1" (o brief diz "no máximo 4 mais +N"). O E2E de `combate.spec.ts` esperava 5 marcas e passou a esperar 4 mais "Mais 1".
+- (assumido) O pontinho de destaque do dono da tocha saiu (a marca é pequena demais); quem não pode mexer vê a dica "só o dono e o mestre mexem nela", como antes.
+- (assumido) A ficha não lista condições desde o V4a2, então o ícone novo só entrou no menu do token.
+- Os objetos de luz de um ponto (suporte, fogueira) seguem com o desenho grande de antes, com o tempo embaixo.
+
+**O que ficou para depois**
+- Condição e tocha por toque (celular): a dica continua só com o mouse.
+- Ícones por condição não são configuráveis.
+
 ## Em aberto
 
 - **O plano R1 a R6 terminou** (R1, R2, R2b, R3, R4 em 2026-11-10; R5a, R5b, R6a e R6b em 2026-11-11). Agora o Vilella faz os ajustes

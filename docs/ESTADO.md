@@ -3185,4 +3185,47 @@ Ver `docs/ROTEIRO-DE-TESTES.md`, "V10b".
 
 ---
 
-## Próximo: bugs que sobrarem e acabamentos das contas; depois 7b e 12 (o C4, a tela inicial, o V10 e o V10b estão entregues)
+## Ajustes V11 — Token: tochas nos cantos e condições com ícones (entregue, aguardando o roteiro manual)
+
+Detalhes em `docs/REDESIGN.md` ("V11 — como ficou").
+
+### O que foi entregue
+
+- A tocha na mão é uma marca no canto superior direito (1ª mão) ou esquerdo (2ª) do token, com a chama e um anel fino de tempo (alerta no fim). O tempo exato está na dica e no menu da tocha.
+- As condições, a exaustão e a concentração são ícones do lucide (4 e um "+N") num arco embaixo do token; o menu de condições mostra o ícone ao lado de cada uma.
+- A tabela condição → ícone está em `apps/web/src/condicoesIcones.ts`.
+
+### Como rodar
+
+`pnpm dev` como sempre.
+
+### Verificação
+
+- Unidade (`condicoesIcones.test.ts`, 4 testes): toda condição, a exaustão e a concentração têm ícone; sem repetição; o SVG sai com a cor; a chave de `iconesDoToken` sempre tem ícone.
+- E2E novo: `token-v11.spec.ts` (3 testes): duas tochas nos cantos certos com raio entre 9 e 15 px e a luz centrada no token; arrastar a marca entrega a tocha; seis condições dão 4 ícones e "Mais 2", e o menu mostra os 16 ícones, todos diferentes.
+- E2E alterado: `combate.spec.ts` (condição e concentração que o jogador aplica): 5 marcas viraram 4 e "Mais 1" (de propósito, o máximo agora é 4 mais "+N").
+
+### Decisões
+
+- (assumido) Ver `REDESIGN`, "V11 — como ficou", Decisões.
+
+### Desvios do plano
+
+- O olho cortado do token oculto foi para o alto do token (o canto era da tocha).
+
+### Frágil / não verificado
+
+- As marcas do token são desenhadas em `criarVisual` e reescaladas por zoom em `ajustarMarcasAoZoom`; a tocha em `desenharAlcas`/`ancoraDaAlca`. Mexer num lado sem o outro desalinha tamanho e clique.
+- Os ícones chegam de forma assíncrona (SVG → imagem → textura): no primeiro desenho a bolinha pode aparecer vazia por um instante, e os tokens são refeitos quando a textura chega.
+- Token de 1 quadrado com 4 ou mais marcas e as tochas: as bolinhas ficam encostadas (mínimo de 9 px de raio). Não foi visto em token minúsculo (menos de 1 quadrado).
+- Toque (celular): nada novo, a dica só com mouse.
+
+### Roteiro manual (pendente)
+
+Ver `docs/ROTEIRO-DE-TESTES.md`, "V11".
+
+---
+
+---
+
+## Próximo: bugs que sobrarem e acabamentos das contas; depois 7b e 12 (o C4, a tela inicial, o V10, o V10b e o V11 estão entregues)

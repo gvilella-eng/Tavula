@@ -1464,7 +1464,8 @@ assumido sem o Vilella está marcado com "(assumido)" e entra nas perguntas do f
   ocupa mão não conta). **A tocha apagada continua ocupando a mão** até ser guardada (assumido). A luz
   sai do token do personagem na cena ativa; sem token lá, o tempo corre e não há luz. Mudar de cena leva
   a tocha junto.
-- **Alça da tocha:** um ícone pequeno junto ao token, um por mão (esquerda e direita). Arrastar a alça:
+- **Alça da tocha:** uma marca pequena no canto superior do token, uma por mão (1ª: canto superior direito; 2ª: superior
+  esquerdo; com o anel fino do tempo que falta, e o tempo exato na dica e no menu da tocha) (V11, 2026-11-13). Arrastar a alça:
   - solta sobre outro token **dentro do alcance** com mão livre: entrega (`tocha.entregar`), com o saldo;
   - solta sobre um **suporte** dentro do alcance com espaço: põe a tocha nele;
   - segurada sobre um **inflamável** dentro do alcance, acesa: um anel enche em `segurarS` (3 s) e o
@@ -1860,7 +1861,7 @@ tokens que controla (só na tela dele) e, com a ordem aberta, entra clicando em 
   **controla o token** — edita o personagem ou está em `controladoPor` (o familiar entregue a um
   jogador). Ajustado na revisão; o desenho dizia só "quem edita o personagem";
 - o menu de botão direito do token é novo (antes só existia o da alça da tocha): "Entrar na
-  iniciativa" e "Condições…"; marcadores de duas letras na borda do token, com a regra na dica;
+  iniciativa" e "Condições…"; marcadores na borda do token, com a regra na dica (V11, 2026-11-13: ícones do lucide, no máximo 4 e um "+N", no lugar das duas letras);
 - assumido: o nome da entrada é copiado do token; o jogador rola a própria uma vez (o mestre refaz);
   rolagem de entrada com valor oculto ou escondida vai oculta mesmo sendo de PJ; tirar a entrada da vez
   passa o turno; "Adicionar selecionados" usa a seleção única da mesa, e "O grupo" adiciona os PJs da

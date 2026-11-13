@@ -77,6 +77,10 @@ export type GanchoDoMapa = {
     estado: "acesa" | "apagada";
     portador: string;
     rotulo: string;
+    /** V11: a mão (0 = 1ª) da tocha na mão de um token; `null` nos objetos de um ponto. */
+    mao: number | null;
+    /** V11: o raio da alça na tela (px). */
+    raio: number;
     x: number;
     y: number;
   }[];

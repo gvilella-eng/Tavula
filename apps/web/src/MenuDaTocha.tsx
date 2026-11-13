@@ -1,8 +1,9 @@
-import type { Estado } from "@tabletop/shared";
+import { type Estado, formatarRestante } from "@tabletop/shared";
 import { Backpack, Flame, FlameKindling, HandGrab } from "lucide-react";
 import { useRef } from "react";
 import { dentroDaArea } from "./area";
 import { useFecharFora } from "./Popover";
+import { useTic } from "./tempo";
 
 type Props = {
   estado: Estado;
@@ -12,6 +13,8 @@ type Props = {
   y: number;
   /** O personagem que mexe (para pegar do suporte). */
   personagemId: string | undefined;
+  /** O tempo restante da tocha (ms), ou `undefined` se este usuário não o vê. */
+  restanteDe: (luzId: string) => number | undefined;
   enviar: (tipo: string, dados: object) => string | null;
   aoFechar: () => void;
 };
@@ -20,8 +23,18 @@ type Props = {
  * Menu do botão direito na alça da tocha (ou no objeto de um ponto): guardar na mochila, apagar ou
  * reacender, pegar do suporte. Quem decide se pode é a sala (capacidade, alcance, mãos).
  */
-export function MenuDaTocha({ estado, luzId, x, y, personagemId, enviar, aoFechar }: Props) {
+export function MenuDaTocha({
+  estado,
+  luzId,
+  x,
+  y,
+  personagemId,
+  restanteDe,
+  enviar,
+  aoFechar,
+}: Props) {
   const ref = useRef<HTMLDivElement>(null);
+  useTic(true);
   useFecharFora(ref, aoFechar);
   const luz = estado.luzes.find((l) => l.id === luzId);
   if (!luz) return null;
@@ -30,7 +43,8 @@ export function MenuDaTocha({ estado, luzId, x, y, personagemId, enviar, aoFecha
   const suporte = noPonto
     ? estado.pontos.find((p) => p.id === noPonto && p.tipo === "suporte")
     : undefined;
-  const { left: esquerda, top: topo } = dentroDaArea(x, y, 212, 132);
+  const restante = restanteDe(luz.id);
+  const { left: esquerda, top: topo } = dentroDaArea(x, y, 212, restante === undefined ? 132 : 158);
 
   const item = (
     id: string,
@@ -66,6 +80,12 @@ export function MenuDaTocha({ estado, luzId, x, y, personagemId, enviar, aoFecha
       style={{ left: esquerda, top: topo }}
     >
       <div className="nota menu-titulo">{luz.nome}</div>
+      {restante !== undefined && (
+        <div className="nota menu-tempo" data-testid="menu-tocha-tempo">
+          Restam {formatarRestante(restante)}
+          {luz.estado === "apagada" ? " (apagada)" : ""}
+        </div>
+      )}
       {luz.portador.tipo === "mao" &&
         item("guardar", "Guardar na mochila", <Backpack size={16} />, () =>
           enviar("tocha.guardar", { id: luz.id }),

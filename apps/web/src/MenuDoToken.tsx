@@ -19,6 +19,7 @@ import {
 import { useRef, useState } from "react";
 import { caixaDaArea, dentroDaArea } from "./area";
 import { BotaoComDica } from "./BotaoComDica";
+import { ICONE_DA_CONDICAO } from "./condicoesIcones";
 import { useFecharFora } from "./Popover";
 import { useMenuPorTeclado } from "./useMenuPorTeclado";
 
@@ -37,6 +38,12 @@ type Props = {
   aoEditar: () => void;
   aoFechar: () => void;
 };
+
+/** O ícone da condição (V11), o mesmo do token no mapa; na cor do texto do tema. */
+function Icone({ nome }: { nome: keyof typeof ICONE_DA_CONDICAO }) {
+  const Componente = ICONE_DA_CONDICAO[nome];
+  return <Componente size={14} aria-hidden className="mt-icone-condicao" data-icone={nome} />;
+}
 
 /** Altura que o menu pede (px), para caber na área do mapa; o que passar disso rola. */
 function alturaDoMenu(mestre: boolean, tochas: number): number {
@@ -205,12 +212,15 @@ export function MenuDoToken({
               <span className="mt-caixa" aria-hidden>
                 {ativas.has(c) && <Check size={12} />}
               </span>
+              <Icone nome={c} />
               <span>{NOME_DA_CONDICAO[c]}</span>
             </button>
           ))}
         </div>
         <div className="mt-bloco">
-          <span className="nota">Exaustão</span>
+          <span className="nota mt-rotulo-icone">
+            <Icone nome="exaustao" /> Exaustão
+          </span>
           <fieldset className="chips mt-fieldset" aria-label="Nível de exaustão">
             <button
               type="button"
@@ -237,7 +247,7 @@ export function MenuDoToken({
         </div>
         <div className="mt-bloco mt-ultimo">
           <label className="nota" htmlFor="concentracao-magia">
-            Concentração (nome da magia)
+            <Icone nome="concentracao" /> Concentração (nome da magia)
           </label>
           <div className="mt-linha">
             <input

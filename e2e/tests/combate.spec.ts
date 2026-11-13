@@ -274,7 +274,8 @@ test("condição e concentração que o jogador aplica no próprio token aparece
   await j1.pagina.keyboard.press("Escape");
   await expect(j1.pagina.getByTestId("menu-token")).toHaveCount(0);
 
-  const esperado = ["Caído", "Cego", "Envenenado", "Exaustão 2", "Concentração: Bênção"];
+  // V11: no máximo 4 ícones e um "+N": a concentração (a 5ª) fica no "Mais 1".
+  const esperado = ["Caído", "Cego", "Envenenado", "Exaustão 2", "Mais 1"];
   await expect
     .poll(async () => (await tokenDe(mestre.pagina, "tok-jogador-1")).marcas)
     .toEqual(esperado);

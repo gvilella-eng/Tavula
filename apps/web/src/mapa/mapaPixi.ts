@@ -58,6 +58,7 @@ import {
 import "pixi.js/advanced-blend-modes";
 import { Application, Container, Graphics, Rectangle, Sprite, Text, Texture } from "pixi.js";
 import type { CamadaDeTrabalho } from "../camadas";
+import { svgDoIcone } from "../condicoesIcones";
 import { corDoTextoSobre, haloDoTexto } from "../contrasteDeCor";
 import type { ConfigDoPincel } from "../pincel";
 import { CamadaDeDesenho, type DesenhoNaTela } from "./camadaDeDesenho";
@@ -187,6 +188,8 @@ export type OpcoesDoMapa = {
   alcanceInteracaoM: number;
   /** Tempo restante (ms) do objeto, já animado entre os envios; `undefined` quando este usuário não o vê. */
   restanteDe: (luzId: string) => number | undefined;
+  /** Duração total (ms) do objeto, para o anel da tocha; `undefined` quando este usuário não a conhece. */
+  duracaoDe: (luz: FonteDeLuz) => number | undefined;
   /** Pode arrastar, apagar e guardar esta tocha (dono do personagem ou mestre)? */
   podeMexerNaTocha: (luz: FonteDeLuz) => boolean;
   /** Token da entrada que está na vez (anel destacado, para todos que veem o token). */
@@ -310,16 +313,32 @@ type Visual = {
   alvoY: number;
 };
 
-type MarcaVisual = { ox: number; oy: number; r: number; titulo: string; texto: string };
+/**
+ * Um marcador de condição na borda do token. `r` é o raio-base (px do mundo); na tela o raio fica entre
+ * `RAIO_MIN_DA_MARCA` e `RAIO_MAX_DA_MARCA` (o `grupo` é reescalado a cada zoom).
+ */
+type MarcaVisual = {
+  ox: number;
+  oy: number;
+  r: number;
+  titulo: string;
+  texto: string;
+  grupo: Container;
+};
 
-/** Até quantos marcadores cabem na borda; o resto vira um "+N". */
-const MARCAS_VISIVEIS = 6;
-/** Raio do marcador (px do mundo) e a letra dele; maiores desde o R5a para ler e clicar. */
-const RAIO_DA_MARCA = 13;
-const LETRA_DA_MARCA = 12;
-/** Distância mínima (px do mundo) entre os centros de dois marcadores vizinhos. */
-const DISTANCIA_ENTRE_MARCAS = 19;
-/** A alça da tocha (R5a): raio do círculo, letra do tempo e onde o tempo começa, abaixo do centro. */
+/** V11: até quantos ícones de condição aparecem; o resto vira um "+N". */
+const MARCAS_VISIVEIS = 4;
+/** V11: as marcas do token (condições e tochas) medem ~30% do raio do token, com limites em pixels de tela. */
+const FRACAO_DA_MARCA = 0.3;
+const RAIO_MIN_DA_MARCA = 9;
+const RAIO_MAX_DA_MARCA = 15;
+/** V11: a tocha na mão vira um pino no canto do token: ângulos (graus) da 1ª, 2ª... mão. 1ª: canto superior direito. */
+const ANGULOS_DA_TOCHA = [-45, -135, 0, 180, -20, -160];
+/** Abaixo disto do tempo total, ou de 5 min, o anel da tocha avisa (assumido). */
+const FRACAO_DE_ALERTA = 0.1;
+const ALERTA_EM_MS = 5 * 60 * 1000;
+const COR_DO_ALERTA = 0xff5b4a;
+/** A alça do objeto de luz num ponto (a da mão é a marca do token, menor): raio do círculo e letra do tempo. */
 const RAIO_DA_ALCA_TOCHA = 20;
 const LETRA_DO_TEMPO = 15;
 /** A dica da alça da tocha (o que ela faz). */
@@ -476,6 +495,11 @@ export class MapaPixi {
   private readonly visuais = new Map<string, Visual>();
   private readonly spritesDoMapa = new Map<string, Sprite>();
   private readonly texturas = new Map<string, Texture>();
+  /** V11: os ícones das condições já rasterizados (por ícone e cor) e os que já foram pedidos. */
+  private readonly iconesProntos = new Map<string, Texture>();
+  private readonly iconesPedidos = new Set<string>();
+  /** O zoom com que as marcas dos tokens foram escaladas por último. */
+  private zoomDasMarcas = 1;
   private readonly carregando = new Set<string>();
   private imagens: ImagensDoMapa | null = null;
   private readonly ultimasPosicoes = new Map<string, Ponto>();
@@ -1064,7 +1088,7 @@ export class MapaPixi {
     });
     rotulo.anchor.set(0.5, 0);
     const icones = iconesDoToken(token);
-    rotulo.position.set(0, raio + 4 + (icones.length > 0 ? RAIO_DA_MARCA : 0));
+    rotulo.position.set(0, raio + 4 + (icones.length > 0 ? raio * FRACAO_DA_MARCA : 0));
     const pilulaDoRotulo = new Graphics()
       .roundRect(
         -rotulo.width / 2 - 6,
@@ -1102,9 +1126,44 @@ export class MapaPixi {
     };
   }
 
+  /** O raio na tela (px) das marcas de um token de raio `raio` (px do mundo), com o zoom de agora. */
+  private raioNaTelaDaMarca(raio: number): number {
+    return Math.min(
+      RAIO_MAX_DA_MARCA,
+      Math.max(RAIO_MIN_DA_MARCA, raio * FRACAO_DA_MARCA * this.vista.zoom),
+    );
+  }
+
+  /** A textura do ícone (cache por ícone e cor). Ainda não pronta: pede e redesenha os tokens quando chegar. */
+  private texturaDoIcone(chave: string, cor: string): Texture | null {
+    const k = `${chave}|${cor}`;
+    const pronta = this.iconesProntos.get(k);
+    if (pronta) return pronta;
+    if (this.iconesPedidos.has(k)) return null;
+    this.iconesPedidos.add(k);
+    const svg = svgDoIcone(chave, cor, 64);
+    if (!svg) return null;
+    const img = new Image();
+    img.onload = () => {
+      if (this.destruido) return;
+      const lado = 96;
+      const tela = document.createElement("canvas");
+      tela.width = lado;
+      tela.height = lado;
+      tela.getContext("2d")?.drawImage(img, 0, 0, lado, lado);
+      const textura = Texture.from(tela);
+      textura.source.autoGenerateMipmaps = true;
+      this.iconesProntos.set(k, textura);
+      this.recriarVisuais();
+    };
+    img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+    return null;
+  }
+
   /**
-   * Marcadores de condição, exaustão e concentração na borda de baixo do token (pequenos discos com
-   * duas letras). Passando de `MARCAS_VISIVEIS`, o último vira "+N" (a dica lista o resto).
+   * V11: ícones de condição, exaustão e concentração num arco embaixo do token, na borda (bolinhas escuras
+   * com o ícone na cor da condição; a exaustão leva o nível). No máximo `MARCAS_VISIVEIS`; o resto vira
+   * um "+N" (a dica lista os nomes). O tamanho na tela é limitado: ver `ajustarMarcasAoZoom`.
    */
   private desenharMarcas(
     container: Container,
@@ -1112,81 +1171,138 @@ export class MapaPixi {
     raio: number,
   ): MarcaVisual[] {
     if (icones.length === 0) return [];
-    const mostrados: { sigla: string; cor: string; titulo: string; texto: string }[] = [];
-    const comoMarca = (i: IconeDeCondicao) => ({
-      sigla: i.sigla,
+    type Mostrado = { chave: string; cor: string; nivel?: number; titulo: string; texto: string };
+    const comoMarca = (i: IconeDeCondicao): Mostrado => ({
+      chave: i.chave,
       cor: i.cor,
+      ...(i.nivel === undefined ? {} : { nivel: i.nivel }),
       titulo: i.titulo,
       texto: i.resumo,
     });
-    const raioDaMarca = raio + 3;
-    // Os marcadores ficam no arco de baixo da borda (sem cobrir as iniciais): no máximo 150 graus, e
-    // com a distância mínima entre os centros que ainda deixa ler as duas letras. Em token pequeno cabem
-    // menos marcadores; o último vira "+N" (a dica e a regra por clique listam o resto).
-    const passoMinimo =
-      (2 * Math.asin(Math.min(1, DISTANCIA_ENTRE_MARCAS / (2 * raioDaMarca))) * 180) / Math.PI;
-    const cabem = Math.max(2, Math.min(MARCAS_VISIVEIS, Math.floor(150 / passoMinimo) + 1));
-    if (icones.length <= cabem) {
-      for (const i of icones) mostrados.push(comoMarca(i));
-    } else {
-      for (const i of icones.slice(0, cabem - 1)) mostrados.push(comoMarca(i));
-      const resto = icones.slice(cabem - 1);
-      mostrados.push({
-        sigla: `+${resto.length}`,
-        cor: "#555f6e",
-        titulo: `Mais ${resto.length}`,
-        texto: resto.map((i) => i.titulo).join(", "),
-      });
+    let mostrados: Mostrado[];
+    if (icones.length <= MARCAS_VISIVEIS) mostrados = icones.map(comoMarca);
+    else {
+      const resto = icones.slice(MARCAS_VISIVEIS);
+      mostrados = [
+        ...icones.slice(0, MARCAS_VISIVEIS).map(comoMarca),
+        {
+          chave: "mais",
+          cor: "#9aa3b2",
+          titulo: `Mais ${resto.length}`,
+          texto: resto.map((i) => i.titulo).join(", "),
+        },
+      ];
     }
+    const r = raio * FRACAO_DA_MARCA;
+    const raioDoArco = raio * 0.97;
+    // As bolinhas ficam no arco de baixo (até 150 graus), sem cobrir o rosto; o passo evita que se toquem.
+    const passoMinimo = (2 * Math.asin(Math.min(1, (r * 2.3) / (2 * raioDoArco))) * 180) / Math.PI;
     const passo =
       mostrados.length > 1 ? Math.min(Math.max(passoMinimo, 30), 150 / (mostrados.length - 1)) : 0;
     const marcas: MarcaVisual[] = [];
     mostrados.forEach((m, i) => {
       const graus = 90 - (i - (mostrados.length - 1) / 2) * passo;
       const rad = (graus * Math.PI) / 180;
-      const ox = Math.cos(rad) * raioDaMarca;
-      const oy = Math.sin(rad) * raioDaMarca;
-      const g = new Graphics()
-        .circle(ox, oy, RAIO_DA_MARCA)
-        .fill(m.cor)
-        .stroke({ width: 2, color: 0xffffff, alpha: 0.95 });
-      const t = new Text({
-        text: m.sigla,
-        style: {
-          fill: 0xffffff,
-          fontSize: LETRA_DA_MARCA,
-          fontWeight: "700",
-          fontFamily: "system-ui, sans-serif",
-          stroke: { color: 0x000000, width: 2 },
-        },
-      });
-      t.anchor.set(0.5);
-      t.position.set(ox, oy);
-      container.addChild(g, t);
-      marcas.push({ ox, oy, r: RAIO_DA_MARCA, titulo: m.titulo, texto: m.texto });
+      const ox = Math.cos(rad) * raioDoArco;
+      const oy = Math.sin(rad) * raioDoArco;
+      const grupo = new Container();
+      grupo.position.set(ox, oy);
+      const cor = Number.parseInt(m.cor.slice(1), 16);
+      grupo.addChild(
+        new Graphics()
+          .circle(0, 0, r)
+          .fill({ color: 0x10141a, alpha: 0.94 })
+          .stroke({ width: Math.max(1, r * 0.16), color: cor, alpha: 0.9 }),
+      );
+      if (m.chave === "mais") {
+        const t = new Text({
+          text: `+${icones.length - MARCAS_VISIVEIS}`,
+          style: {
+            fill: 0xf4f5f7,
+            fontSize: r * 1.15,
+            fontWeight: "700",
+            fontFamily: "system-ui, sans-serif",
+          },
+        });
+        t.anchor.set(0.5);
+        grupo.addChild(t);
+      } else {
+        const textura = this.texturaDoIcone(m.chave, m.cor);
+        if (textura) {
+          const figura = new Sprite(textura);
+          figura.anchor.set(0.5);
+          figura.width = r * 1.32;
+          figura.height = r * 1.32;
+          grupo.addChild(figura);
+        }
+        if (m.nivel !== undefined) {
+          const n = new Text({
+            text: String(m.nivel),
+            style: {
+              fill: 0xffffff,
+              fontSize: r * 0.95,
+              fontWeight: "700",
+              fontFamily: "system-ui, sans-serif",
+              stroke: { color: 0x10141a, width: Math.max(2, r * 0.3) },
+            },
+          });
+          n.anchor.set(0.5);
+          n.position.set(r * 0.62, r * 0.62);
+          grupo.addChild(n);
+        }
+      }
+      container.addChild(grupo);
+      marcas.push({ ox, oy, r, titulo: m.titulo, texto: m.texto, grupo });
     });
+    this.escalarMarcas(marcas, raio);
     return marcas;
+  }
+
+  /** Reescala as marcas de um token para o raio na tela ficar entre o mínimo e o máximo. */
+  private escalarMarcas(marcas: MarcaVisual[], raio: number): void {
+    const z = this.vista.zoom;
+    const f = this.raioNaTelaDaMarca(raio) / (raio * FRACAO_DA_MARCA * z);
+    for (const m of marcas) m.grupo.scale.set(f);
+  }
+
+  /** O zoom mudou: as marcas de todos os tokens voltam ao tamanho certo na tela (e a tocha também). */
+  private ajustarMarcasAoZoom(): void {
+    if (this.zoomDasMarcas === this.vista.zoom) return;
+    this.zoomDasMarcas = this.vista.zoom;
+    this.sujo = true;
+    for (const v of this.visuais.values()) {
+      if (v.marcas.length === 0) continue;
+      this.escalarMarcas(v.marcas, this.raioDoToken(v.token));
+    }
+  }
+
+  /** O raio do círculo do token (px do mundo), o mesmo de `criarVisual`. */
+  private raioDoToken(token: Token): number {
+    return (token.tamanhoQuadrados * this.quadradoM() * PX_POR_M) / 2 - 3;
   }
 
   /** O marcador de condição sob o ponteiro (ponto da tela). */
   private marcaEm(p: Ponto): MarcaVisual | null {
     const m = this.paraMundo(p);
+    const z = this.vista.zoom;
     for (const v of this.visuais.values()) {
       if (!v.container.visible) continue;
       for (const marca of v.marcas) {
         const cx = v.x + marca.ox / PX_POR_M;
         const cy = v.y + marca.oy / PX_POR_M;
-        if (Math.hypot(m.x - cx, m.y - cy) <= (marca.r + 2) / PX_POR_M) return marca;
+        const rTela = marca.r * marca.grupo.scale.x * z;
+        if (Math.hypot(m.x - cx, m.y - cy) * PX_POR_M * z <= rTela + 2) return marca;
       }
     }
     return null;
   }
 
-  /** Ícone de olho cortado (token oculto, só o mestre vê) no canto do token. */
+  /** Ícone de olho cortado (token oculto, só o mestre vê) no alto do token. */
   private desenharOlhoCortado(raio: number): Graphics {
     const g = new Graphics();
-    const cx = raio * 0.72;
-    const cy = -raio * 0.72;
+    // No alto do token, no meio: os cantos de cima são das tochas (V11).
+    const cx = 0;
+    const cy = -raio * 0.95;
     g.circle(cx, cy, 11).fill({ color: 0x0d1015, alpha: 0.85 });
     g.ellipse(cx, cy, 7, 4.5).stroke({ width: 1.5, color: 0xffffff });
     g.circle(cx, cy, 1.8).fill(0xffffff);
@@ -1296,6 +1412,7 @@ export class MapaPixi {
   private passo(agora: number, dt: number): void {
     this.animar(dt);
     this.passoDaContagem();
+    this.ajustarMarcasAoZoom();
     this.desenharAlcas();
     if (this.visaoSuja) this.recalcularVisao();
     else if (this.visibilidadeSuja) this.atualizarVisibilidadeDosTokens();
@@ -1697,32 +1814,45 @@ export class MapaPixi {
     const z = this.vista.zoom;
     const p = luz.portador;
     if (p.tipo === "mao") {
+      // V11: a tocha é uma marca no canto do token (1ª mão: superior direito; 2ª: superior esquerdo), por
+      // cima da borda, como uma condição. Se cair em cima do ícone de um ponto de luz, desliza pela borda.
       const v = this.visualDoPersonagem(p.personagemId);
-      const raioPx = v ? (v.token.tamanhoQuadrados * this.quadradoM() * PX_POR_M) / 2 : 20;
-      const lado = p.mao % 2 === 0 ? -1 : 1;
-      const camada = Math.floor(p.mao / 2);
-      const dy = (camada * (2 * RAIO_DA_ALCA_TOCHA + 24)) / z / PX_POR_M;
-      // A alça fica ao lado do token; se cair em cima do ícone de um ponto de luz, afasta para o lado
-      // (até três passos) para os dois continuarem à vista e clicáveis.
+      const raioPx = v ? this.raioDoToken(v.token) + 3 : 20;
+      const base = ANGULOS_DA_TOCHA[p.mao % ANGULOS_DA_TOCHA.length] ?? -45;
+      const lado = Math.cos((base * Math.PI) / 180) >= 0 ? 1 : -1;
+      const rTela = this.raioDaAlca(luz);
       const pontos = this.pontosDaTela();
-      const livre = (dx: number) => {
-        const t = this.paraTela(centro.x + dx, centro.y + dy);
+      const na = (graus: number): Ponto => {
+        const rad = (graus * Math.PI) / 180;
+        return {
+          x: centro.x + (Math.cos(rad) * raioPx * 0.9) / PX_POR_M,
+          y: centro.y + (Math.sin(rad) * raioPx * 0.9) / PX_POR_M,
+        };
+      };
+      const livre = (graus: number) => {
+        const ponto = na(graus);
+        const t = this.paraTela(ponto.x, ponto.y);
         return pontos.every((q) => {
           const u = this.paraTela(q.x, q.y);
-          return Math.hypot(t.x - u.x, t.y - u.y) >= RAIO_DA_ALCA_TOCHA + 10 + 6;
+          return Math.hypot(t.x - u.x, t.y - u.y) >= rTela + 10 + 6;
         });
       };
-      let dx = (lado * (raioPx + (RAIO_DA_ALCA_TOCHA + 12) / z)) / PX_POR_M;
-      for (let passo = 0; passo < 3 && !livre(dx); passo++) {
-        dx += (lado * (2 * RAIO_DA_ALCA_TOCHA + 8)) / z / PX_POR_M;
-      }
-      return { mundo: { x: centro.x + dx, y: centro.y + dy }, lado };
+      let graus = base;
+      for (let passo = 0; passo < 3 && !livre(graus); passo++) graus += lado * -22;
+      return { mundo: na(graus), lado };
     }
     // No ponto (suporte, fogueira): o ícone fica acima do ponto, lado a lado se houver mais de um.
     return {
       mundo: { x: centro.x + (ordemNoPonto * 34) / z / PX_POR_M, y: centro.y - 52 / z / PX_POR_M },
       lado: 0,
     };
+  }
+
+  /** O raio (px da tela) da alça: a tocha na mão é uma marca pequena do token; a de um ponto é maior. */
+  private raioDaAlca(luz: FonteDeLuz): number {
+    if (luz.portador.tipo !== "mao") return RAIO_DA_ALCA_TOCHA;
+    const v = this.visualDoPersonagem(luz.portador.personagemId);
+    return v ? this.raioNaTelaDaMarca(this.raioDoToken(v.token)) : RAIO_MIN_DA_MARCA;
   }
 
   /** Texto sob a alça: o tempo restante (para quem pode ver) ou o estágio. */
@@ -1750,8 +1880,7 @@ export class MapaPixi {
   }
 
   /** Desenha uma chama (acesa) ou o contorno apagado, centrada em (0, 0), em pixels da tela. */
-  private desenharChama(g: Graphics, acesa: boolean): void {
-    const k = 1.6;
+  private desenharChama(g: Graphics, acesa: boolean, k = 1.6): void {
     g.moveTo(0, -8 * k)
       .bezierCurveTo(7 * k, -2 * k, 6 * k, 6 * k, 0, 8 * k)
       .bezierCurveTo(-6 * k, 6 * k, -7 * k, -2 * k, 0, -8 * k);
@@ -1761,7 +1890,7 @@ export class MapaPixi {
         .bezierCurveTo(3.5 * k, k, 3 * k, 5 * k, 0, 6 * k)
         .bezierCurveTo(-3 * k, 5 * k, -3.5 * k, k, 0, -2 * k)
         .fill(0xffe08a);
-    } else g.stroke({ width: 1.8, color: 0x8a94a3 });
+    } else g.stroke({ width: Math.max(1, 1.1 * k), color: 0x8a94a3 });
   }
 
   private criarAlca(luzId: string): AlcaVisual {
@@ -1803,20 +1932,38 @@ export class MapaPixi {
       const rotulo = this.rotuloDaAlca(luz);
       const dono = this.opcoes.podeMexerNaTocha(luz);
       const arrastando = arrasto?.luzId === luz.id;
-      const chave = `${mundo.x.toFixed(3)},${mundo.y.toFixed(3)}|${z}|${acesa}|${rotulo}|${dono}|${arrastando}|${luz.estagio ?? ""}`;
+      const naMao = luz.portador.tipo === "mao";
+      const r = this.raioDaAlca(luz);
+      const anel = naMao ? this.anelDaTocha(luz) : null;
+      const chave = `${mundo.x.toFixed(3)},${mundo.y.toFixed(3)}|${z}|${acesa}|${rotulo}|${dono}|${arrastando}|${luz.estagio ?? ""}|${r.toFixed(2)}|${anel?.fracao.toFixed(3) ?? ""}|${anel?.alerta ?? ""}`;
       if (chave === alca.chave) continue;
       alca.chave = chave;
       this.sujo = true;
       alca.container.position.set(mundo.x * PX_POR_M, mundo.y * PX_POR_M);
       alca.container.scale.set((arrastando ? 1.2 : 1) / z);
       const g = alca.corpo.clear();
+      if (anel) {
+        // V11: um pino do token. O anel fino em volta é o tempo que falta; apagada, fica esmaecida.
+        const largura = Math.max(2, r * 0.26);
+        const rAnel = r - largura / 2;
+        g.circle(0, 0, rAnel).fill({ color: 0x10141a, alpha: 0.95 });
+        g.circle(0, 0, rAnel).stroke({ width: largura, color: 0x3a4350, alpha: 0.9 });
+        const cor = !acesa ? 0x6b7686 : anel.alerta ? COR_DO_ALERTA : COR_DA_LUZ;
+        if (anel.fracao >= 0.999) {
+          g.circle(0, 0, rAnel).stroke({ width: largura, color: cor });
+        } else if (anel.fracao > 0) {
+          g.moveTo(0, -rAnel);
+          g.arc(0, 0, rAnel, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * anel.fracao);
+          g.stroke({ width: largura, color: cor });
+        }
+        this.desenharChama(g, acesa, r * 0.058);
+        alca.rotulo.visible = false;
+        alca.container.alpha = acesa ? 1 : 0.7;
+        continue;
+      }
       g.circle(0, 0, RAIO_DA_ALCA_TOCHA)
         .fill({ color: 0x10141a, alpha: 0.94 })
         .stroke({ width: 3, color: acesa ? COR_DA_LUZ : 0x6b7686 });
-      if (dono && luz.portador.tipo === "mao") {
-        // O dono pode arrastar: um pontinho de destaque no canto.
-        g.circle(RAIO_DA_ALCA_TOCHA * 0.75, -RAIO_DA_ALCA_TOCHA * 0.75, 4.5).fill(ACENTO);
-      }
       this.desenharChama(g, acesa);
       alca.rotulo.text = rotulo;
       alca.rotulo.visible = rotulo !== "";
@@ -1829,6 +1976,19 @@ export class MapaPixi {
       this.sujo = true;
     }
     this.desenharPontos(z, arrasto);
+  }
+
+  /**
+   * O anel de tempo da tocha na mão: quanto resta (0 a 1) e se está no fim. Sem tempo para este usuário
+   * (tempo oculto), o anel fica cheio, e só o estágio "morrendo" avisa.
+   */
+  private anelDaTocha(luz: FonteDeLuz): { fracao: number; alerta: boolean } {
+    const restante = this.opcoes.restanteDe(luz.id);
+    const total = this.opcoes.duracaoDe(luz);
+    if (restante === undefined) return { fracao: 1, alerta: luz.estagio === "morrendo" };
+    if (total === undefined || total <= 0) return { fracao: 1, alerta: restante < ALERTA_EM_MS };
+    const fracao = Math.min(1, Math.max(0, restante / total));
+    return { fracao, alerta: fracao < FRACAO_DE_ALERTA || restante < ALERTA_EM_MS };
   }
 
   /** Ícones dos pontos (suporte e inflamável), o alcance do selecionado e o anel de acender. */
@@ -1927,11 +2087,11 @@ export class MapaPixi {
   /** A alça (ou ícone de objeto no ponto) sob o ponto da tela. */
   private alcaEm(p: Ponto): { luz: FonteDeLuz; tela: Ponto } | null {
     let achada: { luz: FonteDeLuz; tela: Ponto } | null = null;
-    let melhor = RAIO_DA_ALCA_TOCHA + 1;
+    let melhor = Number.POSITIVE_INFINITY;
     for (const { luz, mundo } of this.alcasDaTela()) {
       const t = this.paraTela(mundo.x, mundo.y);
       const d = Math.hypot(p.x - t.x, p.y - t.y);
-      if (d <= melhor) {
+      if (d <= this.raioDaAlca(luz) + 1 && d < melhor) {
         melhor = d;
         achada = { luz, tela: t };
       }
@@ -2874,9 +3034,18 @@ export class MapaPixi {
     if (!alca) return null;
     const luz = alca.luz;
     const alheia = luz.portador.tipo === "mao" && !this.opcoes.podeMexerNaTocha(luz);
+    const restante = this.opcoes.restanteDe(luz.id);
+    const tempo =
+      restante !== undefined
+        ? `Restam ${formatarRestante(restante)}. `
+        : luz.estagio
+          ? `Chama ${luz.estagio}. `
+          : "";
     return {
       titulo: luz.nome,
-      texto: alheia ? "Tocha de outro personagem: só o dono e o mestre mexem nela." : DICA_DA_TOCHA,
+      texto:
+        tempo +
+        (alheia ? "Tocha de outro personagem: só o dono e o mestre mexem nela." : DICA_DA_TOCHA),
       tipo: "tocha",
     };
   }
@@ -3678,6 +3847,9 @@ export class MapaPixi {
             estado: luz.estado,
             portador: luz.portador.tipo,
             rotulo: this.rotuloDaAlca(luz),
+            /** V11: a mão (0 = 1ª) e o raio na tela, para as marcas dos cantos. */
+            mao: luz.portador.tipo === "mao" ? luz.portador.mao : null,
+            raio: this.raioDaAlca(luz),
             x: r.left + t.x,
             y: r.top + t.y,
           };

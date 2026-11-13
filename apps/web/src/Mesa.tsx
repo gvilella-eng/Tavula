@@ -915,6 +915,11 @@ export function Mesa({
       tipoDoNovoPonto,
       alcanceInteracaoM: estado?.config.alcanceInteracaoM ?? 1.5,
       restanteDe: tempo.restanteDe,
+      duracaoDe: (luz: FonteDeLuz) => {
+        if (luz.duracaoMs) return luz.duracaoMs;
+        const m = estado?.modelos.find((x) => x.id === luz.modeloId);
+        return m?.duracaoS ? m.duracaoS * 1000 : undefined;
+      },
       podeMexerNaTocha: (luz: FonteDeLuz) => {
         if (!eu || usuarioVisto !== null) return false;
         if (euMestre) return true;
@@ -972,6 +977,7 @@ export function Mesa({
       estado?.config.alcanceInteracaoM,
       estado?.tokens,
       tempo.restanteDe,
+      estado?.modelos,
       euMestre,
       modoMestre,
       usuarioVisto,
@@ -1659,6 +1665,7 @@ export function Mesa({
                 x={menuDaTocha.x}
                 y={menuDaTocha.y}
                 personagemId={meuPersonagemId()}
+                restanteDe={tempo.restanteDe}
                 enviar={enviar}
                 aoFechar={() => setMenuDaTocha(null)}
               />
