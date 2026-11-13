@@ -38,7 +38,7 @@ test("gerar o token em Preferências (aparece uma vez), conectar com ele, o Clau
   expect(token).toMatch(/^tvc_[A-Za-z0-9_-]{43}$/);
   // o trecho pronto para o Claude Code e para o Claude Desktop leva o endereço da mesa e o token
   await expect(p.getByTestId("claude-trecho-code")).toContainText(token);
-  await expect(p.getByTestId("claude-trecho-code")).toContainText(`/api/m/${ID_DA_MESA}/ws`);
+  await expect(p.getByTestId("claude-trecho-code")).toContainText(`TAVOLA_MESA=${ID_DA_MESA}`);
   await expect(p.getByTestId("claude-copiar-token")).toBeVisible();
   await expect(p.getByTestId("claude-copiar-code")).toBeVisible();
   await p.getByText("Claude Desktop", { exact: true }).click();

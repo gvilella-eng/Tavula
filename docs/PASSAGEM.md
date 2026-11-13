@@ -759,7 +759,26 @@ Continua em aberto, por ser decisão e não erro de doc: `ficha.verOutras` (seç
 - O **diário** compara o estado antes e depois **por coleção e id**: o que não está em `COLECOES_DESFAZIVEIS` nunca é desfeito. Mudança de `luzes` que o tempo faz sozinho (consumo da tocha) pode fazer o item contar como "mudou depois" e ser pulado.
 - A conexão do Claude é identificada **só** pelo token (anexo do socket). Nunca ler `claude` de um cabeçalho ou de um campo do cliente; o `loteId` e o `lote` do envelope são ignorados em qualquer outra conexão.
 - O balde de fichas (20 por segundo, rajada de 40) fica na memória da sala: reiniciá-la o enche de novo.
-- O texto de "Conectar o Claude" (`textosDoClaude.ts`) é provisório até o 12-2 (o comando do servidor MCP não existe ainda).
+- O texto de "Conectar o Claude" (`textosDoClaude.ts`) é o comando final desde o 12-2 (ver a seção "12-2" abaixo).
 - O `packages/shared` é lido pelo Vite sem compilar: nada de propriedade de parâmetro no construtor nem enum.
 
 **Suposições**: ver `docs/REDESIGN.md`, "12-1 — como ficou".
+
+## 12-2 (2026-11-13): o servidor MCP (`apps/mcp`)
+
+**Onde mexer**
+- `apps/mcp/src/sala.ts`: a conexão (WebSocket nativo com `Authorization`, `reduzir`, reconexão, a sonda HTTP que separa 401, 429 e 404, o balde de fichas do cliente e a regra de "o que encerra um pedido": evento, `erro`, snapshot ou, só no Desfazer, `claude.desfeito`). `config.ts` (as variáveis de ambiente), `nomes.ts` (nome para id, com os erros claros), `fichaPorPartes.ts` (a ficha montada por partes, PV por classe, compêndio), `compendioLocal.ts` (o arquivo local de magias, armas e itens), `formato.ts` (os resumos e o texto das rolagens), `servidor.ts` (o `tools/list` por papel, a chamada, o filtro que esconde o token) e `ferramentas/*.ts` (uma por arquivo; `ferramentas/index.ts` é a lista e `base.ts` o que todas usam: `passo`, `Relatorio`, `cadaItem`).
+- Teste: `apps/mcp/src/testes/salaSimulada.ts` roda as regras de verdade (`processar` com a marca do Claude) no lugar da sala; `ferramentas.test.ts`, `fichaPorPartes.test.ts`, `nomes.test.ts`, `sala.test.ts`. E2E: `e2e/tests/claude-12-2.spec.ts` e `ajudasMcp.ts` (sobe o arquivo gerado, em stdio, com o cliente do SDK).
+- Texto da tela: `apps/web/src/claude/textosDoClaude.ts` e `ConectarOClaude.tsx`. Instruções: `docs/MCP.md`.
+
+**Frágil**
+- **Ferramenta nova ou intenção nova**: a ferramenta precisa de `visivel` (papel e capacidade), de lote (`ctx.novoLote` e o mesmo `lote` em todo `passo`) e de um teste na `salaSimulada`. Intenção que o Claude não pode usar já está em `PROIBIDAS_AO_CLAUDE`; o MCP nem a oferece.
+- **O que encerra um pedido** (`sala.ts`): um snapshot novo conta como resposta de qualquer pedido, menos do `claude.desfazer`. Um pedido que não gera evento para quem o fez (edição sem mudança real) só termina pelo prazo de 2,5 s (`TAVOLA_ESPERA_MS`); por isso as ferramentas não mandam edição que não muda nada. Quem criar uma intenção nova que responde de outro jeito precisa ensinar a `Sala`.
+- **O servidor roda do arquivo gerado**: depois de mudar `apps/mcp` ou o `shared`, rode `pnpm --filter @tabletop/mcp build` (o E2E e os prints o fazem sozinhos). O `build` embute o `shared` e o compêndio de exemplo; o Claude Code só vê a mudança ao reiniciar o servidor (`/mcp`).
+- **Os esquemas de entrada vêm do zod** e a lista de campos é `.strict()`: campo que não existe é erro (para a IA não achar que "forca" foi aplicado). Mudar um schema do `shared` muda a ferramenta; confira `ferramentas.test.ts` ("as definições que a IA recebe").
+- Mensagens de erro do zod saem em português porque o `index.ts` faz `z.config(z.locales.ptBR())`; isso vale só no processo do MCP.
+- O compêndio do MCP é um arquivo do computador (`TAVOLA_COMPENDIO`), não o da mesa: os dois podem diferir.
+- O token passa por um filtro (`redigir`) nas respostas, por garantia; a regra é nunca o ter em nenhum texto. Cuidado ao acrescentar `console.error`: o stdout é do protocolo, e o stderr não pode levar o token.
+- O `packages/shared` é lido pelo Vite sem compilar: nada de propriedade de parâmetro no construtor nem enum (o `apps/mcp` não tem essa restrição, mas o que ele importa do `shared` sim).
+
+**Suposições**: ver `docs/REDESIGN.md`, "12-2 — como ficou". As que mais valem uma olhada: o MCP não leva o grupo para outra cena nem dispara eventos (são ações ao vivo); o tamanho da cena não se muda (60 x 45 m); o compêndio não tem monstros; criar ou editar pelo nome exato.

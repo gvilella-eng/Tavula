@@ -1,8 +1,19 @@
-// 12-1: os textos de "Conectar o Claude" num lugar só. O servidor MCP (12-2, `apps/mcp`) escreve o comando final: troque
-// `COMANDO_DO_SERVIDOR_MCP` e os dois modelos abaixo; nada mais na tela depende deles.
+// 12-1/12-2: os textos de "Conectar o Claude" num lugar só: o comando final do servidor MCP (`apps/mcp`) para o Claude Code e o
+// trecho do Claude Desktop, com o endereço da mesa tirado da página que a pessoa está usando e o token já colado.
 
-/** O comando que sobe o servidor MCP (provisório até o 12-2). */
-export const COMANDO_DO_SERVIDOR_MCP = "node apps/mcp/dist/index.js";
+/** O arquivo que o `pnpm --filter @tabletop/mcp build` gera (a partir da pasta do Távola). */
+export const ARQUIVO_DO_SERVIDOR_MCP = "apps/mcp/dist/tavola-mcp.mjs";
+
+/** O comando que gera o arquivo acima (uma vez, depois de baixar ou atualizar o Távola). */
+export const COMANDO_PARA_GERAR_O_SERVIDOR_MCP = "pnpm --filter @tabletop/mcp build";
+
+/** O que a pessoa troca no trecho do Claude Desktop: lá o caminho precisa ser completo. */
+export const CAMINHO_DO_SERVIDOR_NO_DESKTOP = `<pasta do Távola>/${ARQUIVO_DO_SERVIDOR_MCP}`;
+
+/** A origem da página (`http://127.0.0.1:5173`): é o endereço da mesa que o servidor MCP abre (o WebSocket é o mesmo do navegador). */
+export function origemDaMesa(origem: string = location.origin): string {
+  return new URL(origem).origin;
+}
 
 /** O endereço do WebSocket desta mesa, que o servidor MCP abre com `Authorization: Bearer <token>`. */
 export function urlDoWebSocketDaMesa(mesaId: string, origem: string = location.origin): string {
@@ -11,21 +22,20 @@ export function urlDoWebSocketDaMesa(mesaId: string, origem: string = location.o
   return `${protocolo}//${url.host}/api/m/${mesaId}/ws`;
 }
 
-/** O comando para o Claude Code (provisório até o 12-2). */
-export function comandoDoClaudeCode(url: string, token: string): string {
-  return `claude mcp add tavola --env TAVOLA_URL=${url} --env TAVOLA_TOKEN=${token} -- ${COMANDO_DO_SERVIDOR_MCP}`;
+/** O comando para o Claude Code (rode na pasta do Távola, depois de gerar o servidor). */
+export function comandoDoClaudeCode(origem: string, mesaId: string, token: string): string {
+  return `claude mcp add tavola --env TAVOLA_URL=${origem} --env TAVOLA_MESA=${mesaId} --env TAVOLA_TOKEN=${token} -- node ${ARQUIVO_DO_SERVIDOR_MCP}`;
 }
 
-/** O trecho do `claude_desktop_config.json` para o Claude Desktop (provisório até o 12-2). */
-export function configDoClaudeDesktop(url: string, token: string): string {
-  const [comando = "node", ...argumentos] = COMANDO_DO_SERVIDOR_MCP.split(" ");
+/** O trecho do `claude_desktop_config.json` para o Claude Desktop. */
+export function configDoClaudeDesktop(origem: string, mesaId: string, token: string): string {
   return JSON.stringify(
     {
       mcpServers: {
         tavola: {
-          command: comando,
-          args: argumentos,
-          env: { TAVOLA_URL: url, TAVOLA_TOKEN: token },
+          command: "node",
+          args: [CAMINHO_DO_SERVIDOR_NO_DESKTOP],
+          env: { TAVOLA_URL: origem, TAVOLA_MESA: mesaId, TAVOLA_TOKEN: token },
         },
       },
     },

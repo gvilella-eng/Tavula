@@ -215,3 +215,7 @@ Sem pergunta nova para o Vilella: ele aprovou o plano do 7b. As suposições do 
 ## 12-1: o acesso do Claude (2026-11-13)
 
 Sem pergunta nova para o Vilella: ele aprovou o plano do MCP. As suposições do lote estão em `docs/REDESIGN.md`, "12-1 — como ficou" (todas com "(assumido)"). As que mais valem uma olhada: até 5 tokens por conta e mesa; 20 pedidos por segundo por token (rajada de 40); a ficha e o handout do jogador moram numa pasta própria ("Fichas de <nome>", só ele e o mestre a veem); o Claude do mestre também publica rascunhos; publicar o que o Claude criou não impede o Desfazer; o Desfazer não cobre relógio, permissões, configuração, chat, combate nem desenhos; e a lista de proibidos inclui o vaivém de arquivos (`asset.*`) além do que o brief dizia.
+
+## 12-2: o servidor MCP (2026-11-13)
+
+Sem pergunta nova para o Vilella: ele aprovou o plano do MCP. As suposições do lote estão em `docs/REDESIGN.md`, "12-2 — como ficou" (todas com "(assumido)"). As que mais valem uma olhada: o MCP não leva o grupo para outra cena, não dispara eventos nem aperta botões (são ações ao vivo, só a pessoa pela mesa); o tamanho da cena não se muda (60 x 45 m); o compêndio do MCP é o arquivo do computador e não tem monstros (o NPC se monta por partes); "criar ou editar" é decidido pelo nome exato; a nota nova do mestre nasce só para ele; e o comando do Claude Code usa o caminho relativo `apps/mcp/dist/tavola-mcp.mjs` (rode na pasta do Távola).

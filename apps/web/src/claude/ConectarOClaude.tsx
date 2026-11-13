@@ -8,11 +8,14 @@ import { type FormEvent, useCallback, useEffect, useState } from "react";
 import { gerarTokenDoClaude, listarTokensDoClaude, revogarTokenDoClaude } from "../api";
 import type { LoteDoClaude } from "../useSala";
 import {
+  ARQUIVO_DO_SERVIDOR_MCP,
+  CAMINHO_DO_SERVIDOR_NO_DESKTOP,
+  COMANDO_PARA_GERAR_O_SERVIDOR_MCP,
   comandoDoClaudeCode,
   configDoClaudeDesktop,
   dataCurta,
   haQuanto,
-  urlDoWebSocketDaMesa,
+  origemDaMesa,
 } from "./textosDoClaude";
 
 type Enviar = (tipo: string, dados: object) => string | null;
@@ -62,9 +65,9 @@ function TokenNovo({
   novo: TokenDoClaudePublico & { token: string };
   aoDispensar: () => void;
 }) {
-  const url = urlDoWebSocketDaMesa(mesaId);
-  const codigo = comandoDoClaudeCode(url, novo.token);
-  const desktop = configDoClaudeDesktop(url, novo.token);
+  const origem = origemDaMesa();
+  const codigo = comandoDoClaudeCode(origem, mesaId, novo.token);
+  const desktop = configDoClaudeDesktop(origem, mesaId, novo.token);
   return (
     <div className="claude-token-novo" role="status" data-testid="claude-token-novo">
       <p className="nota">
@@ -79,6 +82,11 @@ function TokenNovo({
       </div>
       <details className="avancado" open>
         <summary>Claude Code</summary>
+        <p className="nota">
+          Uma vez, na pasta do Távola: <code>{COMANDO_PARA_GERAR_O_SERVIDOR_MCP}</code>. Depois,
+          nesta mesma pasta, cole o comando abaixo (ele aponta para{" "}
+          <code>{ARQUIVO_DO_SERVIDOR_MCP}</code>).
+        </p>
         <pre className="claude-trecho" data-testid="claude-trecho-code">
           {codigo}
         </pre>
@@ -86,6 +94,10 @@ function TokenNovo({
       </details>
       <details className="avancado">
         <summary>Claude Desktop</summary>
+        <p className="nota">
+          Troque <code>{CAMINHO_DO_SERVIDOR_NO_DESKTOP}</code> pelo caminho completo do arquivo e
+          reinicie o Claude Desktop.
+        </p>
         <pre className="claude-trecho" data-testid="claude-trecho-desktop">
           {desktop}
         </pre>

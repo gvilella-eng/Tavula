@@ -3553,4 +3553,26 @@ Ver `REDESIGN.md` e `PASSAGEM.md` ("12-1").
 ### Roteiro manual
 `docs/ROTEIRO-DE-TESTES.md`, "12-1".
 
-## Próximo: o 12-2 (o servidor MCP em `apps/mcp`) e os bugs que sobrarem
+## Ajustes 12-2 — O servidor MCP (entregue, aguardando o roteiro manual)
+
+Detalhes em `docs/REDESIGN.md` ("12-2 — como ficou"), `PROJETO.md` (4.12), `docs/protocolo.md` e `docs/MCP.md`.
+
+### O que foi entregue
+- `apps/mcp` (`@tabletop/mcp`): servidor MCP em stdio com 11 ferramentas (panorama, ler, fichas, compendio, notas, objetos, cenas, automacoes, rolar, rascunhos, desfazer), visíveis por papel e capacidade; `docs/MCP.md`; o texto final de "Conectar o Claude".
+
+### Como rodar
+`pnpm --filter @tabletop/mcp build`, depois o comando de "Preferências → Conectar o Claude". Sem mudança em `apps/server` nem no banco (sem migração).
+
+### Verificação
+- Unidade: `apps/mcp` 55 testes (nomes, ficha por partes, ferramentas sobre a sala com as regras de verdade, conexão com socket de mentira); shared 934, server 123, web 131.
+- E2E novo: `claude-12-2.spec.ts` (4 testes, MCP de verdade em stdio): jogador monta personagem e rola 4d6, mestre monta cena em rascunho e desfaz tudo, token revogado, configuração ruim. E2E antigo alterado: `claude-12-1.spec.ts` (o trecho agora traz `TAVOLA_MESA=<id>` em vez do endereço do WebSocket).
+- Typecheck e lint verdes. A bateria E2E completa foi interrompida na 169ª (o sistema encerrou o processo por falta de memória); os specs de `fichas-arvore` ao fim e os do MCP rodaram depois: 249 passaram e 1 foi instável (`pausaAutomatica.spec.ts:10`, que passa sozinho; não toca no que o lote mudou). Os specs antes de `fichas-arvore` passaram na primeira parte (169 ok).
+- Prints: `scratchpad/prints-12-2` (3 combinações).
+
+### Decisões e frágil
+Ver `REDESIGN.md` e `PASSAGEM.md` ("12-2").
+
+### Roteiro manual
+`docs/ROTEIRO-DE-TESTES.md`, "12-2".
+
+## Próximo: os bugs que sobrarem e o roteiro manual do Lote 12

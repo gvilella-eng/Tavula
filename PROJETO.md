@@ -848,6 +848,14 @@ Regras que continuam:
 - **Rascunhos**: o que o Claude **do mestre** cria entra com `rascunho: true` (cenas, fichas e NPCs, handouts, pastas, modelos, pontos, luzes, tokens, zonas, ciclos, reações e botões). O jogador não o recebe (snapshot e evento); ciclo e reação em rascunho não rodam; a cena em rascunho não vira a do grupo. Para o mestre: selo "Rascunho" e o chip "Rascunhos do Claude (N)", com Publicar (por item ou tudo) e Descartar (`rascunho.publicar` e `rascunho.descartar`, `mesa.configurar`). O Claude do mestre também pode publicar (assumido).
 - **Desfazer**: a sala anota o inverso de cada mudança do Claude num diário (`claude_lotes`, migração 14, 50 lotes por usuário, fora da exportação), agrupado pelo `loteId` do envelope (cada chamada de ferramenta do MCP manda o seu e uma descrição curta). Preferências lista os lotes ("Claude: criou 6 NPCs, há 5 min") com Desfazer e há "Desfazer tudo o que o Claude fez". Desfaz na ordem inversa; o item que outra pessoa mudou depois é pulado e o aviso diz qual (publicar não conta como mudança). O jogador só desfaz o que o Claude dele fez.
 
+**12-2: como ficou** (2026-11-13; o servidor MCP em `apps/mcp`; detalhes em `docs/REDESIGN.md` e o passo a passo em `docs/MCP.md`)
+
+- **O programa**: servidor MCP em stdio, em Node (`@modelcontextprotocol/sdk` 1.32.2; WebSocket nativo). `pnpm --filter @tabletop/mcp build` gera `apps/mcp/dist/tavola-mcp.mjs`. Variáveis: `TAVOLA_URL` (a origem da página, ou o endereço do WebSocket; padrão `http://127.0.0.1:8787`), `TAVOLA_MESA`, `TAVOLA_TOKEN` (nunca vai para log nem resposta) e, opcional, `TAVOLA_COMPENDIO`. Abre `ws(s)://<host>/api/m/<id>/ws` com `Authorization: Bearer`, mantém o estado com o `reduzir` do `shared`, reconecta sozinho e, com o token recusado (401 ou close 4001), responde "Token inválido ou revogado: gere outro em Preferências → Conectar o Claude." sem tentar de novo. Nada da internet em execução.
+- **As 11 ferramentas** (nenhuma genérica; o MCP não tem permissão própria): `panorama`, `ler`, `fichas`, `compendio`, `notas`, `objetos`, `cenas`, `automacoes`, `rolar`, `rascunhos`, `desfazer`. A lista de cada usuário sai das capacidades do snapshot: o jogador não vê `objetos`, `cenas`, `automacoes` nem `rascunhos`. Nomes no lugar de ids, lote numa chamada só, resumo por padrão, erro que diz o que corrigir, e um `loteId` por chamada (com a descrição) em toda intenção que ela manda.
+- **Cenas em células** (a partir do canto de cima à esquerda, com meias células): as paredes usam `encaixarMeiaCelula`, o arco "de a até b passando por c" vira `meio` (e há o arco tangente, `meioDoArcoTangente`). Os tokens de NPC saem da ficha.
+- **Compêndio local**: o `magias.json` do computador (ou o exemplo do SRD embutido); não tem monstros. **Fora do MCP**: levar o grupo, disparar eventos, botões, mapa e imagens, combate, desenhos, relógio e configuração.
+- O texto de "Conectar o Claude" na mesa é o comando final (`claude mcp add tavola --env TAVOLA_URL=... --env TAVOLA_MESA=... --env TAVOLA_TOKEN=... -- node apps/mcp/dist/tavola-mcp.mjs`).
+
 ### 4.13 Interface
 
 Layout no estilo dos VTTs de mesa (referência: a tela de outra mesa virtual que o Vilella usa): **o mapa ocupa a
@@ -2036,7 +2044,9 @@ O papel `assistente` deixa de existir. Divisão em dois lotes:
 
 **Pronto quando:** `pnpm verify` verde.
 
-**12-1 entregue (2026-11-13)**, aguardando o roteiro manual: o lado da sala e da web, como descrito em 4.12 ("12-1: como ficou"). Falta o **12-2**, o servidor MCP em `apps/mcp`, que constrói em cima disto (ver `docs/protocolo.md`, "O acesso do Claude").
+**12-1 entregue (2026-11-13)**, aguardando o roteiro manual: o lado da sala e da web, como descrito em 4.12 ("12-1: como ficou"). O **12-2** (o servidor MCP em `apps/mcp`) constrói em cima disto (ver `docs/protocolo.md`, "O acesso do Claude").
+
+**12-2 entregue (2026-11-13)**, aguardando o roteiro manual: o servidor MCP, como descrito em 4.12 ("12-2: como ficou"), as instruções em `docs/MCP.md` e o texto final de "Conectar o Claude". **O Lote 12 está entregue** (12-1 e 12-2); o roteiro manual (o Claude monta uma cena da campanha de referência e o mestre revisa o rascunho; o jogador cria o personagem) está em `docs/ROTEIRO-DE-TESTES.md`, "12-2".
 
 ---
 

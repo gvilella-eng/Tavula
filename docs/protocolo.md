@@ -956,6 +956,13 @@ Fora do protocolo do WebSocket (rotas HTTP que o token nunca abre ou que não ex
 
 **Nota de segurança (pense como se a mesa estivesse na internet)**: o token é um segredo (guarde como senha; quem o tem entra como a pessoa). A sala guarda só o hash, compara por consulta indexada ao hash (o segredo tem 256 bits), registra cada falha no bloqueio por IP e fecha a conexão na hora ao revogar. O token só abre o WebSocket (nunca HTTP, nunca cookie), a sala marca a conexão sozinha e a lista de proibidos vale para todos, mestre inclusive.
 
+**O cliente do Claude: o servidor MCP (12-2, `apps/mcp`)**. Nenhuma mensagem nem intenção nova: o MCP só usa o que o 12-1 deixou. Como ele casa pedido e resposta, que é o que o cliente de outra linguagem precisa copiar:
+- O pedido leva `id` próprio, `loteId` (o mesmo em todas as intenções de uma chamada de ferramenta; o `claude.desfazer` **não** leva) e `lote` (descrição de até 120 caracteres).
+- A resposta é o **primeiro** destes: o `evento` com `origem.idPedido` igual ao `id`; o `erro` com o `idPedido`; o `claude.desfeito` com o `idPedido` (só para `claude.desfazer`); ou um **`snapshot` novo**, que é a resposta de `rascunho.publicar`, `rascunho.descartar` e de criar ou editar item visível a outros (handout, pasta). Um snapshot nunca encerra um `claude.desfazer` (desfazer uma publicação manda o snapshot antes do `claude.desfeito`).
+- Edição sem mudança real não gera evento: o cliente não deve esperar para sempre (o MCP espera 2,5 s e conta como "sem mudança", e nem manda edição que não muda nada).
+- `muitas_mensagens` (20 por segundo, rajada de 40): o MCP já se limita a 15 por segundo e, se mesmo assim receber o erro, espera e repete.
+- Close 4001: não reconectar. Outras quedas: reconectar; o snapshot da nova conexão substitui o estado. Depois de uma falha, um `GET` de abertura (`Upgrade: websocket`, com o cabeçalho) separa 401 (token), 429 (IP bloqueado) e 404 (mesa).
+
 ### Contador de uso
 
 A sala conta as mensagens recebidas por dia UTC e as conexões. `requisicoes = mensagens / 20 + conexoes`;

@@ -369,6 +369,33 @@ O servidor MCP ainda não existe (é o 12-2): aqui o teste é a tela e, para a c
 16. Em **Mesa → Permissões**, a linha **Criar fichas e notas próprias** vem ligada. Desligue (ou desligue só para um jogador, na exceção): os botões somem para ele; o que ele já criou continua dele.
 17. O Claude do jogador (token dele) tenta editar a ficha de outro jogador, mexer num ciclo ou numa cena: sempre recusado, como o próprio jogador seria.
 
+## 12-2 — O servidor MCP (o Claude montando a mesa) e o roteiro manual do Lote 12
+Agora o Claude de verdade entra na mesa. Detalhes em `docs/MCP.md`. Use uma mesa de teste (ou a campanha de referência `chama-primordial`, em outra mesa, para não sujar a sua), o mestre numa janela e um jogador em outra.
+
+**Ligar**
+1. Na pasta do Távola: `pnpm --filter @tabletop/mcp build`. Sai o arquivo `apps/mcp/dist/tavola-mcp.mjs`.
+2. Em **Preferências → Conectar o Claude**, **Gerar token**. O texto agora é o comando final: `claude mcp add tavola --env TAVOLA_URL=http://127.0.0.1:5173 --env TAVOLA_MESA=<id> --env TAVOLA_TOKEN=tvc_... -- node apps/mcp/dist/tavola-mcp.mjs`, com o token já colado. Rode-o na pasta do Távola (se já houver um `tavola`, `claude mcp remove tavola` antes) e abra o Claude Code: `/mcp` mostra `tavola` conectado. A bolinha do mestre ganha o robozinho.
+3. O trecho do **Claude Desktop** traz as mesmas variáveis e `<pasta do Távola>/apps/mcp/dist/tavola-mcp.mjs` para completar com o caminho inteiro.
+
+**O mestre monta uma cena da campanha de referência**
+4. Peça: "Leia a bíblia da campanha (o arquivo da campanha de referência) e monte a primeira cena: nome, paredes e portas, os NPCs com ficha, as tochas e um ciclo de vento." O Claude começa pelo `panorama`.
+5. No chat do Claude Code, confira que ele usou **nomes** (não ids), mandou os NPCs numa chamada só e que as respostas dizem "(rascunho...)".
+6. Na mesa do mestre: o chip **Rascunhos do Claude (N)** no topo. Abra a lista: cena, NPCs, ciclo, notas. Cada item tem o selo "Rascunho".
+7. Na janela do jogador: **nada** apareceu (nem a cena, nem as fichas, nem o ciclo, nem a nota).
+8. Revise: abra a cena (as paredes, a porta trancada e o arco "de a até b passando por c" estão certos; os NPCs ocultos estão no mapa), a ficha de um NPC (PV, CA, ataque) e o ciclo. Peça ao Claude para corrigir ("a porta leste não é trancada"): ele edita o rascunho e o rascunho **continua rascunho**.
+9. **Publique** o que está bom (pelo chip, ou "publique só a cena"). O jogador passa a ver a nota; descarte um item (pede confirmação).
+10. Peça "desfaça tudo o que você fez nesta conversa". Em **Preferências → O que o Claude fez**, os lotes aparecem como "fichas: ...", "cenas: ..." etc.; o que sumiu confere. Edite um NPC pela mesa antes de desfazer: o aviso diz que ele ficou ("mudou depois").
+
+**O jogador cria o personagem**
+11. No Claude Code do jogador (token dele), peça: "Monte o meu personagem: anão clérigo nível 3, rolando 4d6 (descartando o menor) para os atributos; magias de clérigo de nível 1 do compêndio."
+12. O Claude rola 6 vezes (`rolar`): no chat de todos aparecem 6 rolagens com **pelo Claude**. A ficha nova aparece na aba **Fichas** do jogador (pasta "Fichas de ..."), com PV, CA, perícias e magias calculados; abra a janela da ficha e confira. O mestre a vê; os outros jogadores não.
+13. Peça "adicione à ficha a Espada Longa e duas poções de cura" e "escreva uma nota só minha sobre a viagem": ficha e nota mudam; a nota é só dele e do mestre.
+14. Peça "edite a ficha do <outro jogador>": o Claude responde que não pode (ou nem vê a ficha). Peça "crie um ciclo de vento": ele diz que não tem essa ferramenta.
+15. O mestre desliga **Criar fichas e notas próprias** em Mesa → Permissões: o Claude do jogador perde `fichas` e `notas` na hora (o Claude Code mostra a lista nova ou ela aparece na próxima conversa).
+
+**Se der errado**
+16. **Revogue** o token em Preferências: o Claude responde "Token inválido ou revogado: gere outro em Preferências → Conectar o Claude." e a bolinha perde o robozinho. Pare o `pnpm dev` e suba de novo: o MCP reconecta sozinho.
+
 ## Se algo der errado
 - Anote a tela, o que fez e o que esperava, e mande para mim. Bug confirmado vai para `docs/BUGS.md`.
 - Para voltar à campanha de antes de mesas e contas, use a cópia de segurança indicada no topo.

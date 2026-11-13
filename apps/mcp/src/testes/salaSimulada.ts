@@ -1,0 +1,118 @@
+import {
+  type Estado,
+  estadoInicial,
+  fonteComSemente,
+  IntencaoSchema,
+  modelosPadrao,
+  processar,
+  type Usuario,
+  VERSAO_PROTOCOLO,
+  visaoPara,
+} from "@tabletop/shared";
+import { CompendioLocal } from "../compendioLocal.ts";
+import type { Contexto } from "../ferramentas/base.ts";
+import type { Lote, LoteDoClaude, RespostaDaSala, SalaLike } from "../sala.ts";
+import { novoLote } from "../servidor.ts";
+
+// Uma sala de mentira para os testes das ferramentas: ela roda as regras de verdade (`processar` do shared, com a marca
+// do Claude), então o que o teste confere é o que a mesa faria. Guarda o que foi enviado, com o lote de cada pedido.
+
+const T0 = Date.parse("2026-01-01T00:00:00.000Z");
+
+export type Enviado = { tipo: string; dados: unknown; lote: Lote | undefined };
+
+export function estadoDeTeste(): Estado {
+  return estadoInicial(
+    {
+      usuarios: [
+        { id: "m", nome: "Mestre", papel: "mestre", cor: "#111111" },
+        { id: "j1", nome: "Ana", papel: "jogador", cor: "#333333" },
+        { id: "j2", nome: "Bia", papel: "jogador", cor: "#444444" },
+      ],
+      cenas: [
+        {
+          id: "c1",
+          nome: "Taverna",
+          larguraM: 60,
+          alturaM: 45,
+          grid: { quadradoM: 1.5, visivel: true },
+        },
+      ],
+      cenaAtivaId: "c1",
+      modelos: modelosPadrao(),
+    },
+    T0,
+  );
+}
+
+export class SalaSimulada implements SalaLike {
+  /** A verdade da mesa (o que a sala guarda). */
+  verdade: Estado;
+  readonly enviados: Enviado[] = [];
+  lotesDoClaude: LoteDoClaude[] = [];
+  private relogio = 0;
+
+  constructor(
+    private readonly usuarioId: string,
+    inicial: Estado = estadoDeTeste(),
+  ) {
+    this.verdade = inicial;
+  }
+
+  eu(): Usuario {
+    const u = this.verdade.usuarios.find((x) => x.id === this.usuarioId);
+    if (!u) throw new Error("usuário de teste não existe");
+    return u;
+  }
+
+  estado(): Estado {
+    return visaoPara(this.verdade, this.eu());
+  }
+
+  lotes(): LoteDoClaude[] {
+    return this.lotesDoClaude;
+  }
+
+  async enviar(tipo: string, dados: unknown, lote?: Lote): Promise<RespostaDaSala> {
+    this.enviados.push({ tipo, dados, lote });
+    const lida = IntencaoSchema.safeParse({
+      v: VERSAO_PROTOCOLO,
+      id: `t${this.enviados.length}`,
+      tipo,
+      dados,
+      ...(lote ? { loteId: lote.loteId, lote: lote.lote } : {}),
+    });
+    if (!lida.success) {
+      return {
+        ok: false,
+        codigo: "mensagem_invalida",
+        mensagem: lida.error.issues[0]?.message ?? "inválido",
+      };
+    }
+    if (tipo === "claude.desfazer") return { ok: true, desfeito: { aplicados: 1, pulados: [] } };
+    const agora = new Date(T0 + ++this.relogio * 1000).toISOString();
+    const r = processar(this.verdade, this.usuarioId, lida.data, agora, fonteComSemente(7), [], {
+      claude: true,
+    });
+    if (!r.ok) return { ok: false, codigo: r.erro.codigo, mensagem: r.erro.mensagem };
+    this.verdade = r.estado;
+    const evento = r.eventos[0];
+    return evento ? { ok: true, evento } : { ok: true };
+  }
+
+  /** O contexto das ferramentas, com o compêndio de exemplo do programa. */
+  contexto(): Contexto {
+    return {
+      sala: this,
+      compendio: CompendioLocal.carregar(null, "/pasta/que/nao/existe"),
+      novoLote,
+    };
+  }
+
+  /** O que cada usuário vê agora. */
+  visaoDe(usuarioId: string): Estado {
+    const u = this.verdade.usuarios.find((x) => x.id === usuarioId);
+    if (!u) throw new Error("usuário de teste não existe");
+    return visaoPara(this.verdade, u);
+  }
+}
