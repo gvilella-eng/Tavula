@@ -39,6 +39,8 @@ type Props = {
   aoAlternarOrdem: () => void;
   /** Iluminação dinâmica da cena que o mestre olha (liga/desliga a visão por paredes dos jogadores). */
   iluminacaoDinamica: boolean;
+  /** V10c: a cena é um cartão: sem luz nem visão, qualquer que seja a configuração guardada. */
+  cenaCartao?: boolean;
   aoAlternarIluminacao: () => void;
   /** O painel de fontes de luz e o de configurações estão abertos? */
   fontesAbertas: boolean;
@@ -237,10 +239,16 @@ export function MenuSuperior(p: Props) {
             <Botao
               testid="menu-iluminacao"
               grupo="Luz"
-              nome={p.iluminacaoDinamica ? "Iluminação" : "Iluminação (desligada nesta cena)"}
+              nome={
+                p.cenaCartao
+                  ? "Iluminação (sem efeito: cena como cartão)"
+                  : p.iluminacaoDinamica
+                    ? "Iluminação"
+                    : "Iluminação (desligada nesta cena)"
+              }
               ativo={aberto === "iluminacao"}
               aberto={aberto === "iluminacao"}
-              alerta={!p.iluminacaoDinamica}
+              alerta={!p.iluminacaoDinamica || p.cenaCartao === true}
               gatilho
               aoClicar={() => alternar("iluminacao")}
             >

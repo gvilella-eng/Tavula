@@ -265,7 +265,8 @@ Estado { seq, usuarios: Usuario[], permissoes: Permissoes, handouts: Handout[] /
          assets?: AssetMeta[] /* só na visão do mestre */ }
 Cena  { id, nome, larguraM, alturaM, grid: { quadradoM, visivel }, iluminacaoDinamica?, luzAmbiente?, fatorDeLuz?, // Lotes 5 e 6          // padrão: cena-1, 60 x 45 m, quadrado 1,5 m
         mapa?: { assetHash, pxPorQuadrado },
-        chegada?: { x, y } /* onde o grupo chega; padrão: o centro */ }
+        chegada?: { x, y } /* onde o grupo chega; padrão: o centro */,
+        cartao?: boolean /* V10c: cena como cartão; sem o campo é mapa */ }
 Token { id, cenaId, nome, cor, tamanhoQuadrados (1..4), x, y /* centro, em metros */,
         camada: "mapa" | "tokens" | "mestre", oculto, controladoPor: string[] /* ids de usuário */,
         assetHash?: string /* imagem do token; sem ela vale o círculo gerado */,
@@ -428,7 +429,7 @@ fechada. Passagem: o mesmo, mais janela e invisível. Porta e secreta **abertas*
 |---|---|---|
 | `parede.criar` | `{ cenaId?, paredes: [{ id, a, b, meio?, tipo, estado? }] }` (1 a 200) | cria a sequência numa mensagem; um `parede.criada` por parede; pontas limitadas à cena; recusa id repetido e parede sem comprimento |
 | `parede.editar` | `{ id, a?, b?, meio?, tipo?, estado? }` | `parede.editada`; `parede_inexistente` se não existe. `meio`: `null` endireita; sem o campo o arco acompanha as pontas (o ponto anda com o meio da corda); três pontos alinhados não fazem arco |
-| `cena.editar` | `{ cenaId, nome?, chegada?, mostrarParedesAosJogadores? }` | V5: `mostrarParedesAosJogadores` liga os contornos de parede e porta para os jogadores (campo opcional da cena, sem ele desligado). Só desenho: não muda visão, luz nem bloqueio |
+| `cena.editar` | `{ cenaId, nome?, chegada?, mostrarParedesAosJogadores?, cartao? }` | V5: `mostrarParedesAosJogadores` liga os contornos de parede e porta para os jogadores (campo opcional da cena, sem ele desligado). Só desenho: não muda visão, luz nem bloqueio. V10c: `cartao` transforma a cena em cartão (`true`) ou a devolve a mapa (`false`): sem névoa nem limite de visão para ninguém, e a sala não manda as paredes da cena ao jogador (snapshot e eventos `parede.*`), não as usa no `token.soltar` dele e responde `porta_inexistente` ao `porta.alternar` dele; ao mudar o campo a sala manda snapshot novo a todos |
 | `parede.apagar` | `{ id }` | `parede.apagada` |
 | `cena.configurarIluminacao` | `{ cenaId?, dinamica }` | muda `Cena.iluminacaoDinamica` (sem o campo vale ligada); emite `cena.editada`, que o jogador recebe se for a cena ativa |
 | `porta.alternar` | `{ id }` | capacidade `porta.abrir`. Ver abaixo |

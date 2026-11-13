@@ -1243,6 +1243,16 @@ button[aria-disabled="true"]:hover {
     linear-gradient(to bottom, rgba(128, 128, 128, 0.2) 1px, transparent 1px);
   background-size: 16px 16px;
 }
+.marca-cartao {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: inline-flex;
+  padding: 3px;
+  border-radius: 6px;
+  background: var(--veu);
+  color: var(--texto);
+}
 .cena-progresso {
   position: absolute;
   left: 0;

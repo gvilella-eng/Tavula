@@ -2,6 +2,7 @@ import {
   type AvisoDeContas,
   alcanceDaMemoria,
   alcanceDeVisao,
+  cenaEhCartao,
   controlaToken,
   type DesenhoEmAndamento,
   type DesenhoNovo,
@@ -22,6 +23,7 @@ import {
   podeMoverToken,
   type TipoDeParede,
   type Token,
+  visaoLimitadaNaCena,
   visaoNoEscuroDe,
   visaoPara,
 } from "@tabletop/shared";
@@ -736,7 +738,9 @@ export function Mesa({
   // A visão é só de tela. Jogador (ou o mestre "vendo como" um): enxerga o que os tokens que ele
   // controla veem; o mestre com a visão do mestre: o que algum jogador vê aparece normal. Cena com a
   // iluminação dinâmica desligada, ou sem nenhum jogador (visão do mestre), fica toda clara.
-  const iluminada = cena ? iluminacaoDinamicaLigada(cena) : true;
+  // V10c: a cena-cartão nunca tem névoa nem limite de visão (a configuração de luz fica guardada).
+  const cartao = cena ? cenaEhCartao(cena) : false;
+  const iluminada = cena ? visaoLimitadaNaCena(cena) : true;
   const visaoCalculada: ConfigDeVisao = (() => {
     const semMemoria = {
       ligada: false,
@@ -1333,9 +1337,13 @@ export function Mesa({
                   aoAlternarOrdem={() =>
                     enviar("ordemDeTurno.definir", { visivel: !estado.ordemDeTurnoVisivel })
                   }
-                  iluminacaoDinamica={iluminada}
+                  iluminacaoDinamica={iluminacaoDinamicaLigada(cena)}
+                  cenaCartao={cartao}
                   aoAlternarIluminacao={() =>
-                    enviar("cena.configurarIluminacao", { cenaId: cena.id, dinamica: !iluminada })
+                    enviar("cena.configurarIluminacao", {
+                      cenaId: cena.id,
+                      dinamica: !iluminacaoDinamicaLigada(cena),
+                    })
                   }
                   fontesAbertas={fontesAbertas}
                   aoAlternarFontes={alternarFontes}

@@ -21,7 +21,7 @@ export const TEXTOS_DO_TOUR: Readonly<Record<string, string>> = {
   "pincel-preenchido": "Preenche o retângulo e o círculo.",
   // Menu do mestre (topo)
   "menu-cenas":
-    "Abre a faixa de cenas: trocar de cena, levar o grupo, criar e configurar (nome, mapa e grid).",
+    "Abre a faixa de cenas: trocar de cena, levar o grupo, criar e configurar (nome, mapa e grid). No menu de cada cena, “Transformar em cartão” mostra a imagem inteira, sem luz nem visão.",
   "menu-camadas":
     "Escolhe em que camada você trabalha (mapa, tokens, mestre ou desenho) e limpa os desenhos.",
   "novo-token": "Pede o nome, a cor e o tamanho; depois você clica no mapa para pôr o token.",

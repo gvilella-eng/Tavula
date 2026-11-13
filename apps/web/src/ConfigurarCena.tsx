@@ -1,4 +1,4 @@
-import { type Cena, PX_POR_QUADRADO_PADRAO } from "@tabletop/shared";
+import { type Cena, cenaEhCartao, PX_POR_QUADRADO_PADRAO } from "@tabletop/shared";
 import { ImagePlus, X } from "lucide-react";
 import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -20,6 +20,7 @@ export function ConfigurarCena({ cena, enviar, pedirImagem, aoFechar }: Props) {
   const [gridVisivel, setGridVisivel] = useState(cena.grid.visivel);
   const [quadradoM, setQuadradoM] = useState(String(cena.grid.quadradoM));
   const [mostrarParedes, setMostrarParedes] = useState(cena.mostrarParedesAosJogadores === true);
+  const [cartao, setCartao] = useState(cenaEhCartao(cena));
   // `undefined`: não mexe; `null`: tira o mapa; texto: o mapa novo (já processado e registrado).
   const [novoMapa, setNovoMapa] = useState<string | null | undefined>(undefined);
   const [erro, setErro] = useState<string | null>(null);
@@ -47,11 +48,13 @@ export function ConfigurarCena({ cena, enviar, pedirImagem, aoFechar }: Props) {
       return;
     }
     const mudouParedes = mostrarParedes !== (cena.mostrarParedesAosJogadores === true);
-    if (limpo !== cena.nome || mudouParedes) {
+    const mudouCartao = cartao !== cenaEhCartao(cena);
+    if (limpo !== cena.nome || mudouParedes || mudouCartao) {
       enviar("cena.editar", {
         cenaId: cena.id,
         ...(limpo !== cena.nome ? { nome: limpo } : {}),
         ...(mudouParedes ? { mostrarParedesAosJogadores: mostrarParedes } : {}),
+        ...(mudouCartao ? { cartao } : {}),
       });
     }
     if (gridVisivel !== cena.grid.visivel || quadradoNumero !== cena.grid.quadradoM) {
@@ -182,6 +185,15 @@ export function ConfigurarCena({ cena, enviar, pedirImagem, aoFechar }: Props) {
             onChange={(e) => setMostrarParedes(e.target.checked)}
           />
           Mostrar paredes e portas aos jogadores
+        </label>
+        <label className="linha-opcao">
+          <input
+            type="checkbox"
+            data-testid="cfg-cartao"
+            checked={cartao}
+            onChange={(e) => setCartao(e.target.checked)}
+          />
+          Cena como cartão: mostra a imagem inteira, sem luz nem visão
         </label>
         {erro && (
           <p className="nota erro" role="alert" data-testid="cfg-erro">

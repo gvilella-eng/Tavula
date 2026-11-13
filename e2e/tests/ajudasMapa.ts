@@ -31,6 +31,11 @@ export type GanchoDoMapa = {
   previaDoToken(): { x: number; y: number } | null;
   paraTela(x: number, y: number): { x: number; y: number };
   zoom(): number;
+  /** V10c: a imagem da cena e a área do mapa na página (pixels), para conferir o enquadramento. */
+  quadroDaCena(): {
+    cena: { x: number; y: number; largura: number; altura: number };
+    area: { x: number; y: number; largura: number; altura: number };
+  } | null;
   definirZoom(z: number): void;
   centrarEm(x: number, y: number): void;
   quadradoM(): number;

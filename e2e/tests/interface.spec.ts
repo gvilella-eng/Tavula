@@ -464,6 +464,7 @@ test("faixa de cenas: cards numerados com prévia, menu de contexto (ir, levar, 
     "Levar grupo",
     "Duplicar",
     "Preparar",
+    "Transformar em cartão",
     "Configurar…",
     "Apagar",
   ]);

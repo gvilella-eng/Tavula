@@ -126,6 +126,19 @@ export function iluminacaoDinamicaLigada(cena: Pick<Cena, "iluminacaoDinamica">)
   return cena.iluminacaoDinamica !== false;
 }
 
+/** V10c: a cena é um cartão (sem o campo: é mapa). */
+export function cenaEhCartao(cena: Pick<Cena, "cartao"> | undefined): boolean {
+  return cena?.cartao === true;
+}
+
+/**
+ * V10c: a visão dos jogadores está limitada pela luz e pelas paredes? Só num mapa com a iluminação
+ * dinâmica ligada: a cena-cartão nunca limita, qualquer que seja a configuração guardada.
+ */
+export function visaoLimitadaNaCena(cena: Pick<Cena, "iluminacaoDinamica" | "cartao">): boolean {
+  return iluminacaoDinamicaLigada(cena) && !cenaEhCartao(cena);
+}
+
 export type ResultadoDaPorta =
   | { ok: true; estado: "aberta" | "fechada" }
   | { ok: false; motivo: "inexistente" | "trancada" | "longe" };

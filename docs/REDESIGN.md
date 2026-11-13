@@ -1419,6 +1419,38 @@ A tocha do token e as condições, a pedido do Vilella: a tocha vira uma marca p
 - Condição e tocha por toque (celular): a dica continua só com o mouse.
 - Ícones por condição não são configuráveis.
 
+## V10c — como ficou (2026-11-13)
+
+A cena como cartão, a pedido do Vilella: uma imagem de fundo ou o mapa de uma cidade, mostrado inteiro, sem se preocupar com tokens nem com luz. Ninguém para perguntar: o que o brief não dizia foi assumido.
+
+**O que foi feito**
+- **Campo novo `Cena.cartao?: boolean`**, aditivo e opcional (sem ele é mapa, como sempre foi). Nenhuma migração: o esquema já aceita a campanha antiga, e exportar e importar levam o campo (a versão do arquivo não mudou). `cena.duplicar` copia a cena inteira e, portanto, o cartão.
+- **Intenção**: `cena.editar` ganhou `cartao?: boolean` (a capacidade continua `cena.editar`, que só o mestre tem). Ao virar cartão ou voltar a mapa, a sala manda **snapshot novo a todos**, para o jogador receber (ou perder) as paredes na hora. Editar só o nome não manda snapshot.
+- **Menu da cena** (faixa de Cenas): "Transformar em cartão" (ícone `RectangleHorizontal`); numa cena-cartão o item vira "Voltar a ser mapa" (ícone `Map`). O mesmo existe como caixa de seleção no "Configurar cena": "Cena como cartão: mostra a imagem inteira, sem luz nem visão".
+- **Faixa**: a cena-cartão mostra uma marca pequena (o mesmo ícone) no canto de cima, à direita, da prévia, com a dica "Cena como cartão".
+- **O que muda numa cena-cartão**:
+  - sem névoa, escuridão nem limite de visão para todos (`visaoLimitadaNaCena` em `paredes.ts`; `iluminada` em `Mesa.tsx` passa a vir dela). A configuração de iluminação da cena fica guardada e volta a valer ao voltar a mapa;
+  - o aviso "Seu personagem não está nesta cena" não aparece (o mapa não fica escuro);
+  - ao entrar na cena (e ao virar cartão) a câmera enquadra a imagem inteira, centrada, com folga de 24 px de cada lado (`vistaInicial` → `centralizar(folga)` em `mapaPixi.ts`); depois zoom e arrasto como sempre. O botão "Centralizar" continua enquadrando com a folga de antes;
+  - os tokens aparecem e se movem normalmente; a visão deles não faz nada.
+- **Na sala** (o ponto de internet): a sala nunca filtrou nada por visão (os tokens só se escondem pelo `oculto`; a escuridão é só do cliente). O que existia de "visão" no que a sala manda eram as **paredes**. Numa cena-cartão a sala **não manda paredes ao jogador**: o snapshot (`visaoPara`) vai com `paredes: []` e `parede.criada/editada/apagada` não chegam a ele. O mestre segue recebendo tudo. A parede secreta, o token oculto, as notas e as outras cenas continuam como eram: nada disso passou a chegar ao jogador.
+- **Paredes sem efeito**: na cena-cartão a parede não barra o `token.soltar` do jogador (a sala confere) e o `porta.alternar` dele responde "Não há porta aí.". Elas continuam guardadas e valem de novo ao voltar a mapa.
+- **Menu Luz do mestre**: o botão "Iluminação" avisa "(sem efeito: cena como cartão)" e o interruptor mostra a configuração guardada.
+- **Tour**: o passo de "Cenas" ganhou meia frase sobre "Transformar em cartão".
+
+**Decisões (assumido)**
+- (assumido) A câmera enquadra a cena inteira (`larguraM` × `alturaM`), que o mapa define ao entrar na cena (tamanho da imagem ÷ px por quadrado × quadrado). Sem imagem, enquadra a cena vazia.
+- (assumido) Virar cartão também reenquadra a câmera de quem está olhando a cena; voltar a mapa não mexe na câmera.
+- (assumido) O mestre também vê a cena inteira, sem a visão noturna (`visao.modo` = "claro"); as paredes aparecem para ele só com a Visão do mestre ou a ferramenta Paredes, como antes. A "Visão do mestre" (a noturna) não faz efeito nesta cena.
+- (assumido) A parede guardada não barra o movimento nem a porta do jogador; o mestre sempre ignorou.
+- (assumido) O grid segue a configuração da cena: virar cartão não o liga nem o desliga.
+- (assumido) A bandeira e o "Colocar no mapa" do V10b continuam valendo; só o aviso some.
+- (assumido) `cena.editar` não é delegável (como já era); só o mestre transforma a cena.
+
+**O que ficou para depois**
+- Um cartão sem tamanho próprio (a imagem sem o grid de metros): hoje o tamanho vem do px por quadrado.
+- A prévia da faixa mostra a imagem cortada (`object-fit: cover`), como nos mapas.
+
 ## Em aberto
 
 - **O plano R1 a R6 terminou** (R1, R2, R2b, R3, R4 em 2026-11-10; R5a, R5b, R6a e R6b em 2026-11-11). Agora o Vilella faz os ajustes

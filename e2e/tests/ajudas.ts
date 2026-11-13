@@ -73,7 +73,14 @@ export async function abrirFaixa(pagina: Page): Promise<void> {
   await expect(pagina.getByTestId("faixa-cenas")).toBeVisible();
 }
 
-export type AcaoDaCena = "ir" | "levar" | "duplicar" | "preparar" | "apagar" | "configurar";
+export type AcaoDaCena =
+  | "ir"
+  | "levar"
+  | "duplicar"
+  | "preparar"
+  | "apagar"
+  | "configurar"
+  | "cartao";
 
 /** Botão direito no card da cena e escolhe uma linha do menu de contexto. */
 export async function menuDaCena(pagina: Page, cenaId: string, acao: AcaoDaCena): Promise<void> {

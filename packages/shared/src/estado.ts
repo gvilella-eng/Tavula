@@ -83,6 +83,12 @@ export const CenaSchema = z.object({
    * antiga) vale desligado: só o mestre vê os contornos. Não muda visão, luz nem bloqueio.
    */
   mostrarParedesAosJogadores: z.boolean().optional(),
+  /**
+   * V10c: a cena é um cartão (imagem de fundo, mapa de cidade): todos veem a imagem inteira, sem névoa,
+   * escuridão nem limite de visão, e paredes, portas e luz ficam guardadas sem efeito. Sem o campo é
+   * mapa, como sempre foi; voltar a ser mapa devolve tudo.
+   */
+  cartao: z.boolean().optional(),
 });
 export type Cena = z.infer<typeof CenaSchema>;
 

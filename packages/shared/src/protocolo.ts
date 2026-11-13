@@ -605,6 +605,8 @@ export const IntencaoSchema = z.discriminatedUnion("tipo", [
         .optional(),
       /** V5: os jogadores veem as linhas de parede e porta da cena (sem o campo: não veem). */
       mostrarParedesAosJogadores: z.boolean().optional(),
+      /** V10c: transforma a cena em cartão (`true`) ou a devolve a mapa (`false`). */
+      cartao: z.boolean().optional(),
     }),
   ),
   intencao("cena.duplicar", z.object({ cenaId: IdSchema, novoId: IdSchema })),

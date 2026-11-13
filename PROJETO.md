@@ -216,6 +216,7 @@ interface Cena {
   mapa?: { assetHash: string; pxPorQuadrado: number };   // lote 3
   chegada?: { x: number; y: number };                    // lote 4: onde o grupo chega (padrão: centro)
   iluminacaoDinamica?: boolean;                          // lote 5: padrão ligada; desligada, o jogador vê tudo
+  cartao?: boolean;                 // V10c, 2026-11-13: cena como cartão (imagem inteira, sem luz nem visão); sem o campo é mapa
   luzAmbiente?: number;             // lote 6: 0 = escuridão total, 1 = dia (sem o campo = 1)
   fatorDeLuz?: number;              // lote 6: slider geral do painel de fontes (multiplica os raios)
 }
@@ -512,8 +513,9 @@ quem escolhe o usuário mestre na tela de entrada é mestre.
   o **jogador** não vê as linhas de parede, janela e porta nem os ícones das portas, salvo se a cena
   tiver "Mostrar paredes e portas aos jogadores" (campo `Cena.mostrarParedesAosJogadores`, desligado por
   padrão). Ele continua abrindo e fechando a porta pelo clique no lugar dela, e a porta sob o mouse se
-  destaca. A secreta nunca chega a ele. O **mestre** vê os contornos com a Visão do mestre ligada (4.7,
+  destaca. (V10c, 2026-11-13: numa cena-cartão a sala nem manda as paredes ao jogador.) A secreta nunca chega a ele. O **mestre** vê os contornos com a Visão do mestre ligada (4.7,
   "Visão do mestre") e sempre com a ferramenta Paredes ativa.
+- **Cena como cartão** (V10c, 2026-11-13; `Cena.cartao`, opcional: sem o campo é mapa). O mestre a liga pelo menu da cena ("Transformar em cartão" / "Voltar a ser mapa") ou pela caixa do "Configurar cena" (`cena.editar { cartao }`). Serve para uma imagem de fundo ou o mapa de uma cidade: **todos veem a imagem inteira, sem névoa, escuridão nem limite de visão**, os tokens aparecem e se movem sem mexer na visão, e a câmera enquadra a imagem ao entrar (depois, zoom e arrasto como sempre). Paredes, portas e luz **ficam guardadas** e valem de novo ao voltar a mapa; enquanto isso a sala não manda as paredes ao jogador, não as usa para barrar o token dele nem lhe deixa abrir portas. O grid segue a configuração da cena. O token oculto, a parede secreta e as notas continuam do mestre. A faixa de Cenas mostra uma marca pequena no cartão da cena.
 - **Encaixe em meia célula** (V5): os pontos de fixação são a rede de meia célula (cantos, meios das
   arestas e centro: 9 por quadrado), em qualquer direção (diagonal), e o menor segmento é meia célula; Alt
   solta do grid. Vale para todos os tipos.

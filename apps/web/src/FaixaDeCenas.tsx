@@ -1,5 +1,16 @@
-import type { Cena, Estado } from "@tabletop/shared";
-import { Copy, Eye, Flag, PackageCheck, Plus, Settings2, Trash2, UsersRound } from "lucide-react";
+import { type Cena, cenaEhCartao, type Estado } from "@tabletop/shared";
+import {
+  Copy,
+  Eye,
+  Flag,
+  Map as IconeMapa,
+  PackageCheck,
+  Plus,
+  RectangleHorizontal,
+  Settings2,
+  Trash2,
+  UsersRound,
+} from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { dentroDaArea } from "./area";
 import { ConfigurarCena } from "./ConfigurarCena";
@@ -284,6 +295,17 @@ function Card({
         </div>
         <div className="cena-card-previa">
           <Previa cena={cena} imagens={imagens} versao={versaoDasImagens} />
+          {cenaEhCartao(cena) && (
+            <span
+              className="marca-cartao"
+              data-testid={`cena-cartao-${cena.id}`}
+              title="Cena como cartão"
+              role="img"
+              aria-label="Cena como cartão"
+            >
+              <RectangleHorizontal size={14} />
+            </span>
+          )}
           {preparo && (
             <div
               className="cena-progresso"
@@ -384,6 +406,15 @@ export function FaixaDeCenas({
           ? "O grupo já está aqui"
           : "Envia os arquivos da cena, cifrados, aos jogadores antes de levar o grupo",
         aoClicar: () => void preparar(cena.id),
+      },
+      {
+        id: "cartao",
+        rotulo: cenaEhCartao(cena) ? "Voltar a ser mapa" : "Transformar em cartão",
+        icone: cenaEhCartao(cena) ? <IconeMapa size={16} /> : <RectangleHorizontal size={16} />,
+        dica: cenaEhCartao(cena)
+          ? "Volta a valer a luz, a visão e as paredes"
+          : "Mostra a imagem inteira, sem luz nem visão",
+        aoClicar: () => enviar("cena.editar", { cenaId: cena.id, cartao: !cenaEhCartao(cena) }),
       },
       {
         id: "configurar",

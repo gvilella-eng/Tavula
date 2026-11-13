@@ -74,6 +74,8 @@ import {
 export const PX_POR_M = 40;
 export const ZOOM_MIN = 0.1;
 export const ZOOM_MAX = 4;
+/** V10c: folga, em pixels de tela, entre a imagem enquadrada da cena-cartão e a borda da área. */
+const FOLGA_DO_CARTAO_PX = 24;
 /** Constante de tempo da interpolação dos tokens movidos por outros (os envios chegam a cada 50 ms). */
 const TAU_MS = 70;
 const ACENTO = 0xe0a030;
@@ -661,6 +663,8 @@ export class MapaPixi {
     const tamanhoMudou =
       this.cena !== null &&
       (this.cena.larguraM !== cena.larguraM || this.cena.alturaM !== cena.alturaM);
+    // V10c: a cena acabou de virar cartão: enquadra a imagem (voltar a mapa não mexe na câmera).
+    const virouCartao = this.cena !== null && this.cena.cartao !== true && cena.cartao === true;
     this.cena = cena;
     if (!this.pronto) return;
     this.visaoSuja = true;
@@ -675,7 +679,7 @@ export class MapaPixi {
     this.redesenharDesenhos();
     if (gridMudou || outraCena) this.recriarVisuais();
     // Outra cena ou mapa novo (tamanho novo): volta a abrir em 100%, no grupo ou no centro da cena.
-    if (!this.jaCentralizou || tamanhoMudou || outraCena) {
+    if (!this.jaCentralizou || tamanhoMudou || outraCena || virouCartao) {
       this.vistaInicial();
       // Os tokens da cena nova podem chegar logo depois, no mesmo ciclo do React: refaz o foco uma vez.
       this.focoPendente = true;
@@ -866,6 +870,11 @@ export class MapaPixi {
    */
   vistaInicial(): void {
     if (!this.pronto || !this.cena) return;
+    // V10c: a cena-cartão abre com a imagem inteira enquadrada (depois, zoom e arrasto como sempre).
+    if (this.cena.cartao === true) {
+      this.centralizar(FOLGA_DO_CARTAO_PX);
+      return;
+    }
     const grupo = this.tokens.filter((t) => t.cenaId === this.cena?.id && this.opcoes.ehDoGrupo(t));
     const foco =
       grupo.length > 0
@@ -883,14 +892,17 @@ export class MapaPixi {
     this.aplicarVista();
   }
 
-  /** Cabe a cena inteira na tela e a centraliza. */
-  centralizar(): void {
+  /** Cabe a cena inteira na tela e a centraliza (com `folga` pixels de cada lado, 60 por padrão). */
+  centralizar(folga = 60): void {
     if (!this.pronto || !this.cena) return;
     const w = this.cena.larguraM * PX_POR_M;
     const h = this.cena.alturaM * PX_POR_M;
     const zoom = Math.min(
       ZOOM_MAX,
-      Math.max(ZOOM_MIN, Math.min((this.largura() - 120) / w, (this.altura() - 120) / h)),
+      Math.max(
+        ZOOM_MIN,
+        Math.min((this.largura() - 2 * folga) / w, (this.altura() - 2 * folga) / h),
+      ),
     );
     this.vista = {
       zoom,
@@ -3873,6 +3885,18 @@ export class MapaPixi {
         return { x: r.left + p.x, y: r.top + p.y };
       },
       zoom: () => this.vista.zoom,
+      /** V10c: a imagem da cena na página (canto e tamanho em pixels) e a área do mapa, para conferir o enquadramento. */
+      quadroDaCena: () => {
+        const r = this.app.canvas.getBoundingClientRect();
+        const c = this.cena;
+        if (!c) return null;
+        const a = this.paraTela(0, 0);
+        const b = this.paraTela(c.larguraM, c.alturaM);
+        return {
+          cena: { x: r.left + a.x, y: r.top + a.y, largura: b.x - a.x, altura: b.y - a.y },
+          area: { x: r.left, y: r.top, largura: r.width, altura: r.height },
+        };
+      },
       /** Ponto de chegada mostrado pela bandeira (só no mestre). */
       bandeira: () => this.posicaoDaBandeira,
       /** V10b: a área em volta da bandeira está acesa (o jogador arrasta a ficha). */

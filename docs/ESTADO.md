@@ -3228,4 +3228,45 @@ Ver `docs/ROTEIRO-DE-TESTES.md`, "V11".
 
 ---
 
-## Próximo: bugs que sobrarem e acabamentos das contas; depois 7b e 12 (o C4, a tela inicial, o V10, o V10b e o V11 estão entregues)
+## Ajustes V10c — Cena como cartão (entregue, aguardando o roteiro manual)
+
+Detalhes em `docs/REDESIGN.md` ("V10c — como ficou").
+
+### O que foi entregue
+
+- Campo `Cena.cartao?` e item "Transformar em cartão" / "Voltar a ser mapa" no menu da cena (faixa de Cenas), e a caixa "Cena como cartão" no "Configurar cena". Marca pequena no cartão da faixa.
+- Numa cena-cartão: sem névoa, escuridão nem limite de visão para todos; sem o aviso "Seu personagem não está nesta cena"; a câmera enquadra a imagem inteira ao entrar; paredes, portas e luz ficam guardadas sem efeito e voltam ao voltar a mapa.
+- Na sala: o jogador não recebe as paredes de uma cena-cartão (snapshot e eventos); o mestre e os segredos seguem como eram.
+
+### Como rodar
+
+`pnpm dev` como sempre.
+
+### Verificação
+
+- Unidade (`packages/shared/src/cartao.test.ts`, 12 testes): cena antiga carrega sem o campo; liga e desliga (o campo some ao desligar); só o mestre muda (o jogador recebe `sem_permissao`, e `cena.editar` não é delegável); duplicar leva o cartão; exportar e importar levam o campo e o arquivo antigo carrega; a sala manda os mesmos tokens em mapa e em cartão e esconde o oculto e a secreta; paredes só para o mestre; snapshot a todos ao virar e voltar; eventos de parede não chegam ao jogador; a parede não barra o `token.soltar` do jogador no cartão e barra no mapa.
+- E2E novo: `v10c.spec.ts` (5 testes): menu, marca na faixa e "Voltar a ser mapa"; jogador sem token vê tudo, sem aviso nem paredes, e a névoa, o aviso e as paredes voltam; a câmera enquadra a imagem ao entrar; o checkbox do "Configurar cena"; o jogador não muda o cartão.
+- E2E antigo alterado: `interface.spec.ts` (faixa de cenas): a lista de itens do menu da cena ganhou "Transformar em cartão" entre "Preparar" e "Configurar…" (o menu mudou de propósito).
+
+### Decisões
+
+- (assumido) Ver `REDESIGN`, "V10c — como ficou", Decisões.
+
+### Desvios do plano
+
+- O brief dizia "se a sala filtra algo por visão": ela não filtra nada por visão (a escuridão é do cliente). O que a sala manda e depende da cena são as paredes, e é isso que o cartão esconde do jogador.
+
+### Frágil / não verificado
+
+- A câmera do cartão enquadra `larguraM` × `alturaM` da cena; se um dia a cena puder ter tamanho diferente da imagem, enquadrará o tamanho da cena, não o da imagem.
+- `Mesa.tsx` usa `visaoLimitadaNaCena` para a névoa; qualquer visão nova do cliente precisa passar por ela, senão volta a escurecer o cartão.
+
+### Roteiro manual (pendente)
+
+Ver `docs/ROTEIRO-DE-TESTES.md`, "V10c".
+
+---
+
+---
+
+## Próximo: bugs que sobrarem e acabamentos das contas; depois 7b e 12 (o C4, a tela inicial, o V10, o V10b, o V10c e o V11 estão entregues)

@@ -95,6 +95,7 @@ import {
   alternarPortaDoJogador,
   alternarPortaDoMestre,
   arcoPorTresPontos,
+  cenaEhCartao,
   iluminacaoDinamicaLigada,
   paredeParaJogador,
   trajetoBloqueado,
@@ -1165,6 +1166,7 @@ export function processar(
       if (
         intencao.tipo === "token.soltar" &&
         usuario.papel !== "mestre" &&
+        !cenaEhCartao(cena) &&
         trajetoBloqueado(
           { x: token.x, y: token.y },
           posicao,
@@ -1582,22 +1584,30 @@ export function processar(
     }
 
     case "cena.editar": {
-      const { cenaId, nome, chegada, mostrarParedesAosJogadores } = intencao.dados;
+      const { cenaId, nome, chegada, mostrarParedesAosJogadores, cartao } = intencao.dados;
       const atual = estado.cenas.find((c) => c.id === cenaId);
       if (!atual) return recusa("cena_inexistente", SEM_CENA);
-      const { chegada: _antiga, mostrarParedesAosJogadores: _mostrar, ...semChegada } = atual;
+      const {
+        chegada: _antiga,
+        mostrarParedesAosJogadores: _mostrar,
+        cartao: _cartao,
+        ...semChegada
+      } = atual;
       const nova = chegada === undefined ? atual.chegada : (chegada ?? undefined);
       // Sem o campo (ou desligado) os jogadores não veem os contornos: só gravamos quando liga.
       const mostrar = mostrarParedesAosJogadores ?? atual.mostrarParedesAosJogadores ?? false;
+      const ehCartao = cartao ?? cenaEhCartao(atual);
       const cena: Cena = {
         ...semChegada,
         nome: nome ?? atual.nome,
         ...(nova ? { chegada: limitarNaCena(nova, atual) } : {}),
         ...(mostrar ? { mostrarParedesAosJogadores: true } : {}),
+        ...(ehCartao ? { cartao: true } : {}),
       };
       if (JSON.stringify(cena) === JSON.stringify(atual)) return aplicado();
       emitir({ tipo: "cena.editada", dados: { cena } });
-      return aplicado();
+      // V10c: virar cartão (ou voltar a mapa) muda as paredes que o jogador deve ter: snapshot novo.
+      return aplicado(ehCartao === cenaEhCartao(atual) ? [] : "todos");
     }
 
     case "cena.duplicar": {
@@ -2104,6 +2114,8 @@ export function processar(
       }
       // Porta de outra cena responde igual a porta inexistente.
       if (!porta || porta.cenaId !== estado.cenaAtivaId) return inexistente;
+      // V10c: numa cena-cartão as portas guardadas não têm efeito para o jogador.
+      if (cenaEhCartao(cenaAtiva(estado))) return inexistente;
       const tokensDele = estado.tokens.filter(
         (t) =>
           t.cenaId === estado.cenaAtivaId &&
@@ -2356,7 +2368,10 @@ export function visaoPara(estado: Estado, usuario: Visao, agoraMs?: number): Est
     },
     cenas: [cenaAtiva(estado)],
     tokens: estado.tokens.filter((t) => tokenVisivelPara(t, usuario, estado.cenaAtivaId)),
-    paredes: estado.paredes.filter((p) => p.cenaId === estado.cenaAtivaId).map(paredeParaJogador),
+    // V10c: numa cena-cartão as paredes guardadas não chegam ao jogador (não têm efeito).
+    paredes: cenaEhCartao(cenaAtiva(estado))
+      ? []
+      : estado.paredes.filter((p) => p.cenaId === estado.cenaAtivaId).map(paredeParaJogador),
     desenhos: estado.desenhos.filter((d) =>
       desenhoVisivelPara(d.cenaId, usuario, estado.cenaAtivaId),
     ),
@@ -2570,6 +2585,7 @@ export function eventoPara(
       if (mestre) return evento;
       const parede = evento.dados.parede;
       if (parede.cenaId !== ativaDepois) return null;
+      if (cenaEhCartao((depois ?? antes)?.cenas.find((c) => c.id === parede.cenaId))) return null;
       const nova = paredeParaJogador(parede);
       const antiga = antes?.paredes.find((p) => p.id === parede.id);
       // Mudança que o jogador não percebe (trancar ou destrancar a secreta) nem chega a ele.
@@ -2579,7 +2595,9 @@ export function eventoPara(
     case "parede.apagada": {
       if (mestre) return evento;
       const antiga = antes?.paredes.find((p) => p.id === evento.dados.id);
-      return antiga && antiga.cenaId === ativaAntes ? evento : null;
+      if (!antiga || antiga.cenaId !== ativaAntes) return null;
+      if (cenaEhCartao(antes?.cenas.find((c) => c.id === antiga.cenaId))) return null;
+      return evento;
     }
     case "desenho.criado":
       return mestre || desenhoVisivelPara(evento.dados.desenho.cenaId, usuario, ativaDepois)

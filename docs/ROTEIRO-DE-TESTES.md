@@ -215,6 +215,20 @@ as mãos. Cada item diz **o que fazer** e, depois de "→", **o que deve acontec
 8. No menu de condições do token há um ícone ao lado de cada condição, da exaustão e da concentração.
 9. Como jogador: você vê as tochas e condições dos tokens que enxerga; token escondido não mostra tocha.
 
+## V10c — Cena como cartão
+1. Faixa de Cenas, clique direito numa cena: o menu tem **"Transformar em cartão"**. Clique: aparece uma **marca pequena**
+   no canto de cima do cartão da cena; passe o mouse: "Cena como cartão".
+2. No mesmo menu o item agora diz **"Voltar a ser mapa"**. O mesmo liga e desliga pela caixa **"Cena como cartão"** do
+   "Configurar cena".
+3. Ponha uma imagem grande na cena (uma cidade) e transforme em cartão. Entre na cena (ou leve o grupo): a **imagem
+   inteira** aparece enquadrada e centrada, com uma folga pequena. Dê zoom e arraste: funciona como sempre.
+4. Como jogador, **sem token** na cena: você vê a imagem toda, **sem escuridão** e **sem o aviso** "Seu personagem não
+   está nesta cena". Com token, também: a luz e a visão não cortam nada.
+5. Paredes e portas da cena continuam guardadas (o mestre as vê com a Visão do mestre ou a ferramenta Paredes), mas o
+   jogador não as vê nem esbarra nelas. **Voltar a ser mapa**: a névoa, as paredes e a luz voltam.
+6. Os tokens continuam aparecendo e se mexendo; o token oculto continua oculto para o jogador.
+7. No menu Luz do mestre, o botão Iluminação diz "(sem efeito: cena como cartão)".
+
 ## Se algo der errado
 - Anote a tela, o que fez e o que esperava, e mande para mim. Bug confirmado vai para `docs/BUGS.md`.
 - Para voltar à campanha de antes de mesas e contas, use a cópia de segurança indicada no topo.
