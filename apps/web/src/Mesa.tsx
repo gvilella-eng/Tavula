@@ -28,6 +28,7 @@ import {
   visaoLimitadaNaCena,
   visaoNoEscuroDe,
   visaoPara,
+  type Zona,
 } from "@tabletop/shared";
 import {
   BookOpen,
@@ -100,6 +101,7 @@ import { NovoToken, type NovoTokenPedido } from "./NovoToken";
 import { OrdemDeTurno } from "./OrdemDeTurno";
 import { PainelDaRegua } from "./PainelDaRegua";
 import { PainelDasParedes } from "./PainelDasParedes";
+import { PainelDasZonas } from "./PainelDasZonas";
 import { PainelDeFontesDeLuz } from "./PainelDeFontesDeLuz";
 import { PainelDeIluminacao } from "./PainelDeIluminacao";
 import { PainelDoToken } from "./PainelDoToken";
@@ -124,6 +126,8 @@ import { haDialogoAberto } from "./useDialogo";
 import { useSala } from "./useSala";
 import { ZoomFlutuante } from "./ZoomFlutuante";
 
+// 7b-2: sem zonas (o jogador nunca as recebe); uma lista fixa para a tela não redesenhar à toa.
+const SEM_ZONAS: Zona[] = [];
 const CHAVE_COMO = "tabletop:chat:como:";
 
 function lerComo(usuarioId: string): string {
@@ -257,6 +261,8 @@ export function Mesa({
   const [arcoLigado, setArcoLigado] = useState(false);
   const [paredeSelecionadaId, setParedeSelecionadaId] = useState<string | null>(null);
   const [tipoDaNovaParede, setTipoDaNovaParede] = useState<TipoDeParede>("parede");
+  // 7b-2: a zona selecionada na ferramenta Zonas (só do mestre).
+  const [zonaSelecionadaId, setZonaSelecionadaId] = useState<string | null>(null);
   // Painéis do mestre (menu da lanterna): fontes de luz e configurações de iluminação.
   const [fontesAbertas, setFontesAbertas] = useState(false);
   const [configAberta, setConfigAberta] = useState(false);
@@ -396,7 +402,11 @@ export function Mesa({
   const personagens = estado?.personagens;
   const handoutsDoEstado = estado?.handouts;
 
-  // Atalhos de ferramenta (V, H, R), exceto enquanto escreve num campo.
+  // 7b-2: o atalho Z (ferramenta Zonas) só vale para o mestre vendo como mestre; os valores vêm de refs.
+  const modoMestreAtual = useRef(false);
+  const alternarZonasAtual = useRef<() => void>(() => {});
+  const apagarZonaAtual = useRef<(id: string) => void>(() => {});
+  // Atalhos de ferramenta (V, H, R, Z), exceto enquanto escreve num campo.
   useEffect(() => {
     function aoTeclar(e: KeyboardEvent) {
       const alvo = e.target;
@@ -406,6 +416,8 @@ export function Mesa({
       if (tecla === "v") setFerramenta("selecionar");
       else if (tecla === "h") setFerramenta("mao");
       else if (tecla === "r") setFerramenta("regua");
+      else if (tecla === "z" && !e.shiftKey && modoMestreAtual.current)
+        alternarZonasAtual.current();
     }
     window.addEventListener("keydown", aoTeclar);
     return () => window.removeEventListener("keydown", aoTeclar);
@@ -714,6 +726,13 @@ export function Mesa({
   }, [selecionadoX, selecionadoY]);
   const paredeSelecionada =
     estado?.paredes.find((x) => x.id === paredeSelecionadaId && x.cenaId === cena?.id) ?? null;
+  const zonaSelecionada =
+    estado?.zonas?.find((x) => x.id === zonaSelecionadaId && x.cenaId === cena?.id) ?? null;
+  const reacoesDaZona = zonaSelecionada
+    ? (estado?.automacoes?.reacoes ?? []).filter(
+        (r) => r.fica.tipo === "zona" && r.fica.id === zonaSelecionada.id,
+      ).length
+    : 0;
   const pronto = status === "conectado" && estado !== null;
   // O pincel: quem tem `desenho.criar` (o mestre sempre); o mestre "vendo como" um jogador só olha.
   const podeDesenhar =
@@ -848,6 +867,15 @@ export function Mesa({
         enviar("parede.apagar", { id });
         setParedeSelecionadaId(null);
       },
+      criarZona: (cenaId, pontos) => {
+        const id = `zona-${crypto.randomUUID().slice(0, 8)}`;
+        const n = (estadoAtual.current?.zonas ?? []).filter((z) => z.cenaId === cenaId).length + 1;
+        enviar("zona.criar", { zona: { id, cenaId, nome: `Zona ${n}`, pontos } });
+        setZonaSelecionadaId(id);
+      },
+      selecionarZona: setZonaSelecionadaId,
+      moverZona: (id, pontos) => enviar("zona.editar", { id, mudancas: { pontos } }),
+      apagarZona: (id) => apagarZonaAtual.current(id),
       alternarPorta: (id) => enviar("porta.alternar", { id }),
       colocarLuz: (cenaId, x, y) => {
         const id = `luz-${crypto.randomUUID().slice(0, 8)}`;
@@ -936,7 +964,11 @@ export function Mesa({
   const opcoes = useMemo(
     () => ({
       ferramenta:
-        (ferramenta === "paredes" || ferramenta === "luz" || ferramenta === "ponto") && !modoMestre
+        (ferramenta === "paredes" ||
+          ferramenta === "zonas" ||
+          ferramenta === "luz" ||
+          ferramenta === "ponto") &&
+        !modoMestre
           ? ("selecionar" as const)
           : ferramenta,
       mostrarLuzes: fontesAbertas,
@@ -969,6 +1001,7 @@ export function Mesa({
       euMestre,
       modoMestre,
       paredeSelecionadaId: paredeSelecionada?.id ?? null,
+      zonaSelecionadaId: zonaSelecionada?.id ?? null,
       tipoDaNovaParede,
       // V5: o mestre vê os contornos com a Visão do mestre ligada; quem joga (ou o mestre "vendo como"),
       // só se a cena pedir.
@@ -1017,6 +1050,7 @@ export function Mesa({
       modoMestre,
       usuarioVisto,
       paredeSelecionada?.id,
+      zonaSelecionada?.id,
       tipoDaNovaParede,
       visaoDoMestre,
       cena?.mostrarParedesAosJogadores,
@@ -1054,7 +1088,38 @@ export function Mesa({
     setFerramenta(entrando ? "paredes" : "selecionar");
     setSelecionadoId(null);
     setParedeSelecionadaId(null);
+    setZonaSelecionadaId(null);
   }
+
+  function alternarZonas() {
+    const entrando = ferramenta !== "zonas";
+    setFerramenta(entrando ? "zonas" : "selecionar");
+    setSelecionadoId(null);
+    setParedeSelecionadaId(null);
+    setZonaSelecionadaId(null);
+  }
+  alternarZonasAtual.current = alternarZonas;
+  modoMestreAtual.current = modoMestre;
+
+  // Apagar a zona (Delete ou o botão do painel): a sala a guarda só no estado, então o "Desfazer" a recria com o
+  // mesmo id e as reações que ela levava (o mesmo caminho do `zona.criar`).
+  apagarZonaAtual.current = (id) => {
+    const zona = estadoAtual.current?.zonas?.find((z) => z.id === id);
+    if (!zona) return;
+    const reacoes = (estadoAtual.current?.automacoes?.reacoes ?? []).filter(
+      (r) => r.fica.tipo === "zona" && r.fica.id === id,
+    );
+    enviar("zona.apagar", { id });
+    setZonaSelecionadaId(null);
+    avisar(`Zona "${zona.nome}" apagada.`, {
+      rotulo: "Desfazer",
+      aoClicar: () => {
+        enviar("zona.criar", { zona });
+        for (const reacao of reacoes) enviar("reacao.criar", { reacao });
+        setZonaSelecionadaId(id);
+      },
+    });
+  };
 
   // Pede o que a mesa usa (mapa da cena, imagens dos tokens, retratos e tokens padrão das fichas).
   // O mestre também recolhe o que os jogadores subiram, para guardar cópia em recebidos/<jogador>/.
@@ -1400,7 +1465,9 @@ export function Mesa({
                   aoVerComo={(id) => {
                     setVerComoId(id);
                     setSelecionadoId(null);
-                    if (id !== null && ferramenta === "paredes") setFerramenta("selecionar");
+                    if (id !== null && (ferramenta === "paredes" || ferramenta === "zonas")) {
+                      setFerramenta("selecionar");
+                    }
                   }}
                 />
               ) : undefined
@@ -1439,6 +1506,8 @@ export function Mesa({
             ferramenta={ferramenta}
             podeParedes={modoMestre}
             aoAlternarParedes={alternarParedes}
+            podeZonas={modoMestre}
+            aoAlternarZonas={alternarZonas}
             aoEscolher={setFerramenta}
             pincel={pincel}
             aoMudarPincel={setPincel}
@@ -1458,6 +1527,7 @@ export function Mesa({
               cena={cena}
               tokens={estadoVisto?.tokens ?? estado.tokens}
               paredes={estadoVisto?.paredes ?? estado.paredes}
+              zonas={modoMestre ? (estado.zonas ?? SEM_ZONAS) : SEM_ZONAS}
               luzes={estadoVisto?.luzes ?? estado.luzes}
               pontos={estadoVisto?.pontos ?? estado.pontos}
               desenhos={estadoVisto?.desenhos ?? estado.desenhos}
@@ -1497,6 +1567,16 @@ export function Mesa({
                   Modo <strong>Paredes e portas</strong>
                 </span>
                 <button type="button" data-testid="modo-paredes-sair" onClick={alternarParedes}>
+                  Sair do modo
+                </button>
+              </div>
+            )}
+            {modoMestre && ferramenta === "zonas" && (
+              <div className="selo-modo" data-testid="modo-zonas-selo" role="status">
+                <span>
+                  Modo <strong>Zonas</strong>
+                </span>
+                <button type="button" data-testid="modo-zonas-sair" onClick={alternarZonas}>
                   Sair do modo
                 </button>
               </div>
@@ -1643,6 +1723,15 @@ export function Mesa({
                   setParedeSelecionadaId(null);
                 }}
                 aoFechar={alternarParedes}
+              />
+            )}
+            {modoMestre && ferramenta === "zonas" && (
+              <PainelDasZonas
+                selecionada={zonaSelecionada}
+                reacoes={reacoesDaZona}
+                enviar={enviar}
+                aoApagar={(id) => apagarZonaAtual.current(id)}
+                aoFechar={alternarZonas}
               />
             )}
             {modoMestre && fontesAbertas && (

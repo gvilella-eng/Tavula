@@ -299,6 +299,17 @@ só dá para conferir o efeito. Use uma mesa de teste.
 5. Exporte a campanha e importe de novo: o ciclo e a reação voltam (o ciclo segue de onde estava).
 6. Confira, como jogador, que o chat e o mapa só mostram os efeitos (luz, anúncio) e nunca o nome do ciclo ou da reação.
 
+## 7b-2 — Zonas (só o mestre desenha; o jogador só vê o efeito)
+Use uma mesa de teste, com o mestre numa janela e um jogador (com a tocha acesa na mão do Aldric) em outra.
+1. Como mestre, aperte **Z** (ou o botão "Zonas" da barra, o quadrado tracejado). Clique os cantos de um polígono no mapa (um canto por clique, no encaixe da meia célula; Alt solta
+   do grid) e feche com duplo clique ou Enter. Esc, antes de fechar, cancela; Backspace tira o último canto. A zona aparece violeta, com contorno tracejado e o nome no meio.
+2. No painel: mude o nome; ponha "Luz × fator" 0,5 e "Visão máxima" 3. Arraste uma bolinha de canto. Desligue "Ligada": a zona esmaece.
+3. Ligue de novo. Arraste o token do jogador para dentro (ou use as setas): a luz da tocha dele cai pela metade e o alcance de visão vai a 3 m, na tela dos dois. Tire o token de lá: tudo volta.
+4. Com o token dentro, desligue a zona: o efeito sai na hora. Ligue: volta. Apague a zona (Delete com a zona selecionada): o efeito sai; o aviso tem **Desfazer** e a zona volta igual.
+5. Na tela do jogador: nenhum polígono, nome ou painel. Só a luz menor e a visão curta. Recarregue a página do jogador: nada de zona.
+6. Duplique a cena (faixa de Cenas): a cópia tem a zona. Exporte e importe a campanha: a zona volta com os efeitos.
+7. Abra a lista de atalhos (Preferências): **Z** está em "Ferramentas".
+
 ## Se algo der errado
 - Anote a tela, o que fez e o que esperava, e mande para mim. Bug confirmado vai para `docs/BUGS.md`.
 - Para voltar à campanha de antes de mesas e contas, use a cópia de segurança indicada no topo.

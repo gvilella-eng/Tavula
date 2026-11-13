@@ -5,6 +5,7 @@ import {
   type EventoSala,
   estadoInicial,
   type Mensagem,
+  ZonaSchema,
 } from "@tabletop/shared";
 import { describe, expect, it } from "vitest";
 import semente from "../../../fixtures/campanha.seed.json";
@@ -719,5 +720,71 @@ describe("Armazenamento: automações (7b-1)", () => {
     expect(carregado?.automacoes).toBeUndefined();
     expect(carregado?.efeitos).toBeUndefined();
     expect(carregado?.tokens.length).toBeGreaterThan(3);
+  });
+});
+
+describe("Armazenamento: zonas (7b-2)", () => {
+  const zona = ZonaSchema.parse({
+    id: "z1",
+    cenaId: estadoInicial(semente).cenaAtivaId,
+    nome: "Gás",
+    pontos: [
+      { x: 1, y: 1 },
+      { x: 5, y: 1 },
+      { x: 5, y: 5 },
+    ],
+    efeitos: { luzRaioX: 0.5 },
+  });
+  const origem = { usuarioId: "m", idPedido: "p" };
+
+  it("banco antigo (sem a coleção) abre sem zona e sem migração nova", async () => {
+    const { sql } = await abrirBanco();
+    const banco = new Armazenamento(sql as never);
+    banco.migrar();
+    banco.salvarTudo(estadoInicial(semente));
+    const reaberto = new Armazenamento(sql as never);
+    reaberto.migrar();
+    expect(reaberto.lerMeta("versao_esquema")).toBe("12");
+    expect(reaberto.carregar()?.zonas).toBeUndefined();
+  });
+
+  it("grava pelos eventos (criar, editar, apagar com as reações) e sobrevive ao reinício", async () => {
+    const { sql } = await abrirBanco();
+    const banco = new Armazenamento(sql as never);
+    banco.migrar();
+    const base = estadoInicial(semente);
+    banco.salvarTudo(base);
+    banco.salvarEventos({ ...base, seq: 1, zonas: [zona] }, [
+      { seq: 1, origem, tipo: "zona.alterada", dados: { zona } },
+    ]);
+    const editada = { ...zona, nome: "Gás tóxico", ativa: false };
+    banco.salvarEventos({ ...base, seq: 2, zonas: [editada] }, [
+      { seq: 2, origem, tipo: "zona.alterada", dados: { zona: editada } },
+    ]);
+    const reaberto = new Armazenamento(sql as never);
+    reaberto.migrar();
+    expect(reaberto.carregar()?.zonas).toEqual([editada]);
+    // apagar a zona leva as reações dela (o estado já vem sem elas)
+    const automacoes = AutomacoesSchema.parse({ reacoes: [] });
+    reaberto.salvarEventos({ ...base, seq: 3, automacoes }, [
+      { seq: 3, origem, tipo: "zona.apagada", dados: { id: "z1" } },
+    ]);
+    expect(reaberto.carregar()?.zonas).toBeUndefined();
+    expect(reaberto.carregar()?.automacoes).toEqual(automacoes);
+  });
+
+  it("importar (salvarTudo) troca as zonas; linha ilegível não derruba a sala", async () => {
+    const { sql } = await abrirBanco();
+    const banco = new Armazenamento(sql as never);
+    banco.migrar();
+    const base = estadoInicial(semente);
+    banco.salvarTudo({ ...base, zonas: [zona] });
+    expect(banco.carregar()?.zonas).toEqual([zona]);
+    banco.salvarTudo(base);
+    expect(banco.carregar()?.zonas).toBeUndefined();
+    sql.exec("INSERT INTO entidades (colecao, id, dados) VALUES ('zonas', 'ruim', '{ nada')");
+    sql.exec("INSERT INTO entidades (colecao, id, dados) VALUES ('zonas', 'vazia', '{\"id\":1}')");
+    expect(banco.carregar()?.zonas).toBeUndefined();
+    expect(banco.carregar()?.tokens.length).toBeGreaterThan(3);
   });
 });

@@ -1,4 +1,4 @@
-import type { Cena, Desenho, FonteDeLuz, Parede, PontoDeLuz, Token } from "@tabletop/shared";
+import type { Cena, Desenho, FonteDeLuz, Parede, PontoDeLuz, Token, Zona } from "@tabletop/shared";
 import { useEffect, useRef } from "react";
 import { TIPO_DE_ARRASTO_DA_FICHA } from "../arrasto";
 import { type ImagensDoMapa, MapaPixi, type OpcoesDoMapa, type RetornosDoMapa } from "./mapaPixi";
@@ -7,6 +7,8 @@ type Props = {
   cena: Cena;
   tokens: Token[];
   paredes: Parede[];
+  /** 7b-2: as zonas da cena; só o mestre as recebe (o jogador passa lista vazia). */
+  zonas: Zona[];
   luzes: FonteDeLuz[];
   pontos: PontoDeLuz[];
   desenhos: Desenho[];
@@ -26,6 +28,7 @@ export function Mapa({
   cena,
   tokens,
   paredes,
+  zonas,
   luzes,
   pontos,
   desenhos,
@@ -40,20 +43,31 @@ export function Mapa({
   const mapa = useRef<MapaPixi | null>(null);
   const retornosAtuais = useRef(retornos);
   retornosAtuais.current = retornos;
-  const dadosIniciais = useRef({ cena, tokens, paredes, luzes, pontos, desenhos, opcoes, imagens });
+  const dadosIniciais = useRef({
+    cena,
+    tokens,
+    paredes,
+    zonas,
+    luzes,
+    pontos,
+    desenhos,
+    opcoes,
+    imagens,
+  });
   const aoCriarAtual = useRef(aoCriar);
   aoCriarAtual.current = aoCriar;
 
   useEffect(() => {
     const el = host.current;
     if (!el) return;
-    const { cena, tokens, paredes, luzes, pontos, desenhos, opcoes, imagens } =
+    const { cena, tokens, paredes, zonas, luzes, pontos, desenhos, opcoes, imagens } =
       dadosIniciais.current;
     const m = new MapaPixi(el, () => retornosAtuais.current, opcoes);
     if (imagens) m.definirImagens(imagens);
     m.definirCena(cena);
     m.definirTokens(tokens);
     m.definirParedes(paredes);
+    m.definirZonas(zonas);
     m.definirLuzes(luzes);
     m.definirPontos(pontos);
     m.definirDesenhos(desenhos);
@@ -100,6 +114,7 @@ export function Mapa({
   useEffect(() => mapa.current?.definirCena(cena), [cena]);
   useEffect(() => mapa.current?.definirTokens(tokens), [tokens]);
   useEffect(() => mapa.current?.definirParedes(paredes), [paredes]);
+  useEffect(() => mapa.current?.definirZonas(zonas), [zonas]);
   useEffect(() => mapa.current?.definirLuzes(luzes), [luzes]);
   useEffect(() => mapa.current?.definirPontos(pontos), [pontos]);
   useEffect(() => mapa.current?.definirDesenhos(desenhos), [desenhos]);

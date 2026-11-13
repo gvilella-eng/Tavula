@@ -42,6 +42,7 @@ import {
   opacidadeNoPonto,
   type Parede,
   type PontoDeLuz,
+  pontoNaZona,
   pontosDaParede,
   prepararTraco,
   raiosEfetivos,
@@ -56,6 +57,7 @@ import {
   type UnidadeDeDistancia,
   veNoPonto,
   visaoNoPonto,
+  type Zona,
 } from "@tabletop/shared";
 import "pixi.js/advanced-blend-modes";
 import { Application, Container, Graphics, Rectangle, Sprite, Text, Texture } from "pixi.js";
@@ -89,10 +91,20 @@ const DURACAO_DA_CENTRALIZACAO_MS = 400;
 /** Constante de tempo da interpolação dos tokens movidos por outros (os envios chegam a cada 50 ms). */
 const TAU_MS = 70;
 const ACENTO = 0xe0a030;
+/** 7b-2: a zona do mestre (violeta): não se confunde com as paredes (claras e âmbar) nem com os desenhos. */
+const COR_DA_ZONA = 0xb07cff;
 /** Anel do token da vez (ordem de turno): verde, bem diferente do dourado da seleção. */
 const COR_DA_VEZ = 0x4cd97b;
 
-export type Ferramenta = "selecionar" | "mao" | "regua" | "paredes" | "luz" | "ponto" | "pincel";
+export type Ferramenta =
+  | "selecionar"
+  | "mao"
+  | "regua"
+  | "paredes"
+  | "zonas"
+  | "luz"
+  | "ponto"
+  | "pincel";
 
 /** A alça de uma tocha sendo arrastada: onde está (metros) e, sobre um inflamável, a contagem. */
 type AlcaArrastada = {
@@ -178,6 +190,8 @@ export type OpcoesDoMapa = {
   /** O mestre vendo como mestre (não "como o jogador X"): vê todas as paredes e as portas secretas. */
   modoMestre: boolean;
   paredeSelecionadaId: string | null;
+  /** 7b-2: a zona selecionada na ferramenta Zonas (só o mestre). */
+  zonaSelecionadaId: string | null;
   /** Tipo das paredes que a ferramenta de paredes desenha. */
   tipoDaNovaParede: TipoDeParede;
   /**
@@ -292,6 +306,12 @@ export type RetornosDoMapa = {
   moverPonta: (id: string, ponta: "a" | "b", ponto: Ponto) => void;
   selecionarParede: (id: string | null) => void;
   apagarParede: (id: string) => void;
+  /** 7b-2: o polígono desenhado com a ferramenta Zonas vira uma zona (pontos em metros). */
+  criarZona: (cenaId: string, pontos: Ponto[]) => void;
+  selecionarZona: (id: string | null) => void;
+  /** Arrastou um vértice: a zona com o polígono novo. */
+  moverZona: (id: string, pontos: Ponto[]) => void;
+  apagarZona: (id: string) => void;
   /** Clique no ícone da porta. */
   alternarPorta: (id: string) => void;
   /** Clique direito no ícone da porta (só o mestre): tranca ou destranca. */
@@ -407,6 +427,7 @@ type Gesto =
     }
   | { tipo: "bandeira"; deslocamento: Ponto }
   | { tipo: "ponta"; id: string; ponta: "a" | "b" }
+  | { tipo: "vertice"; id: string; indice: number }
   | { tipo: "luz"; id: string; deslocamento: Ponto }
   | { tipo: "ponto"; id: string; deslocamento: Ponto }
   | { tipo: "alca"; luzId: string }
@@ -516,6 +537,14 @@ export class MapaPixi {
   private encaixaPonteiro = true;
   private cursorDaParede: Ponto | null = null;
   private pontaArrastada: { id: string; ponta: "a" | "b"; pos: Ponto } | null = null;
+  /** 7b-2: as zonas (só o mestre as recebe), o desenho delas e o polígono em desenho. */
+  private zonas: Zona[] = [];
+  private readonly zonasGraf = new Graphics();
+  private readonly zonasRotulos = new Container();
+  private readonly rotulosDeZona = new Map<string, Text>();
+  private zonaDesenhando: Ponto[] | null = null;
+  private cursorDaZona: Ponto | null = null;
+  private verticeArrastado: { id: string; indice: number; pos: Ponto } | null = null;
   private readonly desenhoDaRegua = new Graphics();
   private readonly desenhoDasFixas = new Graphics();
   /** Desenhos do pincel (Lote 13): acima do véu da luz e da memória do mapa (visíveis no escuro). */
@@ -633,6 +662,8 @@ export class MapaPixi {
       this.camada.cinza,
       this.paredesAbaixo,
       this.paredesAcima,
+      this.zonasGraf,
+      this.zonasRotulos,
       this.desenhoLayer.container,
       this.marcasDeLuz,
       this.desenhoDosPontos,
@@ -852,6 +883,7 @@ export class MapaPixi {
     if (trocouFerramenta) {
       this.limparRegua();
       this.zerarDesenho();
+      this.zerarZona();
     }
     const chave = this.chaveDe_visao();
     if (chave !== this.chaveDaVisao) {
@@ -893,6 +925,13 @@ export class MapaPixi {
     if (!this.pronto) return;
     this.visaoSuja = true;
     this.desenharParedes();
+  }
+
+  /** 7b-2: as zonas da cena (só o mestre as recebe; o jogador nunca). */
+  definirZonas(zonas: Zona[]): void {
+    this.zonas = zonas;
+    if (!this.pronto) return;
+    this.desenharZonas();
   }
 
   /** A sala recusou algo: volta cada token para a posição que ela tem. */
@@ -2267,6 +2306,220 @@ export class MapaPixi {
     this.atualizarCursor();
   }
 
+  // --- zonas (7b-2) -------------------------------------------------------------------------------
+
+  private ferramentaDeZonas(): boolean {
+    return this.opcoes.ferramenta === "zonas" && this.opcoes.modoMestre;
+  }
+
+  /** O polígono da zona com o vértice em arrasto aplicado (a visão local, antes de a sala confirmar). */
+  private pontosDaZona(z: Zona): Ponto[] {
+    const a = this.verticeArrastado;
+    if (!a || a.id !== z.id) return z.pontos;
+    return z.pontos.map((q, i) => (i === a.indice ? a.pos : q));
+  }
+
+  /** Zera o polígono em desenho (Esc, trocar de ferramenta ou de cena). */
+  private zerarZona(): void {
+    if (this.zonaDesenhando === null && this.cursorDaZona === null) return;
+    this.zonaDesenhando = null;
+    this.cursorDaZona = null;
+    this.desenharZonas();
+  }
+
+  /** Ponto do mundo para a zona: encaixa na rede de meia célula como as paredes (Alt solta). */
+  private pontoDaZona(m: Ponto, alt: boolean): Ponto {
+    this.encaixaPonteiro = this.encaixaAgora(alt);
+    const ponto = this.encaixaPonteiro ? encaixarMeiaCelula(m, this.quadradoM()) : m;
+    return this.cena ? limitarNaCena(ponto, this.cena) : ponto;
+  }
+
+  /** A zona (da cena) sob o ponto da tela: a menor, se uma está dentro da outra. */
+  private zonaEm(p: Ponto): Zona | null {
+    const cena = this.cena;
+    if (!cena) return null;
+    const m = this.paraMundo(p);
+    let achada: Zona | null = null;
+    let menor = Number.POSITIVE_INFINITY;
+    for (const z of this.zonas) {
+      if (z.cenaId !== cena.id || !pontoNaZona(m, z.pontos)) continue;
+      const xs = z.pontos.map((q) => q.x);
+      const ys = z.pontos.map((q) => q.y);
+      const area = (Math.max(...xs) - Math.min(...xs)) * (Math.max(...ys) - Math.min(...ys));
+      if (area < menor) {
+        menor = area;
+        achada = z;
+      }
+    }
+    return achada;
+  }
+
+  /** Clique com a ferramenta Zonas: continua o polígono, arrasta um vértice, seleciona ou começa um. */
+  private apertarComZonas(p: Ponto, e: PointerEvent): void {
+    // Um clique no mapa tira o foco do campo do painel (para o Delete e o Esc valerem para a zona).
+    if (this.digitando() && document.activeElement instanceof HTMLElement)
+      document.activeElement.blur();
+    const ponto = this.pontoDaZona(this.paraMundo(p), e.altKey);
+    const pontos = this.zonaDesenhando;
+    if (pontos) {
+      const ultimo = pontos[pontos.length - 1] as Ponto;
+      if (Math.hypot(ultimo.x - ponto.x, ultimo.y - ponto.y) > 0.05) pontos.push(ponto);
+      this.cursorDaZona = ponto;
+      this.desenharZonas();
+      return;
+    }
+    const sel = this.zonas.find((x) => x.id === this.opcoes.zonaSelecionadaId);
+    if (sel && sel.cenaId === this.cena?.id) {
+      for (const [indice, q] of sel.pontos.entries()) {
+        const t = this.paraTela(q.x, q.y);
+        if (Math.hypot(p.x - t.x, p.y - t.y) <= RAIO_DA_ALCA + 5) {
+          this.gesto = { tipo: "vertice", id: sel.id, indice };
+          this.verticeArrastado = { id: sel.id, indice, pos: q };
+          this.app.canvas.setPointerCapture(e.pointerId);
+          return;
+        }
+      }
+    }
+    const alvo = this.zonaEm(p);
+    if (alvo) {
+      this.retornos().selecionarZona(alvo.id);
+      return;
+    }
+    this.retornos().selecionarZona(null);
+    this.zonaDesenhando = [ponto];
+    this.cursorDaZona = ponto;
+    this.desenharZonas();
+  }
+
+  /** Duplo clique ou Enter: o polígono vira zona (precisa de 3 pontos; com menos, só se descarta). */
+  private fecharZona(): void {
+    const pontos = this.zonaDesenhando;
+    this.zonaDesenhando = null;
+    this.cursorDaZona = null;
+    if (pontos && pontos.length >= 3 && this.cena) {
+      this.retornos().criarZona(this.cena.id, pontos);
+    }
+    this.desenharZonas();
+  }
+
+  /** Um traço tracejado de a até b (em pixels do mapa); `passo` e `vazio` em pixels do mapa. */
+  private tracejar(g: Graphics, a: Ponto, b: Ponto, passo: number, vazio: number): void {
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const comprimento = Math.hypot(dx, dy);
+    if (comprimento === 0) return;
+    const ux = dx / comprimento;
+    const uy = dy / comprimento;
+    for (let t = 0; t < comprimento; t += passo + vazio) {
+      const fim = Math.min(t + passo, comprimento);
+      g.moveTo(a.x + ux * t, a.y + uy * t).lineTo(a.x + ux * fim, a.y + uy * fim);
+    }
+  }
+
+  /**
+   * Desenha as zonas: SÓ o mestre as vê (o jogador nem as recebe). Polígono translúcido com contorno
+   * tracejado e o nome no meio; a desligada fica esmaecida; a selecionada ganha as alças dos vértices.
+   */
+  private desenharZonas(): void {
+    this.sujo = true;
+    const g = this.zonasGraf.clear();
+    const cena = this.cena;
+    const vistas = new Set<string>();
+    if (cena && this.opcoes.modoMestre) {
+      const z = this.vista.zoom;
+      const ferramenta = this.ferramentaDeZonas();
+      for (const original of this.zonas) {
+        if (original.cenaId !== cena.id) continue;
+        vistas.add(original.id);
+        const pontos = this.pontosDaZona(original).map((q) => ({
+          x: q.x * PX_POR_M,
+          y: q.y * PX_POR_M,
+        }));
+        if (pontos.length < 3) continue;
+        const forte = original.ativa;
+        const selecionada = ferramenta && original.id === this.opcoes.zonaSelecionadaId;
+        g.poly(pontos.flatMap((q) => [q.x, q.y])).fill({
+          color: COR_DA_ZONA,
+          alpha: forte ? (ferramenta ? 0.24 : 0.14) : 0.05,
+        });
+        for (let i = 0; i < pontos.length; i++) {
+          this.tracejar(
+            g,
+            pontos[i] as Ponto,
+            pontos[(i + 1) % pontos.length] as Ponto,
+            9 / z,
+            6 / z,
+          );
+        }
+        g.stroke({
+          width: (selecionada ? 3 : 2) / z,
+          color: COR_DA_ZONA,
+          alpha: forte ? 0.95 : 0.4,
+        });
+        if (selecionada) {
+          for (const q of pontos) {
+            g.circle(q.x, q.y, RAIO_DA_ALCA / z)
+              .fill(0xffffff)
+              .stroke({ width: 2 / z, color: COR_DA_ZONA });
+          }
+        }
+        // O nome no meio (média dos vértices), do mesmo tamanho na tela.
+        let rotulo = this.rotulosDeZona.get(original.id);
+        if (!rotulo) {
+          rotulo = new Text({
+            text: original.nome,
+            style: {
+              fill: 0xf3eaff,
+              fontSize: 13,
+              fontWeight: "700",
+              fontFamily: "system-ui, sans-serif",
+              stroke: { color: 0x2a1a4a, width: 3 },
+            },
+          });
+          rotulo.anchor.set(0.5);
+          this.rotulosDeZona.set(original.id, rotulo);
+          this.zonasRotulos.addChild(rotulo);
+        }
+        if (rotulo.text !== original.nome) rotulo.text = original.nome;
+        const cx = pontos.reduce((t, q) => t + q.x, 0) / pontos.length;
+        const cy = pontos.reduce((t, q) => t + q.y, 0) / pontos.length;
+        rotulo.position.set(cx, cy);
+        rotulo.scale.set(1 / z);
+        rotulo.alpha = forte ? 1 : 0.5;
+        rotulo.visible = true;
+      }
+      const emDesenho = this.zonaDesenhando;
+      if (emDesenho && emDesenho.length > 0) {
+        const px = emDesenho.map((q) => ({ x: q.x * PX_POR_M, y: q.y * PX_POR_M }));
+        const cursor = this.cursorDaZona
+          ? { x: this.cursorDaZona.x * PX_POR_M, y: this.cursorDaZona.y * PX_POR_M }
+          : null;
+        const caminho = cursor ? [...px, cursor] : px;
+        if (caminho.length >= 3) {
+          g.poly(caminho.flatMap((q) => [q.x, q.y])).fill({ color: COR_DA_ZONA, alpha: 0.18 });
+        }
+        for (let i = 1; i < caminho.length; i++) {
+          this.tracejar(g, caminho[i - 1] as Ponto, caminho[i] as Ponto, 9 / z, 6 / z);
+        }
+        g.stroke({ width: 2.5 / z, color: COR_DA_ZONA, alpha: 0.95 });
+        for (const q of px) g.circle(q.x, q.y, 4 / z).fill(COR_DA_ZONA);
+        if (cursor)
+          g.circle(cursor.x, cursor.y, 5 / z).stroke({ width: 2 / z, color: COR_DA_ZONA });
+      } else if (ferramenta && this.cursorDaZona) {
+        const c = this.cursorDaZona;
+        g.circle(c.x * PX_POR_M, c.y * PX_POR_M, 5 / z).stroke({
+          width: 2 / z,
+          color: COR_DA_ZONA,
+        });
+      }
+    }
+    for (const [id, rotulo] of this.rotulosDeZona) {
+      if (vistas.has(id)) continue;
+      rotulo.destroy();
+      this.rotulosDeZona.delete(id);
+    }
+  }
+
   // --- paredes e portas -------------------------------------------------------------------------
 
   private ferramentaDeParedes(): boolean {
@@ -2368,6 +2621,7 @@ export class MapaPixi {
    */
   private desenharParedes(): void {
     this.sujo = true;
+    this.desenharZonas();
     const abaixo = this.paredesAbaixo.clear();
     const acima = this.paredesAcima.clear();
     const cena = this.cena;
@@ -2622,6 +2876,10 @@ export class MapaPixi {
   }
 
   private readonly aoDuploClique = (e: MouseEvent) => {
+    if (this.zonaDesenhando) {
+      this.fecharZona();
+      return;
+    }
     if (this.desenhando) {
       this.encerrarDesenho();
       return;
@@ -2930,6 +3188,11 @@ export class MapaPixi {
       return;
     }
 
+    if (this.ferramentaDeZonas()) {
+      this.apertarComZonas(p, e);
+      return;
+    }
+
     if (this.ferramentaDeParedes()) {
       const porta = this.desenhando ? null : this.portaEm(p);
       if (porta) this.retornos().selecionarParede(porta.id);
@@ -3231,6 +3494,12 @@ export class MapaPixi {
       this.cancelarEsperaDoPing();
     }
     if (!g) {
+      if (this.ferramentaDeZonas()) {
+        const antes = this.cursorDaZona;
+        const agora = this.pontoDaZona(this.paraMundo(p), e.altKey);
+        this.cursorDaZona = agora;
+        if (!antes || antes.x !== agora.x || antes.y !== agora.y) this.desenharZonas();
+      }
       if (this.ferramentaDeParedes()) {
         const antes = this.cursorDaParede;
         const agora = this.pontoDaParede(this.paraMundo(p), e.altKey);
@@ -3280,6 +3549,14 @@ export class MapaPixi {
       this.pontoArrastado = { id: g.id, pos: alvo };
       this.visaoSuja = true;
       this.chaveDosPontos = "";
+      return;
+    }
+    if (g.tipo === "vertice") {
+      const arrasto = this.verticeArrastado;
+      if (arrasto) {
+        arrasto.pos = this.pontoDaZona(this.paraMundo(p), e.altKey);
+        this.desenharZonas();
+      }
       return;
     }
     if (g.tipo === "ponta") {
@@ -3429,6 +3706,22 @@ export class MapaPixi {
       this.atualizarCursor();
       return;
     }
+    if (g.tipo === "vertice") {
+      const arrasto = this.verticeArrastado;
+      const zona = arrasto ? this.zonas.find((x) => x.id === arrasto.id) : undefined;
+      if (arrasto && zona) {
+        const novo = zona.pontos.map((q, i) => (i === arrasto.indice ? arrasto.pos : q));
+        const mudou = novo.some((q, i) => q !== zona.pontos[i]);
+        if (mudou) this.retornos().moverZona(zona.id, novo);
+      }
+      // O vértice fica onde foi solto até a sala confirmar (o evento chega em seguida).
+      setTimeout(() => {
+        this.verticeArrastado = null;
+        if (this.pronto) this.desenharZonas();
+      }, 400);
+      this.atualizarCursor();
+      return;
+    }
     if (g.tipo === "ponta") {
       const arrasto = this.pontaArrastada;
       if (arrasto) this.retornos().moverPonta(arrasto.id, arrasto.ponta, arrasto.pos);
@@ -3529,6 +3822,36 @@ export class MapaPixi {
       this.apagarSelecionado();
       return;
     }
+    if (this.ferramentaDeZonas()) {
+      // 7b-2: Enter fecha o polígono; Esc o cancela (ou solta a zona); Backspace tira o último ponto;
+      // Delete apaga a zona selecionada (a tela avisa e oferece o Desfazer).
+      if (e.key === "Enter" && this.zonaDesenhando) {
+        e.preventDefault();
+        this.fecharZona();
+        return;
+      }
+      if (e.key === "Escape") {
+        if (this.zonaDesenhando) this.zerarZona();
+        else if (this.opcoes.zonaSelecionadaId) this.retornos().selecionarZona(null);
+        return;
+      }
+      if (e.key === "Backspace" && this.zonaDesenhando && !e.repeat) {
+        e.preventDefault();
+        this.zonaDesenhando.pop();
+        if (this.zonaDesenhando.length === 0) this.zerarZona();
+        else this.desenharZonas();
+        return;
+      }
+      if (
+        (e.key === "Delete" || e.key === "Backspace") &&
+        !this.zonaDesenhando &&
+        this.opcoes.zonaSelecionadaId
+      ) {
+        e.preventDefault();
+        if (!e.repeat) this.retornos().apagarZona(this.opcoes.zonaSelecionadaId);
+        return;
+      }
+    }
     if (
       (e.key === "a" || e.key === "A") &&
       !e.ctrlKey &&
@@ -3624,7 +3947,8 @@ export class MapaPixi {
       this.opcoes.ferramenta === "regua" ||
       this.opcoes.ferramenta === "luz" ||
       this.opcoes.ferramenta === "ponto" ||
-      this.ferramentaDeParedes()
+      this.ferramentaDeParedes() ||
+      this.ferramentaDeZonas()
     )
       cursor = "crosshair";
     else if (g?.tipo === "token") cursor = "grabbing";
@@ -4134,6 +4458,10 @@ export class MapaPixi {
           b: q.b,
           meio: q.meio,
         })),
+      /** 7b-2: as zonas que a tela tem (só o mestre as recebe) e o polígono em desenho. */
+      zonas: () =>
+        this.zonas.map((z) => ({ id: z.id, nome: z.nome, ativa: z.ativa, pontos: z.pontos })),
+      zonaDesenhando: () => this.zonaDesenhando,
       /** V5: os contornos estão desenhados (ferramenta de paredes, Visão do mestre ou opção da cena)? */
       contornos: () => this.contornosVisiveis(),
       /** V5: a porta sob o cursor (destaque), o modo de arco, o cursor do mouse e o ponto de fixação. */

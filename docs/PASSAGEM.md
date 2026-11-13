@@ -725,3 +725,12 @@ Continua em aberto, por ser decisão e não erro de doc: `ficha.verOutras` (seç
 - Frágil: o `packages/shared` roda no Vite sem compilar: sem propriedade de parâmetro no construtor, sem enum.
 - Sem migração SQL: as automações estão em duas chaves da `meta`. A importação as troca (`salvarTudo`), o `apagarTudo` as apaga.
 - Suposições novas (assumido): ver `REDESIGN`, "7b-1 — como ficou".
+
+## 7b-2 (2026-11-13): as zonas das automações
+
+- Onde mexer: `packages/shared/src/zonas.ts` (schemas, `pontoNaZona`, `posicaoDoObjeto`, `entradasESaidas`), `automacoes.ts` (`zona.ativar`, `dentroDaZona`, `fica` de zona, `zonaId` do evento), `automacoesnucleo.ts` (`sincronizarZonas`, os alvos da reação de zona, `eventosDoSistema`), `nucleo.ts` (redutor, as três intenções, duplicar e apagar cena, `visaoPara`, `eventoPara`, `lerExportacao`), `protocolo.ts`, `apps/server/src/armazenamento.ts` (coleção `zonas`). Na tela: `mapa/mapaPixi.ts` (`desenharZonas`, `apertarComZonas`, `fecharZona`, gesto `vertice`), `PainelDasZonas.tsx`, `BarraDeFerramentas.tsx`, `Mesa.tsx` (`criarZona`, `apagarZonaAtual`, tecla Z) e `atalhos.ts`.
+- Frágil: a zona e as reações dela **nunca** saem em `visaoPara`/`eventoPara` (acrescentar o frame aos testes de sigilo se criar campo novo).
+- Frágil: o efeito da zona é **reconciliado** (ids `zona:...`): quem criar outro tipo de modificador ou efeito não pode usar esse prefixo.
+- Frágil: os schemas de mudanças (`MudancasDaZonaSchema` e os de ciclo e reação em `protocolo.ts`) não podem herdar os padrões do campo: o `.partial()` do zod os aplica e editar só o nome zeraria o resto.
+- Sem migração SQL: coleção `zonas` da tabela `entidades`. A importação a troca (`salvarTudo`).
+- Suposições novas (assumido): ver `REDESIGN`, "7b-2 — como ficou".

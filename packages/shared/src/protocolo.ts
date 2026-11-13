@@ -83,6 +83,7 @@ import {
   pastasPadrao,
 } from "./pastas.ts";
 import { EspacoDoPedidoSchema, PedidoDeModeloSchema } from "./rolagens.ts";
+import { MudancasDaZonaSchema, ZonaNovaSchema, ZonaSchema } from "./zonas.ts";
 
 export const VERSAO_PROTOCOLO = 1;
 /** Versão do arquivo de exportação (de v1 a v12 ainda são aceitas na importação). */
@@ -403,8 +404,27 @@ const AjusteDoObjetoSchema = z.discriminatedUnion("acao", [
 ]);
 
 /** `ciclo.editar`: só o que vier muda; a sala junta e confere o ciclo inteiro de novo. */
-const MudancasDoCicloSchema = CicloCamposSchema.omit({ id: true }).partial();
-const MudancasDaReacaoSchema = ReacaoSchema.omit({ id: true }).partial();
+// Sem os padrões dos campos (`cenas`, `ativa`, `se`): no zod o `.partial()` ainda aplica o padrão do campo ausente, e editar só o
+// nome apagaria as cenas do ciclo, as condições da reação e religaria a reação (7b-2).
+const MudancasDoCicloSchema = z
+  .object({
+    nome: CicloCamposSchema.shape.nome,
+    periodoS: CicloCamposSchema.shape.periodoS,
+    cenas: CicloCamposSchema.shape.cenas.unwrap(),
+    fases: CicloCamposSchema.shape.fases,
+    liberadoParaJogadores: CicloCamposSchema.shape.liberadoParaJogadores,
+  })
+  .partial();
+const MudancasDaReacaoSchema = z
+  .object({
+    nome: ReacaoSchema.shape.nome,
+    ativa: ReacaoSchema.shape.ativa.unwrap(),
+    fica: ReacaoSchema.shape.fica,
+    ao: ReacaoSchema.shape.ao,
+    se: ReacaoSchema.shape.se.unwrap(),
+    fazer: ReacaoSchema.shape.fazer,
+  })
+  .partial();
 
 const MudancasDoHandoutSchema = z
   .object({
@@ -897,6 +917,13 @@ export const IntencaoSchema = z.discriminatedUnion("tipo", [
   intencao("reacao.criar", z.object({ reacao: ReacaoSchema })),
   intencao("reacao.editar", z.object({ id: IdSchema, mudancas: MudancasDaReacaoSchema })),
   intencao("reacao.apagar", z.object({ id: IdSchema })),
+  /**
+   * Zonas (7b-2): polígonos de uma cena com efeitos "enquanto dentro". Só do mestre (`automacao.editar`); a
+   * zona nunca chega ao jogador. `zona.criar` serve também para o Desfazer (o mesmo id volta).
+   */
+  intencao("zona.criar", z.object({ zona: ZonaNovaSchema })),
+  intencao("zona.editar", z.object({ id: IdSchema, mudancas: MudancasDaZonaSchema })),
+  intencao("zona.apagar", z.object({ id: IdSchema })),
   /** Dispara um evento agora, em todas as cenas ou só em `cenaId`. */
   intencao(
     "evento.disparar",
@@ -1031,6 +1058,9 @@ export const capacidadeDaIntencao: Record<TipoIntencao, Capacidade | null> = {
   "reacao.criar": "automacao.editar",
   "reacao.editar": "automacao.editar",
   "reacao.apagar": "automacao.editar",
+  "zona.criar": "automacao.editar",
+  "zona.editar": "automacao.editar",
+  "zona.apagar": "automacao.editar",
   "evento.disparar": "automacao.editar",
   "campanha.exportar": "campanha.exportar",
   "campanha.importar": "campanha.importar",
@@ -1187,6 +1217,10 @@ export const EventoSalaSchema = z.discriminatedUnion("tipo", [
    * recebe: o filtro a derruba para qualquer outro (regra 7).
    */
   eventoDe("automacoes.alterado", z.object({ automacoes: AutomacoesSchema })),
+  /** 7b-2: uma zona criada ou editada (o cliente faz upsert). SÓ o mestre recebe (regra 7). */
+  eventoDe("zona.alterada", z.object({ zona: ZonaSchema })),
+  /** 7b-2: uma zona apagada (as reações dela vão junto). SÓ o mestre recebe. */
+  eventoDe("zona.apagada", z.object({ id: IdSchema })),
   /**
    * 7b-1: a lista de efeitos temporários em tokens depois da mudança. O mestre recebe tudo; o jogador, a lista
    * própria dele (só os tokens que vê, sem prazo nem origem).
@@ -1228,6 +1262,7 @@ export const CODIGOS_DE_ERRO = [
   "limite_de_desenhos",
   "ciclo_inexistente",
   "reacao_inexistente",
+  "zona_inexistente",
 ] as const;
 export const CodigoDeErroSchema = z.enum(CODIGOS_DE_ERRO);
 export type CodigoDeErro = z.infer<typeof CodigoDeErroSchema>;

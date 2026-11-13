@@ -721,7 +721,7 @@ Regras do motor:
 5. **Limite de encadeamento:** reação que dispara evento que dispara reação para numa profundidade
    máxima.
 6. **Zonas:** polígonos do mapa com reações e efeitos enquanto um token ou objeto está dentro (gás que
-   enfraquece chamas, ar rarefeito).
+   enfraquece chamas, ar rarefeito). Entregues no 7b-2 (ver "Zonas (7b-2)" abaixo).
 7. Automações são dados do mestre: nunca chegam ao navegador do jogador, só os efeitos delas.
 
 **Desenho final do motor (7b-1, 2026-11-13).** O que o 7b-2 (zonas), o 7b-3 (editor e campanhas) e o MCP vão usar.
@@ -761,6 +761,26 @@ Regras do motor:
 - **Intenções** (todas `automacao.editar`, só do mestre): `ciclo.criar|editar|apagar|disparar|pausar|retomar`,
   `reacao.criar|editar|apagar` e `evento.disparar`. Ver `docs/protocolo.md`, "Automações (Lote 7b-1)".
 - **Chat.** `chat.anunciar` cria uma mensagem `tipo: "aviso"` sem autor real (`autorId: "sistema"`), mostrada como "A mesa".
+
+**Zonas (7b-2, 2026-11-13).** Polígonos de uma cena, só do mestre, com efeitos "enquanto dentro" e reações.
+- **O dado.** `Estado.zonas` (opcional) = `[{ id, cenaId, nome, pontos[3..64], ativa, efeitos: { luzRaioX?, luzSomaM?, visaoMaxM? } }]`
+  (`packages/shared/src/zonas.ts`). Guardada na coleção `zonas` da tabela `entidades` (sem migração SQL), na exportação (campo opcional, versão 13) e
+  copiada por "Duplicar a cena". As **reações** da zona moram na fatia `automacoes` com `fica: { tipo: "zona", id }` e vão embora com ela.
+- **Dentro** (assumido). O centro do token dentro do polígono, na cena da zona; a borda e os vértices contam. Para a luz: a posição de quem a carrega
+  (o token, ou o dono da tocha na mão) ou a do ponto onde está; na mochila não está em zona. Zona desligada não tem ninguém dentro.
+- **Efeito enquanto dentro.** Sem prazo, e **reconciliado**: depois de toda intenção que mudou algo, a sala compara o que deve valer (zonas ligadas × posições) com o
+  que está no estado e acerta a diferença. A luz leva o modificador `zona:<zona>` (`raioX` e `raioSomaM`); o token leva o efeito `zona:<zona>:<token>` em
+  `Estado.efeitos` (`visaoMaxM`, sem `ateSala`). Sair, desligar, apagar, mudar o desenho, trocar de cena e apagar a cena tiram o efeito: nada fica preso. A
+  cena-cartão não leva o limite de visão.
+- **Eventos.** `token.entrouNaZona` e `token.saiuDaZona` (com `zonaId` e `tokenId` no evento) saem da diferença entre os estados, como os outros do sistema:
+  soltar, setas, "Levar grupo", colocar, apagar e restaurar token, trocar de cena. Uma vez por mudança. Ligar, desligar, criar e apagar a zona não contam.
+- **Ação e condição.** `zona.ativar` (`zona?`, `ativa`) liga e desliga uma zona; `dentroDaZona` (`zona?`) vale para o objeto da reação ou o token do evento. Sem `zona`,
+  as duas usam a zona da própria reação. A reação de uma zona só atinge o que está dentro dela e só responde ao evento dela.
+- **Intenções** (`automacao.editar`): `zona.criar`, `zona.editar`, `zona.apagar`; eventos `zona.alterada` e `zona.apagada` (só o mestre). Ver `docs/protocolo.md`, "Zonas (Lote 7b-2)".
+- **Sigilo.** A forma, o nome, os efeitos e as reações nunca chegam ao jogador (`visaoPara` tira `zonas`; `eventoPara` derruba os dois eventos). Ele vê só a luz menor e a visão limitada.
+- **A ferramenta.** "Zonas" na barra do mestre (ícone de quadrado tracejado, tecla **Z**): clique a clique, meia célula do grid (Alt solta), duplo clique ou Enter fecha, Esc
+  cancela, Backspace tira o último ponto. Painel com nome, ligada, os três efeitos e a contagem de reações; as bolinhas movem os vértices; Delete apaga, com Desfazer no aviso.
+  A zona aparece só para o mestre (polígono violeta translúcido, contorno tracejado, nome no meio; a desligada esmaecida).
 
 **Decidido pelo Vilella (2026-11-13):** a ação `som.tocar` fica fora do 7b. Ela entra junto com um lote de som
 ambiente, com os arquivos de som na pasta local, como as imagens. O 7b se divide em três lotes, 7b-1 a 7b-3
@@ -1627,7 +1647,7 @@ para 30 s, ver a inspiração reduzir e apagar tochas, pausar e retomar pelo bot
   - pausar a mesa pausa os ciclos;
   - nada de automação chega ao jogador;
   - exportar e importar levam tudo.
-- **7b-2, as zonas:**
+- **7b-2, as zonas** (entregue em 2026-11-13; o desenho final está na 4.11):
   - polígonos por cena, desenhados pelo mestre;
   - efeitos enquanto algo está dentro;
   - os eventos `token.entrouNaZona` e `token.saiuDaZona`, e a ação `zona.ativar`;

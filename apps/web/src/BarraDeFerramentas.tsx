@@ -1,4 +1,4 @@
-import { BrickWall, Brush, Dices, Hand, MousePointer2, Ruler } from "lucide-react";
+import { BrickWall, Brush, Dices, Hand, MousePointer2, Ruler, SquareDashed } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import type { IdDoAtalho } from "./atalhos";
 import { BotaoComDica } from "./BotaoComDica";
@@ -21,6 +21,9 @@ type Props = {
   /** Paredes e portas (só do mestre, fora do "ver como"): liga e desliga o modo. */
   podeParedes: boolean;
   aoAlternarParedes: () => void;
+  /** Zonas (7b-2, só do mestre, fora do "ver como"): liga e desliga a ferramenta. */
+  podeZonas: boolean;
+  aoAlternarZonas: () => void;
 };
 
 const MOTIVO_SEM_PINCEL = "Pincel desligado: o mestre tirou de você a permissão de desenhar.";
@@ -55,7 +58,7 @@ function Botao(props: {
 }
 
 /**
- * Barra fixa à esquerda (52 px): selecionar, mão, régua, dados rápidos e pincel (todos) e paredes e portas (só o mestre). As sub-barras
+ * Barra fixa à esquerda (52 px): selecionar, mão, régua, dados rápidos e pincel (todos) e paredes, portas e zonas (só o mestre). As sub-barras
  * (o pincel) e a grade de dados abrem ao lado dela, sobre o mapa.
  */
 export function BarraDeFerramentas(p: Props) {
@@ -135,6 +138,20 @@ export function BarraDeFerramentas(p: Props) {
             >
               <BrickWall size={20} />
             </Botao>
+            {p.podeZonas && (
+              <Botao
+                testid="ferramenta-zonas"
+                nome="Zonas"
+                atalho="zonas"
+                ativo={p.ferramenta === "zonas"}
+                aoClicar={() => {
+                  setDadosAbertos(false);
+                  p.aoAlternarZonas();
+                }}
+              >
+                <SquareDashed size={20} />
+              </Botao>
+            )}
           </>
         )}
       </nav>

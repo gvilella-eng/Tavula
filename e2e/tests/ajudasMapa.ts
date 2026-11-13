@@ -65,6 +65,9 @@ export type GanchoDoMapa = {
   }[];
   /** V5: os contornos de parede e porta estão desenhados (ferramenta, Visão do mestre ou opção da cena)? */
   contornos(): boolean;
+  /** 7b-2: as zonas que a tela tem (só o mestre as recebe) e o polígono em desenho. */
+  zonas(): { id: string; nome: string; ativa: boolean; pontos: { x: number; y: number }[] }[];
+  zonaDesenhando(): { x: number; y: number }[] | null;
   /** V5: a porta sob o cursor, o modo de arco, o cursor do mouse e o ponto de fixação (metros). */
   portaDestacada(): string | null;
   modoArco(): boolean;

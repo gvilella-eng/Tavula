@@ -33,6 +33,11 @@ export const ATALHOS = {
     grupo: "Ferramentas",
     teclas: [["R"]],
   },
+  zonas: {
+    descricao: "Ferramenta Zonas (mestre): desenhar e editar as zonas do mapa",
+    grupo: "Ferramentas",
+    teclas: [["Z"]],
+  },
   arco: {
     descricao: "Ferramenta Paredes: alternar entre linha e arco (tangente ao trecho anterior)",
     grupo: "Ferramentas",

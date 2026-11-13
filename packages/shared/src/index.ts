@@ -41,3 +41,4 @@ export * from "./semente.ts";
 export * from "./srd/index.ts";
 export * from "./uso.ts";
 export * from "./visao.ts";
+export * from "./zonas.ts";

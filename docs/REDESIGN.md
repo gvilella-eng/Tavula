@@ -1577,3 +1577,28 @@ Os lotes 7b-1 a 7b-3 (motor, zonas, editor e campanhas) vêm depois dos ajustes 
 **O que ficou para depois**
 - O editor, os botões fixáveis, a liberação para jogadores e as campanhas de referência (7b-3); as zonas e `token.entrouNaZona` (7b-2); `som.tocar` (lote de som).
 - Mostrar o registro do mestre (encadeamento cortado) em algum lugar da tela: hoje só está no estado.
+
+### 7b-2 — como ficou (2026-11-13)
+
+**O que foi feito**
+- **A zona** (`packages/shared/src/zonas.ts`): polígono de uma cena (3 a 64 pontos, em metros) com `ativa` e `efeitos` (`luzRaioX`, `luzSomaM`, `visaoMaxM`). Mora em `Estado.zonas`, só do mestre; as reações dela ficam na fatia `automacoes` com `fica: { tipo: "zona", id }`.
+- **O motor** (`automacoesnucleo.ts`): `sincronizarZonas` reconcilia, depois de toda intenção que mudou algo, o modificador `zona:<zona>` nas luzes e o efeito `zona:<zona>:<token>` em `Estado.efeitos`; `eventosDoSistema` produz `token.entrouNaZona` e `token.saiuDaZona`; ação `zona.ativar`; condição `dentroDaZona`.
+- **Protocolo:** `zona.criar`, `zona.editar`, `zona.apagar` (`automacao.editar`) e os eventos `zona.alterada` e `zona.apagada` (só o mestre); o erro `zona_inexistente`.
+- **Guardar:** coleção `zonas` da tabela `entidades` (sem migração SQL); exportar e importar levam as zonas; duplicar a cena as copia; apagar a cena as apaga.
+- **A ferramenta "Zonas"** (tecla Z) e o painel da zona, só do mestre; o gancho de teste `zonas()` e `zonaDesenhando()`.
+
+**Decisões (assumido)**
+- (assumido) "Dentro" é o centro do token no polígono (borda conta); a luz acompanha quem a carrega ou o ponto onde está; na mochila não está em zona nenhuma.
+- (assumido) O efeito "enquanto dentro" não tem prazo e é **reconciliado** (compara o que deve valer com o que está lá), em vez de entrar e sair por evento: assim desligar, apagar, mover e trocar de cena nunca deixam efeito preso. O `ateSala` do efeito de token já era opcional; o id `zona:...` e a origem identificam o efeito da zona.
+- (assumido) `token.entrouNaZona` e `token.saiuDaZona` não saem quando a própria zona é criada, apagada, ligada ou desligada (só quando o token muda de lugar, nasce, some ou troca de cena). O token apagado "sai".
+- (assumido) A reação de uma zona só roda para o evento daquela zona e só atinge o que está dentro dela; `dentroDaZona` e `zona.ativar` sem `zona` usam a zona da própria reação. Zona desligada não reage nem passa na condição.
+- (assumido) Reações de modelo, cena ou mesa que ouvem `token.entrouNaZona` ou `token.saiuDaZona` agem, por padrão, no token do evento.
+- (assumido) Duplicar a cena copia as zonas e as reações delas (ids novos); apagar a zona apaga as reações dela (o Desfazer do Delete as recria).
+- (assumido) Os efeitos do painel são em metros mesmo com a unidade em pés; o campo vazio tira o efeito. A cena-cartão não aplica o limite de visão (a luz continua).
+- (assumido) A zona aparece para o mestre mesmo fora da ferramenta (fraca, só o contorno e o nome); a ferramenta a destaca. Fora do "ver como": o mestre vendo como jogador não a vê.
+- (assumido) Tecla Z para a ferramenta; Esc cancela o polígono (ao contrário das paredes, onde Esc encerra); Backspace tira o último ponto; os pontos encaixam na meia célula.
+- (assumido) Correção de um bug do 7b-1 que o lote achou: no zod o `.partial()` ainda aplica o padrão do campo ausente, então `reacao.editar` só com o nome zerava as condições (`se`) e religava a reação, e `ciclo.editar` zerava as `cenas`. As mudanças das três intenções (`ciclo.editar`, `reacao.editar`, `zona.editar`) agora não herdam os padrões. Teste de unidade em `zonas.test.ts`.
+
+**O que ficou para depois**
+- Editar as reações da zona (o editor do 7b-3; o painel só mostra a contagem); botões e liberação para jogadores; as campanhas de referência (7b-3); `som.tocar`.
+- Contagem de reações e nome da zona só no painel: a zona não aparece na lista de nada.

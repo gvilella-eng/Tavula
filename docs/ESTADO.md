@@ -3436,4 +3436,49 @@ Ver `docs/ROTEIRO-DE-TESTES.md`, "7b-1".
 
 ---
 
-## Próximo: 7b-2 (zonas) e 7b-3 (editor e campanhas de referência); depois o MCP (12) e os bugs que sobrarem (o C4, a tela inicial, o V10 ao V14 e o 7b-1 estão entregues)
+## Lote 7b-2 — Automações da mesa: as zonas (entregue, aguardando o roteiro manual)
+
+Detalhes em `docs/REDESIGN.md` ("7b-2 — como ficou"), `PROJETO.md` (4.11, "Zonas (7b-2)") e `docs/protocolo.md` ("Zonas (Lote 7b-2)").
+
+### O que foi entregue
+
+- A zona (polígono de uma cena, só do mestre) com efeitos enquanto dentro (luz × fator, luz ± metros, visão máxima), reconciliados pela sala: entram ao entrar, saem ao sair, desligar, apagar, mudar o desenho, trocar de cena.
+- Eventos `token.entrouNaZona` e `token.saiuDaZona`; ação `zona.ativar`; condição `dentroDaZona`; reações presas a zona (`fica: { tipo: "zona" }`).
+- Intenções `zona.criar|editar|apagar` (`automacao.editar`), eventos `zona.alterada` e `zona.apagada`; erro `zona_inexistente`.
+- A ferramenta "Zonas" (tecla Z) e o painel da zona; o atalho entrou em `atalhos.ts` (aparece na lista de Preferências e na dica do botão).
+- Guardar, exportar, importar, duplicar a cena e apagar a cena levam as zonas.
+
+### Como rodar
+
+`pnpm dev` como sempre. Sem migração SQL: as zonas moram na coleção `zonas` da tabela `entidades`; o banco da campanha real carrega igual, sem zona.
+
+### Verificação
+
+- Unidade: `packages/shared/src/zonas.test.ts` (ponto no polígono, borda e côncavo; entrar e sair uma vez só; efeito que entra e sai e nunca fica preso ao desligar, apagar, editar o desenho, trocar de cena ou apagar a cena; cena-cartão; `zona.ativar` e `dentroDaZona`; intenções e capacidade; duplicar a cena; sigilo; exportar e importar) e, em `apps/server`, o bloco "Armazenamento: zonas (7b-2)".
+- E2E novo: `zonas.spec.ts` (2 testes): o mestre desenha a zona com a ferramenta, edita o painel e Delete e Desfazer a apagam e trazem de volta; o token do jogador entra na zona, a luz da tocha diminui, sai e a luz volta, e o jogador nunca recebe a zona em nenhum frame.
+- Um teste de unidade antigo alterado: `automacoes.test.ts` (esperava que `zona.ativar` fosse recusada; agora a ação existe e só é recusada sem `ativa`).
+- Bug do 7b-1 corrigido: `reacao.editar` e `ciclo.editar` só com um campo zeravam `se`, `ativa` e `cenas` (padrões do zod no `.partial()`); `protocolo.ts` e teste em `zonas.test.ts`.
+
+### Decisões
+
+- (assumido) Ver `REDESIGN`, "7b-2 — como ficou", Decisões.
+
+### Desvios do plano
+
+- O efeito "enquanto dentro" é reconciliado em vez de ser aplicado e retirado por evento: é o que garante que nada fique preso. O formato do efeito de token não mudou (o `ateSala` já era opcional); o id `zona:...` o identifica.
+
+### Frágil / não verificado
+
+- A reconciliação (`sincronizarZonas`) roda dentro de `rodarAutomacoes` e `reagirAoSistema`, que o `processar` chama só quando a intenção emitiu evento. Mudança de posição que não emita evento de protocolo não atualiza os efeitos.
+- A zona e o efeito dela dependem de a luz e o token estarem no `Estado`: a mochila e o token fora da cena não contam como "dentro".
+- O sigilo: quem criar campo ou evento novo da zona precisa derrubá-lo em `visaoPara` e `eventoPara` e acrescentar o frame aos testes de sigilo (`zonas.test.ts`, `zonas.spec.ts`).
+- O painel da zona é largo e cobre o meio do mapa em 1280×720; a janela se move, mas o atalho Z abre sempre na posição padrão.
+- Os schemas de mudanças (`zona.editar`, e agora `ciclo.editar` e `reacao.editar`) não podem herdar os padrões do campo: o `.partial()` do zod os aplica e editar só o nome zeraria o resto.
+
+### Roteiro manual (pendente)
+
+Ver `docs/ROTEIRO-DE-TESTES.md`, "7b-2".
+
+---
+
+## Próximo: 7b-3 (editor e campanhas de referência); depois o MCP (12) e os bugs que sobrarem (o C4, a tela inicial, o V10 ao V14, o 7b-1 e o 7b-2 estão entregues)

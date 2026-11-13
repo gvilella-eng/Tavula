@@ -8,6 +8,7 @@ import { CompendioDaMesaSchema } from "./compendio.ts";
 import { CondicaoSchema } from "./condicoes.ts";
 import { DesenhoSchema } from "./desenho.ts";
 import { FichaSchema } from "./ficha.ts";
+import { MAXIMO_DE_ZONAS, ZonaSchema } from "./zonas.ts";
 
 export const PAPEIS = ["mestre", "jogador", "assistente"] as const;
 export const PapelSchema = z.enum(PAPEIS);
@@ -618,6 +619,11 @@ export const EstadoSchema = z.object({
    * dos tokens que vê, sem prazo nem origem. Entra na exportação (o prazo é no tempo da sala).
    */
   efeitos: z.array(EfeitoSchema).max(MAXIMO_DE_EFEITOS).optional(),
+  /**
+   * Zonas das cenas (7b-2): polígonos com efeitos "enquanto dentro" e reações. SÓ o mestre recebe (a visão do
+   * jogador não traz o campo, nem em evento); entra na exportação. Sem o campo não há zona (campanha antiga).
+   */
+  zonas: z.array(ZonaSchema).max(MAXIMO_DE_ZONAS).optional(),
 });
 export type Estado = z.infer<typeof EstadoSchema>;
 

@@ -36,6 +36,8 @@ import {
   RelogioSalaSchema,
   type Token,
   type Usuario,
+  type Zona,
+  ZonaSchema,
 } from "@tabletop/shared";
 
 /** Contadores de uso do dia (dia UTC). */
@@ -315,6 +317,7 @@ export class Armazenamento {
       ...this.carregarCombate(),
       ...this.carregarCompendio(),
       ...this.carregarAutomacoes(),
+      ...this.carregarZonas(),
       desenhos: this.carregarDesenhos(),
     };
   }
@@ -485,6 +488,26 @@ export class Armazenamento {
     return saida;
   }
 
+  /**
+   * As zonas (7b-2): uma coleção nova da tabela genérica `entidades`, sem migração (o banco antigo não tem a
+   * coleção = sem zona, e a campanha real carrega igual). Linha ilegível é ignorada; nunca derruba a carga.
+   */
+  private carregarZonas(): { zonas?: Zona[] } {
+    const zonas: Zona[] = [];
+    const linhas = this.sql
+      .exec<{ dados: string }>("SELECT dados FROM entidades WHERE colecao = 'zonas' ORDER BY rowid")
+      .toArray();
+    for (const l of linhas) {
+      try {
+        const r = ZonaSchema.safeParse(JSON.parse(l.dados));
+        if (r.success) zonas.push(r.data);
+      } catch {
+        // linha corrompida: a zona se perde, a campanha continua
+      }
+    }
+    return zonas.length > 0 ? { zonas } : {};
+  }
+
   private gravarAutomacoes(estado: Pick<Estado, "automacoes" | "efeitos">): void {
     if (estado.automacoes === undefined)
       this.sql.exec("DELETE FROM meta WHERE chave = 'automacoes'");
@@ -533,6 +556,7 @@ export class Armazenamento {
     for (const l of estado.luzes) this.gravarEntidade("luzes", l.id, l);
     for (const m of estado.modelos) this.gravarEntidade("modelos", m.id, m);
     for (const p of estado.pontos) this.gravarEntidade("pontos", p.id, p);
+    for (const z of estado.zonas ?? []) this.gravarEntidade("zonas", z.id, z);
     this.gravarRelogio(estado.relogio);
     this.gravarMeta("config", JSON.stringify(estado.config));
     this.gravarMeta("memoria_esquecida", JSON.stringify(estado.memoriaEsquecida ?? {}));
@@ -594,6 +618,16 @@ export class Armazenamento {
           break;
         case "fonte.apagada":
           this.sql.exec("DELETE FROM entidades WHERE colecao = 'luzes' AND id = ?", ev.dados.id);
+          break;
+        case "zona.alterada":
+          this.gravarEntidade("zonas", ev.dados.zona.id, ev.dados.zona);
+          break;
+        case "zona.apagada":
+          this.sql.exec("DELETE FROM entidades WHERE colecao = 'zonas' AND id = ?", ev.dados.id);
+          // As reações da zona vão com ela (o redutor já as tirou do estado).
+          if (estado.automacoes !== undefined) {
+            this.gravarMeta("automacoes", JSON.stringify(estado.automacoes));
+          }
           break;
         case "config.alterada":
           this.gravarMeta("config", JSON.stringify(estado.config));

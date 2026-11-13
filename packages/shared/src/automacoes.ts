@@ -23,12 +23,14 @@ export const DURACAO_PADRAO_S = 30;
 export const MAXIMO_DE_FASES_ATRASADAS = 50;
 export const MAXIMO_DO_REGISTRO = 30;
 
-/** Os eventos que a própria sala produz (4.11). `token.entrouNaZona` chega no 7b-2. */
+/** Os eventos que a própria sala produz (4.11). Os da zona (7b-2) levam a zona e o token. */
 export const EVENTOS_DO_SISTEMA = [
   "objeto.acendeu",
   "objeto.apagou",
   "turno.inicio",
   "cena.ativada",
+  "token.entrouNaZona",
+  "token.saiuDaZona",
 ] as const;
 
 /** Nome de evento: letras, números, ponto, hífen e sublinhado ("inspiracao", "objeto.apagou"). */
@@ -114,6 +116,8 @@ export const EventoDeAutomacaoSchema = z.object({
   objetoId: Id.optional(),
   modeloId: Id.optional(),
   tokenId: Id.optional(),
+  /** 7b-2: a zona de que o evento trata (`token.entrouNaZona` e `token.saiuDaZona`). */
+  zonaId: Id.optional(),
   /** O prazo padrão dos efeitos (vem da fase do ciclo). */
   duracaoS: Segundos.optional(),
 });
@@ -143,6 +147,11 @@ export const CondicaoDeReacaoSchema = z.discriminatedUnion("condicao", [
   z.object({ condicao: z.literal("tag"), tag: z.string().min(1).max(32) }),
   /** O alvo está numa destas cenas. */
   z.object({ condicao: z.literal("cena"), cenas: z.array(Id).min(1).max(100) }),
+  /**
+   * 7b-2: o alvo (o objeto, ou o token do evento) está dentro da zona. Sem `zona` vale a zona da própria
+   * reação (assumido). Zona desligada ou inexistente: não passa.
+   */
+  z.object({ condicao: z.literal("dentroDaZona"), zona: Id.optional() }),
 ]);
 export type CondicaoDeReacao = z.infer<typeof CondicaoDeReacaoSchema>;
 
@@ -166,7 +175,7 @@ export type AlvoDeToken = z.infer<typeof AlvoDeTokenSchema>;
 
 const Prazo = Segundos.optional();
 
-/** A lista FECHADA de ações (regra 1). `som.tocar` fica fora (decisão de 2026-11-13); `zona.ativar` é do 7b-2. */
+/** A lista FECHADA de ações (regra 1). `som.tocar` fica fora (decisão de 2026-11-13). */
 export const AcaoSchema = z.discriminatedUnion("acao", [
   /** Multiplica (`raioX`) e/ou soma (`raioSomaM`) o raio da luz por um prazo: um modificador, nunca o valor base. */
   z
@@ -216,6 +225,8 @@ export const AcaoSchema = z.discriminatedUnion("acao", [
   }),
   z.object({ acao: z.literal("token.mostrar"), alvo: AlvoDeTokenSchema.optional() }),
   z.object({ acao: z.literal("token.ocultar"), alvo: AlvoDeTokenSchema.optional() }),
+  /** 7b-2: liga ou desliga uma zona (sem `zona`, a da própria reação). Desligada, nada fica preso nela. */
+  z.object({ acao: z.literal("zona.ativar"), zona: Id.optional(), ativa: z.boolean() }),
   /** Dispara outro evento, já ou depois de `atrasoS` (no tempo da sala). Conta no limite de encadeamento. */
   z.object({
     acao: z.literal("evento.disparar"),
@@ -233,12 +244,13 @@ export type TipoDeAcaoDeAutomacao = Acao["acao"];
 // --- Reações ---------------------------------------------------------------------------------
 
 /**
- * A quem a reação está presa: a um modelo de objeto (toda instância herda), a uma cena ou à mesa toda.
- * As zonas vêm no 7b-2.
+ * A quem a reação está presa: a um modelo de objeto (toda instância herda), a uma cena, a uma zona (7b-2) ou
+ * à mesa toda.
  */
 export const FicaSchema = z.discriminatedUnion("tipo", [
   z.object({ tipo: z.literal("modelo"), id: Id }),
   z.object({ tipo: z.literal("cena"), id: Id }),
+  z.object({ tipo: z.literal("zona"), id: Id }),
   z.object({ tipo: z.literal("mesa") }),
 ]);
 export type Fica = z.infer<typeof FicaSchema>;
@@ -294,7 +306,8 @@ export function automacoesDe(estado: Pick<Estado, "automacoes">): Automacoes {
 
 /**
  * Um efeito temporário sobre um token (regra 2): um MODIFICADOR com prazo, nunca o valor base. O valor
- * final é a base mais os efeitos ativos. Hoje só o limite de visão (`visaoMaxM`, vale o menor); o efeito
+ * final é a base mais os efeitos ativos. Sem `ateSala` o efeito vale "enquanto dentro" de uma zona (7b-2,
+ * id `zona:<zona>:<token>`): a sala o põe ao entrar e o tira ao sair, desligar ou apagar. Hoje só o limite de visão (`visaoMaxM`, vale o menor); o efeito
  * de luz mora no próprio objeto (`ObjetoDeLuz.modificadores`, com `raioX` e `raioSomaM`).
  *
  * O jogador recebe só o que mexe no que ele vê: `alvo` e `efeito`, com um id opaco e SEM `ateSala` nem

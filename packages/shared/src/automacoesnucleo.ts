@@ -21,9 +21,18 @@ import {
 import type { FonteDeAleatoriedade } from "./dados.ts";
 import type { Estado, Modificador, ObjetoDeLuz, Token } from "./estado.ts";
 import { cenaDoObjeto, tokenDoPersonagem } from "./luz.ts";
+import { cenaEhCartao } from "./paredes.ts";
 import type { CodigoDeErro, Intencao } from "./protocolo.ts";
 import { formatarDuracaoCurta, restanteDoObjeto, tempoDaSala } from "./relogio.ts";
 import { comHistorico, type ErroDaSala, type NovoEvento } from "./tochas.ts";
+import {
+  entradasESaidas,
+  objetoNaZona,
+  PREFIXO_DE_ZONA,
+  tokenNaZona,
+  type Zona,
+  zonasDe,
+} from "./zonas.ts";
 
 // ---------------------------------------------------------------------------------------------
 // O motor das automações (Lote 7b-1, seção 4.11). Puro: não grava nem envia nada. Recebe o estado vivo e
@@ -55,8 +64,16 @@ const MAXIMO_DE_MODIFICADORES = 20;
 
 /** O objeto de luz da automação: a cena que ele ocupa, ou `null` (guardado na mochila). */
 type Escopo = readonly string[] | null;
-/** De quem a reação trata: o objeto do evento ou da instância (`id`); `null`: não há objeto. */
-type AlvoDaReacao = { objetoId: string | null };
+/**
+ * De quem a reação trata: o objeto do evento ou da instância (`id`); `null`: não há objeto. Reação de zona
+ * (7b-2) traz a zona (as ações só atingem o que está dentro dela) e, nos eventos `token.entrouNaZona` e
+ * `token.saiuDaZona`, o token do evento.
+ */
+type AlvoDaReacao = { objetoId: string | null; zonaId?: string; tokenId?: string };
+
+function zonaDe(m: Motor, id: string | undefined): Zona | undefined {
+  return id === undefined ? undefined : zonasDe(m.ctx.atual()).find((z) => z.id === id);
+}
 
 const arred = (n: number) => String(Math.round(n * 100) / 100).replace(".", ",");
 
@@ -155,9 +172,16 @@ function tagsDe(m: Motor, o: Pick<ObjetoDeLuz, "modeloId">): readonly string[] {
  * O escopo de cenas em que a reação vale para este evento (regra 4), ou `"nunca"` quando a reação, presa
  * a uma cena, não está entre as do evento.
  */
-function escopoDaReacao(r: Reacao, ev: EventoDeAutomacao): Escopo | "nunca" {
-  if (r.fica.tipo !== "cena") return ev.cenas;
-  const id = r.fica.id;
+function escopoDaReacao(m: Motor, r: Reacao, ev: EventoDeAutomacao): Escopo | "nunca" {
+  let id: string;
+  if (r.fica.tipo === "cena") id = r.fica.id;
+  else if (r.fica.tipo === "zona") {
+    // A reação de uma zona não responde ao evento de outra zona (o nome do evento é o mesmo).
+    if (ev.zonaId !== undefined && ev.zonaId !== r.fica.id) return "nunca";
+    const zona = zonaDe(m, r.fica.id);
+    if (!zona?.ativa) return "nunca";
+    id = zona.cenaId;
+  } else return ev.cenas;
   return ev.cenas === null || ev.cenas.includes(id) ? [id] : "nunca";
 }
 
@@ -179,10 +203,21 @@ function alvosDaReacao(m: Motor, r: Reacao, ev: EventoDeAutomacao, cenas: Escopo
       )
       .map((l) => ({ objetoId: l.id }));
   }
-  return [{ objetoId: ev.objetoId ?? null }];
+  const doEvento = {
+    objetoId: ev.objetoId ?? null,
+    ...(ev.tokenId !== undefined && ev.zonaId !== undefined ? { tokenId: ev.tokenId } : {}),
+  };
+  if (r.fica.tipo === "zona") return [{ ...doEvento, zonaId: r.fica.id }];
+  return [doEvento];
 }
 
-function condicoesValem(m: Motor, r: Reacao, alvo: AlvoDaReacao, cenas: Escopo): boolean {
+function condicoesValem(
+  m: Motor,
+  r: Reacao,
+  alvo: AlvoDaReacao,
+  cenas: Escopo,
+  ev: EventoDeAutomacao,
+): boolean {
   const e = m.ctx.atual();
   const objeto = alvo.objetoId === null ? undefined : e.luzes.find((l) => l.id === alvo.objetoId);
   for (const c of r.se) {
@@ -190,6 +225,16 @@ function condicoesValem(m: Motor, r: Reacao, alvo: AlvoDaReacao, cenas: Escopo):
       if (!m.sortear(c.valor)) return false;
     } else if (c.condicao === "tag") {
       if (!objeto || !tagsDe(m, objeto).includes(c.tag)) return false;
+    } else if (c.condicao === "dentroDaZona") {
+      const zona = zonaDe(m, c.zona ?? (r.fica.tipo === "zona" ? r.fica.id : undefined));
+      if (!zona?.ativa) return false;
+      if (objeto) {
+        if (!objetoNaZona(objeto, zona, e)) return false;
+      } else {
+        const tokenId = alvo.tokenId ?? ev.tokenId;
+        const token = tokenId === undefined ? undefined : e.tokens.find((t) => t.id === tokenId);
+        if (!token || !tokenNaZona(token, zona)) return false;
+      }
     } else {
       const cena = objeto ? cenaDe(m, objeto) : cenas?.length === 1 ? cenas[0] : undefined;
       if (cena === undefined || !c.cenas.includes(cena)) return false;
@@ -204,11 +249,16 @@ function objetosAlvo(
   ctx: AlvoDaReacao,
   cenas: Escopo,
 ): ObjetoDeLuz[] {
-  const luzes = m.ctx.atual().luzes;
+  const e = m.ctx.atual();
+  const luzes = e.luzes;
+  // Reação de zona: só o que está dentro dela.
+  const zona = zonaDe(m, ctx.zonaId);
+  const dentro = (l: ObjetoDeLuz) => zona === undefined || objetoNaZona(l, zona, e);
   if (alvo !== undefined) {
     return luzes.filter(
       (l) =>
         naEscopo(m, l, cenas) &&
+        dentro(l) &&
         (alvo.modeloId === undefined || l.modeloId === alvo.modeloId) &&
         (alvo.tag === undefined || tagsDe(m, l).includes(alvo.tag)),
     );
@@ -217,7 +267,7 @@ function objetosAlvo(
     const o = luzes.find((l) => l.id === ctx.objetoId);
     return o ? [o] : [];
   }
-  return luzes.filter((l) => naEscopo(m, l, cenas));
+  return luzes.filter((l) => naEscopo(m, l, cenas) && dentro(l));
 }
 
 function tokensAlvo(
@@ -227,10 +277,17 @@ function tokensAlvo(
   cenas: Escopo,
 ): Token[] {
   const e = m.ctx.atual();
-  const nasCenas = (t: Token) => cenas === null || cenas.includes(t.cenaId);
+  const zona = zonaDe(m, ctx.zonaId);
+  const nasCenas = (t: Token) =>
+    (cenas === null || cenas.includes(t.cenaId)) && (zona === undefined || tokenNaZona(t, zona));
   if (alvo?.ids !== undefined) {
     const ids = alvo.ids;
     return e.tokens.filter((t) => ids.includes(t.id) && nasCenas(t));
+  }
+  if (ctx.tokenId !== undefined) {
+    // O token do evento (entrou ou saiu): para quem saiu, a zona já não o tem dentro; vale mesmo assim.
+    const id = ctx.tokenId;
+    return e.tokens.filter((t) => t.id === id && (cenas === null || cenas.includes(t.cenaId)));
   }
   if (ctx.objetoId !== null) {
     const o = e.luzes.find((l) => l.id === ctx.objetoId);
@@ -422,6 +479,17 @@ function aplicarAcao(
       }
       return;
     }
+    case "zona.ativar": {
+      const zona = zonaDe(m, acao.zona ?? alvo.zonaId);
+      if (!zona) {
+        m.anotar(`${r.nome ?? r.id}: a zona da ação não existe mais.`);
+        return;
+      }
+      if (zona.ativa === acao.ativa) return;
+      if (!m.contar()) return;
+      m.ctx.emitir({ tipo: "zona.alterada", dados: { zona: { ...zona, ativa: acao.ativa } } });
+      return;
+    }
     case "evento.disparar": {
       if (!m.contar()) return;
       encadeados.push({
@@ -452,11 +520,11 @@ function executar(m: Motor, ev: EventoDeAutomacao, profundidade: number): void {
   const encadeados: Encadeado[] = [];
   for (const r of m.slice.reacoes) {
     if (!r.ativa || r.ao !== ev.nome) continue;
-    const cenas = escopoDaReacao(r, ev);
+    const cenas = escopoDaReacao(m, r, ev);
     if (cenas === "nunca") continue;
     for (const alvo of alvosDaReacao(m, r, ev, cenas)) {
       if (m.cortado) return;
-      if (!condicoesValem(m, r, alvo, cenas)) continue;
+      if (!condicoesValem(m, r, alvo, cenas, ev)) continue;
       for (const [i, acao] of r.fazer.entries()) {
         aplicarAcao(m, r, i, acao, alvo, ev, cenas, encadeados);
       }
@@ -489,7 +557,9 @@ function executar(m: Motor, ev: EventoDeAutomacao, profundidade: number): void {
  * - `objeto.acendeu`: o objeto passou a estar aceso (inclusive o que nasceu aceso);
  * - `objeto.apagou`: o objeto aceso apagou, foi consumido ou sumiu;
  * - `cena.ativada`: o grupo foi para outra cena;
- * - `turno.inicio`: a vez passou para outra entrada (ou a rodada virou).
+ * - `turno.inicio`: a vez passou para outra entrada (ou a rodada virou);
+ * - `token.entrouNaZona` e `token.saiuDaZona` (7b-2): o centro do token passou a estar (ou deixou de estar) dentro
+ *   de uma zona ligada; vale para mover, colocar, apagar, trocar de cena e tudo o mais, uma vez só por mudança.
  * O escopo é a cena do objeto, da cena nova ou do token da vez.
  */
 export function eventosDoSistema(antes: Estado, depois: Estado): EventoDeAutomacao[] {
@@ -524,6 +594,15 @@ export function eventosDoSistema(antes: Estado, depois: Estado): EventoDeAutomac
   if (depois.cenaAtivaId !== antes.cenaAtivaId) {
     saida.push({ nome: "cena.ativada", cenas: [depois.cenaAtivaId], origem: "sistema" });
   }
+  const { entrou, saiu } = entradasESaidas(antes, depois);
+  for (const [nome, lista] of [
+    ["token.entrouNaZona", entrou],
+    ["token.saiuDaZona", saiu],
+  ] as const) {
+    for (const { zona, tokenId } of lista) {
+      saida.push({ nome, cenas: [zona.cenaId], origem: "sistema", tokenId, zonaId: zona.id });
+    }
+  }
   const c = depois.combate;
   if (
     c?.atualId !== undefined &&
@@ -542,6 +621,79 @@ export function eventosDoSistema(antes: Estado, depois: Estado): EventoDeAutomac
     });
   }
   return saida;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Os efeitos "enquanto dentro" das zonas (7b-2)
+// ---------------------------------------------------------------------------------------------
+
+const porId = (a: { id: string }, b: { id: string }) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+
+/**
+ * Põe o estado em dia com as zonas: cada luz dentro de uma zona ligada leva o modificador dela
+ * (`zona:<zona>`, sem prazo), cada token dentro leva o limite de visão (`zona:<zona>:<token>`). Quem saiu, ou
+ * cuja zona foi desligada, apagada ou de outra cena, perde o efeito. É uma RECONCILIAÇÃO (compara o que deve
+ * valer com o que está lá), então rodar duas vezes não muda nada e nada fica preso. Cena-cartão não leva
+ * os efeitos de visão (não há visão limitada nela).
+ */
+function sincronizarZonas(m: Motor): void {
+  const e = m.ctx.atual();
+  const zonas = zonasDe(e);
+  const sala = m.sala;
+  const comEfeito = (z: Zona) => z.ativa && Object.values(z.efeitos).some((v) => v !== undefined);
+  // 1. As luzes.
+  for (const l of e.luzes) {
+    const atuais = l.modificadores.filter((x) => x.id.startsWith(PREFIXO_DE_ZONA));
+    const desejados: Modificador[] = [];
+    const nomes: string[] = [];
+    for (const z of zonas) {
+      const { luzRaioX, luzSomaM } = z.efeitos;
+      if (!comEfeito(z) || (luzRaioX === undefined && luzSomaM === undefined)) continue;
+      if (!objetoNaZona(l, z, e)) continue;
+      desejados.push({
+        id: `${PREFIXO_DE_ZONA}${z.id}`,
+        raioX: luzRaioX ?? 1,
+        ...(luzSomaM === undefined ? {} : { raioSomaM: luzSomaM }),
+        origem: "automacao",
+      });
+      nomes.push(z.nome);
+    }
+    if (atuais.length === 0 && desejados.length === 0) continue;
+    const outros = l.modificadores.filter((x) => !x.id.startsWith(PREFIXO_DE_ZONA));
+    const cabem = desejados.slice(0, Math.max(0, MAXIMO_DE_MODIFICADORES - outros.length));
+    if (JSON.stringify([...atuais].sort(porId)) === JSON.stringify([...cabem].sort(porId)))
+      continue;
+    const tinha = new Set(atuais.map((x) => x.id));
+    const entrou = cabem.some((x) => !tinha.has(x.id));
+    const texto = entrou
+      ? `Entrou em zona: raio da luz mudou (${nomes.join(", ")})`
+      : "Saiu da zona: raio da luz voltou";
+    gravarObjeto(
+      m,
+      comHistorico({ ...l, modificadores: [...outros, ...cabem] }, sala, texto.slice(0, 200)),
+    );
+  }
+  // 2. A visão dos tokens.
+  const desejados: Efeito[] = [];
+  for (const z of zonas) {
+    if (!comEfeito(z) || z.efeitos.visaoMaxM === undefined) continue;
+    const cena = e.cenas.find((c) => c.id === z.cenaId);
+    if (cena === undefined || cenaEhCartao(cena)) continue;
+    for (const t of e.tokens) {
+      if (!tokenNaZona(t, z)) continue;
+      desejados.push({
+        id: `${PREFIXO_DE_ZONA}${z.id}:${t.id}`,
+        alvo: { tipo: "token", id: t.id },
+        efeito: { visaoMaxM: z.efeitos.visaoMaxM },
+        origem: `Zona ${z.nome}`.slice(0, 80),
+      });
+    }
+  }
+  const atuais = m.efeitos.filter((x) => x.id.startsWith(PREFIXO_DE_ZONA));
+  if (JSON.stringify([...atuais].sort(porId)) === JSON.stringify([...desejados].sort(porId)))
+    return;
+  const outros = m.efeitos.filter((x) => !x.id.startsWith(PREFIXO_DE_ZONA));
+  m.efeitos = [...outros, ...desejados.slice(0, Math.max(0, MAXIMO_DE_EFEITOS - outros.length))];
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -572,6 +724,7 @@ export function rodarAutomacoes(ctx: ContextoDoMotor, antes?: Estado): void {
     for (const s of eventosDoSistema(antes, inicial)) executar(m, s, 0);
   }
   if (!ctx.atual().relogio.pausada) avancar(m);
+  sincronizarZonas(m);
   m.fechar();
 }
 
@@ -584,6 +737,7 @@ export function avancarAutomacoes(ctx: ContextoDoMotor): void {
 export function reagirAoSistema(ctx: ContextoDoMotor, antes: Estado): void {
   const m = new Motor(ctx);
   for (const s of eventosDoSistema(antes, ctx.atual())) executar(m, s, 0);
+  sincronizarZonas(m);
   m.fechar();
 }
 
@@ -800,6 +954,11 @@ function problemaDaFica(e: Estado, r: Reacao): { erro: ErroDaSala } | null {
   } else if (r.fica.tipo === "cena") {
     const id = r.fica.id;
     if (!e.cenas.some((x) => x.id === id)) return erro("cena_inexistente", "Cena não encontrada.");
+  } else if (r.fica.tipo === "zona") {
+    const id = r.fica.id;
+    if (!zonasDe(e).some((x) => x.id === id)) {
+      return erro("zona_inexistente", "Zona não encontrada.");
+    }
   }
   return null;
 }

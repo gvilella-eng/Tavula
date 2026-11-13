@@ -138,6 +138,7 @@ import {
   tocharGuardar,
   tocharPosar,
 } from "./tochas.ts";
+import { MAXIMO_DE_ZONAS, type Zona, ZonaSchema, zonasDe } from "./zonas.ts";
 
 export type ErroDaSala = { codigo: CodigoDeErro; mensagem: string };
 
@@ -329,6 +330,7 @@ export function lerExportacao(
     compendio,
     automacoes,
     efeitos,
+    zonas,
   } = r.data.dados;
   const ids = new Set(usuarios.map((u) => u.id));
   if (ids.size !== usuarios.length) return { ok: false, motivo: "ids de usuário repetidos" };
@@ -469,6 +471,15 @@ export function lerExportacao(
     }
     if (new Set(automacoes.reacoes.map((x) => x.id)).size !== automacoes.reacoes.length) {
       return { ok: false, motivo: "ids de reação repetidos" };
+    }
+  }
+  if (zonas) {
+    if (new Set(zonas.map((z) => z.id)).size !== zonas.length) {
+      return { ok: false, motivo: "ids de zona repetidos" };
+    }
+    for (const z of zonas) {
+      if (!idsDeCenas.has(z.cenaId))
+        return { ok: false, motivo: `zona em cena desconhecida: ${z.id}` };
     }
   }
   if (efeitos && new Set(efeitos.map((x) => x.id)).size !== efeitos.length) {
@@ -778,6 +789,35 @@ export function reduzir(estado: Estado, evento: EventoSala): Estado {
       return { ...base, automacoes: evento.dados.automacoes };
     case "efeitos.alterados":
       return { ...base, efeitos: evento.dados.efeitos };
+    case "zona.alterada": {
+      const { zona } = evento.dados;
+      const lista = base.zonas ?? [];
+      return {
+        ...base,
+        zonas: lista.some((z) => z.id === zona.id)
+          ? lista.map((z) => (z.id === zona.id ? zona : z))
+          : [...lista, zona],
+      };
+    }
+    case "zona.apagada": {
+      const { id } = evento.dados;
+      const zonas = (base.zonas ?? []).filter((z) => z.id !== id);
+      const { zonas: _antigas, ...semZonas } = base;
+      // As reações da zona vão com ela.
+      const automacoes = base.automacoes
+        ? {
+            ...base.automacoes,
+            reacoes: base.automacoes.reacoes.filter(
+              (r) => !(r.fica.tipo === "zona" && r.fica.id === id),
+            ),
+          }
+        : undefined;
+      return {
+        ...semZonas,
+        ...(zonas.length > 0 ? { zonas } : {}),
+        ...(automacoes ? { automacoes } : {}),
+      };
+    }
     case "compendio.alterado": {
       const { compendio: _antigo, ...semCompendio } = base;
       return evento.dados.compendio === null
@@ -1722,6 +1762,40 @@ function processarIntencao(
           const parede: Parede = { ...p, id: `${novoId.slice(0, 50)}-p${i + 1}`, cenaId: novoId };
           emitir({ tipo: "parede.criada", dados: { parede } });
         });
+      // 7b-2 (assumido): as zonas da cena vão para a cópia, com as reações que carregam.
+      const copiaDeZona = new Map<string, string>();
+      zonasDe(estado)
+        .filter((z) => z.cenaId === cenaId)
+        .forEach((z, i) => {
+          const zona: Zona = { ...z, id: `${novoId.slice(0, 50)}-z${i + 1}`, cenaId: novoId };
+          copiaDeZona.set(z.id, zona.id);
+          emitir({ tipo: "zona.alterada", dados: { zona } });
+        });
+      if (copiaDeZona.size > 0 && estado.automacoes) {
+        const reacoes = estado.automacoes.reacoes.flatMap((r, i) => {
+          const novaZona = r.fica.tipo === "zona" ? copiaDeZona.get(r.fica.id) : undefined;
+          return novaZona === undefined
+            ? []
+            : [
+                {
+                  ...r,
+                  id: `${novoId.slice(0, 40)}-r${i + 1}`,
+                  fica: { tipo: "zona" as const, id: novaZona },
+                },
+              ];
+        });
+        if (reacoes.length > 0) {
+          emitir({
+            tipo: "automacoes.alterado",
+            dados: {
+              automacoes: {
+                ...estado.automacoes,
+                reacoes: [...estado.automacoes.reacoes, ...reacoes].slice(0, 300),
+              },
+            },
+          });
+        }
+      }
       // As luzes fixas vão para a cena nova; as presas a token seguem o token copiado. O que está em
       // ponto, mão ou mochila não é copiado (os pontos vão vazios).
       const novoDe = new Map(copiados.map((t, i) => [t.id, novos[i]?.id ?? ""]));
@@ -1769,6 +1843,9 @@ function processarIntencao(
       limparCombate(new Set(tokensDaCena.map((t) => t.id)));
       for (const p of estado.paredes.filter((x) => x.cenaId === cenaId)) {
         emitir({ tipo: "parede.apagada", dados: { id: p.id } });
+      }
+      for (const z of zonasDe(estado).filter((x) => x.cenaId === cenaId)) {
+        emitir({ tipo: "zona.apagada", dados: { id: z.id } });
       }
       const pontosDaCena = new Set(
         estado.pontos.filter((p) => p.cenaId === cenaId).map((p) => p.id),
@@ -2287,6 +2364,44 @@ function processarIntencao(
       return "erro" in saida ? { ok: false, erro: saida.erro } : aplicado(saida.snapshotPara ?? []);
     }
 
+    case "zona.criar": {
+      const { zona } = intencao.dados;
+      if (!estado.cenas.some((c) => c.id === zona.cenaId)) {
+        return recusa("cena_inexistente", SEM_CENA);
+      }
+      if (zonasDe(estado).some((z) => z.id === zona.id)) {
+        return recusa("dados_invalidos", "Já existe uma zona com esse id.");
+      }
+      if (zonasDe(estado).length >= MAXIMO_DE_ZONAS) {
+        return recusa("dados_invalidos", "Zonas demais.");
+      }
+      emitir({ tipo: "zona.alterada", dados: { zona } });
+      return aplicado();
+    }
+    case "zona.editar": {
+      const { id, mudancas } = intencao.dados;
+      const atual = zonasDe(estado).find((z) => z.id === id);
+      if (!atual) return recusa("zona_inexistente", "Zona não encontrada.");
+      const definidas = Object.fromEntries(
+        Object.entries(mudancas).filter(([, v]) => v !== undefined),
+      );
+      const juntada = ZonaSchema.safeParse({ ...atual, ...definidas, id, cenaId: atual.cenaId });
+      if (!juntada.success) {
+        return recusa("dados_invalidos", juntada.error.issues[0]?.message ?? "Zona inválida.");
+      }
+      if (JSON.stringify(juntada.data) === JSON.stringify(atual)) return aplicado();
+      emitir({ tipo: "zona.alterada", dados: { zona: juntada.data } });
+      return aplicado();
+    }
+    case "zona.apagar": {
+      const { id } = intencao.dados;
+      if (!zonasDe(estado).some((z) => z.id === id)) {
+        return recusa("zona_inexistente", "Zona não encontrada.");
+      }
+      emitir({ tipo: "zona.apagada", dados: { id } });
+      return aplicado();
+    }
+
     case "compendio.definir": {
       const { compendio } = intencao.dados;
       if (compendio === null) {
@@ -2489,6 +2604,7 @@ export function visaoPara(estado: Estado, usuario: Visao, agoraMs?: number): Est
     memoriaEsquecida: _esquecida,
     automacoes: _automacoes,
     efeitos: _efeitos,
+    zonas: _zonas,
     ...resto
   } = semPendencias;
   const efeitosDele = efeitosParaJogador(
@@ -2627,7 +2743,9 @@ export function eventoPara(
       // V1: o marco é só do mestre; o jogador não recebe nada.
       return mestre ? evento : null;
     case "automacoes.alterado":
-      // 7b-1 (regra 7): a definição e o controle das automações são só do mestre.
+    case "zona.alterada":
+    case "zona.apagada":
+      // 7b-1 e 7b-2 (regra 7): a definição das automações e as zonas (forma, nome, efeitos) são só do mestre.
       return mestre ? evento : null;
     case "efeitos.alterados": {
       if (mestre) return evento;

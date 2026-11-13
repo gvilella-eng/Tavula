@@ -806,7 +806,7 @@ delegável: o jogador que a mande recebe `sem_permissao`.
 | `ciclo.apagar` | `{ id }` | Tira o ciclo e a execução |
 | `ciclo.disparar` | `{ id }` | Dispara a **fase seguinte** agora e o ciclo continua dali (pula para o começo dela; pausado, fica pausado nela) |
 | `ciclo.pausar` / `ciclo.retomar` | `{ id }` | Pausa só o ciclo: **as tochas continuam queimando**. Retomar volta de onde parou. Pausar a mesa (`mesa.pausar`) congela os dois |
-| `reacao.criar` | `{ reacao }` | `{ id, nome?, ativa, fica, ao, se[], fazer[] }`. `fica`: `{ tipo: "modelo", id }`, `{ tipo: "cena", id }` ou `{ tipo: "mesa" }` (o modelo e a cena precisam existir) |
+| `reacao.criar` | `{ reacao }` | `{ id, nome?, ativa, fica, ao, se[], fazer[] }`. `fica`: `{ tipo: "modelo", id }`, `{ tipo: "cena", id }`, `{ tipo: "zona", id }` (7b-2) ou `{ tipo: "mesa" }` (o modelo, a cena e a zona precisam existir; zona inexistente é `zona_inexistente`) |
 | `reacao.editar` | `{ id, mudancas }` | Junta e confere a reação inteira |
 | `reacao.apagar` | `{ id }` | |
 | `evento.disparar` | `{ evento, cenaId? }` | Dispara um evento agora (manual), em todas as cenas ou só em `cenaId` |
@@ -814,12 +814,12 @@ delegável: o jogador que a mande recebe `sem_permissao`.
 **Ações** (lista fechada, `acao` + campos; qualquer outra é recusada pelo schema, **antes** de chegar ao motor): `luz.modificar`
 (`raioX?`, `raioSomaM?`, `porS?`, `alvo?`), `objeto.apagar` (`chance?`, `penalidadeS?`, `alvo?`), `objeto.ajustarTempo` (`deltaS`, `alvo?`),
 `visao.limitar` (`alcanceM`, `porS?`, `alvo?`), `chat.anunciar` (`texto`, `para`: `todos` ou `mestre`), `token.mostrar`,
-`token.ocultar` (`alvo?`) e `evento.disparar` (`evento`, `atrasoS?`). **Condições** (`condicao`): `chance` (`valor`), `tag`
-(`tag`) e `cena` (`cenas`). Sem `porS`, o prazo é o `duracaoS` da fase do ciclo; sem ele, 30 s. `som.tocar` não existe
-(fora do 7b) e `zona.ativar` chega no 7b-2.
+`token.ocultar` (`alvo?`), `zona.ativar` (`zona?`, `ativa`; 7b-2) e `evento.disparar` (`evento`, `atrasoS?`). **Condições** (`condicao`): `chance`
+(`valor`), `tag` (`tag`), `cena` (`cenas`) e `dentroDaZona` (`zona?`; 7b-2). Sem `porS`, o prazo é o `duracaoS` da fase do ciclo; sem ele, 30 s.
+`som.tocar` não existe (fora do 7b).
 
 **Eventos** que as reações ouvem: os das fases dos ciclos (nome livre), o manual, e os do sistema `objeto.acendeu`,
-`objeto.apagou`, `turno.inicio` e `cena.ativada`. Tudo roda **na sala**: depois de cada intenção que mudou algo e quando o alarme
+`objeto.apagou`, `turno.inicio`, `cena.ativada`, `token.entrouNaZona` e `token.saiuDaZona` (7b-2). Tudo roda **na sala**: depois de cada intenção que mudou algo e quando o alarme
 acorda (`processarSistema`). O encadeamento (reação que dispara evento) corta na profundidade 5.
 
 **Sigilo (nota de segurança).** A definição de uma automação nunca chega a um jogador, nem em snapshot nem em evento: `visaoPara`
@@ -831,6 +831,39 @@ token que controla (`efeitos.alterados`, sem prazo nem origem). Um teste confere
 **Guardar.** No SQLite, as chaves `automacoes` e `efeitos` da tabela `meta` (sem migração). A exportação leva `automacoes` e
 `efeitos` (campos opcionais; a versão do arquivo continua 13); a importação aceita ainda a forma enxuta (`ciclos` no topo,
 `reacoes` dentro do modelo) e o arquivo antigo carrega sem automação.
+
+### Zonas (Lote 7b-2)
+
+Uma zona é um polígono de uma cena, **só do mestre**, com efeitos "enquanto dentro" e as reações que carrega (`fica: { tipo: "zona", id }`).
+Toda intenção abaixo exige `automacao.editar` (não delegável): o jogador que a mande recebe `sem_permissao`.
+
+| Intenção | `dados` | Efeito |
+|---|---|---|
+| `zona.criar` | `{ zona }` | `{ id, cenaId, nome, pontos[3..64 de {x,y} em metros], ativa (padrão true), efeitos }`. `efeitos`: `luzRaioX?` (0,1 a 5), `luzSomaM?` (−100 a 100) e `visaoMaxM?` (0,5 a 1000). Recusa: cena inexistente (`cena_inexistente`), id repetido, mais de 200 zonas. Serve também para o Desfazer (o mesmo id volta) |
+| `zona.editar` | `{ id, mudancas }` | `mudancas`: `nome`, `pontos`, `ativa` e/ou `efeitos` (o que vier substitui; `efeitos` vai inteiro). Junta e confere a zona inteira. Zona inexistente: `zona_inexistente` |
+| `zona.apagar` | `{ id }` | Tira a zona **e as reações dela**; os efeitos que ela pôs saem junto |
+
+**Eventos:** `zona.alterada { zona }` (upsert: criar e editar) e `zona.apagada { id }`. **Só o mestre os recebe.**
+
+**Dentro** (assumido): o centro do token dentro do polígono, na cena da zona (a borda e os vértices contam); para a luz, a posição de quem a
+carrega (o token, ou a mão dele) ou a do ponto onde ela está; na mochila, ela não está em zona nenhuma. Zona desligada não tem ninguém dentro.
+
+**Efeito enquanto dentro** (sem prazo): a sala **reconcilia** o estado depois de toda intenção que mudou algo. A luz dentro leva o modificador
+`zona:<zona>` (`raioX` e `raioSomaM`, `origem: "automacao"`); o token dentro leva o efeito `zona:<zona>:<token>` em `Estado.efeitos` (`visaoMaxM`, sem
+`ateSala`). Sair, desligar a zona, apagá-la, mudar o desenho, trocar o token de cena ou apagar a cena tira o efeito na hora: nada fica preso
+(comparar o que deve valer com o que está lá). A **cena-cartão** não aplica o limite de visão.
+
+**Eventos do sistema** `token.entrouNaZona` e `token.saiuDaZona` saem da diferença entre o estado de antes e o de depois de qualquer intenção: soltar
+(`token.soltar`), as setas, "Levar grupo", colocar, apagar e restaurar token, trocar de cena. Uma vez por mudança, por par zona e token. Criar, apagar, ligar ou
+desligar a zona **não** é entrar nem sair. O evento leva a zona e o token; a reação de uma zona só responde ao evento dela.
+
+**Sigilo (nota de segurança).** A forma, o nome, os efeitos e as reações da zona nunca chegam ao jogador, nem em snapshot (`visaoPara` tira `zonas`) nem em evento
+(`eventoPara` derruba `zona.alterada` e `zona.apagada`). Ele recebe só o resultado: a luz menor (`fonte.editada` com `fatorDeRaio` e `somaDeRaioM`, sem a lista de
+modificadores nem o histórico) e o limite de visão do token que controla (`efeitos.alterados`, resumido, sem id de zona, prazo nem origem). Os testes de unidade e o E2E
+conferem que nenhum frame do jogador traz a zona.
+
+**Guardar.** Coleção nova `zonas` da tabela genérica `entidades` do SQLite (sem migração: o banco antigo não a tem e carrega sem zona). A exportação leva `zonas` (campo
+opcional; a versão do arquivo continua 13) e a importação confere ids únicos e cenas conhecidas. Duplicar a cena leva as zonas dela, com as reações (ids novos).
 
 ### Contador de uso
 
