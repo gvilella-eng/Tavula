@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { lerRota } from "./rotas";
+import { caminhoDaFicha, lerRota } from "./rotas";
 
 describe("lerRota", () => {
   it("a raiz e qualquer caminho desconhecido são a tela inicial", () => {
@@ -20,5 +20,24 @@ describe("lerRota", () => {
   it("id inválido vira a mesa com id nulo (a tela mostra a mensagem)", () => {
     expect(lerRota("/m/nao-e-id")).toMatchObject({ tipo: "mesa", id: null });
     expect(lerRota("/m/%E0%A4%A")).toMatchObject({ tipo: "mesa", id: null });
+  });
+
+  it("/m/<id>/ficha/<fichaId> é a ficha na janela própria (V9)", () => {
+    expect(lerRota("/m/k7m2-qx9p-4tdn/ficha/pers-darion")).toEqual({
+      tipo: "mesa",
+      id: "k7m2-qx9p-4tdn",
+      bruto: "k7m2-qx9p-4tdn",
+      fichaId: "pers-darion",
+    });
+    expect(lerRota("/m/k7m2-qx9p-4tdn/ficha/pers-darion/")).toMatchObject({
+      fichaId: "pers-darion",
+    });
+    expect(lerRota("/m/k7m2-qx9p-4tdn/ficha/a%20b")).toMatchObject({ fichaId: "a b" });
+    expect(lerRota("/m/k7m2-qx9p-4tdn/ficha")).toEqual({ tipo: "inicio" });
+  });
+
+  it("caminhoDaFicha e lerRota são inversas", () => {
+    const r = lerRota(caminhoDaFicha("k7m2-qx9p-4tdn", "pers x/y"));
+    expect(r).toMatchObject({ id: "k7m2-qx9p-4tdn", fichaId: "pers x/y" });
   });
 });

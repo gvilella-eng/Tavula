@@ -3012,6 +3012,54 @@ Detalhes em `docs/REDESIGN.md` ("V8 — como ficou"). O Vilella deixou o lote se
 5. Com o Bestiário aberto, arraste uma magia do compêndio: a fita Conjuração acende; solte nela.
 6. Entre como jogador num NPC sem magias: sem a fita Conjuração.
 
+## Ajustes V9 — A ficha numa janela própria do navegador (entregue, aguardando o roteiro manual)
+
+Detalhes em `docs/REDESIGN.md` ("V9 — como ficou"). O Vilella aprovou o plano e deixou o lote sem ninguém para perguntar: o que o brief não dizia foi assumido (marcado).
+
+### O que foi entregue
+
+- **Ícone "Abrir em janela própria"** no cabeçalho de toda ficha (PJ e NPC), antes do minimizar; some minimizada.
+- O clique abre uma **janela do navegador** (`popup`) do tamanho da ficha; clicar de novo traz a mesma janela. Tamanho e posição ficam em `tabletop:pref:janela-ficha:<mesa>:<ficha>`.
+- A rota **`/m/<id>/ficha/<fichaId>`** mostra só a ficha, com a própria conexão (mesma sessão); sem sessão aparece a entrada e depois a ficha. Título da aba "<nome> — Távola". Ficha apagada: mensagem e "Fechar esta janela".
+- **Sem presença a mais** (a sala junta por usuário), sem tour e sem efeito de entrada.
+- Na principal, a ficha fora **sai da pilha**, a lista de Fichas mostra **"em outra janela"** (clique traz a janela) e fechar a janela ou "Voltar para a mesa" devolve a ficha. Coordenação por Web Locks e `BroadcastChannel` por mesa.
+- O "Ficha de" do compêndio inclui as fichas em outra janela.
+- Pop-up bloqueado: toast "O navegador bloqueou a janela. Libere as janelas pop-up para este endereço."
+
+### Como rodar
+
+- `pnpm verify` (uma vez). Prints: `$env:PRINTS_DIR="<pasta>"; pnpm --filter @tabletop/e2e prints v9`.
+
+### Verificação
+
+- Unidade: `rotas.test.ts` (a rota da ficha e `caminhoDaFicha`).
+- E2E novo: `ficha-v9.spec.ts` (o ícone abre a janela; só a ficha na página; o PV mudado nela chega ao mestre e à lista; a rolagem vai ao chat da principal; a ficha sai da pilha e a marca aparece; clicar no item não abre outra janela; fechar a janela e "Voltar para a mesa" devolvem a ficha; recarregar a principal mantém a ficha fora; a presença não duplica (uma bolinha por pessoa); o mestre abre a dele e o descanso avisa no toast da janela; pop-up bloqueado; rota direta sem sessão mostra a entrada; ficha inexistente).
+- Nenhum E2E antigo foi alterado.
+- Nenhuma mudança na sala, no protocolo, no estado nem migração.
+
+### Decisões
+
+- (assumido) Ver `REDESIGN`, "V9 — como ficou", Decisões.
+
+### Desvios do plano
+
+- Nenhum.
+
+### Frágil / não verificado
+
+- O navegador pode não respeitar `left`/`top` (outro monitor, monitor desligado): a janela abre onde ele quiser. Não verificado em dois monitores de verdade.
+- Arrastar entre janelas não funciona (compêndio para a ficha de fora; ficha de fora para o mapa).
+- A coordenação depende de Web Locks (precisa de endereço seguro: `localhost`, `127.0.0.1` ou HTTPS); sem eles vale só o aviso do `BroadcastChannel`, e uma janela que morre sem avisar fica marcada "fora" até o próximo clique no item (que descobre e limpa a marca).
+- A janela da ficha tem o próprio gerente de arquivos sobre o mesmo cache do navegador (OPFS); dois downloads do mesmo arquivo ao mesmo tempo não foram exercitados.
+- Só o Chrome foi testado (Firefox e Safari tratam `popup` e Web Locks de outro jeito).
+- Não verificado com a campanha real.
+
+### Roteiro manual (pendente)
+
+Ver `docs/ROTEIRO-DE-TESTES.md`, "V9".
+
 ---
 
-## Próximo: bugs que sobrarem e acabamentos da tela inicial e contas; depois 7b e 12 (o V8 está entregue)
+---
+
+## Próximo: bugs que sobrarem e acabamentos da tela inicial e contas; depois 7b e 12 (o V9 está entregue)

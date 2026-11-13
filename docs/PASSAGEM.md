@@ -653,6 +653,16 @@ Continua em aberto, por ser decisão e não erro de doc: `ficha.verOutras` (seç
 - Frágil: o bloco colado depende de `.cartao-colado > .modelo-bloco` (o cartão de cima perde a borda de baixo); mexer no CSS do `.modelo-bloco` pode abrir uma fresta entre os dois.
 - Suposições: ver `REDESIGN`, "V6 — como ficou".
 
+## V9 (2026-11-12): a ficha numa janela própria do navegador
+
+- Onde mexer: `ficha/foraDaMesa.ts` (abrir a janela, medida guardada, Web Locks e `BroadcastChannel`; `useAcompanharFichasFora` na `Mesa`, `useFichasFora` na lista de Fichas e no compêndio), `ficha/FichaEmJanelaPropria.tsx` (a página da rota: `useSala` própria, gerente de arquivos, toast), `ficha/JanelaDaFicha.tsx` (props `aoAbrirEmJanela` e `propria`), `rotas.ts` (`caminhoDaFicha`, `Rota.fichaId`), `App.tsx` e o fim do `styles.css` (`.ficha-propria*`, `.selo-fora`).
+- Testids: `ficha-abrir-em-janela`, `ficha-voltar-para-mesa`, `ficha-propria`, `ficha-propria-pagina`, `ficha-propria-sumiu`, `ficha-propria-fechar`, `ficha-fora-<id>`.
+- A sala não mudou: a presença já é por usuário. Se algum dia ela passar a contar conexões, a janela da ficha vira presença a mais.
+- Frágil: a janela da ficha repete a montagem do gerente de arquivos da `Mesa` (`FichaEmJanelaPropria`); mudança em um dos dois precisa ir no outro.
+- Frágil: o `abrirFicha` da `Mesa` passa por `abrirOuTrazerFicha`; todo caminho novo de abrir ficha precisa usá-lo (senão abre uma segunda cópia na mesa).
+- Frágil: o navegador pode ignorar `left`/`top`; arrastar entre janelas não funciona; Web Locks só em endereço seguro.
+- Suposições: ver `REDESIGN`, "V9 — como ficou".
+
 ## V8 (2026-11-12): ficha de NPC com fitas, sem moldura e em duas colunas
 
 - Onde mexer: `ficha/BlocoDoNpc.tsx` (`pagina`: "bestiario" ou "conjuracao"; as fitas, o teclado e o alvo da magia solta), `ficha/JanelaDaFicha.tsx` (a aba `magias` da janela guarda a Conjuração do NPC; `npcMostraConjuracao` decide se a fita existe), `ficha/ConjuracaoDoNpc.tsx` e o fim de `ficha.css` (`npc-barra`, `npc-fitas`, `npc-col-esq`/`npc-col-dir`, `npc-conj-circulos`).

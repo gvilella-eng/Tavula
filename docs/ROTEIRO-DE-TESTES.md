@@ -61,6 +61,25 @@ as mãos. Cada item diz **o que fazer** e, depois de "→", **o que deve acontec
 5. Faça o tour do mestre (~10 passos) e o do jogador (~6) → cada passo aponta para a opção certa e os textos falam do
    que existe hoje.
 
+## V9 — A ficha numa janela própria
+1. Abra uma ficha (PJ e depois NPC) → no cabeçalho, antes do minimizar, o ícone de janela ("Abrir em janela própria").
+   Minimize a ficha: o ícone some.
+2. Clique nele → abre uma janela do navegador só com a ficha, do mesmo tamanho. O título da aba é
+   "<nome> — Távola". Não há mapa, painéis, topo nem tour.
+3. **Arraste a janela para o segundo monitor**, redimensione, feche e abra de novo → ela volta no mesmo lugar e com
+   o mesmo tamanho. (O navegador pode ignorar a posição se o monitor mudou: anote.)
+4. Na janela da ficha: mude o PV, role uma perícia, conjure uma magia (o menu de espaço), faça um descanso → tudo
+   funciona; a rolagem aparece no chat da mesa e o PV muda para os outros.
+5. Na mesa: a ficha sumiu da tela; em Fichas o item mostra "em outra janela". Clique nele → a janela da ficha vem
+   para a frente.
+6. O topo continua com uma bolinha por pessoa (a janela da ficha não é uma pessoa a mais).
+7. Feche a janela, ou clique no ícone "Voltar para a mesa" dela → a ficha volta para a tela da mesa e a marca some.
+8. Abra a janela da ficha e **recarregue a mesa** → a lista continua marcando "em outra janela".
+9. Bloqueie os pop-ups para o endereço e clique no ícone → o aviso "O navegador bloqueou a janela. Libere as
+   janelas pop-up para este endereço." e a ficha fica na mesa.
+10. Limite conhecido: arrastar uma magia do compêndio para a ficha que está na janela própria (e arrastar dela para o
+    mapa) não funciona. Use o botão "Adicionar" do compêndio (o "Ficha de" inclui a ficha de fora).
+
 ## V5 — Paredes e portas
 1. Ferramenta Paredes: desenhe e veja os pontos de meia célula, 9 por quadrado (cantos, meios das arestas e
    centro) → o traço encaixa neles, inclusive na diagonal. O Alt solta o encaixe.

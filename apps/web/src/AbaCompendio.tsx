@@ -40,6 +40,7 @@ import {
   TextoDaMagia,
 } from "./CartaoDaMagia";
 import { TEXTO_DO_EXEMPLO_SRD } from "./exemploSrd";
+import { useFichasFora } from "./ficha/foraDaMesa";
 import { comecarArrastoDoCompendio } from "./ficha/ordem";
 import { useFichasNaPilha } from "./janelas/pilha";
 import { type ResultadoDoExemplo, useCompendio } from "./useCompendio";
@@ -221,7 +222,10 @@ function useAlvoDaFicha(
   meus: readonly Personagem[],
 ): [Personagem | undefined, (id: string) => void] {
   const abertas = useFichasNaPilha();
-  const emFoco = [...abertas].reverse().find((id) => meus.some((p) => p.id === id)) ?? null;
+  // V9: as fichas em janela própria saem da pilha mas continuam alvo (a mudança passa pela sala): vêm depois das da mesa.
+  const fora = useFichasFora();
+  const emFoco =
+    [...fora, ...abertas].reverse().find((id) => meus.some((p) => p.id === id)) ?? null;
   const [escolha, setEscolha] = useState<string | null>(null);
   // Focou outra ficha: a escolha à mão acaba (ajuste durante o render, sem efeito).
   const [focoVisto, setFocoVisto] = useState(emFoco);

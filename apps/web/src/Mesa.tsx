@@ -61,8 +61,15 @@ import { type CamadaDeTrabalho, camadaDoNovoToken } from "./camadas";
 import { ATRASO_DA_DICA } from "./Dica";
 import { EstadoDaMesa } from "./EstadoDaMesa";
 import { FaixaDeCenas, type PedirImagem } from "./FaixaDeCenas";
+import {
+  abrirFichaEmJanela,
+  TEXTO_DO_POPUP_BLOQUEADO,
+  trazerFichaDeFora,
+  useAcompanharFichasFora,
+  useFichasFora,
+} from "./ficha/foraDaMesa";
 import { JanelaDaFicha } from "./ficha/JanelaDaFicha";
-import { useJanelasDeFicha } from "./ficha/janelas";
+import { type AbaDaFicha, useJanelasDeFicha } from "./ficha/janelas";
 import { useJanelasDeHandout } from "./handouts";
 import { JanelaDoHandout } from "./JanelaDoHandout";
 import { useLarguraDoPainel } from "./larguraDoPainel";
@@ -303,6 +310,27 @@ export function Mesa({
     fechar: fecharFicha,
     atualizar: atualizarFicha,
   } = useJanelasDeFicha();
+  // V9: as fichas que estão numa janela própria do navegador saem da pilha desta tela; abrir uma delas traz a janela.
+  useAcompanharFichasFora(mesa.id);
+  const fichasFora = useFichasFora();
+  const abrirOuTrazerFicha = useCallback(
+    (personagemId: string, aba?: AbaDaFicha) => {
+      if (fichasFora.has(personagemId) && trazerFichaDeFora(mesa.id, personagemId)) return;
+      abrirFicha(personagemId, aba);
+    },
+    [fichasFora, mesa.id, abrirFicha],
+  );
+  const abrirFichaEmOutraJanela = useCallback(
+    (personagemId: string) => {
+      const el = document.querySelector<HTMLElement>(
+        `[data-testid="janela-ficha"][data-personagem-id="${personagemId}"]`,
+      );
+      const r = el?.getBoundingClientRect();
+      const medida = { largura: r?.width ?? 880, altura: r?.height ?? 700 };
+      if (!abrirFichaEmJanela(mesa.id, personagemId, medida)) avisar(TEXTO_DO_POPUP_BLOQUEADO);
+    },
+    [mesa.id, avisar],
+  );
 
   // Os handouts abertos em janelas (V3): os que a pessoa abre e os que o mestre manda abrir ("Mostrar agora").
   const {
@@ -1083,7 +1111,7 @@ export function Mesa({
                 enviar={enviar}
                 imagens={imagens}
                 versaoDasImagens={versaoDosProntos}
-                aoAbrirFicha={abrirFicha}
+                aoAbrirFicha={abrirOuTrazerFicha}
                 aoAbrirHandout={abrirHandout}
               />
             ),
@@ -1527,7 +1555,7 @@ export function Mesa({
             })}
             {janelasDeFicha.map((j, cascata) => {
               const personagem = estado.personagens.find((p) => p.id === j.personagemId);
-              if (!personagem) return null;
+              if (!personagem || fichasFora.has(j.personagemId)) return null;
               return (
                 <JanelaDaFicha
                   key={j.personagemId}
@@ -1548,6 +1576,7 @@ export function Mesa({
                   avisar={avisar}
                   aoFechar={() => fecharFicha(j.personagemId)}
                   aoMudar={(mudancas) => atualizarFicha(j.personagemId, mudancas)}
+                  aoAbrirEmJanela={() => abrirFichaEmOutraJanela(j.personagemId)}
                 />
               );
             })}

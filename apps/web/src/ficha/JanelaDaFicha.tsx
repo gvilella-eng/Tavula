@@ -16,7 +16,7 @@ import {
   VANTAGENS,
   type Vantagem,
 } from "@tabletop/shared";
-import { BedDouble, BookOpen, Coffee, Settings } from "lucide-react";
+import { AppWindow, BedDouble, BookOpen, Coffee, Settings, Undo2 } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { Fontes } from "../assets/fontes";
 import type { GerenteDeAssets } from "../assets/gerente";
@@ -94,6 +94,13 @@ type Props = {
   avisar: (texto: string) => void;
   aoFechar: () => void;
   aoMudar: (mudancas: Partial<JanelaDeFicha>) => void;
+  /** V9: o ícone "Abrir em janela própria" do cabeçalho (só na mesa; a janela própria não o tem). */
+  aoAbrirEmJanela?: () => void;
+  /**
+   * V9: a ficha na janela própria do navegador. Em vez da `Janela` flutuante, ela ocupa a página inteira, com o
+   * cabeçalho e o ícone "Voltar para a mesa".
+   */
+  propria?: { aoVoltar: () => void };
 };
 
 /** Deslocamento de cada ficha a mais aberta (cascata) e a folga da primeira. */
@@ -151,6 +158,8 @@ export function JanelaDaFicha({
   avisar,
   aoFechar,
   aoMudar,
+  aoAbrirEmJanela,
+  propria,
 }: Props) {
   const editar = podeEditarPersonagem(p, eu);
   const temFicha = p.ficha !== undefined;
@@ -328,6 +337,303 @@ export function JanelaDaFicha({
     </>
   );
 
+  const acoesDaFicha = (
+    <>
+      {npc ? (
+        <BotaoComDica
+          className="botao-icone"
+          testid="npc-configurar"
+          nome="Configurar"
+          aria-label="Configurar"
+          aria-pressed={aba === "configurar"}
+          onClick={() => aoMudar({ aba: aba === "configurar" ? "principal" : "configurar" })}
+        >
+          <Settings size={16} />
+        </BotaoComDica>
+      ) : temFicha && editar ? (
+        <>
+          <BotaoComDica
+            className="botao-icone"
+            testid="descanso-curto"
+            nome="Descanso curto"
+            aria-label="Descanso curto"
+            onClick={() => setDescanso("curto")}
+          >
+            <Coffee size={16} />
+          </BotaoComDica>
+          <BotaoComDica
+            className="botao-icone"
+            testid="descanso-longo"
+            nome="Descanso longo"
+            aria-label="Descanso longo"
+            onClick={() => setDescanso("longo")}
+          >
+            <BedDouble size={16} />
+          </BotaoComDica>
+        </>
+      ) : null}
+      {aoAbrirEmJanela && (
+        <BotaoComDica
+          className="botao-icone"
+          testid="ficha-abrir-em-janela"
+          nome="Abrir em janela própria"
+          aria-label="Abrir em janela própria"
+          onClick={aoAbrirEmJanela}
+        >
+          <AppWindow size={16} />
+        </BotaoComDica>
+      )}
+    </>
+  );
+  const conteudo = (
+    <div
+      className="fl-raiz"
+      ref={raiz}
+      data-pele={aparencia}
+      data-estreita={estreita}
+      data-testid="ficha-raiz"
+    >
+      {temFicha && !npc && !estreita && (
+        <header className="fl-cab fl-cab-larga" data-testid="ficha-cabecalho">
+          {fitas}
+          <div className="fl-cab-nome">{nomeEditavel(false)}</div>
+          <span className="fl-sr" data-testid="janela-ficha-resumo">
+            {resumoDaFicha(p)}
+          </span>
+          {modos}
+        </header>
+      )}
+      {temFicha && !npc && estreita && (
+        <header className="fl-cab fl-cab-estreito" data-testid="ficha-cabecalho">
+          <div className="fl-cab-estreito-topo">
+            <span className="fl-resumo-id" data-testid="janela-ficha-resumo">
+              {resumoDaFicha(p)}
+            </span>
+            {fitas}
+          </div>
+          <div className="fl-cab-estreito-linha">
+            <div className="fl-cab-estreito-nome">{nomeEditavel(true)}</div>
+            <div className="fl-cx fl-mini-caixa">
+              <span className="fl-lbl">CA</span>
+              <CampoDeCa {...propsDaAba} className="fl-ca-mini" />
+            </div>
+            <div className="fl-cx fl-mini-caixa">
+              <span className="fl-lbl">Inic.</span>
+              <BotaoDeIniciativa d={d} rolador={rolador} ordem={propsDaAba.ordem} />
+            </div>
+            <div className="fl-cx fl-mini-caixa">
+              <span className="fl-lbl">Desloc.</span>
+              <CampoDeDeslocamento {...propsDaAba} className="fl-desloc-mini" />
+            </div>
+          </div>
+          {modos}
+          <div className="fl-pv-estreito">
+            <ControlesDePv {...propsDaAba} />
+            <span className="fl-barra-barra">/</span>
+            <CampoNumero
+              testid={`pv-max-${p.id}`}
+              rotulo="PV máximos"
+              valor={ficha.pvMax}
+              desabilitado={!propsDaAba.editar}
+              className="fl-in fl-fn fl-pv-max-mini"
+              aoMudar={(n) => alterar([{ caminho: "pvMax", valor: n }])}
+            />
+            <BarraDePv ficha={ficha} />
+            <ControlesDePvTemporario {...propsDaAba} />
+          </div>
+        </header>
+      )}
+      {!temFicha && (
+        <div className="fl-cab fl-cab-sem-ficha">
+          <div className="fl-cab-nome">{nomeEditavel(false)}</div>
+          {fitas}
+        </div>
+      )}
+
+      {descanso && (
+        <div className="fh-confirmar" role="alertdialog" data-testid="descanso-confirmar">
+          <p>
+            {descanso === "curto" ? (
+              <>
+                <strong>Descanso curto:</strong> os recursos de recarga curta voltam ao máximo e os
+                espaços de pacto são recuperados.
+              </>
+            ) : (
+              <>
+                <strong>Descanso longo:</strong> PV ao máximo, metade dos dados de vida, todos os
+                espaços de magia e os recursos de recarga curta ou longa; zera os testes contra a
+                morte e os PV temporários.
+              </>
+            )}
+          </p>
+          <button type="button" data-testid="descanso-confirmar-sim" onClick={confirmarDescanso}>
+            Confirmar
+          </button>
+          <button
+            type="button"
+            data-testid="descanso-confirmar-nao"
+            onClick={() => setDescanso(null)}
+          >
+            Cancelar
+          </button>
+        </div>
+      )}
+      {avisoDaOrdem && (
+        <p className="nota fh-aviso" role="status" data-testid="ficha-aviso-ordem">
+          {avisoDaOrdem}
+        </p>
+      )}
+
+      <div className="fl-corpo" ref={corpo} data-testid={`ficha-painel-${aba}`}>
+        {npc && (aba === "principal" || aba === "magias") && (
+          <BlocoDoNpc
+            {...propsDaAba}
+            pagina={aba === "magias" ? "conjuracao" : "bestiario"}
+            aoMudarPagina={(pagina) =>
+              aoMudar({ aba: pagina === "conjuracao" ? "magias" : "principal" })
+            }
+            aoMudarNome={(nome) => enviar("personagem.editar", { id: p.id, mudancas: { nome } })}
+            modos={modos}
+          />
+        )}
+        {temFicha && !npc && !estreita && (
+          <div className="fl-cab-campos" data-testid="ficha-identidade">
+            <div className="fl-campo-id fl-campo-classe">
+              <ClasseENivel {...propsDaAba} />
+              <span className="fl-lbl">Classe e nível</span>
+            </div>
+            <CamposDeIdentidade {...propsDaAba} />
+          </div>
+        )}
+        {!temFicha && (
+          <p className="nota fh-oculta" data-testid="ficha-oculta">
+            Você não vê a ficha deste personagem (o mestre pode liberar em "Ver fichas dos outros").
+          </p>
+        )}
+        {aba === "principal" && !npc && (
+          <>
+            <AbaPrincipal {...propsDaAba} />
+            {temFicha && <PainelExtra {...propsDaAba} />}
+          </>
+        )}
+        {aba === "magias" && !npc && <AbaMagias {...propsDaAba} />}
+        {aba === "historia" && <AbaHistoria {...propsDaAba} />}
+        {aba === "configurar" && (
+          <div className="fl-configurar">
+            <EditorDoItem
+              personagem={p}
+              estado={estado}
+              eu={eu}
+              enviar={enviar}
+              imagens={imagens}
+              versaoDasImagens={versaoDasImagens}
+              pedirImagem={pedirImagem}
+              cenaVista={cenaVista}
+              aoFechar={aoFechar}
+              exportar={() => {
+                enviarAgora();
+                return exportarFicha(p, fontes);
+              }}
+              importar={async (arquivo) => {
+                const lida = await lerFichaDoArquivo(arquivo);
+                if (!lida.ok) return lida.motivo;
+                // o arquivo de uma ficha de antes do V4b não diz como se mostra: fica como estava
+                const escolha = lida.ficha.apresentacao ?? ficha.apresentacao;
+                alterar([
+                  {
+                    caminho: "",
+                    valor: escolha ? { ...lida.ficha, apresentacao: escolha } : lida.ficha,
+                  },
+                ]);
+                enviarAgora();
+                return null;
+              }}
+            />
+            {temFicha && (
+              <Caixa moldura className="fl-conf-caixa" testid="ficha-apresentacao-escolha">
+                <Secao>Ficha de</Secao>
+                <div className="fl-conf-linha">
+                  <fieldset className="fl-modos" aria-label="Ficha de">
+                    {APRESENTACOES.map((a: Apresentacao) => (
+                      <button
+                        key={a}
+                        type="button"
+                        className="fl-seg fl-seg-grande"
+                        data-testid={`apresentacao-${a}`}
+                        aria-pressed={(npc ? "npc" : "personagem") === a}
+                        disabled={!editar}
+                        onClick={() => alterar([{ caminho: "apresentacao", valor: a }])}
+                      >
+                        {a === "npc" ? "NPC" : "Personagem"}
+                      </button>
+                    ))}
+                  </fieldset>
+                  <span className="fl-dica fl-conf-dica">
+                    Só muda como a ficha se mostra: o bloco de monstro ou a ficha de personagem. Os
+                    dados são os mesmos.
+                  </span>
+                </div>
+              </Caixa>
+            )}
+            <Caixa moldura className="fl-conf-caixa" testid="ficha-aparencia-escolha">
+              <Secao>Aparência da ficha</Secao>
+              <div className="fl-conf-linha">
+                <fieldset className="fl-modos" aria-label="Aparência da ficha">
+                  {APARENCIAS.map((a: AparenciaDaFicha) => (
+                    <button
+                      key={a}
+                      type="button"
+                      className="fl-seg fl-seg-grande"
+                      data-testid={`aparencia-${a}`}
+                      aria-pressed={aparencia === a}
+                      onClick={() => gravarAparencia(a)}
+                    >
+                      {ROTULO_DA_APARENCIA[a]}
+                    </button>
+                  ))}
+                </fieldset>
+                <span className="fl-dica fl-conf-dica">
+                  Livro é o padrão. Clássica é a ficha tradicional. O arranjo é o mesmo. Vale só
+                  neste navegador.
+                </span>
+              </div>
+            </Caixa>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+  const classeDaFicha = npc ? "janela-ficha janela-npc" : "janela-ficha";
+  const dados = { "data-personagem-id": p.id, "data-aba": aba };
+
+  if (propria) {
+    return (
+      <div className="ficha-propria" data-testid="ficha-propria">
+        <header className="janela-cabecalho ficha-propria-cab" data-testid="janela-ficha-cabecalho">
+          <div className="janela-titulo">{titulo}</div>
+          {acoesDaFicha}
+          <BotaoComDica
+            className="botao-icone pequeno"
+            testid="ficha-voltar-para-mesa"
+            nome="Voltar para a mesa"
+            aria-label="Voltar para a mesa"
+            onClick={propria.aoVoltar}
+          >
+            <Undo2 size={16} />
+          </BotaoComDica>
+        </header>
+        <div
+          className={`janela-miolo ${classeDaFicha}`}
+          data-testid="janela-ficha"
+          data-propria="true"
+          {...dados}
+        >
+          <div className="janela-conteudo">{conteudo}</div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <Janela
       id={idDaJanelaDaFicha(p.id)}
@@ -337,8 +643,8 @@ export function JanelaDaFicha({
       testidDoFechar="janela-ficha-fechar"
       testidDoRedimensionar="janela-ficha-redimensionar"
       rotuloDoFechar="Fechar a ficha"
-      dados={{ "data-personagem-id": p.id, "data-aba": aba }}
-      classe={npc ? "janela-ficha janela-npc" : "janela-ficha"}
+      dados={dados}
+      classe={classeDaFicha}
       corpoLivre
       camadaAlta
       redimensionar="ambos"
@@ -358,259 +664,9 @@ export function JanelaDaFicha({
       aoFechar={aoFechar}
       cabecalho={titulo}
       cabecalhoMinimizado={titulo}
-      acoes={
-        npc ? (
-          <BotaoComDica
-            className="botao-icone"
-            testid="npc-configurar"
-            nome="Configurar"
-            aria-label="Configurar"
-            aria-pressed={aba === "configurar"}
-            onClick={() => aoMudar({ aba: aba === "configurar" ? "principal" : "configurar" })}
-          >
-            <Settings size={16} />
-          </BotaoComDica>
-        ) : temFicha && editar ? (
-          <>
-            <BotaoComDica
-              className="botao-icone"
-              testid="descanso-curto"
-              nome="Descanso curto"
-              aria-label="Descanso curto"
-              onClick={() => setDescanso("curto")}
-            >
-              <Coffee size={16} />
-            </BotaoComDica>
-            <BotaoComDica
-              className="botao-icone"
-              testid="descanso-longo"
-              nome="Descanso longo"
-              aria-label="Descanso longo"
-              onClick={() => setDescanso("longo")}
-            >
-              <BedDouble size={16} />
-            </BotaoComDica>
-          </>
-        ) : null
-      }
+      acoes={acoesDaFicha}
     >
-      <div
-        className="fl-raiz"
-        ref={raiz}
-        data-pele={aparencia}
-        data-estreita={estreita}
-        data-testid="ficha-raiz"
-      >
-        {temFicha && !npc && !estreita && (
-          <header className="fl-cab fl-cab-larga" data-testid="ficha-cabecalho">
-            {fitas}
-            <div className="fl-cab-nome">{nomeEditavel(false)}</div>
-            <span className="fl-sr" data-testid="janela-ficha-resumo">
-              {resumoDaFicha(p)}
-            </span>
-            {modos}
-          </header>
-        )}
-        {temFicha && !npc && estreita && (
-          <header className="fl-cab fl-cab-estreito" data-testid="ficha-cabecalho">
-            <div className="fl-cab-estreito-topo">
-              <span className="fl-resumo-id" data-testid="janela-ficha-resumo">
-                {resumoDaFicha(p)}
-              </span>
-              {fitas}
-            </div>
-            <div className="fl-cab-estreito-linha">
-              <div className="fl-cab-estreito-nome">{nomeEditavel(true)}</div>
-              <div className="fl-cx fl-mini-caixa">
-                <span className="fl-lbl">CA</span>
-                <CampoDeCa {...propsDaAba} className="fl-ca-mini" />
-              </div>
-              <div className="fl-cx fl-mini-caixa">
-                <span className="fl-lbl">Inic.</span>
-                <BotaoDeIniciativa d={d} rolador={rolador} ordem={propsDaAba.ordem} />
-              </div>
-              <div className="fl-cx fl-mini-caixa">
-                <span className="fl-lbl">Desloc.</span>
-                <CampoDeDeslocamento {...propsDaAba} className="fl-desloc-mini" />
-              </div>
-            </div>
-            {modos}
-            <div className="fl-pv-estreito">
-              <ControlesDePv {...propsDaAba} />
-              <span className="fl-barra-barra">/</span>
-              <CampoNumero
-                testid={`pv-max-${p.id}`}
-                rotulo="PV máximos"
-                valor={ficha.pvMax}
-                desabilitado={!propsDaAba.editar}
-                className="fl-in fl-fn fl-pv-max-mini"
-                aoMudar={(n) => alterar([{ caminho: "pvMax", valor: n }])}
-              />
-              <BarraDePv ficha={ficha} />
-              <ControlesDePvTemporario {...propsDaAba} />
-            </div>
-          </header>
-        )}
-        {!temFicha && (
-          <div className="fl-cab fl-cab-sem-ficha">
-            <div className="fl-cab-nome">{nomeEditavel(false)}</div>
-            {fitas}
-          </div>
-        )}
-
-        {descanso && (
-          <div className="fh-confirmar" role="alertdialog" data-testid="descanso-confirmar">
-            <p>
-              {descanso === "curto" ? (
-                <>
-                  <strong>Descanso curto:</strong> os recursos de recarga curta voltam ao máximo e
-                  os espaços de pacto são recuperados.
-                </>
-              ) : (
-                <>
-                  <strong>Descanso longo:</strong> PV ao máximo, metade dos dados de vida, todos os
-                  espaços de magia e os recursos de recarga curta ou longa; zera os testes contra a
-                  morte e os PV temporários.
-                </>
-              )}
-            </p>
-            <button type="button" data-testid="descanso-confirmar-sim" onClick={confirmarDescanso}>
-              Confirmar
-            </button>
-            <button
-              type="button"
-              data-testid="descanso-confirmar-nao"
-              onClick={() => setDescanso(null)}
-            >
-              Cancelar
-            </button>
-          </div>
-        )}
-        {avisoDaOrdem && (
-          <p className="nota fh-aviso" role="status" data-testid="ficha-aviso-ordem">
-            {avisoDaOrdem}
-          </p>
-        )}
-
-        <div className="fl-corpo" ref={corpo} data-testid={`ficha-painel-${aba}`}>
-          {npc && (aba === "principal" || aba === "magias") && (
-            <BlocoDoNpc
-              {...propsDaAba}
-              pagina={aba === "magias" ? "conjuracao" : "bestiario"}
-              aoMudarPagina={(pagina) =>
-                aoMudar({ aba: pagina === "conjuracao" ? "magias" : "principal" })
-              }
-              aoMudarNome={(nome) => enviar("personagem.editar", { id: p.id, mudancas: { nome } })}
-              modos={modos}
-            />
-          )}
-          {temFicha && !npc && !estreita && (
-            <div className="fl-cab-campos" data-testid="ficha-identidade">
-              <div className="fl-campo-id fl-campo-classe">
-                <ClasseENivel {...propsDaAba} />
-                <span className="fl-lbl">Classe e nível</span>
-              </div>
-              <CamposDeIdentidade {...propsDaAba} />
-            </div>
-          )}
-          {!temFicha && (
-            <p className="nota fh-oculta" data-testid="ficha-oculta">
-              Você não vê a ficha deste personagem (o mestre pode liberar em "Ver fichas dos
-              outros").
-            </p>
-          )}
-          {aba === "principal" && !npc && (
-            <>
-              <AbaPrincipal {...propsDaAba} />
-              {temFicha && <PainelExtra {...propsDaAba} />}
-            </>
-          )}
-          {aba === "magias" && !npc && <AbaMagias {...propsDaAba} />}
-          {aba === "historia" && <AbaHistoria {...propsDaAba} />}
-          {aba === "configurar" && (
-            <div className="fl-configurar">
-              <EditorDoItem
-                personagem={p}
-                estado={estado}
-                eu={eu}
-                enviar={enviar}
-                imagens={imagens}
-                versaoDasImagens={versaoDasImagens}
-                pedirImagem={pedirImagem}
-                cenaVista={cenaVista}
-                aoFechar={aoFechar}
-                exportar={() => {
-                  enviarAgora();
-                  return exportarFicha(p, fontes);
-                }}
-                importar={async (arquivo) => {
-                  const lida = await lerFichaDoArquivo(arquivo);
-                  if (!lida.ok) return lida.motivo;
-                  // o arquivo de uma ficha de antes do V4b não diz como se mostra: fica como estava
-                  const escolha = lida.ficha.apresentacao ?? ficha.apresentacao;
-                  alterar([
-                    {
-                      caminho: "",
-                      valor: escolha ? { ...lida.ficha, apresentacao: escolha } : lida.ficha,
-                    },
-                  ]);
-                  enviarAgora();
-                  return null;
-                }}
-              />
-              {temFicha && (
-                <Caixa moldura className="fl-conf-caixa" testid="ficha-apresentacao-escolha">
-                  <Secao>Ficha de</Secao>
-                  <div className="fl-conf-linha">
-                    <fieldset className="fl-modos" aria-label="Ficha de">
-                      {APRESENTACOES.map((a: Apresentacao) => (
-                        <button
-                          key={a}
-                          type="button"
-                          className="fl-seg fl-seg-grande"
-                          data-testid={`apresentacao-${a}`}
-                          aria-pressed={(npc ? "npc" : "personagem") === a}
-                          disabled={!editar}
-                          onClick={() => alterar([{ caminho: "apresentacao", valor: a }])}
-                        >
-                          {a === "npc" ? "NPC" : "Personagem"}
-                        </button>
-                      ))}
-                    </fieldset>
-                    <span className="fl-dica fl-conf-dica">
-                      Só muda como a ficha se mostra: o bloco de monstro ou a ficha de personagem.
-                      Os dados são os mesmos.
-                    </span>
-                  </div>
-                </Caixa>
-              )}
-              <Caixa moldura className="fl-conf-caixa" testid="ficha-aparencia-escolha">
-                <Secao>Aparência da ficha</Secao>
-                <div className="fl-conf-linha">
-                  <fieldset className="fl-modos" aria-label="Aparência da ficha">
-                    {APARENCIAS.map((a: AparenciaDaFicha) => (
-                      <button
-                        key={a}
-                        type="button"
-                        className="fl-seg fl-seg-grande"
-                        data-testid={`aparencia-${a}`}
-                        aria-pressed={aparencia === a}
-                        onClick={() => gravarAparencia(a)}
-                      >
-                        {ROTULO_DA_APARENCIA[a]}
-                      </button>
-                    ))}
-                  </fieldset>
-                  <span className="fl-dica fl-conf-dica">
-                    Livro é o padrão. Clássica é a ficha tradicional. O arranjo é o mesmo. Vale só
-                    neste navegador.
-                  </span>
-                </div>
-              </Caixa>
-            </div>
-          )}
-        </div>
-      </div>
+      {conteudo}
     </Janela>
   );
 }

@@ -8,6 +8,7 @@ import {
   usuarioDaSessao,
 } from "./api";
 import { EntradaDaMesa } from "./contas/EntradaDaMesa";
+import { FichaEmJanelaPropria } from "./ficha/FichaEmJanelaPropria";
 import { Logo } from "./Logo";
 import { Mesa } from "./Mesa";
 import { lembrarMesa } from "./mesasLocais";
@@ -17,12 +18,17 @@ import { tourAbreSozinho } from "./tour/abreSozinho";
 
 const voltarAoInicio = () => irPara("/");
 
-/** Uma mesa já encontrada no servidor: a escolha de usuário de hoje e depois a Mesa. */
+/**
+ * Uma mesa já encontrada no servidor: a escolha de usuário de hoje e depois a Mesa. Com `fichaId` (V9, a janela
+ * própria de uma ficha) o que aparece depois da entrada é só a ficha.
+ */
 function MesaEncontrada({
   mesa,
+  fichaId,
   aoRenomear,
 }: {
   mesa: DadosDaMesa;
+  fichaId?: string | undefined;
   aoRenomear: (n: string) => void;
 }) {
   // `undefined` = ainda perguntando à sala; `null` = ninguém entrou nesta mesa.
@@ -47,6 +53,16 @@ function MesaEncontrada({
   if (falha) return <p role="alert">{falha}</p>;
   if (usuario === undefined) return <p>Conectando à sala…</p>;
   if (usuario === null) return <EntradaDaMesa mesa={mesa} aoEntrar={setUsuario} />;
+  if (fichaId) {
+    return (
+      <FichaEmJanelaPropria
+        key={usuario.id}
+        mesa={mesa}
+        fichaId={fichaId}
+        aoPerderSessao={aoPerderSessao}
+      />
+    );
+  }
   return (
     <Mesa
       key={usuario.id}
@@ -84,7 +100,15 @@ function MesaNaoEncontrada({ texto }: { texto: string }) {
 }
 
 /** A rota `/m/<id>`: confere a mesa no servidor, mostra o nome na aba do navegador e a lembra neste navegador. */
-function RotaDaMesa({ id, bruto }: { id: string | null; bruto: string }) {
+function RotaDaMesa({
+  id,
+  bruto,
+  fichaId,
+}: {
+  id: string | null;
+  bruto: string;
+  fichaId?: string | undefined;
+}) {
   // `undefined`: consultando; `null`: não existe.
   const [mesa, setMesa] = useState<DadosDaMesa | null | undefined>(undefined);
   const [falha, setFalha] = useState<string | null>(null);
@@ -107,14 +131,15 @@ function RotaDaMesa({ id, bruto }: { id: string | null; bruto: string }) {
     return () => controle.abort();
   }, [id]);
 
-  // O título da aba é o nome da mesa.
+  // O título da aba é o nome da mesa (a janela própria da ficha põe o dela).
   const nome = mesa?.nome;
   useEffect(() => {
+    if (fichaId) return;
     document.title = tituloDaMesa(nome);
     return () => {
       document.title = tituloDaMesa();
     };
-  }, [nome]);
+  }, [nome, fichaId]);
 
   const aoRenomear = useCallback((novo: string) => {
     setMesa((atual) => {
@@ -136,11 +161,18 @@ function RotaDaMesa({ id, bruto }: { id: string | null; bruto: string }) {
     return <MesaNaoEncontrada texto={`Nenhuma mesa tem o id ${id}. Confira com quem mandou.`} />;
   }
   // `key`: trocar de mesa pelo histórico do navegador reinicia a tela.
-  return <MesaEncontrada key={mesa.id} mesa={mesa} aoRenomear={aoRenomear} />;
+  return <MesaEncontrada key={mesa.id} mesa={mesa} fichaId={fichaId} aoRenomear={aoRenomear} />;
 }
 
 export function App() {
   const rota = useRota();
   if (rota.tipo === "inicio") return <TelaInicial />;
-  return <RotaDaMesa key={rota.id ?? rota.bruto} id={rota.id} bruto={rota.bruto} />;
+  return (
+    <RotaDaMesa
+      key={`${rota.id ?? rota.bruto}/${rota.fichaId ?? ""}`}
+      id={rota.id}
+      bruto={rota.bruto}
+      fichaId={rota.fichaId}
+    />
+  );
 }

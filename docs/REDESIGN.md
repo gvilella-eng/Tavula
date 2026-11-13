@@ -1263,6 +1263,33 @@ Um pedido do Vilella sobre a ficha de NPC: a Conjuração sair da lista e virar 
 - Em janela larga a Conjuração com uma magia aberta deixa um vazio na outra coluna do círculo vizinho (grade por linhas).
 - As fitas do NPC não seguem a pele Clássica do PJ (abas planas); continuam fitas.
 
+## V9 — como ficou (2026-11-12)
+
+Um pedido do Vilella: transformar qualquer ficha numa janela do navegador, para arrastá-la a outro monitor. O plano foi aprovado e o lote ficou sem ninguém para perguntar: o que o brief não dizia foi assumido.
+
+**O que foi feito**
+- **Ícone "Abrir em janela própria"** (lucide `AppWindow`) no cabeçalho de toda ficha, PJ e NPC, antes do minimizar. Some com a ficha minimizada. Dica comum, sem atalho.
+- **O clique abre um `window.open` com `popup`**, do tamanho da ficha, com nome fixo por mesa e ficha (`tabletop-ficha-<mesa>-<ficha>`): clicar de novo só traz a janela. A janela lembra tamanho (de dentro) e posição na tela em `tabletop:pref:janela-ficha:<mesa>:<ficha>` (localStorage, try/catch) e a próxima abertura passa `left`/`top`.
+- **Rota própria** `/m/<id>/ficha/<fichaId>` (`rotas.ts`: `caminhoDaFicha`, `Rota.fichaId`). `App.tsx` põe `FichaEmJanelaPropria` no lugar da `Mesa`, depois da mesma entrada (sem sessão aparece a entrada da mesa e depois a ficha). Tem a própria `useSala` (a mesma sessão), o gerente de arquivos (retratos, compêndio de magias), o toast e o seletor de imagem; não tem mapa, painéis, topo nem tour. O título da aba é "<nome> — Távola". A `JanelaDaFicha` ganhou a prop `propria`: em vez da `Janela` flutuante, ocupa a página, com o cabeçalho, as ações da ficha (descansos ou engrenagem do NPC) e o ícone **"Voltar para a mesa"**.
+- **Presença:** a sala já junta as conexões por usuário (`presenca()` olha o usuário, não o socket), então a segunda conexão não cria bolinha nem estado novo; não foi preciso mexer na sala. O tour e o "entrou na mesa" só existem na `Mesa`, que a janela da ficha não monta.
+- **Coordenação entre as janelas** (`ficha/foraDaMesa.ts`, só no navegador, nunca na sala): a janela da ficha segura um **Web Lock** com o nome dela enquanto existe e avisa por **BroadcastChannel** por mesa ("aberta", "fechada"; a principal pergunta "quais" ao carregar). A principal confere `navigator.locks.query()` a cada segundo, então uma janela que morre sem avisar também some da lista. Sem Web Locks (endereço sem HTTPS), vale só o aviso do canal.
+- **Na janela principal:** a ficha fora **sai da pilha** (a `Janela` não é montada); na lista de Fichas o item ganha a marca **"em outra janela"** (`ficha-fora-<id>`); clicar no item (ou abrir a ficha por qualquer caminho da mesa) **traz a janela para a frente** (`window.open("", nome)`). Fechar a janela ou clicar em "Voltar para a mesa" tira a marca e a ficha volta à pilha, no lugar de antes.
+- **"Ficha de" do compêndio** inclui as fichas em outra janela (a mudança passa pela sala): as da pilha da mesa têm preferência e, sem elas, vale a última fora.
+
+**Decisões (assumido)**
+- (assumido) Ícone `AppWindow`; "Voltar para a mesa" é `Undo2`. A janela própria não tem minimizar nem Fechar (o navegador fecha), só o "Voltar".
+- (assumido) A ficha só vai para fora a partir de uma ficha **aberta na mesa**; ao voltar, reaparece na pilha, aberta. Se a principal foi recarregada com a janela fora, a pilha dela começa vazia: a ficha só deixa de estar "fora".
+- (assumido) Clique numa ficha que está fora não muda a aba dela (a aba do pedido, como a "Configurar" de uma ficha recém-criada, é ignorada).
+- (assumido) "Voltar para a mesa" fecha a janela; se o navegador não deixar (a página não foi aberta pela mesa, por exemplo pelo endereço digitado), vai para `/m/<id>` na mesma aba.
+- (assumido) A janela só lembra tamanho e posição quando foi aberta pela mesa (`window.name`); uma aba aberta pelo endereço não grava.
+- (assumido) A iniciativa na janela própria não tem "token selecionado": com a ordem de turno aberta e mais de um token do personagem na cena, avisa "Selecione o seu token no mapa." (um token só entra direto).
+- (assumido) Se a ficha é apagada ou o acesso se perde, a janela mostra "Esta ficha foi apagada, ou você não tem mais acesso a ela." e o botão "Fechar esta janela".
+
+**O que ficou para depois**
+- Arrastar entre janelas não funciona (do compêndio para a ficha de fora, da ficha de fora para o mapa): o arrasto do navegador não atravessa janelas. Não se tentou contornar.
+- O navegador decide se respeita `left`/`top` (outro monitor, tela que foi desligada): ele pode abrir a janela em outro lugar.
+- Mudar o tema na mesa depois de a janela da ficha abrir só vale na janela da ficha na próxima carga (a aparência da ficha já ouve o `storage`).
+
 ## Em aberto
 
 - **O plano R1 a R6 terminou** (R1, R2, R2b, R3, R4 em 2026-11-10; R5a, R5b, R6a e R6b em 2026-11-11). Agora o Vilella faz os ajustes

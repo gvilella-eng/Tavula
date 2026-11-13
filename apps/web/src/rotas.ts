@@ -5,21 +5,37 @@ import { useEffect, useState } from "react";
  * Roteador mínimo (C1, sem biblioteca): `/` é a tela inicial e `/m/<id>` é uma mesa. Qualquer outro
  * caminho cai na tela inicial. O `id` é `null` quando o que veio depois de `/m/` não é um id de mesa.
  */
-export type Rota = { tipo: "inicio" } | { tipo: "mesa"; id: string | null; bruto: string };
+export type Rota =
+  | { tipo: "inicio" }
+  /** `fichaId` (V9): `/m/<id>/ficha/<fichaId>` mostra só a ficha, na janela própria do navegador. */
+  | { tipo: "mesa"; id: string | null; bruto: string; fichaId?: string };
+
+const decodificar = (texto: string): string => {
+  try {
+    return decodeURIComponent(texto);
+  } catch {
+    return texto; // fica o texto como veio
+  }
+};
 
 export function lerRota(caminho: string): Rota {
-  const m = /^\/m\/([^/]+)\/?$/.exec(caminho);
+  const m = /^\/m\/([^/]+)(?:\/ficha\/([^/]+))?\/?$/.exec(caminho);
   if (!m) return { tipo: "inicio" };
-  let bruto = m[1] ?? "";
-  try {
-    bruto = decodeURIComponent(bruto);
-  } catch {
-    // fica o texto como veio
-  }
-  return { tipo: "mesa", id: normalizarIdDeMesa(bruto), bruto };
+  const bruto = decodificar(m[1] ?? "");
+  const fichaId = m[2] === undefined ? undefined : decodificar(m[2]);
+  return {
+    tipo: "mesa",
+    id: normalizarIdDeMesa(bruto),
+    bruto,
+    ...(fichaId ? { fichaId } : {}),
+  };
 }
 
 export const caminhoDaMesa = (id: string) => `/m/${id}`;
+
+/** A rota da ficha na janela própria (V9). */
+export const caminhoDaFicha = (mesaId: string, fichaId: string) =>
+  `/m/${mesaId}/ficha/${encodeURIComponent(fichaId)}`;
 
 /** O link completo de uma mesa, para copiar e mandar. */
 export const linkDaMesa = (id: string) => `${location.origin}${caminhoDaMesa(id)}`;

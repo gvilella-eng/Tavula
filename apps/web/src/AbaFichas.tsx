@@ -12,6 +12,7 @@ import {
   type Visibilidade,
 } from "@tabletop/shared";
 import {
+  AppWindow,
   ChevronDown,
   ChevronRight,
   Eye,
@@ -26,6 +27,7 @@ import { type DragEvent, type KeyboardEvent, useEffect, useRef, useState } from 
 import { Avatar } from "./Avatar";
 import { lerItemArrastado, TIPO_DE_ARRASTO_DA_FICHA } from "./arrasto";
 import { BotaoComDica } from "./BotaoComDica";
+import { useFichasFora } from "./ficha/foraDaMesa";
 import type { AbaDaFicha } from "./ficha/janelas";
 import { MiniaturaDoHandout } from "./JanelaDoHandout";
 import { type ItemDoMenu, MenuDeContexto, pontoDoElemento } from "./MenuDeContexto";
@@ -82,6 +84,8 @@ type PropsItem = {
 /** Um personagem ou NPC na árvore: o retrato, o nome e, à direita, os PV. */
 function Item({ p, eu, imagens, versao, aoAbrir, aoMenu }: PropsItem) {
   const euMestre = eu.papel === "mestre";
+  // V9: a ficha está numa janela própria do navegador; o clique traz essa janela para a frente.
+  const emOutraJanela = useFichasFora().has(p.id);
   const linha = useRef<HTMLLIElement>(null);
   // O mestre arrasta o item inteiro para outra pasta ou para o mapa.
   const iniciarArrasto = (e: DragEvent) => {
@@ -129,6 +133,11 @@ function Item({ p, eu, imagens, versao, aoAbrir, aoMenu }: PropsItem) {
           {p.nome}
         </span>
         {!euMestre && podeEditarPersonagem(p, eu) && <span className="selo">seu</span>}
+        {emOutraJanela && (
+          <span className="selo selo-fora" data-testid={`ficha-fora-${p.id}`}>
+            <AppWindow size={12} aria-hidden /> em outra janela
+          </span>
+        )}
         {p.ficha && (
           <span className="ficha-pv">
             {p.ficha.pvAtual}/{p.ficha.pvMax}
