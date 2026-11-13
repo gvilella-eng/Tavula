@@ -196,6 +196,8 @@ Códigos de erro: `mensagem_invalida`, `sem_permissao`, `ultimo_mestre`, `usuari
 | `personagem.apagado` | `{ id }` | mestres; jogador que o via |
 | `asset.registrado` | `{ meta }` | **só mestres** (as metas dos jogadores chegam por `asset.meta`, sob demanda) |
 | `compendio.alterado` | `{ compendio: { hash, nomeOriginal, magias } \| null }` | todos (é só a referência ao asset; ver "Compêndio de magias (Lote 14)") |
+| `automacoes.alterado` | `{ automacoes }` (a fatia inteira: ciclos, reações, execução, pendentes e registro) | **só mestres**. O filtro o derruba para qualquer outro (7b-1) |
+| `efeitos.alterados` | `{ efeitos }` (a lista inteira) | mestres: tudo, com prazo e origem; jogador: só os dos tokens que controla, resumidos, sem prazo nem origem (7b-1) |
 
 #### Sigilo de cena e de personagem (Lote 4)
 
@@ -791,6 +793,44 @@ Limites: arquivo **8 MB** (`LIMITES_DE_ASSET.bytesDoCompendio`), **2000 magias**
 (V6, 2026-11-12: `chat.modelo` (ataque), `chat.enviar` (só vale num `/r`) e `chat.magia` aceitam `espaco?: { nivel (1 a 9), extra? (notação de dados, já multiplicada pelos níveis acima), metade? }`. A sala rola o `extra` (no crítico do ataque, os dados dobram) e a mensagem traz `espaco?: { nivel, extra?: { expressao, rolagem, total (dano principal + extra), metade? } }`. Sem capacidade nova; `extra` inválido: `dados_invalidos`; mensagem antiga sem o campo continua valendo.)
 
 **Intenções novas**: `compendio.definir`, `chat.magia`. (V4a, 2026-11-11: `chat.caracteristica { caracteristica: { nome (1 a 80), descricao (até 12000), origem? (até 80) }, como }`: publica uma mensagem `tipo: "caracteristica"` pública com a característica da ficha; `como` é obrigatório e é um personagem que quem fala edita (o mestre: qualquer um); sem capacidade; passa pelo mesmo limite de 10 mensagens por segundo. A `ficha.alterar` passou a recusar `aparenciaHash` e `simboloHash` sem meta registrada, com `dados_invalidos`.) **Evento novo**: `compendio.alterado`. **Tipo de asset novo**: `compendio`. **Tipo de mensagem novo**: `magia`. Sem capacidade nem código de erro novos.
+
+### Automações (Lote 7b-1)
+
+Ciclos, reações e o controle deles são **dado do mestre** (4.11, regra 7). Toda intenção abaixo exige `automacao.editar`, que não é
+delegável: o jogador que a mande recebe `sem_permissao`.
+
+| Intenção | `dados` | Efeito |
+|---|---|---|
+| `ciclo.criar` | `{ ciclo, pausado? }` | Cria o ciclo (`id`, `nome`, `periodoS`, `cenas` — vazio vale todas —, `fases[{ emS, evento, duracaoS? }]`, `liberadoParaJogadores?`). Roda assim que a mesa corre; com `pausado`, nasce parado no começo. Recusa: id repetido, cena inexistente, fase fora do período ou duas no mesmo segundo |
+| `ciclo.editar` | `{ id, mudancas }` | Junta e confere o ciclo inteiro. Mudar o período ou as fases **reinicia** a execução (continua pausado, se estava) |
+| `ciclo.apagar` | `{ id }` | Tira o ciclo e a execução |
+| `ciclo.disparar` | `{ id }` | Dispara a **fase seguinte** agora e o ciclo continua dali (pula para o começo dela; pausado, fica pausado nela) |
+| `ciclo.pausar` / `ciclo.retomar` | `{ id }` | Pausa só o ciclo: **as tochas continuam queimando**. Retomar volta de onde parou. Pausar a mesa (`mesa.pausar`) congela os dois |
+| `reacao.criar` | `{ reacao }` | `{ id, nome?, ativa, fica, ao, se[], fazer[] }`. `fica`: `{ tipo: "modelo", id }`, `{ tipo: "cena", id }` ou `{ tipo: "mesa" }` (o modelo e a cena precisam existir) |
+| `reacao.editar` | `{ id, mudancas }` | Junta e confere a reação inteira |
+| `reacao.apagar` | `{ id }` | |
+| `evento.disparar` | `{ evento, cenaId? }` | Dispara um evento agora (manual), em todas as cenas ou só em `cenaId` |
+
+**Ações** (lista fechada, `acao` + campos; qualquer outra é recusada pelo schema, **antes** de chegar ao motor): `luz.modificar`
+(`raioX?`, `raioSomaM?`, `porS?`, `alvo?`), `objeto.apagar` (`chance?`, `penalidadeS?`, `alvo?`), `objeto.ajustarTempo` (`deltaS`, `alvo?`),
+`visao.limitar` (`alcanceM`, `porS?`, `alvo?`), `chat.anunciar` (`texto`, `para`: `todos` ou `mestre`), `token.mostrar`,
+`token.ocultar` (`alvo?`) e `evento.disparar` (`evento`, `atrasoS?`). **Condições** (`condicao`): `chance` (`valor`), `tag`
+(`tag`) e `cena` (`cenas`). Sem `porS`, o prazo é o `duracaoS` da fase do ciclo; sem ele, 30 s. `som.tocar` não existe
+(fora do 7b) e `zona.ativar` chega no 7b-2.
+
+**Eventos** que as reações ouvem: os das fases dos ciclos (nome livre), o manual, e os do sistema `objeto.acendeu`,
+`objeto.apagou`, `turno.inicio` e `cena.ativada`. Tudo roda **na sala**: depois de cada intenção que mudou algo e quando o alarme
+acorda (`processarSistema`). O encadeamento (reação que dispara evento) corta na profundidade 5.
+
+**Sigilo (nota de segurança).** A definição de uma automação nunca chega a um jogador, nem em snapshot nem em evento: `visaoPara`
+tira `automacoes` e `eventoPara` derruba `automacoes.alterado`. O jogador recebe **só os efeitos**: a luz que mudou
+(`fonte.editada`, com `fatorDeRaio` e `somaDeRaioM` e sem a lista de modificadores nem o histórico), o anúncio no chat
+(`chat.mensagem` com `tipo: "aviso"`; o de `para: "mestre"` não chega a ele), o token mostrado ou oculto e o limite de visão do
+token que controla (`efeitos.alterados`, sem prazo nem origem). Um teste confere que nenhum frame do jogador traz a definição.
+
+**Guardar.** No SQLite, as chaves `automacoes` e `efeitos` da tabela `meta` (sem migração). A exportação leva `automacoes` e
+`efeitos` (campos opcionais; a versão do arquivo continua 13); a importação aceita ainda a forma enxuta (`ciclos` no topo,
+`reacoes` dentro do modelo) e o arquivo antigo carrega sem automação.
 
 ### Contador de uso
 

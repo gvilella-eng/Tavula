@@ -3392,4 +3392,48 @@ Ver `docs/ROTEIRO-DE-TESTES.md`, "V14".
 
 ---
 
-## Próximo: bugs que sobrarem e acabamentos das contas; depois 7b e 12 (o C4, a tela inicial, o V10, o V10b, o V10c, o V11, o V12, o V13 e o V14 estão entregues)
+## Lote 7b-1 — Automações da mesa: o motor (entregue, aguardando o roteiro manual)
+
+Detalhes em `docs/REDESIGN.md` ("7b-1 — como ficou") e `PROJETO.md` (4.11, "Desenho final do motor").
+
+### O que foi entregue
+
+- Ciclos (período, fases, cenas), reações (presas a modelo, cena ou mesa), ações da lista fechada, condições, eventos (de fase, manual e do sistema), modificadores com prazo, limite de encadeamento, escopo por cena e sorteio no RNG da sala.
+- Dez intenções (`ciclo.criar|editar|apagar|disparar|pausar|retomar`, `reacao.criar|editar|apagar`, `evento.disparar`), todas `automacao.editar`; dois eventos do protocolo.
+- Sigilo: `visaoPara` e `eventoPara` tiram a definição do jogador; ele recebe só os efeitos.
+- Guardar, exportar e importar; o banco antigo carrega igual.
+
+### Como rodar
+
+`pnpm dev` como sempre. Sem migração de banco: as automações moram em duas chaves novas da tabela `meta`. Ainda não há tela de edição: o roteiro manual usa as intenções (ver `docs/ROTEIRO-DE-TESTES.md`, "7b-1").
+
+### Verificação
+
+- Unidade: `packages/shared/src/automacoes.test.ts` (42 testes: schemas, respiração nos segundos certos, a reação da tocha por 20 s, a chance reproduzível, pausar ciclo e mesa, encadeamento cortado, sobreposição e refresh, escopo por cena, eventos do sistema, intenções e capacidades, sigilo, exportar e importar, campanha antiga) e, em `apps/server`, o bloco "Armazenamento: automações (7b-1)" (banco antigo, gravar pelos eventos, importar, valor ilegível).
+- E2E novo: `automacoes.spec.ts` (4 testes): ciclo curto reduz o raio e ele volta, com o jogador vendo o efeito e nenhum frame dele trazendo a automação; pausar a mesa congela o ciclo; pausar só o ciclo não para as tochas; o jogador não manda intenções de automação.
+- Nenhum E2E antigo foi alterado.
+
+### Decisões
+
+- (assumido) Ver `REDESIGN`, "7b-1 — como ficou", Decisões.
+
+### Desvios do plano
+
+- O `ModificadorSchema` do objeto de luz (que já existia) ganhou `raioSomaM` e o `raioX` passou a ter padrão 1, em vez de uma lista nova de modificadores.
+- A versão do arquivo de exportação continua 13 (os campos novos são opcionais).
+
+### Frágil / não verificado
+
+- O motor depende de duas coisas em `processar`: rodar depois de toda intenção com eventos e fora da importação e da exportação. Intenção nova que mude o estado sem emitir evento não dispara reação.
+- `reagendarLuzes` (`sala.ts`) também agenda o `automacao.marco`; quem mudar o agendador precisa manter os dois.
+- O limite de visão chega ao navegador do mestre por `Estado.efeitos` e muda o polígono de visão no `Mesa.tsx` (`limitarAlcance`); só há teste de unidade, não de tela.
+- O registro do mestre (encadeamento cortado, fases puladas) está só no estado: ainda não aparece na tela.
+- O `packages/shared` é lido pelo Vite sem compilar (modo "strip types" do Node): nada de propriedade de parâmetro no construtor (`constructor(readonly x)`) nem enum.
+
+### Roteiro manual (pendente)
+
+Ver `docs/ROTEIRO-DE-TESTES.md`, "7b-1".
+
+---
+
+## Próximo: 7b-2 (zonas) e 7b-3 (editor e campanhas de referência); depois o MCP (12) e os bugs que sobrarem (o C4, a tela inicial, o V10 ao V14 e o 7b-1 estão entregues)

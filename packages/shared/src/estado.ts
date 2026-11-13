@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { AssetMetaSchema, HashSchema } from "./assets.ts";
+import { AutomacoesSchema, EfeitoSchema, MAXIMO_DE_EFEITOS } from "./automacoes.ts";
 import { CAPACIDADES_DELEGAVEIS } from "./capacidades.ts";
 import { MensagemSchema } from "./chat.ts";
 import { CombateSchema } from "./combate.ts";
@@ -171,7 +172,10 @@ export type PortadorFixo = z.infer<typeof PortadorFixoSchema>;
 /** Efeito do mestre sobre a luz: multiplica luz plena e penumbra, com ou sem prazo no relógio da sala. */
 export const ModificadorSchema = z.object({
   id: IdCurto,
-  raioX: z.number().min(0.1).max(5),
+  /** Multiplica os dois raios (1 = não muda). */
+  raioX: z.number().min(0.1).max(5).default(1),
+  /** 7b-1: soma metros aos dois raios, depois do `raioX` (valor final = base × Πraiox + Σsoma). */
+  raioSomaM: z.number().min(-100).max(100).optional(),
   /** Fim, em milissegundos do relógio da sala; sem fim vale até o mestre tirar. */
   ateSala: z.number().nonnegative().optional(),
   origem: z.enum(["mestre", "automacao"]),
@@ -222,6 +226,8 @@ export const ObjetoDeLuzSchema = z.object({
   estagio: EstagioSchema.optional(),
   /** Produto dos modificadores de raio que valem agora (o jogador não recebe a lista). */
   fatorDeRaio: z.number().positive().optional(),
+  /** 7b-1: soma dos `raioSomaM` que valem agora, em metros (o jogador só recebe este total). */
+  somaDeRaioM: z.number().min(-1000).max(1000).optional(),
 });
 export type ObjetoDeLuz = z.infer<typeof ObjetoDeLuzSchema>;
 /** Nome do Lote 6, mantido porque muita coisa (mapa, painel) o usa. */
@@ -602,6 +608,16 @@ export const EstadoSchema = z.object({
   compendio: CompendioDaMesaSchema.optional(),
   /** Metadados dos assets registrados. Só existe na sala e na visão do mestre (nunca do jogador). */
   assets: z.array(AssetMetaSchema).optional(),
+  /**
+   * Automações (7b-1, seção 4.11): ciclos, reações e o controle deles. SÓ o mestre recebe (a visão do
+   * jogador não traz o campo); entra na exportação. Sem o campo não há automação (campanha antiga).
+   */
+  automacoes: AutomacoesSchema.optional(),
+  /**
+   * Efeitos temporários em tokens (7b-1): limite de visão com prazo. O mestre recebe tudo; o jogador, só os
+   * dos tokens que vê, sem prazo nem origem. Entra na exportação (o prazo é no tempo da sala).
+   */
+  efeitos: z.array(EfeitoSchema).max(MAXIMO_DE_EFEITOS).optional(),
 });
 export type Estado = z.infer<typeof EstadoSchema>;
 

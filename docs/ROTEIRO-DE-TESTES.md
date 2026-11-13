@@ -285,6 +285,20 @@ as mãos. Cada item diz **o que fazer** e, depois de "→", **o que deve acontec
    conferir). Abrir o campo e sair sem mexer não muda nada. No painel do token e no editor da ficha, "Alcance da visão" e
    "Visão no escuro" também seguem a unidade.
 
+## 7b-1 — Automações: o motor (sem editor ainda)
+O editor chega no 7b-3. Por enquanto as automações se criam mandando as intenções pelo console do navegador (aba da mesa, como mestre) e
+só dá para conferir o efeito. Use uma mesa de teste.
+1. Acenda uma tocha no Aldric (mochila → Acender). No console da página do mestre, abra um WebSocket e mande, em ordem:
+   `reacao.criar` com `{ id: "r1", fica: { tipo: "modelo", id: "modelo-tocha" }, ao: "inspiracao", fazer: [{ acao: "luz.modificar", raioX: 0.5, porS: 20 }, { acao: "objeto.apagar", chance: 0.3, penalidadeS: 300 }] }`
+   e `ciclo.criar` com `{ id: "c1", nome: "Respiração", periodoS: 60, cenas: [], fases: [{ emS: 0, evento: "inspiracao", duracaoS: 20 }, { emS: 30, evento: "expiracao" }] }`.
+2. O raio da tocha cai à metade na hora e volta sozinho depois de 20 s; a cada minuto isso se repete e a tocha pode apagar (30%).
+   Na tela do jogador o efeito aparece igual, e nada mais.
+3. Mande `ciclo.pausar` `{ id: "c1" }`: o ciclo para e a tocha continua queimando. `ciclo.retomar` volta de onde parou.
+   Pause a mesa (botão do topo): as duas coisas congelam.
+4. Mande `evento.disparar` `{ evento: "inspiracao" }`: a reação roda sem esperar o ciclo.
+5. Exporte a campanha e importe de novo: o ciclo e a reação voltam (o ciclo segue de onde estava).
+6. Confira, como jogador, que o chat e o mapa só mostram os efeitos (luz, anúncio) e nunca o nome do ciclo ou da reação.
+
 ## Se algo der errado
 - Anote a tela, o que fez e o que esperava, e mande para mim. Bug confirmado vai para `docs/BUGS.md`.
 - Para voltar à campanha de antes de mesas e contas, use a cópia de segurança indicada no topo.

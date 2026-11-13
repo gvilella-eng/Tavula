@@ -132,6 +132,11 @@ export function fatorDosModificadores(mods: readonly Modificador[], salaMs: numb
   return modificadoresAtivos(mods, salaMs).reduce((p, m) => p * m.raioX, 1);
 }
 
+/** Soma dos `raioSomaM` dos modificadores ativos (0 sem nenhum). */
+export function somaDosModificadores(mods: readonly Modificador[], salaMs: number): number {
+  return modificadoresAtivos(mods, salaMs).reduce((t, m) => t + (m.raioSomaM ?? 0), 0);
+}
+
 type ContextoDaVisao = Pick<Estado, "relogio" | "config" | "pontos">;
 
 /**
@@ -158,7 +163,11 @@ export function objetoParaVisao(
       : undefined;
   const contando = objeto.estado === "acesa" && restante !== null && !ctx.relogio.pausada;
   const fator = fatorDosModificadores(objeto.modificadores, salaMs);
-  const comFator = fator === 1 ? {} : { fatorDeRaio: fator };
+  const soma = somaDosModificadores(objeto.modificadores, salaMs);
+  const comFator = {
+    ...(fator === 1 ? {} : { fatorDeRaio: fator }),
+    ...(soma === 0 ? {} : { somaDeRaioM: soma }),
+  };
   const tempo = restante === null ? {} : { restanteMs: restante, contando };
   if (usuario.papel === "mestre") {
     return { ...resto, ...comFator, ...tempo, ...(estagio ? { estagio } : {}) };

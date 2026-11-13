@@ -46,6 +46,7 @@ import {
   processar,
   processarSistema,
   proximoIdDeJogador,
+  proximoMarcoDasAutomacoes,
   proximoMarcoDoObjeto,
   type RascunhoRepassado,
   rascunhoDentroDoLimite,
@@ -1213,6 +1214,7 @@ export class Sala extends DurableObject<Env> {
     if (!this.criada) return;
     const vencidos = this.agenda.tomarVencidos(Date.now());
     const marcos: string[] = [];
+    let automacao = false;
     for (const v of vencidos) {
       if (v.tipo === "presenca.expirar") this.difundirPresenca();
       else if (v.tipo === "uso.enviar") this.enviarUso();
@@ -1220,8 +1222,9 @@ export class Sala extends DurableObject<Env> {
         const saiuEm = (v.dados as { saiuEm?: number }).saiuEm;
         await this.pausarSeSemMestre(typeof saiuEm === "number" ? saiuEm : Date.now());
       } else if (v.tipo === "luz.marco") marcos.push(v.chave);
+      else if (v.tipo === "automacao.marco") automacao = true;
     }
-    if (marcos.length > 0) await this.rodarTempo(marcos);
+    if (marcos.length > 0 || automacao) await this.rodarTempo(marcos);
     await this.agenda.reprogramar();
   }
 
@@ -1240,7 +1243,12 @@ export class Sala extends DurableObject<Env> {
    * tira modificadores vencidos e reenvia os objetos cujo marco (estágio) venceu. Depois reagenda.
    */
   private async rodarTempo(marcos: string[]): Promise<void> {
-    const r = processarSistema(this.estado, new Date().toISOString(), marcos);
+    const r = processarSistema(
+      this.estado,
+      new Date().toISOString(),
+      marcos,
+      this.fonteDeDadosDeTeste ?? undefined,
+    );
     if (r.ok && r.eventos.length > 0) {
       this.banco.salvarEventos(r.estado, r.eventos);
       const antes = this.estado;
@@ -1264,6 +1272,14 @@ export class Sala extends DurableObject<Env> {
         const ms = proximoMarcoDoObjeto(l, sala, this.estado.config.estagios);
         if (ms !== null) await this.agenda.agendar("luz.marco", l.id, agora + Math.ceil(ms) + 5);
       }
+    }
+    // 7b-1: um vencimento só para as automações (a próxima fase de ciclo, evento pendente ou fim de efeito).
+    this.agenda.cancelar("automacao.marco", "proximo");
+    if (!relogio.pausada) {
+      const agora = Date.now();
+      const ms = proximoMarcoDasAutomacoes(this.estado, tempoDaSala(relogio, agora));
+      if (ms !== null)
+        await this.agenda.agendar("automacao.marco", "proximo", agora + Math.ceil(ms) + 5);
     }
     await this.agenda.reprogramar();
   }

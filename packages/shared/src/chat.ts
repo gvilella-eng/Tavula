@@ -64,7 +64,8 @@ export const MensagemSchema = z.object({
   emReal: z.number().nonnegative(),
   autorId: Id,
   como: ComoSchema.optional(),
-  tipo: z.enum(["texto", "rolagem", "modelo", "magia", "caracteristica"]),
+  /** `aviso` (7b-1): o anúncio de uma automação, sem autor real (`autorId: "sistema"`); a tela o mostra como "A mesa". */
+  tipo: z.enum(["texto", "rolagem", "modelo", "magia", "caracteristica", "aviso"]),
   texto: z.string().max(LIMITES_DO_CHAT.caracteres).optional(),
   /** `/em`: ação em terceira pessoa ("Brisa olha em volta"). */
   acao: z.boolean().optional(),

@@ -15,6 +15,8 @@ import {
   iluminacaoDinamicaLigada,
   jogadoresDaMesa,
   jogadorVeABandeira,
+  limitarAlcance,
+  limiteDeVisaoDoToken,
   membrosDaMesa,
   modInteligenciaDe,
   pode,
@@ -786,8 +788,15 @@ export function Mesa({
       )
       .map((t) => ({
         tokenId: t.id,
-        alcanceM: alcanceDeVisao(t, estado.personagens),
-        visaoNoEscuroM: visaoNoEscuroDe(t, estado.personagens),
+        // 7b-1: o limite de visão de uma automação (efeito com prazo) vale por cima da visão base.
+        alcanceM: limitarAlcance(
+          alcanceDeVisao(t, estado.personagens),
+          limiteDeVisaoDoToken(estado.efeitos, t.id),
+        ),
+        visaoNoEscuroM: Math.min(
+          visaoNoEscuroDe(t, estado.personagens),
+          limiteDeVisaoDoToken(estado.efeitos, t.id) ?? Number.POSITIVE_INFINITY,
+        ),
         memoriaM: alcanceDaMemoria(configLuz, modInteligenciaDe(t, estado.personagens)),
       }));
     if (!modoMestre) return { modo: "jogador", fontes, memoria };

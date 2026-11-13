@@ -7,6 +7,18 @@ import {
   tamanhoDaCenaComMapa,
   validarMeta,
 } from "./assets.ts";
+import {
+  converterAutomacoesDoArquivo,
+  type EventoDeAutomacao,
+  efeitosParaJogador,
+} from "./automacoes.ts";
+import {
+  type ContextoDoMotor,
+  reagirAoSistema,
+  rodarAutomacoes,
+  rodarEvento,
+  tratarAutomacao,
+} from "./automacoesnucleo.ts";
 import { ehCapacidadeDelegavel, pode } from "./capacidades.ts";
 import { chatParaUsuario, mensagemParaUsuario } from "./chat.ts";
 import { criarMensagem, mensagemDeDadoDeVida } from "./chatnucleo.ts";
@@ -292,7 +304,8 @@ export function criarExportacao(estado: Estado, agora: string): Exportacao {
 export function lerExportacao(
   bruto: unknown,
 ): { ok: true; exportacao: Exportacao } | { ok: false; motivo: string } {
-  const r = ExportacaoSchema.safeParse(bruto);
+  // 7b-1: a forma enxuta das automações (ciclos no topo, reações dentro do modelo) vira a fatia `automacoes`.
+  const r = ExportacaoSchema.safeParse(converterAutomacoesDoArquivo(bruto));
   if (!r.success) {
     const problema = r.error.issues[0];
     return { ok: false, motivo: `${problema?.path.join(".") ?? ""}: ${problema?.message ?? ""}` };
@@ -314,6 +327,8 @@ export function lerExportacao(
     combate,
     desenhos,
     compendio,
+    automacoes,
+    efeitos,
   } = r.data.dados;
   const ids = new Set(usuarios.map((u) => u.id));
   if (ids.size !== usuarios.length) return { ok: false, motivo: "ids de usuário repetidos" };
@@ -447,6 +462,17 @@ export function lerExportacao(
         return { ok: false, motivo: `entrada de combate de token desconhecido: ${e.id}` };
       }
     }
+  }
+  if (automacoes) {
+    if (new Set(automacoes.ciclos.map((c) => c.id)).size !== automacoes.ciclos.length) {
+      return { ok: false, motivo: "ids de ciclo repetidos" };
+    }
+    if (new Set(automacoes.reacoes.map((x) => x.id)).size !== automacoes.reacoes.length) {
+      return { ok: false, motivo: "ids de reação repetidos" };
+    }
+  }
+  if (efeitos && new Set(efeitos.map((x) => x.id)).size !== efeitos.length) {
+    return { ok: false, motivo: "ids de efeito repetidos" };
   }
   const porHash = new Map(assets.map((a) => [a.hash, a]));
   if (porHash.size !== assets.length) return { ok: false, motivo: "hashes de asset repetidos" };
@@ -748,6 +774,10 @@ export function reduzir(estado: Estado, evento: EventoSala): Estado {
     }
     case "chat.limpo":
       return { ...base, chat: [] };
+    case "automacoes.alterado":
+      return { ...base, automacoes: evento.dados.automacoes };
+    case "efeitos.alterados":
+      return { ...base, efeitos: evento.dados.efeitos };
     case "compendio.alterado": {
       const { compendio: _antigo, ...semCompendio } = base;
       return evento.dados.compendio === null
@@ -834,6 +864,38 @@ export function processar(
   /** Os tokens apagados há pouco (só a sala os guarda), para o `token.restaurar`. */
   apagadosRecentes: readonly TokenApagadoRecente[] = [],
 ): Resultado {
+  const r = processarIntencao(estado, usuarioId, intencao, agora, aleatorio, apagadosRecentes);
+  // 7b-1: depois de qualquer intenção que mudou algo, as automações reagem ao que aconteceu (objeto que
+  // acendeu ou apagou, cena ativada, vez de turno) e põem em dia o que já venceu. A importação não conta.
+  if (!r.ok || r.eventos.length === 0) return r;
+  if (intencao.tipo === "campanha.importar" || intencao.tipo === "campanha.exportar") return r;
+  let proximo = r.estado;
+  const novos: EventoSala[] = [];
+  const origem = { usuarioId, idPedido: intencao.id };
+  rodarAutomacoes(
+    {
+      agoraMs: Date.parse(agora),
+      aleatorio,
+      atual: () => proximo,
+      emitir: (evento) => {
+        const completo = { ...evento, seq: proximo.seq + 1, origem } as EventoSala;
+        novos.push(completo);
+        proximo = reduzir(proximo, completo);
+      },
+    },
+    estado,
+  );
+  return novos.length === 0 ? r : { ...r, estado: proximo, eventos: [...r.eventos, ...novos] };
+}
+
+function processarIntencao(
+  estado: Estado,
+  usuarioId: string,
+  intencao: Intencao,
+  agora: string,
+  aleatorio: FonteDeAleatoriedade,
+  apagadosRecentes: readonly TokenApagadoRecente[],
+): Resultado {
   const usuario = estado.usuarios.find((u) => u.id === usuarioId);
   if (!usuario) return recusa("usuario_inexistente", "Usuário desconhecido.");
 
@@ -897,6 +959,12 @@ export function processar(
     saida: { erro: ErroDaSala } | { snapshotPara?: "todos" | string[] },
   ): Resultado =>
     "erro" in saida ? { ok: false, erro: saida.erro } : aplicado(saida.snapshotPara ?? []);
+  const contextoDoMotor: ContextoDoMotor = {
+    agoraMs,
+    aleatorio,
+    atual: () => proximo,
+    emitir,
+  };
 
   switch (intencao.tipo) {
     case "mapa.ping": {
@@ -2205,6 +2273,20 @@ export function processar(
     case "desenho.rascunho":
       return doDesenho(desenhoRascunho(contextoDeDesenho, intencao.dados));
 
+    case "ciclo.criar":
+    case "ciclo.editar":
+    case "ciclo.apagar":
+    case "ciclo.disparar":
+    case "ciclo.pausar":
+    case "ciclo.retomar":
+    case "reacao.criar":
+    case "reacao.editar":
+    case "reacao.apagar":
+    case "evento.disparar": {
+      const saida = tratarAutomacao(contextoDoMotor, intencao);
+      return "erro" in saida ? { ok: false, erro: saida.erro } : aplicado(saida.snapshotPara ?? []);
+    }
+
     case "compendio.definir": {
       const { compendio } = intencao.dados;
       if (compendio === null) {
@@ -2268,6 +2350,8 @@ export function processarSistema(
   estado: Estado,
   agora: string,
   marcos: readonly string[] = [],
+  /** Os sorteios das automações; a sala usa `crypto`, os testes uma semente. */
+  aleatorio: FonteDeAleatoriedade = fonteCrypto(),
 ): Resultado {
   const agoraMs = Date.parse(agora);
   let proximo = estado;
@@ -2280,7 +2364,11 @@ export function processarSistema(
   const resultado = (): ResultadoOk => ({ ok: true, estado: proximo, eventos, snapshotPara: [] });
   if (estado.relogio.pausada) return resultado();
   const sala = tempoDaSala(estado.relogio, agoraMs);
-  for (const l of estado.luzes) {
+  const motor: ContextoDoMotor = { agoraMs, aleatorio, atual: () => proximo, emitir };
+  // 7b-1: primeiro as automações (fases dos ciclos, efeitos que vencem, eventos pendentes)...
+  rodarAutomacoes(motor);
+  const depoisDasAutomacoes = proximo;
+  for (const l of depoisDasAutomacoes.luzes) {
     let o = l;
     const vivos = l.modificadores.filter((m) => m.ateSala === undefined || m.ateSala > sala);
     const venceu = vivos.length !== l.modificadores.length;
@@ -2300,7 +2388,40 @@ export function processarSistema(
     }
     if (venceu || marcos.includes(l.id)) emitir({ tipo: "fonte.editada", dados: { fonte: o } });
   }
+  // ...e depois o que o tempo mudou nos objetos (uma tocha que acabou) também é evento de automação.
+  if (proximo !== depoisDasAutomacoes) reagirAoSistema(motor, depoisDasAutomacoes);
   return resultado();
+}
+
+/**
+ * Roda um evento de automação (e o que ele encadeia) sobre o estado e devolve o estado novo e os eventos do
+ * protocolo. Pura: os sorteios usam `aleatorio`, o tempo vem do relógio da sala em `agora`. `profundidade` é
+ * o nível de encadeamento de onde partir (0 é o normal); passou de 5, o motor corta e anota no registro do mestre.
+ */
+export function processarEvento(
+  estado: Estado,
+  evento: EventoDeAutomacao,
+  aleatorio: FonteDeAleatoriedade,
+  profundidade = 0,
+  agora: string = new Date(agoraPadrao(estado)).toISOString(),
+): { estado: Estado; eventos: EventoSala[] } {
+  let proximo = estado;
+  const eventos: EventoSala[] = [];
+  rodarEvento(
+    {
+      agoraMs: Date.parse(agora),
+      aleatorio,
+      atual: () => proximo,
+      emitir: (e) => {
+        const completo = { ...e, seq: proximo.seq + 1, origem: ORIGEM_DO_SISTEMA } as EventoSala;
+        eventos.push(completo);
+        proximo = reduzir(proximo, completo);
+      },
+    },
+    evento,
+    profundidade,
+  );
+  return { estado: proximo, eventos };
 }
 
 /**
@@ -2361,7 +2482,19 @@ export function visaoPara(estado: Estado, usuario: Visao, agoraMs?: number): Est
       relogio: relogioParaVisao(estado.relogio, usuario, agora),
     };
   }
-  const { assets: _assets, memoriaEsquecida: _esquecida, ...resto } = semPendencias;
+  // 7b-1 (regra 7): a fatia de automações NUNCA chega ao jogador; dos efeitos, só os dos tokens que ele
+  // controla, sem prazo nem origem.
+  const {
+    assets: _assets,
+    memoriaEsquecida: _esquecida,
+    automacoes: _automacoes,
+    efeitos: _efeitos,
+    ...resto
+  } = semPendencias;
+  const efeitosDele = efeitosParaJogador(
+    estado.efeitos,
+    estado.tokens.filter((t) => controlaToken(t, usuario, estado.personagens)),
+  );
   const propria = estado.permissoes.porUsuario[usuario.id];
   const { combate: _combate, ...semCombate } = resto;
   return {
@@ -2369,6 +2502,7 @@ export function visaoPara(estado: Estado, usuario: Visao, agoraMs?: number): Est
     ...chat,
     // A ordem de turno só com as entradas que ele vê; a Destreza e o valor oculto nunca viajam.
     ...(estado.combate ? { combate: combateParaUsuario(estado.combate, usuario, estado) } : {}),
+    ...(efeitosDele.length > 0 ? { efeitos: efeitosDele } : {}),
     relogio: relogioParaVisao(estado.relogio, usuario, agora),
     modelos: modelosParaJogador(estado.modelos, estado.config),
     pontos: estado.pontos.filter((p) => pontoVisivelPara(p, usuario, estado.cenaAtivaId)),
@@ -2492,6 +2626,26 @@ export function eventoPara(
     case "mesa.relogioZerado":
       // V1: o marco é só do mestre; o jogador não recebe nada.
       return mestre ? evento : null;
+    case "automacoes.alterado":
+      // 7b-1 (regra 7): a definição e o controle das automações são só do mestre.
+      return mestre ? evento : null;
+    case "efeitos.alterados": {
+      if (mestre) return evento;
+      const ref = depois ?? antes;
+      if (!ref) return null;
+      const dele = (e: Estado) =>
+        efeitosParaJogador(
+          e.efeitos,
+          e.tokens.filter((t) => controlaToken(t, usuario, e.personagens)),
+        );
+      const novo = efeitosParaJogador(
+        evento.dados.efeitos,
+        ref.tokens.filter((t) => controlaToken(t, usuario, ref.personagens)),
+      );
+      // Mudança que ele não percebe (o efeito era de outro token) nem chega a ele.
+      if (antes && JSON.stringify(dele(antes)) === JSON.stringify(novo)) return null;
+      return { ...evento, dados: { efeitos: novo } };
+    }
     case "modelo.alterado": {
       if (mestre) return evento;
       const cfg = (depois ?? antes)?.config;

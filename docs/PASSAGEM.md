@@ -716,3 +716,12 @@ Continua em aberto, por ser decisão e não erro de doc: `ficha.verOutras` (seç
 - Onde mexer: `packages/shared/src/recuperacao.ts` (código, ECDSA, esquemas), `apps/server/src/contas.ts` (`registrarChave`, `gerarCodigo`, `emitirDesafio`, `recuperarPelaPasta`, `recuperarPeloCodigo`, `limite`), `apps/server/src/origem.ts` (Origin), migração 11 em `armazenamento.ts`, rotas `conta/chave|codigo|recuperar/*` na `Sala` e em `index.ts`; web em `contas/pastaDoMestre.ts`, `CodigoDeRecuperacao.tsx`, `ProtecaoDoMestre.tsx`, `EntradaDaMesa.tsx`, `TelaInicial.tsx`.
 - Frágil: a pasta de teste (`window.__tabletopPastas`) só existe no modo e2e; o arquivo `tavola-mestre.json` é a prova de mestre (quem o tem recupera a mesa); o código de recuperação só aparece uma vez; o Origin aceita loopback em pedido local.
 - Suposições: ver REDESIGN, "C3 — como ficou".
+
+## 7b-1 (2026-11-13): o motor das automações
+
+- Onde mexer: `packages/shared/src/automacoes.ts` (schemas e leituras puras: ciclo, fase, reação, ação, condição, evento, efeito, `Estado.automacoes`, `converterAutomacoesDoArquivo`), `automacoesnucleo.ts` (o motor: `executar`, `eventosDoSistema`, `rodarAutomacoes`, `tratarAutomacao` com as dez intenções), `nucleo.ts` (`processar` chama o motor depois de toda intenção com eventos; `processarSistema` o chama no alarme; `processarEvento`; `visaoPara` e `eventoPara` tiram a definição do jogador), `luz.ts` e `objetos.ts` (`raioSomaM` e `somaDeRaioM`), `apps/server/src/armazenamento.ts` (chaves `automacoes` e `efeitos` da `meta`) e `sala.ts` (`automacao.marco` em `reagendarLuzes` e no `alarm`). Na tela: `Mesa.tsx` (`limitarAlcance`, limite de visão), `mapaPixi.ts` (anel da luz com `raiosEfetivos`) e `MensagemDoChat.tsx` (aviso "A mesa").
+- Frágil: a definição de automação **nunca** pode sair em `visaoPara`/`eventoPara`; quem criar campo ou evento novo nesta fatia precisa derrubá-lo para o jogador (e acrescentar o frame ao teste de sigilo em `automacoes.test.ts` e `automacoes.spec.ts`).
+- Frágil: os eventos do sistema vêm da diferença entre estados; uma mudança de objeto que não passe por um evento de protocolo não dispara reação.
+- Frágil: o `packages/shared` roda no Vite sem compilar: sem propriedade de parâmetro no construtor, sem enum.
+- Sem migração SQL: as automações estão em duas chaves da `meta`. A importação as troca (`salvarTudo`), o `apagarTudo` as apaga.
+- Suposições novas (assumido): ver `REDESIGN`, "7b-1 — como ficou".

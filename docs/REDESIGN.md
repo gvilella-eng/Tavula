@@ -1541,3 +1541,39 @@ Menus (tipos de parede, importar e exportar, atalhos) e dois acertos que sobrara
   finos de UX/UI e a reorganização dos itens, a partir de `docs/PASSAGEM.md`.
 - Itens de interface que sobram: seleção múltipla no mapa (ainda não existe), toque (celular) e navegadores além do Chrome, "Entregar" a
   tocha só por arrastar. A dica das condições por clique e as alças de tocha sobre o ícone de ponto foram resolvidas no R5a.
+
+## Automações da mesa (7b)
+
+Os lotes 7b-1 a 7b-3 (motor, zonas, editor e campanhas) vêm depois dos ajustes do Vilella; o plano está no `PROJETO.md` (seção 7, "Lote 7b").
+
+### 7b-1 — como ficou (2026-11-13)
+
+**O que foi feito**
+- **O motor**, puro, em `packages/shared`: `automacoes.ts` (schemas zod de ciclo, fase, reação, ação, condição, evento, efeito e a fatia
+  `Estado.automacoes`) e `automacoesnucleo.ts` (executar evento, eventos do sistema, avançar os ciclos, as intenções). `nucleo.ts` ganhou
+  `processarEvento` e chama o motor depois de toda intenção que mudou algo (`processar`) e no alarme (`processarSistema`).
+- **As automações ficam numa fatia só do mestre** (`Estado.automacoes`), fora dos modelos; `Estado.efeitos` guarda o limite de visão dos tokens.
+- **Modificadores com prazo:** `raioX` e `raioSomaM` no objeto de luz; `visaoMaxM` no token (`efeitos`). O valor base nunca muda.
+- **Dez intenções novas** (`automacao.editar`) e dois eventos (`automacoes.alterado`, `efeitos.alterados`); o erro ganhou `ciclo_inexistente` e `reacao_inexistente`.
+- **Agendador:** um vencimento `automacao.marco` (próxima fase, evento pendente ou fim de efeito).
+- **Guardar:** chaves `automacoes` e `efeitos` da tabela `meta` (sem migração); exportar e importar levam tudo.
+- **Interface mínima:** o raio da luz com o modificador (a luz do mapa e o anel da luz selecionada) e o anúncio no chat ("A mesa", em itálico).
+  Sem editor: ele é o 7b-3.
+
+**Decisões (assumido)**
+- (assumido) Uma fatia própria no estado em vez de reações dentro do modelo; o arquivo de campanha aceita a forma enxuta e converte na importação.
+- (assumido) O efeito de luz mora no objeto (o campo `modificadores` já existia, com `origem: "automacao"`) e o de token em `Estado.efeitos`: um modificador por alvo, sem uma lista única.
+- (assumido) O ciclo sem cenas vale para todas; a fase de `emS` 0 dispara na hora em que o ciclo começa; ciclo vindo de arquivo começa quando a mesa corre; `ciclo.criar` roda já, salvo com `pausado`.
+- (assumido) `ciclo.disparar` pula o ciclo para o começo da fase seguinte (e a dispara); `ciclo.editar` que muda período ou fases reinicia.
+- (assumido) Sem `porS`, o prazo é o `duracaoS` da fase; sem ele, 30 s. O mesmo efeito de novo renova o prazo (não empilha).
+- (assumido) Profundidade máxima 5; teto de 500 ações por disparo; 50 fases atrasadas por vez; o registro do mestre guarda as últimas 30 anotações.
+- (assumido) `objeto.apagar` sem `penalidadeS` não desconta nada (a penalidade da mesa não se aplica); `chance` sem valor é 1.
+- (assumido) A condição `tag` precisa de um objeto no evento ou na instância; sem ele, não passa. A `cena` olha a cena do objeto (ou a única do evento).
+- (assumido) `evento.disparar` dentro de uma reação leva o mesmo objeto do evento (a reação do modelo não se multiplica pelas instâncias).
+- (assumido) O jogador recebe o limite de visão só dos tokens que controla (a visão dos outros não muda o que ele enxerga).
+- (assumido) O anúncio do chat é uma mensagem `aviso` sem autor real; para o mestre vai como sussurro vazio (só ele vê).
+- (assumido) A exportação leva os efeitos ativos e a execução dos ciclos (o prazo é em tempo da sala, e a campanha importada começa pausada nesse tempo); a versão do arquivo continua 13.
+
+**O que ficou para depois**
+- O editor, os botões fixáveis, a liberação para jogadores e as campanhas de referência (7b-3); as zonas e `token.entrouNaZona` (7b-2); `som.tocar` (lote de som).
+- Mostrar o registro do mestre (encadeamento cortado) em algum lugar da tela: hoje só está no estado.

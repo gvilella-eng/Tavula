@@ -216,7 +216,8 @@ function ResultadoDoModelo({ mensagem }: { mensagem: Mensagem }) {
 /** Uma mensagem do chat: quem falou (retrato e nome), a hora, o tipo e o conteúdo. */
 export function MensagemDoChat({ mensagem, usuarios, euId, imagens, versaoDasImagens }: Props) {
   const autor = usuarios.find((u) => u.id === mensagem.autorId);
-  const nome = mensagem.como?.nome ?? autor?.nome ?? "?";
+  // 7b-1: o aviso de uma automação não tem autor: aparece como "A mesa".
+  const nome = mensagem.como?.nome ?? autor?.nome ?? (mensagem.tipo === "aviso" ? "A mesa" : "?");
   const cor = autor?.cor ?? "#666";
   const nomesDe = (ids: string[]) =>
     ids.map((id) => usuarios.find((u) => u.id === id)?.nome ?? "?").join(", ");

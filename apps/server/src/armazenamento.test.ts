@@ -1,4 +1,5 @@
 import {
+  AutomacoesSchema,
   type Combate,
   type Desenho,
   type EventoSala,
@@ -613,5 +614,110 @@ describe("Armazenamento: handouts (V3)", () => {
     expect(reaberto.carregar()?.handouts).toEqual([h]);
     banco.salvarTudo(base);
     expect(reaberto.carregar()?.handouts).toEqual([]);
+  });
+});
+
+describe("Armazenamento: automações (7b-1)", () => {
+  const automacoes = AutomacoesSchema.parse({
+    ciclos: [
+      {
+        id: "respiracao",
+        nome: "Respiração",
+        periodoS: 180,
+        cenas: [],
+        fases: [{ emS: 0, evento: "inspiracao", duracaoS: 20 }],
+      },
+    ],
+    reacoes: [
+      {
+        id: "r1",
+        fica: { tipo: "modelo", id: "modelo-tocha" },
+        ao: "inspiracao",
+        fazer: [{ acao: "luz.modificar", raioX: 0.5, porS: 20 }],
+      },
+    ],
+    execucao: { respiracao: { baseSala: 0, disparadoAteTau: 0 } },
+  });
+  const efeitos = [
+    {
+      id: "auto:r1:0:t1",
+      alvo: { tipo: "token" as const, id: "t1" },
+      efeito: { visaoMaxM: 3 },
+      ateSala: 5_000,
+      origem: "r1",
+    },
+  ];
+  const evento = (tipo: "automacoes.alterado" | "efeitos.alterados", seq: number): EventoSala =>
+    tipo === "automacoes.alterado"
+      ? { seq, origem: { usuarioId: "m", idPedido: "p" }, tipo, dados: { automacoes } }
+      : { seq, origem: { usuarioId: "m", idPedido: "p" }, tipo, dados: { efeitos } };
+
+  it("banco antigo (a campanha real, sem as chaves) abre sem quebrar e sem nenhuma migração nova", async () => {
+    const { sql } = await abrirBanco();
+    const original = new Armazenamento(sql as never);
+    original.migrar();
+    original.salvarTudo(estadoInicial(semente));
+    // o banco de antes do 7b-1 nunca teve as chaves (e não há migração: moram na meta)
+    sql.exec("DELETE FROM meta WHERE chave IN ('automacoes', 'efeitos')");
+    const reaberto = new Armazenamento(sql as never);
+    reaberto.migrar();
+    expect(reaberto.lerMeta("versao_esquema")).toBe("12");
+    const carregado = reaberto.carregar();
+    expect(carregado?.automacoes).toBeUndefined();
+    expect(carregado?.efeitos).toBeUndefined();
+    expect(carregado?.personagens.map((p) => p.nome)).toContain("Aldric");
+    // abrir de novo não muda nada (idempotente)
+    reaberto.migrar();
+    expect(reaberto.lerMeta("versao_esquema")).toBe("12");
+  });
+
+  it("grava pelos eventos e sobrevive ao reinício; só o mestre as lê (o estado guardado é o mesmo)", async () => {
+    const { sql } = await abrirBanco();
+    const banco = new Armazenamento(sql as never);
+    banco.migrar();
+    const base = estadoInicial(semente);
+    banco.salvarTudo(base);
+    banco.salvarEventos({ ...base, seq: 1, automacoes }, [evento("automacoes.alterado", 1)]);
+    banco.salvarEventos({ ...base, seq: 2, automacoes, efeitos }, [evento("efeitos.alterados", 2)]);
+    const reaberto = new Armazenamento(sql as never);
+    reaberto.migrar();
+    const carregado = reaberto.carregar();
+    expect(carregado?.automacoes).toEqual(automacoes);
+    expect(carregado?.efeitos).toEqual(efeitos);
+    // efeito que venceu: a lista esvazia e volta vazia
+    reaberto.salvarEventos({ ...base, seq: 3, automacoes, efeitos: [] }, [
+      { ...evento("efeitos.alterados", 3), dados: { efeitos: [] } } as EventoSala,
+    ]);
+    expect(reaberto.carregar()?.efeitos).toEqual([]);
+  });
+
+  it("importar (salvarTudo) troca as automações; sem elas na campanha importada elas somem; apagarTudo também", async () => {
+    const { sql } = await abrirBanco();
+    const banco = new Armazenamento(sql as never);
+    banco.migrar();
+    const base = estadoInicial(semente);
+    banco.salvarTudo({ ...base, automacoes, efeitos });
+    expect(banco.carregar()?.automacoes).toEqual(automacoes);
+    banco.salvarTudo(base);
+    expect(banco.carregar()?.automacoes).toBeUndefined();
+    expect(banco.carregar()?.efeitos).toBeUndefined();
+    banco.salvarTudo({ ...base, automacoes, efeitos });
+    banco.apagarTudo();
+    expect(
+      sql.exec("SELECT valor FROM meta WHERE chave IN ('automacoes', 'efeitos')").toArray(),
+    ).toEqual([]);
+  });
+
+  it("valor ilegível não derruba a sala: vira sem automação", async () => {
+    const { sql } = await abrirBanco();
+    const banco = new Armazenamento(sql as never);
+    banco.migrar();
+    banco.salvarTudo(estadoInicial(semente));
+    banco.gravarMeta("automacoes", "{ não é json");
+    banco.gravarMeta("efeitos", JSON.stringify([{ id: 1 }]));
+    const carregado = banco.carregar();
+    expect(carregado?.automacoes).toBeUndefined();
+    expect(carregado?.efeitos).toBeUndefined();
+    expect(carregado?.tokens.length).toBeGreaterThan(3);
   });
 });

@@ -1,6 +1,15 @@
 import { z } from "zod";
 import { AssetMetaSchema, HashSchema, LIMITES_DE_ASSET, MetaNovaSchema } from "./assets.ts";
 import {
+  AutomacoesSchema,
+  CicloCamposSchema,
+  CicloSchema,
+  EfeitoSchema,
+  MAXIMO_DE_EFEITOS,
+  NomeDeEventoSchema,
+  ReacaoSchema,
+} from "./automacoes.ts";
+import {
   CAPACIDADES_DELEGAVEIS,
   type Capacidade,
   PERMISSOES_PADRAO,
@@ -392,6 +401,10 @@ const AjusteDoObjetoSchema = z.discriminatedUnion("acao", [
   /** Extingue de vez (a lixeira): o objeto sai da coleção, como quando o tempo acaba. */
   z.object({ acao: z.literal("consumir") }),
 ]);
+
+/** `ciclo.editar`: só o que vier muda; a sala junta e confere o ciclo inteiro de novo. */
+const MudancasDoCicloSchema = CicloCamposSchema.omit({ id: true }).partial();
+const MudancasDaReacaoSchema = ReacaoSchema.omit({ id: true }).partial();
 
 const MudancasDoHandoutSchema = z
   .object({
@@ -868,6 +881,27 @@ export const IntencaoSchema = z.discriminatedUnion("tipo", [
    * tira. O arquivo nunca vai ao servidor; só a referência.
    */
   intencao("compendio.definir", z.object({ compendio: CompendioDaMesaSchema.nullable() })),
+  /**
+   * Automações (7b-1, seção 4.11). Todas só do mestre (`automacao.editar`). `ciclo.criar` com `pausado`
+   * cria o ciclo parado no começo (sem ele, roda assim que a mesa corre). Editar o período ou as fases
+   * reinicia o ciclo (mantendo-o pausado, se estava).
+   */
+  intencao("ciclo.criar", z.object({ ciclo: CicloSchema, pausado: z.boolean().optional() })),
+  intencao("ciclo.editar", z.object({ id: IdSchema, mudancas: MudancasDoCicloSchema })),
+  intencao("ciclo.apagar", z.object({ id: IdSchema })),
+  /** Dispara a fase seguinte agora e continua dali (o ciclo pulou para o começo dela). */
+  intencao("ciclo.disparar", z.object({ id: IdSchema })),
+  /** Pausa só o ciclo: as tochas continuam queimando. Pausar a mesa (`mesa.pausar`) congela os dois. */
+  intencao("ciclo.pausar", z.object({ id: IdSchema })),
+  intencao("ciclo.retomar", z.object({ id: IdSchema })),
+  intencao("reacao.criar", z.object({ reacao: ReacaoSchema })),
+  intencao("reacao.editar", z.object({ id: IdSchema, mudancas: MudancasDaReacaoSchema })),
+  intencao("reacao.apagar", z.object({ id: IdSchema })),
+  /** Dispara um evento agora, em todas as cenas ou só em `cenaId`. */
+  intencao(
+    "evento.disparar",
+    z.object({ evento: NomeDeEventoSchema, cenaId: IdSchema.optional() }),
+  ),
   intencao("campanha.exportar", SemDados),
   intencao("campanha.importar", z.object({ dados: z.unknown() })),
 ]);
@@ -987,6 +1021,17 @@ export const capacidadeDaIntencao: Record<TipoIntencao, Capacidade | null> = {
   "desenho.limpar": "cena.editar",
   "desenho.rascunho": "desenho.criar",
   "compendio.definir": "mesa.configurar",
+  // 7b-1: automações são dado do mestre (regra 7): nenhuma é delegável.
+  "ciclo.criar": "automacao.editar",
+  "ciclo.editar": "automacao.editar",
+  "ciclo.apagar": "automacao.editar",
+  "ciclo.disparar": "automacao.editar",
+  "ciclo.pausar": "automacao.editar",
+  "ciclo.retomar": "automacao.editar",
+  "reacao.criar": "automacao.editar",
+  "reacao.editar": "automacao.editar",
+  "reacao.apagar": "automacao.editar",
+  "evento.disparar": "automacao.editar",
   "campanha.exportar": "campanha.exportar",
   "campanha.importar": "campanha.importar",
 };
@@ -1137,6 +1182,19 @@ export const EventoSalaSchema = z.discriminatedUnion("tipo", [
   eventoDe("chat.limpo", SemDados),
   /** Só mestres recebem (as metas dos jogadores chegam por `asset.meta`, sob demanda). */
   eventoDe("asset.registrado", z.object({ meta: AssetMetaSchema })),
+  /**
+   * 7b-1: a fatia inteira de automações depois da mudança (ciclos, reações, execução, pendentes). SÓ o mestre
+   * recebe: o filtro a derruba para qualquer outro (regra 7).
+   */
+  eventoDe("automacoes.alterado", z.object({ automacoes: AutomacoesSchema })),
+  /**
+   * 7b-1: a lista de efeitos temporários em tokens depois da mudança. O mestre recebe tudo; o jogador, a lista
+   * própria dele (só os tokens que vê, sem prazo nem origem).
+   */
+  eventoDe(
+    "efeitos.alterados",
+    z.object({ efeitos: z.array(EfeitoSchema).max(MAXIMO_DE_EFEITOS) }),
+  ),
 ]);
 export type EventoSala = z.infer<typeof EventoSalaSchema>;
 
@@ -1168,6 +1226,8 @@ export const CODIGOS_DE_ERRO = [
   "muitas_mensagens",
   "desenho_inexistente",
   "limite_de_desenhos",
+  "ciclo_inexistente",
+  "reacao_inexistente",
 ] as const;
 export const CodigoDeErroSchema = z.enum(CODIGOS_DE_ERRO);
 export type CodigoDeErro = z.infer<typeof CodigoDeErroSchema>;

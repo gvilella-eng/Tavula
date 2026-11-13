@@ -29,11 +29,19 @@ const entre01 = (n: number) => Math.min(1, Math.max(0, n));
  * `claraM` é o raio da luz plena; `totalM`, o da luz plena mais a penumbra.
  */
 export function raiosEfetivos(
-  fonte: Pick<FonteDeLuz, "luz" | "intensidade"> & { fatorDeRaio?: number | undefined },
+  fonte: Pick<FonteDeLuz, "luz" | "intensidade"> & {
+    fatorDeRaio?: number | undefined;
+    somaDeRaioM?: number | undefined;
+  },
   fatorGeral: number,
 ): { claraM: number; totalM: number } {
   const k = entre01(fonte.intensidade) * entre01(fatorGeral) * (fonte.fatorDeRaio ?? 1);
-  return { claraM: fonte.luz.claraM * k, totalM: (fonte.luz.claraM + fonte.luz.penumbraM) * k };
+  if (k <= 0) return { claraM: 0, totalM: 0 };
+  // 7b-1: o valor final é a base vezes os fatores mais a soma dos modificadores (em metros, nos dois raios).
+  const soma = fonte.somaDeRaioM ?? 0;
+  const claraM = Math.max(0, fonte.luz.claraM * k + soma);
+  const totalM = Math.max(claraM, (fonte.luz.claraM + fonte.luz.penumbraM) * k + soma);
+  return { claraM, totalM };
 }
 
 /** Uma fonte pronta para desenhar: posição em metros e raios já multiplicados. */

@@ -199,3 +199,7 @@ entra nas perguntas do fim):**
 - **Ações:** "Mandar para o chat" (cartão da magia no chat, "Como:" o personagem) e "Adicionar à ficha"
   (escolhe o personagem que eu edito; entra na lista de magias com a descrição).
 - Monstros e armas ficam para depois.
+
+## 7b-1: o motor das automações (2026-11-13)
+
+Sem pergunta nova para o Vilella: ele aprovou o plano do 7b. As suposições do lote estão em `docs/REDESIGN.md`, "7b-1 — como ficou" (todas com "(assumido)"). As que mais valem uma olhada quando o editor chegar (7b-3): um ciclo criado roda na hora (e há `pausado` para criar parado); a fase do segundo 0 dispara ao começar; `ciclo.disparar` pula para a fase seguinte; sem `porS` o prazo vem da fase (ou 30 s).

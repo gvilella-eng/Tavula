@@ -343,6 +343,9 @@ interface Asset {                               // metadados; os bytes nunca pas
 A separação **personagem × token** é importante: o personagem (ficha, visão) existe uma vez só; o
 token é apenas a posição dele numa cena. Levar o grupo para outro mapa é **uma única mensagem**.
 
+As **automações** (ciclos, reações, execução) moram em `Estado.automacoes` e os efeitos em `Estado.efeitos` (lote 7b-1, 2026-11-13):
+ver a seção 4.11. Ficam fora de `modelos`, para nada disso chegar ao navegador do jogador.
+
 A **luz pertence ao objeto, não ao personagem.** O objeto tem um portador (mochila, mão, o próprio
 corpo, um ponto do mapa ou a cena) e a luz sai de onde o portador está. Entregar uma tocha ou pendurá-la
 num suporte é só trocar o portador, e o saldo de tempo vai junto. A tocha na mão acompanha o personagem
@@ -720,6 +723,44 @@ Regras do motor:
 6. **Zonas:** polígonos do mapa com reações e efeitos enquanto um token ou objeto está dentro (gás que
    enfraquece chamas, ar rarefeito).
 7. Automações são dados do mestre: nunca chegam ao navegador do jogador, só os efeitos delas.
+
+**Desenho final do motor (7b-1, 2026-11-13).** O que o 7b-2 (zonas), o 7b-3 (editor e campanhas) e o MCP vão usar.
+- **Onde ficam.** Numa fatia própria do estado, `Estado.automacoes` = `{ ciclos, reacoes, execucao, pendentes, registro }`
+  (`packages/shared/src/automacoes.ts`), **só do mestre**: `visaoPara` a tira do jogador e `eventoPara` derruba o evento
+  `automacoes.alterado` (a fatia inteira, sem valor para o jogador). O modelo de objeto **não** carrega reação: a reação aponta
+  para ele (`fica: { tipo: "modelo" | "cena" | "mesa", id? }`), então `modelos` continua indo ao jogador sem nada de automação.
+  Guardada no SQLite na chave `automacoes` da tabela `meta` (e `efeitos`), **sem migração**: o banco antigo não a tem e
+  carrega igual. Entra na exportação como campo opcional (a versão do arquivo continua 13); o arquivo antigo carrega sem ela.
+  O arquivo de campanha aceita a forma enxuta do exemplo acima (`ciclos` no topo e `reacoes` dentro do modelo, sem `id` nem
+  `fica`): `converterAutomacoesDoArquivo` a converte na importação (a reação do modelo ganha `id` `reacao-<modelo>-<n>`).
+- **Eventos.** `{ nome, cenas | null, origem, objetoId?, tokenId?, duracaoS? }`. `cenas` é o escopo (regra 4): o evento de um
+  ciclo leva as cenas dele (vazio = todas = `null`); o do sistema leva a cena do objeto, a cena nova ou a do token da vez.
+  Os do sistema (`objeto.acendeu`, `objeto.apagou`, `turno.inicio`, `cena.ativada`) saem da **diferença entre o estado de antes
+  e o de depois** de qualquer intenção, do tempo que passa e das próprias ações das reações (`eventosDoSistema`): vale para
+  todo jeito de acender e apagar, sem tocar nas tochas.
+- **Alvo das ações.** Reação de **modelo**: cada objeto daquele modelo nas cenas do evento (ou só o objeto do evento, se ele é
+  do modelo). Reação de **cena** ou da **mesa**: o objeto do evento, se houver. Cada ação pode ter `alvo`: nas ações de luz,
+  `{ modeloId?, tag? }`; nas de token, `{ ids? }`. Sem `alvo`, a ação vale para o objeto da reação (e, em `visao.limitar` e
+  `token.mostrar/ocultar`, para quem o carrega: o token da luz ou o dono da tocha na mão); sem objeto, para tudo o que está nas
+  cenas do evento. A reação presa a uma cena só roda se a cena está entre as do evento. As condições (`chance`, `tag`, `cena`)
+  valem para o alvo, uma vez por alvo.
+- **Modificadores.** Nunca mexem no valor base. Na luz, o modificador mora no próprio objeto (`ObjetoDeLuz.modificadores`, que
+  já existia): `{ id, raioX, raioSomaM?, ateSala, origem: "automacao" }`, com o prazo em tempo da sala; o valor final é
+  `base × Πraiox + Σsoma` (`raiosEfetivos`). O id é `auto:<reação>:<ação>`: o mesmo efeito de novo **renova** o prazo, não
+  empilha; efeitos de reações diferentes multiplicam. No token, o limite de visão é um **efeito** em `Estado.efeitos`:
+  `{ id, alvo: { tipo: "token", id }, efeito: { visaoMaxM }, ateSala, origem }`; vale o menor, e o alcance final é o menor entre a
+  visão base e o limite. O agendador tira os vencidos. O jogador recebe só o resultado: na luz, `fatorDeRaio` e `somaDeRaioM`; no
+  token, os efeitos **dos tokens que ele controla**, resumidos (um por token, id opaco, sem prazo nem origem).
+- **Tempo.** O ciclo é medido no tempo da sala (`baseSala`, `disparadoAteTau`, `pausadoEmTau`): pausar a mesa o congela sem
+  conta extra; pausar o ciclo só o congela. Ciclo sem execução (veio de um arquivo) começa quando a mesa corre. O agendador tem
+  um vencimento só, `automacao.marco`, para a próxima fase, evento pendente ou fim de efeito. `evento.disparar` com `atrasoS`
+  vira um pendente (tempo da sala) que guarda o nível de encadeamento.
+- **Limites.** Profundidade máxima 5 (níveis 0 a 5 rodam; o seguinte é cortado), no máximo 500 ações (ação × alvo) por disparo e
+  50 fases atrasadas recuperadas de uma vez. O corte é anotado em `automacoes.registro` (só o mestre). O sorteio usa o RNG da
+  sala (`crypto`; semente fixa nos testes).
+- **Intenções** (todas `automacao.editar`, só do mestre): `ciclo.criar|editar|apagar|disparar|pausar|retomar`,
+  `reacao.criar|editar|apagar` e `evento.disparar`. Ver `docs/protocolo.md`, "Automações (Lote 7b-1)".
+- **Chat.** `chat.anunciar` cria uma mensagem `tipo: "aviso"` sem autor real (`autorId: "sistema"`), mostrada como "A mesa".
 
 **Decidido pelo Vilella (2026-11-13):** a ação `som.tocar` fica fora do 7b. Ela entra junto com um lote de som
 ambiente, com os arquivos de som na pasta local, como as imagens. O 7b se divide em três lotes, 7b-1 a 7b-3
@@ -1577,7 +1618,7 @@ assumido sem o Vilella está marcado com "(assumido)" e entra nas perguntas do f
 para 30 s, ver a inspiração reduzir e apagar tochas, pausar e retomar pelo botão.
 
 **Divisão em três lotes (2026-11-13), cada um com o seu `pnpm verify`:**
-- **7b-1, o motor:**
+- **7b-1, o motor** (entregue em 2026-11-13; o desenho final está na 4.11):
   - os schemas de ciclo, evento, reação, ação, condição e modificador com prazo;
   - as automações guardadas na campanha;
   - as fases dos ciclos no agendador e os eventos do sistema;

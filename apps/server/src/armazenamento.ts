@@ -1,5 +1,7 @@
 import {
   type AssetMeta,
+  type Automacoes,
+  AutomacoesSchema,
   absorverMochila,
   CENA_PADRAO,
   type Cena,
@@ -10,6 +12,8 @@ import {
   configComPadrao,
   type Desenho,
   DesenhoSchema,
+  type Efeito,
+  EfeitoSchema,
   type Estado,
   type EventoSala,
   type Handout,
@@ -310,6 +314,7 @@ export class Armazenamento {
       ...this.carregarMapa(),
       ...this.carregarCombate(),
       ...this.carregarCompendio(),
+      ...this.carregarAutomacoes(),
       desenhos: this.carregarDesenhos(),
     };
   }
@@ -458,6 +463,36 @@ export class Armazenamento {
     else this.gravarMeta("compendio", JSON.stringify(compendio));
   }
 
+  /**
+   * As automações (7b-1) e os efeitos temporários em tokens: duas chaves da tabela `meta`, sem migração (o
+   * banco antigo não as tem = sem automação, e a campanha real carrega igual). Valor ilegível = sem o campo.
+   */
+  private carregarAutomacoes(): { automacoes?: Automacoes; efeitos?: Efeito[] } {
+    const saida: { automacoes?: Automacoes; efeitos?: Efeito[] } = {};
+    const lerJson = (chave: string): unknown => {
+      const bruto = this.lerMeta(chave);
+      if (bruto === null) return undefined;
+      try {
+        return JSON.parse(bruto);
+      } catch {
+        return undefined;
+      }
+    };
+    const a = AutomacoesSchema.safeParse(lerJson("automacoes"));
+    if (a.success) saida.automacoes = a.data;
+    const e = EfeitoSchema.array().safeParse(lerJson("efeitos"));
+    if (e.success) saida.efeitos = e.data;
+    return saida;
+  }
+
+  private gravarAutomacoes(estado: Pick<Estado, "automacoes" | "efeitos">): void {
+    if (estado.automacoes === undefined)
+      this.sql.exec("DELETE FROM meta WHERE chave = 'automacoes'");
+    else this.gravarMeta("automacoes", JSON.stringify(estado.automacoes));
+    if (estado.efeitos === undefined) this.sql.exec("DELETE FROM meta WHERE chave = 'efeitos'");
+    else this.gravarMeta("efeitos", JSON.stringify(estado.efeitos));
+  }
+
   /** O relógio da sala; sem ele (banco antigo) a mesa está rodando e a sala preenche `desdeReal`. */
   private lerRelogio(): RelogioSala {
     const bruto = this.lerMeta("relogio");
@@ -509,6 +544,7 @@ export class Armazenamento {
     this.gravarMeta("ordem_de_turno", estado.ordemDeTurnoVisivel ? "1" : "0");
     this.gravarCombate(estado.combate);
     this.gravarCompendio(estado.compendio);
+    this.gravarAutomacoes(estado);
     this.sql.exec("DELETE FROM desenhos");
     for (const d of estado.desenhos) this.gravarDesenho(d);
     this.gravarMeta("permissoes", JSON.stringify(estado.permissoes));
@@ -620,6 +656,12 @@ export class Armazenamento {
           break;
         case "compendio.alterado":
           this.gravarCompendio(estado.compendio);
+          break;
+        case "automacoes.alterado":
+          this.gravarMeta("automacoes", JSON.stringify(estado.automacoes));
+          break;
+        case "efeitos.alterados":
+          this.gravarMeta("efeitos", JSON.stringify(estado.efeitos ?? []));
           break;
         case "desenho.criado":
           this.gravarDesenho(ev.dados.desenho);

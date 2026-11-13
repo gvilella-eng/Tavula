@@ -44,6 +44,7 @@ import {
   type PontoDeLuz,
   pontosDaParede,
   prepararTraco,
+  raiosEfetivos,
   resolverLuzes,
   SEGURAR_PADRAO_S,
   segmentosDaParede,
@@ -1796,9 +1797,9 @@ export class MapaPixi {
       const r = 9 / z;
       const selecionada = luz.id === this.opcoes.luzSelecionadaId;
       if (selecionada) {
-        const k = luz.intensidade * (this.cena?.fatorDeLuz ?? 1) * (luz.fatorDeRaio ?? 1);
-        const clara = luz.luz.claraM * k * PX_POR_M;
-        const total = (luz.luz.claraM + luz.luz.penumbraM) * k * PX_POR_M;
+        const raios = raiosEfetivos(luz, this.cena?.fatorDeLuz ?? 1);
+        const clara = raios.claraM * PX_POR_M;
+        const total = raios.totalM * PX_POR_M;
         g.circle(cx, cy, total).stroke({ width: 1.5 / z, color: COR_DA_LUZ, alpha: 0.6 });
         g.circle(cx, cy, clara).stroke({ width: 1.5 / z, color: 0xffffff, alpha: 0.6 });
       }

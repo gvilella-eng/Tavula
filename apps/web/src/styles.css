@@ -2358,6 +2358,11 @@ button[aria-disabled="true"]:hover {
 .acao-chat {
   color: var(--texto-suave);
 }
+/* 7b-1: o anúncio de uma automação (sem autor): itálico e suave, como uma ação. */
+.mensagem-chat.tipo-aviso .texto-chat {
+  color: var(--texto-suave);
+  font-style: italic;
+}
 .mensagem-chat.sussurro .mensagem-corpo,
 .mensagem-chat.oculta .mensagem-corpo {
   padding: 4px 8px;
