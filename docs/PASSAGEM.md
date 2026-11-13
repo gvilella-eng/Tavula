@@ -621,7 +621,7 @@ Continua em aberto, por ser decisão e não erro de doc: `ficha.verOutras` (seç
 
 ## V4b (2026-11-12): NPC, arrastar do compêndio e reordenar
 
-- NPC: `ficha/BlocoDoNpc.tsx` (o bloco inteiro; os estilos são os `npc-*` do fim de `ficha.css`, em container query `npc`, não pela largura medida como o PJ). Quem decide é `apresentacaoDoPersonagem` (`shared/pastas.ts`); a `JanelaDaFicha` troca só o corpo e as props da `Janela` (`LARGURA_DO_NPC` 520 em `janelas.ts`). Sem abas: a engrenagem do cabeçalho (`npc-configurar`) alterna o bloco e a Configurar (`janela.aba`).
+- NPC: `ficha/BlocoDoNpc.tsx` (o bloco inteiro; os estilos são os `npc-*` do fim de `ficha.css`, em container query `npc`, não pela largura medida como o PJ). Quem decide é `apresentacaoDoPersonagem` (`shared/pastas.ts`); a `JanelaDaFicha` troca só o corpo e as props da `Janela` (`LARGURA_DO_NPC` 520 em `janelas.ts`). Desde o V8 há duas fitas (Bestiário e Conjuração), ver a seção V8 deste arquivo; a engrenagem do cabeçalho (`npc-configurar`) alterna o bloco e a Configurar (`janela.aba`).
 - Os testids do PJ que o NPC reaproveita: `ficha-nome`, `ca-<id>`, `pv-atual-<id>`, `pv-max-<id>`, `pv-menos`, `pv-mais`, `atributo-mod-<a>`, `atributo-valor-<a>`, `salvaguarda-botao-<a>`, `percepcao-passiva`, `editor-ataque` (o editor da engrenagem abre dentro da linha). Novos: `npc-*` (ver `BlocoDoNpc.tsx`), `traco-*` (a `ListaDeCaracteristicas` com `testidBase="traco"`).
 - A ação do NPC é um `ataques[i]` com `categoria`; reordenar e arrastar usam o **grupo** da categoria (`posicoesDoGrupo`), então as três listas moram no mesmo array. Mudar a categoria na engrenagem muda a linha de seção.
 - Reordenar e soltar: `ficha/ordem.tsx` (`useOrdemDaLista`, `useSoltarDoCompendio`, o arrasto do compêndio guardado num store do módulo, com `useEntradaEmArrasto`). As linhas precisam de `data-linha-lista` e `data-linha-i` (o hook devolve os atributos); cada lista tem um nome único **dentro da janela da ficha** (`ataque`, `magia-ataque`, `itens`, `caracteristicas`, `circulo-N`, `acao`, `reacao`, `lendaria`). O CSS do indicador, da linha levantada e da área acesa está no começo do bloco V4b de `ficha.css` (`data-indicador`, `data-levantada`, `data-aceita-soltar`).
@@ -633,7 +633,7 @@ Continua em aberto, por ser decisão e não erro de doc: `ficha.verOutras` (seç
 
 ## V4b2 (2026-11-12): Conjuração do NPC e o nome com a capitular
 
-- Seção Conjuração do NPC: `ficha/ConjuracaoDoNpc.tsx` (`SecaoDeConjuracao` entra no `BlocoDoNpc` entre Traços e Ações). Os dados são os do personagem (`magias`, `espacosTotal`, `espacosGastos`, `habilidadeDeConjuracao`): não crie campo paralelo. Reaproveita `Espacos` e `subDaMagia` (agora exportados de `AbaMagias.tsx`), `conjurar.ts` e `EditorDeAtaque`. O título de seção do bloco (`TituloDoBloco`) mora em `livro.tsx`. Testids: `npc-secao-conjuracao`, `npc-conj-cd`, `npc-conj-ataque`, `npc-conj-habilidade`, `npc-conj-nivel-<n>`, `npc-conj-magia-<i>`, `npc-conj-conjurar-<i>`, `npc-espaco-<n>-<k>`, `npc-espaco-total-<n>`, `npc-nova-conjuracao`.
+- Seção Conjuração do NPC: `ficha/ConjuracaoDoNpc.tsx` (`SecaoDeConjuracao` é a página da fita Conjuração do `BlocoDoNpc`, V8). Os dados são os do personagem (`magias`, `espacosTotal`, `espacosGastos`, `habilidadeDeConjuracao`): não crie campo paralelo. Reaproveita `Espacos` e `subDaMagia` (agora exportados de `AbaMagias.tsx`), `conjurar.ts` e `EditorDeAtaque`. O título de seção do bloco (`TituloDoBloco`) mora em `livro.tsx`. Testids: `npc-secao-conjuracao`, `npc-conj-cd`, `npc-conj-ataque`, `npc-conj-habilidade`, `npc-conj-nivel-<n>`, `npc-conj-magia-<i>`, `npc-conj-conjurar-<i>`, `npc-espaco-<n>-<k>`, `npc-espaco-total-<n>`, `npc-nova-conjuracao`.
 - A magia solta no NPC: `aplicarEntradaNaFicha(..., "npc")` em `compendioParaFicha.ts` (sem classe nem atributo escolhido, grava também `habilidadeDeConjuracao`). `useSoltarDoCompendio.listaDoTipo` aceita uma função da entrada e há a opção `fluxo` (chips lado a lado) em `ordem.tsx`; listas `npc-circulo-<n>`.
 - Frágil: o manipulador de foco de `NomeComCapitular` troca o valor do input direto no DOM (antes do render) para o preenchimento por código (Playwright `fill`) substituir o texto em vez de anexar ao fim. Não passe isso para um `useEffect`.
 - Suposição: a seção existe com magias, atributo ou total de espaços escolhido; sem isso só o "+ Conjuração" de quem edita. Ver `REDESIGN`, "V4b2".
@@ -652,6 +652,14 @@ Continua em aberto, por ser decisão e não erro de doc: `ficha.verOutras` (seç
 - Frágil: o Conjurar sem escolher o espaço não faz nada (`conjurar(props, m, opcao)` exige a opção para magia de nível 1 ou mais): todo botão novo de conjurar precisa passar pelo `useConjurar`. O "por nível acima" automático lê só o português do SRD de exemplo; texto fora dos padrões fica vazio.
 - Frágil: o bloco colado depende de `.cartao-colado > .modelo-bloco` (o cartão de cima perde a borda de baixo); mexer no CSS do `.modelo-bloco` pode abrir uma fresta entre os dois.
 - Suposições: ver `REDESIGN`, "V6 — como ficou".
+
+## V8 (2026-11-12): ficha de NPC com fitas, sem moldura e em duas colunas
+
+- Onde mexer: `ficha/BlocoDoNpc.tsx` (`pagina`: "bestiario" ou "conjuracao"; as fitas, o teclado e o alvo da magia solta), `ficha/JanelaDaFicha.tsx` (a aba `magias` da janela guarda a Conjuração do NPC; `npcMostraConjuracao` decide se a fita existe), `ficha/ConjuracaoDoNpc.tsx` e o fim de `ficha.css` (`npc-barra`, `npc-fitas`, `npc-col-esq`/`npc-col-dir`, `npc-conj-circulos`).
+- Testids novos: `npc-fita-bestiario`, `npc-fita-conjuracao`, `npc-painel-<pagina>`. Saiu `npc-conj-chat-<i>` (ficou `npc-conj-pingar-<i>`).
+- Frágil: três containers (`npc` na página, `npcesq` e `npcdir` nas colunas); regra de largura dentro de `@container` precisa do prefixo `.fl-raiz` para vencer a regra-base.
+- Frágil: o corpo da ficha do NPC pinta o fundo pelo `:has(> .npc-pagina)`.
+- Suposições: ver `REDESIGN`, "V8 — como ficou".
 
 ## V7 (2026-11-12): fim das vagas "Jogador N"
 

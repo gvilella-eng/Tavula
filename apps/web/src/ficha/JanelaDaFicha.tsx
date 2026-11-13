@@ -49,7 +49,7 @@ import {
   useAparencia,
 } from "./aparencia";
 import { exportarFicha, lerFichaDoArquivo } from "./arquivo";
-import { BlocoDoNpc } from "./BlocoDoNpc";
+import { BlocoDoNpc, npcMostraConjuracao } from "./BlocoDoNpc";
 import { CampoNumero } from "./campos";
 import type { AlvoDoEditor } from "./EditorDeAtaque";
 import {
@@ -174,10 +174,14 @@ export function JanelaDaFicha({
   );
   // V4b: o NPC abre no bloco de monstro (desenho N); a Configurar dele é um painel que a engrenagem do cabeçalho alterna.
   const npc = temFicha && apresentacaoDoPersonagem(p) === "npc";
+  // V8: o bloco do NPC tem duas fitas (Bestiário e Conjuração); a aba "magias" da janela guarda a Conjuração.
+  const npcComConjuracao = npc && npcMostraConjuracao(editar && temFicha, ficha);
   const aba: AbaDaFicha = !temFicha
     ? "configurar"
     : npc && janela.aba !== "configurar"
-      ? "principal"
+      ? janela.aba === "magias" && npcComConjuracao
+        ? "magias"
+        : "principal"
       : janela.aba;
   const { ref: raiz, largura } = useLargura<HTMLDivElement>();
   const estreita = largura !== null && largura < LARGURA_DA_FICHA_ESTREITA;
@@ -489,9 +493,13 @@ export function JanelaDaFicha({
         )}
 
         <div className="fl-corpo" ref={corpo} data-testid={`ficha-painel-${aba}`}>
-          {npc && aba === "principal" && (
+          {npc && (aba === "principal" || aba === "magias") && (
             <BlocoDoNpc
               {...propsDaAba}
+              pagina={aba === "magias" ? "conjuracao" : "bestiario"}
+              aoMudarPagina={(pagina) =>
+                aoMudar({ aba: pagina === "conjuracao" ? "magias" : "principal" })
+              }
               aoMudarNome={(nome) => enviar("personagem.editar", { id: p.id, mudancas: { nome } })}
               modos={modos}
             />
@@ -517,7 +525,7 @@ export function JanelaDaFicha({
               {temFicha && <PainelExtra {...propsDaAba} />}
             </>
           )}
-          {aba === "magias" && <AbaMagias {...propsDaAba} />}
+          {aba === "magias" && !npc && <AbaMagias {...propsDaAba} />}
           {aba === "historia" && <AbaHistoria {...propsDaAba} />}
           {aba === "configurar" && (
             <div className="fl-configurar">

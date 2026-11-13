@@ -1235,6 +1235,34 @@ Um pedido do Vilella: "qualquer coisa que envolva Jogador 1, Jogador 2… deve d
 - Um jeito de o mestre ver e apagar as vagas escondidas (hoje elas ficam para sempre, só invisíveis).
 - Trocar a ficha de um jogador pelo aceite não existe: se o mestre quiser dar outra ficha, edita "Quem controla" na ficha.
 
+## V8 — como ficou (2026-11-12)
+
+Um pedido do Vilella sobre a ficha de NPC: a Conjuração sair da lista e virar uma bandeirinha ao lado da do Bestiário, tirar a borda e o degradê em volta da página (ocupava muito espaço) e, com a janela larga, dividir em duas colunas (traços e ações à direita). O lote foi feito sem ninguém para perguntar: o que o brief não dizia foi assumido e está marcado.
+
+**O que foi feito**
+- **Duas fitas no alto** (Bestiário e Conjuração), no desenho de fita das abas do PJ, agora abas de verdade: `role="tablist"`/`tab`, `aria-selected`, só a ativa no Tab (roving `tabindex`), ArrowLeft/Right, Home e End trocam e levam o foco. A ativa fica mais alta e na cor de destaque.
+- **Bestiário** é o bloco de antes sem a seção Conjuração. **Conjuração** mostra só a seção (atributo, CD, ataque, círculos, espaços, magias, menu de espaço e ícone de chat do V6) na área toda.
+- **A fita Conjuração** aparece sempre para quem edita a ficha (para poder criar, com o "+ Conjuração" do estado vazio) e, para os demais, só se o NPC tem magias.
+- **A aba aberta é lembrada como a do PJ:** a Conjuração é a aba `magias` da janela (`janela.aba`), o Bestiário é a `principal`. Se a fita some para quem olha, a janela volta ao Bestiário.
+- **Arrastar uma magia do compêndio** com o Bestiário aberto: a fita Conjuração acende (`data-aceita-soltar`) e recebe a magia, assim como a página do Bestiário; a janela passa para a Conjuração. Com a Conjuração aberta, vale a seção (círculo certo).
+- **Sem moldura:** saíram a borda, a margem, o degradê e a lombada pontilhada; a página é um fundo liso (`--painel`) e o conteúdo começa a ~14 px da borda da janela. As fitas ficam numa faixa grudada no alto (`position: sticky`) com a faixa Vantagem/Normal/Desvantagem à esquerda (saiu do meio do bloco, e vale também na Conjuração, que rola ataque de magia).
+- **Duas colunas por container query** no corpo (`@container npc (min-width: 760px)`): à esquerda cabeçalho, CA, PV, deslocamento, atributos e as linhas do bloco; à direita Traços, Ações, Reações e Lendárias. Mais estreito, uma coluna, na ordem de antes. A Conjuração larga põe os círculos em 2 colunas. Cada coluna é um container (`npcesq`, `npcdir`) para os arranjos internos (escudos em 3×2, CA e PV em linhas, ações que quebram).
+- **O ícone de chat da Conjuração** ficou só o do V6 (`npc-conj-pingar-<i>`): o antigo (`npc-conj-chat-<i>`) saiu.
+- A janela do NPC já aceitava ficar larga (sem largura máxima); não precisou de ajuste.
+
+**Decisões (assumido)**
+- (assumido) A fita Conjuração dos outros aparece só com `magias.length > 0` (espaços sem magia não bastam).
+- (assumido) A divisão é pela largura do corpo, não pela proporção: janela larga e alta divide.
+- (assumido) As duas colunas têm a mesma largura (1fr 1fr): na de 5/6, a da esquerda ficava apertada para os seis escudos.
+- (assumido) O Vantagem/Normal/Desvantagem foi para a faixa das fitas; abaixo de ~560 px de corpo a faixa quebra e as fitas ficam em cima.
+- (assumido) Soltar a magia na fita muda para a Conjuração, para a pessoa ver onde caiu.
+- (assumido) O ícone de chat antigo saiu da Conjuração; o desenho novo da fita é o lugar de arrumar isso.
+- As regras de container query do bloco (`.npc-atributos`, `.npc-vitais` etc.) passaram a levar o prefixo `.fl-raiz`: sem ele perdiam em especificidade para as regras-base e nunca valiam.
+
+**O que ficou para depois**
+- Em janela larga a Conjuração com uma magia aberta deixa um vazio na outra coluna do círculo vizinho (grade por linhas).
+- As fitas do NPC não seguem a pele Clássica do PJ (abas planas); continuam fitas.
+
 ## Em aberto
 
 - **O plano R1 a R6 terminou** (R1, R2, R2b, R3, R4 em 2026-11-10; R5a, R5b, R6a e R6b em 2026-11-11). Agora o Vilella faz os ajustes

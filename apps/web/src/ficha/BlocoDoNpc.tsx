@@ -20,7 +20,7 @@ import {
   xpDoND,
 } from "@tabletop/shared";
 import { ChevronRight, Dices, GripVertical, MessageSquare, Plus, Settings, X } from "lucide-react";
-import { type HTMLAttributes, type ReactNode, useState } from "react";
+import { type HTMLAttributes, type KeyboardEvent, type ReactNode, useState } from "react";
 import { BotaoComDica } from "../BotaoComDica";
 import { BarraDePv, CampoDeCa, ControlesDePv, type PropsDaAba, um } from "./AbaPrincipal";
 import { SecaoDeConjuracao } from "./ConjuracaoDoNpc";
@@ -950,15 +950,29 @@ function BotoesDeNovaCategoria({ props }: { props: PropsDaAba }) {
 // O bloco inteiro
 // ---------------------------------------------------------------------------------------------
 
+export type PaginaDoNpc = "bestiario" | "conjuracao";
+
 export type PropsDoNpc = PropsDaAba & {
   /** Grava o nome (a janela cuida de `personagem.editar`). */
   aoMudarNome: (nome: string) => void;
   /** A faixa Vantagem / Normal / Desvantagem da janela. */
   modos: ReactNode;
+  /** A fita aberta (V8): o Bestiário ou a Conjuração. A janela guarda por ficha, como as abas do PJ. */
+  pagina: PaginaDoNpc;
+  aoMudarPagina: (pagina: PaginaDoNpc) => void;
 };
 
+/** A fita Conjuração: sempre para quem edita (para poder criar); para os outros, só se o NPC tem magias (V8, assumido). */
+export const npcMostraConjuracao = (editar: boolean, ficha: PropsDaAba["ficha"]) =>
+  editar || (ficha.magias?.length ?? 0) > 0;
+
+const FITAS_DO_NPC: readonly { id: PaginaDoNpc; titulo: string }[] = [
+  { id: "bestiario", titulo: "Bestiário" },
+  { id: "conjuracao", titulo: "Conjuração" },
+];
+
 export function BlocoDoNpc(props: PropsDoNpc) {
-  const { modos } = props;
+  const { modos, pagina, aoMudarPagina } = props;
   // Mexer na ordem recria as linhas (a seta de "expandida" volta ao fechado: elas se identificam pela posição).
   const [versao, setVersao] = useState(0);
   const tracos = useSoltarDoCompendio({
@@ -967,55 +981,138 @@ export function BlocoDoNpc(props: PropsDoNpc) {
     listaDoTipo: { item: "caracteristicas" },
     aoSoltar: (entrada, posicao) => soltarNaFicha(props, "npc", entrada, { posicao }),
   });
+  // Com o Bestiário aberto a magia do compêndio cai na Conjuração: a fita acende como alvo (e a página também recebe).
+  const magiaNaFita = useSoltarDoCompendio({
+    aceita: ["magia"],
+    habilitado: props.editar && pagina === "bestiario",
+    aoSoltar: (entrada, posicao) => {
+      soltarNaFicha(props, "npc", entrada, { posicao });
+      aoMudarPagina("conjuracao");
+    },
+  });
+  const fitas = FITAS_DO_NPC.filter(
+    (f) => f.id === "bestiario" || npcMostraConjuracao(props.editar, props.ficha),
+  );
+
+  function teclarNasFitas(e: KeyboardEvent<HTMLDivElement>) {
+    const i = fitas.findIndex((f) => f.id === pagina);
+    const destino =
+      e.key === "ArrowRight"
+        ? (i + 1) % fitas.length
+        : e.key === "ArrowLeft"
+          ? (i - 1 + fitas.length) % fitas.length
+          : e.key === "Home"
+            ? 0
+            : e.key === "End"
+              ? fitas.length - 1
+              : -1;
+    if (destino < 0) return;
+    e.preventDefault();
+    const alvo = fitas[destino];
+    if (!alvo) return;
+    aoMudarPagina(alvo.id);
+    e.currentTarget.querySelector<HTMLElement>(`[data-testid="npc-fita-${alvo.id}"]`)?.focus();
+  }
+
+  const { onDragOver, onDragLeave, onDrop } = magiaNaFita.props;
+  const soltarDaMagia = { onDragOver, onDragLeave, onDrop };
   return (
-    <div className="npc-pagina" data-testid="npc-bloco">
-      <div className="npc-fita fl-fh" aria-hidden>
-        Bestiário
-      </div>
-      <div className="npc-miolo">
-        <Cabecalho {...props} />
+    <div
+      className="npc-pagina"
+      data-testid="npc-bloco"
+      data-pagina={pagina}
+      {...(pagina === "bestiario" ? soltarDaMagia : {})}
+    >
+      <div className="npc-barra">
         <fieldset className="npc-modos" aria-label="Rolagens com vantagem ou desvantagem">
           <span className="npc-rot">Rolagens</span>
           {modos}
         </fieldset>
-        <Atributos {...props} />
-        <LinhasDoBloco {...props} />
-
-        <div className="npc-secao npc-soltar" data-testid="npc-secao-tracos" {...tracos.props}>
-          <Titulo testid="npc-titulo-tracos">Traços</Titulo>
-          <div className="npc-tracos">
-            <ListaDeCaracteristicas
-              campo="caracteristicas"
-              testidBase="traco"
-              ficha={props.ficha}
-              alterar={props.alterar}
-              editar={props.editar}
-              enviar={props.enviar}
-              personagemId={props.personagemId}
-            />
-          </div>
-          {tracos.acesa && (
-            <p className="npc-soltar-aviso" data-testid="soltar-aqui-tracos">
-              Solte aqui para pôr o item como traço
-            </p>
-          )}
+        <div
+          className="npc-fitas"
+          role="tablist"
+          aria-label="Páginas da ficha do monstro"
+          onKeyDown={teclarNasFitas}
+        >
+          {fitas.map((f) => (
+            <button
+              key={f.id}
+              type="button"
+              role="tab"
+              id={`npc-fita-${f.id}`}
+              className="npc-fita fl-fh"
+              data-testid={`npc-fita-${f.id}`}
+              aria-selected={pagina === f.id}
+              aria-controls="npc-pagina-painel"
+              tabIndex={pagina === f.id ? 0 : -1}
+              data-aceita-soltar={
+                f.id === "conjuracao" ? magiaNaFita.props["data-aceita-soltar"] : undefined
+              }
+              {...(f.id === "conjuracao" && pagina === "bestiario" ? soltarDaMagia : {})}
+              onClick={() => aoMudarPagina(f.id)}
+            >
+              {f.titulo}
+            </button>
+          ))}
         </div>
+      </div>
+      <div
+        className="npc-miolo"
+        role="tabpanel"
+        id="npc-pagina-painel"
+        aria-labelledby={`npc-fita-${pagina}`}
+        data-testid={`npc-painel-${pagina}`}
+      >
+        {pagina === "conjuracao" ? (
+          <SecaoDeConjuracao props={props} />
+        ) : (
+          <>
+            <div className="npc-col npc-col-esq">
+              <Cabecalho {...props} />
+              <Atributos {...props} />
+              <LinhasDoBloco {...props} />
+            </div>
+            <div className="npc-col npc-col-dir">
+              <div
+                className="npc-secao npc-soltar"
+                data-testid="npc-secao-tracos"
+                {...tracos.props}
+              >
+                <Titulo testid="npc-titulo-tracos">Traços</Titulo>
+                <div className="npc-tracos">
+                  <ListaDeCaracteristicas
+                    campo="caracteristicas"
+                    testidBase="traco"
+                    ficha={props.ficha}
+                    alterar={props.alterar}
+                    editar={props.editar}
+                    enviar={props.enviar}
+                    personagemId={props.personagemId}
+                  />
+                </div>
+                {tracos.acesa && (
+                  <p className="npc-soltar-aviso" data-testid="soltar-aqui-tracos">
+                    Solte aqui para pôr o item como traço
+                  </p>
+                )}
+              </div>
 
-        <SecaoDeConjuracao props={props} />
-
-        {CATEGORIAS_DE_ACAO.map((c) => (
-          <SecaoDeAcoes
-            key={c}
-            cat={c}
-            props={props}
-            versao={versao}
-            aoReordenar={() => setVersao((v) => v + 1)}
-          />
-        ))}
-        <BotoesDeNovaCategoria props={props} />
-        <p className="npc-dica" role="note">
-          Segure uma ação por meio segundo para arrastá-la, ou use Alt + seta no título.
-        </p>
+              {CATEGORIAS_DE_ACAO.map((c) => (
+                <SecaoDeAcoes
+                  key={c}
+                  cat={c}
+                  props={props}
+                  versao={versao}
+                  aoReordenar={() => setVersao((v) => v + 1)}
+                />
+              ))}
+              <BotoesDeNovaCategoria props={props} />
+              <p className="npc-dica" role="note">
+                Segure uma ação por meio segundo para arrastá-la, ou use Alt + seta no título.
+              </p>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

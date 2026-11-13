@@ -78,7 +78,7 @@ async function arrastar(
   alvo: Locator,
   antesDeSoltar?: () => Promise<void>,
   posicao: "meio" | "topo" = "meio",
-  /** O alvo só aparece depois que o arrasto começa (a seção Conjuração do NPC). */
+  /** O alvo só aparece depois que o arrasto começa. */
   surge = false,
 ) {
   if (!surge) await alvo.scrollIntoViewIfNeeded();
@@ -269,31 +269,24 @@ test("arrastar do compêndio para o NPC: arma vira ação calculada pelo ND, mag
 
   await secao(p, "magias");
   const bola = p.locator('[data-testid="compendio-item"][data-nome="Bola de Fogo"]');
-  // a seção não existe: o lugar onde ela aparece acende durante o arrasto, e só ele
+  // com o Bestiário aberto, a fita Conjuração acende como alvo (V8) e só ela; a magia cai na Conjuração
+  const fita = janela.getByTestId("npc-fita-conjuracao");
   await expect(janela.getByTestId("npc-secao-conjuracao")).toHaveCount(0);
-  await arrastar(
-    p,
-    bola,
-    janela.getByTestId("npc-secao-conjuracao"),
-    async () => {
-      await expect(janela.getByTestId("npc-secao-conjuracao")).toHaveAttribute(
-        "data-aceita-soltar",
-        "true",
-      );
-      await expect(janela.getByTestId("npc-secao-tracos")).not.toHaveAttribute(
-        "data-aceita-soltar",
-        "true",
-      );
-      await expect(janela.getByTestId("npc-secao-acao")).not.toHaveAttribute(
-        "data-aceita-soltar",
-        "true",
-      );
-    },
-    "meio",
-    true,
-  );
-  // a magia entra em `magias`, no círculo dela, e não vira traço
+  await arrastar(p, bola, fita, async () => {
+    await expect(fita).toHaveAttribute("data-aceita-soltar", "true");
+    await expect(janela.getByTestId("npc-secao-tracos")).not.toHaveAttribute(
+      "data-aceita-soltar",
+      "true",
+    );
+    await expect(janela.getByTestId("npc-secao-acao")).not.toHaveAttribute(
+      "data-aceita-soltar",
+      "true",
+    );
+  });
+  // a magia entra em `magias`, no círculo dela, e não vira traço; a janela passou para a Conjuração
+  await expect(fita).toHaveAttribute("aria-selected", "true");
   await expect(janela.getByTestId("npc-conj-nivel-3")).toContainText("Bola de Fogo");
+  await janela.getByTestId("npc-fita-bestiario").click();
   await expect(janela.getByTestId("traco-alternar-0")).toHaveCount(0);
 
   await secao(p, "itens");

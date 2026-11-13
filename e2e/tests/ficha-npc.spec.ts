@@ -104,7 +104,8 @@ test("atacar com uma ação (acerto e dano no chat, só o dano), expandir e mand
   const cartao = p.getByTestId("modelo-ataque").filter({ hasText: "Clava Grande" });
   await expect(cartao).toHaveCount(1);
   await expect(cartao).toContainText(/\+\s?6/);
-  await expect(cartao.getByTestId("modelo-dano-formula")).toContainText(/2d8\s?\+\s?4/);
+  // 20 natural dobra os dados (crítico, 1 em 20): 2d8 ou 4d8
+  await expect(cartao.getByTestId("modelo-dano-formula")).toContainText(/[24]d8\s?\+\s?4/);
   await expect(p.getByTestId("chat-autor").last()).toHaveText("Ogro");
 
   // o botão de dano rola só o dano (uma mensagem a mais)

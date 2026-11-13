@@ -2968,4 +2968,50 @@ Detalhes em `docs/REDESIGN.md` ("V7 — como ficou"). O Vilella deixou o lote se
 
 ---
 
-## Próximo: bugs que sobrarem e acabamentos da tela inicial e contas; depois 7b e 12 (o V7 está entregue)
+## Ajustes V8 — Ficha de NPC: fita de Conjuração, sem moldura, duas colunas (entregue, aguardando o roteiro manual)
+
+Detalhes em `docs/REDESIGN.md` ("V8 — como ficou"). O Vilella deixou o lote sem ninguém para perguntar: o que o brief não dizia foi assumido (marcado).
+
+### O que foi entregue
+
+- **Duas fitas** no alto do bloco de NPC, Bestiário e Conjuração, como abas (setas, Home, End, `aria-selected`). A Conjuração sai da lista e ganha a página dela.
+- **Sem moldura:** fundo liso, conteúdo a ~14 px da borda da janela. A faixa das rolagens (vantagem) foi para a esquerda das fitas.
+- **Duas colunas** com a janela larga (corpo ≥ 760 px): cabeçalho, números e linhas à esquerda; Traços, Ações, Reações e Lendárias à direita. A Conjuração larga põe os círculos em 2 colunas.
+- A magia arrastada do compêndio com o Bestiário aberto cai na fita Conjuração (ela acende) e a janela passa para ela.
+- O ícone de chat antigo da Conjuração saiu; ficou o do V6.
+
+### Como rodar
+
+- `pnpm verify` (uma vez). Prints: `$env:PRINTS_DIR="<pasta>"; pnpm --filter @tabletop/e2e prints v8`.
+
+### Verificação
+
+- E2E novo: `ficha-v8.spec.ts` (as fitas e o que cada uma mostra; o teclado; o jogador sem a fita num NPC sem magias e com ela num NPC com magias, o mestre sempre; duas colunas larga × uma estreita por `boundingBox().x`; sem moldura, a ≤ 16 px; círculos em 2 colunas).
+- E2E antigos alterados (comportamento mudou de propósito; nenhuma asserção foi afrouxada): `ficha-v4b2.spec.ts` (os três testes que olham a Conjuração clicam na fita antes; a ordem "entre Traços e Ações" virou "a página da Conjuração não tem Traços nem Ações"; confere que só há o ícone de chat do V6); `ficha-arrastar.spec.ts` (a magia solta no NPC agora vai para a fita Conjuração, que acende, e a janela passa para ela; o item como traço volta ao Bestiário antes).
+
+### Decisões
+
+- (assumido) Ver `REDESIGN`, "V8 — como ficou", Decisões.
+
+### Desvios do plano
+
+- Nenhum.
+
+### Frágil / não verificado
+
+- Os arranjos do NPC dependem de três containers (`npc`, `npcesq`, `npcdir`, em `ficha.css`); regra nova de largura vai no container certo e com o prefixo `.fl-raiz`.
+- Em janela larga a Conjuração tem grade por linhas (um vazio quando uma magia está aberta).
+- Não verificado com a campanha real.
+
+### Roteiro manual (pendente)
+
+1. Abra um NPC: as fitas Bestiário e Conjuração no alto; clique na Conjuração (só ela aparece) e volte; use as setas do teclado nas fitas.
+2. A página não tem borda nem degradê; o conteúdo vai até perto das bordas da janela.
+3. Alargue a janela pela quina (~800 px ou mais): traços e ações vão para a direita dos atributos; estreite e volte a uma coluna.
+4. Na Conjuração larga os círculos ficam em duas colunas.
+5. Com o Bestiário aberto, arraste uma magia do compêndio: a fita Conjuração acende; solte nela.
+6. Entre como jogador num NPC sem magias: sem a fita Conjuração.
+
+---
+
+## Próximo: bugs que sobrarem e acabamentos da tela inicial e contas; depois 7b e 12 (o V8 está entregue)

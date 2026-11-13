@@ -16,7 +16,6 @@ import { type PropsDaAba, um } from "./AbaPrincipal";
 import { CampoDeNovo, CampoNumero } from "./campos";
 import { magiaDoCompendio } from "./conjurar";
 import { EditorDeAtaque } from "./EditorDeAtaque";
-import { BotaoMandarAoChat } from "./ListaDeTitulos";
 import { TituloDoBloco as Titulo } from "./livro";
 import { BotaoPingarMagia, useConjurar } from "./menuDeEspaco";
 import {
@@ -39,16 +38,7 @@ const nomeDoNivel = (n: number) => (n === 0 ? "Truques (à vontade)" : `${n}º n
 
 /** A magia aberta na seção: o cartão ou a descrição, com Conjurar, o chat e a engrenagem. */
 function CorpoDaMagia({ m, i, props }: { m: Magia; i: number; props: PropsDaAba }) {
-  const {
-    editar,
-    enviar,
-    personagemId,
-    compendio,
-    rolador,
-    abrirEditor,
-    fecharEditor,
-    editorAberto,
-  } = props;
+  const { editar, compendio, rolador, abrirEditor, fecharEditor, editorAberto } = props;
   const doCompendio = magiaDoCompendio(compendio, m.nome);
   const sub = subDaMagia(props, m);
   const editando = editorAberto?.tipo === "magia" && editorAberto.i === i;
@@ -86,22 +76,6 @@ function CorpoDaMagia({ m, i, props }: { m: Magia; i: number; props: PropsDaAba 
         </button>
         {conj.menu}
         <BotaoPingarMagia props={props} m={m} testid={`npc-conj-pingar-${i}`} />
-        <BotaoMandarAoChat
-          testid={`npc-conj-chat-${i}`}
-          nome={m.nome}
-          podeMandar={editar}
-          aoMandar={() =>
-            doCompendio
-              ? enviar("chat.magia", { magia: doCompendio, como: personagemId })
-              : enviar("chat.caracteristica", {
-                  caracteristica: {
-                    nome: m.nome.trim().slice(0, 80),
-                    descricao: m.descricao.slice(0, 12_000),
-                  },
-                  como: personagemId,
-                })
-          }
-        />
         <BotaoComDica
           className="fl-ib npc-engrenagem"
           testid={`npc-conj-editar-${i}`}
@@ -380,16 +354,18 @@ export function SecaoDeConjuracao({ props }: { props: PropsDaAba }) {
     <div className="npc-secao npc-soltar" data-testid="npc-secao-conjuracao" {...soltar.props}>
       <Titulo testid="npc-titulo-conjuracao">Conjuração</Titulo>
       <CabecalhoDaConjuracao props={props} />
-      {niveis.map((n) => (
-        <NivelDoNpc
-          key={n}
-          n={n}
-          props={props}
-          aberta={aberta}
-          aoAbrir={(nome) => setAberta(aberta === nome ? null : nome)}
-          previsao={soltar.previsao}
-        />
-      ))}
+      <div className="npc-conj-circulos">
+        {niveis.map((n) => (
+          <NivelDoNpc
+            key={n}
+            n={n}
+            props={props}
+            aberta={aberta}
+            aoAbrir={(nome) => setAberta(aberta === nome ? null : nome)}
+            previsao={soltar.previsao}
+          />
+        ))}
+      </div>
       {editar && ocultos.length > 0 && (
         <select
           className="npc-sel npc-sel-mais"

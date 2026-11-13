@@ -61,6 +61,12 @@ async function abrirNpc(p: Page, id: string) {
   return janela;
 }
 
+/** V8: a Conjuração tem a fita dela ao lado do Bestiário. */
+async function abrirConjuracao(janela: ReturnType<Page["locator"]>) {
+  await janela.getByTestId("npc-fita-conjuracao").click();
+  await expect(janela.getByTestId("npc-fita-conjuracao")).toHaveAttribute("aria-selected", "true");
+}
+
 test("a seção Conjuração: CD e ataque pelo ND, bolinhas, conjurar gasta o espaço e rola no chat", async ({
   mesa,
 }) => {
@@ -70,6 +76,9 @@ test("a seção Conjuração: CD e ataque pelo ND, bolinhas, conjurar gasta o es
   await criarMagoNpc(p);
   const janela = await abrirNpc(p, MAGO_NPC);
 
+  // o Bestiário não leva a seção; ela mora na fita Conjuração
+  await expect(janela.getByTestId("npc-secao-conjuracao")).toHaveCount(0);
+  await abrirConjuracao(janela);
   const secao = janela.getByTestId("npc-secao-conjuracao");
   await expect(secao).toBeVisible();
   // ND 5 → proficiência +3; Inteligência 18 (+4): CD 8 + 3 + 4 = 15 e ataque +7
@@ -85,13 +94,9 @@ test("a seção Conjuração: CD e ataque pelo ND, bolinhas, conjurar gasta o es
   await expect(janela.getByTestId("npc-espaco-1-2")).toBeVisible();
   await expect(janela.getByTestId("npc-espaco-3-1")).toBeVisible();
 
-  // a seção fica entre os Traços e as Ações
-  const ordem = await janela
-    .locator(
-      '[data-testid="npc-secao-tracos"], [data-testid="npc-secao-conjuracao"], [data-testid="npc-secao-acao"]',
-    )
-    .evaluateAll((els) => els.map((e) => e.getAttribute("data-testid")));
-  expect(ordem).toEqual(["npc-secao-tracos", "npc-secao-conjuracao", "npc-secao-acao"]);
+  // a página da Conjuração é só ela: nem Traços nem Ações
+  await expect(janela.getByTestId("npc-secao-tracos")).toHaveCount(0);
+  await expect(janela.getByTestId("npc-secao-acao")).toHaveCount(0);
 
   // as bolinhas marcam e desmarcam
   await janela.getByTestId("npc-espaco-1-2").uncheck();
@@ -102,6 +107,9 @@ test("a seção Conjuração: CD e ataque pelo ND, bolinhas, conjurar gasta o es
   // clicar na magia abre a descrição na própria seção
   await janela.getByTestId("npc-conj-magia-3").click();
   await expect(janela.getByTestId("npc-conj-texto-3")).toHaveText("Explosão de chamas.");
+  // V8: um só ícone de chat ao lado do Conjurar (o do V6); o antigo saiu
+  await expect(janela.getByTestId("npc-conj-pingar-3")).toBeVisible();
+  await expect(janela.getByTestId("npc-conj-chat-3")).toHaveCount(0);
   // conjurar a de salvaguarda: gasta o espaço de 3º nível e rola o dano com a CD
   await janela.getByTestId("npc-conj-conjurar-3").click();
   // V6: o menu de espaço aparece igual na Conjuração do NPC, e o ícone ao lado manda o cartão sem gastar
@@ -142,6 +150,7 @@ test("sem magias a seção não existe; o + Conjuração a cria e dá onde pôr 
   const p = mestre.pagina;
   const janela = await abrirNpc(p, OGRO);
 
+  await abrirConjuracao(janela);
   await expect(janela.getByTestId("npc-secao-conjuracao")).toHaveCount(0);
   await janela.getByTestId("npc-nova-conjuracao").click();
   await expect(janela.getByTestId("npc-secao-conjuracao")).toBeVisible();
@@ -174,6 +183,7 @@ test("sem magias a seção não existe; o + Conjuração a cria e dá onde pôr 
   await janela.getByTestId("ficha-aba-configurar").click();
   await janela.getByTestId("apresentacao-npc").click();
   await janela.getByTestId("npc-configurar").click();
+  await abrirConjuracao(janela);
   await expect(janela.getByTestId("npc-conj-nivel-2")).toContainText("Levitação");
   await expect(janela.getByTestId("npc-espaco-2-3")).toBeVisible();
 });
@@ -184,6 +194,7 @@ test("reordenar as magias de um círculo com Alt+seta", async ({ mesa }) => {
   const p = mestre.pagina;
   await criarMagoNpc(p);
   const janela = await abrirNpc(p, MAGO_NPC);
+  await abrirConjuracao(janela);
   const truques = () =>
     janela
       .locator('[data-testid="npc-conj-nivel-0"] [data-testid^="npc-conj-magia-"]')

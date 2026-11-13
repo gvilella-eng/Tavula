@@ -2241,30 +2241,66 @@
 }
 
 /* --- V4b: o bloco de monstro (desenho N, docs/desenho/NpcN.dc.html) ----------------------------- */
+.fl-raiz .fl-corpo:has(> .npc-pagina) {
+  background: var(--painel);
+}
 .fl-raiz .npc-pagina {
   position: relative;
   box-sizing: border-box;
-  padding: 14px 14px 18px;
+  padding: 0;
   container: npc / inline-size;
-  background:
-    radial-gradient(rgba(127, 127, 127, 0.16) 1px, transparent 1px) 0 0 / 7px 7px,
-    linear-gradient(135deg, var(--acento-suave), transparent 55%),
-    var(--fl-janela);
+  background: var(--painel);
+}
+/* V8: a faixa do alto leva as rolagens (vantagem) à esquerda e as duas fitas à direita; fica grudada ao rolar. */
+.fl-raiz .npc-barra {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  align-items: flex-start;
+  justify-content: space-between;
+  box-sizing: border-box;
+  min-height: 50px;
+  padding: 0 24px 0 12px;
+  background: var(--painel);
+}
+.fl-raiz .npc-fitas {
+  display: flex;
+  gap: 4px;
+  align-items: flex-start;
+  margin-left: auto;
 }
 .fl-raiz .npc-fita {
-  position: absolute;
-  top: 8px;
-  right: 30px;
-  z-index: 2;
   box-sizing: border-box;
-  width: 84px;
-  height: 52px;
-  padding: 8px 6px 0;
-  color: var(--acento-texto);
-  font-size: 14px;
+  width: 94px;
+  height: 44px;
+  padding: 7px 4px 0;
+  color: var(--texto);
+  font-size: 15px;
+  letter-spacing: 0.03em;
   text-align: center;
-  background: var(--acento);
+  background: var(--borda);
+  border: 0;
+  cursor: pointer;
   clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 84%, 0 100%);
+}
+.fl-raiz .npc-fita[aria-selected="true"] {
+  height: 54px;
+  color: var(--acento-texto);
+  background: var(--acento);
+}
+.fl-raiz .npc-fita:hover:not([aria-selected="true"]) {
+  background: var(--acento-suave);
+}
+.fl-raiz .npc-fita:focus-visible {
+  clip-path: none;
+}
+.fl-raiz .npc-fita[data-aceita-soltar="true"] {
+  color: var(--acento-texto);
+  background: var(--acento);
+  clip-path: none;
 }
 .fl-raiz .npc-miolo {
   position: relative;
@@ -2272,23 +2308,19 @@
   flex-direction: column;
   gap: 14px;
   box-sizing: border-box;
-  padding: 44px 18px 20px 28px;
-  background: var(--painel);
-  border-radius: 6px 8px 8px 6px;
-  box-shadow:
-    0 3px 0 var(--borda),
-    0 6px 0 var(--painel-topo),
-    0 9px 0 var(--borda);
+  padding: 6px 14px 20px 14px;
 }
-.fl-raiz .npc-miolo::before {
-  position: absolute;
-  top: 14px;
-  bottom: 14px;
-  left: 10px;
-  border-left: 2px dotted var(--acento-forte);
-  opacity: 0.5;
-  content: "";
-  pointer-events: none;
+.fl-raiz .npc-col {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+.fl-raiz .npc-col-esq {
+  container: npcesq / inline-size;
+}
+.fl-raiz .npc-col-dir {
+  container: npcdir / inline-size;
 }
 .fl-raiz .npc-rot {
   color: var(--texto-suave);
@@ -3197,38 +3229,71 @@
   align-items: center;
 }
 
-/* abaixo de ~460 px o bloco vira uma coluna só */
-@container npc (max-width: 460px) {
-  .npc-atributos {
+.fl-raiz .npc-modos {
+  margin-top: 8px;
+}
+.fl-raiz .npc-conj-circulos {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  column-gap: 28px;
+}
+
+/* V8: com a janela larga (~760 px de conteúdo) o Bestiário se divide: o cabeçalho e os números à esquerda, traços e
+   ações à direita; a Conjuração põe os círculos em duas colunas. Mais estreito, volta a uma coluna só. */
+@container npc (min-width: 760px) {
+  .fl-raiz .npc-miolo:has(> .npc-col) {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px 22px;
+    align-items: start;
+  }
+  .fl-raiz .npc-conj-circulos {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* abaixo de ~460 px o bloco vira uma coluna só e os números se arrumam em linhas menores */
+@container npcesq (max-width: 440px) {
+  .fl-raiz .npc-atributos {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     row-gap: 10px;
   }
-  .npc-vitais {
+  .fl-raiz .npc-vitais {
     flex-wrap: wrap;
   }
-  .npc-pv {
+  .fl-raiz .npc-pv {
     flex-basis: 100%;
     order: 3;
   }
-  .npc-acao-linha {
-    flex-wrap: wrap;
-  }
-  .npc-acao-meio {
-    flex-basis: 100%;
-  }
-  .npc-acoes-cab {
-    display: none;
-  }
-  .npc-linha {
+  .fl-raiz .npc-linha {
     flex-direction: column;
     gap: 2px;
   }
-  .npc-linha > .npc-rot {
+  .fl-raiz .npc-linha > .npc-rot {
     width: auto;
   }
-  .npc-miolo {
+}
+@container npcdir (max-width: 440px) {
+  .fl-raiz .npc-acao-linha {
+    flex-wrap: wrap;
+  }
+  .fl-raiz .npc-acao-meio {
+    flex-basis: 100%;
+  }
+  .fl-raiz .npc-acoes-cab {
+    display: none;
+  }
+}
+@container npc (max-width: 560px) {
+  .fl-raiz .npc-barra {
     padding-right: 12px;
-    padding-left: 22px;
+  }
+  .fl-raiz .npc-fitas {
+    order: -1;
+  }
+  .fl-raiz .npc-modos {
+    margin-top: 0;
+    margin-bottom: 4px;
   }
 }
 
