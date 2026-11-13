@@ -126,6 +126,12 @@ import {
 
 export type ErroDaSala = { codigo: CodigoDeErro; mensagem: string };
 
+/** Quanto tempo, depois de apagado, um token ainda pode ser restaurado por quem o apagou (V10). */
+export const PRAZO_PARA_RESTAURAR_TOKEN_MS = 10_000;
+
+/** Um token que acabou de sair do mapa: a sala o guarda só na memória, pelo prazo acima. */
+export type TokenApagadoRecente = { token: Token; por: string; emMs: number };
+
 export type Resultado =
   | {
       ok: true;
@@ -135,6 +141,8 @@ export type Resultado =
       snapshotPara: "todos" | string[];
       /** Preenchido por `campanha.exportar`: vai só para quem pediu. */
       exportacao?: Exportacao;
+      /** Preenchido por `token.apagar`: a sala guarda o token apagado (memória) para o `token.restaurar`. */
+      apagado?: { token: Token; por: string };
       /** Preenchido por `token.mover` (transitório): a sala repassa a quem pode ver o token. */
       movendo?: { id: string; x: number; y: number };
       /** Preenchido por `desenho.rascunho` (transitório): a sala repassa a quem recebe a cena. */
@@ -796,6 +804,8 @@ export function processar(
   agora: string,
   /** De onde vêm os dados. A sala usa `crypto`; os testes, uma fonte com semente. */
   aleatorio: FonteDeAleatoriedade = fonteCrypto(),
+  /** Os tokens apagados há pouco (só a sala os guarda), para o `token.restaurar`. */
+  apagadosRecentes: readonly TokenApagadoRecente[] = [],
 ): Resultado {
   const usuario = estado.usuarios.find((u) => u.id === usuarioId);
   if (!usuario) return recusa("usuario_inexistente", "Usuário desconhecido.");
@@ -947,14 +957,46 @@ export function processar(
     }
 
     case "token.apagar": {
-      if (!estado.tokens.some((t) => t.id === intencao.dados.id)) {
+      const token = estado.tokens.find((t) => t.id === intencao.dados.id);
+      // Token invisível para quem pergunta responde igual a token inexistente (não revela nada).
+      if (!token || !tokenVisivelPara(token, usuario, estado.cenaAtivaId)) {
         return recusa("token_inexistente", "Token não encontrado.");
+      }
+      // V10: o mestre tira qualquer token do mapa; o jogador, só os que controla (e nunca o cenário).
+      if (
+        usuario.papel !== "mestre" &&
+        !(token.camada === "tokens" && controlaToken(token, usuario, estado.personagens))
+      ) {
+        return recusa("sem_permissao", "Você só pode tirar do mapa os tokens que controla.");
       }
       for (const l of luzesDoToken(estado, intencao.dados.id)) {
         emitir({ tipo: "fonte.apagada", dados: { id: l.id } });
       }
       emitir({ tipo: "token.apagado", dados: { id: intencao.dados.id } });
       limparCombate(new Set([intencao.dados.id]));
+      return { ...aplicado(), apagado: { token, por: usuario.id } };
+    }
+
+    case "token.restaurar": {
+      const guardado = apagadosRecentes.find((a) => a.token.id === intencao.dados.id);
+      const dentroDoPrazo = guardado && agoraMs - guardado.emMs <= PRAZO_PARA_RESTAURAR_TOKEN_MS;
+      if (
+        !guardado ||
+        (usuario.papel !== "mestre" && !(dentroDoPrazo && guardado.por === usuario.id))
+      ) {
+        return recusa("sem_permissao", "Não dá mais para desfazer: o prazo acabou.");
+      }
+      const antigo = guardado.token;
+      if (estado.tokens.some((t) => t.id === antigo.id)) {
+        return recusa("dados_invalidos", "O token já está no mapa.");
+      }
+      if (!estado.cenas.some((c) => c.id === antigo.cenaId)) {
+        return recusa("cena_inexistente", SEM_CENA);
+      }
+      if (antigo.personagemId !== undefined && !personagemDe(estado, antigo.personagemId)) {
+        return recusa("personagem_inexistente", SEM_PERSONAGEM);
+      }
+      emitir({ tipo: "token.criado", dados: { token: antigo } });
       return aplicado();
     }
 

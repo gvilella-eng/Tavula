@@ -3103,6 +3103,48 @@ Ver `docs/ROTEIRO-DE-TESTES.md`, "C1".
 
 ---
 
+## Ajustes V10 — Bugs do mapa e teclado do token (entregue, aguardando o roteiro manual)
+
+Detalhes em `docs/REDESIGN.md` ("V10 — como ficou").
+
+### O que foi entregue
+
+- O seletor de imagem abre por cima do "Configurar cena" (pilha de diálogos: foco, Tab preso, Esc só no de cima).
+- O clique direito na área do mapa não abre mais o menu do Chrome (campos de texto e janelas ficam com ele).
+- Delete/Backspace tira o token selecionado do mapa, com "Desfazer" (~6 s). Mestre apaga qualquer um; jogador, os que controla.
+- Setas movem o token selecionado um quadrado, pelas intenções de sempre; a sala barra parede e permissão.
+- A bandeira do ponto de chegada só aparece com a faixa de Cenas aberta, com dica ao passar o mouse.
+- O anel de foco do mapa só aparece quando o foco chegou pelo teclado.
+
+### Como rodar
+
+`pnpm dev` como sempre.
+
+### Verificação
+
+- Unidade (`tokens.test.ts`): quem controla apaga, quem não controla não, o mestre qualquer um, restaurar no prazo, fora do prazo e por outra pessoa.
+- E2E novo: `v10.spec.ts`.
+- E2E alterado: `tokens.test.ts` (unidade) — o jogador que controla o token agora o apaga; o teste passou a usar o jogador que não controla.
+
+### Decisões
+
+- (assumido) Ver `REDESIGN`, "V10 — como ficou", Decisões.
+
+### Desvios do plano
+
+- `token.apagar` deixou de exigir `cena.editar` e ganhou `token.restaurar` (pedido do Vilella durante o lote).
+
+### Frágil / não verificado
+
+- A guarda do token apagado é só memória da sala: reiniciar a sala some com o Desfazer.
+- `useDialogo` usa uma pilha global do módulo; diálogo novo deve usá-lo.
+
+### Roteiro manual (pendente)
+
+Ver `docs/ROTEIRO-DE-TESTES.md`, "V10".
+
 ---
 
-## Próximo: bugs que sobrarem e acabamentos das contas; depois 7b e 12 (o C4, a tela inicial, está entregue)
+---
+
+## Próximo: bugs que sobrarem e acabamentos das contas; depois 7b e 12 (o C4, a tela inicial, e o V10, bugs do mapa, estão entregues)

@@ -56,6 +56,20 @@ export function AvisoPerto({ aviso, aoDispensar }: Props) {
       onClick={aoDispensar}
     >
       <span>{aviso.texto}</span>
+      {aviso.acao && (
+        <button
+          type="button"
+          className="aviso-acao"
+          data-testid="aviso-acao"
+          onClick={(e) => {
+            e.stopPropagation();
+            aviso.acao?.aoClicar();
+            aoDispensar();
+          }}
+        >
+          {aviso.acao.rotulo}
+        </button>
+      )}
       <BotaoComDica
         className="aviso-fechar"
         testid="aviso-fechar"

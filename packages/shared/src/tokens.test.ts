@@ -102,7 +102,8 @@ describe("intenções de token e cena (só do mestre)", () => {
     expect(
       codigo(e, "j1", intencao("token.editar", { id: "visivel", mudancas: { nome: "x" } })),
     ).toBe("sem_permissao");
-    expect(codigo(e, "j1", intencao("token.apagar", { id: "visivel" }))).toBe("sem_permissao");
+    // V10: o jogador apaga o token que controla; o dos outros e o cenário, não.
+    expect(codigo(e, "j2", intencao("token.apagar", { id: "visivel" }))).toBe("sem_permissao");
     expect(codigo(e, "j1", intencao("cena.configurarGrid", { visivel: false }))).toBe(
       "sem_permissao",
     );
@@ -456,5 +457,78 @@ describe("exportação v5 e importação de v1 e v2", () => {
     expect(ruim([token("a", { controladoPor: ["fantasma"] })])).toBe(false);
     expect(ruim([token("a")])).toBe(true);
     expect(lerExportacao({ ...x, dados: { ...x.dados, cenaAtivaId: "nada" } }).ok).toBe(false);
+  });
+});
+
+describe("tirar o token do mapa e desfazer (V10)", () => {
+  const apagarComo = (quem: string, id: string) =>
+    processar(criarEstado(), quem, intencao("token.apagar", { id }), AGORA);
+
+  it("quem controla apaga; quem não controla não; o mestre apaga qualquer um", () => {
+    expect(apagarComo("j1", "visivel").ok).toBe(true);
+    const outro = apagarComo("j2", "visivel");
+    expect(outro.ok ? null : outro.erro.codigo).toBe("sem_permissao");
+    expect(apagarComo("m", "visivel").ok).toBe(true);
+    expect(apagarComo("m", "do-mestre").ok).toBe(true);
+  });
+
+  it("o jogador não apaga o token da camada do mestre nem o que não vê", () => {
+    const e = criarEstado();
+    e.tokens = e.tokens.map((t) =>
+      t.id === "do-mestre" || t.id === "oculto" ? { ...t, controladoPor: ["j1"] } : t,
+    );
+    for (const id of ["do-mestre", "oculto"]) {
+      const r = processar(e, "j1", intencao("token.apagar", { id }), AGORA);
+      expect(r.ok).toBe(false);
+    }
+  });
+
+  it("restaurar dentro do prazo funciona; o token volta igual", () => {
+    const e = criarEstado();
+    const r = processar(e, "j1", intencao("token.apagar", { id: "visivel" }), AGORA);
+    if (!r.ok || !r.apagado) throw new Error("devia apagar");
+    const guardado = [{ ...r.apagado, emMs: Date.parse(AGORA) }];
+    const volta = processar(
+      r.estado,
+      "j1",
+      intencao("token.restaurar", { id: "visivel" }),
+      new Date(Date.parse(AGORA) + 9_000).toISOString(),
+      undefined,
+      guardado,
+    );
+    expect(volta.ok).toBe(true);
+    if (volta.ok) {
+      expect(volta.estado.tokens.find((t) => t.id === "visivel")).toEqual(
+        e.tokens.find((t) => t.id === "visivel"),
+      );
+    }
+  });
+
+  it("fora do prazo ou por outra pessoa é recusado; o mestre ainda restaura", () => {
+    const e = criarEstado();
+    const r = processar(e, "j1", intencao("token.apagar", { id: "visivel" }), AGORA);
+    if (!r.ok || !r.apagado) throw new Error("devia apagar");
+    const guardado = [{ ...r.apagado, emMs: Date.parse(AGORA) }];
+    const tarde = new Date(Date.parse(AGORA) + 11_000).toISOString();
+    const pedir = (quem: string, quando: string) =>
+      processar(
+        r.estado,
+        quem,
+        intencao("token.restaurar", { id: "visivel" }),
+        quando,
+        undefined,
+        guardado,
+      );
+    expect(pedir("j1", tarde).ok).toBe(false);
+    expect(pedir("j2", AGORA).ok).toBe(false);
+    expect(pedir("m", tarde).ok).toBe(true);
+    // Sem registro nenhum (a sala reiniciou ou já passou muito tempo): recusa.
+    const semRegistro = processar(
+      r.estado,
+      "j1",
+      intencao("token.restaurar", { id: "visivel" }),
+      AGORA,
+    );
+    expect(semRegistro.ok).toBe(false);
   });
 });

@@ -1317,6 +1317,33 @@ O Vilella escolheu o modelo B ("o B é perfeito") para a tela inicial. A tela de
 - Nada de ordenar ou apagar mesas da lista por aqui.
 - Não foi medido em telas menores que 1280×720 (o cartão de 440 px cabe a partir de ~560 px de altura).
 
+## V10 — como ficou (2026-11-13)
+
+Bugs do mapa e o teclado do token, relatados pelo Vilella. Ninguém para perguntar: o que o brief não dizia foi assumido.
+
+**O que foi feito**
+- **Diálogo aberto de dentro de outro** (`useDialogo.ts`): uma pilha de diálogos. O mais novo fica por cima (`z-index` 80 + nível), recebe o foco, prende o Tab, é o único a ouvir o Esc e, ao fechar, devolve o foco a quem o abriu. O `SeletorDeImagem` agora vai para o `body` por portal (antes ficava atrás do "Configurar cena", que já era portal). Vale para os três diálogos modais (Configurar cena, Apagar cena e o seletor), e portanto para toda abertura do seletor (token, retrato, handout, cena).
+- **Menu do navegador** (`menuNativo.ts`): na captura da `window`, o `contextmenu` em qualquer ponto da área do mapa é impedido. Campos de texto e as janelas flutuantes (fichas, handouts) ficam com o menu nativo. Chat e painéis laterais ficam como estavam.
+- **Delete / Backspace** tira o token selecionado do mapa (`token.apagar`); a ficha não é tocada. O aviso "Token removido do mapa." tem o botão **Desfazer** (~6 s), que manda `token.restaurar`.
+- **Quem pode apagar** (mudança pedida pelo Vilella no meio do lote): o mestre qualquer token; o jogador os que controla, na camada `tokens`. Conferido na sala. Sem permissão: "Você só pode tirar do mapa os tokens que controla.".
+- **`token.restaurar { id }`** (intenção nova, sem capacidade fixa; a sala confere): a sala guarda em memória, por 10 s, o token apagado e quem o apagou. Só quem apagou (dentro do prazo) ou o mestre restaura. Não há migração.
+- **Setas** movem o token selecionado um quadrado (o quadrado da cena, encaixado no grid), por `token.soltar`. A sala barra parede, porta fechada e falta de permissão. Segurar repete até ~8 passos por segundo. A câmera acompanha se o token sai da tela (`manterVisivel`).
+- **Bandeira do ponto de chegada**: só aparece (para o mestre) com a faixa de Cenas aberta. Ao passar o mouse: "Ponto de chegada: os tokens do grupo aparecem aqui quando você leva o grupo para esta cena. Arraste para mudar."
+- **Anel de foco do mapa**: só aparece quando o foco chegou pelo teclado (`data-foco-teclado`, posto em `Mapa.tsx`); clicar e apertar Delete, Espaço ou seta não o pinta.
+- Atalhos novos na lista de Preferências: "Tirar do mapa o token selecionado" e "Andar com o token selecionado".
+
+**Decisões (assumido)**
+- (assumido) Só há um token selecionado por vez no app: "vários tokens andam juntos" não se aplica ainda.
+- (assumido) O Desfazer devolve o token com o mesmo id e os mesmos dados, mas não as luzes presas a ele (a sala as apagou junto) nem a vaga na ordem de turno.
+- (assumido) Passado o prazo, só o mestre põe o token de volta, pelo caminho de sempre (`token.criar`).
+- (assumido) Delete e setas só agem com a ferramenta Selecionar, o foco no mapa (ou em nada) e sem diálogo, menu ou tour abertos.
+- (assumido) "Remover do mapa" no menu do token não existe; o Delete é o caminho.
+- (assumido) A recusa da sala por parede aparece no aviso de erro de sempre.
+
+**O que ficou para depois**
+- Seleção de vários tokens.
+- Restaurar também as luzes do token.
+
 ## Em aberto
 
 - **O plano R1 a R6 terminou** (R1, R2, R2b, R3, R4 em 2026-11-10; R5a, R5b, R6a e R6b em 2026-11-11). Agora o Vilella faz os ajustes

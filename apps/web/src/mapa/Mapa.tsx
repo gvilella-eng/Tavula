@@ -67,6 +67,36 @@ export function Mapa({
     };
   }, []);
 
+  // V10: o anel de foco do mapa só vale quando o foco chegou pelo teclado (Tab ou um atalho que leva ao mapa), nunca
+  // depois de um clique seguido de tecla (Delete, Espaço, setas).
+  useEffect(() => {
+    const el = host.current;
+    if (!el) return;
+    let pelaTeclado = false;
+    const aoTeclar = (e: KeyboardEvent) => {
+      if (["Tab", "Escape", "Enter", "F10", "ContextMenu"].includes(e.key)) pelaTeclado = true;
+    };
+    const aoApertar = () => {
+      pelaTeclado = false;
+      el.removeAttribute("data-foco-teclado");
+    };
+    const aoFocar = () => {
+      if (pelaTeclado) el.setAttribute("data-foco-teclado", "");
+      else el.removeAttribute("data-foco-teclado");
+    };
+    const aoPerder = () => el.removeAttribute("data-foco-teclado");
+    window.addEventListener("keydown", aoTeclar, true);
+    window.addEventListener("pointerdown", aoApertar, true);
+    el.addEventListener("focus", aoFocar);
+    el.addEventListener("blur", aoPerder);
+    return () => {
+      window.removeEventListener("keydown", aoTeclar, true);
+      window.removeEventListener("pointerdown", aoApertar, true);
+      el.removeEventListener("focus", aoFocar);
+      el.removeEventListener("blur", aoPerder);
+    };
+  }, []);
+
   useEffect(() => mapa.current?.definirCena(cena), [cena]);
   useEffect(() => mapa.current?.definirTokens(tokens), [tokens]);
   useEffect(() => mapa.current?.definirParedes(paredes), [paredes]);

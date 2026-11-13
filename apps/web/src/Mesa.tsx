@@ -87,6 +87,7 @@ import type {
   MedicaoNaTela,
   RetornosDoMapa,
 } from "./mapa/mapaPixi";
+import { menuNativoDeveSumir } from "./menuNativo";
 import { NovoToken, type NovoTokenPedido } from "./NovoToken";
 import { OrdemDeTurno } from "./OrdemDeTurno";
 import { PainelDasParedes } from "./PainelDasParedes";
@@ -103,6 +104,7 @@ import { Topo } from "./Topo";
 import { useTempoDaSala } from "./tempo";
 import { passosDoPapel } from "./tour/passos";
 import { Tour } from "./tour/Tour";
+import { haDialogoAberto } from "./useDialogo";
 import { useSala } from "./useSala";
 import { ZoomFlutuante } from "./ZoomFlutuante";
 
@@ -608,6 +610,88 @@ export function Mesa({
       window.removeEventListener("contextmenu", aoMenuNativo);
     };
   }, [menuDoTokenAberto, selecionado, usuarioVisto, cenaDoMenuId]);
+  // V10: o clique direito em qualquer ponto da área do mapa (token, menus, nomes, popups) nunca abre o menu do
+  // navegador. Na captura e uma vez só: nenhum outro ouvinte (nem a ordem em que foram registrados) muda isso.
+  useEffect(() => {
+    const aoMenuNativoNaArea = (e: MouseEvent) => {
+      if (menuNativoDeveSumir(e.target)) e.preventDefault();
+    };
+    window.addEventListener("contextmenu", aoMenuNativoNaArea, true);
+    return () => window.removeEventListener("contextmenu", aoMenuNativoNaArea, true);
+  }, []);
+  // V10: com um token selecionado e o foco no mapa (ou em nada), Delete tira o token do mapa e as setas o andam
+  // um quadrado. Tudo pelas intenções de sempre (`token.apagar`, `token.soltar`): a sala confere permissão e parede.
+  const aoTeclarNoMapa = useRef<(e: KeyboardEvent) => void>(() => {});
+  const ultimoPassoDeSeta = useRef(0);
+  const seguirOToken = useRef(0);
+  aoTeclarNoMapa.current = (e) => {
+    const ehSeta = e.key.startsWith("Arrow");
+    const ehApagar = e.key === "Delete" || e.key === "Backspace";
+    if ((!ehSeta && !ehApagar) || e.ctrlKey || e.altKey || e.metaKey || e.defaultPrevented) return;
+    const alvo = e.target;
+    const noMapa =
+      alvo === document.body ||
+      (alvo instanceof HTMLElement && alvo.matches("[data-testid='mapa']"));
+    if (!noMapa || haDialogoAberto() || tourAberto || menuDoTokenAberto || menuDaTocha) return;
+    if (!selecionado || ferramenta !== "selecionar" || usuarioVisto !== null) return;
+    const sala = estadoAtual.current;
+    const quem = euAtual.current;
+    if (!sala || !quem) return;
+
+    if (ehApagar) {
+      e.preventDefault();
+      if (e.repeat) return;
+      const meu =
+        quem.papel === "mestre" ||
+        (selecionado.camada === "tokens" && controlaToken(selecionado, quem, sala.personagens));
+      if (!meu) {
+        avisar("Você só pode tirar do mapa os tokens que controla.");
+        return;
+      }
+      const id = selecionado.id;
+      enviar("token.apagar", { id });
+      setSelecionadoId(null);
+      // A sala guarda o token por uns segundos: o "Desfazer" o traz de volta (a ficha nunca foi tocada).
+      avisar("Token removido do mapa.", {
+        rotulo: "Desfazer",
+        aoClicar: () => enviar("token.restaurar", { id }),
+      });
+      return;
+    }
+
+    // As setas: um toque, um quadrado. Segurar repete, no máximo ~8 passos por segundo.
+    e.preventDefault();
+    e.stopPropagation();
+    const agora = performance.now();
+    if (e.repeat && agora - ultimoPassoDeSeta.current < 125) return;
+    if (!podeMoverToken(selecionado, quem, sala)) return;
+    const q = cena?.grid.quadradoM ?? 1.5;
+    const dx = e.key === "ArrowLeft" ? -1 : e.key === "ArrowRight" ? 1 : 0;
+    const dy = e.key === "ArrowUp" ? -1 : e.key === "ArrowDown" ? 1 : 0;
+    const alvoM = encaixarNoGrid(
+      { x: selecionado.x + dx * q, y: selecionado.y + dy * q },
+      selecionado.tamanhoQuadrados,
+      q,
+    );
+    if (alvoM.x === selecionado.x && alvoM.y === selecionado.y) return;
+    ultimoPassoDeSeta.current = agora;
+    seguirOToken.current = agora;
+    enviar("token.soltar", { id: selecionado.id, x: alvoM.x, y: alvoM.y });
+  };
+  useEffect(() => {
+    const ouvir = (e: KeyboardEvent) => aoTeclarNoMapa.current(e);
+    window.addEventListener("keydown", ouvir);
+    return () => window.removeEventListener("keydown", ouvir);
+  }, []);
+  // A câmera acompanha o token andado pelas setas: se ele sair da tela, o mapa desliza até mantê-lo à vista.
+  const selecionadoX = selecionado?.x;
+  const selecionadoY = selecionado?.y;
+  useEffect(() => {
+    if (selecionadoX === undefined || selecionadoY === undefined) return;
+    if (performance.now() - seguirOToken.current < 1500) {
+      mapa.current?.manterVisivel(selecionadoX, selecionadoY);
+    }
+  }, [selecionadoX, selecionadoY]);
   const paredeSelecionada =
     estado?.paredes.find((x) => x.id === paredeSelecionadaId && x.cenaId === cena?.id) ?? null;
   const pronto = status === "conectado" && estado !== null;
@@ -807,6 +891,7 @@ export function Mesa({
           ? ("selecionar" as const)
           : ferramenta,
       mostrarLuzes: fontesAbertas,
+      mostrarBandeira: euMestre && faixaAberta,
       luzSelecionadaId,
       pontoSelecionadoId,
       tipoDoNovoPonto,
@@ -888,6 +973,7 @@ export function Mesa({
       permissoes,
       cenaAtivaId,
       personagens,
+      faixaAberta,
     ],
   );
 
@@ -1509,7 +1595,13 @@ export function Mesa({
               <div
                 className="dica-condicao"
                 role="tooltip"
-                data-testid={dicaDoMapa.tipo === "tocha" ? "dica-tocha" : "dica-condicao"}
+                data-testid={
+                  dicaDoMapa.tipo === "tocha"
+                    ? "dica-tocha"
+                    : dicaDoMapa.tipo === "bandeira"
+                      ? "dica-bandeira"
+                      : "dica-condicao"
+                }
                 style={{
                   left: Math.min(dicaDoMapa.x + 14, caixaDaArea().direita - 300),
                   top: Math.min(

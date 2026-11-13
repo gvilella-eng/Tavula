@@ -1276,6 +1276,7 @@ no editor; ligar a ordem de turno.
 - **Onde fica a ferramenta:** item "Paredes e portas" na lista do ícone de iluminação (lanterna) do menu
   do mestre. Desenhar em sequência com cliques (Esc encerra), encaixe nos cantos do grid (Alt solta),
   arrastar as pontas, selecionar para mudar tipo e estado, Delete apaga.
+  (V10, 2026-11-13: com um token selecionado, Delete o tira do mapa — mestre qualquer um, jogador o que controla, com "Desfazer" por ~6 s via `token.restaurar` — e as setas o andam um quadrado por `token.soltar`. A bandeira do ponto de chegada só aparece com a faixa de Cenas aberta.)
 - **Portas:** ícone no meio da porta. O jogador abre ou fecha porta destrancada **ao alcance** de um token
   que controla (1,5 m por padrão; o mesmo `alcanceInteracaoM` da tocha), com `porta.abrir`. O mestre
   tranca, destranca e abre qualquer uma. Porta trancada avisa "trancada".

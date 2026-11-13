@@ -36,6 +36,7 @@ import {
   nomeDeExibicaoValido,
   type Pacote,
   type PlanoDeAceite,
+  PRAZO_PARA_RESTAURAR_TOKEN_MS,
   type Presenca,
   pausarSeSemMestre,
   planejarAceite,
@@ -46,6 +47,7 @@ import {
   type RascunhoRepassado,
   rascunhoDentroDoLimite,
   registrarMensagem,
+  type TokenApagadoRecente,
   tempoDaSala,
   tokenVisivelPara,
   type Usuario,
@@ -213,6 +215,8 @@ export class Sala extends DurableObject<Env> {
   private readonly taxaDoChat = new Map<WebSocket, number[]>();
   /** Gancho de teste (`MODO=teste`): dados com semente fixa. Fora dele, sempre `crypto`. */
   private fonteDeDadosDeTeste: FonteDeAleatoriedade | null = null;
+  /** V10: os tokens tirados do mapa há pouco (só na memória), para o "Desfazer"; some depois do prazo. */
+  private apagadosRecentes: TokenApagadoRecente[] = [];
   /**
    * Gancho de teste (`/teste/zerar`): os sockets que já existiam quando a sala foi zerada. O fechamento
    * atrasado de um deles (de um teste anterior) não pausa a mesa nova.
@@ -1027,13 +1031,21 @@ export class Sala extends DurableObject<Env> {
     }
 
     const agoraMs = Date.now();
+    this.apagadosRecentes = this.apagadosRecentes.filter(
+      (a) => agoraMs - a.emMs <= PRAZO_PARA_RESTAURAR_TOKEN_MS,
+    );
     const r = processar(
       this.estado,
       usuario.id,
       intencao,
       new Date(agoraMs).toISOString(),
       this.fonteDeDadosDeTeste ?? undefined,
+      this.apagadosRecentes,
     );
+    if (r.ok && r.apagado) this.apagadosRecentes.push({ ...r.apagado, emMs: agoraMs });
+    if (r.ok && intencao.tipo === "token.restaurar") {
+      this.apagadosRecentes = this.apagadosRecentes.filter((a) => a.token.id !== intencao.dados.id);
+    }
     if (!r.ok) {
       this.erro(ws, intencao.id, r.erro.codigo, r.erro.mensagem);
       // Soltou do outro lado de uma parede: quem viu o arraste ao vivo volta o token para onde ele está.

@@ -6,6 +6,7 @@ import { ConfigurarCena } from "./ConfigurarCena";
 import type { ImagensDoMapa } from "./mapa/mapaPixi";
 import { useFecharFora } from "./Popover";
 import { previaDoMapa } from "./previaDaCena";
+import { useDialogo } from "./useDialogo";
 import type { ProgressoDePreparo } from "./useSala";
 
 type Enviar = (tipo: string, dados: object) => string | null;
@@ -125,14 +126,12 @@ function Confirmacao({
   aoConfirmar: () => void;
   aoCancelar: () => void;
 }) {
-  useEffect(() => {
-    const aoTeclar = (e: KeyboardEvent) => e.key === "Escape" && aoCancelar();
-    document.addEventListener("keydown", aoTeclar);
-    return () => document.removeEventListener("keydown", aoTeclar);
-  }, [aoCancelar]);
+  const caixa = useRef<HTMLDivElement>(null);
+  const nivel = useDialogo(caixa, aoCancelar);
   return (
-    <div className="fundo-modal">
+    <div className="fundo-modal" style={{ zIndex: 80 + nivel }}>
       <div
+        ref={caixa}
         className="modal modal-pequeno"
         role="alertdialog"
         aria-label="Apagar cena"

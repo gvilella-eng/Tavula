@@ -1,9 +1,10 @@
 import { type Cena, PX_POR_QUADRADO_PADRAO } from "@tabletop/shared";
 import { ImagePlus, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { BotaoComDica } from "./BotaoComDica";
 import type { PedirImagem } from "./FaixaDeCenas";
+import { useDialogo } from "./useDialogo";
 
 type Props = {
   cena: Cena;
@@ -23,15 +24,9 @@ export function ConfigurarCena({ cena, enviar, pedirImagem, aoFechar }: Props) {
   const [novoMapa, setNovoMapa] = useState<string | null | undefined>(undefined);
   const [erro, setErro] = useState<string | null>(null);
 
-  useEffect(() => {
-    const aoTeclar = (e: KeyboardEvent) => {
-      // Com o seletor de imagem por cima, o Esc é dele.
-      if (e.key === "Escape" && !document.querySelector('[data-testid="seletor-imagem"]'))
-        aoFechar();
-    };
-    document.addEventListener("keydown", aoTeclar);
-    return () => document.removeEventListener("keydown", aoTeclar);
-  }, [aoFechar]);
+  const caixa = useRef<HTMLFormElement>(null);
+  // Esc fecha só o diálogo de cima (o seletor de imagem, se estiver aberto); o foco volta a quem abriu.
+  const nivel = useDialogo(caixa, aoFechar);
 
   const mapaAtual = novoMapa === undefined ? cena.mapa?.assetHash : (novoMapa ?? undefined);
 
@@ -80,8 +75,9 @@ export function ConfigurarCena({ cena, enviar, pedirImagem, aoFechar }: Props) {
 
   // No `body`: dentro da faixa de cenas (z-index 20) o modal ficaria atrás das janelas flutuantes (R6b).
   return createPortal(
-    <div className="fundo-modal">
+    <div className="fundo-modal" style={{ zIndex: 80 + nivel }}>
       <form
+        ref={caixa}
         className="modal modal-configurar"
         noValidate
         data-testid="configurar-cena"

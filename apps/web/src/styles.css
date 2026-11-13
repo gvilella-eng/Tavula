@@ -363,7 +363,11 @@ textarea {
   overflow: hidden;
   background: var(--fundo-mesa);
 }
+/* V10: o anel do mapa só aparece se o foco chegou pelo teclado (Tab ou atalho): clicar no mapa e apertar Delete, Espaço ou uma seta é uso normal do mouse e não o pinta (`data-foco-teclado`, posto em `Mapa.tsx`). */
 .mapa:focus-visible {
+  outline: none;
+}
+.mapa[data-foco-teclado]:focus-visible {
   outline: 2px solid var(--foco);
   outline-offset: -3px;
 }
@@ -420,6 +424,18 @@ textarea {
   border-radius: 8px;
   box-shadow: var(--sombra);
   cursor: pointer;
+}
+.aviso-acao {
+  flex: none;
+  padding: 2px 10px;
+  font-weight: 600;
+  color: var(--acento-forte);
+  background: transparent;
+  border: 1px solid var(--acento);
+  border-radius: 6px;
+}
+.aviso-acao:hover {
+  background: var(--campo);
 }
 .aviso-fechar {
   flex: none;

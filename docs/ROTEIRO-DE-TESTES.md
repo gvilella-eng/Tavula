@@ -173,6 +173,19 @@ as mãos. Cada item diz **o que fazer** e, depois de "→", **o que deve acontec
    - as moedas, porque o importador leu 50 PE;
    - os PV atuais.
 
+## V10 — Bugs do mapa e teclado do token
+1. Cenas → botão direito numa cena → Configurar → "Escolher a imagem…": o seletor abre **por cima**, dá para escolher.
+   Esc fecha só o seletor e o Configurar continua.
+2. Botão direito no token, no menu dele, no fundo do mapa e no nome: o menu do Chrome **nunca** aparece. Com o menu do
+   token aberto, botão direito em outro token abre o menu do outro.
+3. Selecione um token e aperte **Delete**: ele sai do mapa e o aviso mostra **Desfazer**. Um jogador faz o mesmo com o
+   token dele, mas não com o de outro.
+4. Com um token selecionado, as **setas** movem um quadrado por toque. Segurar repete. Parede e porta fechada barram o
+   jogador. Com o cursor no chat, as setas não movem nada.
+5. A **bandeirinha** é o ponto de chegada da cena: o grupo aparece em volta dela quando você usa "Levar grupo". Só o
+   mestre a vê, e só com a faixa de Cenas aberta. Passe o mouse para ver a dica.
+6. Clicar no mapa e apertar Delete, Espaço ou seta não pinta o contorno em volta do mapa; com Tab, ele aparece.
+
 ## Se algo der errado
 - Anote a tela, o que fez e o que esperava, e mande para mim. Bug confirmado vai para `docs/BUGS.md`.
 - Para voltar à campanha de antes de mesas e contas, use a cópia de segurança indicada no topo.

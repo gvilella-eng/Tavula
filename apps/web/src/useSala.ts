@@ -48,6 +48,8 @@ export type Aviso = {
   origem: OrigemDoAviso | null;
   /** Quanto tempo o aviso fica na tela (cresce com o tamanho do texto); um clique o dispensa. */
   duracaoMs: number;
+  /** V10: uma ação no aviso (o "Desfazer"); clicar nela a executa e dispensa o aviso. */
+  acao?: { rotulo: string; aoClicar: () => void };
 };
 
 const ATRASO_INICIAL_MS = 500;
@@ -270,13 +272,14 @@ export function useSala(opcoes: Opcoes) {
   }, [aviso]);
 
   /** Um aviso da própria tela (sem origem: aparece no alto da área do mapa), por exemplo a pausa sem mestre. */
-  const avisar = useCallback((texto: string) => {
+  const avisar = useCallback((texto: string, acao?: Aviso["acao"]) => {
     setAviso({
       numero: ++contadorDeAvisos.current,
       texto,
       codigo: null,
       origem: null,
       duracaoMs: duracaoDoAviso(texto),
+      ...(acao ? { acao } : {}),
     });
   }, []);
 

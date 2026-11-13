@@ -79,6 +79,8 @@ personagem, a camada `mapa` e a ordem de turno, tudo **sem mudar o número do pr
 Toda intenção declara a capacidade exigida (`capacidadeDaIntencao`); a sala confere em toda mensagem.
 Sem a capacidade: `erro` com `sem_permissao`.
 
+**Quem apaga um token** (`token.apagar`, V10): o mestre, qualquer um; o jogador, só o que controla (mesma regra de controle de abaixo), vê e está na camada `tokens`. É conferido na sala, nunca só no cliente: um jogador que mande `token.apagar` à mão num token alheio recebe `sem_permissao`. O `token.restaurar` só vale para quem apagou (10 s) ou o mestre; a guarda do token apagado fica só na memória da sala.
+
 **Quem move um token** (`token.mover` e `token.soltar`): o mestre, qualquer token; o jogador, só se
 `pode(eu, "token.moverProprio")` **e** controla o token (**edita o personagem** do token, ou o id dele
 está em `controladoPor`, que o mestre usa para emprestar) **e** o token é visível para ele (da cena ativa)
@@ -105,7 +107,8 @@ fica dentro de `0..larguraM` × `0..alturaM`), não recusada.
 | `asset.naoTenho` | `{ hash }` | nenhuma | esta conexão não tem (mais) o arquivo; se ela estava servindo, a sala pede o que falta a outro |
 | `cena.definirMapa` | `{ cenaId?, assetHash: hash \| null, pxPorQuadrado? }` (10 a 1000; padrão 70, ou o atual) | `cena.editar` | põe (ou, com `null`, tira) o mapa da cena (`cenaId`; padrão: a ativa). A cena passa a ter o tamanho dele: metros = px ÷ `pxPorQuadrado` × `quadradoM` (máx. 1000 m, senão `dados_invalidos`). `asset_inexistente` se o hash não é um `mapa` registrado |
 | `token.definirImagem` | `{ id, assetHash: hash \| null }` | `asset.subir` (mestre sempre) | jogador: só no token que **controla** (dono do personagem ou `controladoPor`) **e vê**, com qualquer imagem de token (`token`/`retrato`) registrada — inclusive a mesma arte que outro registrou antes (mesmo hash); mestre: qualquer token. Token invisível: `token_inexistente`; hash que não é imagem de token registrada: `asset_inexistente` |
-| `token.apagar` | `{ id }` | `cena.editar` | apaga o token |
+| `token.apagar` | `{ id }` | nenhuma fixa (a sala confere) | apaga o token. O mestre apaga qualquer um; o jogador, só o que controla, visível e na camada `tokens` (senão `sem_permissao`; invisível: `token_inexistente`). A sala guarda o token por 10 s, na memória, para o `token.restaurar` (V10) |
+| `token.restaurar` | `{ id }` | nenhuma fixa (a sala confere) | desfaz o `token.apagar`: recria o token igual. Só quem o apagou, dentro de 10 s, ou o mestre (enquanto a sala o guarda); fora disso `sem_permissao`. Não restaura as luzes presas ao token |
 | `cena.configurarGrid` | `{ cenaId?, quadradoM?, visivel? }` (quadrado de 0,3 a 10 m) | `cena.editar` | muda o grid da cena (`cenaId`; padrão: a ativa) |
 | `token.mover` | `{ id, x, y }` (metros, centro do token) | `token.moverProprio` | **transitório**: não grava, não gera `seq`, não muda o estado; a sala repassa `token.movendo` (abaixo). Limite do cliente: 20 por segundo por arraste |
 | `token.soltar` | `{ id, x, y }` | `token.moverProprio` | grava e gera o evento `token.movido` (sempre, mesmo sem mudança de posição: quem viu o movimento ao vivo precisa da posição final) |

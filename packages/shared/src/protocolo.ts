@@ -485,6 +485,8 @@ export const IntencaoSchema = z.discriminatedUnion("tipo", [
   intencao("token.criar", z.object({ token: TokenNovoSchema, cenaId: IdSchema.optional() })),
   intencao("token.editar", z.object({ id: IdSchema, mudancas: MudancasDoTokenSchema })),
   intencao("token.apagar", z.object({ id: IdSchema })),
+  /** V10: desfaz o `token.apagar` dentro do prazo (quem apagou ou o mestre); a sala guarda o token só na memória. */
+  intencao("token.restaurar", z.object({ id: IdSchema })),
   intencao(
     "cena.configurarGrid",
     z.object({
@@ -855,7 +857,9 @@ export const capacidadeDaIntencao: Record<TipoIntencao, Capacidade | null> = {
   "permissao.alterar": "permissao.alterar",
   "token.criar": "cena.editar",
   "token.editar": "cena.editar",
-  "token.apagar": "cena.editar",
+  // V10: o mestre apaga qualquer token; o jogador, o que controla (na camada `tokens`). `processar` confere.
+  "token.apagar": null,
+  "token.restaurar": null,
   "cena.configurarGrid": "cena.editar",
   "token.mover": "token.moverProprio",
   "token.soltar": "token.moverProprio",

@@ -1,10 +1,12 @@
 import { FolderOpen, X } from "lucide-react";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { createPortal } from "react-dom";
 import type { ArquivoDaFonte } from "./assets/fonte";
 import type { Fontes } from "./assets/fontes";
 import type { Processador } from "./assets/processador";
 import { BotaoComDica } from "./BotaoComDica";
 import { useFecharFora } from "./Popover";
+import { useDialogo } from "./useDialogo";
 
 const MAX_MINIATURAS = 60;
 
@@ -30,6 +32,8 @@ export function SeletorDeImagem({ titulo, fontes, processador, aoEscolher, aoFec
   const entrada = useRef<HTMLInputElement>(null);
   const caixa = useRef<HTMLDivElement>(null);
   useFecharFora(caixa, () => !ocupado && aoFechar());
+  // V10: no `body` e com o nível da pilha, o seletor aberto de dentro de outro diálogo fica por cima dele.
+  const nivel = useDialogo(caixa, () => !ocupado && aoFechar());
   const versaoDasFontes = fontes.versaoAtual();
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: recarrega quando as fontes mudam
@@ -80,8 +84,8 @@ export function SeletorDeImagem({ titulo, fontes, processador, aoEscolher, aoFec
     }
   }
 
-  return (
-    <div className="fundo-modal" data-testid="seletor-imagem-fundo">
+  return createPortal(
+    <div className="fundo-modal" data-testid="seletor-imagem-fundo" style={{ zIndex: 80 + nivel }}>
       <div
         ref={caixa}
         className="modal modal-seletor"
@@ -157,6 +161,7 @@ export function SeletorDeImagem({ titulo, fontes, processador, aoEscolher, aoFec
           </p>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

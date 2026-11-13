@@ -366,7 +366,8 @@ Lote 4
 
 Lote 4b
 - A prévia da cena usa o cache; mapas enormes geram a prévia na primeira abertura da faixa. (`ESTADO:853`)
-- A bandeira de chegada só é arrastável com a ferramenta Selecionar. (`ESTADO:855`)
+- A bandeira de chegada só é arrastável com a ferramenta Selecionar e só existe (para o mestre) com a faixa de Cenas aberta (`opcoes.mostrarBandeira`, V10). (`ESTADO:855`)
+- V10: diálogos modais usam `useDialogo.ts` (pilha: z-index, foco, Tab, Esc, devolve o foco); `haDialogoAberto()` segura os atalhos do mapa. `token.apagar` é conferido na sala (jogador só o que controla) e `token.restaurar` usa uma guarda de 10 s só em memória (`Sala.apagadosRecentes`). Delete e setas do token vivem em `Mesa.tsx` (`aoTeclarNoMapa`); o clique direito é tratado em `menuNativo.ts`; o anel de foco do mapa depende de `data-foco-teclado` (`Mapa.tsx`).
 
 Lote 5
 - Blend `erase` e RenderTexture só vistos no Chrome; bordas do véu serrilhadas em zoom alto. (`ESTADO:932`) (junto de L6, ver "Vários lotes")

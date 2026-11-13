@@ -171,6 +171,8 @@ export type OpcoesDoMapa = {
   visao: ConfigDeVisao;
   /** O painel das fontes de luz está aberto: o mestre vê, arrasta e seleciona as luzes no mapa. */
   mostrarLuzes: boolean;
+  /** V10: a bandeira do ponto de chegada só aparece (para o mestre) com a faixa de Cenas aberta. */
+  mostrarBandeira: boolean;
   luzSelecionadaId: string | null;
   /** O ponto que o mestre está editando e o tipo que a ferramenta "ponto" cria. */
   pontoSelecionadoId: string | null;
@@ -279,8 +281,8 @@ export type DicaDoMapa = {
   texto: string;
   x: number;
   y: number;
-  /** `condicao` (marcador no token) ou `tocha` (alça da luz). */
-  tipo: "condicao" | "tocha";
+  /** `condicao` (marcador no token), `tocha` (alça da luz) ou `bandeira` (ponto de chegada). */
+  tipo: "condicao" | "tocha" | "bandeira";
 };
 
 type Ponto = { x: number; y: number };
@@ -315,6 +317,8 @@ const DISTANCIA_ENTRE_MARCAS = 19;
 const RAIO_DA_ALCA_TOCHA = 20;
 const LETRA_DO_TEMPO = 15;
 /** A dica da alça da tocha (o que ela faz). */
+const DICA_DA_BANDEIRA =
+  'Os tokens do grupo aparecem aqui quando você usa "Levar grupo" para esta cena. Arraste para mudar.';
 const DICA_DA_TOCHA = "Dois cliques: apagar ou acender · Botão direito: mais ações";
 
 type Gesto =
@@ -859,6 +863,25 @@ export class MapaPixi {
       y: (this.altura() - h * zoom) / 2,
     };
     this.jaCentralizou = this.largura() > 0;
+    this.aplicarVista();
+  }
+
+  /** V10: se o ponto do mundo (metros) saiu da tela, desliza a vista o mínimo para trazê-lo de volta. */
+  manterVisivel(xM: number, yM: number): void {
+    if (!this.pronto) return;
+    const margem = 80;
+    const t = this.paraTela(xM, yM);
+    const w = this.largura();
+    const h = this.altura();
+    let dx = 0;
+    let dy = 0;
+    if (t.x < margem) dx = margem - t.x;
+    else if (t.x > w - margem) dx = w - margem - t.x;
+    if (t.y < margem) dy = margem - t.y;
+    else if (t.y > h - margem) dy = h - margem - t.y;
+    if (dx === 0 && dy === 0) return;
+    this.vista.x += dx;
+    this.vista.y += dy;
     this.aplicarVista();
   }
 
@@ -2382,7 +2405,7 @@ export class MapaPixi {
   private atualizarBandeira(posicao?: Ponto): void {
     this.sujo = true;
     const cena = this.cena;
-    const visivel = cena !== null && this.opcoes.euMestre;
+    const visivel = cena !== null && this.opcoes.euMestre && this.opcoes.mostrarBandeira;
     this.bandeira.visible = visivel;
     if (!cena || !visivel) {
       this.posicaoDaBandeira = null;
@@ -2801,6 +2824,12 @@ export class MapaPixi {
     });
   }
 
+  /** V10: a dica da bandeira do ponto de chegada sob o ponteiro (só o mestre a vê). */
+  private dicaDaBandeira(p: Ponto): { titulo: string; texto: string; tipo: "bandeira" } | null {
+    if (!this.sobreABandeira(p)) return null;
+    return { titulo: "Ponto de chegada", texto: DICA_DA_BANDEIRA, tipo: "bandeira" };
+  }
+
   /** A dica da alça da tocha sob o ponteiro (só com a ferramenta de seleção): o que ela faz. */
   private dicaDaAlca(p: Ponto): { titulo: string; texto: string; tipo: "tocha" } | null {
     if (this.opcoes.ferramenta !== "selecionar") return null;
@@ -2847,7 +2876,9 @@ export class MapaPixi {
       const marca = this.marcaEm(p);
       this.atualizarDica(
         e,
-        marca ? { titulo: marca.titulo, texto: marca.texto, tipo: "condicao" } : this.dicaDaAlca(p),
+        marca
+          ? { titulo: marca.titulo, texto: marca.texto, tipo: "condicao" }
+          : (this.dicaDaAlca(p) ?? this.dicaDaBandeira(p)),
       );
       this.moverPrevia(e, p);
       return;

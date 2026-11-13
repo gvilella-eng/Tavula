@@ -53,6 +53,17 @@ export const ATALHOS = {
     grupo: "Mapa",
     teclas: [["Delete"], ["Backspace"]],
   },
+  tirarToken: {
+    descricao: "Tirar do mapa o token selecionado (a ficha fica); o aviso tem Desfazer",
+    grupo: "Mapa",
+    teclas: [["Delete"], ["Backspace"]],
+  },
+  andarToken: {
+    descricao: "Andar com o token selecionado: um toque, um quadrado (segurar repete)",
+    grupo: "Mapa",
+    teclas: [["←"], ["↑"], ["↓"], ["→"]],
+    juntas: true,
+  },
   encaixe: {
     descricao: "Segurar ao arrastar ou clicar: inverte o encaixe no grid",
     grupo: "Mapa",
