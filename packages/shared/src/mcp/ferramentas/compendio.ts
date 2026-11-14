@@ -1,6 +1,6 @@
-import { ROTULO_DO_NIVEL_DE_MAGIA } from "@tabletop/shared";
 import { z } from "zod";
-import type { AchadoDoCompendio } from "../compendioLocal.ts";
+import { ROTULO_DO_NIVEL_DE_MAGIA } from "../../index.ts";
+import type { AchadoDoCompendio } from "../compendio.ts";
 import { cortar } from "../formato.ts";
 import { definir } from "./base.ts";
 

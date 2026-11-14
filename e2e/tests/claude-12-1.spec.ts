@@ -38,7 +38,7 @@ test("gerar o token em Preferências (aparece uma vez), conectar com ele, o Clau
   expect(token).toMatch(/^tvc_[A-Za-z0-9_-]{43}$/);
   // o trecho pronto para o Claude Code e para o Claude Desktop leva o endereço da mesa e o token
   await expect(p.getByTestId("claude-trecho-code")).toContainText(token);
-  await expect(p.getByTestId("claude-trecho-code")).toContainText(`TAVOLA_MESA=${ID_DA_MESA}`);
+  await expect(p.getByTestId("claude-trecho-code")).toContainText(`/api/m/${ID_DA_MESA}/mcp`);
   await expect(p.getByTestId("claude-copiar-token")).toBeVisible();
   await expect(p.getByTestId("claude-copiar-code")).toBeVisible();
   await p.getByText("Claude Desktop", { exact: true }).click();
@@ -66,11 +66,9 @@ test("gerar o token em Preferências (aparece uma vez), conectar com ele, o Clau
   // o Claude não vira outra pessoa no topo: a bolinha do usuário ganha uma marca pequena
   await expect(p.getByTestId("presenca-claude-mestre")).toBeVisible();
   await expect(p.getByTestId("presenca-mestre")).toHaveAttribute("data-claude", "sim");
-  await expect(p.getByTestId("pref-resumo-claude")).toHaveText("1 token · conectado");
+  await expect(p.getByTestId("pref-resumo-claude")).toHaveText("1 token · conectado agora");
   await expect(p.getByTestId("presenca-estado-mestre")).toHaveText("online");
-  await expect(linha)
-    .toContainText("último uso agora", { timeout: 15_000 })
-    .catch(() => {});
+  await expect(linha).toContainText("conectado agora", { timeout: 15_000 });
 
   // revogar (com confirmação na página) derruba a conexão aberta
   await p.getByTestId("claude-revogar").click();

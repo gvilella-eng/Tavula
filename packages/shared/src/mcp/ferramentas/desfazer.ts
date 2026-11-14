@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { ErroDoMcp } from "../erros.ts";
-import type { LoteDoClaude } from "../sala.ts";
+import type { LoteDoClaude } from "../tipos.ts";
 import { definir, passo } from "./base.ts";
 
 /** "há 5 min", "há 2 h": quanto faz que o lote foi feito. */

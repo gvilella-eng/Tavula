@@ -5722,6 +5722,19 @@ button.inicio-botao-largo {
   margin: 8px 0 0;
   font-size: 13px;
 }
+.claude-passos {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.claude-passos-lista {
+  margin: 0;
+  padding-left: 20px;
+  font-size: 13px;
+}
+.claude-passos-lista li + li {
+  margin-top: 2px;
+}
 
 /* --- Preferências em sanfona com resumo (P1) ----------------------------------------------------------- */
 .pref-lista {

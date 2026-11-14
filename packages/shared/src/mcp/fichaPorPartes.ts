@@ -1,3 +1,4 @@
+import { z } from "zod";
 import {
   ATRIBUTOS,
   type Ataque,
@@ -21,9 +22,8 @@ import {
   PERICIAS,
   RecursoSchema,
   semAcento,
-} from "@tabletop/shared";
-import { z } from "zod";
-import type { CompendioLocal } from "./compendioLocal.ts";
+} from "../index.ts";
+import type { CompendioLocal } from "./compendio.ts";
 import { ErroDoMcp } from "./erros.ts";
 import { achar } from "./nomes.ts";
 

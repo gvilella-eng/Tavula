@@ -2,40 +2,21 @@ import { request as httpRequest } from "node:http";
 import { request as httpsRequest } from "node:https";
 import {
   type Estado,
-  type EventoSala,
   IntencaoSchema,
   lerMensagemDaSala,
   reduzir,
   type Usuario,
   VERSAO_PROTOCOLO,
 } from "@tabletop/shared";
+import {
+  ErroDoMcp,
+  type Lote,
+  type LoteDoClaude,
+  type RespostaDaSala,
+  type SalaLike,
+  TOKEN_INVALIDO,
+} from "@tabletop/shared/mcp";
 import type { Config } from "./config.ts";
-import { ErroDoMcp, TOKEN_INVALIDO } from "./erros.ts";
-
-/** O que cada chamada de ferramenta manda em toda intenção, para o "Desfazer" da mesa agrupar o que ela fez. */
-export type Lote = { loteId: string; lote: string };
-
-export type LoteDoClaude = {
-  loteId: string;
-  descricao: string;
-  emMs: number;
-  itens: number;
-  desfeito: boolean;
-  desfazivel: boolean;
-};
-
-export type RespostaDaSala =
-  | { ok: true; evento?: EventoSala; desfeito?: { aplicados: number; pulados: string[] } }
-  | { ok: false; codigo: string; mensagem: string };
-
-/** O que as ferramentas precisam da conexão (os testes põem uma sala de mentira no lugar). */
-export interface SalaLike {
-  /** O estado como a sala o mostra a este usuário. Falha com um texto claro se não há conexão. */
-  estado(): Estado;
-  eu(): Usuario;
-  lotes(): LoteDoClaude[];
-  enviar(tipo: string, dados: unknown, lote?: Lote): Promise<RespostaDaSala>;
-}
 
 export type SocketLike = {
   addEventListener(tipo: string, ouvinte: (e: { data?: unknown; code?: number }) => void): void;

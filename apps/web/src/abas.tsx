@@ -10,12 +10,13 @@ import {
   ShieldCheck,
   User,
 } from "lucide-react";
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { type ArquivoDaFonte, temSeletorDePasta } from "./assets/fonte";
 import type { Fontes } from "./assets/fontes";
 import type { GerenteDeAssets, StatusDeAsset } from "./assets/gerente";
 import { IDS_DOS_ATALHOS } from "./atalhos";
 import { ConectarOClaude } from "./claude/ConectarOClaude";
+import { haQuanto } from "./claude/textosDoClaude";
 import { TrocarSenha } from "./contas/TrocarSenha";
 import { definirDicasLigadas, useDicasLigadas } from "./dicasLigadas";
 import { ListaDeAtalhos } from "./ListaDeAtalhos";
@@ -189,6 +190,11 @@ export function AbaPreferencias({
   const unidade = useUnidade();
   const [tema, setTema] = useState(() => lerTema());
   const [tokens, setTokens] = useState<number | null>(null);
+  const [ultimoUsoDoClaude, setUltimoUsoDoClaude] = useState<number | null>(null);
+  const contarTokens = useCallback((n: number, uso: number | null) => {
+    setTokens(n);
+    setUltimoUsoDoClaude(uso);
+  }, []);
   useSyncExternalStore(fontes.assinar, fontes.versaoAtual);
   useSyncExternalStore(
     gerente ? gerente.assinar : assinarNada,
@@ -211,7 +217,11 @@ export function AbaPreferencias({
     tokens === null
       ? "Carregando…"
       : (tokens === 0 ? "Nenhum token" : plural(tokens, "token", "tokens")) +
-        (claudeConectado ? " · conectado" : "") +
+        (claudeConectado
+          ? " · conectado agora"
+          : ultimoUsoDoClaude !== null
+            ? ` · usado ${haQuanto(ultimoUsoDoClaude)}`
+            : "") +
         (desfaziveis > 0 ? ` · ${plural(desfaziveis, "lote", "lotes")} para desfazer` : "");
 
   return (
@@ -325,7 +335,8 @@ export function AbaPreferencias({
           mesaId={mesaId}
           lotes={lotesDoClaude}
           enviar={enviar}
-          aoContarTokens={setTokens}
+          aoContarTokens={contarTokens}
+          conectado={claudeConectado}
         />
       </SecaoDePreferencias>
       {login && (

@@ -963,6 +963,41 @@ Fora do protocolo do WebSocket (rotas HTTP que o token nunca abre ou que não ex
 - `muitas_mensagens` (20 por segundo, rajada de 40): o MCP já se limita a 15 por segundo e, se mesmo assim receber o erro, espera e repete.
 - Close 4001: não reconectar. Outras quedas: reconectar; o snapshot da nova conexão substitui o estado. Depois de uma falha, um `GET` de abertura (`Upgrade: websocket`, com o cabeçalho) separa 401 (token), 429 (IP bloqueado) e 404 (mesa).
 
+### O MCP por HTTP (Lote 12-3)
+
+A sala também fala **MCP por HTTP** (Streamable HTTP **sem estado**, JSON, versão de protocolo `2025-11-25`, a mais nova do SDK 1.32; aceita também `2025-06-18`, `2025-03-26`, `2024-11-05` e `2024-10-07`). Nenhuma intenção nem mensagem do WebSocket muda: o HTTP é outra porta para as mesmas intenções.
+
+**A rota**: `POST /api/m/<id>/mcp`, cada POST com um JSON-RPC 2.0 (ou um lote), `Content-Type: application/json`, `Authorization: Bearer tvc_...`. Corpo de até 512 KB.
+
+| Método JSON-RPC | Resposta |
+|---|---|
+| `initialize` | `protocolVersion` (a pedida, se conhecida; senão a mais nova), `capabilities: { tools: { listChanged: false } }`, `serverInfo { name: "tavola" }`, `instructions` |
+| `notifications/*` (e respostas do cliente) | **202** sem corpo |
+| `ping` | `{}` |
+| `tools/list` | as ferramentas deste usuário (papel e capacidades) |
+| `tools/call` `{ name, arguments }` | `{ content: [{ type: "text", text }], isError? }`; erro de ferramenta é `isError`, não erro do JSON-RPC |
+| qualquer outro | erro `-32601`; parâmetros ruins `-32602`; mensagem inválida `-32600`; JSON quebrado: 400 com `-32700` |
+
+**Status HTTP**
+
+| Caso | Status |
+|---|---|
+| `GET`, `DELETE`, `OPTIONS` | **405** (`Allow: POST`); não há SSE nem sessão |
+| sem `Authorization`, token errado, fora do formato, revogado, de outra mesa, conta fora da mesa | **401** `Não autenticado` com `WWW-Authenticate: Bearer`, **sem dizer o motivo** |
+| IP bloqueado (30 falhas em 15 min, o mesmo bloqueio do login e do WebSocket) | **429** com `Retry-After` |
+| qualquer `Origin` | **403** `origem_invalida` |
+| `Content-Type` que não é JSON | 415 |
+| corpo maior que 512 KB | 413 |
+
+**Segurança (pense como se a mesa estivesse na internet)**
+- **Mesmo tratamento do WebSocket do Claude**: o POST não tem caminho próprio. Cada `tools/call` vira as intenções de sempre e todas passam pela **mesma função da sala** (`tratarIntencao`, a que o WebSocket também chama): o limite de 20 por segundo por token (o mesmo balde), a lista `PROIBIDAS_AO_CLAUDE`, a marca "pelo Claude", o carimbo de rascunho do mestre, o diário do Desfazer (`loteId` e descrição de cada chamada), o limite do chat e a difusão aos navegadores conectados. O estado que a ferramenta lê é a visão do próprio usuário (a do snapshot).
+- **Só as 11 ferramentas**: não existe ferramenta que mande uma intenção qualquer; os proibidos (papéis, permissões, importar e exportar, arquivos) nem são oferecidos, e a sala os recusaria do mesmo jeito.
+- **Sem cookie e sem sessão**: o cookie é ignorado e nenhum `Set-Cookie` sai. O token é validado em toda chamada (hash, conta ativa, mesma vaga), então revogar vale na hora.
+- **Sem CORS e sem navegador**: a rota não responde preflight e nunca manda `Access-Control-Allow-*`; uma página de outro site não consegue mandar `Authorization` sem preflight. Além da checagem do C3 (outro site: 403), esta rota recusa **qualquer** `Origin` (o Claude Code não manda; um navegador manda), inclusive o da própria mesa.
+- **Presença**: sem conexão aberta, "Claude conectado" vale por **2 minutos** depois de cada chamada (um vencimento `claude.http` na agenda da sala); o "último uso" do token é gravado a cada chamada.
+- O compêndio é o exemplo do SRD embutido (3 magias, 9 armas, 5 itens).
+- A resposta de uma ferramenta termina na hora (a sala tem o estado): nenhum evento nem snapshot a esperar.
+
 ### Contador de uso
 
 A sala conta as mensagens recebidas por dia UTC e as conexões. `requisicoes = mensagens / 20 + conexoes`;

@@ -8,11 +8,11 @@ import {
   type Usuario,
   VERSAO_PROTOCOLO,
   visaoPara,
-} from "@tabletop/shared";
-import { CompendioLocal } from "../compendioLocal.ts";
+} from "../../index.ts";
+import { CompendioLocal } from "../compendio.ts";
 import type { Contexto } from "../ferramentas/base.ts";
-import type { Lote, LoteDoClaude, RespostaDaSala, SalaLike } from "../sala.ts";
 import { novoLote } from "../servidor.ts";
+import type { Lote, LoteDoClaude, RespostaDaSala, SalaLike } from "../tipos.ts";
 
 // Uma sala de mentira para os testes das ferramentas: ela roda as regras de verdade (`processar` do shared, com a marca
 // do Claude), então o que o teste confere é o que a mesa faria. Guarda o que foi enviado, com o lote de cada pedido.
@@ -104,7 +104,7 @@ export class SalaSimulada implements SalaLike {
   contexto(): Contexto {
     return {
       sala: this,
-      compendio: CompendioLocal.carregar(null, "/pasta/que/nao/existe"),
+      compendio: CompendioLocal.doExemplo(),
       novoLote,
     };
   }

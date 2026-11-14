@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import type { Estado, Usuario } from "@tabletop/shared";
+import { ErroDoMcp } from "@tabletop/shared/mcp";
 import { z } from "zod";
-import { CompendioLocal } from "./compendioLocal.ts";
+import { carregarCompendio } from "./compendioLocal.ts";
 import { type Config, lerConfig } from "./config.ts";
-import { ErroDoMcp } from "./erros.ts";
 import { Sala } from "./sala.ts";
 import { criarServidor } from "./servidor.ts";
 
@@ -46,9 +46,7 @@ async function principal(): Promise<void> {
     falha = e;
     registrar(e.message);
   }
-  const compendio = CompendioLocal.carregar(
-    config?.compendio ?? process.env.TAVOLA_COMPENDIO ?? null,
-  );
+  const compendio = carregarCompendio(config?.compendio ?? process.env.TAVOLA_COMPENDIO ?? null);
 
   let avisar: () => void = () => undefined;
   const conexao =

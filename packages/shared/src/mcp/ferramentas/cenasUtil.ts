@@ -1,5 +1,5 @@
-import { encaixarMeiaCelula, type Ponto } from "@tabletop/shared";
 import { z } from "zod";
+import { encaixarMeiaCelula, type Ponto } from "../../index.ts";
 
 /** Um ponto em células: `[coluna, linha]`, com meias células ([1.5, 2]). */
 export const ParSchema = z.tuple([z.number().finite(), z.number().finite()]);

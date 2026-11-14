@@ -85,7 +85,7 @@ o que o app usa em execução fica no repositório.
 | Testes | **Vitest** (unidade) + **Playwright** (ponta a ponta com vários jogadores) | Cada contexto do Playwright tem armazenamento isolado, como se fosse outro PC |
 | Monorepo | **pnpm workspaces** | `apps/web`, `apps/server`, `packages/shared` |
 | Conteúdo D&D | SRD 5.1 (regras 2014), licença CC-BY-4.0, em JSON dentro do repo | Decidido: regras de 2014. A ficha de referência (Darion) é a ficha 5e de 2014 impressa |
-| IA | Servidor **MCP** local (stdio) em `apps/mcp` | Configurar a mesa com IA usando as mesmas intenções, schemas e permissões dos clientes (seção 4.12) |
+| IA | Servidor **MCP** por HTTP na própria sala (e local, em stdio, em `apps/mcp`) | Configurar a mesa com IA usando as mesmas intenções, schemas e permissões dos clientes (seção 4.12) |
 
 ### 3.1 Princípios
 
@@ -796,7 +796,7 @@ ambiente, com os arquivos de som na pasta local, como as imagens. O 7b se divide
 
 ### 4.12 MCP (configurar a mesa com IA)
 
-Servidor MCP local (stdio) em `apps/mcp`, usado pelo Claude (Code ou Desktop) para construir o mundo:
+Servidor MCP (por HTTP, na própria sala; e local em stdio em `apps/mcp`, para o Claude Desktop), usado pelo Claude (Code ou Desktop) para construir o mundo:
 criar cenas, notas do mestre, modelos de objeto, pontos, zonas, ciclos, reações e NPCs.
 
 **Revisto pelo Vilella (2026-11-13): o MCP é de todos, não só do mestre.**
@@ -855,6 +855,15 @@ Regras que continuam:
 - **Cenas em células** (a partir do canto de cima à esquerda, com meias células): as paredes usam `encaixarMeiaCelula`, o arco "de a até b passando por c" vira `meio` (e há o arco tangente, `meioDoArcoTangente`). Os tokens de NPC saem da ficha.
 - **Compêndio local**: o `magias.json` do computador (ou o exemplo do SRD embutido); não tem monstros. **Fora do MCP**: levar o grupo, disparar eventos, botões, mapa e imagens, combate, desenhos, relógio e configuração.
 - O texto de "Conectar o Claude" na mesa é o comando final (`claude mcp add tavola --env TAVOLA_URL=... --env TAVOLA_MESA=... --env TAVOLA_TOKEN=... -- node apps/mcp/dist/tavola-mcp.mjs`).
+
+**12-3: o MCP mora na própria sala, por HTTP** (2026-11-13; o usuário cola **um comando só**; detalhes em `docs/REDESIGN.md`, `docs/protocolo.md` e `docs/MCP.md`)
+
+- **Motivo**: o comando do 12-2 dependia da pasta do repositório, do `build` e da ordem das opções, e um jogador de outro computador nem tem o repositório. Agora a mesa mostra uma linha que funciona em qualquer pasta, sem arquivo, sem build e sem Node: `claude mcp add --transport http --scope user tavola-<id da mesa> <origem da página>/api/m/<id>/mcp --header "Authorization: Bearer <token>"` (só aspas duplas: vale no PowerShell 5.1, no cmd e no bash).
+- **A rota**: `POST /api/m/<id>/mcp`, Streamable HTTP sem estado (JSON-RPC em JSON, `initialize`, `notifications/initialized` com 202, `tools/list`, `tools/call`, `ping` e lotes); GET e DELETE são 405. Autenticação por `Authorization: Bearer tvc_...` com a mesma validação do 12-1 (hash, conta ativa, mesma vaga, bloqueio por IP); 401 sem dizer o motivo, 429 com o IP bloqueado; sem cookie, sem sessão, sem CORS e **qualquer `Origin` é recusado**.
+- **Mesmo tratamento do WebSocket do Claude**: a sala tem uma função só para tratar uma intenção (`tratarIntencao`), chamada pelo WebSocket e pelo HTTP: limite por token, proibidos, marca "pelo Claude", rascunho, diário do Desfazer, limite do chat e difusão. Não há caminho paralelo.
+- **O código das ferramentas** (as 11, os nomes, os esquemas, `fichaPorPartes`, o formato e os erros) mora em `packages/shared/src/mcp` (entrada `@tabletop/shared/mcp`, que o navegador nunca carrega); a sala (HTTP) e o `apps/mcp` (stdio) usam o mesmo código. A rota HTTP é uma "conexão" que lê o estado da própria sala (a visão do usuário) e responde na hora.
+- **Presença**: sem conexão aberta, "Claude conectado" vale por 2 minutos depois de cada chamada (assumido); o "último uso" do token é gravado a cada chamada e a tela mostra "conectado agora" ou "usado há X min".
+- **Claude Desktop** continua com o servidor local (`apps/mcp`, stdio); o texto da tela diz com honestidade que isso exige o Távola baixado e o Node. O compêndio pela rota HTTP é o exemplo do SRD embutido no Worker.
 
 ### 4.13 Interface
 

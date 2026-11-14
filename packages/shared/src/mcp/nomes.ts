@@ -1,4 +1,4 @@
-import { normalizarBusca } from "@tabletop/shared";
+import { normalizarBusca } from "../index.ts";
 import { ErroDoMcp } from "./erros.ts";
 
 type Opcoes<T> = {

@@ -1733,3 +1733,35 @@ Os lotes 7b-1 a 7b-3 (motor, zonas, editor e campanhas) vêm depois dos ajustes 
 - Ferramentas de combate, desenhos e do relógio.
 - Ler o histórico do chat pelo MCP.
 - Um `build` automático junto do `pnpm dev`.
+
+### 12-3 — como ficou (2026-11-13)
+
+**O que foi feito**
+- **O MCP mora na sala, por HTTP.** `POST /api/m/<id>/mcp` (Streamable HTTP sem estado): `initialize` (versão de protocolo `2025-11-25`, a do SDK 1.32.2; aceita também as quatro anteriores), `notifications/*` (202), `ping`, `tools/list`, `tools/call` e lotes de JSON-RPC. GET, DELETE e OPTIONS: 405. Sem SDK no Worker: o JSON-RPC é puro (`packages/shared/src/mcp/jsonrpc.ts`).
+- **Uma função só para tratar intenção.** O corpo do `webSocketMessage` virou `tratarIntencao(remetente, intencao)` na sala, chamada pelo WebSocket (`ws` = o socket) e pelo HTTP (`ws: null`). Ela tem: o limite de 20 por segundo por token (o mesmo balde), o `claude.desfazer`, o limite do chat (por socket; no HTTP, por token), o limite do botão, `processar` com `{ claude: true }` (proibidos, marca "pelo Claude", rascunho), o diário do Desfazer, a gravação, a difusão (`distribuir`) e a presença. O que depende de um socket (arraste, rascunho de desenho, ping, arquivos, exportação) só roda com `ws`. `desfazerLote` agora devolve o resultado e o WebSocket envia o `claude.desfeito`.
+- **A "conexão" do HTTP** (`conexaoDoMcp`): lê o estado da própria sala (`visaoDe(usuario)`, a visão do snapshot, refeita depois de cada pedido), os lotes do diário e manda cada pedido por `tratarIntencao`. A resposta termina na hora com o evento do pedido (como o usuário o vê). `muitas_mensagens`: espera 1,2 s e tenta de novo até 3 vezes (como o MCP em stdio).
+- **Código comum.** As ferramentas, os nomes, `fichaPorPartes`, o formato, os erros, o compêndio (a classe `CompendioLocal`, agora sem disco) e o coração do servidor (`chamarFerramenta`, `definicaoDaFerramenta`, `ferramentasDaLista`) saíram de `apps/mcp` para `packages/shared/src/mcp` (entrada `@tabletop/shared/mcp`; os testes foram junto). `apps/mcp` ficou com o transporte stdio (SDK), a conexão WebSocket e a leitura do compêndio do disco.
+- **Autenticação do HTTP**: `resolverTokenDoClaude` (hash, conta ativa, mesma vaga, bloqueio por IP, 30 falhas em 15 min); 401 `Não autenticado` com `WWW-Authenticate: Bearer` sem dizer o motivo; 429 com `Retry-After`; sem cabeçalho, 401 sem contar falha. Sem cookie, sem sessão, sem `Set-Cookie`.
+- **Proteção do navegador**: a rota não responde preflight e nunca manda `Access-Control-Allow-*`. O Worker já recusava `Origin` de outro site (C3); a rota recusa **qualquer** `Origin` (403), inclusive o da própria mesa.
+- **Presença**: cada chamada marca o usuário com "Claude conectado" por 2 minutos (vencimento `claude.http` na agenda: sobrevive à hibernação e um alarme apaga a marca). `ultimo_uso` é gravado a cada chamada (já era, ao resolver o token).
+- **A tela** (Preferências → Conectar o Claude): o comando de uma linha com o token já colado e Copiar, o passo a passo de três linhas, "Já tinha conectado esta mesa?" (recolhido, com `claude mcp remove --scope user tavola-<id>`) e "Claude Desktop" (recolhido; o servidor local e o que ele exige). A lista diz "conectado agora" ou "usado há X min" e o resumo do cartão também ("1 token · conectado agora" / "1 token · usado há 3 min"); a lista é relida quando o Claude conecta ou sai.
+- **Docs**: `docs/MCP.md` reescrito com o caminho novo primeiro, em 3 passos, e o Desktop depois; `docs/protocolo.md` (a rota e a nota de segurança); `PROJETO.md` 4.12; `docs/ROTEIRO-DE-TESTES.md`, "12-3".
+
+**Decisões (assumido)**
+- (assumido) Sem SDK no Worker: o JSON-RPC mínimo é escrito à mão e conferido com o cliente do SDK (`StreamableHTTPClientTransport`) nos E2E. O SDK 1.32.2 fala `2025-11-25`; o servidor devolve a versão pedida se a conhece.
+- (assumido) Qualquer `Origin` é recusado na rota MCP (o Claude Code não manda). O que um cliente de navegador (o MCP Inspector no navegador, por exemplo) precisaria não é suportado.
+- (assumido) Sem cabeçalho `Authorization` o pedido é 401 e **não** conta como falha do IP (só token errado ou mal formado conta, como no WebSocket).
+- (assumido) Corpo de até 512 KB (413); `Content-Type` JSON obrigatório (415).
+- (assumido) A presença por HTTP dura 2 minutos; o limite por token (balde de 20 por segundo, rajada de 40) e o limite do chat (10 por segundo, por token no HTTP) valem no HTTP. O balde é o mesmo do WebSocket do mesmo token; fechar o WebSocket do token zera o balde (já era assim).
+- (assumido) O compêndio do Claude pelo HTTP é o exemplo do SRD embutido no Worker (3 magias, 9 armas, 5 itens), não o compêndio da mesa: o Claude não pede arquivos à sala.
+- (assumido) "Conectado agora" aparece no token usado há menos tempo (a presença é da pessoa, não do token).
+- (assumido) O nome do servidor no Claude Code é `tavola-<id da mesa>` (letras, números e hífen); `--scope user` para valer em qualquer pasta.
+- (assumido) O Claude Desktop não ganha comando novo: ele não liga a servidor remoto com cabeçalho pelo arquivo de configuração e as pontes (`mcp-remote`) vêm da internet, que o Távola não usa.
+- Tamanho: as ferramentas e o JSON-RPC acrescentam cerca de 73 KB minificados ao Worker (5,6 KB deles são o exemplo do SRD); o Worker inteiro fica em cerca de 820 KB minificados. Os 260 KB das línguas do zod já estavam lá.
+- Sem migração e sem mudança de esquema: a rota só usa a tabela de tokens e o diário do 12-1 e a agenda da sala.
+
+**O que ficou para depois**
+- O compêndio completo da mesa pelo HTTP (hoje só o exemplo do SRD) e monstros no compêndio.
+- Streaming (SSE) e notificações do servidor (a lista de ferramentas só muda na próxima `tools/list`).
+- Um jeito do Claude Desktop sem o repositório (precisaria de um conector remoto com conta ou de uma ponte empacotada).
+- Gerar o token já com o nome do dispositivo.

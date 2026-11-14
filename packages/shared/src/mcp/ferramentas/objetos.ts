@@ -1,9 +1,9 @@
-import { type Estado, type ModeloDeObjeto, type PontoDeLuz, pode } from "@tabletop/shared";
 import { z } from "zod";
+import { type Estado, type ModeloDeObjeto, type PontoDeLuz, pode } from "../../index.ts";
 import { ErroDoMcp } from "../erros.ts";
 import { num } from "../formato.ts";
 import { achar, acharExato, novoId } from "../nomes.ts";
-import type { Lote } from "../sala.ts";
+import type { Lote } from "../tipos.ts";
 import { type Contexto, cadaItem, definir, passo, Relatorio } from "./base.ts";
 import { emMetros, ParSchema } from "./cenasUtil.ts";
 

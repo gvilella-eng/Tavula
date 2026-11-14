@@ -1,3 +1,4 @@
+import { z } from "zod";
 import {
   type Estado,
   ehNpc,
@@ -11,13 +12,12 @@ import {
   podeEditarPersonagem,
   TETO_DE_CRIACAO_DO_JOGADOR,
   type Usuario,
-} from "@tabletop/shared";
-import { z } from "zod";
+} from "../../index.ts";
 import { ErroDoMcp } from "../erros.ts";
 import { FichaPartesSchema, montarFicha } from "../fichaPorPartes.ts";
 import { linhaDaFicha } from "../formato.ts";
 import { acharExato, novoId } from "../nomes.ts";
-import type { Lote } from "../sala.ts";
+import type { Lote } from "../tipos.ts";
 import { type Contexto, cadaItem, definir, ehMestre, passo, Relatorio } from "./base.ts";
 
 const CORES = ["#c0392b", "#2980b9", "#27ae60", "#8e44ad", "#d35400", "#16a085", "#7f8c8d"];

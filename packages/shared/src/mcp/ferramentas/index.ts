@@ -1,4 +1,4 @@
-import type { Estado, Usuario } from "@tabletop/shared";
+import type { Estado, Usuario } from "../../index.ts";
 import { automacoes } from "./automacoes.ts";
 import type { QualquerFerramenta } from "./base.ts";
 import { cenas } from "./cenas.ts";

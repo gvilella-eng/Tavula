@@ -3595,4 +3595,27 @@ Ver `REDESIGN.md` e `PASSAGEM.md` ("P1").
 ### Roteiro manual
 `docs/ROTEIRO-DE-TESTES.md`, "P1".
 
-## Próximo: os bugs que sobrarem e o roteiro manual dos Lotes 12 e P1
+## Ajustes 12-3 — O MCP na própria sala, por HTTP (entregue, aguardando o roteiro manual)
+
+Detalhes em `docs/REDESIGN.md` ("12-3 — como ficou"), `PROJETO.md` (4.12), `docs/protocolo.md` e `docs/MCP.md`.
+
+### O que foi entregue
+- `POST /api/m/<id>/mcp` na sala (Streamable HTTP sem estado), com as mesmas 11 ferramentas; o comando de "Conectar o Claude" agora é uma linha só (`claude mcp add --transport http --scope user tavola-<id> <origem>/api/m/<id>/mcp --header "Authorization: Bearer <token>"`), sem arquivo, sem build e sem Node.
+- A sala trata intenção numa função só (WebSocket e HTTP); o código das ferramentas mora em `packages/shared/src/mcp`.
+
+### Como rodar
+`pnpm dev` como sempre; abra Preferências → Conectar o Claude, gere o token e cole o comando num terminal. Sem migração e sem mudança de esquema.
+
+### Verificação
+- Unidade: `packages/shared/src/mcp/jsonrpc.test.ts` (7), `apps/web/src/claude/textosDoClaude.test.ts` (4) e os testes que vieram de `apps/mcp` (agora em `packages/shared/src/mcp`).
+- E2E novo: `claude-12-3.spec.ts` (7 testes, cliente do SDK pelo Vite): jogador, mestre (rascunho, publicar, desfazer), a tela e o comando, token revogado e de outra mesa, a lista de segurança (Origin, cookie, métodos, tipo, tamanho, preflight, ferramentas), frequência e bloqueio por IP. E2E antigos alterados: `claude-12-1.spec.ts` e `claude-12-2.spec.ts` (o texto do comando e "conectado agora").
+- Conferência do comando no PowerShell 5.1 e no cmd com um `claude.exe` de mentira que imprime os argumentos: 9 argumentos certos, o cabeçalho inteiro num só.
+- Prints: `scratchpad/prints-12-3` (3 combinações).
+
+### Decisões e frágil
+Ver `REDESIGN.md` e `PASSAGEM.md` ("12-3").
+
+### Roteiro manual
+`docs/ROTEIRO-DE-TESTES.md`, "12-3".
+
+## Próximo: os bugs que sobrarem e o roteiro manual dos Lotes 12 (12-3 incluído) e P1

@@ -1,8 +1,8 @@
 import { type Usuario, visaoPara } from "@tabletop/shared";
 import { afterEach, describe, expect, it } from "vitest";
+import { estadoDeTeste } from "../../../packages/shared/src/mcp/testes/salaSimulada.ts";
 import { type Config, lerConfig } from "./config.ts";
 import { Sala, type SocketLike } from "./sala.ts";
-import { estadoDeTeste } from "./testes/salaSimulada.ts";
 
 const TOKEN = `tvc_${"A".repeat(43)}`;
 

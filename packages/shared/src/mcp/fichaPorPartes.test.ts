@@ -1,6 +1,6 @@
-import { derivar, modelosPadrao } from "@tabletop/shared";
 import { describe, expect, it } from "vitest";
-import { CompendioLocal } from "./compendioLocal.ts";
+import { derivar, modelosPadrao } from "../index.ts";
+import { CompendioLocal } from "./compendio.ts";
 import { ErroDoMcp } from "./erros.ts";
 import {
   FichaPartesSchema,
@@ -10,7 +10,7 @@ import {
   pvPorClasses,
 } from "./fichaPorPartes.ts";
 
-const compendio = CompendioLocal.carregar(null, "/pasta/que/nao/existe");
+const compendio = CompendioLocal.doExemplo();
 const base = { npc: false, criando: true, compendio, modelos: modelosPadrao() };
 const partes = (p: object) => FichaPartesSchema.parse(p);
 

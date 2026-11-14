@@ -1,5 +1,5 @@
 import { FORMATO_DO_TOKEN_DO_CLAUDE } from "@tabletop/shared";
-import { ErroDoMcp } from "./erros.ts";
+import { ErroDoMcp } from "@tabletop/shared/mcp";
 
 export type Config = {
   /** `ws://host/api/m/<id>/ws` (ou `wss://`): o mesmo endereço que o navegador usa. */

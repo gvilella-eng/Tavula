@@ -1,3 +1,4 @@
+import { z } from "zod";
 import {
   type ItemDeRascunho,
   listarRascunhos,
@@ -5,8 +6,7 @@ import {
   pode,
   type RascunhoListado,
   ROTULO_DO_TIPO_DE_RASCUNHO,
-} from "@tabletop/shared";
-import { z } from "zod";
+} from "../../index.ts";
 import { ErroDoMcp } from "../erros.ts";
 import { definir, passo } from "./base.ts";
 

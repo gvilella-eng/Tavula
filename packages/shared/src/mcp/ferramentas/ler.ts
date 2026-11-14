@@ -1,11 +1,11 @@
+import { z } from "zod";
 import {
   automacoesDe,
   type Estado,
   fichaVisivelPara,
   type Handout,
   type Usuario,
-} from "@tabletop/shared";
-import { z } from "zod";
+} from "../../index.ts";
 import { ErroDoMcp } from "../erros.ts";
 import { cortar, emCelulas, num, resumoDaFicha, textoDaVisibilidade } from "../formato.ts";
 import { achar } from "../nomes.ts";

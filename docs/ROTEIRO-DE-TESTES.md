@@ -396,6 +396,21 @@ Agora o Claude de verdade entra na mesa. Detalhes em `docs/MCP.md`. Use uma mesa
 **Se der errado**
 16. **Revogue** o token em Preferências: o Claude responde "Token inválido ou revogado: gere outro em Preferências → Conectar o Claude." e a bolinha perde o robozinho. Pare o `pnpm dev` e suba de novo: o MCP reconecta sozinho.
 
+## 12-3 — O Claude conecta colando um comando só (MCP por HTTP)
+O comando de **Preferências → Conectar o Claude** agora é uma linha só e funciona em qualquer pasta, sem `build`. Faça este roteiro com o `pnpm dev` rodando (a sala nova já está nele).
+
+1. Abra o **PowerShell** (recém-aberto, na pasta que quiser; pode ser a das suas anotações de RPG).
+2. Na mesa: **Preferências → Conectar o Claude → Gerar token**. O cartão mostra, sem recolher nada, o passo a passo de três linhas e **uma linha só** que começa com `claude mcp add --transport http --scope user tavola-<id>`, com o endereço (`http://127.0.0.1:5173/api/m/<id>/mcp`) e o seu token já dentro.
+3. Clique em **Copiar o comando**, **cole no PowerShell e aperte Enter**. Deve responder que adicionou o servidor `tavola-<id>` (escopo de usuário).
+4. Abra o Claude Code (`claude`) nessa mesma pasta e digite `/mcp`: `tavola-<id>` aparece conectado.
+5. Peça: **"mostre o panorama da mesa"**. O Claude responde com as cenas, fichas, notas e (para o mestre) automações e rascunhos.
+6. Volte à mesa: a bolinha do seu nome ganha o robozinho ("Claude conectado") e, em Preferências, o cartão diz **"1 token · conectado agora"** e o token na lista, "conectado agora". Uns 2 minutos depois da última chamada, vira **"usado há X min"** e o robozinho some.
+7. Peça uma coisa de verdade ("crie um NPC Goblin com PV 7 e CA 15", se você é o mestre): a resposta diz "(rascunho...)", o chip **Rascunhos do Claude** aparece e o jogador não vê nada até você publicar. Em **Preferências → O que o Claude fez**, o lote aparece com **Desfazer**.
+8. **Se você já tinha conectado esta mesa** (ou o Claude Code disser que o servidor já existe): em "Já tinha conectado esta mesa?" copie `claude mcp remove --scope user tavola-<id>`, rode, e cole o comando de novo.
+9. Outro computador (ou outro terminal: cmd, terminal do Mac): o mesmo comando funciona, sem o Távola baixado. Para um jogador, o endereço tem de ser o da mesa que ele alcança (`https://...` na internet).
+10. **Revogue** o token em Preferências: na próxima chamada o Claude Code não consegue mais usar o `tavola-<id>` (o `/mcp` mostra falha de autenticação, 401). Gere outro token e cole o comando novo (passo 8 antes).
+11. **Claude Desktop** (recolhido no cartão): o texto diz que ele precisa do Távola baixado e do Node (servidor local); confira que o trecho do arquivo continua como no 12-2.
+
 ## P1 — A aba Preferências em sanfona
 
 1. Abra a aba **Preferências**. Só a **Conta** está aberta ("Você é ..." com Sair/Trocar usuário e Trocar de mesa); os outros seis cartões mostram o resumo (sem login, Segurança não existe).

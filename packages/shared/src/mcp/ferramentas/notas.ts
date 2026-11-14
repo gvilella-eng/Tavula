@@ -1,3 +1,4 @@
+import { z } from "zod";
 import {
   type Estado,
   FONTES_DE_HANDOUT,
@@ -8,11 +9,10 @@ import {
   TETO_DE_CRIACAO_DO_JOGADOR,
   type Usuario,
   type Visibilidade,
-} from "@tabletop/shared";
-import { z } from "zod";
+} from "../../index.ts";
 import { ErroDoMcp } from "../erros.ts";
 import { acharExato, novoId } from "../nomes.ts";
-import type { Lote } from "../sala.ts";
+import type { Lote } from "../tipos.ts";
 import { type Contexto, cadaItem, definir, ehMestre, passo, Relatorio } from "./base.ts";
 
 const PedidoDeNotaSchema = z

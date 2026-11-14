@@ -1,5 +1,5 @@
-import { listarRascunhos, normalizarBusca } from "@tabletop/shared";
 import { describe, expect, it } from "vitest";
+import { listarRascunhos, normalizarBusca } from "../index.ts";
 import type { QualquerFerramenta, Saida } from "./ferramentas/base.ts";
 import { ferramentasVisiveis, TODAS_AS_FERRAMENTAS } from "./ferramentas/index.ts";
 import { chamarFerramenta, definicaoDaFerramenta } from "./servidor.ts";

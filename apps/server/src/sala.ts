@@ -65,8 +65,17 @@ import {
   tokenVisivelPara,
   type UltimoPing,
   type Usuario,
+  VERSAO_PROTOCOLO,
   visaoPara,
 } from "@tabletop/shared";
+import {
+  CompendioLocal,
+  type Conexao,
+  ErroDoMcp,
+  type RespostaDaSala,
+  respostaDeJsonInvalido,
+  tratarCorpoMcp,
+} from "@tabletop/shared/mcp";
 import semente from "../../../fixtures/campanha.seed.json";
 import { Agendador } from "./agendador";
 import { Armazenamento, type UsoDoDia } from "./armazenamento";
@@ -111,6 +120,10 @@ const TEMPO_RECONECTANDO_MS = 10_000;
  */
 const ESPERA_DA_PAUSA_MS = 5_000;
 const INTERVALO_USO_MS = 5_000;
+/** 12-3: quanto tempo "Claude conectado" vale depois de uma chamada HTTP do MCP (não há conexão aberta para mostrar). */
+const PRESENCA_DO_CLAUDE_HTTP_MS = 2 * 60_000;
+/** 12-3: o corpo de um POST do MCP (JSON-RPC) pode ser maior que o das rotas de conta; passar disso é 413. */
+const TAMANHO_MAXIMO_DO_CORPO_MCP = 512 * 1024;
 const MENSAGENS_POR_LOTE_DE_USO = 50;
 /** As intenções que criam uma mensagem no chat: limitadas a 10 por segundo, por conexão. */
 const INTENCOES_DE_CHAT = new Set<string>([
@@ -135,6 +148,24 @@ type Identidade = {
   /** 12-1: o token do Claude que abriu a conexão (revogá-lo derruba o socket). */
   tokenId?: string;
 };
+
+/** Quem manda uma intenção: um socket (o navegador ou a conexão do Claude) ou uma chamada HTTP do MCP (`ws: null`). */
+type Remetente = {
+  ws: WebSocket | null;
+  usuario: Usuario;
+  claude: boolean;
+  /** O token do Claude (limite de frequência por token). */
+  tokenId?: string;
+};
+
+/** O resultado de `tratarIntencao`: o erro, ou o evento do pedido (como o remetente o vê) ou o resultado do Desfazer. */
+type Tratada =
+  | {
+      ok: true;
+      evento?: EventoSala;
+      desfeito?: { loteId: string; aplicados: number; pulados: string[] };
+    }
+  | { ok: false; codigo: CodigoDeErro; mensagem: string };
 
 /** Quem fez uma requisição, já resolvido pela sala. */
 type Quem = {
@@ -236,7 +267,7 @@ export class Sala extends DurableObject<Env> {
   /** Quando cada conexão mandou o último rascunho aceito (o limite de frequência). */
   private readonly ultimoRascunho = new Map<WebSocket, number>();
   /** Quando cada conexão mandou as últimas mensagens de chat (só memória; a janela é de 1 s). */
-  private readonly taxaDoChat = new Map<WebSocket, number[]>();
+  private readonly taxaDoChat = new Map<WebSocket | string, number[]>();
   /** Gancho de teste (`MODO=teste`): dados com semente fixa. Fora dele, sempre `crypto`. */
   private fonteDeDadosDeTeste: FonteDeAleatoriedade | null = null;
   /** V10: os tokens tirados do mapa há pouco (só na memória), para o "Desfazer"; some depois do prazo. */
@@ -248,6 +279,10 @@ export class Sala extends DurableObject<Env> {
   private readonly anterioresAoZerar = new WeakSet<WebSocket>();
   /** Envio de arquivos entre navegadores (só memória; a sala nunca grava pedaço). */
   private readonly transferencias: Transferencias;
+  /** 12-3: o compêndio de exemplo do SRD (embutido no Worker) que a ferramenta `compendio` consulta; carregado na primeira chamada. */
+  private compendioDoMcp: CompendioLocal | null = null;
+  /** 12-3: quanto "Claude conectado" vale depois de uma chamada HTTP (o `MODO=teste` encurta, para o teste ver a presença sumir). */
+  private presencaDoClaudeHttpMs = PRESENCA_DO_CLAUDE_HTTP_MS;
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
@@ -511,6 +546,7 @@ export class Sala extends DurableObject<Env> {
     if (pathname === "/api/sair" && request.method === "POST") return this.sair(request);
     if (pathname === "/api/renomeada" && request.method === "POST") return this.renomeada(request);
     if (pathname === "/ws") return this.abrirSocket(request);
+    if (pathname === "/api/mcp") return this.rotaMcp(request);
     if (pathname.startsWith("/api/conta/") && request.method === "POST") {
       return this.rotaDeConta(request, pathname.slice("/api/conta/".length));
     }
@@ -1047,6 +1083,163 @@ export class Sala extends DurableObject<Env> {
     return new Response(null, { status: 101, webSocket: cliente });
   }
 
+  // --- O MCP por HTTP (12-3) ------------------------------------------------------------------
+
+  /**
+   * `POST /api/m/<id>/mcp`: o servidor MCP da própria sala (Streamable HTTP sem estado: cada POST traz um JSON-RPC e recebe
+   * a resposta em JSON). O token do Claude vai em `Authorization: Bearer`, com a mesma validação da conexão WebSocket
+   * (hash, conta ativa, mesma vaga e bloqueio progressivo por IP); nada de cookie nem de sessão. Cada `tools/call` vira as
+   * intenções de sempre, pelo MESMO `tratarIntencao` do WebSocket do Claude. Sem CORS: o navegador de outro site não
+   * manda `Authorization` sem preflight e esta rota não responde preflight; e qualquer `Origin` é recusado aqui (o
+   * Claude Code não manda `Origin`, um navegador manda).
+   */
+  private async rotaMcp(request: Request): Promise<Response> {
+    if (request.method !== "POST") {
+      return new Response(null, { status: 405, headers: { Allow: "POST" } });
+    }
+    if (request.headers.get("Origin") !== null) {
+      return json(
+        { erro: "origem_invalida", mensagem: mensagemDeErroDeConta("origem_invalida") },
+        403,
+      );
+    }
+    const autorizacao = request.headers.get("Authorization");
+    const naoAutenticado = () =>
+      new Response("Não autenticado", {
+        status: 401,
+        headers: { "WWW-Authenticate": "Bearer" },
+      });
+    if (autorizacao === null) return naoAutenticado();
+    const t = await this.contas
+      .resolverTokenDoClaude(
+        tokenDoCabecalho(autorizacao),
+        this.ipDe(request),
+        Date.now(),
+        this.ehTeste,
+      )
+      .catch((e: unknown) => {
+        console.error("tokens do Claude: falha ao resolver o token", e);
+        return { ok: false as const, minutos: 0 };
+      });
+    if (!t.ok) {
+      return t.minutos > 0
+        ? erroDeConta({ ok: false, erro: "ip_bloqueado", minutos: t.minutos })
+        : naoAutenticado();
+    }
+    if (!this.estado.usuarios.some((u) => u.id === t.usuarioId)) return naoAutenticado();
+
+    if (!request.headers.get("Content-Type")?.toLowerCase().startsWith("application/json")) {
+      return json({ erro: "tipo_invalido" }, 415);
+    }
+    const texto = await request.text();
+    if (texto.length > TAMANHO_MAXIMO_DO_CORPO_MCP) return json({ erro: "corpo_grande" }, 413);
+    let corpo: unknown;
+    try {
+      corpo = JSON.parse(texto);
+    } catch {
+      return json(respostaDeJsonInvalido(), 400);
+    }
+
+    await this.marcarClaudePorHttp(t.usuarioId);
+    this.compendioDoMcp ??= CompendioLocal.doExemplo();
+    const saida = await tratarCorpoMcp(corpo, {
+      conexao: this.conexaoDoMcp(t.usuarioId, t.tokenId),
+      compendio: this.compendioDoMcp,
+    });
+    if (saida.corpo === undefined) return new Response(null, { status: saida.status });
+    return new Response(JSON.stringify(saida.corpo), {
+      status: saida.status,
+      headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" },
+    });
+  }
+
+  /** "Claude conectado" vale por 2 minutos depois de cada chamada (não há socket aberto): um alarme da agenda o apaga. */
+  private async marcarClaudePorHttp(usuarioId: string): Promise<void> {
+    try {
+      const jaEstava = this.agenda.existe("claude.http", usuarioId);
+      await this.agenda.agendar("claude.http", usuarioId, Date.now() + this.presencaDoClaudeHttpMs);
+      if (!jaEstava) this.difundirPresenca();
+    } catch (e) {
+      // A presença é só um enfeite: nunca derruba a chamada.
+      console.error("presença do Claude por HTTP: falha ao marcar", e);
+    }
+  }
+
+  /**
+   * A "conexão" que as ferramentas usam na rota HTTP: o estado é o da própria sala (a visão deste usuário, refeita depois
+   * de cada pedido) e cada `enviar` passa por `tratarIntencao`, igual ao WebSocket do Claude.
+   */
+  private conexaoDoMcp(usuarioId: string, tokenId: string): Conexao {
+    let cache: Estado | null = null;
+    const eu = (): Usuario => {
+      const u = this.estado.usuarios.find((x) => x.id === usuarioId);
+      if (!u) throw new ErroDoMcp("A mesa não conhece mais este usuário. Gere outro token.");
+      return u;
+    };
+    const estado = (): Estado => {
+      cache ??= this.visaoDe(eu());
+      return cache;
+    };
+    const enviarUma = async (
+      tipo: string,
+      dados: unknown,
+      lote?: { loteId: string; lote: string },
+    ): Promise<RespostaDaSala> => {
+      cache = null;
+      const quadro = {
+        v: VERSAO_PROTOCOLO,
+        id: `mcp-http-${crypto.randomUUID().slice(0, 12)}`,
+        tipo,
+        dados,
+        ...(lote ? { loteId: lote.loteId, lote: lote.lote.slice(0, 120) } : {}),
+      };
+      const lida = lerIntencao(JSON.stringify(quadro));
+      if (!lida.ok) return { ok: false, codigo: "mensagem_invalida", mensagem: lida.motivo };
+      await this.contarMensagem();
+      const t = await this.tratarIntencao(
+        { ws: null, usuario: eu(), claude: true, tokenId },
+        lida.valor,
+      );
+      cache = null;
+      if (!t.ok) return { ok: false, codigo: t.codigo, mensagem: t.mensagem };
+      return {
+        ok: true,
+        ...(t.evento ? { evento: t.evento } : {}),
+        ...(t.desfeito
+          ? { desfeito: { aplicados: t.desfeito.aplicados, pulados: t.desfeito.pulados } }
+          : {}),
+      };
+    };
+    return {
+      esperarPronto: async () => undefined,
+      estadoOuNulo: () => {
+        try {
+          return estado();
+        } catch {
+          return null;
+        }
+      },
+      estado,
+      eu,
+      lotes: () => {
+        try {
+          return this.banco.lotesDe(usuarioId);
+        } catch (e) {
+          console.error("diário do Claude: falha ao ler os lotes", e);
+          return [];
+        }
+      },
+      enviar: async (tipo, dados, lote) => {
+        // O excesso de frequência é recusado pela sala; aqui espera um pouco e tenta de novo (como o MCP em stdio faz).
+        for (let tentativa = 0; ; tentativa++) {
+          const r = await enviarUma(tipo, dados, lote);
+          if (r.ok || r.codigo !== "muitas_mensagens" || tentativa >= 3) return r;
+          await new Promise((resolve) => setTimeout(resolve, 1200));
+        }
+      },
+    };
+  }
+
   /** Rotas que só existem com `MODO=teste` (E2E): nunca no `pnpm dev`. */
   private async rotaDeTeste(url: URL): Promise<Response> {
     const { pathname } = url;
@@ -1060,6 +1253,7 @@ export class Sala extends DurableObject<Env> {
       this.fonteDeDadosDeTeste = null;
       this.taxaDoChat.clear();
       this.baldes.clear();
+      this.presencaDoClaudeHttpMs = PRESENCA_DO_CLAUDE_HTTP_MS;
       // Os tokens do Claude morrem com as contas: as conexões abertas com eles também.
       this.fecharSockets((i) => i.claude === true, "reiniciado");
       this.ultimoPing.clear();
@@ -1115,6 +1309,13 @@ export class Sala extends DurableObject<Env> {
       }
       return json({ ok: true });
     }
+    if (pathname === "/teste/claude-http") {
+      // Gancho de teste: encurta (ou, sem `ms`, restaura) quanto tempo "Claude conectado" vale depois de uma chamada do MCP por HTTP.
+      const ms = Number(url.searchParams.get("ms"));
+      this.presencaDoClaudeHttpMs =
+        Number.isFinite(ms) && ms >= 100 ? ms : PRESENCA_DO_CLAUDE_HTTP_MS;
+      return json({ ok: true });
+    }
     if (pathname === "/teste/reiniciar-sala") {
       // Esquece a memória e derruba os sockets, como um reinício do processo. O estado volta do SQLite.
       this.ctx.abort("reinício pedido pelo teste");
@@ -1127,7 +1328,6 @@ export class Sala extends DurableObject<Env> {
 
   override async webSocketMessage(ws: WebSocket, bruta: string | ArrayBuffer): Promise<void> {
     await this.contarMensagem();
-
     const usuario = this.usuarioDe(ws);
     if (!usuario) {
       ws.close(4001, "usuário removido");
@@ -1149,40 +1349,78 @@ export class Sala extends DurableObject<Env> {
       return;
     }
     const intencao = lida.valor;
+    const t = await this.tratarIntencao(
+      {
+        ws,
+        usuario,
+        claude: doClaude,
+        ...(identidade?.tokenId ? { tokenId: identidade.tokenId } : {}),
+      },
+      intencao,
+    );
+    if (!t.ok) {
+      this.erro(ws, intencao.id, t.codigo, t.mensagem);
+      return;
+    }
+    if (t.desfeito) {
+      this.enviar(
+        ws,
+        mensagem({
+          tipo: "claude.desfeito",
+          dados: {
+            idPedido: intencao.id,
+            loteId: t.desfeito.loteId,
+            aplicados: t.desfeito.aplicados,
+            pulados: t.desfeito.pulados.slice(0, 100),
+          },
+        }),
+      );
+    }
+  }
+
+  /**
+   * O tratamento de uma intenção, num lugar só: o WebSocket (o navegador e a conexão do Claude) e a rota HTTP do MCP
+   * (12-3, `ws: null`) passam por aqui. Tudo o que vale para o Claude vale nos dois: o limite de frequência do token,
+   * a lista de proibidos e a marca "pelo Claude" (dentro do `processar`), o carimbo de rascunho, o diário do Desfazer e a
+   * difusão aos navegadores. O que depende de um socket (arraste, rascunho de desenho, ping, arquivos, exportação) só
+   * acontece com `ws`. Devolve o que o chamador precisa responder: o erro, ou o evento do pedido (como esta pessoa o vê).
+   */
+  private async tratarIntencao(rem: Remetente, intencao: Intencao): Promise<Tratada> {
+    const { ws, usuario } = rem;
+    const doClaude = rem.claude;
+    const recusa = (codigo: CodigoDeErro, texto: string): Tratada => ({
+      ok: false,
+      codigo,
+      mensagem: texto,
+    });
 
     // 12-1: limite de frequência por token do Claude (20 por segundo, rajada de 40): o excesso é recusado com o aviso de esperar.
-    if (doClaude && identidade?.tokenId) {
-      const gasto = gastarFicha(this.baldes.get(identidade.tokenId), Date.now());
-      this.baldes.set(identidade.tokenId, gasto.balde);
+    if (doClaude && rem.tokenId) {
+      const gasto = gastarFicha(this.baldes.get(rem.tokenId), Date.now());
+      this.baldes.set(rem.tokenId, gasto.balde);
       if (!gasto.ok) {
-        this.erro(
-          ws,
-          intencao.id,
+        return recusa(
           "muitas_mensagens",
           `Devagar: o Claude pode mandar no máximo 20 pedidos por segundo. Espere ${Math.ceil(gasto.esperaMs / 100) / 10} s e tente de novo.`,
         );
-        return;
       }
     }
 
     // 12-1: desfazer um lote do Claude do próprio usuário (a sala guarda o diário; nada passa por `processar`).
     if (intencao.tipo === "claude.desfazer") {
-      await this.desfazerLote(ws, usuario, intencao.id, intencao.dados.loteId);
-      return;
+      return this.desfazerLote(usuario, intencao.id, intencao.dados.loteId);
     }
 
-    // No máximo 10 mensagens de chat por segundo por conexão; o resto é recusado com aviso.
+    // No máximo 10 mensagens de chat por segundo por conexão (na rota HTTP, por token); o resto é recusado com aviso.
     if (INTENCOES_DE_CHAT.has(intencao.tipo)) {
-      const taxa = registrarMensagem(this.taxaDoChat.get(ws) ?? [], Date.now());
-      this.taxaDoChat.set(ws, taxa.historico);
+      const chave = ws ?? `http:${rem.tokenId ?? usuario.id}`;
+      const taxa = registrarMensagem(this.taxaDoChat.get(chave) ?? [], Date.now());
+      this.taxaDoChat.set(chave, taxa.historico);
       if (!taxa.ok) {
-        this.erro(
-          ws,
-          intencao.id,
+        return recusa(
           "muitas_mensagens",
           `Devagar: no máximo ${LIMITES_DO_CHAT.porSegundo} mensagens por segundo.`,
         );
-        return;
       }
     }
 
@@ -1190,19 +1428,18 @@ export class Sala extends DurableObject<Env> {
     // aceito conta no limite (o recusado não muda nada na mesa).
     const limitaBotao = intencao.tipo === "botao.usar" && usuario.papel !== "mestre";
     if (limitaBotao && !botaoDentroDoLimite(this.ultimoBotao.get(usuario.id), Date.now())) {
-      this.erro(
-        ws,
-        intencao.id,
+      return recusa(
         "muitas_mensagens",
         `Devagar: um botão a cada ${INTERVALO_MINIMO_DO_BOTAO_MS / 1000} segundos.`,
       );
-      return;
     }
 
-    // Rascunho de desenho: o que chega rápido demais é descartado em silêncio (o próximo cobre).
+    // Rascunho de desenho: o que chega rápido demais é descartado em silêncio (o próximo cobre). Sem socket não há
+    // traço ao vivo para repassar.
     if (intencao.tipo === "desenho.rascunho" && intencao.dados.desenho !== null) {
+      if (!ws) return { ok: true };
       const agora = Date.now();
-      if (!rascunhoDentroDoLimite(this.ultimoRascunho.get(ws), agora)) return;
+      if (!rascunhoDentroDoLimite(this.ultimoRascunho.get(ws), agora)) return { ok: true };
       this.ultimoRascunho.set(ws, agora);
     }
 
@@ -1225,14 +1462,13 @@ export class Sala extends DurableObject<Env> {
       this.apagadosRecentes = this.apagadosRecentes.filter((a) => a.token.id !== intencao.dados.id);
     }
     if (!r.ok) {
-      this.erro(ws, intencao.id, r.erro.codigo, r.erro.mensagem);
       // Soltou do outro lado de uma parede: quem viu o arraste ao vivo volta o token para onde ele está.
-      if (intencao.tipo === "token.soltar" && r.erro.codigo === "trajeto_bloqueado") {
+      if (ws && intencao.tipo === "token.soltar" && r.erro.codigo === "trajeto_bloqueado") {
         this.marcarArraste(ws, intencao.dados.id, false);
         const token = this.estado.tokens.find((t) => t.id === intencao.dados.id);
         if (token) this.repassarMovimento(ws, { id: token.id, x: token.x, y: token.y });
       }
-      return;
+      return recusa(r.erro.codigo, r.erro.mensagem);
     }
 
     // Só a importação reescreve tudo. Levar o grupo e mudar quem vê uma pasta também mandam snapshot
@@ -1254,41 +1490,45 @@ export class Sala extends DurableObject<Env> {
       this.anotarNoDiario(usuario.id, intencao, antes, r.estado, agoraMs);
     }
     if (intencao.tipo === "chat.anteriores") {
-      const pagina = this.chatVisivelPara(
-        usuario,
-        intencao.dados.antesDoSeq,
-        LIMITES_DO_CHAT.porPagina,
-      );
-      this.enviar(ws, mensagem({ tipo: "chat.anteriores", dados: pagina }));
-      return;
+      if (ws) {
+        const pagina = this.chatVisivelPara(
+          usuario,
+          intencao.dados.antesDoSeq,
+          LIMITES_DO_CHAT.porPagina,
+        );
+        this.enviar(ws, mensagem({ tipo: "chat.anteriores", dados: pagina }));
+      }
+      return { ok: true };
     }
-    this.cuidarDeAsset(ws, usuario, intencao);
+    if (ws) this.cuidarDeAsset(ws, usuario, intencao);
     this.cuidarDePreparo(intencao, r.preparo);
     if (r.eventos.length > 0 || intencao.tipo === "campanha.importar") await this.reagendarLuzes();
 
     // Ping (V12): transitório, não grava; vai a quem vê a cena, inclusive a quem pingou.
     if (r.ping) {
       this.repassarPing(usuario.id, r.ping);
-      return;
+      return { ok: true };
     }
 
     // Rascunho: transitório, não grava; só quem recebe a cena o recebe (menos o remetente).
     if (r.rascunho) {
-      this.repassarRascunho(ws, r.rascunho);
-      return;
+      if (ws) this.repassarRascunho(ws, r.rascunho);
+      return { ok: true };
     }
-    if (intencao.tipo === "desenho.criar")
+    if (ws && intencao.tipo === "desenho.criar")
       this.rascunhos.get(ws)?.delete(intencao.dados.desenho.id);
 
     // Movimento ao vivo: transitório, não grava; só quem pode ver o token recebe (menos o remetente).
     if (r.movendo) {
-      this.marcarArraste(ws, r.movendo.id, true);
-      this.repassarMovimento(ws, r.movendo);
-      return;
+      if (ws) {
+        this.marcarArraste(ws, r.movendo.id, true);
+        this.repassarMovimento(ws, r.movendo);
+      }
+      return { ok: true };
     }
-    if (intencao.tipo === "token.soltar") this.marcarArraste(ws, intencao.dados.id, false);
+    if (ws && intencao.tipo === "token.soltar") this.marcarArraste(ws, intencao.dados.id, false);
 
-    if (r.exportacao) {
+    if (r.exportacao && ws) {
       this.enviar(
         ws,
         mensagem({
@@ -1302,6 +1542,15 @@ export class Sala extends DurableObject<Env> {
     if (r.grupoMovido) this.entregarChaves(r.grupoMovido.cenaId);
     this.distribuir(r.eventos, r.snapshotPara, antes);
     if (r.snapshotPara === "todos" || r.snapshotPara.length > 0) this.difundirPresenca();
+
+    // O evento deste pedido, como esta pessoa o vê (a rota HTTP responde com ele; o WebSocket já o entregou acima).
+    if (r.snapshotPara === "todos" || r.snapshotPara.includes(usuario.id)) return { ok: true };
+    for (const ev of r.eventos) {
+      if (ev.origem.idPedido !== intencao.id) continue;
+      const visto = eventoPara(ev, usuario, antes, this.estado, agoraMs);
+      if (visto) return { ok: true, evento: visto };
+    }
+    return { ok: true };
   }
 
   override webSocketClose(ws: WebSocket, codigo: number, motivo: string): void {
@@ -1435,12 +1684,7 @@ export class Sala extends DurableObject<Env> {
    * `claude.desfazer`: aplica o inverso do lote (só os lotes do próprio usuário), na ordem inversa. O item que mudou
    * depois por outra pessoa fica como está e o aviso diz quais.
    */
-  private async desfazerLote(
-    ws: WebSocket,
-    usuario: Usuario,
-    idPedido: string,
-    loteId: string,
-  ): Promise<void> {
+  private async desfazerLote(usuario: Usuario, idPedido: string, loteId: string): Promise<Tratada> {
     let passos: ReturnType<Armazenamento["passosDoLote"]> = null;
     try {
       passos = this.banco.passosDoLote(usuario.id, loteId);
@@ -1448,13 +1692,11 @@ export class Sala extends DurableObject<Env> {
       console.error("diário do Claude: falha ao ler o lote", e);
     }
     if (!passos) {
-      this.erro(
-        ws,
-        idPedido,
-        "lote_inexistente",
-        "Este lote não existe mais, já foi desfeito ou é grande demais para desfazer.",
-      );
-      return;
+      return {
+        ok: false,
+        codigo: "lote_inexistente",
+        mensagem: "Este lote não existe mais, já foi desfeito ou é grande demais para desfazer.",
+      };
     }
     const r = desfazerPassos(this.estado, passos, { usuarioId: usuario.id, idPedido });
     this.banco.marcarLoteDesfeito(usuario.id, loteId);
@@ -1466,14 +1708,8 @@ export class Sala extends DurableObject<Env> {
       // O que voltou ou saiu pode mudar o que cada pessoa vê: um snapshot novo para todos.
       this.distribuir(r.eventos, "todos", antes);
     }
-    this.enviar(
-      ws,
-      mensagem({
-        tipo: "claude.desfeito",
-        dados: { idPedido, loteId, aplicados: r.aplicados, pulados: r.pulados.slice(0, 100) },
-      }),
-    );
     this.enviarLotes(usuario.id);
+    return { ok: true, desfeito: { loteId, aplicados: r.aplicados, pulados: r.pulados } };
   }
 
   // --- Alarme (agendador único) ---------------------------------------------------------------
@@ -1484,7 +1720,7 @@ export class Sala extends DurableObject<Env> {
     const marcos: string[] = [];
     let automacao = false;
     for (const v of vencidos) {
-      if (v.tipo === "presenca.expirar") this.difundirPresenca();
+      if (v.tipo === "presenca.expirar" || v.tipo === "claude.http") this.difundirPresenca();
       else if (v.tipo === "uso.enviar") this.enviarUso();
       else if (v.tipo === "mestre.ausente") {
         const saiuEm = (v.dados as { saiuEm?: number }).saiuEm;
@@ -1573,6 +1809,12 @@ export class Sala extends DurableObject<Env> {
       if (s === ignorar || s.readyState !== WebSocket.OPEN) continue;
       const i = this.identidadeDe(s);
       if (i?.claude) ids.add(i.usuarioId);
+    }
+    // 12-3: quem chamou o MCP por HTTP há pouco (sem conexão aberta) também está com o Claude conectado.
+    try {
+      for (const id of this.agenda.chaves("claude.http")) ids.add(id);
+    } catch (e) {
+      console.error("presença do Claude por HTTP: falha ao ler", e);
     }
     return [...ids];
   }
@@ -1890,19 +2132,21 @@ export class Sala extends DurableObject<Env> {
     };
   }
 
-  private enviarSnapshot(ws: WebSocket, usuario: Usuario): void {
+  /** O estado como ESTE usuário o vê (o do snapshot): é o que o WebSocket e as ferramentas do MCP por HTTP enxergam. */
+  private visaoDe(usuario: Usuario): Estado {
     const { mensagens } = this.chatVisivelPara(usuario, null, LIMITES_DO_CHAT.noSnapshot);
+    return {
+      ...visaoPara({ ...this.estado, chat: mensagens }, usuario, Date.now()),
+      membros: this.membrosIds(),
+    };
+  }
+
+  private enviarSnapshot(ws: WebSocket, usuario: Usuario): void {
     this.enviar(
       ws,
       mensagem({
         tipo: "snapshot",
-        dados: {
-          usuarioId: usuario.id,
-          estado: {
-            ...visaoPara({ ...this.estado, chat: mensagens }, usuario, Date.now()),
-            membros: this.membrosIds(),
-          },
-        },
+        dados: { usuarioId: usuario.id, estado: this.visaoDe(usuario) },
       }),
     );
     if (usuario.papel === "mestre") this.enviar(ws, this.textoDoUso());

@@ -310,13 +310,14 @@ test("token revogado: o MCP responde o erro claro, na hora e se já estava conec
   const mestre = await entrarNoMapa(mesa, "mestre");
   const p = mestre.pagina;
 
-  // O texto de "Conectar o Claude" traz o comando final, com a origem da página, a mesa e o token já colados.
+  // O texto de "Conectar o Claude" traz o comando final (12-3: o MCP por HTTP na própria sala, uma linha só); o trecho do Claude
+  // Desktop segue com o servidor local (stdio) deste lote.
   await abrirPreferencia(p, "claude");
   await p.getByTestId("claude-gerar").click();
   const token = (await p.getByTestId("claude-token-valor").textContent()) ?? "";
   const comando = (await p.getByTestId("claude-trecho-code").textContent()) ?? "";
   expect(comando).toBe(
-    `claude mcp add tavola --env TAVOLA_URL=${URL_PELO_VITE} --env TAVOLA_MESA=${ID_DA_MESA} --env TAVOLA_TOKEN=${token} -- node apps/mcp/dist/tavola-mcp.mjs`,
+    `claude mcp add --transport http --scope user tavola-${ID_DA_MESA} ${URL_PELO_VITE}/api/m/${ID_DA_MESA}/mcp --header "Authorization: Bearer ${token}"`,
   );
   await p.getByText("Claude Desktop", { exact: true }).click();
   const desktop = JSON.parse((await p.getByTestId("claude-trecho-desktop").textContent()) ?? "{}");

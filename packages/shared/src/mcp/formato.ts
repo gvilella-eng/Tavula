@@ -11,7 +11,7 @@ import {
   ROTULO_DO_ATRIBUTO,
   SIGLA_DO_ATRIBUTO,
   type Visibilidade,
-} from "@tabletop/shared";
+} from "../index.ts";
 
 /** Um número sem ruído de ponto flutuante: 12.500000001 -> 12.5. */
 export function num(n: number): string {

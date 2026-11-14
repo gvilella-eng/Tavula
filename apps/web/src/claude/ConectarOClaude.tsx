@@ -12,6 +12,7 @@ import {
   CAMINHO_DO_SERVIDOR_NO_DESKTOP,
   COMANDO_PARA_GERAR_O_SERVIDOR_MCP,
   comandoDoClaudeCode,
+  comandoParaRemover,
   configDoClaudeDesktop,
   dataCurta,
   haQuanto,
@@ -25,7 +26,9 @@ type Props = {
   lotes: readonly LoteDoClaude[];
   enviar: Enviar;
   /** P1: avisa quantos tokens a pessoa tem (para o resumo da seção). */
-  aoContarTokens?: (n: number) => void;
+  aoContarTokens?: (n: number, ultimoUso: number | null) => void;
+  /** 12-3: o Claude desta pessoa está conectado agora (conexão aberta, ou uma chamada nos últimos 2 minutos). */
+  conectado?: boolean;
 };
 
 /** Copia para a área de transferência (sem ela, não faz nada: a pessoa seleciona o texto). */
@@ -70,6 +73,7 @@ function TokenNovo({
   const origem = origemDaMesa();
   const codigo = comandoDoClaudeCode(origem, mesaId, novo.token);
   const desktop = configDoClaudeDesktop(origem, mesaId, novo.token);
+  const remover = comandoParaRemover(mesaId);
   return (
     <div className="claude-token-novo" role="status" data-testid="claude-token-novo">
       <p className="nota">
@@ -82,23 +86,40 @@ function TokenNovo({
       <div className="linha-botoes">
         <BotaoCopiar texto={novo.token} testid="claude-copiar-token" rotulo="Copiar o token" />
       </div>
-      <details className="avancado" open>
-        <summary>Claude Code</summary>
-        <p className="nota">
-          Uma vez, na pasta do Távola: <code>{COMANDO_PARA_GERAR_O_SERVIDOR_MCP}</code>. Depois,
-          nesta mesma pasta, cole o comando abaixo (ele aponta para{" "}
-          <code>{ARQUIVO_DO_SERVIDOR_MCP}</code>).
-        </p>
+      <div className="claude-passos" data-testid="claude-passos">
+        <h4 className="claude-subtitulo">Conectar o Claude Code</h4>
+        <ol className="claude-passos-lista">
+          <li>Copie o comando abaixo.</li>
+          <li>Cole em qualquer terminal (PowerShell, cmd ou terminal do Mac) e aperte Enter.</li>
+          <li>
+            Abra o Claude Code e peça <q>mostre o panorama da mesa</q>.
+          </li>
+        </ol>
         <pre className="claude-trecho" data-testid="claude-trecho-code">
           {codigo}
         </pre>
         <BotaoCopiar texto={codigo} testid="claude-copiar-code" rotulo="Copiar o comando" />
+        <p className="nota">
+          Funciona em qualquer pasta e em outro computador: não precisa do Távola instalado. O
+          comando tem o seu token: não o mostre a ninguém.
+        </p>
+      </div>
+      <details className="avancado" data-testid="claude-remover">
+        <summary>Já tinha conectado esta mesa?</summary>
+        <p className="nota">Rode esta linha antes, para tirar a conexão antiga:</p>
+        <pre className="claude-trecho" data-testid="claude-trecho-remover">
+          {remover}
+        </pre>
+        <BotaoCopiar texto={remover} testid="claude-copiar-remover" rotulo="Copiar a linha" />
       </details>
-      <details className="avancado">
+      <details className="avancado" data-testid="claude-desktop">
         <summary>Claude Desktop</summary>
         <p className="nota">
-          Troque <code>{CAMINHO_DO_SERVIDOR_NO_DESKTOP}</code> pelo caminho completo do arquivo e
-          reinicie o Claude Desktop.
+          O Claude Desktop só liga a servidores locais pelo arquivo de configuração (os remotos
+          exigem conta e endereço público), então ele precisa do Távola baixado: uma vez, na pasta
+          do Távola, <code>{COMANDO_PARA_GERAR_O_SERVIDOR_MCP}</code> (precisa do Node). Depois cole
+          o trecho no arquivo, troque <code>{CAMINHO_DO_SERVIDOR_NO_DESKTOP}</code> pelo caminho
+          completo de <code>{ARQUIVO_DO_SERVIDOR_MCP}</code> e reinicie o Claude Desktop.
         </p>
         <pre className="claude-trecho" data-testid="claude-trecho-desktop">
           {desktop}
@@ -117,9 +138,12 @@ function TokenNovo({
 function LinhaDoToken({
   t,
   aoRevogar,
+  agora,
 }: {
   t: TokenDoClaudePublico;
   aoRevogar: (id: string) => void;
+  /** 12-3: este token é o que está conectado agora. */
+  agora: boolean;
 }) {
   const [confirmando, setConfirmando] = useState(false);
   return (
@@ -128,7 +152,11 @@ function LinhaDoToken({
         <strong className="claude-token-nome">{t.nome}</strong>
         <span className="nota">
           criado em {dataCurta(t.criadoEm)} ·{" "}
-          {t.ultimoUso === null ? "nunca usado" : `último uso ${haQuanto(t.ultimoUso)}`}
+          {t.ultimoUso === null
+            ? "nunca usado"
+            : agora
+              ? "conectado agora"
+              : `usado ${haQuanto(t.ultimoUso)}`}
         </span>
       </div>
       {confirmando ? (
@@ -250,7 +278,7 @@ function LotesDoClaude({ lotes, enviar }: { lotes: readonly LoteDoClaude[]; envi
  * Preferências, "Conectar o Claude" (12-1): cada pessoa gera o PRÓPRIO token (por mesa) para o Claude entrar na mesa como
  * ela, com as mesmas permissões e a mesma visão. O token aparece uma vez; a sala guarda só o hash; "Revogar" vale na hora.
  */
-export function ConectarOClaude({ mesaId, lotes, enviar, aoContarTokens }: Props) {
+export function ConectarOClaude({ mesaId, lotes, enviar, aoContarTokens, conectado }: Props) {
   const [tokens, setTokens] = useState<TokenDoClaudePublico[] | null>(null);
   const [novo, setNovo] = useState<(TokenDoClaudePublico & { token: string }) | null>(null);
   const [nome, setNome] = useState("");
@@ -264,11 +292,16 @@ export function ConectarOClaude({ mesaId, lotes, enviar, aoContarTokens }: Props
       setErro((e as Error).message);
     }
   }, [mesaId]);
+  // 12-3: quando o Claude conecta ou sai (a sala avisa pela presença), o "último uso" da lista é lido de novo.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `conectado` só dispara a releitura
   useEffect(() => {
     void recarregar();
-  }, [recarregar]);
+  }, [recarregar, conectado]);
   useEffect(() => {
-    if (tokens !== null) aoContarTokens?.(tokens.length);
+    if (tokens !== null) {
+      const usos = tokens.flatMap((t) => (t.ultimoUso === null ? [] : [t.ultimoUso]));
+      aoContarTokens?.(tokens.length, usos.length > 0 ? Math.max(...usos) : null);
+    }
   }, [tokens, aoContarTokens]);
 
   async function aoGerar(e: FormEvent) {
@@ -299,6 +332,10 @@ export function ConectarOClaude({ mesaId, lotes, enviar, aoContarTokens }: Props
   }
 
   const cheio = (tokens?.length ?? 0) >= MAXIMO_DE_TOKENS_DO_CLAUDE;
+  // (assumido) A presença é da pessoa, não do token: "conectado agora" vai no token usado há menos tempo.
+  const maisRecente = [...(tokens ?? [])]
+    .filter((t) => t.ultimoUso !== null)
+    .sort((a, b) => (b.ultimoUso ?? 0) - (a.ultimoUso ?? 0))[0]?.id;
   return (
     <section
       className="claude-conectar"
@@ -347,7 +384,12 @@ export function ConectarOClaude({ mesaId, lotes, enviar, aoContarTokens }: Props
       {tokens !== null && tokens.length > 0 && (
         <ul className="lista-simples claude-tokens" data-testid="claude-tokens">
           {tokens.map((t) => (
-            <LinhaDoToken key={t.id} t={t} aoRevogar={aoRevogar} />
+            <LinhaDoToken
+              key={t.id}
+              t={t}
+              aoRevogar={aoRevogar}
+              agora={conectado === true && t.id === maisRecente}
+            />
           ))}
         </ul>
       )}

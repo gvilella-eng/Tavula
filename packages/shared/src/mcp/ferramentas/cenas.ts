@@ -1,3 +1,4 @@
+import { z } from "zod";
 import {
   type Cena,
   type Estado,
@@ -9,12 +10,11 @@ import {
   pode,
   TipoDeParedeSchema,
   type Token,
-} from "@tabletop/shared";
-import { z } from "zod";
+} from "../../index.ts";
 import { ErroDoMcp } from "../erros.ts";
 import { emCelulas, num } from "../formato.ts";
 import { achar, acharExato, novoId } from "../nomes.ts";
-import type { Lote } from "../sala.ts";
+import type { Lote } from "../tipos.ts";
 import { type Contexto, cadaItem, definir, passo, Relatorio } from "./base.ts";
 import { emMetros, type Par, ParSchema, paredeEmMetros } from "./cenasUtil.ts";
 

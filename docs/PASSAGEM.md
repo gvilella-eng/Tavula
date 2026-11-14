@@ -783,3 +783,20 @@ Continua em aberto, por ser decisão e não erro de doc: `ficha.verOutras` (seç
 - O `packages/shared` é lido pelo Vite sem compilar: nada de propriedade de parâmetro no construtor nem enum (o `apps/mcp` não tem essa restrição, mas o que ele importa do `shared` sim).
 
 **Suposições**: ver `docs/REDESIGN.md`, "12-2 — como ficou". As que mais valem uma olhada: o MCP não leva o grupo para outra cena nem dispara eventos (são ações ao vivo); o tamanho da cena não se muda (60 x 45 m); o compêndio não tem monstros; criar ou editar pelo nome exato.
+
+## 12-3 (2026-11-13): o MCP na própria sala, por HTTP
+**Onde mexer**
+- `apps/server/src/sala.ts`: `tratarIntencao(remetente, intencao)` é **o único** tratamento de intenção (WebSocket: `webSocketMessage` só lê, chama e responde; HTTP: `conexaoDoMcp` chama com `ws: null`). `rotaMcp` é a rota; `visaoDe(usuario)` é o snapshot do usuário (o WebSocket e as ferramentas leem o mesmo). `apps/server/src/index.ts`: `caminhoInterno` (`mcp` só POST) e o 405.
+- `packages/shared/src/mcp` (entrada `@tabletop/shared/mcp`): `jsonrpc.ts` (JSON-RPC puro), `servidor.ts` (`chamarFerramenta`, lista, instruções), `tipos.ts` (`SalaLike`, `Lote`), `compendio.ts`, `ferramentas/*`, `fichaPorPartes.ts`, `nomes.ts`, `formato.ts`, `testes/salaSimulada.ts`. `apps/mcp` ficou com o stdio, a conexão WebSocket (`sala.ts`), `config.ts` e a leitura do compêndio do disco.
+- Tela: `apps/web/src/claude/ConectarOClaude.tsx` e `textosDoClaude.ts` (o comando e o remover); o resumo vem de `abas.tsx`.
+- Teste: `e2e/tests/claude-12-3.spec.ts`, `ajudasMcp.ts` (`ClienteMcpHttp`, `pedirAoMcp`), `jsonrpc.test.ts`, `textosDoClaude.test.ts`.
+
+**Frágil**
+- **Nunca crie um segundo caminho para uma intenção do Claude.** Se uma ferramenta nova precisa de algo, ela chama `ctx.sala.enviar`; quem decide é `tratarIntencao`. Mexer em `tratarIntencao` mexe no WebSocket e no HTTP: rode `claude-12-1` e `claude-12-3`.
+- A rota recusa **qualquer** `Origin` e não tem CORS: não "conserte" isso para um cliente de navegador.
+- Presença do HTTP: vencimento `claude.http` na agenda (2 minutos; `/teste/claude-http?ms=` encurta no `MODO=teste`). `usuariosComClaude` lê as chaves dele.
+- `@tabletop/shared/mcp` entra no Worker: não importe nada de Node nem `z.locales` (traria as línguas do zod); o `servidor.ts` usa `zod/v4/locales/pt-BR.js` só nas ferramentas.
+- O `packages/shared` é lido pelo Vite sem compilar (nada de propriedade de parâmetro no construtor nem enum); o `mcp` não é lido pelo Vite, mas o Worker o empacota do mesmo jeito.
+- O compêndio pelo HTTP é o exemplo do SRD embutido (`CompendioLocal.doExemplo()`); o do disco só existe no stdio.
+
+**Suposições**: ver `docs/REDESIGN.md`, "12-3 — como ficou".

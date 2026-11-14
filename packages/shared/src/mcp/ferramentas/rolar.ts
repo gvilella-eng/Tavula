@@ -1,3 +1,4 @@
+import { z } from "zod";
 import {
   bonusDeAcerto,
   cdDaRolagem,
@@ -8,8 +9,7 @@ import {
   podeEditarPersonagem,
   tipoDeDano,
   VANTAGENS,
-} from "@tabletop/shared";
-import { z } from "zod";
+} from "../../index.ts";
 import { ErroDoMcp } from "../erros.ts";
 import { lerAtributo, lerPericia } from "../fichaPorPartes.ts";
 import { bonusDoTeste, textoDaRolagem } from "../formato.ts";

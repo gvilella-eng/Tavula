@@ -62,6 +62,8 @@ const HOSTS_LOCAIS = new Set(["127.0.0.1", "localhost", "[::1]"]);
  */
 function caminhoInterno(metodo: string, rota: string): string | null {
   if (rota === "ws") return "/ws";
+  // 12-3: o MCP da sala por HTTP (só POST; GET e DELETE respondem 405 no Worker).
+  if (rota === "mcp") return metodo === "POST" ? "/api/mcp" : null;
   if (metodo === "GET" && ["situacao", "usuarios", "eu", "contas", "conta/claude"].includes(rota)) {
     return `/api/${rota}`;
   }
@@ -255,6 +257,9 @@ export default {
         return resposta;
       }
 
+      if (rota === "mcp" && request.method !== "POST") {
+        return new Response(null, { status: 405, headers: { Allow: "POST" } });
+      }
       const interno = caminhoInterno(request.method, rota);
       if (!interno) return naoEncontrado();
       if (rota === "ws" && !pedeWebSocket(request))

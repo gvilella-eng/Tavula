@@ -1,3 +1,4 @@
+import { z } from "zod";
 import {
   automacoesDe,
   type Estado,
@@ -7,8 +8,7 @@ import {
   podeEditarPersonagem,
   TETO_DE_CRIACAO_DO_JOGADOR,
   type Usuario,
-} from "@tabletop/shared";
-import { z } from "zod";
+} from "../../index.ts";
 import { emCelulas, textoDaVisibilidade } from "../formato.ts";
 import { definir, ehMestre, listar } from "./base.ts";
 

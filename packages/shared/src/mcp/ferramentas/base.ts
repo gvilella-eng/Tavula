@@ -1,8 +1,8 @@
-import type { Estado, Usuario } from "@tabletop/shared";
 import type { z } from "zod";
-import type { CompendioLocal } from "../compendioLocal.ts";
+import type { Estado, Usuario } from "../../index.ts";
+import type { CompendioLocal } from "../compendio.ts";
 import { ErroDoMcp } from "../erros.ts";
-import type { Lote, RespostaDaSala, SalaLike } from "../sala.ts";
+import type { Lote, RespostaDaSala, SalaLike } from "../tipos.ts";
 
 /** O que cada ferramenta recebe: a conexão com a mesa, o compêndio local e o gerador de lotes. */
 export type Contexto = {
