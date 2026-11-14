@@ -837,6 +837,21 @@ Continua em aberto, por ser decisão e não erro de doc: `ficha.verOutras` (seç
 - A saída do extrator nunca pode ficar no repositório (`cli.ts` recusa); não commite os JSON gerados.
 
 **Suposições**: ver `docs/ESTADO.md`, "Ajustes N3b".
+## N4 (2026-11-14): névoa pintada à mão
+**Onde mexer**
+- Dados e regras puras: `packages/shared/src/nevoa.ts` (`TracoDaNevoaSchema`, `pontoNaNevoa`, `acrescentarTraco`, `compactarNevoa`, `nevoaCobreAlgo`, `simplificarCaminho`, os limites). O campo é `Cena.nevoa` (`estado.ts`); as intenções `nevoa.tracar` e `nevoa.desfazer` estão em `protocolo.ts` (capacidade `cena.editar`) e `nucleo.ts` (`processar`, o redutor `nevoa.tracada`/`nevoa.desfeita` e o filtro `eventoPara`). Persistência: os dois eventos regravam a cena em `armazenamento.ts` (junto de `cena.gridAlterado`).
+- Tela: `apps/web/src/mapa/camadaDeNevoa.ts` (textura da névoa e hachura do mestre), `mapaPixi.ts` (seção "névoa pintada à mão": ferramenta, gesto `nevoa`, prévia, `tokenSobNevoa`, `atualizarNevoa`, ganchos de teste `nevoa*`), `PainelDaNevoa.tsx`, o botão em `BarraDeFerramentas.tsx`, o atalho N em `atalhos.ts` e `Mesa.tsx` (`nevoa`, `alternarNevoa`, `controlaNaVisao`).
+- Teste: `packages/shared/src/nevoa.test.ts`, o fim de `apps/server/src/armazenamento.test.ts`, `e2e/tests/nevoa.spec.ts`.
+
+**Frágil**
+- **A névoa não é segredo.** O jogador recebe a lista de traços da cena ativa e o navegador dele tem todos os tokens e o mapa inteiro; ele só não os desenha. Decisão do Vilella.
+- `tokenSobNevoa` usa o centro do token e `controlaNaVisao` (o jogador visto, não o mestre). Quem muda a regra de posse tem de mexer nos dois lugares (`controla` e `controlaNaVisao` em `Mesa.tsx`).
+- A lista guarda tudo enquanto cabe (300 traços, 6.000 pontos); só ao estourar é que compacta. O redutor do cliente e o da sala usam a mesma `acrescentarTraco`: mudar a regra de compactação muda o que o desfazer devolve.
+- A textura é refeita inteira quando a lista muda (referência nova, quem olha ou o tamanho da cena). Cena de 1000 m de lado usa uma textura de escala bem menor que 0,5 (borda grossa).
+- Os E2E precisam esperar a cena virar cartão (`virarCartao`) antes de centrar a câmera: o enquadramento do cartão move a vista.
+- A hachura do mestre é um `TilingSprite` mascarado por um segundo sprite com a mesma textura (`mascara`): o objeto usado como máscara no Pixi deixa de ser desenhado, então nunca use o sprite visível como máscara. A hachura é discreta; confira o print do mestre.
+
+**Suposições**: ver `docs/REDESIGN.md`, "N4 — como ficou".
 
 ## 12-3 (2026-11-13): o MCP na própria sala, por HTTP
 **Onde mexer**

@@ -48,7 +48,7 @@ Juntadas durante os Lotes 6 a 14 (2026-11-06 a 10) para fazer ao Vilella no fim.
 - Compêndio: JSON local (direitos do Livro do Jogador; SRD é a alternativa livre)?
 - Tocha: apagada ocupa mão? qualquer jogador no alcance tira do suporte? entregar exige 1,5 m? (assumido)
 - ~~Nome do projeto~~: **Távola** (2026-11-10).
-- ~~Névoa manual × só automática~~: só automática por ora (2026-11-10).
+- ~~Névoa manual × só automática~~: só automática por ora (2026-11-10). Mudou em 2026-11-14: a névoa manual virou o lote N4 (o "mapa revelado aos poucos" segue descartado).
 - Ícone de eventos (7b) e o desenho das automações; MCP (12).
 - Lista de ajustes de interface que ele quer fazer.
 - Roteiros manuais pendentes: Lote 3 (parcial), Lotes 4 a 11, 13, 14, R1 e R2 (o 4b não tem roteiro escrito; foi interface para ver). Lista em `docs/PASSAGEM.md`.

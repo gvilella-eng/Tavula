@@ -1,4 +1,13 @@
-import { BrickWall, Brush, Dices, Hand, MousePointer2, Ruler, SquareDashed } from "lucide-react";
+import {
+  BrickWall,
+  Brush,
+  CloudFog,
+  Dices,
+  Hand,
+  MousePointer2,
+  Ruler,
+  SquareDashed,
+} from "lucide-react";
 import { type ReactNode, useState } from "react";
 import type { IdDoAtalho } from "./atalhos";
 import { BotaoComDica } from "./BotaoComDica";
@@ -24,6 +33,8 @@ type Props = {
   /** Zonas (7b-2, só do mestre, fora do "ver como"): liga e desliga a ferramenta. */
   podeZonas: boolean;
   aoAlternarZonas: () => void;
+  /** Névoa (N4, só do mestre, fora do "ver como"): liga e desliga a ferramenta. */
+  aoAlternarNevoa: () => void;
 };
 
 const MOTIVO_SEM_PINCEL = "Pincel desligado: o mestre tirou de você a permissão de desenhar.";
@@ -152,6 +163,18 @@ export function BarraDeFerramentas(p: Props) {
                 <SquareDashed size={20} />
               </Botao>
             )}
+            <Botao
+              testid="ferramenta-nevoa"
+              nome="Névoa"
+              atalho="nevoa"
+              ativo={p.ferramenta === "nevoa"}
+              aoClicar={() => {
+                setDadosAbertos(false);
+                p.aoAlternarNevoa();
+              }}
+            >
+              <CloudFog size={20} />
+            </Botao>
           </>
         )}
       </nav>

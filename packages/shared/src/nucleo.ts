@@ -99,6 +99,7 @@ import {
   podeMoverToken,
   tokenVisivelPara,
 } from "./mapa.ts";
+import { acrescentarTraco, tirarUltimoTraco } from "./nevoa.ts";
 import {
   modelosParaJogador,
   objetoParaVisao,
@@ -767,6 +768,30 @@ export function reduzir(estado: Estado, evento: EventoSala): Estado {
     case "cena.editada": {
       const { cena } = evento.dados;
       return { ...base, cenas: base.cenas.map((c) => (c.id === cena.id ? cena : c)) };
+    }
+    case "nevoa.tracada": {
+      const { cenaId, traco } = evento.dados;
+      return {
+        ...base,
+        cenas: base.cenas.map((c) => {
+          if (c.id !== cenaId) return c;
+          const lista = acrescentarTraco(c.nevoa, traco) ?? [...(c.nevoa ?? []), traco];
+          const { nevoa: _antiga, ...semNevoa } = c;
+          return lista.length > 0 ? { ...semNevoa, nevoa: lista } : semNevoa;
+        }),
+      };
+    }
+    case "nevoa.desfeita": {
+      const { cenaId } = evento.dados;
+      return {
+        ...base,
+        cenas: base.cenas.map((c) => {
+          if (c.id !== cenaId) return c;
+          const lista = tirarUltimoTraco(c.nevoa);
+          const { nevoa: _antiga, ...semNevoa } = c;
+          return lista.length > 0 ? { ...semNevoa, nevoa: lista } : semNevoa;
+        }),
+      };
     }
     case "cena.apagada":
       return {
@@ -1869,6 +1894,29 @@ function processarIntencao(
       emitir({ tipo: "cena.editada", dados: { cena } });
       // V10c: virar cartão (ou voltar a mapa) muda as paredes que o jogador deve ter: snapshot novo.
       return aplicado(ehCartao === cenaEhCartao(atual) ? [] : "todos");
+    }
+
+    case "nevoa.tracar": {
+      const { cenaId, traco } = intencao.dados;
+      const atual = estado.cenas.find((c) => c.id === cenaId);
+      if (!atual) return recusa("cena_inexistente", SEM_CENA);
+      if (acrescentarTraco(atual.nevoa, traco) === null) {
+        return recusa(
+          "dados_invalidos",
+          "Névoa com traços demais nesta cena. Use Cobrir tudo ou Revelar tudo para recomeçar.",
+        );
+      }
+      emitir({ tipo: "nevoa.tracada", dados: { cenaId, traco } });
+      return aplicado();
+    }
+
+    case "nevoa.desfazer": {
+      const { cenaId } = intencao.dados;
+      const atual = estado.cenas.find((c) => c.id === cenaId);
+      if (!atual) return recusa("cena_inexistente", SEM_CENA);
+      if ((atual.nevoa ?? []).length === 0) return aplicado();
+      emitir({ tipo: "nevoa.desfeita", dados: { cenaId } });
+      return aplicado();
     }
 
     case "cena.duplicar": {
@@ -3064,6 +3112,10 @@ export function eventoPara(
       return mestre || evento.dados.usuarioId === usuario.id ? evento : null;
     case "cena.editada":
       return mestre || evento.dados.cena.id === ativaDepois ? evento : null;
+    case "nevoa.tracada":
+    case "nevoa.desfeita":
+      // N4: a névoa manual não é segredo; o jogador recebe a da cena em que o grupo está.
+      return mestre || evento.dados.cenaId === ativaDepois ? evento : null;
     case "cena.gridAlterado":
     case "cena.mapaAlterado":
       return mestre || evento.dados.cenaId === ativaDepois ? evento : null;

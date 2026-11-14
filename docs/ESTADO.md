@@ -3711,4 +3711,22 @@ Unidade: `extrator/extrator.test.ts` (29, só trechos inventados: colunas, versa
 ### Roteiro manual
 `docs/ROTEIRO-DE-TESTES.md`, "N3b".
 
-## Próximo: o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a e N3b
+## Ajustes N4 — Névoa pintada à mão (entregue, aguardando o roteiro manual)
+
+### O que foi entregue
+- Ferramenta **Névoa** (mestre, atalho **N**, ícone de nuvem): Cobrir ou Revelar, pincel (com raio), retângulo e polígono, Cobrir tudo e Revelar tudo (com confirmação na página), Desfazer (botão e Ctrl+Z).
+- `Cena.nevoa` (lista de traços), intenções `nevoa.tracar` e `nevoa.desfazer` (`cena.editar`), eventos `nevoa.tracada` e `nevoa.desfeita`. O jogador vê a área coberta escura e opaca, sem os tokens dentro (menos os dele); o mestre vê um véu hachurado. Vale por cima da luz e também na cena-cartão. Duplicar, exportar e importar levam a névoa.
+
+### Como rodar
+`pnpm dev` como sempre. **Sem migração de banco** (a cena é JSON; o campo é opcional).
+
+### Verificação
+Unidade: `packages/shared/src/nevoa.test.ts` (composição, token dentro e fora, schema, intenções e permissão, evento só para a cena ativa, duplicar, exportar e importar com arquivo antigo, limites de traços e de pontos, simplificação do pincel, medida de peso e de tempo) e o fim de `apps/server/src/armazenamento.test.ts` (a névoa grava pelos eventos e volta do banco). E2E: `e2e/tests/nevoa.spec.ts` (cobrir tudo e revelar um retângulo; pincel e desfazer; polígono na cena-cartão com a tecla N e Revelar tudo; "Ver como" igual ao jogador e permissão). Números do `pnpm verify` no relatório do lote.
+
+### Decisões, frágil e desvios
+Ver `REDESIGN.md` ("N4") e `PASSAGEM.md` ("N4"). A névoa não é segredo: o que está sob ela chega ao navegador do jogador (decisão do Vilella).
+
+### Roteiro manual
+`docs/ROTEIRO-DE-TESTES.md`, "N4".
+
+## Próximo: o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b e N4

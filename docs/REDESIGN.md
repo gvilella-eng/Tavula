@@ -1640,6 +1640,35 @@ Menus (tipos de parede, importar e exportar, atalhos) e dois acertos que sobrara
 - O campo de nota do item no equipamento mostra uma linha; uma descrição longa pede uma caixa maior ou um item que abre (hoje se lê pelo Compêndio).
 - Gastar a conjuração inata do monstro pelo MCP; arrastar o monstro para uma ficha já existente (hoje só cria ficha nova).
 
+## N4 — como ficou (2026-11-14)
+
+**O que foi feito**
+- **Ferramenta Névoa** (mestre, fora do "ver como"; ícone de nuvem, atalho **N**). O painel abre à direita, no lugar dos painéis de ferramenta: **Cobrir** ou **Revelar**; formas **Pincel** (raio em metros, 0,25 a 30), **Retângulo** (arrasta de um canto ao outro) e **Polígono** (clique a clique; duplo clique ou Enter fecha, Esc cancela, Backspace tira o último ponto); **Desfazer** (botão e Ctrl+Z dentro da ferramenta); **Cobrir tudo** e **Revelar tudo**, com confirmação na página.
+- **Dados.** `Cena.nevoa` (opcional): lista de traços `{ forma: pincel | retangulo | poligono | tudo, modo: cobrir | revelar, pontos, raio? }` em metros, na ordem. O resultado é a composição em sequência: o último traço que contém o ponto decide; sem traço, revelado. Código em `packages/shared/src/nevoa.ts` (`pontoNaNevoa`, `acrescentarTraco`, `compactarNevoa`, `simplificarCaminho`).
+- **Protocolo.** Intenções `nevoa.tracar { cenaId, traco }` e `nevoa.desfazer { cenaId }`, as duas com a capacidade `cena.editar` (só do mestre). Eventos `nevoa.tracada` e `nevoa.desfeita`: o mestre recebe todos; o jogador, só os da cena ativa (a névoa não é segredo). Um traço novo não reenvia a cena: chega só o traço.
+- **O que o jogador vê.** Uma camada por cima do mapa, dos desenhos e dos tokens, escura e opaca (`camadaDeNevoa.ts`: os traços são compostos numa textura de baixa resolução, no máximo 2048 px e metade da escala do mundo; cobrir pinta e revelar apaga). Os tokens com o **centro** sob a névoa **não são desenhados** para ele, menos os tokens que ele mesmo controla. Vale por cima da luz e da visão (coberto é escuro mesmo iluminado; revelado segue a luz de sempre) e **vale na cena-cartão**.
+- **O que o mestre vê.** Um véu translúcido (50%) e hachurado sobre a área coberta, com todos os tokens. "Ver como" um jogador mostra a névoa opaca e os tokens sumidos, como na tela dele (a posse do token é a do jogador visto, `controlaNaVisao`).
+- **Duplicar a cena** leva a névoa (`cena.duplicar` copia a cena inteira). Exportar e importar levam a névoa (ela mora na cena). Sem o campo (campanha antiga) não há névoa.
+- **Sem migração de banco:** a cena é uma entidade em JSON; o campo novo é opcional. `versao_esquema` continua 15.
+
+**Crescimento (medido)**
+- O pincel chega simplificado (Ramer-Douglas-Peucker, 2 casas decimais, no máximo 128 pontos por traço). Limites por cena: **300 traços** e **6.000 pontos**. Enquanto cabe, a lista guarda tudo (o desfazer volta traço a traço). Ao passar do limite ela é compactada: "Cobrir tudo" e "Revelar tudo" valem como o começo da lista e os "revelar" antes de qualquer "cobrir" saem. Se nem assim couber, a sala recusa o traço com a mensagem para usar "Cobrir tudo" ou "Revelar tudo".
+- Medida no teste de unidade: 300 traços de pincel de 20 pontos pesam menos de 200 KB em JSON, e 400 consultas de ponto (um mapa cheio de tokens) levam bem menos que um quadro. A textura só é refeita quando a lista muda.
+
+**Decisões (assumido)**
+- (assumido) A cena guarda os traços (e não uma grade rasterizada): é exata, pequena nos usos reais e deixa o desfazer simples. A textura de baixa resolução é só de tela.
+- (assumido) Os tokens do próprio jogador continuam visíveis para ele mesmo cobertos; os do mestre, os NPCs e os ocultos seguem a regra do centro do token.
+- (assumido) A névoa manual não esconde da rede o que está sob ela (decisão do Vilella: os jogadores não vão fuçar o F12; o "mapa revelado aos poucos" foi descartado).
+- (assumido) Retângulo e polígono encaixam na meia célula do grid (Alt solta); o pincel é livre.
+- (assumido) Desfazer é por cena e não tem "refazer".
+- (assumido) A configuração da ferramenta (modo, forma, raio) é só da tela do mestre e não fica guardada ao recarregar.
+- (assumido) A cor da névoa e do véu é conteúdo do mapa (como a cor do mapa), fixa no Pixi: não entra nos temas.
+
+**O que ficou para depois**
+- Refazer (Ctrl+Shift+Z) da névoa, pincel com borda suave, e guardar a configuração da ferramenta como preferência.
+- Gerenciar a névoa pelo MCP (hoje só pela tela).
+- Névoa individual por jogador (cada um revela o seu): fora do pedido.
+
 ## Em aberto
 
 - **O plano R1 a R6 terminou** (R1, R2, R2b, R3, R4 em 2026-11-10; R5a, R5b, R6a e R6b em 2026-11-11). Agora o Vilella faz os ajustes

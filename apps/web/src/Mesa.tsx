@@ -20,6 +20,7 @@ import {
   limiteDeVisaoDoToken,
   membrosDaMesa,
   modInteligenciaDe,
+  nevoaCobreAlgo,
   PASTA_NPCS_ID,
   personagemDoMonstro,
   pode,
@@ -93,19 +94,22 @@ import { MenuDaTocha } from "./MenuDaTocha";
 import { MenuDoToken } from "./MenuDoToken";
 import { MenuSuperior } from "./MenuSuperior";
 import { Mapa } from "./mapa/Mapa";
-import type {
-  ConfigDeVisao,
-  DicaDoMapa,
-  Ferramenta,
-  ImagensDoMapa,
-  MapaPixi,
-  MedicaoFixa,
-  MedicaoNaTela,
-  RetornosDoMapa,
+import {
+  type ConfigDaNevoa,
+  type ConfigDeVisao,
+  type DicaDoMapa,
+  type Ferramenta,
+  type ImagensDoMapa,
+  type MapaPixi,
+  type MedicaoFixa,
+  type MedicaoNaTela,
+  NEVOA_PADRAO,
+  type RetornosDoMapa,
 } from "./mapa/mapaPixi";
 import { menuNativoDeveSumir } from "./menuNativo";
 import { NovoToken, type NovoTokenPedido } from "./NovoToken";
 import { OrdemDeTurno } from "./OrdemDeTurno";
+import { PainelDaNevoa } from "./PainelDaNevoa";
 import { PainelDaRegua } from "./PainelDaRegua";
 import { PainelDasParedes } from "./PainelDasParedes";
 import { PainelDasZonas } from "./PainelDasZonas";
@@ -272,6 +276,8 @@ export function Mesa({
   const [tipoDaNovaParede, setTipoDaNovaParede] = useState<TipoDeParede>("parede");
   // 7b-2: a zona selecionada na ferramenta Zonas (só do mestre).
   const [zonaSelecionadaId, setZonaSelecionadaId] = useState<string | null>(null);
+  // N4: a ferramenta Névoa (só do mestre): cobrir ou revelar, a forma e o raio do pincel. Só da tela dele.
+  const [nevoa, setNevoa] = useState<ConfigDaNevoa>(NEVOA_PADRAO);
   // Painéis do mestre (menu da lanterna): fontes de luz e configurações de iluminação.
   const [fontesAbertas, setFontesAbertas] = useState(false);
   const [configAberta, setConfigAberta] = useState(false);
@@ -416,6 +422,7 @@ export function Mesa({
   // 7b-2: o atalho Z (ferramenta Zonas) só vale para o mestre vendo como mestre; os valores vêm de refs.
   const modoMestreAtual = useRef(false);
   const alternarZonasAtual = useRef<() => void>(() => {});
+  const alternarNevoaAtual = useRef<() => void>(() => {});
   const apagarZonaAtual = useRef<(id: string) => void>(() => {});
   // Atalhos de ferramenta (V, H, R, Z), exceto enquanto escreve num campo.
   useEffect(() => {
@@ -429,6 +436,8 @@ export function Mesa({
       else if (tecla === "r") setFerramenta("regua");
       else if (tecla === "z" && !e.shiftKey && modoMestreAtual.current)
         alternarZonasAtual.current();
+      else if (tecla === "n" && !e.shiftKey && modoMestreAtual.current)
+        alternarNevoaAtual.current();
     }
     window.addEventListener("keydown", aoTeclar);
     return () => window.removeEventListener("keydown", aoTeclar);
@@ -895,6 +904,8 @@ export function Mesa({
         enviar("zona.criar", { zona: { id, cenaId, nome: `Zona ${n}`, pontos } });
         setZonaSelecionadaId(id);
       },
+      nevoaTracar: (cenaId, traco) => enviar("nevoa.tracar", { cenaId, traco }),
+      nevoaDesfazer: (cenaId) => enviar("nevoa.desfazer", { cenaId }),
       selecionarZona: setZonaSelecionadaId,
       moverZona: (id, pontos) => enviar("zona.editar", { id, mudancas: { pontos } }),
       apagarZona: (id) => apagarZonaAtual.current(id),
@@ -988,6 +999,7 @@ export function Mesa({
       ferramenta:
         (ferramenta === "paredes" ||
           ferramenta === "zonas" ||
+          ferramenta === "nevoa" ||
           ferramenta === "luz" ||
           ferramenta === "ponto") &&
         !modoMestre
@@ -1024,6 +1036,7 @@ export function Mesa({
       modoMestre,
       paredeSelecionadaId: paredeSelecionada?.id ?? null,
       zonaSelecionadaId: zonaSelecionada?.id ?? null,
+      nevoa,
       tipoDaNovaParede,
       // V5: o mestre vê os contornos com a Visão do mestre ligada; quem joga (ou o mestre "vendo como"),
       // só se a cena pedir.
@@ -1051,6 +1064,11 @@ export function Mesa({
       },
       controla: (t: Token) =>
         eu !== null && personagens !== undefined && controlaToken(t, eu, personagens),
+      // N4: de quem é o token na névoa: de quem a tela representa (o mestre "vendo como" um jogador vê pelos olhos dele).
+      controlaNaVisao: (t: Token) => {
+        const quem = usuarioVisto ?? eu;
+        return quem !== null && personagens !== undefined && controlaToken(t, quem, personagens);
+      },
       podeMover: (t: Token) =>
         eu && permissoes && cenaAtivaId !== undefined && personagens
           ? podeMoverToken(t, eu, { permissoes, cenaAtivaId, personagens })
@@ -1073,6 +1091,7 @@ export function Mesa({
       usuarioVisto,
       paredeSelecionada?.id,
       zonaSelecionada?.id,
+      nevoa,
       tipoDaNovaParede,
       visaoDoMestre,
       cena?.mostrarParedesAosJogadores,
@@ -1121,6 +1140,15 @@ export function Mesa({
     setZonaSelecionadaId(null);
   }
   alternarZonasAtual.current = alternarZonas;
+
+  function alternarNevoa() {
+    const entrando = ferramenta !== "nevoa";
+    setFerramenta(entrando ? "nevoa" : "selecionar");
+    setSelecionadoId(null);
+    setParedeSelecionadaId(null);
+    setZonaSelecionadaId(null);
+  }
+  alternarNevoaAtual.current = alternarNevoa;
   modoMestreAtual.current = modoMestre;
 
   // Apagar a zona (Delete ou o botão do painel): a sala a guarda só no estado, então o "Desfazer" a recria com o
@@ -1534,7 +1562,10 @@ export function Mesa({
                   aoVerComo={(id) => {
                     setVerComoId(id);
                     setSelecionadoId(null);
-                    if (id !== null && (ferramenta === "paredes" || ferramenta === "zonas")) {
+                    if (
+                      id !== null &&
+                      (ferramenta === "paredes" || ferramenta === "zonas" || ferramenta === "nevoa")
+                    ) {
                       setFerramenta("selecionar");
                     }
                   }}
@@ -1583,6 +1614,7 @@ export function Mesa({
             aoAlternarParedes={alternarParedes}
             podeZonas={modoMestre}
             aoAlternarZonas={alternarZonas}
+            aoAlternarNevoa={alternarNevoa}
             aoEscolher={setFerramenta}
             pincel={pincel}
             aoMudarPincel={setPincel}
@@ -1653,6 +1685,16 @@ export function Mesa({
                   Modo <strong>Zonas</strong>
                 </span>
                 <button type="button" data-testid="modo-zonas-sair" onClick={alternarZonas}>
+                  Sair do modo
+                </button>
+              </div>
+            )}
+            {modoMestre && ferramenta === "nevoa" && (
+              <div className="selo-modo" data-testid="modo-nevoa-selo" role="status">
+                <span>
+                  Modo <strong>Névoa</strong>
+                </span>
+                <button type="button" data-testid="modo-nevoa-sair" onClick={alternarNevoa}>
                   Sair do modo
                 </button>
               </div>
@@ -1810,6 +1852,22 @@ export function Mesa({
                   setParedeSelecionadaId(null);
                 }}
                 aoFechar={alternarParedes}
+              />
+            )}
+            {modoMestre && ferramenta === "nevoa" && (
+              <PainelDaNevoa
+                config={nevoa}
+                aoMudar={setNevoa}
+                temNevoa={nevoaCobreAlgo(cena.nevoa)}
+                tracos={cena.nevoa?.length ?? 0}
+                aoTracarTudo={(modo) =>
+                  enviar("nevoa.tracar", {
+                    cenaId: cena.id,
+                    traco: { forma: "tudo", modo, pontos: [] },
+                  })
+                }
+                aoDesfazer={() => enviar("nevoa.desfazer", { cenaId: cena.id })}
+                aoFechar={alternarNevoa}
               />
             )}
             {modoMestre && ferramenta === "zonas" && (

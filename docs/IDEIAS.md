@@ -20,12 +20,7 @@ voltarem) e notas sobre a campanha de referência. Quando algo for decidido, sai
 
 ### Mapas e paredes
 
-- **Névoa manual** (o mestre pinta áreas reveladas ou escondidas por cena, como nas mesas virtuais), além da
-  automática. O Vilella preferiu só a automática por ora (2026-11-10).
-- **Mapa revelado aos poucos:** hoje a imagem inteira do mapa da cena ativa vai para o cache do jogador
-  (como em qualquer VTT), então quem fuça o navegador vê o desenho de salas que ainda não explorou. Dá
-  para mandar o mapa em tiles só conforme a exploração (o fatiamento do Lote 3 ajuda), mas é bem mais
-  trabalho. Levantado em 2026-11-06, ao explicar o F12 para o Vilella.
+- **Névoa manual:** virou o lote N4 (2026-11-14), entregue; ver `docs/REDESIGN.md`, "N4".
 
 Desenhar paredes à mão em mapas de caverna (formas orgânicas) é o custo escondido de cada sessão.
 
@@ -120,6 +115,10 @@ A conjuração inata, os truques por nível, o ritual e os dardos, raios e alvos
 - **Esconder da rede o que está fora da visão** (proteção contra o F12 por linha de visão): o Vilella
   decidiu em 2026-11-06 que não vale o custo. Visão e escuridão são só de tela; o filtro na sala fica
   para o que o mestre esconde de propósito.
+
+- **Mapa revelado aos poucos** (mandar o mapa em tiles só conforme a exploração, para quem fuça o
+  navegador não ver salas ainda não exploradas): o Vilella disse que os jogadores não vão fuçar o F12
+  (2026-11-14, no N4). A névoa manual só esconde na tela; o que está sob ela chega ao navegador.
 
 ## Campanha de referência ("A Chama Primordial")
 

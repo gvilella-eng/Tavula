@@ -727,6 +727,8 @@ export class Armazenamento {
         case "memoria.esquecida":
           this.gravarMeta("memoria_esquecida", JSON.stringify(estado.memoriaEsquecida ?? {}));
           break;
+        case "nevoa.tracada":
+        case "nevoa.desfeita":
         case "cena.gridAlterado":
         case "cena.mapaAlterado": {
           const c = estado.cenas.find((x) => x.id === ev.dados.cenaId);

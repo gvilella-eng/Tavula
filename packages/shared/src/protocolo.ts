@@ -78,6 +78,7 @@ import {
   OperacaoDeFichaSchema,
 } from "./ficha.ts";
 import { CENA_PADRAO } from "./mapa.ts";
+import { TracoDaNevoaSchema } from "./nevoa.ts";
 import { modelosPadrao } from "./objetos.ts";
 import {
   migrarNotasParaHandouts,
@@ -675,6 +676,12 @@ export const IntencaoSchema = z.discriminatedUnion("tipo", [
       cartao: z.boolean().optional(),
     }),
   ),
+  /**
+   * N4: um traço da névoa pintada à mão (pincel, retângulo, polígono, ou "tudo" que zera a lista). Só do mestre
+   * (`cena.editar`). `nevoa.desfazer` tira o último traço.
+   */
+  intencao("nevoa.tracar", z.object({ cenaId: IdSchema, traco: TracoDaNevoaSchema })),
+  intencao("nevoa.desfazer", z.object({ cenaId: IdSchema })),
   intencao("cena.duplicar", z.object({ cenaId: IdSchema, novoId: IdSchema })),
   intencao("cena.apagar", z.object({ cenaId: IdSchema })),
   /** Uma única mensagem leva o grupo e torna a cena de destino a ativa. */
@@ -1043,6 +1050,8 @@ export const capacidadeDaIntencao: Record<TipoIntencao, Capacidade | null> = {
   "ficha.alterar": null,
   "ficha.dadoDeVida": null,
   "cena.criar": "cena.editar",
+  "nevoa.tracar": "cena.editar",
+  "nevoa.desfazer": "cena.editar",
   "cena.editar": "cena.editar",
   "cena.duplicar": "cena.editar",
   "cena.apagar": "cena.editar",
@@ -1223,6 +1232,9 @@ export const EventoSalaSchema = z.discriminatedUnion("tipo", [
   eventoDe("cena.criada", z.object({ cena: CenaSchema })),
   eventoDe("cena.editada", z.object({ cena: CenaSchema })),
   eventoDe("cena.apagada", z.object({ cenaId: IdSchema })),
+  /** N4: um traço novo da névoa manual (o cliente aplica `acrescentarTraco`) e o desfazer do último. A cena ativa chega ao jogador. */
+  eventoDe("nevoa.tracada", z.object({ cenaId: IdSchema, traco: TracoDaNevoaSchema })),
+  eventoDe("nevoa.desfeita", z.object({ cenaId: IdSchema })),
   /** O grupo foi para outra cena: nova cena ativa e nova posição (e cena) dos tokens. Só mestres. */
   eventoDe(
     "grupo.movido",

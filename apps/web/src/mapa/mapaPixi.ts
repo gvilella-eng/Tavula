@@ -23,6 +23,7 @@ import {
   esquecerAlemDoAlcance,
   esquecerTudo,
   type FonteDeLuz,
+  type FormaDaNevoa,
   formatarRestante,
   type GradeDeMemoria,
   gradeServe,
@@ -34,6 +35,7 @@ import {
   luzAmbienteDa,
   type Medida,
   type ModeloDeLuz,
+  type ModoDaNevoa,
   marcarVisto,
   medirPercurso,
   meioDaParede,
@@ -42,6 +44,7 @@ import {
   opacidadeNoPonto,
   type Parede,
   type PontoDeLuz,
+  pontoNaNevoa,
   pontoNaZona,
   pontosDaParede,
   prepararTraco,
@@ -49,9 +52,11 @@ import {
   resolverLuzes,
   SEGURAR_PADRAO_S,
   segmentosDaParede,
+  simplificarCaminho,
   suavizar,
   type TipoDeParede,
   type Token,
+  type TracoDaNevoa,
   tangenteNoFim,
   trajetoBloqueado,
   type UnidadeDeDistancia,
@@ -67,6 +72,7 @@ import { corDoTextoSobre, haloDoTexto } from "../contrasteDeCor";
 import type { ConfigDoPincel } from "../pincel";
 import { CamadaDeDesenho, type DesenhoNaTela } from "./camadaDeDesenho";
 import { CamadaDeLuz } from "./camadaDeLuz";
+import { CamadaDaNevoa } from "./camadaDeNevoa";
 import {
   ArmazemDeMemoria,
   chaveAntigaDaMemoria,
@@ -93,6 +99,9 @@ const TAU_MS = 70;
 const ACENTO = 0xe0a030;
 /** 7b-2: a zona do mestre (violeta): não se confunde com as paredes (claras e âmbar) nem com os desenhos. */
 const COR_DA_ZONA = 0xb07cff;
+/** N4: a cor da prévia do traço da névoa (só do mestre): roxo-azulado para cobrir, verde-água para revelar. */
+const COR_DA_PREVIA_COBRIR = 0x8f7bff;
+const COR_DA_PREVIA_REVELAR = 0x4fd6c0;
 /** Anel do token da vez (ordem de turno): verde, bem diferente do dourado da seleção. */
 const COR_DA_VEZ = 0x4cd97b;
 
@@ -104,7 +113,18 @@ export type Ferramenta =
   | "zonas"
   | "luz"
   | "ponto"
-  | "pincel";
+  | "pincel"
+  | "nevoa";
+
+/** N4: o que a ferramenta Névoa faz (só da tela do mestre): cobrir ou revelar, com que forma e o raio do pincel (m). */
+export type ConfigDaNevoa = {
+  modo: ModoDaNevoa;
+  forma: Exclude<FormaDaNevoa, "tudo">;
+  raioM: number;
+};
+
+/** O padrão da ferramenta Névoa: cobrir com o pincel de 3 m de raio. */
+export const NEVOA_PADRAO: ConfigDaNevoa = { modo: "cobrir", forma: "pincel", raioM: 3 };
 
 /** A alça de uma tocha sendo arrastada: onde está (metros) e, sobre um inflamável, a contagem. */
 type AlcaArrastada = {
@@ -187,11 +207,15 @@ export type OpcoesDoMapa = {
   podeMover: (token: Token) => boolean;
   /** O jogador seleciona (só na tela dele) os tokens que controla (V2); o mestre seleciona qualquer um. */
   controla: (token: Token) => boolean;
+  /** N4: o token é de quem a tela representa (o jogador, ou o jogador que o mestre está "vendo como")? */
+  controlaNaVisao: (token: Token) => boolean;
   /** O mestre vendo como mestre (não "como o jogador X"): vê todas as paredes e as portas secretas. */
   modoMestre: boolean;
   paredeSelecionadaId: string | null;
   /** 7b-2: a zona selecionada na ferramenta Zonas (só o mestre). */
   zonaSelecionadaId: string | null;
+  /** N4: a configuração da ferramenta Névoa (só o mestre vendo como mestre a usa). */
+  nevoa: ConfigDaNevoa;
   /** Tipo das paredes que a ferramenta de paredes desenha. */
   tipoDaNovaParede: TipoDeParede;
   /**
@@ -312,6 +336,9 @@ export type RetornosDoMapa = {
   /** Arrastou um vértice: a zona com o polígono novo. */
   moverZona: (id: string, pontos: Ponto[]) => void;
   apagarZona: (id: string) => void;
+  /** N4: um traço da névoa manual (já simplificado, em metros) e o desfazer do último. */
+  nevoaTracar: (cenaId: string, traco: TracoDaNevoa) => void;
+  nevoaDesfazer: (cenaId: string) => void;
   /** Clique no ícone da porta. */
   alternarPorta: (id: string) => void;
   /** Clique direito no ícone da porta (só o mestre): tranca ou destranca. */
@@ -440,7 +467,8 @@ type Gesto =
       limitador: ReturnType<typeof criarLimitador<undefined>>;
     }
   | { tipo: "desenhoMover"; id: string; inicio: Ponto }
-  | { tipo: "borracha" };
+  | { tipo: "borracha" }
+  | { tipo: "nevoa" };
 
 /** Cor e espessura (px na tela) de cada tipo de parede quando a ferramenta de paredes está ativa. */
 export const ESTILO_DA_PAREDE: Record<TipoDeParede, { cor: number; largura: number }> = {
@@ -545,6 +573,11 @@ export class MapaPixi {
   private zonaDesenhando: Ponto[] | null = null;
   private cursorDaZona: Ponto | null = null;
   private verticeArrastado: { id: string; indice: number; pos: Ponto } | null = null;
+  /** N4: a névoa pintada à mão (a textura) e a prévia do traço em andamento (pontos em metros). */
+  private camadaNevoa!: CamadaDaNevoa;
+  private readonly nevoaPrevia = new Graphics();
+  private nevoaTraco: Ponto[] | null = null;
+  private nevoaCursor: Ponto | null = null;
   private readonly desenhoDaRegua = new Graphics();
   private readonly desenhoDasFixas = new Graphics();
   /** Desenhos do pincel (Lote 13): acima do véu da luz e da memória do mapa (visíveis no escuro). */
@@ -650,6 +683,7 @@ export class MapaPixi {
     }
     this.host.append(this.app.canvas);
     this.camada = new CamadaDeLuz(this.app.renderer);
+    this.camadaNevoa = new CamadaDaNevoa(this.app.renderer);
     this.mundo.addChild(
       this.fundo,
       this.camadaMapa,
@@ -665,6 +699,8 @@ export class MapaPixi {
       this.zonasGraf,
       this.zonasRotulos,
       this.desenhoLayer.container,
+      this.camadaNevoa.container,
+      this.nevoaPrevia,
       this.marcasDeLuz,
       this.desenhoDosPontos,
       this.camadaDeAlcas,
@@ -704,6 +740,7 @@ export class MapaPixi {
     this.desenharCena();
     this.atualizarMapa();
     this.sincronizarTokens();
+    this.atualizarNevoa();
     this.vistaInicial();
     this.atualizarBandeira();
     this.atualizarCursor();
@@ -745,6 +782,7 @@ export class MapaPixi {
     if (this.gravacao) clearTimeout(this.gravacao);
     this.gravarMemoria();
     this.camada.destruir();
+    this.camadaNevoa.destruir();
     // Sem `releaseGlobalResources`: `destroy(true)` esvazia os pools GLOBAIS do Pixi, e no StrictMode (o
     // primeiro mapa é descartado com o segundo já de pé) isso destruía lotes em uso ("reading 'clear'").
     this.app.destroy({ removeView: true }, { children: true });
@@ -768,6 +806,8 @@ export class MapaPixi {
     this.desenharParedes();
     this.desenharCena();
     this.atualizarMapa();
+    if (outraCena) this.zerarNevoaEmAndamento();
+    this.atualizarNevoa();
     if (outraCena) {
       this.cancelarTraco();
       this.limparRegua();
@@ -884,7 +924,10 @@ export class MapaPixi {
       this.limparRegua();
       this.zerarDesenho();
       this.zerarZona();
+      this.zerarNevoaEmAndamento();
     }
+    this.atualizarNevoa();
+    this.desenharPreviaDaNevoa();
     const chave = this.chaveDe_visao();
     if (chave !== this.chaveDaVisao) {
       this.chaveDaVisao = chave;
@@ -1822,10 +1865,257 @@ export class MapaPixi {
     for (const v of this.visuais.values()) {
       const ehFonte = fontes.some((f) => f.tokenId === v.token.id);
       v.container.visible =
-        modo !== "jogador" ||
-        v.token.camada === "mapa" ||
-        ehFonte ||
-        (this.modelo !== null && veNoPonto(this.modelo, { x: v.x, y: v.y }));
+        !this.tokenSobNevoa(v) &&
+        (modo !== "jogador" ||
+          v.token.camada === "mapa" ||
+          ehFonte ||
+          (this.modelo !== null && veNoPonto(this.modelo, { x: v.x, y: v.y })));
+    }
+  }
+
+  // --- névoa pintada à mão (N4) -------------------------------------------------------------------
+
+  private ferramentaDeNevoa(): boolean {
+    return this.opcoes.ferramenta === "nevoa" && this.opcoes.modoMestre;
+  }
+
+  /**
+   * O token está sob a névoa manual, pelo centro, para quem olha? O mestre vendo como mestre vê tudo (a névoa é um véu
+   * para ele); o jogador (ou o mestre "vendo como") não vê os tokens cobertos, menos os que ele mesmo controla.
+   */
+  private tokenSobNevoa(v: Visual): boolean {
+    if (this.opcoes.modoMestre) return false;
+    const nevoa = this.cena?.nevoa;
+    if (!nevoa || nevoa.length === 0) return false;
+    if (this.opcoes.controlaNaVisao(v.token)) return false;
+    return pontoNaNevoa(nevoa, { x: v.x, y: v.y });
+  }
+
+  /** O que a névoa na tela já reflete: a lista de traços (por referência), quem olha e o tamanho da cena. */
+  private nevoaFeita: {
+    lista: unknown;
+    mestre: boolean;
+    l: number;
+    a: number;
+    cena: string;
+  } | null = null;
+
+  /** Refaz a névoa na tela (só quando os traços, quem olha ou a cena mudam) e a visibilidade dos tokens. */
+  private atualizarNevoa(): void {
+    const cena = this.cena;
+    if (!cena || !this.camadaNevoa) return;
+    const f = this.nevoaFeita;
+    const mestre = this.opcoes.modoMestre;
+    if (
+      f &&
+      f.lista === cena.nevoa &&
+      f.mestre === mestre &&
+      f.l === cena.larguraM &&
+      f.a === cena.alturaM &&
+      f.cena === cena.id
+    ) {
+      return;
+    }
+    this.nevoaFeita = {
+      lista: cena.nevoa,
+      mestre,
+      l: cena.larguraM,
+      a: cena.alturaM,
+      cena: cena.id,
+    };
+    this.camadaNevoa.atualizar(cena.nevoa ?? [], cena.larguraM, cena.alturaM, mestre);
+    this.sujo = true;
+    this.atualizarVisibilidadeDosTokens();
+  }
+
+  /** Esc, troca de ferramenta ou de cena: o traço em andamento some. */
+  private zerarNevoaEmAndamento(): void {
+    if (this.nevoaTraco === null && this.nevoaCursor === null) return;
+    this.nevoaTraco = null;
+    this.nevoaCursor = null;
+    if (this.gesto?.tipo === "nevoa") this.gesto = null;
+    this.desenharPreviaDaNevoa();
+  }
+
+  /** Ponto do mundo para a névoa: o pincel é livre; retângulo e polígono encaixam na meia célula (Alt solta). */
+  private pontoDaNevoa(m: Ponto, alt: boolean): Ponto {
+    if (this.opcoes.nevoa.forma === "pincel") {
+      return this.cena ? limitarNaCena(m, this.cena) : m;
+    }
+    return this.pontoDaZona(m, alt);
+  }
+
+  /** O traço atual vira intenção (simplificado). Retângulo e polígono precisam de forma mínima. */
+  private enviarTracoDaNevoa(forma: Exclude<FormaDaNevoa, "tudo">, pontos: Ponto[]): void {
+    const cena = this.cena;
+    if (!cena || pontos.length === 0) return;
+    const { modo, raioM } = this.opcoes.nevoa;
+    let traco: TracoDaNevoa | null = null;
+    if (forma === "pincel") {
+      traco = { forma, modo, pontos: simplificarCaminho(pontos), raio: raioM };
+    } else if (forma === "retangulo") {
+      const [a, b] = pontos;
+      if (a && b && Math.abs(a.x - b.x) > 0.05 && Math.abs(a.y - b.y) > 0.05) {
+        traco = { forma, modo, pontos: [a, b] };
+      }
+    } else if (pontos.length >= 3) {
+      traco = { forma, modo, pontos };
+    }
+    if (traco) this.retornos().nevoaTracar(cena.id, traco);
+  }
+
+  /** Clique com a ferramenta Névoa: o pincel e o retângulo começam um arrasto; o polígono marca um canto. */
+  private apertarComNevoa(p: Ponto, e: PointerEvent): void {
+    if (this.digitando() && document.activeElement instanceof HTMLElement)
+      document.activeElement.blur();
+    const ponto = this.pontoDaNevoa(this.paraMundo(p), e.altKey);
+    const forma = this.opcoes.nevoa.forma;
+    if (forma === "poligono") {
+      const pontos = this.nevoaTraco ?? [];
+      const ultimo = pontos[pontos.length - 1];
+      if (!ultimo || Math.hypot(ultimo.x - ponto.x, ultimo.y - ponto.y) > 0.05) pontos.push(ponto);
+      this.nevoaTraco = pontos;
+      this.nevoaCursor = ponto;
+      this.desenharPreviaDaNevoa();
+      return;
+    }
+    this.gesto = { tipo: "nevoa" };
+    this.nevoaTraco = [ponto];
+    this.nevoaCursor = ponto;
+    this.app.canvas.setPointerCapture(e.pointerId);
+    this.desenharPreviaDaNevoa();
+  }
+
+  /** O ponteiro andou com a ferramenta Névoa (com ou sem o botão apertado). */
+  private moverComNevoa(p: Ponto, alt: boolean): void {
+    const ponto = this.pontoDaNevoa(this.paraMundo(p), alt);
+    this.nevoaCursor = ponto;
+    const pontos = this.nevoaTraco;
+    if (this.gesto?.tipo === "nevoa" && pontos) {
+      if (this.opcoes.nevoa.forma === "pincel") {
+        const ultimo = pontos[pontos.length - 1] as Ponto;
+        if (Math.hypot(ultimo.x - ponto.x, ultimo.y - ponto.y) >= 0.1 && pontos.length < 4000) {
+          pontos.push(ponto);
+        }
+      } else {
+        pontos[1] = ponto;
+      }
+    }
+    this.desenharPreviaDaNevoa();
+  }
+
+  /** Soltou o botão: o pincel e o retângulo viram traço. */
+  private soltarComNevoa(): void {
+    const pontos = this.nevoaTraco;
+    this.nevoaTraco = null;
+    if (pontos) this.enviarTracoDaNevoa(this.opcoes.nevoa.forma, pontos);
+    this.desenharPreviaDaNevoa();
+  }
+
+  /**
+   * Teclas da ferramenta Névoa: Enter fecha o polígono; Esc cancela o traço; Backspace tira o último ponto;
+   * Ctrl+Z tira o último ponto do polígono em andamento ou, sem nada em andamento, desfaz o último traço da cena.
+   */
+  private teclaDaNevoa(e: KeyboardEvent): boolean {
+    const emAndamento = this.nevoaTraco !== null;
+    if (e.key === "Enter" && emAndamento && this.opcoes.nevoa.forma === "poligono") {
+      e.preventDefault();
+      this.fecharPoligonoDaNevoa();
+      return true;
+    }
+    if (e.key === "Escape" && emAndamento) {
+      this.zerarNevoaEmAndamento();
+      return true;
+    }
+    if (
+      e.key === "Backspace" &&
+      emAndamento &&
+      this.opcoes.nevoa.forma === "poligono" &&
+      !e.repeat
+    ) {
+      e.preventDefault();
+      (this.nevoaTraco as Ponto[]).pop();
+      if ((this.nevoaTraco as Ponto[]).length === 0) this.nevoaTraco = null;
+      this.desenharPreviaDaNevoa();
+      return true;
+    }
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "z") {
+      e.preventDefault();
+      if (this.gesto?.tipo === "nevoa") return true;
+      if (emAndamento && this.opcoes.nevoa.forma === "poligono") {
+        (this.nevoaTraco as Ponto[]).pop();
+        if ((this.nevoaTraco as Ponto[]).length === 0) this.nevoaTraco = null;
+        this.desenharPreviaDaNevoa();
+      } else if (this.cena && !e.repeat) {
+        this.retornos().nevoaDesfazer(this.cena.id);
+      }
+      return true;
+    }
+    return false;
+  }
+
+  /** Duplo clique ou Enter: o polígono vira traço (precisa de 3 pontos). */
+  private fecharPoligonoDaNevoa(): void {
+    const pontos = this.nevoaTraco;
+    this.nevoaTraco = null;
+    if (pontos) this.enviarTracoDaNevoa("poligono", pontos);
+    this.desenharPreviaDaNevoa();
+  }
+
+  /** A prévia do traço em andamento e o contorno do pincel sob o cursor (a cor mostra se cobre ou revela). */
+  private desenharPreviaDaNevoa(): void {
+    this.sujo = true;
+    const g = this.nevoaPrevia.clear();
+    if (!this.ferramentaDeNevoa()) return;
+    const z = this.vista.zoom;
+    const { modo, forma, raioM } = this.opcoes.nevoa;
+    const cor = modo === "cobrir" ? COR_DA_PREVIA_COBRIR : COR_DA_PREVIA_REVELAR;
+    const cursor = this.nevoaCursor;
+    const px = (q: Ponto) => ({ x: q.x * PX_POR_M, y: q.y * PX_POR_M });
+    const pontos = (this.nevoaTraco ?? []).map(px);
+    if (forma === "pincel") {
+      if (pontos.length > 1) {
+        g.moveTo((pontos[0] as Ponto).x, (pontos[0] as Ponto).y);
+        for (const q of pontos.slice(1)) g.lineTo(q.x, q.y);
+        g.stroke({
+          width: raioM * 2 * PX_POR_M,
+          color: cor,
+          alpha: 0.35,
+          cap: "round",
+          join: "round",
+        });
+      }
+      if (cursor) {
+        const c = px(cursor);
+        g.circle(c.x, c.y, raioM * PX_POR_M).fill({ color: cor, alpha: 0.18 });
+        g.circle(c.x, c.y, raioM * PX_POR_M).stroke({ width: 2 / z, color: cor, alpha: 0.95 });
+      }
+      return;
+    }
+    if (forma === "retangulo") {
+      const [a, b] = pontos;
+      if (a && b) {
+        g.rect(Math.min(a.x, b.x), Math.min(a.y, b.y), Math.abs(a.x - b.x), Math.abs(a.y - b.y))
+          .fill({ color: cor, alpha: 0.25 })
+          .stroke({ width: 2 / z, color: cor });
+      } else if (cursor) {
+        const c = px(cursor);
+        g.circle(c.x, c.y, 5 / z).stroke({ width: 2 / z, color: cor });
+      }
+      return;
+    }
+    const caminho = cursor && pontos.length > 0 ? [...pontos, px(cursor)] : pontos;
+    if (caminho.length >= 3) {
+      g.poly(caminho.flatMap((q) => [q.x, q.y])).fill({ color: cor, alpha: 0.2 });
+    }
+    for (let i = 1; i < caminho.length; i++) {
+      this.tracejar(g, caminho[i - 1] as Ponto, caminho[i] as Ponto, 9 / z, 6 / z);
+    }
+    g.stroke({ width: 2.5 / z, color: cor, alpha: 0.95 });
+    for (const q of pontos) g.circle(q.x, q.y, 4 / z).fill(cor);
+    if (cursor) {
+      const c = px(cursor);
+      g.circle(c.x, c.y, 5 / z).stroke({ width: 2 / z, color: cor });
     }
   }
 
@@ -2906,6 +3196,10 @@ export class MapaPixi {
   }
 
   private readonly aoDuploClique = (e: MouseEvent) => {
+    if (this.ferramentaDeNevoa() && this.opcoes.nevoa.forma === "poligono") {
+      this.fecharPoligonoDaNevoa();
+      return;
+    }
     if (this.zonaDesenhando) {
       this.fecharZona();
       return;
@@ -3218,6 +3512,11 @@ export class MapaPixi {
       return;
     }
 
+    if (this.ferramentaDeNevoa()) {
+      this.apertarComNevoa(p, e);
+      return;
+    }
+
     if (this.ferramentaDeZonas()) {
       this.apertarComZonas(p, e);
       return;
@@ -3523,7 +3822,12 @@ export class MapaPixi {
     ) {
       this.cancelarEsperaDoPing();
     }
+    if (g?.tipo === "nevoa") {
+      this.moverComNevoa(p, e.altKey);
+      return;
+    }
     if (!g) {
+      if (this.ferramentaDeNevoa()) this.moverComNevoa(p, e.altKey);
       if (this.ferramentaDeZonas()) {
         const antes = this.cursorDaZona;
         const agora = this.pontoDaZona(this.paraMundo(p), e.altKey);
@@ -3677,6 +3981,11 @@ export class MapaPixi {
     this.gesto = null;
     if (this.app.canvas.hasPointerCapture(e.pointerId)) {
       this.app.canvas.releasePointerCapture(e.pointerId);
+    }
+    if (g.tipo === "nevoa") {
+      this.soltarComNevoa();
+      this.atualizarCursor();
+      return;
     }
     if (g.tipo === "traco" || g.tipo === "desenhoMover" || g.tipo === "borracha") {
       this.soltarComPincel(g);
@@ -3852,6 +4161,7 @@ export class MapaPixi {
       this.apagarSelecionado();
       return;
     }
+    if (this.ferramentaDeNevoa() && this.teclaDaNevoa(e)) return;
     if (this.ferramentaDeZonas()) {
       // 7b-2: Enter fecha o polígono; Esc o cancela (ou solta a zona); Backspace tira o último ponto;
       // Delete apaga a zona selecionada (a tela avisa e oferece o Desfazer).
@@ -3978,7 +4288,8 @@ export class MapaPixi {
       this.opcoes.ferramenta === "luz" ||
       this.opcoes.ferramenta === "ponto" ||
       this.ferramentaDeParedes() ||
-      this.ferramentaDeZonas()
+      this.ferramentaDeZonas() ||
+      this.ferramentaDeNevoa()
     )
       cursor = "crosshair";
     else if (g?.tipo === "token") cursor = "grabbing";
@@ -4494,6 +4805,14 @@ export class MapaPixi {
       zonas: () =>
         this.zonas.map((z) => ({ id: z.id, nome: z.nome, ativa: z.ativa, pontos: z.pontos })),
       zonaDesenhando: () => this.zonaDesenhando,
+      /** N4: os traços da névoa manual que a tela tem, se a camada está desenhada e se um ponto (metros) está coberto. */
+      nevoa: () => this.cena?.nevoa ?? [],
+      nevoaDesenhada: () => ({
+        visivel: this.camadaNevoa.container.visible,
+        alpha: this.camadaNevoa.container.children[0]?.alpha ?? 0,
+      }),
+      nevoaCobre: (x: number, y: number) => pontoNaNevoa(this.cena?.nevoa, { x, y }),
+      nevoaEmAndamento: () => this.nevoaTraco,
       /** V5: os contornos estão desenhados (ferramenta de paredes, Visão do mestre ou opção da cena)? */
       contornos: () => this.contornosVisiveis(),
       /** V5: a porta sob o cursor (destaque), o modo de arco, o cursor do mouse e o ponto de fixação. */

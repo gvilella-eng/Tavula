@@ -14,6 +14,7 @@ import { CompendioDaMesaSchema } from "./compendio.ts";
 import { CondicaoSchema } from "./condicoes.ts";
 import { DesenhoSchema } from "./desenho.ts";
 import { FichaSchema } from "./ficha.ts";
+import { TracosDaNevoaSchema } from "./nevoa.ts";
 import { MAXIMO_DE_ZONAS, ZonaSchema } from "./zonas.ts";
 
 export const PAPEIS = ["mestre", "jogador", "assistente"] as const;
@@ -97,6 +98,11 @@ export const CenaSchema = z.object({
    * mapa, como sempre foi; voltar a ser mapa devolve tudo.
    */
   cartao: z.boolean().optional(),
+  /**
+   * N4: a névoa pintada à mão, em traços na ordem (o último que contém o ponto decide; ver `nevoa.ts`). Vale
+   * por cima da luz e da visão, e também na cena-cartão. Sem o campo não há névoa manual (cena antiga).
+   */
+  nevoa: TracosDaNevoaSchema.optional(),
   /** 12-1: rascunho do Claude do mestre: a cena em rascunho não pode virar a cena do grupo. */
   rascunho: z.boolean().optional(),
 });

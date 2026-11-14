@@ -5,6 +5,7 @@ import {
   type EventoSala,
   estadoInicial,
   type Mensagem,
+  type TracoDaNevoa,
   ZonaSchema,
 } from "@tabletop/shared";
 import { describe, expect, it } from "vitest";
@@ -809,5 +810,42 @@ describe("Armazenamento: zonas (7b-2)", () => {
     sql.exec("INSERT INTO entidades (colecao, id, dados) VALUES ('zonas', 'vazia', '{\"id\":1}')");
     expect(banco.carregar()?.zonas).toBeUndefined();
     expect(banco.carregar()?.tokens.length).toBeGreaterThan(3);
+  });
+});
+
+describe("Armazenamento: névoa pintada à mão do N4", () => {
+  const origem = { usuarioId: "m", idPedido: "p" };
+  const traco: TracoDaNevoa = { forma: "tudo", modo: "cobrir", pontos: [] };
+  const comNevoa = (base: ReturnType<typeof estadoInicial>, nevoa?: TracoDaNevoa[]) => ({
+    ...base,
+    cenas: base.cenas.map((c) => {
+      if (c.id !== "cena-1") return c;
+      const { nevoa: _antiga, ...resto } = c;
+      return nevoa ? { ...resto, nevoa } : resto;
+    }),
+  });
+
+  it("banco antigo abre sem névoa, sem migração nova; os traços gravam pelos eventos e sobrevivem ao reinício", async () => {
+    const { sql } = await abrirBanco();
+    const banco = new Armazenamento(sql as never);
+    banco.migrar();
+    const base = estadoInicial(semente);
+    banco.salvarTudo(base);
+    const reaberto = new Armazenamento(sql as never);
+    reaberto.migrar();
+    expect(reaberto.lerMeta("versao_esquema")).toBe("15");
+    expect(reaberto.carregar()?.cenas.find((c) => c.id === "cena-1")?.nevoa).toBeUndefined();
+
+    reaberto.salvarEventos({ ...comNevoa(base, [traco]), seq: 1 }, [
+      { seq: 1, origem, tipo: "nevoa.tracada", dados: { cenaId: "cena-1", traco } },
+    ]);
+    const depois = new Armazenamento(sql as never);
+    depois.migrar();
+    expect(depois.carregar()?.cenas.find((c) => c.id === "cena-1")?.nevoa).toEqual([traco]);
+
+    depois.salvarEventos({ ...comNevoa(base), seq: 2 }, [
+      { seq: 2, origem, tipo: "nevoa.desfeita", dados: { cenaId: "cena-1" } },
+    ]);
+    expect(depois.carregar()?.cenas.find((c) => c.id === "cena-1")?.nevoa).toBeUndefined();
   });
 });

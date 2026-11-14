@@ -469,6 +469,20 @@ O comando de **Preferências → Conectar o Claude** agora é uma linha só e fu
 6. **Itens mágicos.** Busque "Vorpal": Espada Vorpal, lendária, exige sintonização, com o bônus +3. Filtre por raridade. Poção de Cura e Pedra Iônica aparecem como "Varia".
 7. **Conferir com o livro.** Escolha cinco entradas de cada tipo e compare com o PDF: nome, números e o começo e o fim da descrição. Anote o que estiver trocado ou cortado em `docs/BUGS.md`.
 
+## N4 — Névoa pintada à mão
+
+1. **Abrir.** Como mestre, na barra à esquerda, clique em **Névoa** (ou tecle N com o foco no mapa). O painel abre à direita com Cobrir/Revelar, as formas e o raio do pincel.
+2. **Cobrir tudo.** "Cobrir tudo" pede confirmação na própria página. Confirme: o mapa fica coberto por um véu hachurado para você. Numa outra janela, como jogador, o mapa inteiro fica preto e os tokens que não são dele somem (o dele continua aparecendo). Cancele uma vez para ver que nada muda.
+3. **Revelar.** Mude para Revelar, forma Retângulo, e arraste sobre uma sala: o jogador passa a ver só aquele retângulo (e os tokens que estão dentro). Em menos de um segundo, sem recarregar.
+4. **Pincel.** Revelar com o Pincel (raio 2 m): arraste um corredor. O círculo mostra o tamanho. Troque para Cobrir e pinte de volta parte dele.
+5. **Polígono.** Revelar com o Polígono: clique nos cantos de uma sala torta; duplo clique (ou Enter) fecha, Esc cancela, Backspace tira o último ponto.
+6. **Desfazer.** Ctrl+Z (com o foco no mapa) e o botão Desfazer voltam um traço de cada vez. Com um polígono em andamento, Ctrl+Z tira o último ponto.
+7. **Luz e visão.** Numa cena com luz, ponha uma tocha numa área coberta: para o jogador continua escuro. Revele a área: volta a valer a luz e a visão de sempre.
+8. **Cena-cartão.** Transforme a cena de uma cidade em cartão, cubra tudo e revele a praça: o jogador só vê a praça. Revelar tudo devolve a cidade.
+9. **Ver como.** Em "Ver como" um jogador: a névoa fica opaca e os tokens somem como na tela dele; a ferramenta Névoa some da barra. Volte para "Eu mesmo".
+10. **Duplicar e exportar.** Duplique a cena: a cópia tem a mesma névoa. Exporte a mesa e importe de novo: a névoa volta. Uma cena antiga, sem névoa, abre normal.
+11. **Pesado.** Pinte uns 100 traços de pincel seguidos: o mapa continua fluido. Passando de 300 traços, a sala avisa para usar Cobrir tudo ou Revelar tudo.
+
 ## Se algo der errado
 - Anote a tela, o que fez e o que esperava, e mande para mim. Bug confirmado vai para `docs/BUGS.md`.
 - Para voltar à campanha de antes de mesas e contas, use a cópia de segurança indicada no topo.

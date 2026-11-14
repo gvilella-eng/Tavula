@@ -38,6 +38,11 @@ export const ATALHOS = {
     grupo: "Ferramentas",
     teclas: [["Z"]],
   },
+  nevoa: {
+    descricao: "Ferramenta Névoa (mestre): cobrir e revelar áreas do mapa à mão",
+    grupo: "Ferramentas",
+    teclas: [["N"]],
+  },
   arco: {
     descricao: "Ferramenta Paredes: alternar entre linha e arco (tangente ao trecho anterior)",
     grupo: "Ferramentas",
