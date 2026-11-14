@@ -1905,3 +1905,31 @@ Os lotes 7b-1 a 7b-3 (motor, zonas, editor e campanhas) vêm depois dos ajustes 
 - Streaming (SSE) e notificações do servidor (a lista de ferramentas só muda na próxima `tools/list`).
 - Um jeito do Claude Desktop sem o repositório (precisaria de um conector remoto com conta ou de uma ponte empacotada).
 - Gerar o token já com o nome do dispositivo.
+
+## M1 — como ficou (2026-11-14)
+
+**O que foi feito**
+- **O Claude sobe arquivos.** Ferramenta `arquivos` (a 12ª, para todos): `enviar` dá um link de envio de uso único e o comando `curl -sS -T "<caminho do arquivo>" "<link>"`; `estado`, `listar` e `usar` completam. Usos: mapa da cena, token, retrato da ficha, imagem do handout, som e compêndio; alvo pelo nome (`cena`, `token`, `ficha`, `handout`); no mapa, `quadrados` ou `pxPorQuadrado` ajustam o tamanho da cena. Sem shell, `base64` (até 2 MB).
+- **Caixa de entrada na sala.** `PUT /api/m/<id>/claude/envio/<segredo>` grava o arquivo no SQLite da sala (migração 16: `claude_envios` e `claude_envios_pedacos`, linhas de 1 MB, teto de 300 MB, 24 h). Código em `apps/server/src/caixaDeEntrada.ts` e no fim de `sala.ts` ("Os arquivos do Claude (M1)").
+- **O navegador do mestre processa.** `apps/web/src/caixaDoClaude.tsx`: ao receber `caixa.pendentes`, baixa de `GET caixa/<id>`, processa pelo mesmo `GerenteDeAssets` do botão de subir (`usarArquivo`, `registrarSom`, `registrarCompendio`), copia para a subpasta da pasta local se ela está liberada e manda `caixa.concluir` (ou `caixa.falhar` com o motivo). O aviso "O Claude enviou N arquivo(s)" (`aviso-caixa-claude`) fica no alto do mapa enquanto processa.
+- **A sala aplica como o Claude.** Em `caixa.concluir` a sala monta o uso (`usoDoArquivo`, em `packages/shared/src/envios.ts`) e o passa por `tratarIntencao` com o usuário e o token que pediram e o `loteId` do envio. Resultado: as permissões são as da pessoa, o Desfazer cobre e a difusão é a de sempre.
+- **Permissão antes do link.** `negarEnvio` (`enviosUso.ts`) roda `processar` sobre uma cópia do estado com um arquivo de mentira registrado: a resposta é a que a mesa daria ao aplicar.
+- Proibidos ao Claude: `caixa.concluir` e `caixa.falhar` (`PROIBIDAS_AO_CLAUDE`). Docs: `docs/protocolo.md` ("O Claude sobe arquivos (M1)"), `PROJETO.md` 4.12, `docs/MCP.md`, `docs/ROTEIRO-DE-TESTES.md` (M1).
+
+**Decisões (assumido)**
+- (assumido) Uma ferramenta só (`arquivos`, com as ações `enviar`, `estado`, `listar` e `usar`) em vez de acrescentar `hash` às ferramentas de cenas, fichas e notas: poucas ferramentas e a regra de permissão num lugar só. O brief pedia que as ferramentas existentes aceitassem `hash`; fica para o M2 se o Vilella preferir assim.
+- (assumido) Limites: link de 15 min; arquivo na caixa por 24 h; caixa de 300 MB; imagem de token, retrato e handout até 20 MB; mapa até 64 MB; som 20 MB; compêndio 16 MB; base64 até 2 MB; 20 pedidos de envio por minuto e 10 envios abertos por token; a ferramenta e o PUT esperam o navegador até 20 s.
+- (assumido) `quadrados` vale para o lado maior da imagem (45 = 45 x 45 numa imagem quadrada); sem `quadrados` nem `pxPorQuadrado` a cena mantém o px que já tem (padrão 70).
+- (assumido) Som com `cena` vira a trilha padrão dela (volume 0,6 ou o pedido); sem `cena` só fica registrado. Compêndio: a sala define o compêndio da mesa com o número de magias que o navegador leu.
+- (assumido) A cópia na subpasta (`mapas/`, `tokens/`, `retratos/`, `handouts/`, `sons/`) só acontece com a pasta liberada para escrita; o compêndio não é copiado (a pasta vale por cima do que a mesa guarda). **Sem a pasta liberada o arquivo é processado do mesmo jeito** (o cache do navegador é o que a mesa usa): o brief dizia que esperaria; não esperei porque nada depende da pasta.
+- (assumido) O corpo do POST do MCP continua em 512 KB, e sobe a 4 MB só quando a chamada cita a ferramenta `arquivos` (base64).
+- (assumido) O MCP em stdio (`apps/mcp`) não tem a caixa: a ferramenta responde que precisa do MCP por HTTP.
+- (assumido) O arquivo que o Claude manda não cria nada novo, então não há rascunho: o uso é uma edição do que já existe e entra no Desfazer.
+- (assumido) Um envio recusado depois de gastar o link queima o envio (o Claude pede outro); a recusa por `Origin` não gasta o link.
+- (assumido) Quando a sala recusa o corpo antes de ler (grande demais, sem tamanho), ela o descarta até 128 MB para o proxy do Vite e o curl mostrarem o motivo e não "bad gateway".
+
+**O que ficou para depois**
+- M2: as outras ações que faltam ao Claude (levar o grupo, eventos, combate...).
+- `hash` nas ferramentas de cenas, fichas, notas e objetos (hoje só em `arquivos.usar`).
+- Copiar o compêndio para a pasta e processar vários arquivos de compêndio juntos.
+- O link vencido só tem teste de unidade (o E2E não espera 15 minutos).

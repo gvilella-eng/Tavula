@@ -18,15 +18,19 @@ import {
   CorpoRevogarTokenSchema,
   CorpoTrocarSenhaSchema,
   calcularUso,
+  caminhoDoLinkDeEnvio,
   derivarMembros,
   desenhoVisivelPara,
   desfazerPassos,
+  detectarFormato,
   diaUtc,
   diffDoEstado,
+  type EnvioPendente,
   type Estado,
   type EventoSala,
   estadoInicial,
   eventoPara,
+  FORMATO_DO_SEGREDO_DE_ENVIO,
   type FonteDeAleatoriedade,
   fonteComSemente,
   gastarFicha,
@@ -34,15 +38,19 @@ import {
   type Intencao,
   idDoPedido,
   LIMITES_DO_CHAT,
+  LIMITES_DO_ENVIO,
   lerFrameDePedaco,
   lerIntencao,
   limitarPing,
+  limiteDoUso,
   type Mensagem,
   MestreDaMesaNovaSchema,
   mensagem,
   mensagemDeErroDeConta,
   mensagemParaUsuario,
+  motivoDoFormato,
   nomeDeExibicaoValido,
+  novoSegredoDeEnvio,
   type Pacote,
   type PingRepassado,
   type PlanoDeAceite,
@@ -59,6 +67,7 @@ import {
   type RascunhoRepassado,
   rascunhoDentroDoLimite,
   registrarMensagem,
+  sha256Hex,
   sonsDasZonasParaJogador,
   type TokenApagadoRecente,
   tempoDaSala,
@@ -66,6 +75,7 @@ import {
   tokenVisivelPara,
   type UltimoPing,
   type Usuario,
+  usoDoArquivo,
   VERSAO_PROTOCOLO,
   visaoPara,
 } from "@tabletop/shared";
@@ -73,8 +83,10 @@ import {
   CompendioLocal,
   type Conexao,
   ErroDoMcp,
+  type PedidoDeEnvio,
   type RespostaDaSala,
   respostaDeJsonInvalido,
+  textoDoEnvio,
   tratarCorpoMcp,
 } from "@tabletop/shared/mcp";
 import semente from "../../../fixtures/campanha.seed.json";
@@ -88,6 +100,7 @@ import {
   lerCookie,
   NOME_DO_COOKIE,
 } from "./autenticacao";
+import { CaixaDeEntrada, publicoDoEnvio } from "./caixaDeEntrada";
 import { type ContaPublica, ContasDaMesa, type Falha } from "./contas";
 import { carregarOuSemear, criarMesaNova } from "./inicializacao";
 import { Transferencias } from "./transferencias";
@@ -125,6 +138,8 @@ const INTERVALO_USO_MS = 5_000;
 const PRESENCA_DO_CLAUDE_HTTP_MS = 2 * 60_000;
 /** 12-3: o corpo de um POST do MCP (JSON-RPC) pode ser maior que o das rotas de conta; passar disso é 413. */
 const TAMANHO_MAXIMO_DO_CORPO_MCP = 512 * 1024;
+/** M1: a chamada da ferramenta `arquivos` pode levar o arquivo em base64 (até 2 MB de arquivo, uns 2,7 MB de texto): o teto dela é maior. */
+const TAMANHO_MAXIMO_DO_CORPO_DE_ARQUIVOS = 4 * 1024 * 1024;
 const MENSAGENS_POR_LOTE_DE_USO = 50;
 /** As intenções que criam uma mensagem no chat: limitadas a 10 por segundo, por conexão. */
 const INTENCOES_DE_CHAT = new Set<string>([
@@ -284,10 +299,18 @@ export class Sala extends DurableObject<Env> {
   private compendioDoMcp: CompendioLocal | null = null;
   /** 12-3: quanto "Claude conectado" vale depois de uma chamada HTTP (o `MODO=teste` encurta, para o teste ver a presença sumir). */
   private presencaDoClaudeHttpMs = PRESENCA_DO_CLAUDE_HTTP_MS;
+  /** M1: a caixa de entrada dos arquivos que o Claude manda (os bytes ficam no SQLite da sala até o navegador do mestre processar). */
+  private readonly caixa: CaixaDeEntrada;
+  /** M1: quem espera um envio acabar (a ferramenta `estado` e o PUT do link), por id do envio (só memória). */
+  private readonly esperandoEnvio = new Map<string, Set<() => void>>();
+  /** M1: as tentativas de link inválido por IP e os pedidos de envio por token (só memória; a janela é de 1 minuto). */
+  private readonly falhasDeEnvio = new Map<string, number[]>();
+  private readonly pedidosDeEnvio = new Map<string, number[]>();
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
     this.banco = new Armazenamento(ctx.storage.sql);
+    this.caixa = new CaixaDeEntrada(ctx.storage.sql);
     this.contas = new ContasDaMesa(ctx.storage.sql);
     this.agenda = new Agendador(ctx.storage.sql, ctx.storage);
     this.transferencias = new Transferencias({
@@ -548,6 +571,11 @@ export class Sala extends DurableObject<Env> {
     if (pathname === "/api/renomeada" && request.method === "POST") return this.renomeada(request);
     if (pathname === "/ws") return this.abrirSocket(request);
     if (pathname === "/api/mcp") return this.rotaMcp(request);
+    // M1: o link de envio de arquivo do Claude (PUT, o segredo é o link) e o download do arquivo pelo navegador do mestre (GET).
+    const doEnvio = /^\/api\/claude\/envio\/([A-Za-z0-9_-]{1,80})$/.exec(pathname);
+    if (doEnvio) return this.rotaDoEnvioDoClaude(request, doEnvio[1] ?? "");
+    const daCaixa = /^\/api\/caixa\/([A-Za-z0-9_-]{1,64})$/.exec(pathname);
+    if (daCaixa && request.method === "GET") return this.baixarDaCaixa(request, daCaixa[1] ?? "");
     if (pathname.startsWith("/api/conta/") && request.method === "POST") {
       return this.rotaDeConta(request, pathname.slice("/api/conta/".length));
     }
@@ -1078,6 +1106,7 @@ export class Sala extends DurableObject<Env> {
     if (usuario.papel === "mestre") {
       this.enviarProgresso();
       this.enviar(servidor, this.textoDoAvisoDeContas(null));
+      this.avisarPendentes(servidor);
     }
     this.enviarLotes(usuario.id);
     this.difundirPresenca();
@@ -1132,8 +1161,13 @@ export class Sala extends DurableObject<Env> {
     if (!request.headers.get("Content-Type")?.toLowerCase().startsWith("application/json")) {
       return json({ erro: "tipo_invalido" }, 415);
     }
+    const declarado = Number(request.headers.get("Content-Length") ?? 0);
+    if (declarado > TAMANHO_MAXIMO_DO_CORPO_DE_ARQUIVOS) return json({ erro: "corpo_grande" }, 413);
     const texto = await request.text();
-    if (texto.length > TAMANHO_MAXIMO_DO_CORPO_MCP) return json({ erro: "corpo_grande" }, 413);
+    const teto = texto.includes('"arquivos"')
+      ? TAMANHO_MAXIMO_DO_CORPO_DE_ARQUIVOS
+      : TAMANHO_MAXIMO_DO_CORPO_MCP;
+    if (texto.length > teto) return json({ erro: "corpo_grande" }, 413);
     let corpo: unknown;
     try {
       corpo = JSON.parse(texto);
@@ -1144,7 +1178,10 @@ export class Sala extends DurableObject<Env> {
     await this.marcarClaudePorHttp(t.usuarioId);
     this.compendioDoMcp ??= CompendioLocal.doExemplo();
     const saida = await tratarCorpoMcp(corpo, {
-      conexao: this.conexaoDoMcp(t.usuarioId, t.tokenId),
+      conexao: this.conexaoDoMcp(t.usuarioId, t.tokenId, {
+        origem: new URL(request.url).origin,
+        mesaId: this.mesaIdDe(request),
+      }),
       compendio: this.compendioDoMcp,
     });
     if (saida.corpo === undefined) return new Response(null, { status: saida.status });
@@ -1170,7 +1207,11 @@ export class Sala extends DurableObject<Env> {
    * A "conexão" que as ferramentas usam na rota HTTP: o estado é o da própria sala (a visão deste usuário, refeita depois
    * de cada pedido) e cada `enviar` passa por `tratarIntencao`, igual ao WebSocket do Claude.
    */
-  private conexaoDoMcp(usuarioId: string, tokenId: string): Conexao {
+  private conexaoDoMcp(
+    usuarioId: string,
+    tokenId: string,
+    base: { origem: string; mesaId: string },
+  ): Conexao {
     let cache: Estado | null = null;
     const eu = (): Usuario => {
       const u = this.estado.usuarios.find((x) => x.id === usuarioId);
@@ -1212,6 +1253,12 @@ export class Sala extends DurableObject<Env> {
       };
     };
     return {
+      arquivos: {
+        criarEnvio: (p) => this.criarEnvioDoClaude(usuarioId, tokenId, p, base),
+        guardarBytes: (p) => this.guardarBytesDoClaude(usuarioId, tokenId, p),
+        estado: (id, esperaMs) => this.estadoDoEnvio(usuarioId, id, esperaMs ?? 0),
+        mestreOnline: () => this.mestreOnline(),
+      },
       esperarPronto: async () => undefined,
       estadoOuNulo: () => {
         try {
@@ -1241,6 +1288,492 @@ export class Sala extends DurableObject<Env> {
     };
   }
 
+  // --- Os arquivos do Claude (M1) -------------------------------------------------------------
+
+  /** Quantas vezes algo aconteceu no último minuto (e anota agora); a janela é deslizante. */
+  private contarNoMinuto(mapa: Map<string, number[]>, chave: string, agora: number): number {
+    const lista = (mapa.get(chave) ?? []).filter((t) => agora - t < 60_000);
+    lista.push(agora);
+    mapa.set(chave, lista);
+    return lista.length;
+  }
+
+  /** Há um navegador de mestre conectado agora (a conexão do Claude não conta)? */
+  private mestreOnline(): boolean {
+    return this.ctx
+      .getWebSockets()
+      .some(
+        (s) =>
+          s.readyState === WebSocket.OPEN &&
+          this.identidadeDe(s)?.claude !== true &&
+          this.usuarioDe(s)?.papel === "mestre",
+      );
+  }
+
+  /** Acorda quem espera este envio acabar. */
+  private notificarEnvio(id: string): void {
+    const quem = this.esperandoEnvio.get(id);
+    if (!quem) return;
+    this.esperandoEnvio.delete(id);
+    for (const acordar of quem) acordar();
+  }
+
+  private esperarMudancaDoEnvio(id: string, ms: number): Promise<void> {
+    return new Promise((resolve) => {
+      const conjunto = this.esperandoEnvio.get(id) ?? new Set<() => void>();
+      this.esperandoEnvio.set(id, conjunto);
+      const acordar = () => {
+        clearTimeout(relogio);
+        conjunto.delete(acordar);
+        resolve();
+      };
+      const relogio = setTimeout(acordar, Math.max(0, ms));
+      conjunto.add(acordar);
+    });
+  }
+
+  /** O estado do envio de quem pergunta (um usuário só vê os dele); com `esperaMs`, espera acabar ou o prazo passar. */
+  private async estadoDoEnvio(usuarioId: string, id: string, esperaMs: number) {
+    const fim = Date.now() + esperaMs;
+    for (;;) {
+      const e = this.caixa.ler(id);
+      if (!e || e.usuarioId !== usuarioId) return null;
+      const acabou = e.estado === "aplicado" || e.estado === "erro";
+      const resta = fim - Date.now();
+      if (acabou || resta <= 0) return publicoDoEnvio(e);
+      await this.esperarMudancaDoEnvio(id, resta);
+    }
+  }
+
+  /** O envio acabou (aplicado ou com erro): acorda quem espera e atualiza a lista do navegador do mestre. */
+  private fimDoEnvio(id: string): void {
+    this.notificarEnvio(id);
+    this.avisarPendentes();
+  }
+
+  /** Manda aos navegadores de mestre os arquivos do Claude que esperam processamento (um socket só, ou todos). */
+  private avisarPendentes(para?: WebSocket): void {
+    try {
+      const envios: EnvioPendente[] = this.caixa.pendentes(Date.now()).map((e) => ({
+        id: e.id,
+        uso: e.uso,
+        nome: e.nome.slice(0, 200),
+        bytes: e.bytes,
+        mime: e.mime ?? "application/octet-stream",
+      }));
+      const texto = mensagem({ tipo: "caixa.pendentes", dados: { envios } });
+      if (para) {
+        if (envios.length > 0) this.enviar(para, texto);
+        return;
+      }
+      for (const ws of this.ctx.getWebSockets()) {
+        if (this.identidadeDe(ws)?.claude === true) continue;
+        if (this.usuarioDe(ws)?.papel === "mestre") this.enviar(ws, texto);
+      }
+    } catch (e) {
+      // A caixa nunca derruba quem entra na mesa.
+      console.error("caixa de entrada: falha ao avisar os pendentes", e);
+    }
+  }
+
+  /** Abre um envio para o Claude de `usuarioId`: confere o ritmo e o teto de abertos e dá o link de uso único. */
+  private async criarEnvioDoClaude(
+    usuarioId: string,
+    tokenId: string,
+    p: PedidoDeEnvio,
+    base: { origem: string; mesaId: string },
+  ): Promise<{ id: string; link: string; expiraEmMs: number }> {
+    const agora = Date.now();
+    this.conferirRitmoDeEnvio(tokenId, agora);
+    const segredo = novoSegredoDeEnvio();
+    const id = this.caixa.criar(
+      {
+        usuarioId,
+        tokenId,
+        uso: p.uso,
+        nome: p.nome,
+        alvo: p.alvo,
+        opcoes: p.opcoes,
+        loteId: p.lote.loteId,
+        loteDescricao: p.lote.lote,
+        hashDoSegredo: await sha256Hex(new TextEncoder().encode(segredo)),
+      },
+      agora,
+    );
+    return {
+      id,
+      link: `${base.origem}${caminhoDoLinkDeEnvio(base.mesaId, segredo)}`,
+      expiraEmMs: LIMITES_DO_ENVIO.prazoDoLinkMs,
+    };
+  }
+
+  private conferirRitmoDeEnvio(tokenId: string, agora: number): void {
+    if (
+      this.contarNoMinuto(this.pedidosDeEnvio, tokenId, agora) > LIMITES_DO_ENVIO.porMinutoPorToken
+    ) {
+      throw new ErroDoMcp(
+        "Devagar: muitos pedidos de envio de arquivo por minuto. Espere um pouco.",
+      );
+    }
+    if (this.caixa.abertosDoToken(tokenId, agora) >= LIMITES_DO_ENVIO.abertosPorToken) {
+      throw new ErroDoMcp(
+        `Há ${LIMITES_DO_ENVIO.abertosPorToken} envios abertos. Termine ou espere os links vencerem (15 min) antes de abrir outro.`,
+      );
+    }
+  }
+
+  /** O arquivo já em mãos (base64): abre o envio e guarda os bytes na caixa de uma vez. */
+  private async guardarBytesDoClaude(
+    usuarioId: string,
+    tokenId: string,
+    p: PedidoDeEnvio & { bytes: Uint8Array },
+  ): Promise<{ id: string }> {
+    const agora = Date.now();
+    this.conferirRitmoDeEnvio(tokenId, agora);
+    if (p.bytes.length + this.caixa.bytesNaCaixa() > LIMITES_DO_ENVIO.bytesDaCaixa) {
+      throw new ErroDoMcp(
+        "A caixa de entrada da mesa está cheia. Espere o mestre processar o que já está nela.",
+      );
+    }
+    const formato = detectarFormato(p.bytes);
+    const motivo = motivoDoFormato(p.uso, formato, p.bytes.length);
+    if (motivo || !formato) throw new ErroDoMcp(motivo ?? "Formato não reconhecido.");
+    const segredo = novoSegredoDeEnvio();
+    const hashDoSegredo = await sha256Hex(new TextEncoder().encode(segredo));
+    const id = this.caixa.criar(
+      {
+        usuarioId,
+        tokenId,
+        uso: p.uso,
+        nome: p.nome,
+        alvo: p.alvo,
+        opcoes: p.opcoes,
+        loteId: p.lote.loteId,
+        loteDescricao: p.lote.lote,
+        hashDoSegredo,
+      },
+      agora,
+    );
+    // Nada de link: este envio já tem o arquivo.
+    this.caixa.gastarLink(hashDoSegredo, agora);
+    const tam = LIMITES_DO_ENVIO.tamanhoDoPedacoNoBanco;
+    for (let i = 0, de = 0; de < p.bytes.length; i++, de += tam) {
+      this.caixa.gravarPedaco(id, i, p.bytes.subarray(de, de + tam));
+    }
+    this.caixa.receber(id, p.bytes.length, formato.mime, agora);
+    this.avisarPendentes();
+    return { id };
+  }
+
+  /** O link recusado: o texto vai para o Claude (que o repassa ao mestre), sem dizer nada além do necessário. */
+  private erroDeEnvio(codigo: string, mensagemDoErro: string, status: number): Response {
+    return json({ ok: false, erro: codigo, mensagem: mensagemDoErro }, status);
+  }
+
+  /**
+   * `PUT /api/m/<id>/claude/envio/<segredo>`: o Claude manda o arquivo pelo link de uso único (`curl -T`). O segredo é a única
+   * autorização (o modelo não vê o token); só o hash dele fica guardado. Recusa `Origin` (como o MCP), exige `Content-Length`,
+   * para no limite do uso, confere o formato pelos primeiros bytes e guarda em linhas de 1 MB. Com o navegador do mestre
+   * aberto, espera até 20 s o resultado e o devolve na resposta.
+   */
+  private async rotaDoEnvioDoClaude(request: Request, segredo: string): Promise<Response> {
+    if (request.method !== "PUT") {
+      return new Response(null, { status: 405, headers: { Allow: "PUT" } });
+    }
+    if (request.headers.get("Origin") !== null) {
+      return json(
+        { erro: "origem_invalida", mensagem: mensagemDeErroDeConta("origem_invalida") },
+        403,
+      );
+    }
+    const agora = Date.now();
+    const ip = this.ipDe(request);
+    // Só o link inválido conta contra o IP (adivinhar um segredo de 32 bytes não vai a lugar nenhum; isto só segura o ruído).
+    const recentes = (this.falhasDeEnvio.get(ip) ?? []).filter((t) => agora - t < 60_000);
+    if (recentes.length > 30) {
+      return this.erroDeEnvio("muitas_tentativas", "Muitas tentativas. Espere um minuto.", 429);
+    }
+    const linkInvalido = (): Response => {
+      this.falhasDeEnvio.set(ip, [...recentes, agora]);
+      return this.erroDeEnvio("link_invalido", "Link de envio inválido.", 404);
+    };
+    if (!FORMATO_DO_SEGREDO_DE_ENVIO.test(segredo)) return linkInvalido();
+    const r = this.caixa.gastarLink(await sha256Hex(new TextEncoder().encode(segredo)), agora);
+    if (!r.ok) {
+      return r.motivo === "desconhecido"
+        ? linkInvalido()
+        : this.erroDeEnvio(
+            "link_gasto",
+            r.motivo === "vencido"
+              ? "O link venceu (vale 15 minutos). Peça outro com `arquivos`."
+              : "Este link já foi usado (vale uma vez). Peça outro com `arquivos`.",
+            410,
+          );
+    }
+    // Daqui para a frente o link já foi gasto: qualquer recusa queima o envio e o Claude pede outro.
+    const envio = r.envio;
+    const recusar = async (
+      codigo: string,
+      texto: string,
+      status: number,
+      descartar = false,
+    ): Promise<Response> => {
+      this.caixa.falhar(envio.id, texto);
+      this.fimDoEnvio(envio.id);
+      // Quem recusa antes de ler o corpo o descarta (até 128 MB): fechar a conexão com o corpo ainda subindo faria o proxy do
+      // Vite (e o curl) mostrarem um erro de conexão em vez do motivo.
+      if (descartar && request.body && !request.body.locked) {
+        const leitor = request.body.getReader();
+        let lidos = 0;
+        try {
+          while (lidos < 128 * 1024 * 1024) {
+            const { done, value } = await leitor.read();
+            if (done) break;
+            lidos += value.length;
+          }
+          await leitor.cancel().catch(() => {});
+        } catch {
+          // a conexão caiu: a recusa vai do mesmo jeito
+        }
+      }
+      return this.erroDeEnvio(codigo, texto, status);
+    };
+    if (!this.contas.tokenDoClaudeValido(envio.tokenId, this.ehTeste)) {
+      return recusar(
+        "token_revogado",
+        "O token do Claude que pediu este envio foi revogado.",
+        401,
+        true,
+      );
+    }
+    const cabecalho = request.headers.get("Content-Length");
+    const declarado =
+      cabecalho !== null && /^\d+$/.test(cabecalho) ? Number(cabecalho) : Number.NaN;
+    if (Number.isNaN(declarado)) {
+      return recusar(
+        "sem_tamanho",
+        "Mande o arquivo com Content-Length (curl -T faz isso).",
+        411,
+        true,
+      );
+    }
+    if (declarado === 0) return recusar("vazio", "O arquivo está vazio.", 400, true);
+    const limite = limiteDoUso(envio.uso);
+    if (declarado > limite) {
+      return recusar(
+        "grande_demais",
+        `Arquivo grande demais para este uso: o limite é ${Math.round(limite / 1024 / 1024)} MB.`,
+        413,
+        true,
+      );
+    }
+    if (declarado + this.caixa.bytesNaCaixa() > LIMITES_DO_ENVIO.bytesDaCaixa) {
+      return recusar(
+        "caixa_cheia",
+        "A caixa de entrada da mesa está cheia. Espere o mestre processar o que já está nela.",
+        507,
+        true,
+      );
+    }
+    if (!request.body) return recusar("vazio", "O arquivo está vazio.", 400);
+
+    // Lê o corpo aos poucos, guardando em linhas de 1 MB, e para se passar do que foi declarado.
+    const tam = LIMITES_DO_ENVIO.tamanhoDoPedacoNoBanco;
+    const leitor = request.body.getReader();
+    let atual = new Uint8Array(tam);
+    let usado = 0;
+    let indice = 0;
+    let total = 0;
+    let cabeca = new Uint8Array(0);
+    try {
+      for (;;) {
+        const { done, value } = await leitor.read();
+        if (done) break;
+        total += value.length;
+        if (total > declarado || total > limite) {
+          await leitor.cancel().catch(() => {});
+          return recusar("grande_demais", "O arquivo é maior do que o Content-Length disse.", 413);
+        }
+        if (cabeca.length < 64) {
+          const junto = new Uint8Array(cabeca.length + Math.min(64, value.length));
+          junto.set(cabeca);
+          junto.set(value.subarray(0, Math.min(64, value.length)), cabeca.length);
+          cabeca = junto;
+        }
+        let de = 0;
+        while (de < value.length) {
+          const cabe = Math.min(tam - usado, value.length - de);
+          atual.set(value.subarray(de, de + cabe), usado);
+          usado += cabe;
+          de += cabe;
+          if (usado === tam) {
+            this.caixa.gravarPedaco(envio.id, indice++, atual);
+            atual = new Uint8Array(tam);
+            usado = 0;
+          }
+        }
+      }
+      if (usado > 0) this.caixa.gravarPedaco(envio.id, indice++, atual.subarray(0, usado));
+    } catch (e) {
+      console.error("caixa de entrada: falha ao receber o arquivo", e);
+      return recusar("falha", "O envio foi interrompido. Peça outro link e tente de novo.", 400);
+    }
+    if (total !== declarado) {
+      return recusar(
+        "incompleto",
+        "O arquivo chegou incompleto. Peça outro link e tente de novo.",
+        400,
+      );
+    }
+    const formato = detectarFormato(cabeca);
+    const motivo = motivoDoFormato(envio.uso, formato, total);
+    if (motivo || !formato) return recusar("formato", motivo ?? "Formato não reconhecido.", 415);
+
+    this.caixa.receber(envio.id, total, formato.mime, Date.now());
+    this.avisarPendentes();
+    if (this.mestreOnline()) {
+      const v = await this.estadoDoEnvio(envio.usuarioId, envio.id, LIMITES_DO_ENVIO.esperaMs);
+      if (v) {
+        return json({
+          ok: v.estado !== "erro",
+          envio: v.id,
+          estado: v.estado,
+          mensagem: textoDoEnvio(v),
+        });
+      }
+    }
+    const v = this.caixa.ler(envio.id);
+    return json({
+      ok: true,
+      envio: envio.id,
+      estado: v?.estado ?? "recebido",
+      mensagem: v ? textoDoEnvio(publicoDoEnvio(v)) : "Recebido.",
+    });
+  }
+
+  /** `GET /api/m/<id>/caixa/<envioId>`: o navegador do mestre baixa o arquivo para processar (só o mestre, pelo cookie dele). */
+  private async baixarDaCaixa(request: Request, id: string): Promise<Response> {
+    const quem = await this.identificar(request);
+    const u = quem && this.estado.usuarios.find((x) => x.id === quem.usuarioId);
+    if (!u) return new Response(null, { status: 401 });
+    if (u.papel !== "mestre") return json({ erro: "sem_permissao" }, 403);
+    const e = this.caixa.ler(id);
+    if (!e || (e.estado !== "recebido" && e.estado !== "processando")) {
+      return json({ erro: "inexistente" }, 404);
+    }
+    const agora = Date.now();
+    // Outro navegador do mestre já está processando (há menos de 90 s): este espera.
+    if (e.estado === "processando" && agora - (e.processandoEm ?? 0) < 90_000) {
+      return json({ erro: "em_processamento" }, 409);
+    }
+    this.caixa.marcarProcessando(id, agora);
+    const indices = this.caixa.indicesDosPedacos(id);
+    const caixa = this.caixa;
+    let proximo = 0;
+    const corpo = new ReadableStream<Uint8Array>({
+      pull(controle) {
+        const i = indices[proximo++];
+        if (i === undefined) {
+          controle.close();
+          return;
+        }
+        const pedaco = caixa.lerPedaco(id, i);
+        if (pedaco) controle.enqueue(pedaco);
+      },
+    });
+    return new Response(corpo, {
+      headers: {
+        "Content-Type": e.mime ?? "application/octet-stream",
+        "Content-Length": String(e.bytes),
+        "Cache-Control": "no-store",
+      },
+    });
+  }
+
+  /**
+   * `caixa.concluir` e `caixa.falhar`: o navegador do mestre acabou de processar (ou desistiu). Em `concluir` o arquivo já está
+   * registrado (`asset.registrar`); a sala aplica o uso COMO O CLAUDE que o pediu, no lote dele (assim o Desfazer o desfaz e as
+   * permissões são as dele), guarda o resultado, apaga os bytes e acorda quem espera.
+   */
+  private async concluirEnvio(
+    rem: Remetente,
+    intencao: Extract<Intencao, { tipo: "caixa.concluir" | "caixa.falhar" }>,
+  ): Promise<Tratada> {
+    const recusa = (codigo: CodigoDeErro, texto: string): Tratada => ({
+      ok: false,
+      codigo,
+      mensagem: texto,
+    });
+    if (rem.claude || rem.usuario.papel !== "mestre") {
+      return recusa(
+        "sem_permissao",
+        "Só o mestre, pelo navegador dele, conclui os arquivos do Claude.",
+      );
+    }
+    const e = this.caixa.ler(intencao.dados.envioId);
+    if (!e || (e.estado !== "recebido" && e.estado !== "processando")) {
+      return recusa("dados_invalidos", "Este envio não está esperando.");
+    }
+    const falhar = (motivo: string): Tratada => {
+      this.caixa.falhar(e.id, motivo);
+      this.fimDoEnvio(e.id);
+      return { ok: true };
+    };
+    if (intencao.tipo === "caixa.falhar") return falhar(intencao.dados.motivo);
+
+    const { hash, magias } = intencao.dados;
+    // O `asset.registrar` do navegador vem antes, mas a sala pode estar no meio de outra coisa: espera um pouco pelo registro.
+    let meta = this.estado.assets?.find((a) => a.hash === hash);
+    for (let i = 0; !meta && i < 40; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      meta = this.estado.assets?.find((a) => a.hash === hash);
+    }
+    if (!meta) return falhar("A mesa não registrou o arquivo processado.");
+    const tipoCerto =
+      e.uso === "mapa"
+        ? meta.tipo === "mapa"
+        : e.uso === "som"
+          ? meta.tipo === "som"
+          : e.uso === "compendio"
+            ? meta.tipo === "compendio"
+            : meta.tipo === "token" || meta.tipo === "retrato";
+    if (!tipoCerto) return falhar("O arquivo processado não é do tipo certo para este uso.");
+
+    const aplicar = usoDoArquivo(
+      e.uso,
+      e.alvo,
+      hash,
+      meta,
+      e.opcoes,
+      magias === undefined ? {} : { magias },
+    );
+    if (!aplicar.ok) return falhar(aplicar.motivo);
+    if (aplicar.tipo !== null) {
+      const doClaude = this.estado.usuarios.find((u) => u.id === e.usuarioId);
+      if (!doClaude) return falhar("O usuário que pediu o envio não está mais na mesa.");
+      const lida = lerIntencao(
+        JSON.stringify({
+          v: VERSAO_PROTOCOLO,
+          id: `caixa-${e.id}`,
+          tipo: aplicar.tipo,
+          dados: aplicar.dados,
+          loteId: e.loteId,
+          lote: e.loteDescricao.slice(0, 120),
+        }),
+      );
+      if (!lida.ok) return falhar("Os dados do uso não servem.");
+      const t = await this.tratarIntencao(
+        { ws: null, usuario: doClaude, claude: true, tokenId: e.tokenId },
+        lida.valor,
+      );
+      if (!t.ok) return falhar(t.mensagem);
+    }
+    const frase = aplicar.frase.charAt(0).toUpperCase() + aplicar.frase.slice(1);
+    this.caixa.aplicar(e.id, hash, `${frase}.`);
+    this.fimDoEnvio(e.id);
+    return { ok: true };
+  }
+
   /** Rotas que só existem com `MODO=teste` (E2E): nunca no `pnpm dev`. */
   private async rotaDeTeste(url: URL): Promise<Response> {
     const { pathname } = url;
@@ -1254,6 +1787,10 @@ export class Sala extends DurableObject<Env> {
       this.fonteDeDadosDeTeste = null;
       this.taxaDoChat.clear();
       this.baldes.clear();
+      this.caixa.apagarTudo();
+      this.esperandoEnvio.clear();
+      this.falhasDeEnvio.clear();
+      this.pedidosDeEnvio.clear();
       this.presencaDoClaudeHttpMs = PRESENCA_DO_CLAUDE_HTTP_MS;
       // Os tokens do Claude morrem com as contas: as conexões abertas com eles também.
       this.fecharSockets((i) => i.claude === true, "reiniciado");
@@ -1410,6 +1947,11 @@ export class Sala extends DurableObject<Env> {
     // 12-1: desfazer um lote do Claude do próprio usuário (a sala guarda o diário; nada passa por `processar`).
     if (intencao.tipo === "claude.desfazer") {
       return this.desfazerLote(usuario, intencao.id, intencao.dados.loteId);
+    }
+
+    // M1: o navegador do mestre conclui (ou desiste de) um arquivo da caixa de entrada: a sala aplica o uso como o Claude.
+    if (intencao.tipo === "caixa.concluir" || intencao.tipo === "caixa.falhar") {
+      return this.concluirEnvio(rem, intencao);
     }
 
     // No máximo 10 mensagens de chat por segundo por conexão (na rota HTTP, por token); o resto é recusado com aviso.

@@ -3750,4 +3750,32 @@ Ver `REDESIGN.md` ("N5") e `PASSAGEM.md` ("N5"). Desvio: os jogadores só baixam
 ### Roteiro manual
 `docs/ROTEIRO-DE-TESTES.md`, "N5".
 
-## Próximo: o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b, N4 e N5
+## Ajustes M1 — O Claude sobe arquivos para a mesa (entregue, aguardando o roteiro manual)
+
+### O que foi entregue
+- Ferramenta MCP **`arquivos`** (a 12ª): `enviar` dá um link de envio de uso único (15 min) e o comando `curl -sS -T "<caminho do arquivo>" "<link>"`; `estado`, `listar` e `usar` completam. Usos: mapa da cena, token, retrato da ficha, imagem do handout, som e compêndio. No mapa, `quadrados` (45 = 45 x 45) ou `pxPorQuadrado` ajustam o tamanho da cena. Sem shell, `base64` (até 2 MB).
+- Caixa de entrada na sala (SQLite, migração 16), `PUT claude/envio/<segredo>`, `GET caixa/<id>`, mensagem `caixa.pendentes` e intenções `caixa.concluir` e `caixa.falhar` (só o navegador do mestre).
+- O navegador do mestre processa pelo mesmo caminho do botão de subir; a sala aplica o uso como o Claude que pediu, no lote dele (o Desfazer tira o mapa ou a imagem). Aviso "O Claude enviou 1 arquivo".
+
+### Como rodar
+`pnpm dev` como sempre. Migração nova (16, aditiva e idempotente): a primeira abertura cria as duas tabelas. Para o Claude: "gere o mapa X, ponha na cena Y com 45 x 45 quadrados".
+
+### Verificação
+- `pnpm verify` uma vez: typecheck e lint limpos; unidade 1129 (shared), 138 (server), 139 (web), 19 (mcp); E2E 443 testes, 442 passaram e 1 falhou: `claude-12-3.spec.ts` "segurança do HTTP" (contava 11 ferramentas e agora são 12). Corrigi o número e rodei só esse spec: passou. Nenhum teste instável.
+- Novos: `envios.test.ts`, `mcp/arquivos.test.ts`, `apps/server/src/caixaDeEntrada.test.ts` (link de uso único, vencido, caixa, prazo, migração) e `e2e/tests/envio-m1.spec.ts` (7 testes: mapa para mestre e jogador com o tamanho da cena e o Desfazer; token e retrato; mesa fechada; link reusado, inventado, com Origin, não imagem, grande e token revogado; o jogador não põe mapa; base64, som e compêndio; mapa de 3150 x 3150 em tiles).
+- Alterados por mudança de propósito: `claude-12-2`, `claude-12-3` e `ferramentas.test`/`jsonrpc.test` (a lista de ferramentas ganhou `arquivos`); `claude.test` (a lista de proibidos ganhou `caixa.*`); os testes de migração (`versao_esquema` "15" virou "16").
+
+### Decisões
+Ver `REDESIGN.md` ("M1 — como ficou"): ferramenta única em vez de `hash` nas existentes, limites, `quadrados` pelo lado maior, som com `cena` vira trilha, cópia na subpasta só com a pasta liberada, corpo do MCP de 4 MB só para `arquivos`.
+
+### Desvios
+- O brief dizia que sem a pasta liberada o arquivo esperaria; a mesa processa do mesmo jeito (o cache do navegador é o que ela usa).
+- As ferramentas de cenas, fichas e notas não ganharam `hash`; só `arquivos.usar`.
+
+### Frágil
+Ver `PASSAGEM.md` ("M1"): o aplicar do uso é da sala; espera de até 2 s pelo `asset.registrar`; versão do esquema nos testes; o corpo de 4 MB só com a palavra `"arquivos"`.
+
+### Roteiro manual
+`docs/ROTEIRO-DE-TESTES.md`, "M1".
+
+## Próximo: M2 (as outras ações que faltam ao Claude) e o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b, N4, N5 e M1

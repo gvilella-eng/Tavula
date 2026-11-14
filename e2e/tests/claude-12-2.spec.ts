@@ -64,6 +64,7 @@ test("o jogador monta o personagem pelo Claude: magias do compÃªndio, 4d6 pelo C
     "compendio",
     "notas",
     "rolar",
+    "arquivos",
     "desfazer",
   ]);
 
@@ -184,6 +185,7 @@ test("o mestre monta uma cena pelo Claude (paredes, NPC, ciclo): rascunho invisÃ
     "automacoes",
     "rolar",
     "rascunhos",
+    "arquivos",
     "desfazer",
   ]);
 

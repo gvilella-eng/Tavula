@@ -117,10 +117,23 @@ chamada só. Se um nome for repetido ou não existir, a resposta diz o que corri
 | `automacoes` | mestre | Ciclos, reações, zonas e botões de evento. |
 | `rolar` | todos | Rola dados (expressão, teste ou ataque da ficha); o chat marca "pelo Claude". |
 | `rascunhos` | mestre | Lista, publica e descarta o que o Claude criou. |
+| `arquivos` | todos (jogador: só o que é dele) | Sobe um arquivo do computador para a mesa (mapa da cena, token, retrato, imagem de handout, som, compêndio) e usa um arquivo que já está na mesa (M1). |
 | `desfazer` | todos | Lista o que o Claude fez e desfaz um lote inteiro. |
 
 Coordenadas de cena são em **células**, a partir do canto de cima à esquerda `[0, 0]`, com meias células
 (`[1.5, 2]`). Um arco "de a até b passando por c" é `{"de": a, "ate": b, "por": c}`.
+
+## Subir arquivos (M1)
+
+"Gere ou ache o arquivo no computador, chame `arquivos`, rode o comando que ela devolve, pronto." Exemplo de pedido: *"Gere o mapa da cripta, ponha na cena Cripta e ajuste para 45 x 45 quadrados"*.
+
+1. O Claude gera o arquivo no computador (png, jpg, webp ou gif; som mp3, ogg ou wav; compêndio json).
+2. `arquivos` com `acao: enviar`, `uso` (mapa da cena, token, retrato da ficha, imagem do handout, som, compêndio), `nome` e o alvo pelo nome (`cena`, `token`, `ficha`, `handout`). No mapa, `quadrados: 45` (ou `pxPorQuadrado`) ajusta o tamanho da cena à imagem.
+3. A ferramenta devolve um **link de envio de uso único** (vale 15 minutos) e o comando pronto: `curl -sS -T "<caminho do arquivo>" "<link>"`. O Claude roda no shell e a resposta do curl já diz o que foi feito. **O token nunca passa pelo modelo**: o link é que autoriza.
+4. O navegador do mestre baixa o arquivo da caixa de entrada da sala, processa pelo mesmo caminho do botão de subir (tiles, redução, cifra) e a sala aplica o uso como o Claude, no lote dele (o Desfazer tira o mapa ou a imagem; o arquivo fica na pasta). Com a mesa do mestre fechada, o arquivo espera (até 24 h) e a mesa mostra "O Claude enviou 1 arquivo" e processa sozinha ao abrir.
+5. Sem shell (Claude Desktop, claude.ai): `base64` na mesma chamada, até 2 MB (gasta contexto).
+
+Outras ações: `estado` (consulta um envio, espera até 20 s), `listar` (os arquivos da mesa e onde são usados; só o mestre) e `usar` (põe na mesa um arquivo que já existe, pelo hash, sem reenviar). O jogador só põe imagem no que é dele (o próprio token, o retrato da própria ficha, o próprio handout); mapa, som e compêndio são do mestre.
 
 ## Desfazer e segurança
 

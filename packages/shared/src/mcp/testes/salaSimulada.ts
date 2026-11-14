@@ -1,8 +1,10 @@
 import {
+  type EnvioPublico,
   type Estado,
   estadoInicial,
   fonteComSemente,
   IntencaoSchema,
+  LIMITES_DO_ENVIO,
   modelosPadrao,
   processar,
   type Usuario,
@@ -12,7 +14,14 @@ import {
 import { CompendioLocal } from "../compendio.ts";
 import type { Contexto } from "../ferramentas/base.ts";
 import { novoLote } from "../servidor.ts";
-import type { Lote, LoteDoClaude, RespostaDaSala, SalaLike } from "../tipos.ts";
+import type {
+  ArquivosDaSala,
+  Lote,
+  LoteDoClaude,
+  PedidoDeEnvio,
+  RespostaDaSala,
+  SalaLike,
+} from "../tipos.ts";
 
 // Uma sala de mentira para os testes das ferramentas: ela roda as regras de verdade (`processar` do shared, com a marca
 // do Claude), então o que o teste confere é o que a mesa faria. Guarda o que foi enviado, com o lote de cada pedido.
@@ -50,6 +59,8 @@ export class SalaSimulada implements SalaLike {
   verdade: Estado;
   readonly enviados: Enviado[] = [];
   lotesDoClaude: LoteDoClaude[] = [];
+  /** M1: a caixa de entrada de mentira (só os testes de `arquivos` a ligam). */
+  arquivos?: ArquivosDaSala;
   private relogio = 0;
 
   constructor(
@@ -114,5 +125,46 @@ export class SalaSimulada implements SalaLike {
     const u = this.verdade.usuarios.find((x) => x.id === usuarioId);
     if (!u) throw new Error("usuário de teste não existe");
     return visaoPara(this.verdade, u);
+  }
+}
+
+/** M1: a caixa de entrada de mentira: guarda os pedidos, devolve um link falso e dá o resultado que o teste combinar. */
+export class CaixaSimulada implements ArquivosDaSala {
+  readonly pedidos: PedidoDeEnvio[] = [];
+  readonly guardados: (PedidoDeEnvio & { bytes: Uint8Array })[] = [];
+  readonly estados = new Map<string, EnvioPublico>();
+  online = true;
+
+  async criarEnvio(p: PedidoDeEnvio) {
+    this.pedidos.push(p);
+    return {
+      id: `env-${this.pedidos.length}`,
+      link: `http://sala/api/m/mesa/claude/envio/tve_${"a".repeat(43)}`,
+      expiraEmMs: LIMITES_DO_ENVIO.prazoDoLinkMs,
+    };
+  }
+
+  async guardarBytes(p: PedidoDeEnvio & { bytes: Uint8Array }) {
+    this.guardados.push(p);
+    const id = `env-b${this.guardados.length}`;
+    this.estados.set(id, {
+      id,
+      uso: p.uso,
+      nome: p.nome,
+      estado: "aplicado",
+      bytes: p.bytes.length,
+      criadoEm: 0,
+      hash: "ab".repeat(32),
+      resultado: "O mapa entrou na cena.",
+    });
+    return { id };
+  }
+
+  async estado(id: string) {
+    return this.estados.get(id) ?? null;
+  }
+
+  mestreOnline() {
+    return this.online;
   }
 }

@@ -18,6 +18,8 @@ export * from "./dados.ts";
 export * from "./desenho.ts";
 export * from "./desenhonucleo.ts";
 export * from "./desfazer.ts";
+export * from "./envios.ts";
+export * from "./enviosUso.ts";
 export * from "./estado.ts";
 export * from "./ficha.ts";
 export * from "./iluminacao.ts";

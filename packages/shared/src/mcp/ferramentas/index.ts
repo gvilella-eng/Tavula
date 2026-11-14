@@ -1,4 +1,5 @@
 import type { Estado, Usuario } from "../../index.ts";
+import { arquivos } from "./arquivos.ts";
 import { automacoes } from "./automacoes.ts";
 import type { QualquerFerramenta } from "./base.ts";
 import { cenas } from "./cenas.ts";
@@ -24,6 +25,7 @@ export const TODAS_AS_FERRAMENTAS: readonly QualquerFerramenta[] = [
   automacoes,
   rolar,
   rascunhos,
+  arquivos,
   desfazer,
 ];
 

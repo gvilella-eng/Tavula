@@ -31,6 +31,7 @@ describe("cada papel vê só as suas ferramentas", () => {
       "automacoes",
       "rolar",
       "rascunhos",
+      "arquivos",
       "desfazer",
     ]);
   });
@@ -45,6 +46,7 @@ describe("cada papel vê só as suas ferramentas", () => {
       "compendio",
       "notas",
       "rolar",
+      "arquivos",
       "desfazer",
     ]);
     for (const proibida of ["objetos", "cenas", "automacoes", "rascunhos"]) {
@@ -473,7 +475,7 @@ describe("as definições que a IA recebe", () => {
 
   it("não há ferramenta genérica de mandar qualquer intenção", () => {
     const nomesDeTodas = TODAS_AS_FERRAMENTAS.map((f) => f.nome);
-    expect(nomesDeTodas).toHaveLength(11);
+    expect(nomesDeTodas).toHaveLength(12);
     for (const f of TODAS_AS_FERRAMENTAS) {
       const campos = JSON.stringify(definicaoDaFerramenta(f).inputSchema);
       expect(campos, f.nome).not.toMatch(/"(intencao|tipo_da_intencao|dados_crus)"/);

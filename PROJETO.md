@@ -828,8 +828,10 @@ criar cenas, notas do mestre, modelos de objeto, pontos, zonas, ciclos, reaçõe
 Regras que continuam:
 - **É mais um cliente da sala, não uma porta dos fundos:** passa pelas mesmas intenções, schemas zod e
   capacidades. As ferramentas do MCP são geradas a partir dos schemas.
-- **Não envia imagens** (premissa das imagens locais): refere-se aos arquivos pelo nome ou hash, e o
-  navegador do mestre busca na pasta dele.
+- **Não manda imagem pelo protocolo da mesa** (premissa das imagens locais): refere-se aos arquivos pelo nome ou hash,
+  e o navegador do mestre busca na pasta dele. **Desde o M1 o Claude também sobe arquivos**, por um caminho próprio
+  (a ferramenta `arquivos`, abaixo): o arquivo vai do computador do mestre para uma caixa de entrada da sala e o
+  navegador do mestre o processa.
 - Bom para regras, objetos, NPCs, notas e automações (pode ler a bíblia de uma campanha e popular a
   mesa). Ruim para desenhar paredes em cima de imagem: para isso, o editor de paredes.
 - **Paredes pelo MCP** (V5, só anotado): a futura ferramenta usa os mesmos campos da intenção
@@ -869,6 +871,15 @@ Regras que continuam:
 - **O código das ferramentas** (as 11, os nomes, os esquemas, `fichaPorPartes`, o formato e os erros) mora em `packages/shared/src/mcp` (entrada `@tabletop/shared/mcp`, que o navegador nunca carrega); a sala (HTTP) e o `apps/mcp` (stdio) usam o mesmo código. A rota HTTP é uma "conexão" que lê o estado da própria sala (a visão do usuário) e responde na hora.
 - **Presença**: sem conexão aberta, "Claude conectado" vale por 2 minutos depois de cada chamada (assumido); o "último uso" do token é gravado a cada chamada e a tela mostra "conectado agora" ou "usado há X min".
 - **Claude Desktop** continua com o servidor local (`apps/mcp`, stdio); o texto da tela diz com honestidade que isso exige o Távola baixado e o Node. O compêndio pela rota HTTP é o exemplo do SRD embutido no Worker.
+
+**M1: o Claude sobe arquivos para a mesa** (M1, 2026-11-14; pedido do Vilella: "o mestre não deve ter trabalho algum além de prompts"; detalhes em `docs/protocolo.md`, `docs/REDESIGN.md` e `docs/MCP.md`)
+
+- **O caso**: o Claude gerou um mapa PNG de 3150 x 3150 px (16 MB) numa pasta do computador e não conseguia pô-lo na cena; o mestre subiu à mão e calculou sozinho o tamanho da cena (45 x 45 a 70 px por quadrado).
+- **Ferramenta `arquivos`** (a 12ª; para todos). `enviar` recebe o `uso` (mapa da cena, token, retrato da ficha, imagem do handout, som, compêndio), o `nome` do arquivo (só para exibição) e o alvo **pelo nome** (`cena`, `token`, `ficha`, `handout`); no mapa, `quadrados` ou `pxPorQuadrado` ajustam o tamanho da cena. Devolve um **link de envio de uso único** (`PUT <origem>/api/m/<id>/claude/envio/<segredo>`, 15 minutos) e o comando `curl -sS -T "<caminho do arquivo>" "<link>"`. Sem shell, o arquivo pode ir em `base64` (até 2 MB). `estado` consulta o envio (espera até 20 s), `listar` mostra os arquivos da mesa e onde são usados, e `usar` põe na mesa um arquivo que já existe, pelo hash.
+- **Caminho**: o PUT grava o arquivo numa **caixa de entrada** da sala (SQLite, em linhas de 1 MB; teto de 300 MB; 24 h; migração 16, aditiva e idempotente, fora da exportação). A sala avisa o navegador do mestre (`caixa.pendentes`), que baixa de `GET /api/m/<id>/caixa/<envio>` (cookie do mestre), processa pelo **mesmo caminho do botão de subir** (tiles, redução a 512 px, cifra se a pasta tem chave; som e compêndio como na tela), registra o asset e manda `caixa.concluir`. A **sala aplica o uso como o Claude que pediu**, no lote dele (assim as permissões são as dele, o diário do Desfazer o cobre e a difusão é a de sempre) e apaga os bytes. O PUT e a ferramenta esperam o resultado até 20 s; sem navegador de mestre aberto o arquivo espera e a mesa mostra "O Claude enviou 1 arquivo" ao abrir.
+- **Quem pode** é o que a pessoa pode pela tela: a ferramenta confere antes de dar o link, rodando as regras de verdade (`processar`) sobre uma cópia do estado. Mapa, som e compêndio são do mestre; o jogador só põe imagem no que é dele (com `asset.subir`).
+- **Segurança**: segredo de 32 bytes (`tve_`), só o hash guardado, uso único, preso ao token (revogar o token mata o link) e à mesa; a rota recusa qualquer `Origin`, exige `Content-Length`, para no limite do uso (imagem 20 MB, mapa 64 MB, som 20 MB, compêndio 16 MB), confere o formato pelos **primeiros bytes** (png, jpg, webp, gif; mp3, ogg, wav; json) e limita os pedidos por token. Nenhum caminho do computador chega à sala (o nome é limpo). A caixa e o aviso `caixa.pendentes` nunca chegam ao jogador, e `caixa.concluir` e `caixa.falhar` estão na lista de proibidos ao Claude.
+- **Desfazer** tira o mapa da cena ou a imagem do token; o arquivo fica na pasta.
 
 ### 4.13 Interface
 

@@ -500,6 +500,22 @@ Antes: ponha dois ou três arquivos mp3, ogg ou wav na pasta de imagens da mesa 
 11. **Exportar e importar.** Exporte a mesa e importe de novo: a trilha da cena, o som das zonas e as ações de som voltam (os arquivos continuam na sua pasta). Uma mesa antiga, sem som, abre normal.
 12. **Limites.** Tente um arquivo que não é mp3, ogg nem wav, ou maior que 20 MB: a lista recusa com uma mensagem clara.
 
+## M1 — O Claude sobe arquivos
+
+Antes: o Claude conectado (Preferências → Conectar o Claude) num computador com shell (Claude Code), a mesa aberta como mestre e outra janela como jogador. Tenha uma imagem de mapa, outra de token e um som mp3, ogg ou wav em alguma pasta do computador.
+
+1. **Mapa.** Peça: "Ponha o arquivo <caminho> como mapa da cena <nome> e ajuste para 45 x 45 quadrados". O Claude chama `arquivos`, roda o comando curl e o mapa aparece na cena do mestre e do jogador; a cena fica com o tamanho da imagem. Se a imagem é grande (3000 px ou mais), ela é cortada em tiles como pelo botão.
+2. **Aviso.** Enquanto a mesa processa, aparece "O Claude enviou 1 arquivo" no alto do mapa e depois "Pronto".
+3. **Desfazer.** Em Preferências → O que o Claude fez, desfaça o último lote: o mapa sai da cena. O arquivo continua na sua pasta de imagens.
+4. **Token e retrato.** Peça: "Use o arquivo <caminho> como imagem do token do <nome>" e "como retrato da ficha do <nome>". A imagem entra (reduzida a 512 px).
+5. **Mesa fechada.** Feche a janela do mestre e peça outro arquivo ao Claude. O Claude diz que o arquivo espera na caixa. Abra a mesa como mestre: aparece "O Claude enviou 1 arquivo" e a mesa aplica sozinha.
+6. **Som e compêndio.** Peça um som como trilha da cena e um arquivo de compêndio (json). O som toca nos jogadores; o compêndio da mesa muda.
+7. **Jogador.** Como jogador, peça ao Claude dele um mapa: ele recusa ("Só o mestre põe o mapa da cena"). Peça o retrato da sua própria ficha: passa. A ficha de outro jogador ele nem enxerga.
+8. **Sem shell.** Num cliente sem shell, peça uma imagem pequena (até 2 MB): o Claude manda em base64 e a imagem entra.
+9. **Link.** Rode o mesmo comando curl duas vezes: a segunda é recusada ("já foi usado"). Troque o arquivo por um texto qualquer com nome .png: recusado ("Não reconheci o formato").
+10. **Revogar.** Peça um envio e revogue o token em Preferências antes de rodar o comando: o curl responde que o token foi revogado.
+11. **Usar o que já existe.** Peça "Liste os arquivos da mesa" e depois "Use o mapa X na cena Y": entra sem reenviar.
+
 ## Se algo der errado
 - Anote a tela, o que fez e o que esperava, e mande para mim. Bug confirmado vai para `docs/BUGS.md`.
 - Para voltar à campanha de antes de mesas e contas, use a cópia de segurança indicada no topo.

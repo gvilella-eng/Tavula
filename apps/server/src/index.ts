@@ -64,6 +64,11 @@ function caminhoInterno(metodo: string, rota: string): string | null {
   if (rota === "ws") return "/ws";
   // 12-3: o MCP da sala por HTTP (só POST; GET e DELETE respondem 405 no Worker).
   if (rota === "mcp") return metodo === "POST" ? "/api/mcp" : null;
+  // M1: o link de envio de arquivo do Claude (PUT) e o download da caixa de entrada pelo navegador do mestre (GET).
+  const envio = /^claude\/envio\/([A-Za-z0-9_-]{1,80})$/.exec(rota);
+  if (envio) return metodo === "PUT" ? `/api/claude/envio/${envio[1]}` : null;
+  const caixa = /^caixa\/([A-Za-z0-9_-]{1,64})$/.exec(rota);
+  if (caixa) return metodo === "GET" ? `/api/caixa/${caixa[1]}` : null;
   if (metodo === "GET" && ["situacao", "usuarios", "eu", "contas", "conta/claude"].includes(rota)) {
     return `/api/${rota}`;
   }

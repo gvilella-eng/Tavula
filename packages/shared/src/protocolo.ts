@@ -36,6 +36,7 @@ import {
   DesenhoSchema,
   LIMITES_DO_DESENHO,
 } from "./desenho.ts";
+import { ConclusaoDoEnvioSchema, EnvioPendenteSchema, FalhaDoEnvioSchema } from "./envios.ts";
 import {
   CenaSchema,
   CONFIG_PADRAO,
@@ -1013,6 +1014,13 @@ export const IntencaoSchema = z.discriminatedUnion("tipo", [
    * responde é a sala (`claude.desfeito`), não `processar`.
    */
   intencao("claude.desfazer", z.object({ loteId: z.string().min(1).max(64) })),
+  /**
+   * M1, só o mestre (do navegador dele, nunca do Claude): o arquivo que o Claude mandou já foi baixado da caixa, processado e
+   * registrado (`concluir`, com o hash) ou não deu (`falhar`, com o motivo). Quem responde é a sala, que aplica o uso como o
+   * Claude, no lote dele (Desfazer), e apaga o arquivo da caixa; não passa por `processar`.
+   */
+  intencao("caixa.concluir", ConclusaoDoEnvioSchema),
+  intencao("caixa.falhar", FalhaDoEnvioSchema),
   intencao("campanha.exportar", SemDados),
   intencao("campanha.importar", z.object({ dados: z.unknown() })),
 ]);
@@ -1163,6 +1171,9 @@ export const capacidadeDaIntencao: Record<TipoIntencao, Capacidade | null> = {
   "rascunho.descartar": "mesa.configurar",
   // O lote é do usuário que pede: a sala confere (e só ela guarda o diário).
   "claude.desfazer": null,
+  // M1: a sala confere que quem manda é o mestre (a caixa de entrada é dele).
+  "caixa.concluir": "mesa.configurar",
+  "caixa.falhar": "mesa.configurar",
   "campanha.exportar": "campanha.exportar",
   "campanha.importar": "campanha.importar",
 };
@@ -1421,6 +1432,11 @@ export const MensagemDaSalaSchema = z.discriminatedUnion("tipo", [
    * 12-1: os lotes recentes do Claude do próprio usuário (o diário do Desfazer), do mais novo ao mais velho. Só o usuário
    * dono os recebe.
    */
+  /**
+   * M1, só os mestres (sockets do navegador, nunca o Claude): os arquivos que o Claude mandou e esperam ser processados. A sala
+   * manda ao conectar e a cada arquivo novo; o navegador baixa de `GET caixa/<id>`. Sem o caminho do computador de ninguém.
+   */
+  mensagemDaSala("caixa.pendentes", z.object({ envios: z.array(EnvioPendenteSchema).max(50) })),
   mensagemDaSala(
     "claude.lotes",
     z.object({

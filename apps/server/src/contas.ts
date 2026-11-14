@@ -1091,6 +1091,20 @@ export class ContasDaMesa {
     return { ok: true, usuarioId: l.usuario_id, contaId: l.conta_id, tokenId: l.id };
   }
 
+  /**
+   * M1: o token do Claude (pelo id) ainda vale? Existe, não foi revogado e, se tem conta, ela segue ativa e ligada à mesma vaga.
+   * O link de envio de arquivo fica preso ao token que o pediu: revogar o token mata o link. `permitirSemConta`: só com MODO=teste.
+   */
+  tokenDoClaudeValido(tokenId: string, permitirSemConta: boolean): boolean {
+    const l = this.sql
+      .exec("SELECT conta_id, usuario_id FROM tokens_claude WHERE id = ?", tokenId)
+      .toArray()[0] as unknown as { conta_id: string | null; usuario_id: string } | undefined;
+    if (!l) return false;
+    if (l.conta_id === null) return permitirSemConta;
+    const conta = this.porId(l.conta_id);
+    return conta?.status === "ativa" && conta.usuario_id === l.usuario_id;
+  }
+
   /** Só para o `/teste/zerar` (MODO=teste): esquece contas, sessões e limites. */
   apagarTudo(): void {
     this.sql.exec("DELETE FROM sessoes");

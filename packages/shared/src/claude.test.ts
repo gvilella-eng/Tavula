@@ -102,6 +102,8 @@ describe("o que o Claude nunca faz (lista num lugar só)", () => {
         "asset.naoTenho",
         "asset.pedir",
         "asset.tenho",
+        "caixa.concluir",
+        "caixa.falhar",
         "campanha.exportar",
         "campanha.importar",
         "papel.alterar",
@@ -125,6 +127,9 @@ describe("o que o Claude nunca faz (lista num lugar só)", () => {
       intencao("asset.inventario", { hashes: [hash] }),
       intencao("asset.tenho", { hash }),
       intencao("asset.naoTenho", { hash }),
+      // M1: a caixa de entrada é do mestre pelo navegador, nunca do Claude.
+      intencao("caixa.concluir", { envioId: "env-1", hash }),
+      intencao("caixa.falhar", { envioId: "env-1", motivo: "x" }),
     ];
     expect(proibidas.map((i) => i.tipo).sort()).toEqual([...INTENCOES_PROIBIDAS_AO_CLAUDE].sort());
     for (const i of proibidas) {

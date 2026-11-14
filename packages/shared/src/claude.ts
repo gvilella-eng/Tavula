@@ -49,7 +49,7 @@ export type TokenDoClaudePublico = {
 
 /**
  * As intenções que a conexão do Claude recusa, mesmo para um mestre: mudar papéis e permissões, importar e exportar a
- * campanha e o vaivém de arquivos (o Claude não tem arquivos e não envia imagens). Além delas, o token nunca vale em
+ * campanha e o vaivém de arquivos (o Claude não entra na troca de pedaços: ele sobe arquivos pelo link de envio da ferramenta `arquivos`, M1). Além delas, o token nunca vale em
  * rota HTTP (contas, pedidos de entrada, redefinição de senha, chave da pasta, código de recuperação, tokens, renomear
  * ou apagar a mesa): só abre o WebSocket. Esta é a lista num lugar só (a sala e os testes leem daqui).
  */
@@ -62,6 +62,8 @@ export const PROIBIDAS_AO_CLAUDE = {
   "asset.inventario": "trocar arquivos",
   "asset.tenho": "trocar arquivos",
   "asset.naoTenho": "trocar arquivos",
+  "caixa.concluir": "mexer na caixa de entrada de arquivos",
+  "caixa.falhar": "mexer na caixa de entrada de arquivos",
 } as const satisfies Record<string, string>;
 
 /** Os tipos de intenção proibidos ao Claude. */

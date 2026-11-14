@@ -957,7 +957,8 @@ O Claude (o servidor MCP do lote 12-2) entra na mesa **como o próprio usuário*
 | `permissao.alterar` | mudar permissões |
 | `campanha.exportar` | exportar a campanha |
 | `campanha.importar` | importar a campanha |
-| `asset.pedir`, `asset.inventario`, `asset.tenho`, `asset.naoTenho` | trocar arquivos (o Claude não tem arquivos e não envia imagens; assumido) |
+| `asset.pedir`, `asset.inventario`, `asset.tenho`, `asset.naoTenho` | trocar arquivos (o Claude não entra na troca de pedaços; ele sobe arquivos pelo link de envio do M1, abaixo) |
+| `caixa.concluir`, `caixa.falhar` | mexer na caixa de entrada de arquivos (M1: só o navegador do mestre) |
 
 Fora do protocolo do WebSocket (rotas HTTP que o token nunca abre ou que não existem como intenção): aceitar, recusar ou mexer em contas, pedidos de entrada e redefinições de senha; trocar a chave da pasta ou o código de recuperação; apagar ou renomear a mesa; gerar ou revogar tokens.
 
@@ -991,7 +992,7 @@ Fora do protocolo do WebSocket (rotas HTTP que o token nunca abre ou que não ex
 
 A sala também fala **MCP por HTTP** (Streamable HTTP **sem estado**, JSON, versão de protocolo `2025-11-25`, a mais nova do SDK 1.32; aceita também `2025-06-18`, `2025-03-26`, `2024-11-05` e `2024-10-07`). Nenhuma intenção nem mensagem do WebSocket muda: o HTTP é outra porta para as mesmas intenções.
 
-**A rota**: `POST /api/m/<id>/mcp`, cada POST com um JSON-RPC 2.0 (ou um lote), `Content-Type: application/json`, `Authorization: Bearer tvc_...`. Corpo de até 512 KB.
+**A rota**: `POST /api/m/<id>/mcp`, cada POST com um JSON-RPC 2.0 (ou um lote), `Content-Type: application/json`, `Authorization: Bearer tvc_...`. Corpo de até 512 KB (4 MB quando a chamada é da ferramenta `arquivos`, que pode levar o arquivo em base64).
 
 | Método JSON-RPC | Resposta |
 |---|---|
@@ -1015,12 +1016,34 @@ A sala também fala **MCP por HTTP** (Streamable HTTP **sem estado**, JSON, vers
 
 **Segurança (pense como se a mesa estivesse na internet)**
 - **Mesmo tratamento do WebSocket do Claude**: o POST não tem caminho próprio. Cada `tools/call` vira as intenções de sempre e todas passam pela **mesma função da sala** (`tratarIntencao`, a que o WebSocket também chama): o limite de 20 por segundo por token (o mesmo balde), a lista `PROIBIDAS_AO_CLAUDE`, a marca "pelo Claude", o carimbo de rascunho do mestre, o diário do Desfazer (`loteId` e descrição de cada chamada), o limite do chat e a difusão aos navegadores conectados. O estado que a ferramenta lê é a visão do próprio usuário (a do snapshot).
-- **Só as 11 ferramentas**: não existe ferramenta que mande uma intenção qualquer; os proibidos (papéis, permissões, importar e exportar, arquivos) nem são oferecidos, e a sala os recusaria do mesmo jeito.
+- **Só as 12 ferramentas** (a 12ª, `arquivos`, é do M1): não existe ferramenta que mande uma intenção qualquer; os proibidos (papéis, permissões, importar e exportar, arquivos) nem são oferecidos, e a sala os recusaria do mesmo jeito.
 - **Sem cookie e sem sessão**: o cookie é ignorado e nenhum `Set-Cookie` sai. O token é validado em toda chamada (hash, conta ativa, mesma vaga), então revogar vale na hora.
 - **Sem CORS e sem navegador**: a rota não responde preflight e nunca manda `Access-Control-Allow-*`; uma página de outro site não consegue mandar `Authorization` sem preflight. Além da checagem do C3 (outro site: 403), esta rota recusa **qualquer** `Origin` (o Claude Code não manda; um navegador manda), inclusive o da própria mesa.
 - **Presença**: sem conexão aberta, "Claude conectado" vale por **2 minutos** depois de cada chamada (um vencimento `claude.http` na agenda da sala); o "último uso" do token é gravado a cada chamada.
 - O compêndio é o exemplo do SRD embutido (3 magias, 9 armas, 5 itens).
 - A resposta de uma ferramenta termina na hora (a sala tem o estado): nenhum evento nem snapshot a esperar.
+
+### O Claude sobe arquivos (M1)
+
+Duas rotas HTTP, duas intenções e uma mensagem da sala; o vaivém de pedaços (`asset.*`) continua proibido ao Claude.
+
+**`PUT /api/m/<id>/claude/envio/<segredo>`** (o link que a ferramenta `arquivos` dá; o segredo é a única autorização, o modelo nunca vê o token).
+- Só o hash do segredo é guardado; **uso único**; vale **15 minutos**; preso ao token que o pediu e à mesa. Revogar o token mata o link.
+- Qualquer `Origin`: **403** `origem_invalida`. Sem `Content-Length`: **411**. Acima do limite do uso: **413** (imagem 20 MB, mapa 64 MB, som 20 MB, compêndio 16 MB). Caixa cheia (300 MB): **507**. Formato errado (pelos primeiros bytes): **415** (o nome e o `Content-Type` não valem). Link inventado ou fora do formato: **404**; link já usado ou vencido: **410** `link_gasto`; token revogado: **401**.
+- Recusa depois de gastar o link queima o envio: o Claude pede outro. A recusa por `Origin` não gasta o link.
+- Resposta `200` JSON: `{ ok, envio, estado, mensagem }`. Com um navegador de mestre conectado a sala espera até **20 s** o resultado (`estado` `aplicado`, ou `erro` com `ok: false`); sem ele responde na hora com `estado: "recebido"`.
+
+**`GET /api/m/<id>/caixa/<envio>`**: só o mestre, pelo cookie dele, baixa o arquivo para processar. `409` se outro navegador já está com ele (menos de 90 s); `404` se não está esperando.
+
+**Intenções** (do navegador do mestre; **proibidas ao Claude**, capacidade `mesa.configurar`; a sala as trata antes do `processar`):
+- `caixa.concluir` `{ envioId, hash, magias? }`: o arquivo já foi processado e registrado (`asset.registrar`). A sala aplica o uso **como o usuário que pediu o envio**, no lote do envio (`loteId` e descrição), pela mesma `tratarIntencao`, guarda o resultado e apaga os bytes.
+- `caixa.falhar` `{ envioId, motivo }`: o navegador não conseguiu; o envio vira `erro` e o Claude lê o motivo.
+
+**Mensagem da sala** `caixa.pendentes` `{ envios: [{ id, uso, nome, bytes, mime }] }`: só os navegadores de mestre (nunca o Claude nem o jogador), ao conectar e a cada mudança. Sem caminho do computador de ninguém.
+
+**Aplicação por uso**: `mapa` → `cena.definirMapa` (com `pxPorQuadrado`, calculado de `quadrados` pelo lado maior da imagem); `token` → `token.definirImagem` (token da cena) ou `personagem.editar { assetHash }` (token padrão da ficha); `retrato` → `personagem.editar { retratoHash }`; `handout` → `handout.editar { imagemHash }`; `som` → `cena.editar { trilha }` (com `cena`; sem ela só fica registrado); `compendio` → `compendio.definir`.
+
+**Banco**: migração 16 (`claude_envios` e `claude_envios_pedacos`); fora da exportação; os envios com mais de 24 h somem com os bytes.
 
 ### Contador de uso
 

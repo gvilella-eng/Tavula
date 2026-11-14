@@ -2692,6 +2692,11 @@ function processarIntencao(
     case "claude.desfazer":
       return recusa("lote_inexistente", "Este lote não existe.");
 
+    // M1: a caixa de entrada é da sala; ela intercepta estes pedidos antes de chegar aqui.
+    case "caixa.concluir":
+    case "caixa.falhar":
+      return recusa("sem_permissao", "Só a sala conclui os arquivos do Claude.");
+
     case "compendio.definir": {
       const { compendio } = intencao.dados;
       if (compendio === null) {

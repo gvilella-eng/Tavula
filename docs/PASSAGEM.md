@@ -889,3 +889,23 @@ Continua em aberto, por ser decisão e não erro de doc: `ficha.verOutras` (seç
 - O compêndio pelo HTTP é o exemplo do SRD embutido (`CompendioLocal.doExemplo()`); o do disco só existe no stdio.
 
 **Suposições**: ver `docs/REDESIGN.md`, "12-3 — como ficou".
+
+## M1 (2026-11-14): o Claude sobe arquivos
+**Onde mexer**
+- `packages/shared/src/envios.ts` (usos, limites, formato pelos primeiros bytes, segredo do link, `usoDoArquivo`, esquemas das intenções) e `enviosUso.ts` (`negarEnvio`, que usa `processar`; fica à parte para não fechar um ciclo de importação com o protocolo).
+- `packages/shared/src/mcp/ferramentas/arquivos.ts` (a ferramenta; `textoDoEnvio`) e `mcp/tipos.ts` (`ArquivosDaSala`, `PedidoDeEnvio`: só a sala HTTP tem a caixa).
+- `apps/server/src/caixaDeEntrada.ts` (a caixa sobre o SQLite; migração 16 em `armazenamento.ts`), `contas.ts` (`tokenDoClaudeValido`), `index.ts` (as rotas `claude/envio/<segredo>` e `caixa/<id>`) e, no fim de `sala.ts`, "Os arquivos do Claude (M1)": `rotaDoEnvioDoClaude` (PUT), `baixarDaCaixa` (GET), `concluirEnvio` e `avisarPendentes`.
+- `apps/web/src/caixaDoClaude.tsx` (o gancho `useCaixaDoClaude` e o aviso), `useSala.ts` (`pendentesDaCaixa`) e `Mesa.tsx` (liga os dois).
+- Teste: `e2e/tests/envio-m1.spec.ts` e `ajudasEnvio.ts` (PNG grande, WAV, o PUT cru), `envios.test.ts`, `mcp/arquivos.test.ts`, `caixaDeEntrada.test.ts`.
+
+**Frágil**
+- **O aplicar do uso é da sala, não do navegador.** O navegador só processa, registra (`asset.registrar`) e avisa (`caixa.concluir`); quem faz `cena.definirMapa` e as outras é `tratarIntencao` com o usuário do Claude e o `loteId` do envio. Não mova isso para o navegador: o Desfazer e as permissões deixariam de ser as do Claude.
+- Em `concluirEnvio` a sala espera até 2 s o `asset.registrar` aparecer em `estado.assets` (dois frames seguidos do mesmo socket podem se intercalar com um `await` da sala). Se o navegador mudar a ordem (concluir antes de registrar), cai nessa espera.
+- A migração 16 é a última da lista: o `versao_esquema` dos testes de migração (`armazenamento`, `contas`, `recuperacao`, `tokensClaude`) agora é "16"; migração nova muda esse número.
+- Bytes no SQLite: os bytes da caixa são `BLOB` de até 1 MB por linha (o limite do SQLite do Durable Object é 2 MB por linha). O adaptador dos testes de unidade converte `ArrayBuffer` em visão; o workerd aceita `ArrayBuffer`.
+- O corpo do POST do MCP é 512 KB, salvo se o texto cita `"arquivos"` (4 MB): o `claude-12-3.spec` confere o 413 com um corpo de 600 KB sem essa palavra.
+- O PUT descarta o corpo (até 128 MB) quando recusa antes de ler; sem isso o proxy do Vite devolve 502 em vez do motivo.
+- O mesmo arquivo enviado como token e como retrato dá o mesmo hash (a mesa guarda um asset só); o `listar` mostra o nome do primeiro.
+- O MCP em stdio (`apps/mcp`) não tem a caixa: `arquivos` responde que precisa do HTTP.
+
+**Suposições**: ver `docs/REDESIGN.md`, "M1 — como ficou".

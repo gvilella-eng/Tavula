@@ -401,7 +401,7 @@ describe("migração 11 (chave, código e desafios)", () => {
     arm.gravarMeta("versao_esquema", "10");
     const reaberto = new Armazenamento(sql as never);
     reaberto.migrar();
-    expect(reaberto.lerMeta("versao_esquema")).toBe("15");
+    expect(reaberto.lerMeta("versao_esquema")).toBe("16");
     expect(contas.existeMestre()).toBe(true);
     expect(contas.listarParaMestre(estadoDeMesaNova().usuarios).protecao).toEqual({
       temChave: false,
@@ -409,7 +409,7 @@ describe("migração 11 (chave, código e desafios)", () => {
     });
     reaberto.gravarMeta("versao_esquema", "10");
     reaberto.migrar(); // de novo: as colunas já existem
-    expect(reaberto.lerMeta("versao_esquema")).toBe("15");
+    expect(reaberto.lerMeta("versao_esquema")).toBe("16");
     const par = await gerarParDeChaves();
     expect((await contas.registrarChave(m.valor.id, par.publica, null, "1.1.1.1", T0)).ok).toBe(
       true,

@@ -261,7 +261,7 @@ describe("migrações 13 e 14 (tokens e diário do Claude)", () => {
 
     const reaberto = new Armazenamento(sql as never);
     reaberto.migrar();
-    expect(reaberto.lerMeta("versao_esquema")).toBe("15");
+    expect(reaberto.lerMeta("versao_esquema")).toBe("16");
     expect(sql.exec("SELECT COUNT(*) AS n FROM tokens_claude").toArray()).toEqual([{ n: 0 }]);
     expect(sql.exec("SELECT COUNT(*) AS n FROM claude_lotes").toArray()).toEqual([{ n: 0 }]);
     expect(reaberto.lerMeta("marca")).toBe("campanha-real");
@@ -359,7 +359,7 @@ describe("migração 15 (conserta o banco com a tabela do diário na forma antig
     arm.gravarMeta("versao_esquema", "14");
     const reaberto = new Armazenamento(sql as never);
     reaberto.migrar();
-    expect(reaberto.lerMeta("versao_esquema")).toBe("15");
+    expect(reaberto.lerMeta("versao_esquema")).toBe("16");
     const lotes = reaberto.lotesDe("j1");
     expect(lotes).toHaveLength(1);
     expect(lotes[0]).toMatchObject({

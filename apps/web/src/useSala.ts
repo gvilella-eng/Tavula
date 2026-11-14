@@ -2,6 +2,7 @@ import {
   type AvisoDeContas,
   type CodigoDeErro,
   type Desenho,
+  type EnvioPendente,
   type Estado,
   type EventoSala,
   type Exportacao,
@@ -130,6 +131,8 @@ export function useSala(opcoes: Opcoes) {
   const [chatTemMais, setChatTemMais] = useState(false);
   // C2, só o mestre recebe: quantos pedidos de entrada e de redefinição esperam (cada frame é um objeto novo).
   const [avisoDeContas, setAvisoDeContas] = useState<AvisoDeContas | null>(null);
+  // M1, só o mestre recebe: os arquivos que o Claude mandou e esperam o navegador processar (a sala reenvia a lista inteira a cada mudança).
+  const [pendentesDaCaixa, setPendentesDaCaixa] = useState<EnvioPendente[]>([]);
   const socket = useRef<WebSocket | null>(null);
   const ouvintes = useRef(new Set<(o: Ocorrencia) => void>());
   const opcoesAtuais = useRef(opcoes);
@@ -234,6 +237,9 @@ export function useSala(opcoes: Opcoes) {
           break;
         case "contas.aviso":
           setAvisoDeContas(m.dados);
+          break;
+        case "caixa.pendentes":
+          setPendentesDaCaixa(m.dados.envios);
           break;
         case "mesa.renomeada":
           opcoesAtuais.current.aoRenomear?.(m.dados.nome);
@@ -370,6 +376,7 @@ export function useSala(opcoes: Opcoes) {
     preparos,
     chatTemMais,
     avisoDeContas,
+    pendentesDaCaixa,
     claudeConectado,
     lotesDoClaude,
     enviar,

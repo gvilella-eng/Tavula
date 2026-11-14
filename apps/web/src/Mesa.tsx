@@ -71,6 +71,7 @@ import { JanelaDasAutomacoes } from "./automacoes/JanelaDasAutomacoes";
 import { BarraDeFerramentas } from "./BarraDeFerramentas";
 import { BarraLateral, type PedidoDeAba } from "./BarraLateral";
 import { BotaoComDica } from "./BotaoComDica";
+import { AvisoDaCaixaDoClaude, useCaixaDoClaude } from "./caixaDoClaude";
 import { type CamadaDeTrabalho, camadaDoNovoToken } from "./camadas";
 import { RascunhosDoClaude } from "./claude/RascunhosDoClaude";
 import { pedirTokenNoMapa, TEXTO_FORA_DA_BANDEIRA } from "./colocarNoMapa";
@@ -223,6 +224,7 @@ export function Mesa({
     preparos,
     chatTemMais,
     avisoDeContas,
+    pendentesDaCaixa,
     claudeConectado,
     lotesDoClaude,
     enviar,
@@ -562,6 +564,15 @@ export function Mesa({
     ouvir,
     euMestre,
     selecionadoId,
+  });
+  // M1: os arquivos que o Claude mandou (só o mestre): baixa da caixa da sala, processa como o botão de subir e conclui.
+  const andamentoDaCaixa = useCaixaDoClaude({
+    mesaId: mesa.id,
+    euMestre,
+    gerente,
+    fontes,
+    pendentes: pendentesDaCaixa,
+    enviar,
   });
   const registrarSom = useCallback(
     (arquivo: File) => {
@@ -1906,6 +1917,7 @@ export function Mesa({
               />
             )}
             <AvisoDoSom bloqueado={som.bloqueado} aoAtivar={() => som.motor.ativar()} />
+            <AvisoDaCaixaDoClaude andamento={andamentoDaCaixa} />
             {modoMestre && ferramenta === "zonas" && (
               <PainelDasZonas
                 fontes={fontes}

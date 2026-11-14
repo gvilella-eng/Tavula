@@ -316,6 +316,41 @@ const MIGRACOES: Migracao[] = [
       ultimo_uso: "INTEGER",
     });
   },
+  // M1: a caixa de entrada dos arquivos que o Claude manda (mapa, token, retrato, handout, som, compêndio). Um envio por link de
+  // uso único (só o hash do segredo é guardado); os bytes ficam em linhas de até 1 MB (o limite do SQLite do Durable Object é 2 MB
+  // por linha) até o navegador do mestre processar, e saem depois (ou em 24 h). Aditiva e idempotente; fora da exportação.
+  (sql) => {
+    sql.exec(`CREATE TABLE IF NOT EXISTS claude_envios (
+      id TEXT PRIMARY KEY,
+      hash_segredo TEXT NOT NULL UNIQUE,
+      usuario_id TEXT NOT NULL,
+      token_id TEXT NOT NULL,
+      uso TEXT NOT NULL,
+      nome TEXT NOT NULL,
+      alvo TEXT NOT NULL DEFAULT '{}',
+      opcoes TEXT NOT NULL DEFAULT '{}',
+      lote_id TEXT NOT NULL,
+      lote_desc TEXT NOT NULL DEFAULT '',
+      estado TEXT NOT NULL DEFAULT 'aguardando',
+      link_usado INTEGER NOT NULL DEFAULT 0,
+      mime TEXT,
+      bytes INTEGER NOT NULL DEFAULT 0,
+      criado_em INTEGER NOT NULL,
+      link_expira_em INTEGER NOT NULL,
+      expira_em INTEGER NOT NULL,
+      processando_em INTEGER,
+      hash_arquivo TEXT,
+      resultado TEXT,
+      motivo TEXT
+    )`);
+    sql.exec(`CREATE TABLE IF NOT EXISTS claude_envios_pedacos (
+      envio_id TEXT NOT NULL,
+      indice INTEGER NOT NULL,
+      dados BLOB NOT NULL,
+      PRIMARY KEY (envio_id, indice)
+    )`);
+    sql.exec("CREATE INDEX IF NOT EXISTS claude_envios_token ON claude_envios (token_id, estado)");
+  },
 ];
 
 /** Um lote do diário do Claude, como a tela o lista (sem os passos). */
@@ -1107,6 +1142,8 @@ export class Armazenamento {
     this.sql.exec("DELETE FROM entidades");
     this.sql.exec("DELETE FROM agenda");
     this.sql.exec("DELETE FROM claude_lotes");
+    this.sql.exec("DELETE FROM claude_envios_pedacos");
+    this.sql.exec("DELETE FROM claude_envios");
     this.sql.exec("DELETE FROM meta WHERE chave <> 'versao_esquema'");
   }
 }

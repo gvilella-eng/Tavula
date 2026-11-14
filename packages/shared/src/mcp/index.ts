@@ -3,6 +3,7 @@
 // navegador nunca a carrega.
 export { CompendioLocal } from "./compendio.ts";
 export { ErroDoMcp, TOKEN_INVALIDO } from "./erros.ts";
+export { textoDoEnvio } from "./ferramentas/arquivos.ts";
 export { FERRAMENTAS_SEM_CONEXAO, TODAS_AS_FERRAMENTAS } from "./ferramentas/index.ts";
 export {
   type ContextoMcp,
@@ -20,4 +21,11 @@ export {
   novoLote,
   redigir,
 } from "./servidor.ts";
-export type { Lote, LoteDoClaude, RespostaDaSala, SalaLike } from "./tipos.ts";
+export type {
+  ArquivosDaSala,
+  Lote,
+  LoteDoClaude,
+  PedidoDeEnvio,
+  RespostaDaSala,
+  SalaLike,
+} from "./tipos.ts";

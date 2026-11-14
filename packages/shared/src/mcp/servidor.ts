@@ -25,6 +25,7 @@ export const INSTRUCOES = [
   "Comece por `panorama` (o que existe na mesa). Use nomes, nunca ids. Mande vários itens numa chamada só.",
   "Tudo o que muda a mesa entra num lote que o usuário pode desfazer (`desfazer`). O que você cria para o mestre fica como rascunho até ele publicar.",
   "Coordenadas de cena são em células, a partir do canto de cima à esquerda.",
+  "Arquivos (mapa da cena, token, retrato, handout, som, compêndio): gere ou ache o arquivo no computador, chame `arquivos` (enviar), rode no shell o comando que ela devolve e pronto; sem shell, mande em base64.",
 ].join(" ");
 
 /** Esconde qualquer coisa com cara de token, por garantia: o token nunca sai numa resposta. */

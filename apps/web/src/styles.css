@@ -6096,6 +6096,28 @@ button.inicio-botao-largo {
   border-radius: var(--raio);
   box-shadow: var(--sombra);
 }
+/* M1: "O Claude enviou 1 arquivo" (a mesa processa o que o Claude mandou); no alto da área do mapa, abaixo da barra. */
+.aviso-caixa {
+  position: absolute;
+  left: 50%;
+  top: 12px;
+  transform: translateX(-50%);
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: min(520px, calc(100% - 24px));
+  padding: 8px 12px;
+  font-size: 13px;
+  background: var(--painel);
+  color: var(--texto);
+  border: 1px solid var(--borda);
+  border-radius: var(--raio);
+  box-shadow: var(--sombra);
+}
+.aviso-caixa.com-erro {
+  border-color: var(--perigo);
+}
 .pref-som-linha {
   display: grid;
   grid-template-columns: 84px 1fr;
