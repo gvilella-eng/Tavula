@@ -8,6 +8,7 @@
     "./mcp": "./src/mcp/index.ts"
   },
   "scripts": {
+    "extrair": "node src/extrator/cli.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },

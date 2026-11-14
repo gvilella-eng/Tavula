@@ -459,6 +459,16 @@ O comando de **Preferências → Conectar o Claude** agora é uma linha só e fu
 7. **Recarregar.** Edite o `monstros.json` na pasta, volte à mesa e clique em Recarregar: o jogador recebe o compêndio novo. Os créditos de cada arquivo aparecem em "Créditos".
 8. **MCP.** Peça ao Claude: "crie 4 goblins do compêndio". Saem Goblin 1 a Goblin 4 em NPCs (rascunho), completos. Peça "monstros de ND até 1 do tipo Fera" e "itens mágicos raros".
 
+## N3b — O extrator do compêndio (os livros do Vilella)
+
+1. **Gerar.** Na raiz do repositório: `pnpm compendio:extrair -- --livros "<pasta dos PDFs>" --saida "<pasta fora do repositório>"`. Em uns 10 segundos saem `magias.json`, `monstros.json`, `itens.json` e `relatorio.md`. Aponte `--saida` para uma pasta dentro do repositório: o comando recusa.
+2. **Relatório.** Abra o `relatorio.md`: por livro, quantas entradas leu e quantas passaram, as que falharam (nenhuma, na rodada do lote), os campos mais vazios e a amostra de nomes. Confira os números com o que você espera dos livros (361 magias, 428 monstros, 274 itens mágicos).
+3. **Carregar.** Na mesa, como mestre: Compêndio → "Carregar arquivos do compêndio…" e escolha os três arquivos. O aviso diz que gravou `compendio/magias.json`, `monstros.json` e `itens.json`. O jogador recebe o compêndio, sem a seção Monstros.
+4. **Magias.** Busque "Bola de Fogo": nível 3, Evocação, 1 ação, 45 metros, componentes com o material, duração Instantânea, classes Feiticeiro e Mago, "Em níveis superiores". Filtre por classe (Mago) e por escola. Uma magia de concentração (Banimento) e um ritual (Alarme) mostram as marcas.
+5. **Monstros.** Busque "Goblin": CA 15, 7 PV (2d6), atributos, Escapada Ágil e as ações Cimitarra e Arco Curto. "Criar NPC" põe a ficha completa na pasta NPCs (ND 1/4, DES 14, Cimitarra com o acerto +4 e o dano 1d6+2). Filtre por ND de 5 a 8: a lista vem em ordem. Um dragão (Dragão Vermelho Ancião) traz o sopro com recarga e as ações lendárias; um monstro com conjuração (Deva, Cambion) traz as magias na fita Conjuração.
+6. **Itens mágicos.** Busque "Vorpal": Espada Vorpal, lendária, exige sintonização, com o bônus +3. Filtre por raridade. Poção de Cura e Pedra Iônica aparecem como "Varia".
+7. **Conferir com o livro.** Escolha cinco entradas de cada tipo e compare com o PDF: nome, números e o começo e o fim da descrição. Anote o que estiver trocado ou cortado em `docs/BUGS.md`.
+
 ## Se algo der errado
 - Anote a tela, o que fez e o que esperava, e mande para mim. Bug confirmado vai para `docs/BUGS.md`.
 - Para voltar à campanha de antes de mesas e contas, use a cópia de segurança indicada no topo.

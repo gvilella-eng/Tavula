@@ -3685,4 +3685,30 @@ Ver `REDESIGN.md` e `PASSAGEM.md` ("N3a"). Desvio: a seção Monstros só aparec
 ### Roteiro manual
 `docs/ROTEIRO-DE-TESTES.md`, "N3a".
 
-## Próximo: o N3b (o extrator dos PDFs do Vilella para `compendio/`) e o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2 e N3a
+## Ajustes N3b — O extrator do compêndio a partir dos livros (entregue, aguardando o roteiro manual)
+
+Guia: `docs/COMPENDIO.md`. Código em `packages/shared/src/extrator/`.
+
+### O que foi entregue
+- `pnpm compendio:extrair -- --livros "<pasta>" --saida "<pasta>"` lê o Livro do Jogador, o Manual dos Monstros e o Guia do Mestre (PDF com texto, pdf.js no Node, sem rede e sem OCR) e grava `magias.json`, `monstros.json`, `itens.json` e `relatorio.md` na saída.
+- A saída tem de ficar fora do repositório (o comando recusa). O conteúdo dos livros nunca entra no git.
+- Cada entrada passa pelo zod do compêndio; a que falha vai para o relatório com o motivo. Cada arquivo é relido pela `lerCompendio` antes de gravar, e traz os `creditos`.
+- Rodada real nos PDFs do Vilella: 361 magias, 428 monstros e 274 itens mágicos, todos válidos (números no relatório do lote).
+
+### Como rodar
+Ver `docs/COMPENDIO.md`. Sem migração e sem mudança no app (só `packages/shared/src/extrator/`, o script `compendio:extrair` e o `extrair` do pacote `shared`). Nenhuma dependência nova: usa o `pdfjs-dist` que o pacote já tinha.
+
+### Verificação
+Unidade: `extrator/extrator.test.ts` (29, só trechos inventados: colunas, versalete, magia com material que quebra, bloco de monstro com ações, recarga, conjuração inata e por espaços, bloco que passa para a coluna seguinte, item com tipo em duas linhas e nome em duas linhas, relatório, argumentos). Ponta a ponta feita à mão (spec temporário, não commitado): os 3 arquivos gerados carregam na mesa de teste pela ação do N3a; a busca acha Bola de Fogo, Goblin e Espada Vorpal; "Criar NPC" do Goblin dá a ficha completa (ND 1/4, DES 14, Cimitarra e Arco Curto, traço Escapada Ágil).
+
+### Decisões, frágil e desvios
+- (assumido) O extrator mora em `packages/shared/src/extrator/` (e não numa pasta `ferramentas/` solta) para resolver `zod` e `pdfjs-dist` do pnpm e reaproveitar os schemas; não é exportado pelo `index.ts` (o app não o carrega).
+- (assumido) Campo do cabeçalho de magia que passa do limite do formato (material de Clone, tempo de Repreensão Infernal) fica abreviado no campo e inteiro no começo da descrição.
+- (assumido) O livro não traz nome em inglês: `nomeOriginal` fica vazio. As classes vêm das listas por classe; três nomes das listas têm erro de digitação e são ligados por semelhança (anotado no relatório).
+- Frágil: depende do layout dos PDFs (duas colunas, versalete, tamanho 9 da caixa de monstro, fontes). Outro livro ou outra edição pede ajuste em `linhas.ts`/`monstros.ts`.
+- Frágil: tabelas dentro de descrições entram como texto corrido; a caixa de monstro que passa da coluna só continua se acabar no pé da coluna.
+
+### Roteiro manual
+`docs/ROTEIRO-DE-TESTES.md`, "N3b".
+
+## Próximo: o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a e N3b

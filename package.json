@@ -14,6 +14,7 @@
     "test": "pnpm --filter \"!@tabletop/e2e\" -r --parallel test",
     "test:e2e": "pnpm --filter @tabletop/e2e test",
     "verify": "pnpm typecheck && pnpm lint && pnpm test && pnpm test:e2e",
+    "compendio:extrair": "pnpm --filter @tabletop/shared extrair",
     "dev:e2e": "concurrently -n servidor,web -c blue,green \"pnpm --filter @tabletop/server dev:e2e\" \"pnpm --filter @tabletop/web dev:e2e\""
   },
   "devDependencies": {

@@ -826,6 +826,18 @@ Continua em aberto, por ser decisão e não erro de doc: `ficha.verOutras` (seç
 
 **Suposições**: ver `docs/REDESIGN.md`, "N3a — como ficou".
 
+## N3b (2026-11-14): o extrator do compêndio (os PDFs do Vilella)
+**Onde mexer**
+- `packages/shared/src/extrator/` (fora do `index.ts`: o app não o carrega). `linhas.ts` (itens do pdf.js -> linhas na ordem de leitura, duas colunas, versalete, marcador de lista), `magias.ts` (magias, listas por classe, `juntarLinha` com a hifenização), `monstros.ts` (blocos, cabeçalho, traços e ações, números da ação, conjuração), `itens.ts` (itens mágicos), `livros.ts` (por livro, com o zod e as estatísticas), `relatorio.ts`, `pdf.ts` (pdf.js legado no Node), `cli.ts` (`pnpm compendio:extrair`).
+- Teste: `extrator/extrator.test.ts` (só trechos inventados). Guia: `docs/COMPENDIO.md`.
+
+**Frágil**
+- Depende do layout dos PDFs: coluna em `w/2` (as listas por classe, 3 colunas, em 205 e 385), caixa de monstro com corpo 9 (prosa 9,5), título de item com corpo 11, trecho "Descrições das Magias" e "Apêndice A:" para achar o começo e o fim das magias. Outro livro ou edição pede ajuste.
+- Traços e ações são achados pela fonte do nome (negrito itálico, diferente da fonte do corpo e do rótulo); as fontes mudam de número entre blocos, então a calibração é por bloco (`fonteDoCorpo`, `fonteDoRotulo`).
+- A saída do extrator nunca pode ficar no repositório (`cli.ts` recusa); não commite os JSON gerados.
+
+**Suposições**: ver `docs/ESTADO.md`, "Ajustes N3b".
+
 ## 12-3 (2026-11-13): o MCP na própria sala, por HTTP
 **Onde mexer**
 - `apps/server/src/sala.ts`: `tratarIntencao(remetente, intencao)` é **o único** tratamento de intenção (WebSocket: `webSocketMessage` só lê, chama e responde; HTTP: `conexaoDoMcp` chama com `ws: null`). `rotaMcp` é a rota; `visaoDe(usuario)` é o snapshot do usuário (o WebSocket e as ferramentas leem o mesmo). `apps/server/src/index.ts`: `caminhoInterno` (`mcp` só POST) e o 405.
