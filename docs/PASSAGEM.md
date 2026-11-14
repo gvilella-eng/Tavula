@@ -784,6 +784,17 @@ Continua em aberto, por ser decisão e não erro de doc: `ficha.verOutras` (seç
 
 **Suposições**: ver `docs/REDESIGN.md`, "12-2 — como ficou". As que mais valem uma olhada: o MCP não leva o grupo para outra cena nem dispara eventos (são ações ao vivo); o tamanho da cena não se muda (60 x 45 m); o compêndio não tem monstros; criar ou editar pelo nome exato.
 
+## N1 (2026-11-13): vida e CA no token, "morto" e a camada pelo clique direito
+**Onde mexer**
+- `apps/web/src/MarcasDoToken.tsx` (as marcas, o campo da vida e a tecla `E`), `vidaDoToken.ts` (o texto "12", "-7", "+3" vira operações de ficha), `MapaPixi.tokenNaTela(id)` (posição e raio na tela, para pendurar as marcas), `desenharXDeMorto` e o `morto` em `chaveDe`/`atualizarEstilos` (`mapaPixi.ts`), `MenuDoToken.tsx` (morto e Camada), `Mesa.tsx` (`marcasDoTokenVisiveis`). Dado: `Token.morto?` e `token.condicoes` com `morto` (`combatenucleo.ts`).
+- Teste: `e2e/tests/n1.spec.ts`; o gancho `tokens()` ganhou `morto`.
+
+**Frágil**
+- As marcas são DOM por cima do canvas, posicionadas a cada quadro por `requestAnimationFrame`; o contêiner tem `pointer-events: none` e só os botões pegam o ponteiro (senão o mapa deixaria de receber cliques). Não mexa em `.area-mapa` sem olhar `.mvc-marcas`.
+- Quem vê as marcas é decidido em `Mesa.tsx` (mestre ou `controlaToken`), não no mapa; o jogador só seleciona o próprio token (V2) por regra do `mapaPixi.ts`. A sala não filtra nada novo: a vida vem da ficha, que o jogador já só recebe se vê.
+- A tecla `E` é global (ouvida no `MarcasDoToken`, com foco no mapa ou em nada e sem diálogo aberto).
+- O X mora dentro do `container` do token (muda o `chaveDe`, então o token é refeito ao marcar).
+
 ## 12-3 (2026-11-13): o MCP na própria sala, por HTTP
 **Onde mexer**
 - `apps/server/src/sala.ts`: `tratarIntencao(remetente, intencao)` é **o único** tratamento de intenção (WebSocket: `webSocketMessage` só lê, chama e responde; HTTP: `conexaoDoMcp` chama com `ws: null`). `rotaMcp` é a rota; `visaoDe(usuario)` é o snapshot do usuário (o WebSocket e as ferramentas leem o mesmo). `apps/server/src/index.ts`: `caminhoInterno` (`mcp` só POST) e o 405.

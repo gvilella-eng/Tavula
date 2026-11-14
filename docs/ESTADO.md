@@ -3618,4 +3618,25 @@ Ver `REDESIGN.md` e `PASSAGEM.md` ("12-3").
 ### Roteiro manual
 `docs/ROTEIRO-DE-TESTES.md`, "12-3".
 
-## Próximo: os bugs que sobrarem e o roteiro manual dos Lotes 12 (12-3 incluído) e P1
+## Ajustes N1 — Vida e CA no token, "morto" com X e a camada pelo clique direito (entregue, aguardando o roteiro manual)
+
+Detalhes em `docs/REDESIGN.md` ("N1 — como ficou"), `PROJETO.md` (4.1, `morto?`) e `docs/protocolo.md` (`token.condicoes`).
+
+### O que foi entregue
+- Com um token selecionado, vida (editável) e CA aparecem acima dele para o mestre e para quem controla o token; botão de "morto" ao lado; X vermelho no token morto, visível a todos; "Camada" no menu do clique direito, só para o mestre.
+
+### Como rodar
+`pnpm dev` como sempre. Sem migração: o campo novo do token é opcional e a mesa antiga carrega.
+
+### Verificação
+- Unidade: `vidaDoToken.test.ts` (4) e um caso novo em `combate.test.ts` (o `morto`, as permissões e o campo antigo).
+- E2E novo: `n1.spec.ts` (5 testes: marcas do jogador e dos outros, marcas do mestre e token sem ficha, editar a vida com -5/Esc/E/+30 e a ficha aberta do mestre, o X de morto por menu e por botão, a camada e o item que o jogador não tem). Nenhum E2E antigo foi alterado.
+- Prints: `scratchpad/prints-n1` (3 combinações).
+
+### Decisões, frágil e desvios
+Ver `REDESIGN.md` e `PASSAGEM.md` ("N1").
+
+### Roteiro manual
+`docs/ROTEIRO-DE-TESTES.md`, "N1".
+
+## Próximo: os bugs que sobrarem e o roteiro manual dos Lotes 12 (12-3 incluído), P1 e N1

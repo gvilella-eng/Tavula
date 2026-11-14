@@ -85,6 +85,7 @@ import { type AbaDaFicha, useJanelasDeFicha } from "./ficha/janelas";
 import { useJanelasDeHandout } from "./handouts";
 import { JanelaDoHandout } from "./JanelaDoHandout";
 import { useLarguraDoPainel } from "./larguraDoPainel";
+import { MarcasDoToken } from "./MarcasDoToken";
 import { MenuDaTocha } from "./MenuDaTocha";
 import { MenuDoToken } from "./MenuDoToken";
 import { MenuSuperior } from "./MenuSuperior";
@@ -601,6 +602,17 @@ export function Mesa({
     combateVisto?.entradas.find((e) => e.id === combateVisto.atualId)?.tokenId ?? null;
   const selecionado =
     estado?.tokens.find((t) => t.id === selecionadoId && t.cenaId === cena?.id) ?? null;
+  // N1: as marcas de vida e CA do token selecionado: o mestre vê em todos; o jogador, só no token que controla.
+  const personagemDoSelecionado =
+    selecionado?.personagemId !== undefined
+      ? estado?.personagens.find((p) => p.id === selecionado.personagemId)
+      : undefined;
+  const marcasDoTokenVisiveis =
+    selecionado !== null &&
+    estado !== null &&
+    eu !== null &&
+    usuarioVisto === null &&
+    (euMestre || controlaToken(selecionado, eu, estado.personagens));
   // Menu do token pelo teclado (R6a): com um token selecionado e o foco no mapa (ou em nada), Shift+F10 ou a tecla
   // de menu abre o mesmo menu do botão direito junto do token, e o foco vai para o primeiro item. Quem pode abrir
   // é a mesma regra do botão direito: o mestre sempre, o jogador no token que controla.
@@ -1632,6 +1644,17 @@ export function Mesa({
               aoPasso={(f) => mapa.current?.zoomPorPassos(f)}
               aoCentralizar={() => mapa.current?.centralizar()}
             />
+            {/* N1: vida e CA em cima do token selecionado (o mestre, e quem controla o token). */}
+            {selecionado && personagemDoSelecionado?.ficha && marcasDoTokenVisiveis && (
+              <MarcasDoToken
+                key={selecionado.id}
+                mapa={mapa}
+                token={selecionado}
+                personagem={personagemDoSelecionado}
+                enviar={enviar}
+                aoAbrirFicha={abrirOuTrazerFicha}
+              />
+            )}
             {/* V14: cada rótulo da régua fica dentro da área visível do mapa (PertoDoPonto). */}
             {medicao && (
               <PertoDoPonto x={medicao.x} y={medicao.y} dx={14} dy={14} evitarTrechos>

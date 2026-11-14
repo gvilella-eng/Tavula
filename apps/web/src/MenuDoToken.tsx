@@ -1,4 +1,5 @@
 import {
+  type Camada,
   CONDICOES,
   type Condicao,
   type Estado,
@@ -11,9 +12,11 @@ import {
   Check,
   Flame,
   FlameKindling,
+  Layers,
   ListPlus,
   ListX,
   Pencil,
+  Skull,
   Sparkles,
 } from "lucide-react";
 import { useRef, useState } from "react";
@@ -45,9 +48,25 @@ function Icone({ nome }: { nome: keyof typeof ICONE_DA_CONDICAO }) {
   return <Componente size={14} aria-hidden className="mt-icone-condicao" data-icone={nome} />;
 }
 
+/** N1: as camadas do clique direito (só o mestre), com o nome do painel do token. */
+const CAMADAS_DO_MENU: readonly (readonly [Camada, string])[] = [
+  ["mapa", "Mapa"],
+  ["tokens", "Tokens"],
+  ["mestre", "Mestre"],
+];
+
 /** Altura que o menu pede (px), para caber na área do mapa; o que passar disso rola. */
 function alturaDoMenu(mestre: boolean, tochas: number): number {
-  return 44 + (mestre ? 76 : 0) + (tochas > 0 ? 28 + tochas * 76 : 0) + 28 + 7 * 31 + 66 + 76;
+  return (
+    44 +
+    31 +
+    (mestre ? 76 + 28 + 3 * 31 : 0) +
+    (tochas > 0 ? 28 + tochas * 76 : 0) +
+    28 +
+    7 * 31 +
+    66 +
+    76
+  );
 }
 
 /**
@@ -158,6 +177,44 @@ export function MenuDoToken({
             </button>
           )}
         </>
+      )}
+      <button
+        type="button"
+        role="menuitemcheckbox"
+        aria-checked={token.morto === true}
+        className="item-menu"
+        data-testid="menu-token-morto"
+        onClick={() => {
+          aoFechar();
+          enviar("token.condicoes", { id: tokenId, morto: token.morto !== true });
+        }}
+      >
+        <Skull size={16} />
+        <span>{token.morto ? "Tirar a marca de morto" : "Marcar como morto"}</span>
+      </button>
+      {euMestre && (
+        <fieldset className="mt-grupo" data-testid="menu-token-grupo-camada">
+          <legend className="nota mt-grupo-titulo">Camada</legend>
+          {CAMADAS_DO_MENU.map(([camada, nome]) => (
+            <button
+              key={camada}
+              type="button"
+              role="menuitemradio"
+              aria-checked={token.camada === camada}
+              className="item-menu"
+              data-testid={`menu-token-camada-${camada}`}
+              onClick={() => {
+                aoFechar();
+                if (token.camada !== camada) {
+                  enviar("token.editar", { id: tokenId, mudancas: { camada } });
+                }
+              }}
+            >
+              <Layers size={16} />
+              <span>{nome}</span>
+            </button>
+          ))}
+        </fieldset>
       )}
       {tochas.length > 0 && (
         <fieldset className="mt-grupo" data-testid="menu-token-grupo-tocha">

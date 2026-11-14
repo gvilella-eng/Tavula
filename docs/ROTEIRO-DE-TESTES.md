@@ -423,6 +423,18 @@ O comando de **Preferências → Conectar o Claude** agora é uma linha só e fu
 8. Recarregue a página: os cartões ficam como você deixou.
 9. Confira nos temas Pergaminho e Vampiro que os cartões ficam legíveis. Painel estreito (arraste a alça): os resumos cortam com reticências e a dica mostra o texto inteiro.
 
+## N1 — Vida e CA no token, "morto" com X e a camada pelo clique direito
+
+1. Entre como jogador e clique no seu token: logo acima dele aparecem a **vida** (coração) e a **CA** (escudo), mais um botão de caveira. Arraste o token, dê zoom e arraste o mapa: as marcas acompanham. Clique no fundo: somem.
+2. Clique no token de outro jogador e no Ogro: nada é selecionado e nenhuma marca aparece.
+3. Clique na vida (ou aperte **E**): abre um campo com o número. Digite **-5** e Enter: a vida cai 5; abra a sua ficha e confira. Digite **+3**: sobe 3 (nunca passa do máximo). Digite **7**: vira 7. **Esc** cancela. Com PV temporário, o dano ("-N") gasta o temporário primeiro.
+4. Clique na CA: abre a ficha do personagem.
+5. Entre como mestre e selecione qualquer token com ficha (inclusive o Ogro): as marcas aparecem. Token sem ficha (o Goblin da emboscada): sem marcas.
+6. Clique na caveira: o token ganha um **X vermelho** grande e fica esmaecido; o jogador vê o X também. Clique de novo: some. Ponha a vida em 0 sem marcar morto: o botão da caveira ganha um aro vermelho.
+7. Botão direito num token: **Marcar como morto** / **Tirar a marca de morto** (o mestre e o dono do token).
+8. Botão direito num token como mestre: grupo **Camada** (Mapa, Tokens, Mestre) com a atual marcada. Escolha Mestre: o token some para o jogador na hora. Como jogador, o menu do seu token não tem o grupo Camada.
+9. Confira nos temas Grimório e Pergaminho que as marcas leem bem sobre o mapa; `E` aparece em Preferências → Atalhos do teclado.
+
 ## Se algo der errado
 - Anote a tela, o que fez e o que esperava, e mande para mim. Bug confirmado vai para `docs/BUGS.md`.
 - Para voltar à campanha de antes de mesas e contas, use a cópia de segurança indicada no topo.

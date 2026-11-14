@@ -1556,6 +1556,28 @@ Menus (tipos de parede, importar e exportar, atalhos) e dois acertos que sobrara
 **O que ficou para depois**
 - Nada pedido. Se os cartões crescerem, vale um "abrir todos / fechar todos".
 
+## N1 — como ficou (2026-11-13)
+
+**O que foi feito**
+- **Vida e CA em cima do token selecionado.** Com um token selecionado (um clique), duas marcas compactas ficam logo acima dele: a vida atual (ícone `Heart` e o número; PV temporário em "+N" pequeno) e a CA (`Shield` e o valor calculado da ficha, `derivar(ficha).ca`). Pílulas com `--painel`, `--borda`, `--texto` e sombra, com o coração em `--perigo` e o escudo em `--acento-forte`: nada do visual de outra mesa virtual. Acompanham o token ao mover, ao dar zoom e ao arrastar o mapa (um componente React, `MarcasDoToken.tsx`, lê `MapaPixi.tokenNaTela` a cada quadro e põe a posição direto no estilo) e somem ao tirar a seleção.
+- **Quem vê:** o mestre em todos os tokens e quem controla o token (`controlaToken`). Na prática o jogador já nem seleciona o token de outro (regra do V2); o filtro na `Mesa.tsx` é a segunda barreira. Token sem ficha não tem marcas.
+- **A vida é editável ali mesmo.** Um clique na marca (ou a tecla `E`) abre um campo com o número, já selecionado. Enter grava, Esc cancela (sair do campo também cancela). Aceita "12" (valor), "-7" (tira; o dano consome o PV temporário primeiro, como na ficha) e "+3" (soma até o máximo). Fica entre 0 e o PV máximo. Grava com a mesma `ficha.alterar` da ficha (`pvAtual` e, se mudar, `pvTemp`); a lógica é `vidaDoToken.ts` (com teste de unidade). Quem tem a ficha aberta vê na hora.
+- **A CA só mostra.** Um clique nela abre a ficha do personagem (a CA se edita lá).
+- **"Morto" com um X.** Campo novo `morto?: boolean` no token. O X vermelho (dois traços grossos, contorno escuro por baixo) cobre o token inteiro, por baixo do nome e das marcas de condição, e o token fica a 60% de opacidade. Todos que veem o token veem o X. Quem marca: o mestre e quem controla o token, pelo menu do clique direito ("Marcar como morto" / "Tirar a marca de morto") ou pelo botão `Skull` ao lado das marcas de vida. Não marca sozinho quando a vida chega a 0; nesse caso o botão ganha um aro vermelho de destaque.
+- **A camada pelo clique direito (só o mestre).** O menu do token ganhou o grupo "Camada" (Mapa, Tokens, Mestre, a atual marcada), que usa o `token.editar` com `camada` de sempre; ao mandar para o Mestre, o token some para os jogadores na hora, como pelo painel. O jogador não vê o grupo.
+- **Dado e protocolo:** `Token.morto?` (opcional e aditivo); a intenção `token.condicoes` ganhou `morto?: boolean` (mesma regra: o mestre ou quem controla o token; sem capacidade nova). Sem migração de banco: o token é guardado como JSON, o arquivo antigo carrega e exportar/importar levam o campo. Atalho novo `E` (grupo Mapa) em `atalhos.ts`.
+
+**Decisões (assumido)**
+- (assumido) A tecla de editar a vida é `E`: o `V` já é a ferramenta Selecionar.
+- (assumido) O texto "-7" usa a regra do dano da ficha (temporário primeiro); o valor absoluto não mexe no temporário.
+- (assumido) Sair do campo sem Enter cancela, em vez de gravar.
+- (assumido) As marcas somem no modo "ver como outro jogador" (o mestre testando a visão).
+- (assumido) A CA clicável abre a ficha em vez de editar ali.
+- (assumido) O botão de morto fica ao lado de vida e CA, dentro da mesma barra, e vale para quem controla o token.
+
+**O que ficou para depois**
+- Nada pedido. Uma barra de vida no próprio token e a morte automática a 0 PV ficaram de fora de propósito.
+
 ## Em aberto
 
 - **O plano R1 a R6 terminou** (R1, R2, R2b, R3, R4 em 2026-11-10; R5a, R5b, R6a e R6b em 2026-11-11). Agora o Vilella faz os ajustes

@@ -236,7 +236,8 @@ test("o jogador abre o menu do token que controla, pelo teclado, e não o de out
   await expect(p.getByTestId("menu-token")).toHaveAttribute("aria-label", "Token: Aldric");
   // sem "Editar token…" (é do mestre): o foco vai para o primeiro item que existe
   await expect(p.getByTestId("menu-token-editar")).toHaveCount(0);
-  await expect.poll(() => emFoco(p)).toMatch(/^condicao-/);
+  // (N1: o primeiro item que existe agora é "Marcar como morto")
+  await expect.poll(() => emFoco(p)).toBe("menu-token-morto");
   await p.keyboard.press("Escape");
   await expect(p.getByTestId("menu-token")).toHaveCount(0);
   await expect(p.getByTestId("mapa")).toBeFocused();

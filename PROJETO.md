@@ -236,6 +236,7 @@ interface Token {
   visaoNoEscuroM?: number;          // lote 6: idem, para a visão no escuro
   personagemId?: string;            // lote 4; controla: o dono do personagem ou quem estiver em controladoPor
   condicoes?: Condicao[];           // lote 11: as 14 do 5e 2014; quem vê o token vê as condições
+  morto?: boolean;                  // N1, 2026-11-13: marca "morto" (X no token, todos veem); sem regra automática
   exaustao?: number;                // lote 11: 1..6
   concentracao?: string;            // lote 11: nome da magia
 }

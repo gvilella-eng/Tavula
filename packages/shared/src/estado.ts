@@ -136,6 +136,8 @@ export const TokenSchema = z.object({
   concentracao: z.string().trim().min(1).max(64).optional(),
   /** 12-1: rascunho do Claude do mestre: o jogador não o recebe. */
   rascunho: z.boolean().optional(),
+  /** N1: marca "morto" (um X sobre o token, visível a quem vê o token); sem regra automática. Sem o campo, vivo. */
+  morto: z.boolean().optional(),
 });
 export type Token = z.infer<typeof TokenSchema>;
 

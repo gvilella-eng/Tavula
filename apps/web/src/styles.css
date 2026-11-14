@@ -5848,3 +5848,62 @@ button.inicio-botao-largo {
   border: 1px solid var(--borda);
   border-radius: 999px;
 }
+
+/* N1: vida, CA e "morto" em cima do token selecionado (por cima do mapa; só os botões pegam o ponteiro). */
+.mvc-marcas {
+  position: absolute;
+  z-index: 4;
+  display: flex;
+  gap: 4px;
+  transform: translateX(-50%) translateY(-100%);
+  pointer-events: none;
+}
+.mvc-marca,
+.mvc-campo {
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 26px;
+  padding: 2px 8px;
+  background: var(--painel);
+  color: var(--texto);
+  border: 1px solid var(--borda);
+  border-radius: 999px;
+  box-shadow: 0 1px 4px var(--sombra);
+  font-family: "Space Grotesk", Inter, sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+.mvc-vida svg {
+  color: var(--perigo);
+}
+.mvc-ca svg {
+  color: var(--acento-forte);
+}
+.mvc-temp {
+  font-size: 11px;
+  color: var(--texto-suave);
+}
+.mvc-morto {
+  padding: 2px 6px;
+}
+.mvc-morto[aria-pressed="true"] {
+  background: var(--perigo);
+  color: var(--perigo-texto);
+  border-color: var(--perigo);
+}
+.mvc-morto.mvc-destaque {
+  border-color: var(--perigo);
+  color: var(--perigo);
+  box-shadow: 0 0 0 2px var(--perigo);
+}
+.mvc-campo {
+  width: 72px;
+  justify-content: center;
+  text-align: center;
+  background: var(--campo);
+  cursor: text;
+}

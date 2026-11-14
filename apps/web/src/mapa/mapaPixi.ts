@@ -1052,6 +1052,17 @@ export class MapaPixi {
     return this.paraMundo({ x: clientX - r.left, y: clientY - r.top });
   }
 
+  /**
+   * N1: onde está o token na área do mapa (px da tela) e o raio dele na tela, acompanhando o movimento ao vivo;
+   * `null` se ele não está desenhado. As marcas de vida e CA (React) se penduram aqui.
+   */
+  tokenNaTela(id: string): { x: number; y: number; raio: number } | null {
+    const v = this.visuais.get(id);
+    if (!v?.container.visible) return null;
+    const p = this.paraTela(v.x, v.y);
+    return { x: p.x, y: p.y, raio: this.raioDoToken(v.token) * this.vista.zoom };
+  }
+
   /** Ponto do mundo (metros) na página (clientX/clientY): onde abrir um menu junto de um token pelo teclado. */
   pontoDoMundoNaPagina(xM: number, yM: number): Ponto {
     const r = this.app.canvas.getBoundingClientRect();
@@ -1158,7 +1169,7 @@ export class MapaPixi {
   private chaveDe(t: Token): string {
     const imagem = t.assetHash && this.texturas.has(t.assetHash) ? t.assetHash : "";
     const marcas = `${(t.condicoes ?? []).join(",")}|${t.exaustao ?? ""}|${t.concentracao ?? ""}`;
-    return `${t.nome}|${t.cor}|${t.tamanhoQuadrados}|${t.oculto}|${t.camada}|${imagem}|${marcas}`;
+    return `${t.nome}|${t.cor}|${t.tamanhoQuadrados}|${t.oculto}|${t.camada}|${imagem}|${marcas}|${t.morto === true}`;
   }
 
   private criarVisual(token: Token, x: number, y: number): Visual {
@@ -1224,7 +1235,10 @@ export class MapaPixi {
       .circle(0, 0, raio + 8)
       .stroke({ width: 4, color: COR_DA_VEZ });
     anelVez.visible = false;
-    container.addChild(anelVez, anel, corpo, imagem, iniciais, pilulaDoRotulo, rotulo);
+    container.addChild(anelVez, anel, corpo, imagem, iniciais);
+    // N1: o X vermelho de "morto" cobre o token inteiro (contorno escuro por baixo, para ler em qualquer mapa).
+    if (token.morto) container.addChild(this.desenharXDeMorto(raio));
+    container.addChild(pilulaDoRotulo, rotulo);
     const marcas = this.desenharMarcas(container, icones, raio);
     if (token.oculto) container.addChild(this.desenharOlhoCortado(raio));
     container.position.set(x * PX_POR_M, y * PX_POR_M);
@@ -1415,6 +1429,20 @@ export class MapaPixi {
     return null;
   }
 
+  /** N1: o X de "morto": dois traços vermelhos grossos, com contorno escuro, sobre o token inteiro. */
+  private desenharXDeMorto(raio: number): Graphics {
+    const g = new Graphics();
+    const a = raio * 0.78;
+    for (const [largura, cor] of [
+      [raio * 0.3, 0x000000],
+      [raio * 0.17, 0xe5392f],
+    ] as const) {
+      g.moveTo(-a, -a).lineTo(a, a).moveTo(a, -a).lineTo(-a, a);
+      g.stroke({ width: largura, color: cor, cap: "round" });
+    }
+    return g;
+  }
+
   /** Ícone de olho cortado (token oculto, só o mestre vê) no alto do token. */
   private desenharOlhoCortado(raio: number): Graphics {
     const g = new Graphics();
@@ -1508,6 +1536,8 @@ export class MapaPixi {
       if (t.oculto) alpha = 0.5;
       else if (t.camada === "mestre" && trabalho === "tokens") alpha = 0.45;
       else if (this.opcoes.euMestre && trabalho === "mapa" && t.camada !== "mapa") alpha = 0.6;
+      // N1: o token morto fica esmaecido.
+      if (t.morto) alpha *= 0.6;
       v.container.alpha = alpha;
       v.anel.visible = this.opcoes.selecionadoId === t.id;
       v.anelVez.visible = this.opcoes.tokenDaVezId === t.id;
@@ -4422,6 +4452,8 @@ export class MapaPixi {
           emVez: v.anelVez.visible,
           /** O anel de seleção (dourado) está aceso. */
           selecionado: v.anel.visible,
+          /** N1: a marca de morto (o X) está desenhada. */
+          morto: v.token.morto === true,
           /** Os marcadores de condição desenhados na borda. */
           marcas: v.marcas.map((m) => m.titulo),
         })),

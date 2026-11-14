@@ -69,6 +69,12 @@ export const ATALHOS = {
     teclas: [["←"], ["↑"], ["↓"], ["→"]],
     juntas: true,
   },
+  editarVida: {
+    descricao:
+      "Editar a vida do token selecionado (valor, ou -7 e +3 para tirar e somar); Enter grava, Esc cancela",
+    grupo: "Mapa",
+    teclas: [["E"]],
+  },
   pingar: {
     descricao:
       "Pingar o mapa: um círculo na sua cor, para todos (no ponto sob o ponteiro; segurar o clique parado faz o mesmo)",

@@ -411,7 +411,7 @@ export function tokenCondicoes(c: ContextoDeCombate, dados: De<"token.condicoes"
   if (!ehMestre(c) && !controlaToken(token, c.usuario, estado.personagens)) {
     return erro("sem_permissao", "Você não controla este token.");
   }
-  const { condicoes, exaustao, concentracao } = dados;
+  const { condicoes, exaustao, concentracao, morto } = dados;
   const novo: Token = { ...token };
   if (condicoes !== undefined) {
     const unicas = [...new Set(condicoes)];
@@ -425,6 +425,10 @@ export function tokenCondicoes(c: ContextoDeCombate, dados: De<"token.condicoes"
   if (concentracao !== undefined) {
     if (concentracao === null) delete novo.concentracao;
     else novo.concentracao = concentracao;
+  }
+  if (morto !== undefined) {
+    if (morto) novo.morto = true;
+    else delete novo.morto;
   }
   if (JSON.stringify(novo) === JSON.stringify(token)) return {};
   c.emitir({ tipo: "token.editado", dados: { token: novo } });

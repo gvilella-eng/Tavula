@@ -889,6 +889,8 @@ export const IntencaoSchema = z.discriminatedUnion("tipo", [
       condicoes: z.array(CondicaoSchema).max(14).optional(),
       exaustao: z.number().int().min(0).max(6).optional(),
       concentracao: z.string().trim().min(1).max(64).nullable().optional(),
+      /** N1: marca ou tira a marca de morto (o mestre e quem controla o token). */
+      morto: z.boolean().optional(),
     }),
   ),
   /**

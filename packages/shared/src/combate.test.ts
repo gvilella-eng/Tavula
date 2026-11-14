@@ -17,6 +17,7 @@ import {
   proximoTurno,
   reduzir,
   type Token,
+  TokenSchema,
   tirarEntrada,
   turnoAnterior,
   visaoPara,
@@ -501,6 +502,23 @@ describe("combate: permissões", () => {
       "mensagem_invalida",
     );
     expect(CONDICOES).toHaveLength(14);
+  });
+
+  it("N1: a marca de morto é do mestre e de quem controla o token; tirar apaga o campo", () => {
+    const estado = criarEstado();
+    expect(recusa(estado, "j2", "token.condicoes", { id: "ta", morto: true })).toBe(
+      "sem_permissao",
+    );
+    const morto = aplicar(estado, "j1", "token.condicoes", { id: "ta", morto: true });
+    expect(morto.estado.tokens.find((t) => t.id === "ta")?.morto).toBe(true);
+    // marcar de novo não emite nada; as condições continuam como estavam
+    expect(
+      aplicar(morto.estado, "m", "token.condicoes", { id: "ta", morto: true }).eventos,
+    ).toHaveLength(0);
+    const vivo = aplicar(morto.estado, "m", "token.condicoes", { id: "ta", morto: false });
+    expect(vivo.estado.tokens.find((t) => t.id === "ta")).not.toHaveProperty("morto");
+    // token sem o campo (mesa antiga) continua válido
+    expect(TokenSchema.safeParse({ ...estado.tokens[0], morto: undefined }).success).toBe(true);
   });
 
   it("o token entregue a um jogador (controladoPor, como um familiar) também é dele: rola, passa e marca", () => {
