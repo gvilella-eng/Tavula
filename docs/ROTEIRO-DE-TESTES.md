@@ -516,6 +516,23 @@ Antes: o Claude conectado (Preferências → Conectar o Claude) num computador c
 10. **Revogar.** Peça um envio e revogue o token em Preferências antes de rodar o comando: o curl responde que o token foi revogado.
 11. **Usar o que já existe.** Peça "Liste os arquivos da mesa" e depois "Use o mapa X na cena Y": entra sem reenviar.
 
+## M2 — O Claude faz tudo na preparação
+
+Antes: o Claude conectado como mestre, a mesa aberta como mestre e outra janela como jogador, com uma cena de mapa.
+
+1. **Sessão inteira de uma vez.** Peça: "Prepare a Segunda cena com névoa cobrindo tudo menos a ponte, 4 goblins na margem leste, trilha de floresta e a iniciativa rolada". O Claude cria a cena, cobre a névoa, revela a ponte, põe os goblins, define a trilha (suba um som antes, se não houver) e monta o combate. Confira cada parte na mesa.
+2. **Névoa.** Peça "cubra tudo e revele o retângulo da coluna 10 à 14, linha 4 à 20". O jogador vê só a área revelada. Peça "desfaça a última névoa": volta.
+3. **Texto no mapa.** Peça "escreva PONTE no mapa, na coluna 8, linha 8". Aparece em traços, para todos. Peça "apague o texto PONTE".
+4. **Paredes e portas.** Peça "apague a parede perto da coluna 6, linha 3" e "tranque a porta perto da coluna 12, linha 5".
+5. **Combate.** Peça "ponha os 2 goblins na ordem de turno, role a iniciativa só dos NPCs e passe para o próximo". Peça "esconda o painel de ordem de turno".
+6. **Chat.** Peça "narre: um vento frio sobe do poço" e "sussurre para a Ana: você ouve passos". Sai com a marca "pelo Claude".
+7. **Levar o grupo.** Publique a Segunda cena e peça "leve o grupo para a Segunda".
+8. **Som.** Peça "toque a trilha floresta a 40%" e "pare a trilha".
+9. **Tokens e fichas.** Peça "mova o Goblin 1 para a coluna 12, linha 8, marque como amedrontado e com 3 de vida" e "gaste um dado de vida d8 da Brisa".
+10. **Configurar a mesa.** Peça "crie a pasta Vilarejo visível para todos" e "pause a mesa".
+11. **Desfazer.** Em Preferências, "O que o Claude fez": desfaça o lote do texto e o da névoa. Chat, rolagens, combate e som não voltam (de propósito).
+12. **Jogador.** No Claude do jogador, peça "cubra a névoa" e "monte o combate": ele diz que não pode.
+
 ## Se algo der errado
 - Anote a tela, o que fez e o que esperava, e mande para mim. Bug confirmado vai para `docs/BUGS.md`.
 - Para voltar à campanha de antes de mesas e contas, use a cópia de segurança indicada no topo.

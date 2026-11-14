@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {
+  DADOS_DE_VIDA,
   type Estado,
   ehNpc,
   type Ficha,
@@ -17,7 +18,7 @@ import {
 import { ErroDoMcp } from "../erros.ts";
 import { FichaPartesSchema, montarFicha } from "../fichaPorPartes.ts";
 import { linhaDaFicha } from "../formato.ts";
-import { acharExato, novoId } from "../nomes.ts";
+import { achar, acharExato, novoId } from "../nomes.ts";
 import type { Lote } from "../tipos.ts";
 import { type Contexto, cadaItem, definir, ehMestre, passo, Relatorio } from "./base.ts";
 
@@ -260,8 +261,52 @@ async function editar(
 export const fichas = definir({
   nome: "fichas",
   descricao:
-    'Cria e edita fichas em lote, por partes (atributos, classes e nível, perícias, ataques, magias, itens e equipamento, história...). A mesa calcula modificadores, proficiência, CA e PV como na ficha. Nomes do compêndio ("Bola de Fogo", "Espada Longa") vão em `compendio`. Para NPCs de monstros do compêndio use `monstro` (e `quantidade`): {"nome":"Goblin","monstro":"Goblin","quantidade":4}. Se já existe ficha com o nome, edita; senão, cria. O jogador cria e edita as dele (teto de 20); o mestre cria NPCs (entram como rascunho) e edita qualquer ficha. Exemplo: {"fichas":[{"nome":"Brisa","raca":"Anã","classes":[{"classe":"Clérigo","nivel":3}],"atributos":{"for":10,"des":12,"con":14,"int":10,"sab":16,"car":12},"pericias":["Religião","Medicina"],"compendio":["Luz","Espada Longa"]}]}',
-  entrada: z.object({ fichas: z.array(PedidoDeFichaSchema).min(1).max(30) }).strict(),
+    'Cria, edita e apaga fichas em lote (`apagar`), gasta dados de vida (`dadoDeVida`) e ajusta a mochila de objetos de luz (`mochila`, só o mestre). Cria e edita por partes (atributos, classes e nível, perícias, ataques, magias, itens e equipamento, história...). A mesa calcula modificadores, proficiência, CA e PV como na ficha. Nomes do compêndio ("Bola de Fogo", "Espada Longa") vão em `compendio`. Para NPCs de monstros do compêndio use `monstro` (e `quantidade`): {"nome":"Goblin","monstro":"Goblin","quantidade":4}. Se já existe ficha com o nome, edita; senão, cria. O jogador cria e edita as dele (teto de 20); o mestre cria NPCs (entram como rascunho) e edita qualquer ficha. Exemplo: {"fichas":[{"nome":"Brisa","raca":"Anã","classes":[{"classe":"Clérigo","nivel":3}],"atributos":{"for":10,"des":12,"con":14,"int":10,"sab":16,"car":12},"pericias":["Religião","Medicina"],"compendio":["Luz","Espada Longa"]}]}',
+  entrada: z
+    .object({
+      fichas: z.array(PedidoDeFichaSchema).min(1).max(30).optional(),
+      apagar: z
+        .array(z.string())
+        .max(30)
+        .optional()
+        .describe(
+          "Nomes de fichas a apagar (o mestre: qualquer uma; o jogador: as que ele criou).",
+        ),
+      dadoDeVida: z
+        .array(
+          z
+            .object({
+              ficha: z.string(),
+              dado: z
+                .enum(DADOS_DE_VIDA)
+                .describe("O tipo de dado de vida que gasta (descanso curto)."),
+              vezes: z.number().int().min(1).max(10).optional().describe("Padrão 1."),
+            })
+            .strict(),
+        )
+        .max(12)
+        .optional()
+        .describe("Gasta dados de vida: a mesa rola 1dN + Con, cura e mostra no chat."),
+      mochila: z
+        .array(
+          z
+            .object({
+              ficha: z.string(),
+              modelo: z.string().describe("Nome do modelo de objeto (Tocha 5e, Lanterna...)."),
+              delta: z
+                .number()
+                .int()
+                .min(-99)
+                .max(99)
+                .describe("Soma (ou tira, se negativo) à mochila."),
+            })
+            .strict(),
+        )
+        .max(30)
+        .optional()
+        .describe("Muda a quantidade de objetos de luz novos na mochila da ficha (só o mestre)."),
+    })
+    .strict(),
   visivel(estado, eu) {
     if (ehMestre(eu)) return true;
     return (
@@ -273,7 +318,7 @@ export const fichas = definir({
     const eu = ctx.sala.eu();
     const r = new Relatorio();
     // N3a: "monstro" com "quantidade" vira vários pedidos, com o número no nome.
-    const pedidos = e.fichas.flatMap((f) =>
+    const pedidos = (e.fichas ?? []).flatMap((f) =>
       f.monstro !== undefined && (f.quantidade ?? 1) > 1
         ? Array.from({ length: f.quantidade ?? 1 }, (_, i) => ({
             ...f,
@@ -287,7 +332,9 @@ export const fichas = definir({
     }
     const nomes = pedidos.map((f) => f.nome);
     const lote = ctx.novoLote(
-      `fichas: ${nomes.slice(0, 6).join(", ")}${nomes.length > 6 ? ` e mais ${nomes.length - 6}` : ""}`,
+      nomes.length === 0
+        ? "fichas (apagar, dado de vida, mochila)"
+        : `fichas: ${nomes.slice(0, 6).join(", ")}${nomes.length > 6 ? ` e mais ${nomes.length - 6}` : ""}`,
     );
     await cadaItem(
       pedidos,
@@ -307,6 +354,56 @@ export const fichas = definir({
       },
       r,
     );
-    return r.saida();
+    // M2: apagar, gastar dado de vida e ajustar a mochila.
+    const fichaDe = (nome: string) =>
+      achar(ctx.sala.estado().personagens, nome, {
+        rotulo: "ficha",
+        nomeDe: (x) => x.nome,
+        idDe: (x) => x.id,
+      });
+    await cadaItem(
+      e.apagar ?? [],
+      (n) => `apagar "${n}"`,
+      async (n) => {
+        const f = fichaDe(n);
+        await passo(ctx, lote, "personagem.apagar", { id: f.id });
+        return `Apagou a ficha "${f.nome}".`;
+      },
+      r,
+    );
+    await cadaItem(
+      e.dadoDeVida ?? [],
+      (d) => `dado de vida de "${d.ficha}"`,
+      async (d) => {
+        const f = fichaDe(d.ficha);
+        for (let i = 0; i < (d.vezes ?? 1); i++) {
+          await passo(ctx, lote, "ficha.dadoDeVida", { personagemId: f.id, dado: d.dado });
+        }
+        const pv = ctx.sala.estado().personagens.find((x) => x.id === f.id)?.ficha;
+        return `${f.nome} gastou ${d.vezes ?? 1}${d.dado}${pv ? ` (PV ${pv.pvAtual}/${pv.pvMax})` : ""}.`;
+      },
+      r,
+    );
+    await cadaItem(
+      e.mochila ?? [],
+      (m) => `mochila de "${m.ficha}"`,
+      async (m) => {
+        const estado = ctx.sala.estado();
+        const f = fichaDe(m.ficha);
+        const modelo = achar(estado.modelos, m.modelo, {
+          rotulo: "modelo de objeto",
+          nomeDe: (x) => x.nome,
+          idDe: (x) => x.id,
+        });
+        await passo(ctx, lote, "mochila.ajustar", {
+          personagemId: f.id,
+          modeloId: modelo.id,
+          delta: m.delta,
+        });
+        return `Mochila de ${f.nome}: ${m.delta > 0 ? "+" : ""}${m.delta} "${modelo.nome}".`;
+      },
+      r,
+    );
+    return r.saida("Nada a fazer: diga `fichas`, `apagar`, `dadoDeVida` ou `mochila`.");
   },
 });

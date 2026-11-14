@@ -890,6 +890,23 @@ Continua em aberto, por ser decisão e não erro de doc: `ficha.verOutras` (seç
 
 **Suposições**: ver `docs/REDESIGN.md`, "12-3 — como ficou".
 
+## M2 (2026-11-14): o Claude faz tudo na preparação e na configuração
+
+**Regra de ouro: intenção nova precisa de entrada na tabela de paridade** (`packages/shared/src/mcp/paridade.ts`). Ela é um `Record<TipoIntencao, ...>`: sem a entrada nem compila; `mcp/paridade.test.ts` confere que a ferramenta e o campo apontados existem. Se a intenção é de preparar, configurar ou conduzir a mesa, ponha uma ação numa ferramenta (`mcp/ferramentas/`); se é segurança, conexão ou gesto da tela, escreva o motivo.
+
+**Onde mexer**
+- Ferramentas novas em `packages/shared/src/mcp/ferramentas/`: `mapa.ts`, `tokens.ts`, `mesa.ts`, `som.ts`, `combate.ts`, `chat.ts`; `achados.ts` (cena, ficha, token e som pelo nome); `objetosM2.ts` (tocha e ajustes); `base.ts` ganhou `passoComEspera` (espera o limite de 20 pedidos por segundo). Ampliadas: `cenas` (`duplicarDe`, `levarGrupo`), `automacoes` (`acionar`, `eventos`, `usarBotoes`), `objetos`, `fichas` (`apagar`, `dadoDeVida`, `mochila`).
+- `mcp/fonteDeTracos.ts`: o texto no mapa é uma fonte de traços (cada letra são desenhos "livre"; ids `txt-<trecho>-<x>-<n>`).
+- `desfazer.ts`: a coleção `desenhos` entrou no Desfazer.
+- O texto que o Claude lê ao conectar (`INSTRUCOES` em `mcp/servidor.ts`) tem o roteiro de preparar uma sessão.
+
+**Frágil**
+- Mover token pelo Claude usa `token.soltar` (grava); `token.mover` é só o arrasto em andamento e não grava.
+- Os ids dos textos carregam o trecho do texto (16 caracteres): `apagar.textos` e `moverDesenhos.texto` procuram por ele. Texto com o mesmo trecho em dois lugares apaga os dois.
+- Texto longo gera dezenas de pedidos; o limite do Claude (20 por segundo) é esperado por `passoComEspera`.
+- Desenhos do Claude não são rascunho (assumido); cena em rascunho não recebe o grupo (a mesa explica).
+- `combate`: o primeiro passo com erro para os seguintes.
+
 ## M1 (2026-11-14): o Claude sobe arquivos
 **Onde mexer**
 - `packages/shared/src/envios.ts` (usos, limites, formato pelos primeiros bytes, segredo do link, `usoDoArquivo`, esquemas das intenções) e `enviosUso.ts` (`negarEnvio`, que usa `processar`; fica à parte para não fechar um ciclo de importação com o protocolo).

@@ -3778,4 +3778,31 @@ Ver `PASSAGEM.md` ("M1"): o aplicar do uso é da sala; espera de até 2 s pelo `
 ### Roteiro manual
 `docs/ROTEIRO-DE-TESTES.md`, "M1".
 
-## Próximo: M2 (as outras ações que faltam ao Claude) e o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b, N4, N5 e M1
+## Ajustes M2 — O Claude faz tudo na preparação e na configuração (entregue, aguardando o roteiro manual)
+
+### O que foi entregue
+- Tabela de paridade `packages/shared/src/mcp/paridade.ts`: as 125 intenções, 107 com ferramenta e campo, 18 de fora (4 proibidas, 9 de transporte, 5 gestos ao vivo). Teste `paridade.test.ts`: intenção nova sem entrada, ou entrada apontando para ferramenta ou campo inexistente, reprova.
+- Ferramentas novas (agora 18): `mapa`, `tokens`, `mesa`, `som`, `combate`, `chat`. Ampliadas: `cenas`, `automacoes`, `objetos`, `fichas`.
+- O Desfazer cobre os desenhos. O texto de conexão do MCP traz o roteiro de preparar uma sessão. `docs/MCP.md` lista as ferramentas e a tabela.
+
+### Como rodar
+`pnpm dev` como sempre. Sem migração e sem mudança de protocolo ou de tela.
+
+### Verificação
+- `pnpm verify` uma vez: typecheck e lint limpos; unidade 1155 (shared), 138 (server), 139 (web), 19 (mcp); E2E 446 testes, 441 passaram e 5 falharam, todos nas listas de ferramentas dos specs 12-2 e 12-3 (a lista cresceu de propósito). Corrigidos (só listas e contagem 12 -> 18) e os dois specs rodados de novo: 11 passaram. Nenhum código mudou depois do verify, só esses dois specs.
+- Novos: `mcp/paridade.test.ts`, `mcp/m2.test.ts`, `e2e/tests/claude-m2.spec.ts` (névoa, texto, parede, chat, trilha, Desfazer; combate com 2 goblins; jogador barrado).
+
+### Decisões
+Ver `REDESIGN.md` ("M2 — como ficou").
+
+### Desvios
+- O brief pedia "escrever um texto no mapa", mas a mesa não tem forma texto: o texto é feito de traços (fonte própria, sem acento).
+- Mover token usa `token.soltar`; `token.mover` não grava.
+
+### Frágil
+Ver `PASSAGEM.md` ("M2").
+
+### Roteiro manual
+`docs/ROTEIRO-DE-TESTES.md`, "M2".
+
+## Próximo: o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b, N4, N5, M1 e M2

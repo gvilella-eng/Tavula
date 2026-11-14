@@ -322,16 +322,95 @@ async function botao(p: BotaoPedido, ctx: Contexto, lote: Lote): Promise<string>
   return `Editou o botão "${existente.nome}".`;
 }
 
+// M2: o que o mestre faz com as automações DURANTE a sessão (disparar um ciclo, pausar, soltar um evento, apertar um botão).
+const AcionarSchema = z
+  .object({
+    ciclo: z.string().describe("Nome do ciclo."),
+    acao: z
+      .enum(["disparar", "pausar", "retomar"])
+      .describe(
+        "disparar pula para a fase seguinte agora; pausar/retomar só o ciclo (as tochas seguem).",
+      ),
+  })
+  .strict();
+
+const EventoPedidoSchema = z
+  .object({
+    evento: NomeDeEventoSchema.describe("O nome do evento, como as reações o escutam."),
+    cena: z.string().optional().describe("Só nesta cena (nome); sem isso, em todas."),
+  })
+  .strict();
+
+const UsarBotaoSchema = z
+  .object({
+    botao: z.string().describe("Nome do botão de evento ou do ciclo fixado."),
+    acao: z
+      .enum(["disparar", "pausar", "retomar"])
+      .optional()
+      .describe("Só em ciclo (padrão: disparar)."),
+  })
+  .strict();
+
+async function acionar(
+  p: z.infer<typeof AcionarSchema>,
+  ctx: Contexto,
+  lote: Lote,
+): Promise<string> {
+  const c = achar(automacoesDe(ctx.sala.estado()).ciclos, p.ciclo, {
+    rotulo: "ciclo",
+    nomeDe: (x) => x.nome,
+    idDe: (x) => x.id,
+  });
+  const tipo = { disparar: "ciclo.disparar", pausar: "ciclo.pausar", retomar: "ciclo.retomar" }[
+    p.acao
+  ];
+  await passo(ctx, lote, tipo, { id: c.id });
+  return `Ciclo "${c.nome}": ${p.acao}.`;
+}
+
+async function soltarEvento(
+  p: z.infer<typeof EventoPedidoSchema>,
+  ctx: Contexto,
+  lote: Lote,
+): Promise<string> {
+  const estado = ctx.sala.estado();
+  const cena = p.cena === undefined ? undefined : cenaDe(estado, p.cena);
+  await passo(ctx, lote, "evento.disparar", {
+    evento: p.evento,
+    ...(cena ? { cenaId: cena.id } : {}),
+  });
+  return `Disparou o evento "${p.evento}"${cena ? ` na cena "${cena.nome}"` : " em todas as cenas"}.`;
+}
+
+async function usarBotao(
+  p: z.infer<typeof UsarBotaoSchema>,
+  ctx: Contexto,
+  lote: Lote,
+): Promise<string> {
+  const a = automacoesDe(ctx.sala.estado());
+  const alvos = [
+    ...a.botoes.map((b) => ({ id: `evento:${b.id}`, nome: b.nome, ciclo: false })),
+    ...a.ciclos.map((c) => ({ id: `ciclo:${c.id}`, nome: c.nome, ciclo: true })),
+  ];
+  const b = achar(alvos, p.botao, { rotulo: "botão", nomeDe: (x) => x.nome, idDe: (x) => x.id });
+  if (p.acao && !b.ciclo) throw new ErroDoMcp("`acao` só vale para um botão de ciclo.");
+  await passo(ctx, lote, "botao.usar", { botaoId: b.id, ...(p.acao ? { acao: p.acao } : {}) });
+  return `Apertou o botão "${b.nome}"${p.acao ? ` (${p.acao})` : ""}.`;
+}
+
 export const automacoes = definir({
   nome: "automacoes",
   descricao:
-    'Só do mestre. Cria e edita automações em lote: ciclos (fases que disparam eventos), reações ("ao evento X, faça Y"), zonas (polígonos com efeitos) e botões de evento. Se já existe um com o nome, edita. Tudo entra como rascunho e não roda até o mestre publicar. Nomes no lugar de ids. Ordem: zonas, depois ciclos e reações que as usam. Exemplo: {"zonas":[{"cena":"Eclusa","nome":"Poça","pontos":[[4,4],[8,4],[8,7]],"efeitos":{"visaoMaxM":3}}],"ciclos":[{"nome":"Vento","periodoS":600,"fases":[{"emS":0,"evento":"vento.sopra","duracaoS":60}]}]}',
+    'Só do mestre. Cria e edita automações em lote: ciclos (fases que disparam eventos), reações ("ao evento X, faça Y"), zonas (polígonos com efeitos) e botões de evento. Se já existe um com o nome, edita. Tudo entra como rascunho e não roda até o mestre publicar. Nomes no lugar de ids. Ordem: zonas, depois ciclos e reações que as usam. Durante a sessão: `acionar` ([{ciclo, acao: disparar|pausar|retomar}]), `eventos` ([{evento, cena}] dispara agora) e `usarBotoes` ([{botao}] aperta um botão de evento ou de ciclo); o que ainda é rascunho não roda. Exemplo: {"zonas":[{"cena":"Eclusa","nome":"Poça","pontos":[[4,4],[8,4],[8,7]],"efeitos":{"visaoMaxM":3}}],"ciclos":[{"nome":"Vento","periodoS":600,"fases":[{"emS":0,"evento":"vento.sopra","duracaoS":60}]}]}',
   entrada: z
     .object({
       zonas: z.array(ZonaPedidaSchema).max(30).optional(),
       ciclos: z.array(CicloPedidoSchema).max(20).optional(),
       reacoes: z.array(ReacaoPedidoSchema).max(40).optional(),
       botoes: z.array(BotaoPedidoSchema).max(20).optional(),
+      acionar: z.array(AcionarSchema).max(20).optional(),
+      eventos: z.array(EventoPedidoSchema).max(20).optional(),
+      usarBotoes: z.array(UsarBotaoSchema).max(20).optional(),
     })
     .strict(),
   visivel: (estado, eu) => pode(eu, "automacao.editar", estado.permissoes),
@@ -340,8 +419,13 @@ export const automacoes = definir({
       (e.zonas?.length ?? 0) +
       (e.ciclos?.length ?? 0) +
       (e.reacoes?.length ?? 0) +
-      (e.botoes?.length ?? 0);
-    if (total === 0) return "Nada a fazer: diga `zonas`, `ciclos`, `reacoes` ou `botoes`.";
+      (e.botoes?.length ?? 0) +
+      (e.acionar?.length ?? 0) +
+      (e.eventos?.length ?? 0) +
+      (e.usarBotoes?.length ?? 0);
+    if (total === 0) {
+      return "Nada a fazer: diga `zonas`, `ciclos`, `reacoes`, `botoes`, `acionar`, `eventos` ou `usarBotoes`.";
+    }
     const r = new Relatorio();
     const lote = ctx.novoLote(
       `automações: ${e.zonas?.length ?? 0} zonas, ${e.ciclos?.length ?? 0} ciclos, ${e.reacoes?.length ?? 0} reações, ${e.botoes?.length ?? 0} botões`,
@@ -368,6 +452,24 @@ export const automacoes = definir({
       e.botoes ?? [],
       (b) => `botão "${b.nome}"`,
       (b) => botao(b, ctx, lote),
+      r,
+    );
+    await cadaItem(
+      e.acionar ?? [],
+      (a) => `ciclo "${a.ciclo}"`,
+      (a) => acionar(a, ctx, lote),
+      r,
+    );
+    await cadaItem(
+      e.eventos ?? [],
+      (x) => `evento "${x.evento}"`,
+      (x) => soltarEvento(x, ctx, lote),
+      r,
+    );
+    await cadaItem(
+      e.usarBotoes ?? [],
+      (b) => `botão "${b.botao}"`,
+      (b) => usarBotao(b, ctx, lote),
       r,
     );
     return r.saida();

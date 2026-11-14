@@ -1933,3 +1933,22 @@ Os lotes 7b-1 a 7b-3 (motor, zonas, editor e campanhas) vêm depois dos ajustes 
 - `hash` nas ferramentas de cenas, fichas, notas e objetos (hoje só em `arquivos.usar`).
 - Copiar o compêndio para a pasta e processar vários arquivos de compêndio juntos.
 - O link vencido só tem teste de unidade (o E2E não espera 15 minutos).
+
+## M2 — como ficou (2026-11-14)
+
+**O que foi feito**
+- Tabela de paridade (`packages/shared/src/mcp/paridade.ts`): cada uma das 125 intenções tem a ferramenta e o campo do MCP que a alcança (107) ou o motivo de ficar de fora (18: 4 proibidas, 9 de transporte, 5 gestos ao vivo). Teste de unidade falha com intenção nova sem entrada ou entrada que aponta para o que não existe.
+- Ferramentas novas: `mapa` (névoa, desenhos, textos, paredes, portas, memória), `tokens`, `mesa` (configuração, iluminação, pastas, relógio, compêndio), `som`, `combate` (passos em ordem) e `chat` (narrar, sussurrar, emote, handout, cartões, limpar). Ampliadas: `cenas` (duplicar, levar o grupo, ids dos tokens tirados), `automacoes` (acionar ciclos, eventos, botões), `objetos` (tocha e ajustes), `fichas` (apagar, dado de vida, mochila).
+- O Desfazer cobre os desenhos. O texto que o Claude lê ao conectar traz o roteiro de preparar uma sessão.
+
+**Decisões (assumido)**
+- Texto no mapa: a mesa não tem forma "texto"; o Claude escreve com uma fonte de traços (sem acento), sem mudar protocolo nem tela.
+- Mover token pelo Claude é `token.soltar` (grava); `token.mover` é gesto ao vivo.
+- Desenhos e textos do Claude não são rascunho; cenas, fichas, pastas e o resto seguem a regra do 12-1.
+- `ponto.acenderInicio/Fim` (segurar a tocha no tempo real) ficou como gesto ao vivo; `compendio.definir` aponta para `mesa` (tirar) e `arquivos` (pôr).
+- O jogador só usa `tokens`, `chat`, `combate` (o próprio turno), `rolar` e as de sempre; tocha e ajustes de luz ficam com o mestre.
+- Não se desfazem: chat, rolagens, combate, som (trilha e efeito), relógio, configuração e arquivos.
+
+**O que ficou para depois**
+- Forma "texto" de verdade nos desenhos (hoje são traços).
+- Tocha do jogador pelo Claude do jogador.

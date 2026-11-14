@@ -61,6 +61,9 @@ test("o jogador monta o personagem pelo Claude (HTTP): magias do compêndio, 4d6
     "fichas",
     "compendio",
     "notas",
+    "tokens",
+    "combate",
+    "chat",
     "rolar",
     "arquivos",
     "desfazer",
@@ -177,7 +180,13 @@ test("o mestre monta uma cena pelo Claude (HTTP): rascunho invisível ao jogador
     "notas",
     "objetos",
     "cenas",
+    "mapa",
+    "tokens",
     "automacoes",
+    "combate",
+    "mesa",
+    "som",
+    "chat",
     "rolar",
     "rascunhos",
     "arquivos",
@@ -465,7 +474,7 @@ test("segurança do HTTP: Origin, cookie, métodos, tipo e tamanho; a lista de f
 
   // O que o Claude nunca faz não é ferramenta: nem na lista, nem chamando pelo nome da intenção.
   const lista = await mcp.ferramentas();
-  expect(lista).toHaveLength(12);
+  expect(lista).toHaveLength(18);
   for (const proibida of [
     "papel.alterar",
     "permissao.alterar",

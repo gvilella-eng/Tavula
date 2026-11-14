@@ -824,6 +824,16 @@ criar cenas, notas do mestre, modelos de objeto, pontos, zonas, ciclos, reaçõe
 - **O que o Claude cria para o mestre entra como rascunho**, invisível para os jogadores até o mestre publicar.
   Há um **"Desfazer tudo o que o Claude fez"**, para o mestre e para o jogador.
 - **O Claude pode rolar dados.** Quem rola é a sala, e a rolagem aparece no chat com a marca "pelo Claude".
+- **O Claude faz tudo na preparação e na configuração (M2, 2026-11-14).** "O mestre não deve ter trabalho algum além
+  de prompts." Toda intenção do protocolo tem uma entrada na **tabela de paridade**
+  (`packages/shared/src/mcp/paridade.ts`): a ferramenta MCP e o campo que a alcançam, ou o motivo de ficar de fora,
+  numa categoria fechada (`proibida`: segurança; `transporte`: coisa da conexão; `gesto ao vivo`: gesto da tela).
+  Um teste de unidade falha se surgir intenção sem entrada ou entrada apontando para algo que não existe: **intenção
+  nova precisa de entrada na tabela**. Ferramentas novas: `mapa`, `tokens`, `mesa`, `som`, `combate` e `chat`;
+  ampliadas: `cenas`, `automacoes`, `objetos` e `fichas`. Tudo passa pela `tratarIntencao` com as permissões da
+  pessoa e entra no lote do Claude; o Desfazer agora cobre também os desenhos. Texto no mapa é feito de traços
+  (a mesa não tem forma "texto"; assumido). Não se desfazem: chat, rolagens, combate, som, relógio, configuração
+  e arquivos.
 
 Regras que continuam:
 - **É mais um cliente da sala, não uma porta dos fundos:** passa pelas mesmas intenções, schemas zod e

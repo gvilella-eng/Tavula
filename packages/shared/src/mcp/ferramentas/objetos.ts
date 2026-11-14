@@ -6,6 +6,7 @@ import { achar, acharExato, novoId } from "../nomes.ts";
 import type { Lote } from "../tipos.ts";
 import { type Contexto, cadaItem, definir, passo, Relatorio } from "./base.ts";
 import { emMetros, ParSchema } from "./cenasUtil.ts";
+import { AjusteDeObjetoSchema, ajustar, TochaPedidaSchema, tocha } from "./objetosM2.ts";
 
 const Cor = z.string().regex(/^#[0-9a-fA-F]{6}$/);
 
@@ -256,19 +257,28 @@ async function luz(p: LuzPedida, ctx: Contexto, lote: Lote): Promise<string> {
 export const objetos = definir({
   nome: "objetos",
   descricao:
-    'Só do mestre. Cria, edita e apaga modelos de objeto de luz (Tocha, Lanterna...), pontos do mapa (suportes e inflamáveis) e luzes fixas, em lote. Se já existe um com o nome, edita. Coordenadas em células. (Os itens da ficha de um jogador vão em `fichas`.) Exemplo: {"modelos":[{"nome":"Archote","claraM":4.5,"penumbraM":4.5,"duracaoMin":30,"ocupaMao":true,"tags":["chama"]}],"pontos":[{"cena":"Eclusa","nome":"Suporte da entrada","em":[3.5,2.5],"tipo":"suporte"}]}',
+    'Só do mestre. Cria, edita e apaga modelos de objeto de luz (Tocha, Lanterna...), pontos do mapa (suportes e inflamáveis) e luzes fixas, em lote. Se já existe um com o nome, edita. Coordenadas em células. Durante a sessão: `tocha` ([{acao: acender|alternar|guardar|entregar|posar|pegar, ficha, modelo, ponto, para}]) e `ajustes` ([{objeto, ficha, ajuste: {acao: tempo|modificar|tirarModificador|consumir}}]). (Os itens da ficha de um jogador vão em `fichas`.) Exemplo: {"modelos":[{"nome":"Archote","claraM":4.5,"penumbraM":4.5,"duracaoMin":30,"ocupaMao":true,"tags":["chama"]}],"pontos":[{"cena":"Eclusa","nome":"Suporte da entrada","em":[3.5,2.5],"tipo":"suporte"}]}',
   entrada: z
     .object({
       modelos: z.array(ModeloPedidoSchema).max(30).optional(),
       pontos: z.array(PontoPedidoSchema).max(60).optional(),
       luzes: z.array(LuzPedidaSchema).max(60).optional(),
+      tocha: z.array(TochaPedidaSchema).max(20).optional(),
+      ajustes: z.array(AjusteDeObjetoSchema).max(20).optional(),
     })
     .strict(),
   visivel: (estado, eu) => pode(eu, "cena.editar", estado.permissoes),
   async executar(e, ctx) {
     const r = new Relatorio();
-    const total = (e.modelos?.length ?? 0) + (e.pontos?.length ?? 0) + (e.luzes?.length ?? 0);
-    if (total === 0) return "Nada a fazer: diga `modelos`, `pontos` ou `luzes`.";
+    const total =
+      (e.modelos?.length ?? 0) +
+      (e.pontos?.length ?? 0) +
+      (e.luzes?.length ?? 0) +
+      (e.tocha?.length ?? 0) +
+      (e.ajustes?.length ?? 0);
+    if (total === 0) {
+      return "Nada a fazer: diga `modelos`, `pontos`, `luzes`, `tocha` ou `ajustes`.";
+    }
     const lote = ctx.novoLote(
       `objetos: ${e.modelos?.length ?? 0} modelos, ${e.pontos?.length ?? 0} pontos, ${e.luzes?.length ?? 0} luzes`,
     );
@@ -288,6 +298,18 @@ export const objetos = definir({
       e.luzes ?? [],
       (l) => `luz "${l.nome}"`,
       (l) => luz(l, ctx, lote),
+      r,
+    );
+    await cadaItem(
+      e.tocha ?? [],
+      (t) => `tocha (${t.acao})`,
+      (t) => tocha(t, ctx, lote),
+      r,
+    );
+    await cadaItem(
+      e.ajustes ?? [],
+      (a) => `ajuste de "${a.objeto}"`,
+      (a) => ajustar(a, ctx, lote),
       r,
     );
     return r.saida();

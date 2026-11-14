@@ -114,11 +114,25 @@ chamada só. Se um nome for repetido ou não existir, a resposta diz o que corri
 | `notas` | jogador (as dele) e mestre (todas) | Cria, edita e apaga handouts em lote. |
 | `objetos` | mestre | Modelos de objeto de luz, pontos (suportes e inflamáveis) e luzes fixas. |
 | `cenas` | mestre | Cenas: nome, grid, chegada, cartão, luz, paredes, portas, arcos e tokens de NPC. |
-| `automacoes` | mestre | Ciclos, reações, zonas e botões de evento. |
+| `mapa` | mestre | M2. Névoa (cobrir e revelar por retângulo, polígono, pincel ou tudo; desfazer), desenhos e textos no mapa, editar e apagar paredes, abrir, fechar e trancar portas, esquecer a memória do mapa. |
+| `tokens` | todos (cada um nos seus) | M2. Mover, renomear, tamanho, camada, visão, condições, morto, vida e CA do token; pôr a ficha no mapa; restaurar um token apagado. |
+| `automacoes` | mestre | Ciclos, reações, zonas e botões de evento; durante a sessão, disparar, pausar e retomar ciclos, soltar eventos e apertar botões (M2). |
+| `combate` | mestre (o jogador, o próprio turno) | M2. Montar a ordem de turno (tokens, fichas, avulsos), rolar iniciativa (todos, NPCs, faltam), editar, mover, próximo, anterior, passar, dar a vez, rodada, encerrar; mostrar ou esconder o painel. |
+| `mesa` | mestre | M2. Configuração da mesa, iluminação e memória do mapa, pastas (criar, renomear, visibilidade, apagar, mover itens), relógio (pausar, retomar, zerar), tirar o compêndio. |
+| `som` | mestre | M2. Trilha, efeito, trilha padrão da cena e som de zona, pelo nome do arquivo. |
+| `chat` | todos | M2. Narrar, falar como uma ficha, sussurrar, emote, mostrar handout, cartão de característica ou magia, limpar o histórico. Sai "pelo Claude". |
 | `rolar` | todos | Rola dados (expressão, teste ou ataque da ficha); o chat marca "pelo Claude". |
 | `rascunhos` | mestre | Lista, publica e descarta o que o Claude criou. |
 | `arquivos` | todos (jogador: só o que é dele) | Sobe um arquivo do computador para a mesa (mapa da cena, token, retrato, imagem de handout, som, compêndio) e usa um arquivo que já está na mesa (M1). |
 | `desfazer` | todos | Lista o que o Claude fez e desfaz um lote inteiro. |
+
+`cenas` (M2) também duplica uma cena (`duplicarDe`) e leva o grupo (`levarGrupo`); `fichas` apaga, gasta dado de vida e ajusta a mochila; `objetos` acende, passa e guarda tochas e ajusta tempo e raio dos objetos de luz.
+
+### A tabela de paridade (M2)
+
+Cada intenção do protocolo tem entrada em `packages/shared/src/mcp/paridade.ts`: a ferramenta e o campo que a alcançam, ou o motivo de ficar de fora (`proibida`, `transporte` ou `gesto ao vivo`). O teste `paridade.test.ts` falha se aparecer uma intenção nova sem entrada, ou se a tabela apontar uma ferramenta ou campo que não existe. **Regra: intenção nova precisa de entrada na tabela.** Hoje são 125 intenções: 107 com ferramenta e 18 de fora (4 proibidas, 9 de transporte, 5 gestos ao vivo).
+
+Não se desfazem: mensagens de chat e rolagens, combate, som (trilha e efeito), relógio, configuração da mesa e arquivos. O resto (cenas, tokens, paredes, desenhos e textos, névoa, fichas, notas, pastas, luz, automações) volta com o `desfazer`. O texto no mapa é feito de traços (a mesa não tem uma forma "texto"), sem acento.
 
 Coordenadas de cena são em **células**, a partir do canto de cima à esquerda `[0, 0]`, com meias células
 (`[1.5, 2]`). Um arco "de a até b passando por c" é `{"de": a, "ate": b, "por": c}`.

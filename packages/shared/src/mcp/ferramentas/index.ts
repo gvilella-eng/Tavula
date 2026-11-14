@@ -3,15 +3,21 @@ import { arquivos } from "./arquivos.ts";
 import { automacoes } from "./automacoes.ts";
 import type { QualquerFerramenta } from "./base.ts";
 import { cenas } from "./cenas.ts";
+import { chat } from "./chat.ts";
+import { combate } from "./combate.ts";
 import { compendio } from "./compendio.ts";
 import { desfazer } from "./desfazer.ts";
 import { fichas } from "./fichas.ts";
 import { ler } from "./ler.ts";
+import { mapa } from "./mapa.ts";
+import { mesa } from "./mesa.ts";
 import { notas } from "./notas.ts";
 import { objetos } from "./objetos.ts";
 import { panorama } from "./panorama.ts";
 import { rascunhos } from "./rascunhos.ts";
 import { rolar } from "./rolar.ts";
+import { som } from "./som.ts";
+import { tokens } from "./tokens.ts";
 
 /** Todas as ferramentas do MCP, na ordem em que aparecem para a IA. Não há ferramenta genérica ("mande qualquer intenção"). */
 export const TODAS_AS_FERRAMENTAS: readonly QualquerFerramenta[] = [
@@ -22,7 +28,13 @@ export const TODAS_AS_FERRAMENTAS: readonly QualquerFerramenta[] = [
   notas,
   objetos,
   cenas,
+  mapa,
+  tokens,
   automacoes,
+  combate,
+  mesa,
+  som,
+  chat,
   rolar,
   rascunhos,
   arquivos,

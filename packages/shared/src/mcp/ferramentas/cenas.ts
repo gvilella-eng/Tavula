@@ -73,6 +73,18 @@ const PedidoDeCenaSchema = z
       .describe("Nome da cena. Se já existe, ela é editada; senão, criada."),
     novoNome: z.string().min(1).max(64).optional(),
     apagar: z.boolean().optional().describe("Apaga a cena (nunca a que está com o grupo)."),
+    duplicarDe: z
+      .string()
+      .optional()
+      .describe(
+        "Só ao criar: nome de uma cena existente; a nova nasce como cópia dela (mapa, paredes, luz, zonas, NPCs).",
+      ),
+    levarGrupo: z
+      .boolean()
+      .optional()
+      .describe(
+        "Leva o grupo (os tokens dos jogadores) para esta cena, que passa a ser a ativa. Cena em rascunho não pode: publique antes.",
+      ),
     grid: z
       .object({
         quadradoM: z
@@ -175,8 +187,20 @@ async function mexerNaCena(p: PedidoDeCena, ctx: Contexto, lote: Lote): Promise<
   if (!cena) {
     if (p.apagar) throw new ErroDoMcp(`Não existe a cena "${p.nome}" para apagar.`);
     const id = novoId("cena");
-    await passo(ctx, lote, "cena.criar", { id, nome: p.nome });
-    feito.push("criou");
+    if (p.duplicarDe !== undefined) {
+      // M2: a cena nasce como cópia de outra (mapa, paredes, luz, zonas, tokens de NPC e desenhos).
+      const origem = achar(estado.cenas, p.duplicarDe, {
+        rotulo: "cena",
+        nomeDe: (c) => c.nome,
+        idDe: (c) => c.id,
+      });
+      await passo(ctx, lote, "cena.duplicar", { cenaId: origem.id, novoId: id });
+      await passo(ctx, lote, "cena.editar", { cenaId: id, nome: p.nome });
+      feito.push(`duplicou "${origem.nome}"`);
+    } else {
+      await passo(ctx, lote, "cena.criar", { id, nome: p.nome });
+      feito.push("criou");
+    }
     estado = ctx.sala.estado();
     cena = estado.cenas.find((c) => c.id === id);
     if (!cena)
@@ -242,6 +266,7 @@ async function mexerNaCena(p: PedidoDeCena, ctx: Contexto, lote: Lote): Promise<
 
   // Tokens.
   if (p.apagarTokens) {
+    const removidos: string[] = [];
     for (const nome of p.apagarTokens) {
       const t = achar(
         estado.tokens.filter((x) => x.cenaId === cenaId),
@@ -249,8 +274,13 @@ async function mexerNaCena(p: PedidoDeCena, ctx: Contexto, lote: Lote): Promise<
         { rotulo: "token", nomeDe: (x) => x.nome, idDe: (x) => x.id },
       );
       await passo(ctx, lote, "token.apagar", { id: t.id });
+      removidos.push(`${t.nome}=${t.id}`);
     }
-    if (p.apagarTokens.length > 0) feito.push(`tirou ${p.apagarTokens.length} tokens`);
+    if (p.apagarTokens.length > 0) {
+      feito.push(
+        `tirou ${p.apagarTokens.length} tokens (ids para \`tokens\`/restaurar: ${removidos.join(", ")})`,
+      );
+    }
   }
   let criados = 0;
   for (const t of p.tokens ?? []) {
@@ -289,6 +319,11 @@ async function mexerNaCena(p: PedidoDeCena, ctx: Contexto, lote: Lote): Promise<
   }
   if (criados > 0) feito.push(`${criados} tokens`);
 
+  if (p.levarGrupo) {
+    await passo(ctx, lote, "grupo.moverPara", { cenaId });
+    feito.push("levou o grupo");
+  }
+
   const final = ctx.sala.estado().cenas.find((c) => c.id === cenaId) ?? cena;
   const t = emCelulas(final);
   const sobre = `${t.largura}x${t.altura} células de ${num(final.grid.quadradoM)} m`;
@@ -299,7 +334,7 @@ async function mexerNaCena(p: PedidoDeCena, ctx: Contexto, lote: Lote): Promise<
 export const cenas = definir({
   nome: "cenas",
   descricao:
-    'Só do mestre. Cria e edita cenas em lote: nome, grid, chegada, cartão, luz ambiente, paredes, portas e tokens de NPC. Coordenadas em CÉLULAS a partir do canto de cima à esquerda [0,0], com meias células (1.5). Parede de `de` até `ate`; arco "de a até b passando por c" usa `por`. O tamanho da cena é 60x45 m (40x30 células de 1,5 m). Exemplo: {"cenas":[{"nome":"Eclusa","paredes":[{"de":[2,2],"ate":[12,2]},{"de":[12,2],"ate":[12,8],"tipo":"porta"}],"tokens":[{"ficha":"Goblin","quantidade":4,"em":[6.5,5.5],"oculto":true}]}]}',
+    'Só do mestre. Cria e edita cenas em lote: nome, grid, chegada, cartão, luz ambiente (e visão dinâmica), paredes, portas e tokens de NPC; `duplicarDe` cria a cena como cópia de outra e `levarGrupo` leva os jogadores para ela. Névoa, desenhos, textos e editar paredes e portas ficam em `mapa`; mover e editar tokens em `tokens`; a trilha da cena em `som`. Coordenadas em CÉLULAS a partir do canto de cima à esquerda [0,0], com meias células (1.5). Parede de `de` até `ate`; arco "de a até b passando por c" usa `por`. O tamanho da cena é 60x45 m (40x30 células de 1,5 m). Exemplo: {"cenas":[{"nome":"Eclusa","paredes":[{"de":[2,2],"ate":[12,2]},{"de":[12,2],"ate":[12,8],"tipo":"porta"}],"tokens":[{"ficha":"Goblin","quantidade":4,"em":[6.5,5.5],"oculto":true}]}]}',
   entrada: z.object({ cenas: z.array(PedidoDeCenaSchema).min(1).max(10) }).strict(),
   visivel: (estado, eu) => pode(eu, "cena.editar", estado.permissoes),
   async executar(e, ctx) {

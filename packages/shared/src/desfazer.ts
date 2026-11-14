@@ -6,7 +6,7 @@ import type { EventoSala } from "./protocolo.ts";
 // 12-1: "Desfazer o que o Claude fez". A sala anota, a cada intenção aplicada pela conexão do Claude, o que mudou em
 // cada coleção da mesa (um `Delta`: o item antes e depois, por id). Desfazer um lote aplica o inverso na ordem
 // inversa; o item que mudou depois (por outra pessoa) é pulado e o aviso diz qual. Só as coleções abaixo entram:
-// relógio, permissões, configuração, chat, combate, desenhos e arquivos não são desfeitos (assumido).
+// relógio, permissões, configuração, chat, combate, som e arquivos não são desfeitos (assumido; o M2 acrescentou os desenhos).
 
 /** As coleções que o Desfazer cobre, na ordem de dependência (quem vem antes é pai de quem vem depois). */
 export const COLECOES_DESFAZIVEIS = [
@@ -16,6 +16,7 @@ export const COLECOES_DESFAZIVEIS = [
   "personagens",
   "handouts",
   "tokens",
+  "desenhos",
   "pontos",
   "luzes",
   "paredes",
@@ -33,6 +34,7 @@ const ROTULO_DA_COLECAO: Record<ColecaoDesfazivel, string> = {
   personagens: "ficha",
   handouts: "handout",
   tokens: "token",
+  desenhos: "desenho",
   pontos: "ponto",
   luzes: "luz",
   paredes: "parede",
@@ -69,6 +71,8 @@ function itensDe(e: Estado, c: ColecaoDesfazivel): readonly ComId[] {
       return e.handouts;
     case "tokens":
       return e.tokens;
+    case "desenhos":
+      return e.desenhos;
     case "pontos":
       return e.pontos;
     case "luzes":
@@ -210,6 +214,9 @@ export function desfazerPassos(
       case "tokens":
         emitir({ tipo: "token.apagado", dados: { id } });
         return true;
+      case "desenhos":
+        emitir({ tipo: "desenho.apagado", dados: { id } });
+        return true;
       case "pontos":
         emitir({ tipo: "ponto.apagado", dados: { id } });
         return true;
@@ -267,6 +274,13 @@ export function desfazerPassos(
       case "tokens":
         emitir({ tipo: existe ? "token.editado" : "token.criado", dados: { token: item } });
         return;
+      case "desenhos": {
+        // Um desenho editado só mudou de lugar (`desenho.mover`): volta com os pontos de antes.
+        const d = item as { id: string; pontos: unknown };
+        if (existe) emitir({ tipo: "desenho.movido", dados: { id: d.id, pontos: d.pontos } });
+        else emitir({ tipo: "desenho.criado", dados: { desenho: item } });
+        return;
+      }
       case "pontos":
         emitir({ tipo: "ponto.alterado", dados: { ponto: item } });
         return;

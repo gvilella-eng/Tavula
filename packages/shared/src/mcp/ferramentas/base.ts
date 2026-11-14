@@ -53,6 +53,27 @@ export async function passo(
   return r;
 }
 
+/**
+ * Como `passo`, mas se a sala pedir calma (limite de 20 pedidos por segundo do Claude) espera e tenta de novo: para quem manda
+ * dezenas de pedidos de uma vez (o texto no mapa, a névoa).
+ */
+export async function passoComEspera(
+  ctx: Contexto,
+  lote: Lote | undefined,
+  tipo: string,
+  dados: unknown,
+): Promise<Extract<RespostaDaSala, { ok: true }>> {
+  for (let tentativa = 0; ; tentativa++) {
+    const r = await ctx.sala.enviar(tipo, dados, lote);
+    if (r.ok) return r;
+    if (r.codigo === "muitas_mensagens" && tentativa < 8) {
+      await new Promise((ok) => setTimeout(ok, 250));
+      continue;
+    }
+    throw new ErroDoMcp(textoDoErro(r.codigo, r.mensagem));
+  }
+}
+
 /** O resultado de um lote de itens: o que deu certo, o que falhou e por quê. */
 export class Relatorio {
   private readonly linhas: string[] = [];
