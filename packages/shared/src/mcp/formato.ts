@@ -3,12 +3,14 @@ import {
   type Ataque,
   bonusDeAcerto,
   type Cena,
+  cdDaInata,
   derivar,
   expressaoDeDano,
   type Ficha,
   formatarBonus,
   type Mensagem,
   ROTULO_DO_ATRIBUTO,
+  rotuloDaFrequenciaInata,
   SIGLA_DO_ATRIBUTO,
   type Visibilidade,
 } from "../index.ts";
@@ -108,10 +110,47 @@ export function resumoDaFicha(f: Ficha): string[] {
         .join("; ")}`,
     );
   }
-  const magias = f.magias ?? [];
+  const todasAsMagias = f.magias ?? [];
+  // N2: a conjuração inata fica à parte (não gasta espaço); ritual e dados por nível do truque vão no nome.
+  const magias = todasAsMagias.filter((m) => !m.inata);
+  const inatas = todasAsMagias.filter((m) => m.inata);
+  const rotuloDaMagia = (m: (typeof todasAsMagias)[number]) => {
+    const marcas = [
+      m.ritual ? "ritual" : "",
+      m.dadosPorNivel?.length
+        ? `+${m.dadosPorNivel.map((x) => `${x.expressao} no nível ${x.nivel}`).join(", +")}`
+        : "",
+    ].filter(Boolean);
+    return marcas.length > 0 ? `${m.nome} (${marcas.join("; ")})` : m.nome;
+  };
+  if (inatas.length > 0) {
+    const cd = cdDaInata(f);
+    const grupos = (["vontade", "cada", "grupo"] as const).flatMap((freq) => {
+      const delas = inatas.filter((m) => m.inata?.frequencia === freq);
+      const maximos = [
+        ...new Set(
+          delas.map((m) => (freq === "grupo" ? (f.inata?.grupo?.max ?? 1) : (m.inata?.max ?? 1))),
+        ),
+      ].sort((a, b) => a - b);
+      return freq === "vontade"
+        ? delas.length > 0
+          ? [`À vontade: ${delas.map((m) => m.nome).join(", ")}`]
+          : []
+        : maximos.map(
+            (max) =>
+              `${rotuloDaFrequenciaInata(freq, max)}: ${delas
+                .filter((m) => (freq === "grupo" ? true : (m.inata?.max ?? 1) === max))
+                .map((m) => m.nome)
+                .join(", ")}`,
+          );
+    });
+    linhas.push(`Conjuração inata${cd !== undefined ? ` (CD ${cd})` : ""}: ${grupos.join(" | ")}`);
+  }
   if (magias.length > 0) {
     const porNivel = new Map<number, string[]>();
-    for (const m of magias) porNivel.set(m.nivel, [...(porNivel.get(m.nivel) ?? []), m.nome]);
+    for (const m of magias) {
+      porNivel.set(m.nivel, [...(porNivel.get(m.nivel) ?? []), rotuloDaMagia(m)]);
+    }
     linhas.push(
       `Magias: ${[...porNivel.entries()]
         .sort((a, b) => a[0] - b[0])

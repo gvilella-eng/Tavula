@@ -13,6 +13,7 @@ import { BotaoComDica } from "../BotaoComDica";
 import { CamposDaMagia, linhaDeNivelEEscola, MarcasDaMagia, TextoDaMagia } from "../CartaoDaMagia";
 import { Espacos, subDaMagia } from "./AbaMagias";
 import { type PropsDaAba, um } from "./AbaPrincipal";
+import { ParteInata } from "./ConjuracaoInata";
 import { CampoDeNovo, CampoNumero } from "./campos";
 import { magiaDoCompendio } from "./conjurar";
 import { EditorDeAtaque } from "./EditorDeAtaque";
@@ -118,7 +119,7 @@ function NivelDoNpc({
 }) {
   const { ficha, d, alterar, editar, fecharEditor } = props;
   const magias = ficha.magias ?? [];
-  const doNivel = magias.map((m, i) => ({ m, i })).filter((x) => x.m.nivel === n);
+  const doNivel = magias.map((m, i) => ({ m, i })).filter((x) => x.m.nivel === n && !x.m.inata);
   const lista = `npc-circulo-${n}`;
   const ordem = useOrdemDaLista({
     lista,
@@ -131,7 +132,7 @@ function NivelDoNpc({
           "magias",
           moverNoGrupo(
             magias,
-            posicoesDoGrupo(magias, (x) => x.nivel === n),
+            posicoesDoGrupo(magias, (x) => x.nivel === n && !x.inata),
             de,
             para,
           ),
@@ -344,7 +345,7 @@ export function SecaoDeConjuracao({ props }: { props: PropsDaAba }) {
   }
   const visivel = (n: number) =>
     (n === 0 && editar) ||
-    magias.some((m) => m.nivel === n) ||
+    magias.some((m) => m.nivel === n && !m.inata) ||
     (d.espacos.find((e) => e.nivel === n)?.total ?? 0) > 0 ||
     extras.includes(n) ||
     circuloEmArrasto === n;
@@ -366,6 +367,7 @@ export function SecaoDeConjuracao({ props }: { props: PropsDaAba }) {
           />
         ))}
       </div>
+      <ParteInata props={props} />
       {editar && ocultos.length > 0 && (
         <select
           className="npc-sel npc-sel-mais"

@@ -795,6 +795,21 @@ Continua em aberto, por ser decisão e não erro de doc: `ficha.verOutras` (seç
 - A tecla `E` é global (ouvida no `MarcasDoToken`, com foco no mapa ou em nada e sem diálogo aberto).
 - O X mora dentro do `container` do token (muda o `chaveDe`, então o token é refeito ao marcar).
 
+## N2 (2026-11-14): conjuração completa (inata, truques por nível, ritual, dardos por nível)
+**Onde mexer**
+- Regras puras em `packages/shared/src/conjuracao.ts` (`lerPorNivelAcima`, `quantidadeDaConjuracao`, `dadosPorNivelDoTexto`, `extraDoTruque`, `somarExpressoes`, `nivelParaTruque`, `magiaInataParaRolar`, `usosRestantesDaInata`) e `ficha.ts` (`Magia.inata/ritual/dadosPorNivel/quantidadeBase`, `ficha.inata`, `recarregarInata` dentro do `descansoLongo`). Protocolo: `EspacoDoPedido`/`EspacoNoChat` (`ritual`, `inata`, `quantidade`) e `nivelDoTruque` no ataque em `rolagens.ts`; `rolarEspaco` rola cada dardo; `chatnucleo.ts` (`chat.magia` passa o espaço inteiro).
+- Web: `ficha/conjurar.ts` (`conjurar` aceita `"ritual"`, `executar` é o fim comum, `conjurarInata`), `ficha/menuDeEspaco.tsx` (item Ritual e tecla `R`), `ficha/ConjuracaoInata.tsx` (a parte inata, usada em `ConjuracaoDoNpc.tsx` e `AbaMagias.tsx`), `MensagemDoChat.tsx` (`BlocoDaQuantidade`, etiquetas) e `CartaoDaMagia.tsx` (`textoDoEspacoNoCartao`). MCP: `mcp/fichaPorPartes.ts` (`conjuracaoInata`), `mcp/formato.ts`, `mcp/ferramentas/{compendio,rolar}.ts`.
+- Teste: `e2e/tests/ficha-n2.spec.ts`, `packages/shared/src/conjuracaoN2.test.ts`.
+
+**Frágil**
+- A magia inata mora em `ficha.magias` (com `inata`) para reaproveitar o editor, o arrasto e o cartão. **Todo filtro por círculo precisa de `&& !m.inata`** (`ConjuracaoDoNpc`, `AbaMagias`, `aplicarEntradaNaFicha`); uma lista nova de magias por círculo que esquecer isso mostra a inata duas vezes.
+- As bolinhas de uso são "cheia = disponível": gastar esvazia a **última**. Os testes olham a última.
+- `rolarEspaco` serve a três caminhos (ataque, `/r` e `chat.magia`); ritual e inata nunca têm `extra` nem `quantidade`, e `quantidade` nunca vem com `extra`. Se algum dia vierem juntos, `BlocoDoEspaco` só mostra um.
+- O Conjurar sem dano nem acerto (só salvaguarda) agora manda o cartão da magia; antes não mandava nada.
+- O NPC não tem botão de descanso na janela: o "Recuperar usos" da parte inata é o único jeito de zerar os usos nele (o personagem usa o descanso longo).
+
+**Suposições**: ver `docs/REDESIGN.md`, "N2 — como ficou".
+
 ## 12-3 (2026-11-13): o MCP na própria sala, por HTTP
 **Onde mexer**
 - `apps/server/src/sala.ts`: `tratarIntencao(remetente, intencao)` é **o único** tratamento de intenção (WebSocket: `webSocketMessage` só lê, chama e responde; HTTP: `conexaoDoMcp` chama com `ws: null`). `rotaMcp` é a rota; `visaoDe(usuario)` é o snapshot do usuário (o WebSocket e as ferramentas leem o mesmo). `apps/server/src/index.ts`: `caminhoInterno` (`mcp` só POST) e o 405.

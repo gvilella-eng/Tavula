@@ -29,11 +29,11 @@ export type Rolador = {
    * O nome do ataque ou da magia: acerto + dano no mesmo bloco do chat (crítico dobra os dados). `espaco` (V6): a
    * magia foi conjurada acima do nível; a sala rola o dado a mais num bloco colado na mesma mensagem.
    */
-  ataque: (a: Rolavel, ficha: Ficha, espaco?: EspacoDoPedido) => void;
+  ataque: (a: Rolavel, ficha: Ficha, espaco?: EspacoDoPedido, nivelDoTruque?: number) => void;
   /** O botão Acerto: só o d20 do ataque. */
   acerto: (a: Rolavel, ficha: Ficha) => void;
   /** O botão Dano: só o dano. */
-  dano: (a: Rolavel, ficha: Ficha, espaco?: EspacoDoPedido) => void;
+  dano: (a: Rolavel, ficha: Ficha, espaco?: EspacoDoPedido, nivelDoTruque?: number) => void;
   /** Uma expressão qualquer, com um nome (ex.: dados de vida: `1d8+2`). */
   expressao: (expr: string, nome: string) => void;
 };
@@ -63,11 +63,11 @@ export function criarRolador(opcoes: {
         }),
       );
     },
-    ataque(a, ficha, espaco) {
+    ataque(a, ficha, espaco, nivelDoTruque) {
       if (!podeRolar) return;
       const bonus = bonusDeAcerto(ficha, a);
       const dano = expressaoDeDano(ficha, a);
-      if (bonus === undefined) return rolador.dano(a, ficha, espaco);
+      if (bonus === undefined) return rolador.dano(a, ficha, espaco, nivelDoTruque);
       if (dano === undefined) return rolador.acerto(a, ficha);
       const tipo = tipoDeDano(a);
       const cd = a.salvaguarda ? cdDaRolagem(ficha, a) : undefined;
@@ -81,6 +81,7 @@ export function criarRolador(opcoes: {
           ...(a.margemCritico && a.margemCritico < 20 ? { margemCritico: a.margemCritico } : {}),
           ...(a.danoCritico?.trim() ? { danoCritico: a.danoCritico.trim() } : {}),
           ...(espaco ? { espaco } : {}),
+          ...(nivelDoTruque ? { nivelDoTruque } : {}),
           ...(a.salvaguarda && cd !== undefined
             ? {
                 salvaguarda: {
@@ -109,11 +110,15 @@ export function criarRolador(opcoes: {
         }),
       );
     },
-    dano(a, ficha, espaco) {
+    dano(a, ficha, espaco, nivelDoTruque) {
       const expr = expressaoDeDano(ficha, a);
       if (!podeRolar || expr === undefined) return;
       const cd = cdDaRolagem(ficha, a);
-      const rotulo = [a.nome, cd === undefined ? "" : `CD ${cd}`, tipoDeDano(a) ?? ""]
+      const rotulo = [
+        nivelDoTruque ? `${a.nome} (nível ${nivelDoTruque})` : a.nome,
+        cd === undefined ? "" : `CD ${cd}`,
+        tipoDeDano(a) ?? "",
+      ]
         .filter(Boolean)
         .join(", ");
       enviar("chat.enviar", {

@@ -37,10 +37,6 @@ Desenhar paredes à mão em mapas de caverna (formas orgânicas) é o custo esco
   1 quadrado = 1,5 m, −Z = norte). A integração seria só por arquivo (de preferência `.uvtt`), sem
   ligar os projetos. Exceção: o Poço do Eco (espiral de ~160 m de queda) precisa de mapas por altura.
 
-### Magia inata no bloco de NPC (próxima melhoria da Conjuração; V4b2, 2026-11-12)
-
-A seção Conjuração do NPC cobre conjuração por espaços e truques. Falta a "Conjuração inata" do monstro: uma linha "1/dia cada: ..." (ou "3/dia cada", "à vontade") com bolinhas de uso por magia, sem gastar espaço. (assumido) fica para um lote próprio.
-
 ### Tour de introdução (combinado com o Vilella, 2026-11-11; depois do V5)
 
 O Vilella achou as dicas no mouse demais ("tudo tem tooltip, tá um saco"). Ficou combinado:
@@ -108,11 +104,13 @@ Decidido pelo Vilella (2026-11-11), para levar ao PROJETO quando o marco for pla
 
 Planejado em 2026-11-12 como marco C1–C3 (PROJETO 4.14). O C1 (várias mesas, ids, tela inicial) está entregue.
 
-### Conjuração (levantado no V6, 2026-11-12)
+### Conjuração (depois do N2, 2026-11-14)
 
-- **Truques que sobem pelo nível do personagem** (Rajada Mística, Raio de Fogo: mais dados no nível 5, 11 e 17). O V6 só cobre o dado a mais por nível de **espaço**. Dá para um campo "dados por nível do personagem" (uma lista nível → expressão) somado ao dano do truque, sem mexer no menu de espaço.
-- **Conjurar como ritual** (sem gastar espaço, só para magias com a marca Ritual e fora de combate): um item "Ritual · sem espaço" no menu de espaço quando a magia do compêndio é ritual.
-- **Mais alvos, mais raios, mais dardos por nível** (Mísseis Mágicos, Raio Ardente, Imobilizar Pessoa): hoje o "Por nível acima" só soma dados; contar dardos ou alvos fica à mão.
+A conjuração inata, os truques por nível, o ritual e os dardos, raios e alvos por nível entraram no N2. Sobram, de propósito:
+
+- **Um acerto por raio** (Raio Ardente, Rajada Mística): hoje o acerto é um só e o dano sai por raio.
+- **Vários grupos "N/dia"** no mesmo bloco e **ler o texto do monstro** ("À vontade: luz, mãos mágicas") para preencher a inata sozinha.
+- **Gastar o uso da inata pelo MCP** (`rolar` só rola).
 
 ## Descartadas (não propor de novo)
 

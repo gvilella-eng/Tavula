@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { ROTULO_DO_NIVEL_DE_MAGIA } from "../../index.ts";
+import {
+  dadosPorNivelDoTexto,
+  porNivelAcimaDoTexto,
+  ROTULO_DO_NIVEL_DE_MAGIA,
+} from "../../index.ts";
 import type { AchadoDoCompendio } from "../compendio.ts";
 import { cortar } from "../formato.ts";
 import { definir } from "./base.ts";
@@ -8,9 +12,19 @@ function linha(a: AchadoDoCompendio, detalhe: boolean): string {
   if (a.tipo === "magia") {
     const m = a.magia;
     const base = `magia: ${m.nome} — ${ROTULO_DO_NIVEL_DE_MAGIA(m.nivel)}, ${m.escola}; classes: ${m.classes.join(", ") || "—"}${m.concentracao ? "; concentração" : ""}${m.ritual ? "; ritual" : ""}`;
-    return detalhe
-      ? `${base}\n  ${m.tempo}; alcance ${m.alcance}; ${m.componentes}; ${m.duracao}\n  ${cortar(m.descricao, 700)}`
-      : base;
+    if (!detalhe) return base;
+    // N2: o que a ficha vai ler do texto: o que sobe por nível de espaço e os dados do truque pelo nível do personagem.
+    const porNivel = porNivelAcimaDoTexto(m.emNiveisSuperiores);
+    const dadosPorNivel =
+      m.nivel === 0 ? dadosPorNivelDoTexto(`${m.descricao} ${m.emNiveisSuperiores ?? ""}`) : [];
+    const sobe = [
+      porNivel ? `por nível de espaço acima: +${porNivel}` : "",
+      dadosPorNivel.length > 0
+        ? `dados a mais por nível do personagem: ${dadosPorNivel.map((d) => `nível ${d.nivel} +${d.expressao}`).join(", ")}`
+        : "",
+      m.ritual ? "pode ser conjurada como ritual (sem espaço)" : "",
+    ].filter(Boolean);
+    return `${base}\n  ${m.tempo}; alcance ${m.alcance}; ${m.componentes}; ${m.duracao}${sobe.length > 0 ? `\n  ${sobe.join("; ")}` : ""}\n  ${cortar(m.descricao, 700)}`;
   }
   if (a.tipo === "arma") {
     const w = a.arma;

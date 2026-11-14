@@ -1578,6 +1578,35 @@ Menus (tipos de parede, importar e exportar, atalhos) e dois acertos que sobrara
 **O que ficou para depois**
 - Nada pedido. Uma barra de vida no próprio token e a morte automática a 0 PV ficaram de fora de propósito.
 
+## N2 — como ficou (2026-11-14)
+
+**O que foi feito**
+- **Magia inata.** A fita Conjuração do NPC (e a página Magias do personagem) ganhou a parte "Conjuração inata" depois dos círculos (`ConjuracaoInata.tsx`). Atributo e CD próprios (`ficha.inata { habilidade?, cd?, grupo? }`; sem CD escrita vale 8 + proficiência + modificador do atributo inato, que cai no atributo da classe ou da seção) e as magias por frequência: "À vontade" (sem contagem), "N/dia cada" (bolinhas em cada magia, uma linha por N) e "N/dia" (um contador para o grupo). As magias moram em `ficha.magias` com o campo novo `inata { frequencia: vontade | cada | grupo, max?, gastos? }`: ficam fora dos círculos e não gastam espaço. Conjurar uma inata (`conjurarInata`): gasta uma bolinha (a da magia ou a do grupo; "à vontade" não gasta), rola ou manda o cartão como as outras e sai no nível dela, com a etiqueta "conjuração inata" no cartão. Sem usos, avisa e não conjura. A CD e o ataque da rolagem saem do atributo e da CD inatos (`magiaInataParaRolar`).
+- **Recarregar.** `descansoLongo` zera os usos gastos da inata e do grupo (`recarregarInata`). O NPC não tem botão de descanso na janela, então a parte inata ganhou "Recuperar usos" (só para quem edita, só com algo gasto), que faz o mesmo.
+- **Arrastar.** Soltar uma magia do compêndio na parte inata a põe lá como "1/dia cada" (`DestinoDaEntrada.inata`); a frequência se troca na magia aberta (À vontade, N/dia cada, N/dia grupo, ou "Com espaço", que a tira da inata).
+- **Truques por nível do personagem.** `Magia.dadosPorNivel [{ nivel, expressao }]`: o dado a mais que vale a partir daquele nível (vale o do maior nível alcançado; não se somam). Vem do compêndio ao trazer a magia (`dadosPorNivelDoTexto` lê "aumenta em 1d10 ... 5º nível (2d10), 11º nível (3d10) e 17º nível (4d10)" e "dois raios no 5º nível, três no 11º e quatro no 17º") e, ao conjurar, do compêndio ou da descrição quando o campo está vazio. O dano rolado soma o dado ao do truque ("1d10" + "1d10" = "2d10"); o cartão do ataque mostra "(nível 5)" depois da fórmula. O nível é a soma dos níveis das classes; no NPC sem classe, o ND como aproximação (fração conta 1).
+- **Ritual.** `Magia.ritual` (vem do compêndio). Magia com a marca (na ficha ou no compêndio) ganha no menu de espaço o item "Ritual · sem espaço (+10 min)" (atalho `R`). Não gasta espaço; o cartão diz "como ritual".
+- **Mais dardos, raios e alvos por nível.** "Por nível acima" também entende "1 dardo", "1 raio", "1 alvo", "1 criatura" (do texto do compêndio ou escrito no campo). `Magia.quantidadeBase` (3 dardos) ou o texto da magia dá a base (sem nenhum dos dois, 1). Conjurando num espaço maior o cartão diz "com espaço de 2º · 4 dardos"; com dano, a sala rola cada dardo ou raio à parte (`rolarEspaco`) e o chat desenha o bloco colado "4 dardos · 1d4 + 1 cada" com o total; sem dano (alvos), só o número.
+- **Protocolo.** `EspacoDoPedido` e `EspacoNoChat` ganharam `ritual?`, `inata?` e `quantidade?` (no pedido `{ total, unidade, cada? }`; na mensagem `{ total, unidade, rolagens?, soma? }`); o pedido de ataque e o resultado ganharam `nivelDoTruque?`. A mensagem `magia` passa a levar o espaço inteiro (antes só o nível). Tudo opcional; sem capacidade nova; mensagem antiga igual.
+- **MCP.** `fichas` aceita `conjuracaoInata { habilidade, cd, grupo { max } }` e, em `magias`, os campos `inata`, `ritual`, `dadosPorNivel`, `quantidadeBase` e `porNivelAcima` com quantidade. `compendio` (detalhe) diz o que sobe por nível de espaço, os dados por nível do personagem e o ritual; a leitura da ficha lista a Conjuração inata à parte (com a CD); `rolar` usa a CD inata e os dados do nível.
+
+**Decisões (assumido)**
+- (assumido) "N/dia" sem "cada" é um contador para o grupo inteiro (`ficha.inata.grupo`); só existe um grupo por ficha.
+- (assumido) A inata sai no nível dela, nunca num espaço maior.
+- (assumido) A magia nova criada na parte inata nasce com nível 1 (o nível se acerta na engrenagem); a arrastada do compêndio traz o nível dela.
+- (assumido) No personagem a mesma parte aparece na página Magias, com o botão "+ Conjuração inata" para quem edita.
+- (assumido) Ritual: a mesa confia no jogador, não confere se a classe pode (a classe que só faz ritual de magia preparada) nem a duração extra; o texto "+10 min" é só lembrete.
+- (assumido) A quantidade por nível só é calculada acima do nível da magia; no nível dela o Conjurar segue como antes (um dano só). No crítico os dardos e raios não dobram.
+- (assumido) A magia só com salvaguarda e sem dano (Imobilizar Pessoa) agora manda o cartão da magia; antes o Conjurar não mandava nada.
+- (assumido) Rajada Mística entra como dado a mais no nível 5, 11 e 17 (um raio a mais soma outro dado do dano), não como ataques separados.
+- (assumido) O nível "do bloco" do NPC é o ND; não há campo de nível de conjurador no NPC.
+- Sem migração de banco: a ficha é JSON e os campos novos são opcionais e aditivos (`ficha antiga carrega igual`, com teste).
+
+**O que ficou para depois**
+- Um acerto por raio (Raio Ardente) e por Rajada Mística; hoje o acerto é um só e o dano sai por raio.
+- Mais de um grupo "N/dia" no mesmo bloco e a leitura do texto do monstro ("À vontade: ...") para preencher a inata sozinha.
+- Gasto de usos pelo MCP (`rolar` não gasta bolinha).
+
 ## Em aberto
 
 - **O plano R1 a R6 terminou** (R1, R2, R2b, R3, R4 em 2026-11-10; R5a, R5b, R6a e R6b em 2026-11-11). Agora o Vilella faz os ajustes

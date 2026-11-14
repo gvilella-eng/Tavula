@@ -143,8 +143,34 @@ export const MagiaSchema = z.object({
   duracao: z.string().max(80).optional(),
   /** "Mostrar em Ataques e magias" (V4a): a magia aparece na lista de ataques, editada pela mesma magia. */
   emAtaques: z.boolean().optional(),
-  /** Dados somados por nível de espaço acima do nível da magia ("1d6", "1d4+1"; V6). */
+  /**
+   * O que sobe por nível de espaço acima do nível da magia (V6): dados ("1d6", "1d4+1") ou, desde o N2, uma
+   * quantidade ("1 dardo", "1 raio", "1 alvo", "1 criatura").
+   */
   porNivelAcima: z.string().max(60).optional(),
+  /** N2: quantos dardos, raios ou alvos a magia tem no nível dela (3 dardos); sem o campo vale o texto, ou 1. */
+  quantidadeBase: z.number().int().min(1).max(20).optional(),
+  /** N2: a magia tem a marca Ritual (vem do compêndio): o Conjurar ganha "Ritual · sem espaço". */
+  ritual: z.boolean().optional(),
+  /**
+   * N2: truque que sobe pelo nível do personagem. Cada item é o dado A MAIS que vale a partir daquele nível
+   * (vale o do maior nível alcançado, não se somam): Raio de Fogo = 5 → 1d10, 11 → 2d10, 17 → 3d10.
+   */
+  dadosPorNivel: z
+    .array(z.object({ nivel: z.number().int().min(1).max(20), expressao: z.string().max(60) }))
+    .max(6)
+    .optional(),
+  /**
+   * N2: magia de Conjuração inata (monstro: "à vontade", "1/dia cada", "3/dia"). Não gasta espaço e não aparece nos
+   * círculos. `cada`: `max` usos por magia (bolinhas na magia). `grupo`: gasta do contador do grupo (`ficha.inata.grupo`).
+   */
+  inata: z
+    .object({
+      frequencia: z.enum(["vontade", "cada", "grupo"]),
+      max: z.number().int().min(1).max(20).optional(),
+      gastos: z.number().int().min(0).max(20).optional(),
+    })
+    .optional(),
 });
 export type Magia = z.infer<typeof MagiaSchema>;
 
@@ -294,6 +320,16 @@ export const FichaSchema = z.object({
   /** Espaços de pacto do Bruxo gastos (à parte dos demais). */
   pactoGasto: z.number().int().min(0).max(10).optional(),
   magias: z.array(MagiaSchema).max(300).optional(),
+  /** N2: a Conjuração inata: atributo e CD próprios e o contador do grupo "N/dia" (as magias estão em `magias`, com `inata`). */
+  inata: z
+    .object({
+      habilidade: AtributoSchema.optional(),
+      cd: z.number().int().min(0).max(40).optional(),
+      grupo: z
+        .object({ max: z.number().int().min(1).max(20), gastos: z.number().int().min(0).max(20) })
+        .optional(),
+    })
+    .optional(),
   // --- o resto ---
   caracteristicas: z.array(CaracteristicaSchema).max(200).optional(),
   itens: z.array(ItemDaFichaSchema).max(300).optional(),
@@ -791,7 +827,24 @@ export function descansoLongo(f: Ficha): Ficha {
           ),
         }
       : {}),
+    ...recarregarInata(f),
   } as Ficha);
+}
+
+/** N2: o descanso longo devolve os usos da Conjuração inata (as magias "N/dia cada" e o contador do grupo). */
+export function recarregarInata(f: Ficha): Partial<Ficha> {
+  const saida: Partial<Ficha> = {};
+  if (f.magias?.some((m) => m.inata?.gastos)) {
+    saida.magias = f.magias.map((m) => {
+      if (!m.inata?.gastos) return m;
+      const { gastos: _gastos, ...inata } = m.inata;
+      return { ...m, inata };
+    });
+  }
+  if (f.inata?.grupo?.gastos) {
+    saida.inata = { ...f.inata, grupo: { max: f.inata.grupo.max, gastos: 0 } };
+  }
+  return saida;
 }
 
 // ---------------------------------------------------------------------------------------------

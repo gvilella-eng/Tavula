@@ -1,8 +1,17 @@
-import { type Mensagem, ROTULO_DA_VANTAGEM, type Usuario } from "@tabletop/shared";
+import {
+  type Mensagem,
+  ROTULO_DA_VANTAGEM,
+  textoDaQuantidade,
+  type Usuario,
+} from "@tabletop/shared";
 import { Bot, EyeOff, Lock } from "lucide-react";
 import type { ReactNode } from "react";
 import { Avatar } from "./Avatar";
-import { CartaoDaCaracteristicaNoChat, CartaoDaMagiaNoChat } from "./CartaoDaMagia";
+import {
+  CartaoDaCaracteristicaNoChat,
+  CartaoDaMagiaNoChat,
+  textoDoEspacoNoCartao,
+} from "./CartaoDaMagia";
 import { CartaoDeRolagem, ChipsDoD20, naturalDe } from "./CartaoDeRolagem";
 import type { ImagensDoMapa } from "./mapa/mapaPixi";
 
@@ -43,14 +52,48 @@ function formula(expressao: string): string {
   return expressao.replace(/([+-])/g, " $1 ").trim();
 }
 
-/** "com espaço de 5º": o subtítulo do cartão quando a magia subiu de nível sem dado a mais. */
+/**
+ * "com espaço de 5º" (ou "como ritual", "conjuração inata", "com espaço de 2º · 4 dardos"): o subtítulo do cartão
+ * quando a magia subiu de nível sem dado a mais, foi ritual ou inata.
+ */
 function etiquetaDoEspaco(mensagem: Mensagem) {
   const e = mensagem.espaco;
   if (!e || e.extra) return null;
   return (
     <span className="etiqueta-vantagem" data-testid="espaco-usado">
-      com espaço de {e.nivel}º
+      {textoDoEspacoNoCartao(e)}
     </span>
+  );
+}
+
+/** Os dardos ou raios rolados um por um (N2): o bloco colado com cada dano e o total. */
+function BlocoDaQuantidade({ mensagem }: { mensagem: Mensagem }) {
+  const q = mensagem.espaco?.quantidade;
+  if (!q?.rolagens) return null;
+  const rotulo = q.unidade.charAt(0).toUpperCase() + q.unidade.slice(1);
+  return (
+    <div className="modelo-bloco bloco-espaco" data-testid="bloco-quantidade">
+      <div className="bloco-cabeca">
+        <strong className="bloco-titulo" data-testid="bloco-quantidade-titulo">
+          {textoDaQuantidade(q.total, q.unidade)} · {formula(q.rolagens[0]?.expressao ?? "")} cada
+        </strong>
+      </div>
+      <div className="bloco-linha">
+        {q.rolagens.map((r, i) => (
+          <CartaoDeRolagem
+            // biome-ignore lint/suspicious/noArrayIndexKey: a lista é fixa
+            key={i}
+            rolagem={r}
+            rotulo={`${rotulo} ${i + 1}`}
+            dano
+            semExpressao
+          />
+        ))}
+        <span className="bloco-total" data-testid="bloco-quantidade-total">
+          Total <strong>{q.soma}</strong>
+        </span>
+      </div>
+    </div>
   );
 }
 
@@ -61,7 +104,7 @@ function etiquetaDoEspaco(mensagem: Mensagem) {
  */
 function BlocoDoEspaco({ mensagem }: { mensagem: Mensagem }) {
   const e = mensagem.espaco;
-  if (!e?.extra) return null;
+  if (!e?.extra) return <BlocoDaQuantidade mensagem={mensagem} />;
   const critico = mensagem.modelo?.modelo === "ataque" && mensagem.modelo.critico;
   return (
     <div
@@ -156,6 +199,7 @@ function ResultadoDoModelo({ mensagem }: { mensagem: Mensagem }) {
           <span className="bloco-formula" data-testid="modelo-dano-formula">
             {formula(m.dano.expressao)}
             {m.danoTipo ? ` ${m.danoTipo.toLowerCase()}` : ""}
+            {m.nivelDoTruque ? ` (nível ${m.nivelDoTruque})` : ""}
             {meio !== null ? ` · metade: ${meio}` : ""}
           </span>
         </div>
@@ -257,7 +301,7 @@ export function MensagemDoChat({ mensagem, usuarios, euId, imagens, versaoDasIma
 
   let corpo: ReactNode;
   if (mensagem.tipo === "magia" && mensagem.magia) {
-    corpo = <CartaoDaMagiaNoChat magia={mensagem.magia} espaco={mensagem.espaco?.nivel} />;
+    corpo = <CartaoDaMagiaNoChat magia={mensagem.magia} espaco={mensagem.espaco} />;
   } else if (mensagem.tipo === "caracteristica" && mensagem.caracteristica) {
     corpo = <CartaoDaCaracteristicaNoChat caracteristica={mensagem.caracteristica} />;
   } else if (mensagem.tipo === "modelo") {

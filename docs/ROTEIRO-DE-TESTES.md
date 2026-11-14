@@ -435,6 +435,19 @@ O comando de **Preferências → Conectar o Claude** agora é uma linha só e fu
 8. Botão direito num token como mestre: grupo **Camada** (Mapa, Tokens, Mestre) com a atual marcada. Escolha Mestre: o token some para o jogador na hora. Como jogador, o menu do seu token não tem o grupo Camada.
 9. Confira nos temas Grimório e Pergaminho que as marcas leem bem sobre o mapa; `E` aparece em Preferências → Atalhos do teclado.
 
+## N2 — A conjuração completa (inata, truques, ritual, dardos por nível)
+
+1. **Magia inata.** Abra a ficha de um NPC (o Ogro serve) → fita Conjuração. Como mestre, clique em "+ Conjuração inata". Escolha o atributo (Carisma) e escreva a CD (13). Nos campos de baixo escreva uma magia em cada: "+ À vontade" (Luz), "+ 1/dia cada" (Voo) e "+ N/dia (grupo)" (Invisibilidade). Cada uma aparece na linha dela: "À vontade:", "1/dia cada:" (com uma bolinha ao lado da magia) e "1/dia:" (bolinhas no começo da linha).
+2. Abra Voo (clique no nome) e confira "Frequência" e "Usos por dia". Troque para 3: a linha vira "3/dia cada" com três bolinhas. Troque a frequência da Invisibilidade e o "por dia" do grupo para 2.
+3. **Conjurar a inata.** Abra Voo e clique em Conjurar: uma bolinha esvazia (a última), o espaço de magia **não** gasta e o chat mostra o cartão com "conjuração inata". Com a bolinha acabada, o Conjurar avisa que não tem mais usos. Luz (à vontade) nunca gasta. Invisibilidade gasta do contador do grupo.
+4. Uma magia com salvaguarda (Relâmpago, `8d6`, CD): o cartão mostra a CD da **inata** (13), não a da classe.
+5. **Recuperar.** "Recuperar usos" (aparece quando algo foi gasto) enche tudo de novo. Num personagem, o descanso longo faz o mesmo.
+6. **Arrastar.** Arraste uma magia do compêndio para a parte inata: ela entra como "1/dia cada"; a engrenagem ou a frequência troca.
+7. **Truque por nível.** Num NPC de ND 5 ou personagem de nível 5 com Raio de Fogo (`1d10`; "dados por nível" 5 → `1d10`): conjure. O cartão rola **2d10** e diz "(nível 5)". No nível 4 rola 1d10. Magia do compêndio (a que traz "aumenta em 1d10...") vem já com isso ao arrastar.
+8. **Ritual.** Numa magia do compêndio com a marca Ritual (Detectar Magia), clique em Conjurar: o menu ganha "Ritual · sem espaço (+10 min)" (tecla R). Escolha-o: nenhum espaço gasta e o cartão diz "como ritual". Magia sem a marca não tem o item.
+9. **Mais dardos.** Mísseis Mágicos (3 dardos, `1d4+1`, "Por nível acima" `1 dardo`): conjure com espaço de 2º: o cartão diz "com espaço de 2º · 4 dardos" e embaixo um bloco "4 dardos · 1d4 + 1 cada" com cada dardo rolado e o total. Raio Ardente (`1 raio`) e Imobilizar Pessoa (`1 criatura`, só o número) funcionam igual.
+10. Veja o MCP: peça ao Claude para pôr "Diabrete" com `conjuracaoInata` e magias inatas; a leitura da ficha lista "Conjuração inata (CD 13): ...".
+
 ## Se algo der errado
 - Anote a tela, o que fez e o que esperava, e mande para mim. Bug confirmado vai para `docs/BUGS.md`.
 - Para voltar à campanha de antes de mesas e contas, use a cópia de segurança indicada no topo.

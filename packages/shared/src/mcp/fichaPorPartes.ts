@@ -4,6 +4,7 @@ import {
   type Ataque,
   AtaqueSchema,
   type Atributo,
+  AtributoSchema,
   aplicarEntradaNaFicha,
   aplicarOperacoes,
   CaracteristicaSchema,
@@ -115,7 +116,24 @@ export const FichaPartesSchema = z
       .max(100)
       .optional()
       .describe(
-        "Magias escritas à mão (nome e nível; o resto é opcional). Para as do compêndio use `compendio`.",
+        'Magias escritas à mão (nome e nível; o resto é opcional). Para as do compêndio use `compendio`. Campos de conjuração: `ritual` (true = o Conjurar ganha "Ritual · sem espaço"), `porNivelAcima` ("1d6" de dano ou "1 dardo"/"1 raio"/"1 alvo"/"1 criatura" por nível de espaço acima), `quantidadeBase` (3 dardos), `dadosPorNivel` (truque: [{"nivel":5,"expressao":"1d10"}], o dado a mais no nível do personagem) e `inata` (magia inata do NPC: {"frequencia":"vontade"} ou {"frequencia":"cada","max":1} para "1/dia cada" ou {"frequencia":"grupo"} para o contador "N/dia"; não gasta espaço).',
+      ),
+    conjuracaoInata: z
+      .object({
+        habilidade: AtributoSchema.optional().describe(
+          'O atributo da conjuração inata ("car" para o monstro com Carisma).',
+        ),
+        cd: z.number().int().min(0).max(40).optional().describe("CD da conjuração inata (13)."),
+        grupo: z
+          .object({ max: z.number().int().min(1).max(20) })
+          .strict()
+          .optional()
+          .describe('Usos por dia do grupo "N/dia" (as magias com inata.frequencia "grupo").'),
+      })
+      .strict()
+      .optional()
+      .describe(
+        "Só para conjuração inata (monstro): atributo, CD e o contador do grupo. As magias inatas vão em `magias` com o campo `inata`.",
       ),
     compendio: z
       .array(z.string())
@@ -350,6 +368,18 @@ export function montarFicha(
       upsertPorNome(lista, { preparada: true, descricao: "", ...m });
     }
     f.magias = lista;
+  }
+  if (partes.conjuracaoInata) {
+    const { habilidade, cd, grupo } = partes.conjuracaoInata;
+    const antes = f.inata;
+    f.inata = {
+      ...antes,
+      ...(habilidade ? { habilidade } : {}),
+      ...(cd !== undefined ? { cd } : {}),
+      ...(grupo
+        ? { grupo: { max: grupo.max, gastos: Math.min(antes?.grupo?.gastos ?? 0, grupo.max) } }
+        : {}),
+    };
   }
   if (partes.itens) {
     const lista: ItemDaFicha[] = [...(f.itens ?? [])];

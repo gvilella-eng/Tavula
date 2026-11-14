@@ -1,11 +1,11 @@
-import { type Magia, type OpcaoDeEspaco, opcoesDeEspaco } from "@tabletop/shared";
+import { type Magia, opcoesDeEspaco } from "@tabletop/shared";
 import { MessageSquareShare } from "lucide-react";
 import { type KeyboardEvent, type ReactNode, useState } from "react";
 import { createPortal } from "react-dom";
 import { BotaoComDica } from "../BotaoComDica";
 import { MenuDeContexto } from "../MenuDeContexto";
 import type { PropsDaAba } from "./AbaPrincipal";
-import { conjurar, pingarMagia } from "./conjurar";
+import { conjurar, magiaDoCompendio, type OpcaoDeConjuracao, pingarMagia } from "./conjurar";
 
 /**
  * Conjurar com escolha de espaço (V6). `pedir` vai no clique do botão Conjurar: truque conjura direto; magia de
@@ -19,11 +19,16 @@ export function useConjurar(
   const [aberto, setAberto] = useState<{ x: number; y: number } | null>(null);
   const { rolador, d, avisar } = props;
   const opcoes = opcoesDeEspaco(m?.nivel ?? 0, d.espacos, d.pacto);
+  // N2: a magia com a marca Ritual (na ficha ou no compêndio) ganha "Ritual · sem espaço" no menu.
+  const ehRitual =
+    !!m &&
+    m.nivel > 0 &&
+    (m.ritual === true || !!magiaDoCompendio(props.compendio, m.nome)?.ritual);
 
   function pedir(gatilho: HTMLElement) {
     if (!m || !rolador.podeRolar) return;
     if (m.nivel === 0) return conjurar(props, m);
-    if (opcoes.length === 0) {
+    if (opcoes.length === 0 && !ehRitual) {
       avisar(`Sem espaços de ${m.nivel}º nível ou maior para ${m.nome}.`);
       return;
     }
@@ -31,12 +36,18 @@ export function useConjurar(
     setAberto({ x: r.left, y: r.bottom + 2 });
   }
 
-  const escolher = (opcao: OpcaoDeEspaco) => {
+  const escolher = (opcao: OpcaoDeConjuracao) => {
     setAberto(null);
     if (m) conjurar(props, m, opcao);
   };
 
   function aoTeclar(e: KeyboardEvent<HTMLElement>) {
+    if (!e.altKey && !e.ctrlKey && !e.metaKey && e.key.toLowerCase() === "r" && ehRitual) {
+      e.preventDefault();
+      e.stopPropagation();
+      escolher("ritual");
+      return;
+    }
     if (e.altKey || e.ctrlKey || e.metaKey || !/^[1-9]$/.test(e.key)) return;
     const opcao = opcoes.find((o) => o.tipo === "comum" && o.nivel === Number(e.key));
     if (!opcao) return;
@@ -56,11 +67,22 @@ export function useConjurar(
             teclado
             aoFechar={() => setAberto(null)}
             aoTeclar={aoTeclar}
-            itens={opcoes.map((o) => ({
-              id: o.id,
-              rotulo: o.rotulo,
-              aoClicar: () => escolher(o),
-            }))}
+            itens={[
+              ...opcoes.map((o) => ({
+                id: o.id,
+                rotulo: o.rotulo,
+                aoClicar: () => escolher(o),
+              })),
+              ...(ehRitual
+                ? [
+                    {
+                      id: "ritual",
+                      rotulo: "Ritual · sem espaço (+10 min)",
+                      aoClicar: () => escolher("ritual"),
+                    },
+                  ]
+                : []),
+            ]}
           />,
           document.body,
         )

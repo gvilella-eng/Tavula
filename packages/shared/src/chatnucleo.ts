@@ -116,13 +116,17 @@ export function criarMensagem(
 
   // Mensagem `magia` (Lote 14): sempre pública; a sala só confere o personagem de quem fala.
   if (intencao.tipo === "chat.magia") {
+    // O espaço aqui nunca rola dado (o pedido não traz `extra`); N2: ritual, inata e quantidade passam.
+    const espacoDaMagia = intencao.dados.espaco
+      ? rolarEspaco(intencao.dados.espaco, 0, false, aleatorio)
+      : null;
     return {
       ok: true,
       mensagem: {
         ...base,
         tipo: "magia",
         magia: intencao.dados.magia,
-        ...(intencao.dados.espaco ? { espaco: { nivel: intencao.dados.espaco.nivel } } : {}),
+        ...(espacoDaMagia?.ok ? { espaco: espacoDaMagia.resultado } : {}),
         visivelPara: "todos",
       },
     };

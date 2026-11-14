@@ -195,6 +195,8 @@ export type DestinoDaEntrada = {
   posicao: number | null;
   /** Soltar na lista "Ataques e magias": a magia aparece nela mesmo sem ser de ataque ou de salvaguarda. */
   emAtaques?: boolean;
+  /** N2: soltar na parte "Conjuração inata" do NPC: a magia entra como inata (sem espaço), com esta frequência. */
+  inata?: { frequencia: "vontade" | "cada" | "grupo"; max?: number };
 };
 
 export type ResultadoDaEntrada =
@@ -237,21 +239,44 @@ export function aplicarEntradaNaFicha(
         motivo: npc ? `${m.nome} já está na Conjuração.` : `${m.nome} já está na lista de magias.`,
       };
     }
-    const grupo = posicoesDoGrupo(lista, (x) => x.nivel === m.nivel);
+    const grupo = posicoesDoGrupo(lista, (x) => x.nivel === m.nivel && !x.inata);
     // No NPC sem classe nem atributo escolhido, a primeira magia escolhe o atributo (e a conta sai dele).
     const habilidade =
       npc && conjuradoras(f).length === 0 && !f.habilidadeDeConjuracao
         ? habilidadeDeConjuracaoDoNpc(f)
         : undefined;
     const base = habilidade ? { ...f, habilidadeDeConjuracao: habilidade } : f;
-    const nova = magiaParaFichaCalculada(base, m, destino.emAtaques ? { emAtaques: true } : {});
+    const calculada = magiaParaFichaCalculada(
+      base,
+      m,
+      destino.emAtaques ? { emAtaques: true } : {},
+    );
+    // N2: na parte inata a magia não gasta espaço: vai para o fim da lista, marcada com a frequência.
+    const nova: Magia = destino.inata
+      ? {
+          ...calculada,
+          inata: {
+            frequencia: destino.inata.frequencia,
+            ...(destino.inata.frequencia === "vontade"
+              ? {}
+              : { max: Math.min(20, Math.max(1, destino.inata.max ?? 1)) }),
+          },
+        }
+      : calculada;
     return {
       ok: true,
       operacoes: [
-        um("magias", inserirNoGrupo(lista, grupo, nova, destino.posicao)),
+        um(
+          "magias",
+          destino.inata ? [...lista, nova] : inserirNoGrupo(lista, grupo, nova, destino.posicao),
+        ),
         ...(habilidade ? [um("habilidadeDeConjuracao", habilidade)] : []),
       ],
-      texto: npc ? `${m.nome} entrou na Conjuração.` : `${m.nome} entrou na lista de magias.`,
+      texto: destino.inata
+        ? `${m.nome} entrou na Conjuração inata.`
+        : npc
+          ? `${m.nome} entrou na Conjuração.`
+          : `${m.nome} entrou na lista de magias.`,
     };
   }
   const item = entrada.item;

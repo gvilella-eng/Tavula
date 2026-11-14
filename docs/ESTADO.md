@@ -3639,4 +3639,27 @@ Ver `REDESIGN.md` e `PASSAGEM.md` ("N1").
 ### Roteiro manual
 `docs/ROTEIRO-DE-TESTES.md`, "N1".
 
-## Próximo: os bugs que sobrarem e o roteiro manual dos Lotes 12 (12-3 incluído), P1 e N1
+## Ajustes N2 — A conjuração completa: inata, truques por nível, ritual e dardos por nível (entregue, aguardando o roteiro manual)
+
+Detalhes em `docs/REDESIGN.md` ("N2 — como ficou"), `PROJETO.md` (4.9), `docs/protocolo.md` e `docs/PASSAGEM.md` ("N2").
+
+### O que foi entregue
+- Parte "Conjuração inata" na fita Conjuração do NPC e na página Magias (atributo e CD próprios; À vontade, N/dia cada e N/dia do grupo; conjurar não gasta espaço e gasta a bolinha; "Recuperar usos" e o descanso longo devolvem).
+- Truques que sobem pelo nível (Raio de Fogo, Rajada Mística), ritual sem espaço no menu do Conjurar, e "+1 dardo/raio/alvo/criatura" por nível acima (cartão com a quantidade e cada dardo rolado à parte).
+- MCP (`fichas`, `compendio`, `rolar`) entende os campos novos.
+
+### Como rodar
+`pnpm dev` como sempre. Sem migração: os campos novos são opcionais e a ficha antiga carrega igual.
+
+### Verificação
+- Unidade: `conjuracaoN2.test.ts` (17) e um caso novo em `mcp/fichaPorPartes.test.ts`; `conjuracao.test.ts` teve um caso ajustado (o texto "um dardo adicional" agora vira "1 dardo", antes voltava vazio). `pnpm verify`: 424 E2E passando, sem flaky, e nenhuma mudança de código depois dele (só os prints).
+- E2E novo: `ficha-n2.spec.ts` (3 testes). Nenhum E2E antigo alterado.
+- Prints: `scratchpad/prints-n2` (3 combinações).
+
+### Decisões, frágil e desvios
+Ver `REDESIGN.md` e `PASSAGEM.md` ("N2"). Desvio: o NPC não tem botão de descanso, então a parte inata ganhou "Recuperar usos".
+
+### Roteiro manual
+`docs/ROTEIRO-DE-TESTES.md`, "N2".
+
+## Próximo: os bugs que sobrarem e o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1 e N2

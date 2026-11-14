@@ -1,4 +1,9 @@
-import { type MagiaDoCompendio, ROTULO_DO_NIVEL_DE_MAGIA } from "@tabletop/shared";
+import {
+  type EspacoNoChat,
+  type MagiaDoCompendio,
+  ROTULO_DO_NIVEL_DE_MAGIA,
+  textoDaQuantidade,
+} from "@tabletop/shared";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { type ReactNode, useState } from "react";
 
@@ -70,6 +75,14 @@ export function TextoDaMagia({ magia }: { magia: MagiaDoCompendio }) {
   );
 }
 
+/** "como ritual", "conjuração inata" ou "com espaço de 5º" (e, com quantidade, " · 4 dardos"): a etiqueta do cartão. */
+export function textoDoEspacoNoCartao(e: EspacoNoChat): string {
+  if (e.ritual) return "como ritual";
+  if (e.inata) return "conjuração inata";
+  const q = e.quantidade ? ` · ${textoDaQuantidade(e.quantidade.total, e.quantidade.unidade)}` : "";
+  return `com espaço de ${e.nivel}º${q}`;
+}
+
 /**
  * O cartão de uma magia no chat: nome, nível, escola, marcas e uma linha com tempo, alcance e duração; a
  * descrição fica recolhida até alguém abrir.
@@ -79,8 +92,8 @@ export function CartaoDaMagiaNoChat({
   espaco,
 }: {
   magia: MagiaDoCompendio;
-  /** O nível do espaço, quando a magia foi conjurada acima do nível dela (V6). */
-  espaco?: number | undefined;
+  /** O espaço, quando a magia foi conjurada acima do nível dela (V6), como ritual ou por Conjuração inata (N2). */
+  espaco?: EspacoNoChat | undefined;
 }) {
   const [aberta, setAberta] = useState(false);
   return (
@@ -93,7 +106,7 @@ export function CartaoDaMagiaNoChat({
         {linhaDeNivelEEscola(magia)} <MarcasDaMagia magia={magia} />
         {espaco !== undefined && (
           <span className="etiqueta-magia" data-testid="magia-chat-espaco">
-            com espaço de {espaco}º
+            {textoDoEspacoNoCartao(espaco)}
           </span>
         )}
       </p>

@@ -160,3 +160,36 @@ describe("a ficha montada por partes", () => {
     expect(pvPorClasses([{ classe: "Inventada", nivel: 2 }], 0)).toBeNull();
   });
 });
+
+describe("conjuração inata, ritual e dados por nível (N2)", () => {
+  it("põe magia inata no NPC, com atributo, CD e o contador do grupo", () => {
+    const { ficha } = montarFicha(
+      undefined,
+      partes({
+        npc: { nd: "3" },
+        atributos: { car: 16 },
+        conjuracaoInata: { habilidade: "car", cd: 13, grupo: { max: 3 } },
+        magias: [
+          { nome: "Luz", nivel: 0, inata: { frequencia: "vontade" } },
+          { nome: "Voo", nivel: 3, inata: { frequencia: "cada", max: 1 } },
+          { nome: "Invisibilidade", nivel: 2, inata: { frequencia: "grupo" } },
+          {
+            nome: "Raio de Fogo",
+            nivel: 0,
+            ritual: false,
+            dadosPorNivel: [{ nivel: 5, expressao: "1d10" }],
+          },
+        ],
+      }),
+      { ...base, npc: true },
+    );
+    expect(ficha.inata).toEqual({ habilidade: "car", cd: 13, grupo: { max: 3, gastos: 0 } });
+    expect(ficha.magias?.map((m) => m.inata?.frequencia)).toEqual([
+      "vontade",
+      "cada",
+      "grupo",
+      undefined,
+    ]);
+    expect(ficha.magias?.[3]?.dadosPorNivel).toEqual([{ nivel: 5, expressao: "1d10" }]);
+  });
+});

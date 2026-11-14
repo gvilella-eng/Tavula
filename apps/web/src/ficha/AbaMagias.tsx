@@ -17,6 +17,7 @@ import { type HTMLAttributes, useState } from "react";
 import { BotaoComDica } from "../BotaoComDica";
 import { CamposDaMagia, linhaDeNivelEEscola, MarcasDaMagia, TextoDaMagia } from "../CartaoDaMagia";
 import { type PropsDaAba, um } from "./AbaPrincipal";
+import { ParteInata } from "./ConjuracaoInata";
 import { CampoDeNovo, CampoNumero, CampoTexto } from "./campos";
 import { magiaDoCompendio } from "./conjurar";
 import { EditorDeAtaque } from "./EditorDeAtaque";
@@ -484,7 +485,7 @@ function TotalDeEspacos({ n, props }: { n: number; props: PropsDaAba }) {
 function Nivel({ n, props }: { n: number; props: PropsDaAba }) {
   const { ficha, d, alterar, editar, fecharEditor } = props;
   const magias = ficha.magias ?? [];
-  const doNivel = magias.map((m, i) => ({ m, i })).filter((x) => x.m.nivel === n);
+  const doNivel = magias.map((m, i) => ({ m, i })).filter((x) => x.m.nivel === n && !x.m.inata);
   const ordem = useOrdemDaLista({
     lista: `circulo-${n}`,
     habilitado: editar,
@@ -495,7 +496,7 @@ function Nivel({ n, props }: { n: number; props: PropsDaAba }) {
           "magias",
           moverNoGrupo(
             magias,
-            posicoesDoGrupo(magias, (x) => x.nivel === n),
+            posicoesDoGrupo(magias, (x) => x.nivel === n && !x.inata),
             de,
             para,
           ),
@@ -602,7 +603,8 @@ function BotaoNovoCirculo({ aoClicar }: { aoClicar: () => void }) {
 /** Aba Magias: atributo, CD e ataque, os espaços por nível e as magias de cada nível. */
 export function AbaMagias(props: PropsDaAba) {
   const { ficha, d, alterar, editar, editorAberto, fecharEditor, estreita } = props;
-  const temMagiaNoNivel = (n: number) => (ficha.magias ?? []).some((m) => m.nivel === n);
+  const temMagiaNoNivel = (n: number) =>
+    (ficha.magias ?? []).some((m) => m.nivel === n && !m.inata);
   // Arrastando uma magia do compêndio, o círculo dela aparece mesmo vazio, para ela ter onde cair.
   const emArrasto = useEntradaEmArrasto();
   const circuloEmArrasto = editar && emArrasto?.tipo === "magia" ? emArrasto.magia.nivel : null;
@@ -681,6 +683,7 @@ export function AbaMagias(props: PropsDaAba) {
         {esquerda.map((n) => (
           <Nivel key={n} n={n} props={props} />
         ))}
+        <ParteInata props={props} editorEmLinha={false} />
         {estreita && editar && proximoOculto !== undefined && (
           <BotaoNovoCirculo aoClicar={() => setExtras([...extras, proximoOculto])} />
         )}

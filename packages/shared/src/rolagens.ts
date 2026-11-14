@@ -53,6 +53,18 @@ export const EspacoDoPedidoSchema = z.object({
   nivel: z.number().int().min(1).max(9),
   extra: z.string().max(LIMITES_DE_DADOS.caracteres).optional(),
   metade: z.boolean().optional(),
+  /** N2: conjurada como ritual (sem gastar espaço): o cartão diz "como ritual". */
+  ritual: z.boolean().optional(),
+  /** N2: conjuração inata (sem gastar espaço): o cartão diz "conjuração inata". */
+  inata: z.boolean().optional(),
+  /** N2: quantos dardos, raios ou alvos a magia tem neste espaço. Com `cada` (o dano de um), a sala rola um por um. */
+  quantidade: z
+    .object({
+      total: z.number().int().min(1).max(30),
+      unidade: z.string().trim().min(1).max(16),
+      cada: z.string().max(LIMITES_DE_DADOS.caracteres).optional(),
+    })
+    .optional(),
 });
 export type EspacoDoPedido = z.infer<typeof EspacoDoPedidoSchema>;
 
@@ -68,6 +80,17 @@ export const EspacoNoChatSchema = z.object({
       total: z.number().int(),
       /** Metade do total (arredondada para baixo), quando a salvaguarda dá metade. */
       metade: z.number().int().optional(),
+    })
+    .optional(),
+  ritual: z.boolean().optional(),
+  inata: z.boolean().optional(),
+  /** N2: a quantidade de dardos, raios ou alvos; `rolagens` (uma por dardo ou raio) e `soma` só com dano por unidade. */
+  quantidade: z
+    .object({
+      total: z.number().int().min(1).max(30),
+      unidade: z.string().max(16),
+      rolagens: z.array(RolagemSchema).min(1).max(30).optional(),
+      soma: z.number().int().optional(),
     })
     .optional(),
 });
@@ -91,6 +114,8 @@ export const PedidoDeModeloSchema = z.discriminatedUnion("modelo", [
     salvaguarda: SalvaguardaNoChatSchema.optional(),
     /** Magia conjurada acima do nível (V6): o dado a mais é rolado à parte e vai no bloco colado do chat. */
     espaco: EspacoDoPedidoSchema.optional(),
+    /** N2: o nível do personagem que deu dados a mais ao truque (só para mostrar: "nível 5"). */
+    nivelDoTruque: z.number().int().min(1).max(30).optional(),
     vantagem: VantagemSchema.optional(),
     oculta: z.boolean().optional(),
     /** Fala como este personagem (id). */
@@ -119,6 +144,7 @@ export const ResultadoDeModeloSchema = z.discriminatedUnion("modelo", [
     dano: RolagemSchema,
     danoTipo: z.string().max(80).optional(),
     salvaguarda: SalvaguardaNoChatSchema.optional(),
+    nivelDoTruque: z.number().int().min(1).max(30).optional(),
     /** Crítico (20 natural ou a margem do ataque): os dados do dano foram dobrados. */
     critico: z.boolean(),
     /** 1 natural. */
@@ -196,6 +222,7 @@ export function rolarAtaque(
       dano: rolado,
       ...(pedido.danoTipo ? { danoTipo: pedido.danoTipo } : {}),
       ...(pedido.salvaguarda ? { salvaguarda: pedido.salvaguarda } : {}),
+      ...(pedido.nivelDoTruque ? { nivelDoTruque: pedido.nivelDoTruque } : {}),
       critico,
       falhaCritica: natural === 1,
     },
@@ -212,8 +239,28 @@ export function rolarEspaco(
   critico: boolean,
   fonte: FonteDeAleatoriedade,
 ): ResultadoOuErro<EspacoNoChat> {
+  const marcas = {
+    ...(pedido.ritual ? { ritual: true } : {}),
+    ...(pedido.inata ? { inata: true } : {}),
+  };
+  let quantidade: EspacoNoChat["quantidade"];
+  if (pedido.quantidade) {
+    const { total, unidade, cada } = pedido.quantidade;
+    quantidade = { total, unidade };
+    if (cada?.trim()) {
+      const um = lerExpressao(cada);
+      if (!um.ok) return { ok: false, motivo: `Dano por ${unidade} inválido: ${um.motivo}` };
+      const rolagens = Array.from({ length: total }, () => rolar(um.expressao, fonte));
+      quantidade = { total, unidade, rolagens, soma: rolagens.reduce((t, r) => t + r.total, 0) };
+    }
+  }
   const extra = pedido.extra?.trim() ?? "";
-  if (extra === "") return { ok: true, resultado: { nivel: pedido.nivel } };
+  if (extra === "") {
+    return {
+      ok: true,
+      resultado: { nivel: pedido.nivel, ...marcas, ...(quantidade ? { quantidade } : {}) },
+    };
+  }
   const lida = lerExpressao(extra);
   if (!lida.ok) return { ok: false, motivo: `Dano por nível inválido: ${lida.motivo}` };
   const rolagem = rolar(critico ? dobrarDados(lida.expressao) : lida.expressao, fonte);
@@ -222,6 +269,8 @@ export function rolarEspaco(
     ok: true,
     resultado: {
       nivel: pedido.nivel,
+      ...marcas,
+      ...(quantidade ? { quantidade } : {}),
       extra: {
         expressao: rolagem.expressao,
         rolagem,

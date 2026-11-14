@@ -1,6 +1,11 @@
 import { z } from "zod";
 import { HashSchema, LIMITES_DE_ASSET } from "./assets.ts";
-import { porNivelAcimaDoTexto } from "./conjuracao.ts";
+import {
+  dadosPorNivelDoTexto,
+  lerPorNivelAcima,
+  porNivelAcimaDoTexto,
+  quantidadeBaseDoTexto,
+} from "./conjuracao.ts";
 import type { Magia } from "./ficha.ts";
 
 // ---------------------------------------------------------------------------------------------
@@ -327,6 +332,14 @@ export function descricaoParaFicha(m: MagiaDoCompendio): string {
 /** A magia como a lista de magias da ficha a guarda (preparada, com nível, escola e a descrição montada). */
 export function magiaParaFicha(m: MagiaDoCompendio): Magia {
   const porNivel = porNivelAcimaDoTexto(m.emNiveisSuperiores);
+  const lido = lerPorNivelAcima(porNivel);
+  const base =
+    lido?.tipo === "quantidade"
+      ? (quantidadeBaseDoTexto(m.descricao, lido.unidade) ?? undefined)
+      : undefined;
+  // N2: truque que sobe pelo nível do personagem (o texto vem na descrição ou no "Em níveis superiores").
+  const porNivelDoPersonagem =
+    m.nivel === 0 ? dadosPorNivelDoTexto(`${m.descricao} ${m.emNiveisSuperiores ?? ""}`) : [];
   return {
     nome: m.nome,
     nivel: m.nivel,
@@ -334,6 +347,9 @@ export function magiaParaFicha(m: MagiaDoCompendio): Magia {
     escola: m.escola,
     descricao: descricaoParaFicha(m),
     ...(porNivel ? { porNivelAcima: porNivel } : {}),
+    ...(base ? { quantidadeBase: base } : {}),
+    ...(m.ritual ? { ritual: true } : {}),
+    ...(porNivelDoPersonagem.length > 0 ? { dadosPorNivel: porNivelDoPersonagem } : {}),
   };
 }
 

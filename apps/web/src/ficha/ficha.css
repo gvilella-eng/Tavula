@@ -3229,6 +3229,30 @@
   align-items: center;
 }
 
+/* N2: a parte Conjuracao inata (a vontade, N/dia cada, N/dia) logo depois dos circulos */
+.fl-raiz .npc-inata {
+  margin-top: 8px;
+  padding-top: 4px;
+  border-top: 1px solid var(--borda);
+}
+.fl-raiz .npc-inata .npc-conj-item {
+  align-items: center;
+  gap: 5px;
+}
+.fl-raiz .npc-inata-freq {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  align-items: center;
+  margin: 4px 0;
+}
+.fl-raiz .npc-inata-novas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
 .fl-raiz .npc-modos {
   margin-top: 8px;
 }

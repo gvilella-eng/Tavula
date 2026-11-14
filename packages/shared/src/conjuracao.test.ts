@@ -90,15 +90,15 @@ describe("porNivelAcimaDoTexto", () => {
     );
   });
 
-  it("o que não casa volta vazio (mísseis, alvos, raios, duração)", () => {
+  it("o que não casa volta vazio (duração) e quantidade vira '1 dardo' (N2)", () => {
     expect(
       porNivelAcimaDoTexto(
         "Quando você conjura esta magia usando um espaço de magia de 2º nível ou superior, a magia cria um dardo adicional para cada nível do espaço acima do 1º.",
       ),
-    ).toBe("");
+    ).toBe("1 dardo"); // N2: quantidade a mais também é lida
     expect(
       porNivelAcimaDoTexto("Você pode afetar uma criatura adicional para cada nível acima do 3º."),
-    ).toBe("");
+    ).toBe("1 criatura");
     expect(porNivelAcimaDoTexto("A duração aumenta em 1 hora para cada nível acima.")).toBe("");
     expect(porNivelAcimaDoTexto("")).toBe("");
     expect(porNivelAcimaDoTexto(undefined)).toBe("");

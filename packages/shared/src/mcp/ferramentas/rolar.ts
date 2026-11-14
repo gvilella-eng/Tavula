@@ -2,11 +2,17 @@ import { z } from "zod";
 import {
   bonusDeAcerto,
   cdDaRolagem,
+  dadosPorNivelDaMagia,
   expressaoDeDano,
+  extraDoTruque,
+  type Magia,
   type Mensagem,
+  magiaInataParaRolar,
   margemDeCritico,
+  nivelParaTruque,
   normalizarBusca,
   podeEditarPersonagem,
+  somarExpressoes,
   tipoDeDano,
   VANTAGENS,
 } from "../../index.ts";
@@ -139,11 +145,20 @@ export const rolar = definir({
     const { p, ficha } = fichaDe(a.ficha);
     const alvo = normalizarBusca(a.nome);
     const lista = [...(ficha.ataques ?? []), ...(ficha.magias ?? [])];
-    const ataque = lista.find((x) => normalizarBusca(x.nome) === alvo);
-    if (!ataque) {
+    const achado = lista.find((x) => normalizarBusca(x.nome) === alvo);
+    if (!achado) {
       throw new ErroDoMcp(
         `A ficha "${p.nome}" não tem o ataque "${a.nome}". Tem: ${lista.map((x) => x.nome).join(", ") || "nenhum"}.`,
       );
+    }
+    // N2: a magia inata rola com o atributo e a CD da conjuração inata; o truque soma os dados do nível do personagem.
+    let ataque = achado;
+    if ("preparada" in ataque) {
+      let magia: Magia = ataque;
+      if (magia.inata) magia = magiaInataParaRolar(ficha, magia);
+      const extra = extraDoTruque(dadosPorNivelDaMagia(magia), nivelParaTruque(ficha));
+      const somado = extra ? somarExpressoes(magia.dano ?? "", extra.expressao) : null;
+      ataque = somado ? { ...magia, dano: somado } : magia;
     }
     const bonus = bonusDeAcerto(ficha, ataque);
     const dano = expressaoDeDano(ficha, ataque);
