@@ -15,10 +15,13 @@ import {
   iluminacaoDinamicaLigada,
   jogadoresDaMesa,
   jogadorVeABandeira,
+  lerEntradaArrastada,
   limitarAlcance,
   limiteDeVisaoDoToken,
   membrosDaMesa,
   modInteligenciaDe,
+  PASTA_NPCS_ID,
+  personagemDoMonstro,
   pode,
   podeColocarProprioToken,
   podeEditarPersonagem,
@@ -1254,6 +1257,38 @@ export function Mesa({
     });
   }
 
+  /**
+   * N3a: um monstro do Compêndio foi solto no mapa (só o mestre): nasce a ficha de NPC dele na pasta NPCs e, logo depois,
+   * o token na cena que ele vê, onde soltou. As duas mensagens seguem em ordem pela mesma conexão.
+   */
+  function soltarDoCompendioNoMapa(dados: string, x: number, y: number) {
+    if (!euMestre || !cena || !estado) return;
+    const entrada = lerEntradaArrastada(dados);
+    if (entrada?.tipo !== "monstro") return;
+    const pastaId = estado.pastas.some((p) => p.id === PASTA_NPCS_ID)
+      ? PASTA_NPCS_ID
+      : estado.pastas[0]?.id;
+    if (!pastaId) return;
+    const id = `pers-${crypto.randomUUID().slice(0, 8)}`;
+    const { personagem } = personagemDoMonstro(entrada.monstro, {
+      id,
+      pastaId,
+      magias: entrada.magias ?? [],
+    });
+    if (enviar("personagem.criar", { personagem }) === null) return;
+    const ponto = encaixarNoGrid(
+      { x, y },
+      personagem.tokenPadrao.tamanhoQuadrados,
+      cena.grid.quadradoM,
+    );
+    enviar("personagem.colocar", {
+      personagemId: id,
+      cenaId: cena.id,
+      tokenId: `tok-${crypto.randomUUID().slice(0, 8)}`,
+      ...(encaixe ? ponto : { x, y }),
+    });
+  }
+
   /** Preparo cifrado da cena: só o que ainda falta (o que já está preparado não repete). */
   async function prepararCena(cenaId: string): Promise<string | null> {
     if (!gerente || !estado) return "Os arquivos locais ainda não estão prontos.";
@@ -1381,6 +1416,7 @@ export function Mesa({
                 enviar={enviar}
                 comoId={comoId}
                 aoMudarComo={mudarComo}
+                aoAbrirFicha={abrirOuTrazerFicha}
               />
             ),
           },
@@ -1575,6 +1611,7 @@ export function Mesa({
               imagens={imagens}
               versaoDasImagens={versaoDosProntos}
               aoSoltarItem={soltarItemNoMapa}
+              aoSoltarDoCompendio={euMestre ? soltarDoCompendioNoMapa : undefined}
               aoCriar={(m) => {
                 mapa.current = m;
               }}

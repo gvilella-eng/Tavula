@@ -384,6 +384,61 @@ describe("o mestre monta o mundo (rascunho até publicar)", () => {
     const nada = await rodar(sala, "compendio", { busca: "xyzzy" });
     expect(nada.texto).toMatch(/Nada encontrado/);
   });
+
+  it("N3a: o compêndio acha monstros por nome, tipo e ND e itens mágicos por tipo e raridade", async () => {
+    const sala = new SalaSimulada(ANA);
+    const goblin = await rodar(sala, "compendio", { tipo: "monstro", busca: "goblin" });
+    expect(goblin.texto).toContain("monstro: Goblin");
+    expect(goblin.texto).toContain("ND 1/4");
+    const faixa = await rodar(sala, "compendio", { ndMin: "1", ndMax: "10" });
+    expect(faixa.texto).toContain("Mago");
+    expect(faixa.texto).not.toContain("Goblin");
+    const feras = await rodar(sala, "compendio", { tipoDeCriatura: "Fera" });
+    expect(feras.texto).toContain("Lobo");
+    const anel = await rodar(sala, "compendio", { raridade: "raro", tipoDeItem: "anel" });
+    expect(anel.texto).toContain("item mágico: Anel de Proteção");
+    expect(anel.texto).not.toContain("Poção");
+    const detalhe = await rodar(sala, "compendio", {
+      busca: "mago",
+      tipo: "monstro",
+      detalhe: true,
+    });
+    expect(detalhe.texto).toContain("ações: Adaga");
+  });
+
+  it("N3a: o mestre cria vários NPCs de um monstro pelo nome, e o jogador não", async () => {
+    const sala = new SalaSimulada(MESTRE);
+    const r = await rodar(sala, "fichas", {
+      fichas: [{ nome: "Goblin", monstro: "Goblin", quantidade: 4 }],
+    });
+    expect(r.erro).toBeFalsy();
+    const goblins = sala.visaoDe(MESTRE).personagens.filter((p) => /^Goblin [0-9]$/.test(p.nome));
+    expect(goblins.map((p) => p.nome)).toEqual(["Goblin 1", "Goblin 2", "Goblin 3", "Goblin 4"]);
+    expect(goblins[0]?.ficha).toMatchObject({
+      apresentacao: "npc",
+      pvMax: 7,
+      npc: { nd: "1/4" },
+    });
+    expect(goblins[0]?.ficha?.ataques?.map((a) => a.nome)).toEqual(["Cimitarra", "Arco Curto"]);
+    expect(goblins[0]?.editores).toEqual({ tipo: "jogadores", ids: [] });
+    // O mago leva as magias que o compêndio tem.
+    await rodar(sala, "fichas", { fichas: [{ nome: "Mestre Arcano", monstro: "Mago" }] });
+    const mago = sala.visaoDe(MESTRE).personagens.find((p) => p.nome === "Mestre Arcano");
+    expect(mago?.ficha?.magias?.find((m) => m.nome === "Bola de Fogo")?.descricao).toContain(
+      "Tempo de conjuração",
+    );
+    // Monstro inexistente e nome repetido dão erro claro.
+    const falta = await rodar(sala, "fichas", { fichas: [{ nome: "X", monstro: "Tarrasque" }] });
+    expect(falta.texto).toMatch(/Não achei "Tarrasque"/);
+    const igual = await rodar(sala, "fichas", {
+      fichas: [{ nome: "Goblin 1", monstro: "Goblin" }],
+    });
+    expect(igual.texto).toMatch(/Já existe uma ficha/);
+    // O jogador não cria NPC.
+    const ana = new SalaSimulada(ANA);
+    const negado = await rodar(ana, "fichas", { fichas: [{ nome: "Lobo", monstro: "Lobo" }] });
+    expect(negado.texto).toMatch(/Só o mestre cria NPCs/);
+  });
 });
 
 describe("o panorama mostra só o que o usuário vê", () => {

@@ -3662,4 +3662,27 @@ Ver `REDESIGN.md` e `PASSAGEM.md` ("N2"). Desvio: o NPC não tem botão de desca
 ### Roteiro manual
 `docs/ROTEIRO-DE-TESTES.md`, "N2".
 
-## Próximo: os bugs que sobrarem e o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1 e N2
+## Ajustes N3a — Compêndio com monstros e itens mágicos (entregue, aguardando o roteiro manual)
+
+Detalhes em `docs/REDESIGN.md` ("N3a — como ficou"), `PROJETO.md` e `docs/PASSAGEM.md` ("N3a").
+
+### O que foi entregue
+- O compêndio recebe **monstros** e **itens mágicos** (schemas, busca, filtros de tipo, tamanho, ND e raridade, cartão do monstro).
+- **Vários arquivos** em `compendio/` (`magias.json`, `monstros.json`, `itens.json`, `compendio.json`), juntos pela mesa, com aviso de nome repetido, e a ação **Carregar arquivos do compêndio…** (o caminho do N3b).
+- **Criar NPC** a partir do monstro (botão e arrastar para o mapa) e **item mágico** no equipamento (arma com bônus também nos ataques).
+- MCP: `compendio` busca monstros e itens mágicos; `fichas` cria NPCs de um monstro pelo nome (`monstro`, `quantidade`).
+- Exemplo do SRD com 3 monstros e 4 itens mágicos. Limites maiores (asset de 16 MB). Corrigida a ordem do seletor de ND.
+
+### Como rodar
+`pnpm dev` como sempre. Sem migração: a ficha é JSON com campos opcionais e o compêndio da mesa continua a mesma referência de asset.
+
+### Verificação
+Ver o relatório do lote (números do `pnpm verify` e dos prints em `scratchpad/prints-n3a`). Unidade: `compendioN3a.test.ts` (schemas, limites, junção, busca, `monstroParaFicha`, item mágico), casos novos em `mcp/ferramentas.test.ts` e `apps/mcp/src/compendioLocal.test.ts`. E2E novo: `compendio-n3a.spec.ts` (4). E2E antigo alterado: `fluxos.spec.ts` (o texto do botão "Usar o exemplo" e do botão de arquivos mudou de propósito).
+
+### Decisões, frágil e desvios
+Ver `REDESIGN.md` e `PASSAGEM.md` ("N3a"). Desvio: a seção Monstros só aparece para o mestre, mas o dado chega a todos.
+
+### Roteiro manual
+`docs/ROTEIRO-DE-TESTES.md`, "N3a".
+
+## Próximo: o N3b (o extrator dos PDFs do Vilella para `compendio/`) e o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2 e N3a

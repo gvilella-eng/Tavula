@@ -1225,9 +1225,9 @@ export function Equipamento(props: PropsDaAba) {
       ),
   });
   const soltar = useSoltarDoCompendio({
-    aceita: ["item"],
+    aceita: ["item", "itemMagico"],
     habilitado: editar,
-    listaDoTipo: { item: "itens" },
+    listaDoTipo: { item: "itens", itemMagico: "itens" },
     aoSoltar: (entrada, posicao) => soltarNaFicha(props, "personagem", entrada, { posicao }),
   });
   const euMestre = luz?.eu.papel === "mestre";
@@ -1327,7 +1327,7 @@ export function Equipamento(props: PropsDaAba) {
                     rotulo="Nota do item"
                     placeholder="nota"
                     valor={it.nota ?? ""}
-                    maxLength={500}
+                    maxLength={4000}
                     desabilitado={!editar}
                     className="fl-in fl-item-nota"
                     aoMudar={(t) => alterar(um(`itens.${i}.nota`, t === "" ? null : t))}

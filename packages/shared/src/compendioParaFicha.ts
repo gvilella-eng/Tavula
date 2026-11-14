@@ -1,27 +1,38 @@
 import { z } from "zod";
 import {
+  type AcaoDoMonstro,
   type ArmaDoCompendio,
   ArmaDoCompendioSchema,
   fichaTemMagia,
   ItemDoCompendioSchema,
+  type ItemMagicoDoCompendio,
+  ItemMagicoDoCompendioSchema,
   type MagiaDoCompendio,
   MagiaDoCompendioSchema,
+  type MonstroDoCompendio,
+  MonstroDoCompendioSchema,
   magiaParaFicha,
   normalizarBusca,
+  resumoDoItemMagico,
 } from "./compendio.ts";
+import type { Personagem } from "./estado.ts";
 import {
   type Ataque,
+  bonusPorND,
   type Caracteristica,
+  type CategoriaDeAcao,
   conjuradoras,
   type Ficha,
   type ItemDaFicha,
   type Magia,
   modDoAtributo,
+  type NivelDeProficiencia,
   type OperacaoDeFicha,
+  type Proficiencia,
   type TipoDeAcao,
 } from "./ficha.ts";
 import { inserirNoGrupo, posicoesDoGrupo } from "./reordenar.ts";
-import { ATRIBUTOS, type Atributo, ROTULO_DO_ATRIBUTO } from "./srd/index.ts";
+import { ATRIBUTOS, type Atributo, PERICIAS, ROTULO_DO_ATRIBUTO } from "./srd/index.ts";
 
 // ---------------------------------------------------------------------------------------------
 // Do compêndio para a ficha (V4b). O que o arrasto e o botão "Adicionar à ficha" fazem é a mesma conta, e ela mora
@@ -35,6 +46,13 @@ export const EntradaDoCompendioSchema = z.discriminatedUnion("tipo", [
   z.object({ tipo: z.literal("magia"), magia: MagiaDoCompendioSchema }),
   z.object({ tipo: z.literal("arma"), arma: ArmaDoCompendioSchema }),
   z.object({ tipo: z.literal("item"), item: ItemDoCompendioSchema }),
+  /** N3a: o monstro leva junto as magias dele que o compêndio tem (a ficha nova as monta sem perguntar ao compêndio). */
+  z.object({
+    tipo: z.literal("monstro"),
+    monstro: MonstroDoCompendioSchema,
+    magias: z.array(MagiaDoCompendioSchema).max(150).optional(),
+  }),
+  z.object({ tipo: z.literal("itemMagico"), itemMagico: ItemMagicoDoCompendioSchema }),
 ]);
 export type EntradaDoCompendio = z.infer<typeof EntradaDoCompendioSchema>;
 export type TipoDeEntrada = EntradaDoCompendio["tipo"];
@@ -279,6 +297,13 @@ export function aplicarEntradaNaFicha(
           : `${m.nome} entrou na lista de magias.`,
     };
   }
+  if (entrada.tipo === "monstro") {
+    return {
+      ok: false,
+      motivo: "Um monstro vira uma ficha nova: use Criar NPC, ou arraste-o para o mapa.",
+    };
+  }
+  if (entrada.tipo === "itemMagico") return aplicarItemMagico(f, entrada.itemMagico, npc, destino);
   const item = entrada.item;
   if (npc) {
     const lista = f.caracteristicas ?? [];
@@ -316,5 +341,377 @@ export function aplicarEntradaNaFicha(
     ok: true,
     operacoes: [um("itens", inserirNoGrupo(itens, grupo, novo, destino.posicao))],
     texto: `${item.nome} entrou no equipamento.`,
+  };
+}
+
+// ---------- item mágico (N3a) ----------
+
+/** O texto do item mágico que vai para a nota do equipamento (ou para o traço do NPC). */
+export function textoDoItemMagico(i: ItemMagicoDoCompendio): string {
+  return `${resumoDoItemMagico(i)} · ${i.tipo}.\n${i.descricao}`;
+}
+
+/**
+ * O item mágico na ficha. No personagem vai para o Equipamento com a descrição na nota (quantidade 1, mais uma se já
+ * tem); se é uma arma com bônus, vira também um ataque com o bônus mágico (+1 a +3) (assumido). No NPC vira um traço
+ * (e a ação, quando é arma).
+ */
+function aplicarItemMagico(
+  f: Ficha,
+  i: ItemMagicoDoCompendio,
+  npc: boolean,
+  destino: DestinoDaEntrada,
+): ResultadoDaEntrada {
+  const ataque: Ataque | null = i.arma
+    ? {
+        ...ataqueDeArma(f, i.arma),
+        nome: i.nome.slice(0, 80),
+        ...(i.bonus ? { bonusMagico: i.bonus } : {}),
+        descricao: `${resumoDoItemMagico(i)}. ${i.descricao}`.slice(0, 20_000),
+        ...(npc ? { categoria: "acao" as const } : {}),
+      }
+    : null;
+  const operacoes: OperacaoDeFicha[] = [];
+  if (npc) {
+    const lista = f.caracteristicas ?? [];
+    if (lista.some((c) => normalizarBusca(c.nome) === normalizarBusca(i.nome))) {
+      return { ok: false, motivo: `${i.nome} já é um traço.` };
+    }
+    const traco: Caracteristica = {
+      nome: i.nome.slice(0, 80),
+      descricao: textoDoItemMagico(i).slice(0, 20_000),
+    };
+    operacoes.push(
+      um(
+        "caracteristicas",
+        inserirNoGrupo(
+          lista,
+          posicoesDoGrupo(lista, () => true),
+          traco,
+          destino.posicao,
+        ),
+      ),
+    );
+    if (ataque) {
+      const acoes = f.ataques ?? [];
+      operacoes.push(
+        um("ataques", inserirNoGrupo(acoes, posicoesDoGrupo(acoes, ehAcao), ataque, null)),
+      );
+    }
+    return { ok: true, operacoes, texto: `${i.nome} entrou como traço.` };
+  }
+  const itens = f.itens ?? [];
+  const existente = itens.findIndex((x) => normalizarBusca(x.nome) === normalizarBusca(i.nome));
+  const atual = itens[existente];
+  if (atual) {
+    return {
+      ok: true,
+      operacoes: [um(`itens.${existente}.quantidade`, Math.min(9999, atual.quantidade + 1))],
+      texto: `Mais uma unidade de ${i.nome} no equipamento.`,
+    };
+  }
+  const novo: ItemDaFicha = {
+    nome: i.nome.slice(0, 80),
+    quantidade: 1,
+    nota: textoDoItemMagico(i).slice(0, LIMITE_DA_NOTA_DO_ITEM),
+    ...(i.peso !== undefined ? { peso: i.peso } : {}),
+  };
+  operacoes.push(
+    um(
+      "itens",
+      inserirNoGrupo(
+        itens,
+        posicoesDoGrupo(itens, () => true),
+        novo,
+        destino.posicao,
+      ),
+    ),
+  );
+  if (ataque) {
+    const ataques = f.ataques ?? [];
+    operacoes.push(
+      um(
+        "ataques",
+        inserirNoGrupo(
+          ataques,
+          posicoesDoGrupo(ataques, () => true),
+          ataque,
+          null,
+        ),
+      ),
+    );
+  }
+  return {
+    ok: true,
+    operacoes,
+    texto: ataque
+      ? `${i.nome} entrou no equipamento e nos ataques.`
+      : `${i.nome} entrou no equipamento.`,
+  };
+}
+
+/** O tamanho máximo da nota de um item do equipamento (a ficha a aceita até aqui). */
+export const LIMITE_DA_NOTA_DO_ITEM = 4000;
+
+// ---------- monstro (N3a) ----------
+
+/** Quantos quadrados o token do monstro ocupa: Miúdo a Médio 1, Grande 2, Enorme 3, Imenso 4. */
+export function tamanhoDoTokenDoMonstro(m: Pick<MonstroDoCompendio, "tamanho">): 1 | 2 | 3 | 4 {
+  const t = normalizarBusca(m.tamanho);
+  if (t.startsWith("imens") || t.startsWith("gargantu")) return 4;
+  if (t.startsWith("enorm")) return 3;
+  if (t.startsWith("grand")) return 2;
+  return 1;
+}
+
+/** As magias do compêndio que o monstro cita (inata e por espaços), sem repetir; as que faltam ficam de fora. */
+export function magiasDoMonstro(
+  m: MonstroDoCompendio,
+  magias: readonly MagiaDoCompendio[],
+): MagiaDoCompendio[] {
+  const nomes = [
+    ...(m.conjuracaoInata?.magias ?? []).map((x) => x.nome),
+    ...(m.conjuracaoPorEspacos?.magias ?? []).map((x) => x.nome),
+  ];
+  const achadas = new Map<string, MagiaDoCompendio>();
+  for (const nome of nomes) {
+    const chave = normalizarBusca(nome);
+    const m2 = magias.find(
+      (x) => normalizarBusca(x.nome) === chave || normalizarBusca(x.nomeOriginal ?? "") === chave,
+    );
+    if (m2) achadas.set(chave, m2);
+  }
+  return [...achadas.values()];
+}
+
+/** O bônus total que o livro lista, escrito como proficiência mais bônus extra (o que a ficha entende). */
+function proficienciaParaTotal(total: number, mod: number, prof: number): Proficiencia {
+  const extra = total - mod;
+  const nivel: NivelDeProficiencia =
+    extra === prof
+      ? "proficiente"
+      : extra === prof * 2
+        ? "especialista"
+        : extra > prof
+          ? "proficiente"
+          : "nenhuma";
+  const coberto = nivel === "proficiente" ? prof : nivel === "especialista" ? prof * 2 : 0;
+  const resto = extra - coberto;
+  return { nivel, ...(resto !== 0 ? { bonus: Math.max(-50, Math.min(50, resto)) } : {}) };
+}
+
+const SEM_TEXTO = /^[—–-]?$/;
+
+function acaoParaAtaque(
+  a: AcaoDoMonstro,
+  categoria: CategoriaDeAcao,
+  prof: number,
+  fichaBase: Ficha,
+): Ataque {
+  let salvaguarda: Ataque["salvaguarda"];
+  if (a.salvaguarda) {
+    // A CD do livro é fixa; a ficha a calcula (8 + proficiência + atributo + bônus): o bônus fecha a conta.
+    const cdAtributo = ATRIBUTOS.reduce((melhor, x) =>
+      modDoAtributo(fichaBase, x) > modDoAtributo(fichaBase, melhor) ? x : melhor,
+    );
+    const cdBonus = a.salvaguarda.cd - (8 + prof + modDoAtributo(fichaBase, cdAtributo));
+    salvaguarda = {
+      alvo: a.salvaguarda.atributo,
+      cdAtributo,
+      sucesso: a.salvaguarda.sucesso ?? "nenhum",
+      ...(cdBonus !== 0 ? { cdBonus: Math.max(-50, Math.min(50, cdBonus)) } : {}),
+    };
+  }
+  return {
+    nome: a.nome.slice(0, 80),
+    descricao: a.texto.slice(0, 20_000),
+    categoria,
+    ...(a.tipo ? { tipoDeAcao: a.tipo } : {}),
+    ...(a.acerto !== undefined ? { acerto: { tipo: "fixo" as const, valor: a.acerto } } : {}),
+    ...(a.alcance ? { alcance: a.alcance } : {}),
+    ...(a.dano ? { dano: a.dano } : {}),
+    ...(a.tipoDeDano ? { tipo: a.tipoDeDano } : {}),
+    ...(a.dano2
+      ? {
+          dano2: {
+            dados: a.dano2.dano,
+            ...(a.dano2.tipoDeDano ? { tipo: a.dano2.tipoDeDano } : {}),
+          },
+        }
+      : {}),
+    ...(salvaguarda ? { salvaguarda } : {}),
+    ...(a.recarga ? { recarga: a.recarga } : {}),
+    ...(a.usos ? { usos: { max: a.usos, gastos: 0 } } : {}),
+  };
+}
+
+export type FichaDoMonstro = { ficha: Ficha; avisos: string[] };
+
+/**
+ * O monstro como uma ficha de NPC, sem perder nada: os números viram os campos da ficha (atributos, CA, PV, ND,
+ * testes e perícias como proficiência mais bônus), os traços viram `caracteristicas`, ações, reações e ações
+ * lendárias viram `ataques` com a categoria (os números do ataque viram acerto fixo, dano e tipo) e a Conjuração
+ * inata e por espaços viram `magias` com os espaços e o contador do grupo. As magias que o compêndio tem entram com o
+ * texto e a jogada; as que faltam entram só com o nome (e um aviso).
+ */
+export function monstroParaFicha(
+  m: MonstroDoCompendio,
+  magiasDoCompendio: readonly MagiaDoCompendio[] = [],
+): FichaDoMonstro {
+  const avisos: string[] = [];
+  const notas: string[] = [];
+  const prof = bonusPorND(m.nd) ?? 2;
+  const base: Ficha = {
+    pvAtual: m.pv.media,
+    pvMax: m.pv.media,
+    apresentacao: "npc",
+    atributos: { ...m.atributos },
+    npc: { nd: m.nd },
+  };
+  const mod = (a: Atributo) => modDoAtributo(base, a);
+
+  const salvaguardas: NonNullable<Ficha["salvaguardas"]> = {};
+  for (const a of ATRIBUTOS) {
+    const total = m.salvaguardas?.[a];
+    if (total !== undefined) salvaguardas[a] = proficienciaParaTotal(total, mod(a), prof);
+  }
+  const pericias: NonNullable<Ficha["pericias"]> = {};
+  for (const [nome, total] of Object.entries(m.pericias ?? {})) {
+    const alvo = normalizarBusca(nome);
+    const def = PERICIAS.find(
+      (p) => normalizarBusca(p.nome) === alvo || p.id.toLowerCase() === alvo,
+    );
+    if (def) pericias[def.id] = proficienciaParaTotal(total, mod(def.atributo), prof);
+    else {
+      avisos.push(`Perícia "${nome}" não existe na ficha: foi para as notas.`);
+      notas.push(`${nome} ${total >= 0 ? "+" : ""}${total}`);
+    }
+  }
+
+  // Deslocamento: o primeiro número em metros vira o da ficha; o resto do texto vai para as notas.
+  const textoDoDeslocamento = m.deslocamento?.trim();
+  const metros =
+    m.deslocamentoM ??
+    (textoDoDeslocamento
+      ? Number(/(\d+(?:[.,]\d+)?)\s*m\b/.exec(textoDoDeslocamento)?.[1]?.replace(",", "."))
+      : Number.NaN);
+  const deslocamentoFt = Number.isFinite(metros) ? Math.round(metros / 0.3) : undefined;
+  if (textoDoDeslocamento && !/^\d+(?:[.,]\d+)?\s*m$/.test(textoDoDeslocamento)) {
+    notas.unshift(`Deslocamento: ${textoDoDeslocamento}`);
+  }
+  if (m.textoDasAcoesLendarias) notas.push(`Ações lendárias: ${m.textoDasAcoesLendarias}`);
+
+  const idiomas = (m.idiomas ?? "")
+    .split(/[,;]/)
+    .map((x) => x.trim().slice(0, 40))
+    .filter((x) => !SEM_TEXTO.test(x))
+    .slice(0, 30);
+
+  const caracteristicas: Caracteristica[] = (m.tracos ?? []).map((t) => ({
+    nome: t.nome.slice(0, 80),
+    descricao: t.texto.slice(0, 20_000),
+  }));
+  const ataques: Ataque[] = [
+    ...(m.acoes ?? []).map((a) => acaoParaAtaque(a, "acao", prof, base)),
+    ...(m.reacoes ?? []).map((a) => acaoParaAtaque(a, "reacao", prof, base)),
+    ...(m.acoesLendarias ?? []).map((a) => acaoParaAtaque(a, "lendaria", prof, base)),
+  ];
+
+  // ---- conjuração ----
+  const noCompendio = (nome: string): MagiaDoCompendio | undefined => {
+    const chave = normalizarBusca(nome);
+    return magiasDoCompendio.find(
+      (x) => normalizarBusca(x.nome) === chave || normalizarBusca(x.nomeOriginal ?? "") === chave,
+    );
+  };
+  const inata = m.conjuracaoInata;
+  const porEspacos = m.conjuracaoPorEspacos;
+  const habilidade: Atributo | undefined =
+    porEspacos?.habilidade ??
+    inata?.habilidade ??
+    (inata || porEspacos ? habilidadeDeConjuracaoDoNpc(base) : undefined);
+  const comConjuracao: Ficha = habilidade ? { ...base, habilidadeDeConjuracao: habilidade } : base;
+  const magias: Magia[] = [];
+  const montar = (nome: string, nivel: number): Magia => {
+    const achada = noCompendio(nome);
+    if (achada) return magiaParaFichaCalculada(comConjuracao, achada);
+    avisos.push(`A magia "${nome}" não está no compêndio: entrou só com o nome.`);
+    return {
+      nome: nome.slice(0, 80),
+      nivel,
+      preparada: true,
+      descricao: "Magia fora do compêndio: veja o texto do traço de Conjuração.",
+    };
+  };
+  for (const x of porEspacos?.magias ?? []) magias.push(montar(x.nome, x.nivel));
+  for (const x of inata?.magias ?? []) {
+    magias.push({
+      ...montar(x.nome, 0),
+      inata: {
+        frequencia: x.frequencia,
+        ...(x.frequencia === "vontade" ? {} : { max: x.max ?? 1 }),
+      },
+    });
+  }
+  const espacosTotal: NonNullable<Ficha["espacosTotal"]> = {};
+  for (const [nivel, total] of Object.entries(porEspacos?.espacos ?? {})) {
+    if (total > 0) espacosTotal[nivel as "1"] = total;
+  }
+  const temGrupo = inata?.magias.some((x) => x.frequencia === "grupo") === true;
+  const fichaInata: Ficha["inata"] | undefined = inata
+    ? {
+        ...(inata.habilidade ? { habilidade: inata.habilidade } : {}),
+        ...(inata.cd !== undefined ? { cd: inata.cd } : {}),
+        ...(temGrupo || inata.grupoMax ? { grupo: { max: inata.grupoMax ?? 1, gastos: 0 } } : {}),
+      }
+    : undefined;
+
+  const ficha: Ficha = {
+    ...base,
+    ...(m.tendencia ? { alinhamento: m.tendencia.slice(0, 64) } : {}),
+    ca: { valor: m.ca.valor, ...(m.ca.fonte ? { nota: m.ca.fonte } : {}) },
+    ...(deslocamentoFt !== undefined ? { deslocamentoFt } : {}),
+    npc: {
+      nd: m.nd,
+      tamanho: m.tamanho.slice(0, 24),
+      tipo: m.tipo,
+      ...(m.pv.formula ? { pvFormula: m.pv.formula } : {}),
+      ...(m.sentidos ? { sentidos: m.sentidos } : {}),
+      ...(m.vulnerabilidades ? { vulnerabilidades: m.vulnerabilidades } : {}),
+      ...(m.resistencias ? { resistencias: m.resistencias } : {}),
+      ...(m.imunidades ? { imunidades: m.imunidades } : {}),
+      ...(m.imunidadesCondicoes ? { imunidadesCondicoes: m.imunidadesCondicoes } : {}),
+    },
+    ...(Object.keys(salvaguardas).length > 0 ? { salvaguardas } : {}),
+    ...(Object.keys(pericias).length > 0 ? { pericias } : {}),
+    ...(idiomas.length > 0 ? { idiomas } : {}),
+    ...(caracteristicas.length > 0 ? { caracteristicas } : {}),
+    ...(ataques.length > 0 ? { ataques } : {}),
+    ...(habilidade ? { habilidadeDeConjuracao: habilidade } : {}),
+    ...(magias.length > 0 ? { magias } : {}),
+    ...(Object.keys(espacosTotal).length > 0 ? { espacosTotal } : {}),
+    ...(fichaInata ? { inata: fichaInata } : {}),
+    ...(notas.length > 0 ? { notas: notas.join("\n") } : {}),
+  };
+  return { ficha, avisos };
+}
+
+/** O personagem (NPC) novo que o botão "Criar NPC" e o arrasto para o mapa mandam à sala. */
+export function personagemDoMonstro(
+  m: MonstroDoCompendio,
+  opcoes: { id: string; pastaId: string; magias?: readonly MagiaDoCompendio[] },
+): { personagem: Personagem; avisos: string[] } {
+  const { ficha, avisos } = monstroParaFicha(m, opcoes.magias ?? []);
+  return {
+    avisos,
+    personagem: {
+      id: opcoes.id,
+      pastaId: opcoes.pastaId,
+      editores: { tipo: "jogadores", ids: [] },
+      nome: m.nome.slice(0, 64),
+      tokenPadrao: { cor: "#c0392b", tamanhoQuadrados: tamanhoDoTokenDoMonstro(m) },
+      visao: { alcanceM: null, visaoNoEscuroM: 0 },
+      ficha,
+    },
   };
 }

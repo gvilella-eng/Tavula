@@ -268,7 +268,11 @@ export function comecarArrastoDoCompendio(e: DragEvent<HTMLElement>, entrada: En
       ? entrada.magia.nome
       : entrada.tipo === "arma"
         ? entrada.arma.nome
-        : entrada.item.nome;
+        : entrada.tipo === "monstro"
+          ? entrada.monstro.nome
+          : entrada.tipo === "itemMagico"
+            ? entrada.itemMagico.nome
+            : entrada.item.nome;
   e.dataTransfer.setData(TIPO_DO_ARRASTO_DO_COMPENDIO, JSON.stringify(entrada));
   e.dataTransfer.setData("text/plain", nome);
   e.dataTransfer.effectAllowed = "copy";

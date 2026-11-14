@@ -229,10 +229,10 @@ test("compêndio: o estado vazio do mestre oferece o exemplo; 'Usar o exemplo' (
 
   // vazio do mestre: a ação principal e o arquivo, lado a lado; a ajuda do JSON fica recolhida
   await expect(m.getByTestId("compendio-usar-exemplo")).toHaveText(
-    "Usar o exemplo do SRD (3 magias)",
+    "Usar o exemplo do SRD (3 magias, 3 monstros, 4 itens mágicos)",
   );
   await expect(m.getByTestId("compendio-arquivo")).toHaveCount(1);
-  await expect(m.getByText("Escolher o arquivo…")).toBeVisible();
+  await expect(m.getByText("Carregar arquivos do compêndio…")).toBeVisible();
   await expect(m.getByTestId("compendio-ajuda-formato")).toBeVisible();
   await expect(m.getByTestId("compendio-exemplo")).toBeHidden();
   await m.getByTestId("compendio-ajuda-formato").locator("summary").click();

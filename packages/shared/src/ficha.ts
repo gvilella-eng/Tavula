@@ -205,7 +205,7 @@ export const ItemDaFichaSchema = z.object({
   quantidade: z.number().int().min(0).max(9999),
   /** Modelo de objeto (tocha, lanterna): o item acende direto da ficha (4.8). */
   modeloId: z.string().min(1).max(64).optional(),
-  nota: z.string().max(500).optional(),
+  nota: z.string().max(4000).optional(),
   /** Peso de uma unidade, em quilos (V4a): a carga da ficha soma quantidade vezes peso. */
   peso: z.number().min(0).max(99_999).optional(),
 });
@@ -445,7 +445,14 @@ export const XP_POR_ND: Readonly<Record<string, number>> = {
 };
 
 /** Os níveis de desafio que o seletor oferece, do menor ao maior. */
-export const NIVEIS_DE_DESAFIO = Object.keys(XP_POR_ND);
+// N3a: ordem explícita: as chaves inteiras de um objeto saem primeiro (0, 1, 2...) e as frações iriam para o fim.
+export const NIVEIS_DE_DESAFIO: readonly string[] = [
+  "0",
+  "1/8",
+  "1/4",
+  "1/2",
+  ...Array.from({ length: 30 }, (_, i) => String(i + 1)),
+];
 
 /** Bônus de proficiência de um nível de desafio (+2 até o 4, +3 do 5 ao 8... +9 no 29 e 30); `undefined` se o ND não existe. */
 export function bonusPorND(nd: string | undefined): number | undefined {

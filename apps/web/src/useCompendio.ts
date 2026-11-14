@@ -2,7 +2,12 @@ import {
   CAMINHO_DO_COMPENDIO,
   type Compendio,
   type CompendioDaMesa,
+  juntarCompendios,
   lerCompendio,
+  lerVariosCompendios,
+  nomeCanonicoDoArquivo,
+  PASTA_DO_COMPENDIO,
+  type ParteDoCompendio,
   sha256Hex,
 } from "@tabletop/shared";
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
@@ -28,6 +33,14 @@ type Parametros = {
  * até recarregar a página), `existe` (a pasta já tem o arquivo: precisa confirmar para substituir) ou `falhou`.
  */
 export type ResultadoDoExemplo = "gravado" | "solto" | "existe" | "falhou";
+
+/**
+ * O que "Carregar arquivos do compêndio…" fez: `ok` com os arquivos gravados em `compendio/` (`naPasta`) ou só soltos até
+ * recarregar (sem pasta), e os avisos de nomes repetidos; ou o motivo de nada ter sido gravado.
+ */
+export type ResultadoDosArquivos =
+  | { ok: true; gravados: string[]; avisos: string[]; naPasta: boolean }
+  | { ok: false; motivo: string };
 
 export type SituacaoDoCompendio =
   /** A mesa não tem compêndio (o mestre ainda não pôs o arquivo). */
@@ -57,6 +70,8 @@ export function useCompendio({
   const [erroDoArquivo, setErroDoArquivo] = useState<string | null>(null);
   const [erroDaMesa, setErroDaMesa] = useState<string | null>(null);
   const [semArquivo, setSemArquivo] = useState(false);
+  /** N3a: os avisos da junção dos arquivos da pasta (nome repetido: a última vence). */
+  const [avisos, setAvisos] = useState<string[]>([]);
   const [lendo, setLendo] = useState(false);
   const ocupado = useRef(false);
   const ultima = useRef({ referencia, enviar, gerente, fontes });
@@ -106,29 +121,45 @@ export function useCompendio({
     ocupado.current = true;
     setLendo(true);
     try {
-      const arquivo = await f.abrirCompendio();
-      if (!arquivo) {
+      const arquivos = await f.abrirArquivosDoCompendio();
+      if (arquivos.length === 0) {
         setSemArquivo(true);
         setErroDoArquivo(null);
+        setAvisos([]);
         return;
       }
       setSemArquivo(false);
-      const bytes = new Uint8Array(await arquivo.arrayBuffer());
-      const texto = new TextDecoder().decode(bytes);
-      const r = lerCompendio(texto);
+      // N3a: a pasta pode ter vários arquivos; a mesa junta tudo num compêndio só (um arquivo só vai como está).
+      const lidos = await Promise.all(
+        arquivos.map(async (a) => ({
+          nome: a.name,
+          bytes: new Uint8Array(await a.arrayBuffer()),
+        })),
+      );
+      const decodificador = new TextDecoder();
+      const r = lerVariosCompendios(
+        lidos.map((l) => ({ nome: l.nome, texto: decodificador.decode(l.bytes) })),
+      );
       if (!r.ok) {
         setErroDoArquivo(r.motivo);
         return;
       }
       setErroDoArquivo(null);
+      setAvisos(r.avisos);
+      const unico = lidos.length === 1 ? lidos[0] : undefined;
+      const bytes = unico ? unico.bytes : new TextEncoder().encode(JSON.stringify(r.compendio));
       const hash = await sha256Hex(bytes);
       const atual = ultima.current.referencia;
       const magias = r.compendio.magias.length;
       const mesaJaTem = atual?.hash === hash && atual.magias === magias && g.estaPronto(hash);
       if (!mesaJaTem) {
-        await g.registrarCompendio(bytes, arquivo.name);
+        await g.registrarCompendio(bytes, unico ? unico.nome : "compendio.json");
         const enviado = ultima.current.enviar("compendio.definir", {
-          compendio: { hash, nomeOriginal: arquivo.name.slice(0, 200), magias },
+          compendio: {
+            hash,
+            nomeOriginal: (unico ? unico.nome : "compendio.json").slice(0, 200),
+            magias,
+          },
         });
         if (enviado === null) throw new Error("Sem conexão com a sala.");
       }
@@ -140,6 +171,79 @@ export function useCompendio({
       setLendo(false);
     }
   }, []);
+
+  /**
+   * N3a, mestre: "Carregar arquivos do compêndio…". Valida cada `.json` escolhido (um com erro derruba todos e diz
+   * qual) e grava em `compendio/` com o nome pelo conteúdo (`magias.json`, `monstros.json`, `itens.json`; misturado,
+   * `compendio.json`), somando ao que a pasta já tem (nome repetido: vale o novo, com aviso). Sem pasta, os arquivos
+   * valem até recarregar a página. Depois a mesa relê a pasta sozinha.
+   */
+  const carregarArquivos = useCallback(
+    async (arquivos: readonly File[]): Promise<ResultadoDosArquivos> => {
+      const f = ultima.current.fontes;
+      try {
+        const lidos: { nome: string; texto: string; compendio: Compendio }[] = [];
+        for (const a of arquivos) {
+          const texto = await a.text();
+          const r = lerCompendio(texto);
+          if (!r.ok) return { ok: false, motivo: `${a.name}: ${r.motivo}` };
+          lidos.push({ nome: a.name, texto, compendio: r.compendio });
+        }
+        if (lidos.length === 0) return { ok: false, motivo: "Nenhum arquivo escolhido." };
+        const pasta = f.pastaDoCompendio();
+        if (!pasta) {
+          f.adicionarCompendiosSoltos(arquivos);
+          return { ok: true, gravados: lidos.map((l) => l.nome), avisos: [], naPasta: false };
+        }
+        const grupos = new Map<string, typeof lidos>();
+        for (const l of lidos) {
+          const nome = nomeCanonicoDoArquivo(l.compendio);
+          grupos.set(nome, [...(grupos.get(nome) ?? []), l]);
+        }
+        const avisos: string[] = [];
+        const gravados: string[] = [];
+        for (const [nome, novos] of grupos) {
+          const partes: ParteDoCompendio[] = [];
+          const existente = await pasta.abrirPorCaminho([PASTA_DO_COMPENDIO, nome]);
+          if (existente) {
+            const antes = lerCompendio(await existente.text());
+            if (!antes.ok) {
+              return {
+                ok: false,
+                motivo: `${PASTA_DO_COMPENDIO}/${nome} (já na pasta): ${antes.motivo}. Corrija ou apague esse arquivo antes.`,
+              };
+            }
+            partes.push({ nome: `${PASTA_DO_COMPENDIO}/${nome}`, compendio: antes.compendio });
+          }
+          const [primeiro] = novos;
+          if (partes.length === 0 && novos.length === 1 && primeiro) {
+            partes.push({ nome: primeiro.nome, compendio: primeiro.compendio });
+          } else {
+            partes.push(...novos.map((n) => ({ nome: n.nome, compendio: n.compendio })));
+          }
+          const junto = juntarCompendios(partes);
+          if (!junto.ok) return { ok: false, motivo: `${nome}: ${junto.motivo}` };
+          avisos.push(...junto.avisos);
+          // Um arquivo só e nada na pasta: grava o texto como veio.
+          const texto =
+            partes.length === 1 && primeiro ? primeiro.texto : JSON.stringify(junto.compendio);
+          const gravou = await pasta.gravar(
+            [PASTA_DO_COMPENDIO],
+            nome,
+            new Blob([texto], { type: "application/json" }),
+            true,
+          );
+          if (!gravou) return { ok: false, motivo: `Não consegui gravar ${nome} na pasta.` };
+          gravados.push(nome);
+        }
+        f.notificar();
+        return { ok: true, gravados, avisos, naPasta: true };
+      } catch {
+        return { ok: false, motivo: "Não consegui ler ou gravar os arquivos." };
+      }
+    },
+    [],
+  );
 
   /** Mestre: põe o exemplo do SRD como compêndio (na pasta, se houver; senão só até recarregar). */
   const usarExemplo = useCallback(async (substituir = false): Promise<ResultadoDoExemplo> => {
@@ -201,5 +305,8 @@ export function useCompendio({
     total: status?.total ?? 0,
     recarregar: carregarDaPasta,
     usarExemplo,
+    carregarArquivos,
+    /** N3a: os avisos de nome repetido entre os arquivos da pasta. */
+    avisos: euMestre ? avisos : [],
   };
 }

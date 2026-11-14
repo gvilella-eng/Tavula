@@ -121,7 +121,7 @@ export const panorama = definir({
 
     const c = ctx.compendio.resumo();
     linhas.push(
-      `Compêndio local (${ctx.compendio.origem}): ${c.magias} magias, ${c.armas} armas, ${c.itens} itens.`,
+      `Compêndio local (${ctx.compendio.origem}): ${c.magias} magias, ${c.armas} armas, ${c.itens} itens, ${c.monstros} monstros, ${c.itensMagicos} itens mágicos.`,
     );
     return linhas.join("\n");
   },

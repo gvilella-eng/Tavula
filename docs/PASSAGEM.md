@@ -810,6 +810,22 @@ Continua em aberto, por ser decisão e não erro de doc: `ficha.verOutras` (seç
 
 **Suposições**: ver `docs/REDESIGN.md`, "N2 — como ficou".
 
+## N3a (2026-11-14): compêndio com monstros e itens mágicos
+**Onde mexer**
+- Schemas, junção de arquivos, busca e limites em `packages/shared/src/compendio.ts` (`MonstroDoCompendioSchema`, `ItemMagicoDoCompendioSchema`, `juntarCompendios`, `lerVariosCompendios`, `nomeCanonicoDoArquivo`, `buscarMonstros`, `buscarItensMagicos`, `ARQUIVOS_DO_COMPENDIO`). Conversão para a ficha em `compendioParaFicha.ts` (`monstroParaFicha`, `personagemDoMonstro`, `aplicarItemMagico` dentro de `aplicarEntradaNaFicha`, `magiasDoMonstro`). `EntradaDoCompendio` ganhou `monstro` (com as magias dele) e `itemMagico`.
+- Web: `useCompendio.ts` (lê todos os arquivos, junta, registra um asset só; `carregarArquivos`), `assets/fontes.ts` (`abrirArquivosDoCompendio`, `adicionarCompendiosSoltos`), `AbaCompendio.tsx` (seções, barra do mestre), `CompendioMonstros.tsx` (lista e cartão do monstro, itens mágicos), `useAlvoDaFicha.ts` (saiu da aba), `mapa/Mapa.tsx` + `Mesa.tsx` (`soltarDoCompendioNoMapa`). MCP: `mcp/compendio.ts` (`CompendioLocal` com monstros e itens mágicos, `acharMonstro`), `mcp/ferramentas/{compendio,fichas}.ts`, `apps/mcp/src/compendioLocal.ts` (lê a pasta).
+- Teste: `e2e/tests/compendio-n3a.spec.ts`, `packages/shared/src/compendioN3a.test.ts`, `apps/mcp/src/compendioLocal.test.ts`.
+
+**Frágil**
+- **O bloco do monstro é segredo do mestre só na tela.** A seção Monstros some para o jogador, mas o arquivo do compêndio é um asset só (`Estado.compendio`) que todos baixam: quem abrir a rede do navegador lê os monstros. Proteger de verdade pede um segundo asset só do mestre (estado, filtro da sala e migração): fica para um lote próprio.
+- Com mais de um arquivo na pasta, a mesa registra o JSON **junto** (`JSON.stringify`), então o hash muda se a ordem ou o conteúdo mudarem; com um arquivo só, o hash é o dos bytes do arquivo (como antes). O `compendio.definir` guarda `magias` como a contagem do compêndio todo.
+- `NIVEIS_DE_DESAFIO` tem ordem explícita porque `Object.keys` põe as chaves inteiras primeiro; não volte para `Object.keys(XP_POR_ND)`.
+- "Carregar arquivos" grava pelo conteúdo e soma ao arquivo da pasta; só foi testado com a "pasta" dos testes (a `Memoria`), não com a pasta real do Chrome.
+- `monstroParaFicha` não conhece magias fora do compêndio: entram só com o nome. A CD das ações com salvaguarda fecha pelo `cdBonus` e muda se o ND ou o atributo da ficha mudarem.
+- O campo "nota" do item no equipamento é de uma linha; a nota do item mágico pode ter até 4.000 caracteres.
+
+**Suposições**: ver `docs/REDESIGN.md`, "N3a — como ficou".
+
 ## 12-3 (2026-11-13): o MCP na própria sala, por HTTP
 **Onde mexer**
 - `apps/server/src/sala.ts`: `tratarIntencao(remetente, intencao)` é **o único** tratamento de intenção (WebSocket: `webSocketMessage` só lê, chama e responde; HTTP: `conexaoDoMcp` chama com `ws: null`). `rotaMcp` é a rota; `visaoDe(usuario)` é o snapshot do usuário (o WebSocket e as ferramentas leem o mesmo). `apps/server/src/index.ts`: `caminhoInterno` (`mcp` só POST) e o 405.

@@ -1,4 +1,4 @@
-import { CAMINHO_DO_COMPENDIO } from "@tabletop/shared";
+import { ARQUIVOS_DO_COMPENDIO, PASTA_DO_COMPENDIO } from "@tabletop/shared";
 import {
   type ArquivoDaFonte,
   ArquivosSoltos,
@@ -100,23 +100,36 @@ export class Fontes {
     return this.pastaGravavel() ?? (this.memoriaComoPasta ? this.memoria : null);
   }
 
-  /** Um arquivo do compêndio escolhido à mão (para quem não tem seletor de pasta); vale até recarregar a página. */
-  private compendioSolto: File | null = null;
+  /** Arquivos do compêndio escolhidos à mão (para quem não tem seletor de pasta); valem até recarregar a página. */
+  private compendiosSoltos: File[] = [];
 
-  /** O arquivo `compendio/magias.json` do mestre: da pasta (se autorizada), da memória dos testes ou escolhido à mão. */
-  async abrirCompendio(): Promise<File | null> {
-    const caminho = CAMINHO_DO_COMPENDIO;
-    if (this.pasta && this.estadoDaPasta === "autorizada") {
-      const f = await this.pasta.abrirPorCaminho(caminho);
-      if (f) return f;
+  /**
+   * Os arquivos de `compendio/` do mestre (N3a: `compendio.json`, `magias.json`, `monstros.json` e `itens.json`, os que
+   * existirem, nessa ordem): da pasta (se autorizada), da memória dos testes ou escolhidos à mão. Nenhum: lista vazia.
+   */
+  async abrirArquivosDoCompendio(): Promise<File[]> {
+    const achados: File[] = [];
+    for (const nome of ARQUIVOS_DO_COMPENDIO) {
+      const caminho = [PASTA_DO_COMPENDIO, nome];
+      let f: File | null = null;
+      if (this.pasta && this.estadoDaPasta === "autorizada") {
+        f = await this.pasta.abrirPorCaminho(caminho);
+      }
+      f ??= (await this.memoria?.abrirPorCaminho(caminho)) ?? null;
+      if (f) achados.push(f);
     }
-    const daMemoria = await this.memoria?.abrirPorCaminho(caminho);
-    if (daMemoria) return daMemoria;
-    return this.compendioSolto;
+    return achados.length > 0 ? achados : [...this.compendiosSoltos];
   }
 
+  /** "Usar o exemplo" sem pasta: o arquivo vale sozinho até recarregar a página. */
   escolherCompendioSolto(arquivo: File): void {
-    this.compendioSolto = arquivo;
+    this.compendiosSoltos = [arquivo];
+    this.mudou();
+  }
+
+  /** Sem pasta, "Carregar arquivos" soma os arquivos aos que já estavam soltos. */
+  adicionarCompendiosSoltos(arquivos: readonly File[]): void {
+    this.compendiosSoltos = [...this.compendiosSoltos, ...arquivos];
     this.mudou();
   }
 

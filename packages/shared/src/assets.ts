@@ -36,7 +36,7 @@ export const LIMITES_DE_ASSET = {
   /** Teto do inventário que o cliente manda ao conectar. */
   inventario: 5000,
   /** O `magias.json` do compêndio (Lote 14): texto, nunca imagem. */
-  bytesDoCompendio: 8 * 1024 * 1024,
+  bytesDoCompendio: 16 * 1024 * 1024,
 } as const;
 
 export const PX_POR_QUADRADO_PADRAO = 70;

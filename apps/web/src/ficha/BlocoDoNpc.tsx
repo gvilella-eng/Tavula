@@ -976,9 +976,9 @@ export function BlocoDoNpc(props: PropsDoNpc) {
   // Mexer na ordem recria as linhas (a seta de "expandida" volta ao fechado: elas se identificam pela posição).
   const [versao, setVersao] = useState(0);
   const tracos = useSoltarDoCompendio({
-    aceita: ["item"],
+    aceita: ["item", "itemMagico"],
     habilitado: props.editar,
-    listaDoTipo: { item: "caracteristicas" },
+    listaDoTipo: { item: "caracteristicas", itemMagico: "caracteristicas" },
     aoSoltar: (entrada, posicao) => soltarNaFicha(props, "npc", entrada, { posicao }),
   });
   // Com o Bestiário aberto a magia do compêndio cai na Conjuração: a fita acende como alvo (e a página também recebe).

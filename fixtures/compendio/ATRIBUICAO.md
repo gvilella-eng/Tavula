@@ -1,7 +1,8 @@
 # Atribuição do exemplo de compêndio
 
-O arquivo `exemplo-srd.json` contém três magias (Bola de Fogo, Mísseis Mágicos e Detectar Magia), nove armas
-e cinco itens de equipamento (V4b), traduzidos para o português a partir do System Reference Document 5.1.
+O arquivo `exemplo-srd.json` contém três magias (Bola de Fogo, Mísseis Mágicos e Detectar Magia), nove armas,
+cinco itens de equipamento (V4b), três monstros (Goblin, Lobo e Mago) e quatro itens mágicos (Poção de Cura Superior,
+Anel de Proteção, Espada Longa +1 e Bolsa de Carga) (N3a), traduzidos para o português a partir do System Reference Document 5.1.
 
 > Este trabalho inclui material do System Reference Document 5.1 ("SRD 5.1"), de Wizards of the Coast
 > LLC, disponível em <https://dnd.wizards.com/resources/systems-reference-document>. O SRD 5.1 é
@@ -11,4 +12,4 @@ e cinco itens de equipamento (V4b), traduzidos para o português a partir do Sys
 O texto foi traduzido para o português e adaptado ao formato do Tabletop (distâncias também em metros).
 
 **Nenhum outro texto de magia com direitos autorais deve entrar neste repositório.** O compêndio de
-verdade fica na pasta local do mestre, fora do repositório (`compendio/magias.json`).
+verdade fica na pasta local do mestre, fora do repositório (a pasta `compendio/`: `magias.json`, `monstros.json`, `itens.json`).

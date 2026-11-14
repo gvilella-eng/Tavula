@@ -4548,13 +4548,17 @@ kbd {
 /* V4b: armas e itens do compêndio, que se arrastam para a ficha */
 .secoes-do-compendio {
   display: flex;
+  flex-wrap: wrap;
   gap: 4px;
   margin: 0 0 8px;
   padding: 0;
   border: 0;
 }
 .secao-do-compendio {
-  flex: 1;
+  flex: 1 1 auto;
+  padding: 4px 5px;
+  font-size: 12px;
+  white-space: nowrap;
 }
 .secao-do-compendio[aria-pressed="true"] {
   color: var(--acento-forte);
@@ -4608,6 +4612,95 @@ kbd {
 }
 .item-de-magia[draggable="true"] {
   cursor: grab;
+}
+
+/* N3a: monstros e itens mágicos do compêndio */
+.barra-do-mestre {
+  margin: 0 0 8px;
+}
+.avisos-do-compendio {
+  margin: 0 0 8px;
+  padding: 6px 8px 6px 24px;
+  border-radius: 6px;
+  background: var(--aviso-suave);
+  border: 1px solid var(--aviso-borda);
+  color: var(--texto);
+  font-size: 13px;
+}
+.filtros-do-monstro {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-top: 8px;
+}
+.filtros-do-monstro select {
+  min-width: 0;
+}
+.atributos-do-monstro {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 4px;
+  text-align: center;
+  padding: 6px 4px;
+  background: var(--cabecalho);
+  border: 1px solid var(--borda);
+  border-radius: var(--raio);
+}
+.atributos-do-monstro .celula-de-atributo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-size: 12px;
+  color: var(--texto-suave);
+}
+.atributos-do-monstro strong {
+  font-family: "Space Grotesk", Inter, sans-serif;
+  font-size: 16px;
+  color: var(--texto);
+}
+.secao-do-monstro h4 {
+  margin: 8px 0 4px;
+  padding-bottom: 2px;
+  border-bottom: 1px solid var(--borda);
+  font-size: 14px;
+  color: var(--acento-forte);
+}
+.secao-do-monstro p {
+  margin: 4px 0;
+  overflow-wrap: anywhere;
+}
+.raridade-do-item {
+  padding: 0 6px;
+  border-radius: 999px;
+  border: 1px solid var(--borda);
+  background: var(--cabecalho);
+  color: var(--texto);
+  font-size: 11px;
+}
+.raridade-do-item[data-raridade="incomum"] {
+  border-color: var(--sucesso);
+}
+.raridade-do-item[data-raridade="raro"] {
+  border-color: var(--acento-forte);
+}
+.raridade-do-item[data-raridade="muito raro"] {
+  border-color: var(--oculta);
+}
+.raridade-do-item[data-raridade="lendário"],
+.raridade-do-item[data-raridade="artefato"] {
+  border-color: var(--aviso);
+}
+.descricao-do-item {
+  margin: 2px 0 6px;
+  padding: 6px 8px;
+  background: var(--cabecalho);
+  border: 1px solid var(--borda);
+  border-radius: 8px;
+  font-size: 13px;
+}
+.descricao-do-item p {
+  margin: 2px 0;
+  overflow-wrap: anywhere;
 }
 
 /* --- contas por mesa (C2) ---------------------------------------------------------------- */

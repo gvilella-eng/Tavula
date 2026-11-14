@@ -8,6 +8,7 @@ import {
   PASTA_NPCS_ID,
   PASTA_PERSONAGENS_ID,
   type Personagem,
+  personagemDoMonstro,
   pode,
   podeEditarPersonagem,
   TETO_DE_CRIACAO_DO_JOGADOR,
@@ -51,6 +52,23 @@ const PedidoDeFichaSchema = FichaPartesSchema.extend({
     .describe("Cor do token, #rrggbb."),
   tamanhoToken: z.number().int().min(1).max(4).optional().describe("Quadrados do token (1 a 4)."),
   visaoNoEscuroM: z.number().min(0).max(1000).optional().describe("Visão no escuro, em metros."),
+  monstro: z
+    .string()
+    .min(1)
+    .max(80)
+    .optional()
+    .describe(
+      'Só criação, só mestre: o nome de um monstro do compêndio ("Goblin"). A ficha de NPC nasce completa (atributos, ações, magias). Os outros campos, se vierem, entram por cima.',
+    ),
+  quantidade: z
+    .number()
+    .int()
+    .min(1)
+    .max(20)
+    .optional()
+    .describe(
+      'Só com `monstro`: quantos NPCs criar. Com mais de um, os nomes levam número ("Goblin 1", "Goblin 2").',
+    ),
 }).strict();
 type PedidoDeFicha = z.infer<typeof PedidoDeFichaSchema>;
 
@@ -63,6 +81,8 @@ function partesDoPedido(p: PedidoDeFicha) {
     cor: _c,
     tamanhoToken: _tt,
     visaoNoEscuroM: _v,
+    monstro: _m,
+    quantidade: _q,
     ...partes
   } = p;
   return partes;
@@ -144,6 +164,49 @@ async function criar(
   return `Criou "${p.nome}" (${npc ? "NPC" : "personagem"})${rascunho}: ${linhaDaFicha(ficha)}${avisos.map((a) => `\n  Aviso: ${a}`).join("")}`;
 }
 
+/** N3a: cria o NPC de um monstro do compêndio (a mesma conversão do botão "Criar NPC" da aba Compêndio). */
+async function criarDeMonstro(
+  p: PedidoDeFicha,
+  ctx: Contexto,
+  lote: Lote,
+  estado: Estado,
+  eu: Usuario,
+): Promise<string> {
+  if (!ehMestre(eu)) throw new ErroDoMcp("Só o mestre cria NPCs.");
+  const { monstro, magias } = ctx.compendio.acharMonstro(p.monstro ?? "");
+  const { personagem: base, avisos } = personagemDoMonstro(monstro, {
+    id: novoId("ficha"),
+    pastaId: pastaPara(estado, PASTA_NPCS_ID, "NPCs"),
+    magias,
+  });
+  const partes = partesDoPedido(p);
+  let ficha: Ficha = base.ficha ?? { pvAtual: 0, pvMax: 0 };
+  const avisosExtras: string[] = [];
+  if (Object.keys(partes).length > 0) {
+    const m = montarFicha(ficha, partes, {
+      npc: true,
+      criando: false,
+      compendio: ctx.compendio,
+      modelos: estado.modelos,
+    });
+    ficha = m.ficha;
+    avisosExtras.push(...m.avisos);
+  }
+  const personagem: Personagem = {
+    ...base,
+    nome: p.nome,
+    tokenPadrao: {
+      ...base.tokenPadrao,
+      ...(p.cor ? { cor: p.cor } : {}),
+      ...(p.tamanhoToken ? { tamanhoQuadrados: p.tamanhoToken } : {}),
+    },
+    visao: { ...base.visao, visaoNoEscuroM: p.visaoNoEscuroM ?? base.visao.visaoNoEscuroM },
+    ficha,
+  };
+  await passo(ctx, lote, "personagem.criar", { personagem });
+  return `Criou "${p.nome}" (NPC de ${monstro.nome}, rascunho: o mestre revisa e publica): ${linhaDaFicha(ficha)}${[...avisos, ...avisosExtras].map((a) => `\n  Aviso: ${a}`).join("")}`;
+}
+
 async function editar(
   existente: Personagem,
   p: PedidoDeFicha,
@@ -197,7 +260,7 @@ async function editar(
 export const fichas = definir({
   nome: "fichas",
   descricao:
-    'Cria e edita fichas em lote, por partes (atributos, classes e nível, perícias, ataques, magias, itens e equipamento, história...). A mesa calcula modificadores, proficiência, CA e PV como na ficha. Nomes do compêndio ("Bola de Fogo", "Espada Longa") vão em `compendio`. Se já existe ficha com o nome, edita; senão, cria. O jogador cria e edita as dele (teto de 20); o mestre cria NPCs (entram como rascunho) e edita qualquer ficha. Exemplo: {"fichas":[{"nome":"Brisa","raca":"Anã","classes":[{"classe":"Clérigo","nivel":3}],"atributos":{"for":10,"des":12,"con":14,"int":10,"sab":16,"car":12},"pericias":["Religião","Medicina"],"compendio":["Luz","Espada Longa"]}]}',
+    'Cria e edita fichas em lote, por partes (atributos, classes e nível, perícias, ataques, magias, itens e equipamento, história...). A mesa calcula modificadores, proficiência, CA e PV como na ficha. Nomes do compêndio ("Bola de Fogo", "Espada Longa") vão em `compendio`. Para NPCs de monstros do compêndio use `monstro` (e `quantidade`): {"nome":"Goblin","monstro":"Goblin","quantidade":4}. Se já existe ficha com o nome, edita; senão, cria. O jogador cria e edita as dele (teto de 20); o mestre cria NPCs (entram como rascunho) e edita qualquer ficha. Exemplo: {"fichas":[{"nome":"Brisa","raca":"Anã","classes":[{"classe":"Clérigo","nivel":3}],"atributos":{"for":10,"des":12,"con":14,"int":10,"sab":16,"car":12},"pericias":["Religião","Medicina"],"compendio":["Luz","Espada Longa"]}]}',
   entrada: z.object({ fichas: z.array(PedidoDeFichaSchema).min(1).max(30) }).strict(),
   visivel(estado, eu) {
     if (ehMestre(eu)) return true;
@@ -209,17 +272,35 @@ export const fichas = definir({
   async executar(e, ctx) {
     const eu = ctx.sala.eu();
     const r = new Relatorio();
-    const nomes = e.fichas.map((f) => f.nome);
+    // N3a: "monstro" com "quantidade" vira vários pedidos, com o número no nome.
+    const pedidos = e.fichas.flatMap((f) =>
+      f.monstro !== undefined && (f.quantidade ?? 1) > 1
+        ? Array.from({ length: f.quantidade ?? 1 }, (_, i) => ({
+            ...f,
+            nome: `${f.nome} ${i + 1}`.slice(0, 64),
+            quantidade: 1,
+          }))
+        : [f],
+    );
+    if (pedidos.length > 40) {
+      throw new ErroDoMcp(`São ${pedidos.length} fichas de uma vez: peça até 40 por chamada.`);
+    }
+    const nomes = pedidos.map((f) => f.nome);
     const lote = ctx.novoLote(
       `fichas: ${nomes.slice(0, 6).join(", ")}${nomes.length > 6 ? ` e mais ${nomes.length - 6}` : ""}`,
     );
     await cadaItem(
-      e.fichas,
+      pedidos,
       (f) => `"${f.nome}"`,
       async (f) => {
         // O estado muda a cada item (a ficha criada antes aparece), então se lê de novo.
         const atual = ctx.sala.estado();
         const existente = acharExato(atual.personagens, f.nome, (x) => x.nome);
+        if (f.monstro !== undefined) {
+          if (existente)
+            throw new ErroDoMcp(`Já existe uma ficha com o nome "${f.nome}": use outro nome.`);
+          return criarDeMonstro(f, ctx, lote, atual, eu);
+        }
         return existente
           ? editar(existente, f, ctx, lote, atual, eu)
           : criar(f, ctx, lote, atual, eu);

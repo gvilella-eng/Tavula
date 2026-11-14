@@ -161,7 +161,13 @@ describe("formato do compêndio", () => {
     expect(motivo((c) => (c.formato = "outro"))).toBe(
       'formato: valor inesperado (o esperado é "tabletop-compendio")',
     );
-    expect(motivo((c) => delete c.magias)).toBe("magias: campo obrigatório");
+    expect(
+      motivo((c) => {
+        for (const k of ["magias", "armas", "itens", "monstros", "itensMagicos"]) delete c[k];
+      }),
+    ).toBe(
+      "arquivo: o arquivo precisa ter ao menos uma lista com entradas (magias, armas, itens, monstros ou itensMagicos)",
+    );
   });
 
   it("aceita um arquivo com BOM e sem créditos", () => {
@@ -362,7 +368,10 @@ function comCompendio(): Estado {
 describe("asset compendio", () => {
   it("a meta é válida só até o limite de tamanho", () => {
     expect(validarMeta(metaDoCompendio() as never)).toBeNull();
-    const grande = { ...metaDoCompendio(HASH, 8 * 1024 * 1024 + 1), pedacos: [] as string[] };
+    const grande = {
+      ...metaDoCompendio(HASH, LIMITES_DO_COMPENDIO.bytes + 1),
+      pedacos: [] as string[],
+    };
     expect(validarMeta(grande as never)).not.toBeNull();
   });
 

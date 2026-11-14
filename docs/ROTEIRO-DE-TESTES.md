@@ -448,6 +448,17 @@ O comando de **Preferências → Conectar o Claude** agora é uma linha só e fu
 9. **Mais dardos.** Mísseis Mágicos (3 dardos, `1d4+1`, "Por nível acima" `1 dardo`): conjure com espaço de 2º: o cartão diz "com espaço de 2º · 4 dardos" e embaixo um bloco "4 dardos · 1d4 + 1 cada" com cada dardo rolado e o total. Raio Ardente (`1 raio`) e Imobilizar Pessoa (`1 criatura`, só o número) funcionam igual.
 10. Veja o MCP: peça ao Claude para pôr "Diabrete" com `conjuracaoInata` e magias inatas; a leitura da ficha lista "Conjuração inata (CD 13): ...".
 
+## N3a — Compêndio com monstros e itens mágicos
+
+1. **Exemplo.** Mesa sem compêndio, como mestre: Compêndio → "Usar o exemplo do SRD (3 magias, 3 monstros, 4 itens mágicos)". Aparecem as seções Magias, Armas, Itens, **Monstros** (3) e **Itens mágicos** (4).
+2. **Monstros.** Em Monstros, digite "goblin": só o Goblin. Limpe e use "ND até" 1/4: Goblin e Lobo. "ND de" 1: só o Mago. Filtre por tipo (Fera) e tamanho. Clique no Mago: o cartão mostra CA, PV, atributos com o modificador, testes, perícias, ND com XP, traços, ações e a Conjuração.
+3. **Criar NPC.** No cartão do Mago ou na linha da lista, "Criar NPC": a ficha entra na pasta NPCs e abre no bloco de monstro, com atributos, ações (Adaga) e, na fita Conjuração, as magias nos círculos (Bola de Fogo, Detectar Magia e Mísseis Mágicos com o texto do compêndio) e os espaços 4, 3, 3, 3, 1.
+4. **Arrastar.** Arraste o Goblin da lista para o mapa: nasce o NPC (na pasta NPCs) e o token, encaixado na grade. Um Lobo (ou qualquer monstro Grande) nasce com token de 2 quadrados. Como jogador não há seção de monstros nem arrasto.
+5. **Itens mágicos.** Em Itens mágicos veja a raridade em cada linha; filtre por "Raro". Clique no Anel de Proteção: aparece a descrição. Abra a ficha de um personagem e use "Adicionar": o item entra no equipamento e a nota traz "Raro, exige sintonização" e a descrição. Adicione a Espada Longa +1: entra no equipamento e também nos Ataques, com o bônus +1 no acerto e no dano.
+6. **Vários arquivos.** Com a pasta local escolhida, crie `compendio/monstros.json` (formato do compêndio, só com `"monstros": [...]`) e use "Carregar arquivos do compêndio…" (no topo da aba) escolhendo ele e um `itens.json`: o aviso diz o que foi gravado em `compendio/` e as seções aparecem. Carregue um arquivo com um monstro de ND "31": nada é gravado e o aviso diz o arquivo e o campo. Carregue um segundo `monstros.json` com o mesmo Goblin: o aviso diz que ficou o novo.
+7. **Recarregar.** Edite o `monstros.json` na pasta, volte à mesa e clique em Recarregar: o jogador recebe o compêndio novo. Os créditos de cada arquivo aparecem em "Créditos".
+8. **MCP.** Peça ao Claude: "crie 4 goblins do compêndio". Saem Goblin 1 a Goblin 4 em NPCs (rascunho), completos. Peça "monstros de ND até 1 do tipo Fera" e "itens mágicos raros".
+
 ## Se algo der errado
 - Anote a tela, o que fez e o que esperava, e mande para mim. Bug confirmado vai para `docs/BUGS.md`.
 - Para voltar à campanha de antes de mesas e contas, use a cópia de segurança indicada no topo.

@@ -13,7 +13,6 @@ import {
   type MagiaDoCompendio,
   normalizarBusca,
   opcoesDeFiltro,
-  type Personagem,
   podeEditarPersonagem,
   ROTULO_DO_NIVEL_DE_MAGIA,
   sha256Hex,
@@ -39,11 +38,11 @@ import {
   MarcasDaMagia,
   TextoDaMagia,
 } from "./CartaoDaMagia";
+import { ListaDeItensMagicos, ListaDeMonstros } from "./CompendioMonstros";
 import { TEXTO_DO_EXEMPLO_SRD } from "./exemploSrd";
-import { useFichasFora } from "./ficha/foraDaMesa";
 import { comecarArrastoDoCompendio } from "./ficha/ordem";
-import { useFichasNaPilha } from "./janelas/pilha";
-import { type ResultadoDoExemplo, useCompendio } from "./useCompendio";
+import { useAlvoDaFicha } from "./useAlvoDaFicha";
+import { type ResultadoDoExemplo, type ResultadoDosArquivos, useCompendio } from "./useCompendio";
 
 type Enviar = (tipo: string, dados: object) => string | null;
 
@@ -57,6 +56,8 @@ type Props = {
   /** O personagem de quem estou falando no chat ("" = eu mesmo): vale também aqui. */
   comoId: string;
   aoMudarComo: (id: string) => void;
+  /** N3a: abre a ficha do NPC recém-criado a partir de um monstro. */
+  aoAbrirFicha?: (personagemId: string) => void;
 };
 
 /** Um exemplo curto do formato, para o mestre montar o arquivo (uma magia só, escrita aqui de propósito). */
@@ -87,18 +88,77 @@ const NIVEIS = Array.from({ length: 10 }, (_, n) => n);
  * Compêndio vazio (ou com o arquivo da pasta errado), visto pelo mestre: a ação principal é usar o exemplo
  * do SRD; escolher o próprio arquivo fica ao lado e a ajuda do formato JSON fica recolhida.
  */
+/** O botão "Carregar arquivos do compêndio…" (N3a): escolhe um ou vários `.json` e os grava em `compendio/`. */
+function CarregarArquivos({
+  aoCarregar,
+  testid = "compendio-carregar-arquivos",
+}: {
+  aoCarregar: (arquivos: File[]) => void;
+  testid?: string;
+}) {
+  return (
+    <label className="botao-arquivo">
+      <FileUp size={14} /> Carregar arquivos do compêndio…
+      <input
+        type="file"
+        multiple
+        accept=".json,application/json"
+        data-testid={testid}
+        hidden
+        onChange={(e) => {
+          const arquivos = [...(e.target.files ?? [])];
+          if (arquivos.length > 0) aoCarregar(arquivos);
+          e.target.value = "";
+        }}
+      />
+    </label>
+  );
+}
+
+/** O que a carga de arquivos fez: o que foi gravado e os avisos, ou o motivo de nada ter sido gravado. */
+function ResultadoDaCarga({ resultado }: { resultado: ResultadoDosArquivos | null }) {
+  if (!resultado) return null;
+  if (!resultado.ok) {
+    return (
+      <p className="erro-do-arquivo" role="alert" data-testid="compendio-carregar-erro">
+        <strong>Nada foi carregado.</strong>
+        <br />
+        <span data-testid="compendio-carregar-erro-motivo">{resultado.motivo}</span>
+      </p>
+    );
+  }
+  return (
+    <div className="aviso-da-magia" role="status" data-testid="compendio-carregar-resultado">
+      <p>
+        {resultado.naPasta
+          ? `Gravado em ${CAMINHO_DO_COMPENDIO[0]}/: ${resultado.gravados.join(", ")}.`
+          : `Carregado (vale até recarregar a página; escolha uma pasta nas Preferências para guardar): ${resultado.gravados.join(", ")}.`}
+      </p>
+      {resultado.avisos.length > 0 && (
+        <ul data-testid="compendio-carregar-avisos">
+          {resultado.avisos.map((a) => (
+            <li key={a}>{a}</li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 function ComoMontar({
-  fontes,
   erro,
   semArquivo,
   aoRecarregar,
   aoUsarExemplo,
+  aoCarregarArquivos,
+  resultadoDaCarga,
 }: {
-  fontes: Fontes;
   erro: string | null;
   semArquivo: boolean;
   aoRecarregar: () => void;
   aoUsarExemplo: (substituir: boolean) => Promise<ResultadoDoExemplo>;
+  aoCarregarArquivos: (arquivos: File[]) => void;
+  resultadoDaCarga: ResultadoDosArquivos | null;
 }) {
   const [confirmando, setConfirmando] = useState(false);
   const [falhou, setFalhou] = useState(false);
@@ -118,8 +178,8 @@ function ComoMontar({
         </p>
       )}
       <p>
-        <strong>O compêndio desta mesa está vazio.</strong> Comece pelo exemplo ou escolha o seu
-        arquivo de magias.
+        <strong>O compêndio desta mesa está vazio.</strong> Comece pelo exemplo ou carregue os seus
+        arquivos (magias, monstros e itens mágicos).
       </p>
       <div className="linha-botoes">
         <button
@@ -128,26 +188,14 @@ function ComoMontar({
           data-testid="compendio-usar-exemplo"
           onClick={() => void usar(false)}
         >
-          <Sparkles size={14} /> Usar o exemplo do SRD (3 magias)
+          <Sparkles size={14} /> Usar o exemplo do SRD (3 magias, 3 monstros, 4 itens mágicos)
         </button>
-        <label className="botao-arquivo">
-          <FileUp size={14} /> Escolher o arquivo…
-          <input
-            type="file"
-            accept=".json,application/json"
-            data-testid="compendio-arquivo"
-            hidden
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) fontes.escolherCompendioSolto(f);
-              e.target.value = "";
-            }}
-          />
-        </label>
+        <CarregarArquivos aoCarregar={aoCarregarArquivos} testid="compendio-arquivo" />
         <button type="button" data-testid="compendio-recarregar" onClick={aoRecarregar}>
           <RefreshCw size={14} /> Recarregar
         </button>
       </div>
+      <ResultadoDaCarga resultado={resultadoDaCarga} />
       {confirmando && (
         <div className="ot-confirmar" role="alertdialog" data-testid="compendio-exemplo-confirmar">
           <p>
@@ -212,29 +260,6 @@ function ComoMontar({
       </details>
     </div>
   );
-}
-
-/**
- * Quem recebe o que o Compêndio adiciona ("Ficha de"): a ficha aberta em foco que eu edito; sem ficha
- * aberta, a primeira dos meus personagens. Uma escolha à mão vale até eu focar outra ficha (assumido).
- */
-function useAlvoDaFicha(
-  meus: readonly Personagem[],
-): [Personagem | undefined, (id: string) => void] {
-  const abertas = useFichasNaPilha();
-  // V9: as fichas em janela própria saem da pilha mas continuam alvo (a mudança passa pela sala): vêm depois das da mesa.
-  const fora = useFichasFora();
-  const emFoco =
-    [...fora, ...abertas].reverse().find((id) => meus.some((p) => p.id === id)) ?? null;
-  const [escolha, setEscolha] = useState<string | null>(null);
-  // Focou outra ficha: a escolha à mão acaba (ajuste durante o render, sem efeito).
-  const [focoVisto, setFocoVisto] = useState(emFoco);
-  if (focoVisto !== emFoco) {
-    setFocoVisto(emFoco);
-    setEscolha(null);
-  }
-  const alvo = meus.find((p) => p.id === escolha) ?? meus.find((p) => p.id === emFoco) ?? meus[0];
-  return [alvo, setEscolha];
 }
 
 type PropsDoCartao = {
@@ -373,7 +398,15 @@ function CartaoDaMagia({
   );
 }
 
-type SecaoDoCompendio = "magias" | "armas" | "itens";
+type SecaoDoCompendio = "magias" | "armas" | "itens" | "monstros" | "itensMagicos";
+
+const ROTULO_DA_BUSCA: Record<SecaoDoCompendio, { placeholder: string; rotulo: string }> = {
+  magias: { placeholder: "Buscar magia (nome ou nome original)…", rotulo: "Buscar magia" },
+  armas: { placeholder: "Buscar arma…", rotulo: "Buscar arma" },
+  itens: { placeholder: "Buscar item…", rotulo: "Buscar item" },
+  monstros: { placeholder: "Buscar monstro (nome ou nome original)…", rotulo: "Buscar monstro" },
+  itensMagicos: { placeholder: "Buscar item mágico…", rotulo: "Buscar item mágico" },
+};
 
 const comVirgula = (n: number) => String(n).replace(".", ",");
 
@@ -551,6 +584,7 @@ export function AbaCompendio({
   enviar,
   comoId,
   aoMudarComo,
+  aoAbrirFicha,
 }: Props) {
   const euMestre = eu.papel === "mestre";
   const c = useCompendio({
@@ -566,6 +600,11 @@ export function AbaCompendio({
   // V4b: o arquivo pode trazer armas e itens além das magias; cada tipo tem a sua lista.
   const [secao, setSecao] = useState<SecaoDoCompendio>("magias");
   // O mestre usou o exemplo do SRD nesta visita: onde ele ficou (na pasta, ou só até recarregar).
+  const [resultadoDaCarga, setResultadoDaCarga] = useState<ResultadoDosArquivos | null>(null);
+  async function carregarArquivos(arquivos: File[]) {
+    setResultadoDaCarga(null);
+    setResultadoDaCarga(await c.carregarArquivos(arquivos));
+  }
   const [ondeFicouOExemplo, setOndeFicouOExemplo] = useState<"gravado" | "solto" | null>(null);
   // O compêndio da mesa é o exemplo do SRD? (compara o hash do arquivo empacotado)
   const [hashDoExemplo, setHashDoExemplo] = useState<string | null>(null);
@@ -582,7 +621,15 @@ export function AbaCompendio({
   const magias = c.compendio?.magias;
   const armas = c.compendio?.armas ?? [];
   const itensDoCompendio = c.compendio?.itens ?? [];
-  const temExtras = armas.length > 0 || itensDoCompendio.length > 0;
+  // N3a (assumido): o bloco do monstro é segredo do mestre, então a seção só aparece para ele. O arquivo do compêndio
+  // chega a todos (é um asset só); esconder é da tela, não do dado (docs/PASSAGEM.md, frágeis).
+  const monstros = euMestre ? (c.compendio?.monstros ?? []) : [];
+  const itensMagicos = c.compendio?.itensMagicos ?? [];
+  const temExtras =
+    armas.length > 0 ||
+    itensDoCompendio.length > 0 ||
+    monstros.length > 0 ||
+    itensMagicos.length > 0;
   const secaoAtual: SecaoDoCompendio = temExtras ? secao : "magias";
   const opcoes = useMemo(() => opcoesDeFiltro(magias ?? []), [magias]);
   const achadas = useMemo(() => buscarMagias(magias ?? [], filtro), [magias, filtro]);
@@ -605,10 +652,11 @@ export function AbaCompendio({
         {c.situacao === "sem" || (c.situacao === "erro" && euMestre && !estado.compendio) ? (
           euMestre ? (
             <ComoMontar
-              fontes={fontes}
               erro={c.erroDoArquivo}
               semArquivo={c.semArquivo}
               aoRecarregar={() => void c.recarregar()}
+              aoCarregarArquivos={(a) => void carregarArquivos(a)}
+              resultadoDaCarga={resultadoDaCarga}
               aoUsarExemplo={async (substituir) => {
                 const r = await c.usarExemplo(substituir);
                 if (r === "gravado" || r === "solto") setOndeFicouOExemplo(r);
@@ -661,6 +709,22 @@ export function AbaCompendio({
         />
       ) : (
         <>
+          {c.erroDoArquivo && (
+            <p className="erro-do-arquivo" role="alert" data-testid="compendio-erro">
+              <strong>
+                Um arquivo da pasta compendio tem um erro: a mesa continua com o compêndio anterior.
+              </strong>
+              <br />
+              <span data-testid="compendio-erro-motivo">{c.erroDoArquivo}</span>
+            </p>
+          )}
+          {c.avisos.length > 0 && (
+            <ul className="avisos-do-compendio" data-testid="compendio-avisos">
+              {c.avisos.map((a) => (
+                <li key={a}>{a}</li>
+              ))}
+            </ul>
+          )}
           {temExtras && (
             <fieldset className="secoes-do-compendio" aria-label="O que listar">
               {(
@@ -668,19 +732,24 @@ export function AbaCompendio({
                   ["magias", "Magias", total],
                   ["armas", "Armas", armas.length],
                   ["itens", "Itens", itensDoCompendio.length],
+                  ["monstros", "Monstros", monstros.length],
+                  ["itensMagicos", "Mágicos", itensMagicos.length],
                 ] as const
-              ).map(([id, rotulo, n]) => (
-                <button
-                  key={id}
-                  type="button"
-                  className="secao-do-compendio"
-                  data-testid={`compendio-secao-${id}`}
-                  aria-pressed={secaoAtual === id}
-                  onClick={() => setSecao(id)}
-                >
-                  {rotulo} <span className="nota">{n}</span>
-                </button>
-              ))}
+              )
+                .filter(([id, , n]) => id === "magias" || n > 0)
+                .map(([id, rotulo, n]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    className="secao-do-compendio"
+                    data-testid={`compendio-secao-${id}`}
+                    aria-pressed={secaoAtual === id}
+                    title={`${id === "itensMagicos" ? "Itens mágicos" : rotulo}: ${n}`}
+                    onClick={() => setSecao(id)}
+                  >
+                    {rotulo}
+                  </button>
+                ))}
             </fieldset>
           )}
           <label className="campo-busca">
@@ -688,20 +757,8 @@ export function AbaCompendio({
             <input
               data-testid="compendio-busca"
               type="search"
-              placeholder={
-                secaoAtual === "magias"
-                  ? "Buscar magia (nome ou nome original)…"
-                  : secaoAtual === "armas"
-                    ? "Buscar arma…"
-                    : "Buscar item…"
-              }
-              aria-label={
-                secaoAtual === "magias"
-                  ? "Buscar magia"
-                  : secaoAtual === "armas"
-                    ? "Buscar arma"
-                    : "Buscar item"
-              }
+              placeholder={ROTULO_DA_BUSCA[secaoAtual].placeholder}
+              aria-label={ROTULO_DA_BUSCA[secaoAtual].rotulo}
               value={filtro.texto ?? ""}
               onChange={(e) => mudar({ texto: e.target.value })}
             />
@@ -784,26 +841,7 @@ export function AbaCompendio({
                     Limpar filtros
                   </button>
                 )}
-                {euMestre && (
-                  <button
-                    type="button"
-                    data-testid="compendio-recarregar"
-                    disabled={c.lendo}
-                    onClick={() => void c.recarregar()}
-                  >
-                    <RefreshCw size={14} /> Recarregar
-                  </button>
-                )}
               </div>
-              {c.erroDoArquivo && (
-                <p className="erro-do-arquivo" role="alert" data-testid="compendio-erro">
-                  <strong>
-                    O magias.json da pasta tem um erro: a mesa continua com o compêndio anterior.
-                  </strong>
-                  <br />
-                  <span data-testid="compendio-erro-motivo">{c.erroDoArquivo}</span>
-                </p>
-              )}
               {achadas.length === 0 ? (
                 <p className="nota" data-testid="compendio-nenhuma">
                   Nenhuma magia encontrada.
@@ -833,6 +871,24 @@ export function AbaCompendio({
                 </ul>
               )}
             </>
+          ) : secaoAtual === "monstros" ? (
+            <ListaDeMonstros
+              monstros={monstros}
+              magias={magias ?? []}
+              texto={filtro.texto ?? ""}
+              estado={estado}
+              eu={eu}
+              enviar={enviar}
+              {...(aoAbrirFicha ? { aoAbrirFicha } : {})}
+            />
+          ) : secaoAtual === "itensMagicos" ? (
+            <ListaDeItensMagicos
+              itens={itensMagicos}
+              texto={filtro.texto ?? ""}
+              estado={estado}
+              eu={eu}
+              enviar={enviar}
+            />
           ) : (
             <ListaDeEntradas
               tipo={secaoAtual === "armas" ? "arma" : "item"}
@@ -844,9 +900,26 @@ export function AbaCompendio({
               enviar={enviar}
             />
           )}
+          {euMestre && (
+            <div
+              className="barra-do-compendio barra-do-mestre"
+              data-testid="compendio-barra-mestre"
+            >
+              <CarregarArquivos aoCarregar={(a) => void carregarArquivos(a)} />
+              <button
+                type="button"
+                data-testid="compendio-recarregar"
+                disabled={c.lendo}
+                onClick={() => void c.recarregar()}
+              >
+                <RefreshCw size={14} /> Recarregar
+              </button>
+            </div>
+          )}
+          <ResultadoDaCarga resultado={euMestre ? resultadoDaCarga : null} />
           {exemploEmUso && (
             <p className="nota" data-testid="compendio-exemplo-em-uso">
-              Exemplo do SRD 5.1 em uso (3 magias).
+              Exemplo do SRD 5.1 em uso (3 magias, 3 monstros e 4 itens mágicos).
               {euMestre && ondeFicouOExemplo === "gravado" && (
                 <>
                   {" "}

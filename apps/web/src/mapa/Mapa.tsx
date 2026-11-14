@@ -1,4 +1,13 @@
-import type { Cena, Desenho, FonteDeLuz, Parede, PontoDeLuz, Token, Zona } from "@tabletop/shared";
+import {
+  type Cena,
+  type Desenho,
+  type FonteDeLuz,
+  type Parede,
+  type PontoDeLuz,
+  TIPO_DO_ARRASTO_DO_COMPENDIO,
+  type Token,
+  type Zona,
+} from "@tabletop/shared";
 import { useEffect, useRef } from "react";
 import { TIPO_DE_ARRASTO_DA_FICHA } from "../arrasto";
 import { type ImagensDoMapa, MapaPixi, type OpcoesDoMapa, type RetornosDoMapa } from "./mapaPixi";
@@ -21,6 +30,8 @@ type Props = {
   aoCriar: (mapa: MapaPixi | null) => void;
   /** Um item das Fichas foi solto no mapa (dados do arrasto e a posição em metros). */
   aoSoltarItem?: (dados: string, x: number, y: number) => void;
+  /** N3a: uma entrada do Compêndio (um monstro) foi solta no mapa: o texto do arrasto e a posição em metros. */
+  aoSoltarDoCompendio?: ((dados: string, x: number, y: number) => void) | undefined;
 };
 
 /** Ponte React ↔ Pixi: cria o controlador uma vez e empurra dados e opções para ele. */
@@ -38,6 +49,7 @@ export function Mapa({
   versaoDasImagens,
   aoCriar,
   aoSoltarItem,
+  aoSoltarDoCompendio,
 }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const mapa = useRef<MapaPixi | null>(null);
@@ -134,14 +146,26 @@ export function Mapa({
       tabIndex={0}
       aria-label="Mapa da cena. Com um token selecionado, Shift+F10 ou a tecla de menu abre o menu dele."
       onDragOver={(e) => {
-        if (e.dataTransfer.types.includes(TIPO_DE_ARRASTO_DA_FICHA)) e.preventDefault();
+        const tipos = e.dataTransfer.types;
+        if (tipos.includes(TIPO_DE_ARRASTO_DA_FICHA)) e.preventDefault();
+        else if (aoSoltarDoCompendio && tipos.includes(TIPO_DO_ARRASTO_DO_COMPENDIO)) {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = "copy";
+        }
       }}
       onDrop={(e) => {
         const dados = e.dataTransfer.getData(TIPO_DE_ARRASTO_DA_FICHA);
-        if (!dados) return;
+        if (dados) {
+          e.preventDefault();
+          const p = mapa.current?.pontoDaPaginaEmMetros(e.clientX, e.clientY);
+          if (p) aoSoltarItem?.(dados, p.x, p.y);
+          return;
+        }
+        const doCompendio = e.dataTransfer.getData(TIPO_DO_ARRASTO_DO_COMPENDIO);
+        if (!doCompendio || !aoSoltarDoCompendio) return;
         e.preventDefault();
         const p = mapa.current?.pontoDaPaginaEmMetros(e.clientX, e.clientY);
-        if (p) aoSoltarItem?.(dados, p.x, p.y);
+        if (p) aoSoltarDoCompendio(doCompendio, p.x, p.y);
       }}
     />
   );

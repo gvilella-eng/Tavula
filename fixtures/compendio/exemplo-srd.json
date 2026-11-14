@@ -14,7 +14,10 @@
       "duracao": "Instantânea",
       "concentracao": false,
       "ritual": false,
-      "classes": ["Feiticeiro", "Mago"],
+      "classes": [
+        "Feiticeiro",
+        "Mago"
+      ],
       "descricao": "Um clarão brilhante parte do seu dedo indicador até um ponto que você escolher dentro do alcance e então floresce, com um estrondo grave, numa explosão de chamas. Cada criatura numa esfera de 6 metros de raio (20 pés) centrada nesse ponto deve realizar uma salvaguarda de Destreza. Um alvo sofre 8d6 de dano de fogo se falhar na salvaguarda, ou metade desse dano se passar.\n\nO fogo se espalha pelos cantos. Ele incendeia os objetos inflamáveis na área que não estejam sendo vestidos ou carregados.",
       "emNiveisSuperiores": "Quando você conjura esta magia usando um espaço de magia de 4º nível ou superior, o dano aumenta em 1d6 para cada nível do espaço acima do 3º."
     },
@@ -29,7 +32,10 @@
       "duracao": "Instantânea",
       "concentracao": false,
       "ritual": false,
-      "classes": ["Feiticeiro", "Mago"],
+      "classes": [
+        "Feiticeiro",
+        "Mago"
+      ],
       "descricao": "Você cria três dardos brilhantes de energia mágica. Cada dardo atinge uma criatura à sua escolha que você possa ver dentro do alcance. Um dardo causa 1d4 + 1 de dano de energia ao alvo. Os dardos atingem todos ao mesmo tempo, e você pode direcioná-los para atingir uma criatura ou várias.",
       "emNiveisSuperiores": "Quando você conjura esta magia usando um espaço de magia de 2º nível ou superior, a magia cria um dardo adicional para cada nível do espaço acima do 1º."
     },
@@ -44,7 +50,15 @@
       "duracao": "Concentração, até 10 minutos",
       "concentracao": true,
       "ritual": true,
-      "classes": ["Bardo", "Clérigo", "Druida", "Paladino", "Patrulheiro", "Feiticeiro", "Mago"],
+      "classes": [
+        "Bardo",
+        "Clérigo",
+        "Druida",
+        "Paladino",
+        "Patrulheiro",
+        "Feiticeiro",
+        "Mago"
+      ],
       "descricao": "Enquanto durar a magia, você sente a presença de magia a até 9 metros (30 pés) de você. Se sentir magia dessa forma, você pode usar sua ação para ver uma aura tênue ao redor de qualquer criatura ou objeto visível na área que carregue magia, e descobre a escola de magia dela, se houver.\n\nA magia atravessa a maioria das barreiras, mas é bloqueada por 30 centímetros de pedra, 2,5 centímetros de metal comum, uma fina folha de chumbo ou 90 centímetros de madeira ou terra."
     }
   ],
@@ -56,7 +70,9 @@
       "distancia": false,
       "dano": "1d8",
       "tipoDeDano": "Cortante",
-      "propriedades": ["versátil (1d10)"],
+      "propriedades": [
+        "versátil (1d10)"
+      ],
       "peso": 1.8,
       "custo": "10 po"
     },
@@ -67,7 +83,9 @@
       "distancia": false,
       "dano": "1d8",
       "tipoDeDano": "Cortante",
-      "propriedades": ["versátil (1d10)"],
+      "propriedades": [
+        "versátil (1d10)"
+      ],
       "peso": 1.4,
       "custo": "15 po"
     },
@@ -78,7 +96,11 @@
       "distancia": false,
       "dano": "1d4",
       "tipoDeDano": "Perfurante",
-      "propriedades": ["acuidade", "leve", "arremesso (6/18 m)"],
+      "propriedades": [
+        "acuidade",
+        "leve",
+        "arremesso (6/18 m)"
+      ],
       "peso": 0.5,
       "custo": "2 po"
     },
@@ -89,7 +111,9 @@
       "distancia": false,
       "dano": "1d8",
       "tipoDeDano": "Perfurante",
-      "propriedades": ["acuidade"],
+      "propriedades": [
+        "acuidade"
+      ],
       "peso": 1,
       "custo": "25 po"
     },
@@ -100,7 +124,9 @@
       "distancia": false,
       "dano": "1d6",
       "tipoDeDano": "Contundente",
-      "propriedades": ["versátil (1d8)"],
+      "propriedades": [
+        "versátil (1d8)"
+      ],
       "peso": 1.8,
       "custo": "2 pp"
     },
@@ -111,7 +137,9 @@
       "distancia": false,
       "dano": "1d8",
       "tipoDeDano": "Contundente",
-      "propriedades": ["duas mãos"],
+      "propriedades": [
+        "duas mãos"
+      ],
       "peso": 4.5,
       "custo": "2 pp"
     },
@@ -122,7 +150,9 @@
       "distancia": false,
       "dano": "1d6",
       "tipoDeDano": "Perfurante",
-      "propriedades": ["arremesso (9/36 m)"],
+      "propriedades": [
+        "arremesso (9/36 m)"
+      ],
       "alcance": "1,5 m ou 9/36 m",
       "peso": 1,
       "custo": "5 pp"
@@ -134,7 +164,10 @@
       "distancia": true,
       "dano": "1d6",
       "tipoDeDano": "Perfurante",
-      "propriedades": ["munição (24/96 m)", "duas mãos"],
+      "propriedades": [
+        "munição (24/96 m)",
+        "duas mãos"
+      ],
       "alcance": "24/96 m",
       "peso": 1,
       "custo": "25 po"
@@ -146,7 +179,11 @@
       "distancia": true,
       "dano": "1d8",
       "tipoDeDano": "Perfurante",
-      "propriedades": ["munição (24/96 m)", "recarga", "duas mãos"],
+      "propriedades": [
+        "munição (24/96 m)",
+        "recarga",
+        "duas mãos"
+      ],
       "alcance": "24/96 m",
       "peso": 2.5,
       "custo": "25 po"
@@ -187,6 +224,297 @@
       "descricao": "Equipamento de aventura. Carrega até 30 litros de equipamento.",
       "peso": 2.3,
       "custo": "2 po"
+    }
+  ],
+  "monstros": [
+    {
+      "nome": "Goblin",
+      "nomeOriginal": "Goblin",
+      "tamanho": "Pequeno",
+      "tipo": "Humanoide (goblinoide)",
+      "tendencia": "Neutro e mau",
+      "ca": {
+        "valor": 15,
+        "fonte": "armadura de couro, escudo"
+      },
+      "pv": {
+        "media": 7,
+        "formula": "2d6"
+      },
+      "deslocamento": "9 m",
+      "deslocamentoM": 9,
+      "atributos": {
+        "for": 8,
+        "des": 14,
+        "con": 10,
+        "int": 10,
+        "sab": 8,
+        "car": 8
+      },
+      "pericias": {
+        "Furtividade": 6
+      },
+      "sentidos": "visão no escuro 18 m, Percepção passiva 9",
+      "idiomas": "Comum, Goblin",
+      "nd": "1/4",
+      "xp": 50,
+      "tracos": [
+        {
+          "nome": "Fuga Ágil",
+          "texto": "O goblin pode executar a ação Desengajar ou Esconder como ação bônus em cada um de seus turnos."
+        }
+      ],
+      "acoes": [
+        {
+          "nome": "Cimitarra",
+          "texto": "Ataque Corpo a Corpo com Arma: +4 para atingir, alcance 1,5 m, um alvo. Acerto: 5 (1d6 + 2) de dano cortante.",
+          "tipo": "cac",
+          "acerto": 4,
+          "alcance": "1,5 m",
+          "dano": "1d6+2",
+          "tipoDeDano": "Cortante"
+        },
+        {
+          "nome": "Arco Curto",
+          "texto": "Ataque à Distância com Arma: +4 para atingir, alcance 24/96 m, um alvo. Acerto: 5 (1d6 + 2) de dano perfurante.",
+          "tipo": "dist",
+          "acerto": 4,
+          "alcance": "24/96 m",
+          "dano": "1d6+2",
+          "tipoDeDano": "Perfurante"
+        }
+      ]
+    },
+    {
+      "nome": "Lobo",
+      "nomeOriginal": "Wolf",
+      "tamanho": "Médio",
+      "tipo": "Fera",
+      "tendencia": "Sem tendência",
+      "ca": {
+        "valor": 13,
+        "fonte": "armadura natural"
+      },
+      "pv": {
+        "media": 11,
+        "formula": "2d8 + 2"
+      },
+      "deslocamento": "12 m",
+      "deslocamentoM": 12,
+      "atributos": {
+        "for": 12,
+        "des": 15,
+        "con": 12,
+        "int": 3,
+        "sab": 12,
+        "car": 6
+      },
+      "pericias": {
+        "Percepção": 3,
+        "Furtividade": 4
+      },
+      "sentidos": "Percepção passiva 13",
+      "idiomas": "—",
+      "nd": "1/4",
+      "xp": 50,
+      "tracos": [
+        {
+          "nome": "Audição e Olfato Aguçados",
+          "texto": "O lobo tem vantagem em testes de Sabedoria (Percepção) que dependam de audição ou olfato."
+        },
+        {
+          "nome": "Táticas de Matilha",
+          "texto": "O lobo tem vantagem nas jogadas de ataque contra uma criatura se pelo menos um aliado do lobo estiver a 1,5 m da criatura e não estiver incapacitado."
+        }
+      ],
+      "acoes": [
+        {
+          "nome": "Mordida",
+          "texto": "Ataque Corpo a Corpo com Arma: +4 para atingir, alcance 1,5 m, um alvo. Acerto: 7 (2d4 + 2) de dano perfurante. Se o alvo for uma criatura, ele precisa ser bem-sucedido num teste de resistência de Força CD 11 ou será derrubado.",
+          "tipo": "cac",
+          "acerto": 4,
+          "alcance": "1,5 m",
+          "dano": "2d4+2",
+          "tipoDeDano": "Perfurante"
+        }
+      ]
+    },
+    {
+      "nome": "Mago",
+      "nomeOriginal": "Mage",
+      "tamanho": "Médio",
+      "tipo": "Humanoide (qualquer raça)",
+      "tendencia": "Qualquer tendência",
+      "ca": {
+        "valor": 12,
+        "fonte": "15 com armadura arcana"
+      },
+      "pv": {
+        "media": 40,
+        "formula": "9d8"
+      },
+      "deslocamento": "9 m",
+      "deslocamentoM": 9,
+      "atributos": {
+        "for": 9,
+        "des": 14,
+        "con": 11,
+        "int": 17,
+        "sab": 12,
+        "car": 11
+      },
+      "salvaguardas": {
+        "int": 6,
+        "sab": 4
+      },
+      "pericias": {
+        "Arcanismo": 6,
+        "História": 6
+      },
+      "sentidos": "Percepção passiva 11",
+      "idiomas": "quaisquer quatro idiomas",
+      "nd": "6",
+      "xp": 2300,
+      "tracos": [
+        {
+          "nome": "Conjuração",
+          "texto": "O mago é um conjurador de 9º nível. Sua habilidade de conjuração é Inteligência (CD de resistência de magia 14, +6 para atingir com ataques de magia). Ele tem as seguintes magias de mago preparadas: Truques (à vontade): raio de fogo, luz, mãos mágicas, prestidigitação. 1º nível (4 espaços): detectar magia, armadura arcana, mísseis mágicos, escudo. 2º nível (3 espaços): passo nebuloso, sugestão. 3º nível (3 espaços): contramágica, bola de fogo, voo. 4º nível (3 espaços): invisibilidade maior, tempestade de gelo. 5º nível (1 espaço): cone de frio."
+        }
+      ],
+      "acoes": [
+        {
+          "nome": "Adaga",
+          "texto": "Ataque Corpo a Corpo ou à Distância com Arma: +5 para atingir, alcance 1,5 m ou 6/18 m, um alvo. Acerto: 4 (1d4 + 2) de dano perfurante.",
+          "tipo": "cacdist",
+          "acerto": 5,
+          "alcance": "1,5 m ou 6/18 m",
+          "dano": "1d4+2",
+          "tipoDeDano": "Perfurante"
+        }
+      ],
+      "conjuracaoPorEspacos": {
+        "habilidade": "int",
+        "espacos": {
+          "1": 4,
+          "2": 3,
+          "3": 3,
+          "4": 3,
+          "5": 1
+        },
+        "magias": [
+          {
+            "nome": "Raio de Fogo",
+            "nivel": 0
+          },
+          {
+            "nome": "Luz",
+            "nivel": 0
+          },
+          {
+            "nome": "Mãos Mágicas",
+            "nivel": 0
+          },
+          {
+            "nome": "Prestidigitação",
+            "nivel": 0
+          },
+          {
+            "nome": "Detectar Magia",
+            "nivel": 1
+          },
+          {
+            "nome": "Armadura Arcana",
+            "nivel": 1
+          },
+          {
+            "nome": "Mísseis Mágicos",
+            "nivel": 1
+          },
+          {
+            "nome": "Escudo",
+            "nivel": 1
+          },
+          {
+            "nome": "Passo Nebuloso",
+            "nivel": 2
+          },
+          {
+            "nome": "Sugestão",
+            "nivel": 2
+          },
+          {
+            "nome": "Contramágica",
+            "nivel": 3
+          },
+          {
+            "nome": "Bola de Fogo",
+            "nivel": 3
+          },
+          {
+            "nome": "Voo",
+            "nivel": 3
+          },
+          {
+            "nome": "Invisibilidade Maior",
+            "nivel": 4
+          },
+          {
+            "nome": "Tempestade de Gelo",
+            "nivel": 4
+          },
+          {
+            "nome": "Cone de Frio",
+            "nivel": 5
+          }
+        ]
+      }
+    }
+  ],
+  "itensMagicos": [
+    {
+      "nome": "Poção de Cura Superior",
+      "nomeOriginal": "Potion of Healing, Greater",
+      "tipo": "poção",
+      "raridade": "raro",
+      "descricao": "Você recupera 8d4 + 8 pontos de vida quando bebe esta poção. O líquido vermelho brilha quando agitado."
+    },
+    {
+      "nome": "Anel de Proteção",
+      "nomeOriginal": "Ring of Protection",
+      "tipo": "anel",
+      "raridade": "raro",
+      "sintonizacao": {
+        "necessaria": true
+      },
+      "descricao": "Você ganha +1 de bônus na CA e nos testes de resistência enquanto usar este anel."
+    },
+    {
+      "nome": "Espada Longa +1",
+      "nomeOriginal": "Longsword, +1",
+      "tipo": "arma (espada longa)",
+      "raridade": "incomum",
+      "bonus": 1,
+      "descricao": "Você tem +1 de bônus nas jogadas de ataque e de dano feitas com esta arma mágica.",
+      "arma": {
+        "nome": "Espada longa",
+        "nomeOriginal": "Longsword",
+        "categoria": "marcial",
+        "distancia": false,
+        "dano": "1d8",
+        "tipoDeDano": "Cortante",
+        "propriedades": [
+          "versátil (1d10)"
+        ],
+        "peso": 1.4
+      }
+    },
+    {
+      "nome": "Bolsa de Carga",
+      "nomeOriginal": "Bag of Holding",
+      "tipo": "maravilhoso",
+      "raridade": "incomum",
+      "descricao": "Esta bolsa tem um espaço interno muito maior que suas dimensões externas: cerca de 60 cm de abertura e 1,2 m de profundidade. Comporta até 225 kg, sem passar de 1,8 m³, e pesa 7 kg, não importa o que haja dentro. Pegar um item da bolsa exige uma ação.",
+      "peso": 7
     }
   ]
 }
