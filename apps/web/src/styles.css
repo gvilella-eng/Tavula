@@ -6000,3 +6000,119 @@ button.inicio-botao-largo {
   background: var(--campo);
   cursor: text;
 }
+
+/* --- Som ambiente (N5) -------------------------------------------------------------------- */
+
+.som-agora {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.som-agora[data-tocando="nao"] {
+  color: var(--texto-suave);
+  font-weight: 400;
+}
+.som-opcao {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  margin: 6px 0;
+}
+.som-escolher {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+}
+.som-busca {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  background: var(--campo);
+  border: 1px solid var(--borda);
+  border-radius: 6px;
+  color: var(--texto-suave);
+}
+.som-busca input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  padding: 4px 0;
+}
+.som-lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 132px;
+  overflow-y: auto;
+  border: 1px solid var(--borda);
+  border-radius: 6px;
+}
+.som-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  text-align: left;
+  font-size: 13px;
+}
+.som-item span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.som-item:hover:not(:disabled) {
+  background: var(--cabecalho);
+}
+.som-arquivo-botao {
+  align-self: flex-start;
+  font-size: 12px;
+}
+.aviso-do-som {
+  position: absolute;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  font-size: 13px;
+  background: var(--painel);
+  color: var(--texto);
+  border: 1px solid var(--borda);
+  border-radius: var(--raio);
+  box-shadow: var(--sombra);
+}
+.pref-som-linha {
+  display: grid;
+  grid-template-columns: 84px 1fr;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.painel-token label.som-busca,
+.painel-token label.som-opcao {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  color: var(--texto);
+}
+.painel-token label.som-busca {
+  color: var(--texto-suave);
+}
+.painel-som .som-lista {
+  max-height: 96px;
+}

@@ -12,6 +12,7 @@ import {
   type PingRepassado,
   type Presenca,
   reduzir,
+  type SomTocando,
   type Uso,
   VERSAO_PROTOCOLO,
 } from "@tabletop/shared";
@@ -40,6 +41,8 @@ export type Ocorrencia =
   | { tipo: "rascunhoFim"; id: string }
   /** V12: um ping de alguém (ou meu) na cena; efêmero, só o mapa o usa. */
   | { tipo: "ping"; ping: PingRepassado }
+  /** N5: os sons de zona que este jogador ouve agora (a lista vazia manda parar); só o jogador os recebe. */
+  | { tipo: "somDaZona"; sons: SomTocando[] }
   | { tipo: "conectado" }
   /** Vaivém de arquivos: `asset.meta`, `asset.enviar`, `asset.indisponivel` e o pré-envio (`preparo.*`). */
   | { tipo: "asset"; mensagem: MensagemDaSala }
@@ -186,6 +189,9 @@ export function useSala(opcoes: Opcoes) {
           break;
         case "desenho.rascunhoFim":
           emitir({ tipo: "rascunhoFim", id: m.dados.id });
+          break;
+        case "som.zona":
+          emitir({ tipo: "somDaZona", sons: m.dados.sons });
           break;
         case "mapa.pingado":
           emitir({ tipo: "ping", ping: m.dados });

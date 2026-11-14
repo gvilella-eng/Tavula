@@ -119,6 +119,7 @@ export const ROTULO_DA_ACAO: Record<Acao["acao"], string> = {
   "objeto.ajustarTempo": "Ajustar o tempo da luz",
   "visao.limitar": "Limitar a visão",
   "chat.anunciar": "Anunciar no chat",
+  "som.tocar": "Tocar um som",
   "token.mostrar": "Mostrar o token",
   "token.ocultar": "Ocultar o token",
   "zona.ativar": "Ligar ou desligar uma zona",
@@ -140,6 +141,8 @@ export function acaoPadrao(tipo: Acao["acao"]): Acao {
       return { acao: "visao.limitar", alcanceM: 1.5, porS: 30 };
     case "chat.anunciar":
       return { acao: "chat.anunciar", texto: "", para: "todos" };
+    case "som.tocar":
+      return { acao: "som.tocar", hash: "", nome: "", volume: 0.8, para: "todos" };
     case "token.mostrar":
       return { acao: "token.mostrar" };
     case "token.ocultar":

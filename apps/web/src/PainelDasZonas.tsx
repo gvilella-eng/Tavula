@@ -1,11 +1,17 @@
 import type { EfeitosDaZona, Zona } from "@tabletop/shared";
 import { Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import type { Fontes } from "./assets/fontes";
 import { CampoDecimal, CampoDeDistancia } from "./Campo";
 import { dasFerramentas } from "./janelas/geometria";
 import { Janela } from "./janelas/Janela";
+import { Deslizante } from "./som/Deslizante";
+import { EscolherSom, type SomEscolhido } from "./som/EscolherSom";
 
 type Props = {
+  /** N5: de onde vêm os sons e como adicionar um (o "Som enquanto dentro"). */
+  fontes: Fontes;
+  registrarSom: (arquivo: File) => Promise<SomEscolhido>;
   /** A zona selecionada, se houver. */
   selecionada: Zona | null;
   /** Quantas reações a zona carrega (o editor delas é o das automações). */
@@ -54,6 +60,15 @@ export function PainelDasZonas(p: Props) {
     efeitosMandados.current = efeitos;
     p.enviar("zona.editar", { id: z.id, mudancas: { efeitos } });
   }
+  /** N5: o som da zona (sem ele a zona não toca nada). Vai junto com os outros efeitos. */
+  function mudarSom(som: EfeitosDaZona["som"] | null) {
+    if (!z) return;
+    const { som: _antigo, ...resto } = efeitosMandados.current;
+    const efeitos: EfeitosDaZona = som ? { ...resto, som } : resto;
+    efeitosMandados.current = efeitos;
+    p.enviar("zona.editar", { id: z.id, mudancas: { efeitos } });
+  }
+  const [escolhendoSom, setEscolhendoSom] = useState(false);
   function confirmarNome() {
     if (!z) return;
     const limpo = nome.trim();
@@ -136,6 +151,74 @@ export function PainelDasZonas(p: Props) {
               maxM={LIMITES.visaoMaxM.max}
               aoConfirmar={(v) => mudarEfeito("visaoMaxM", v)}
             />
+          </fieldset>
+          <fieldset className="quem-controla" data-testid="zona-som">
+            <legend>Som enquanto dentro</legend>
+            {z.efeitos.som ? (
+              <>
+                <p className="som-agora" data-testid="zona-som-nome">
+                  {z.efeitos.som.nome}
+                </p>
+                <Deslizante
+                  testid="zona-som-volume"
+                  rotulo="Volume do som da zona"
+                  valor={z.efeitos.som.volume}
+                  aoMudar={(volume) => z.efeitos.som && mudarSom({ ...z.efeitos.som, volume })}
+                />
+                <label className="som-opcao">
+                  <input
+                    type="checkbox"
+                    data-testid="zona-som-laco"
+                    checked={z.efeitos.som.laco}
+                    onChange={(e) =>
+                      z.efeitos.som && mudarSom({ ...z.efeitos.som, laco: e.target.checked })
+                    }
+                  />
+                  Repetir em laço
+                </label>
+                <div className="linha-botoes">
+                  <button
+                    type="button"
+                    data-testid="zona-som-trocar"
+                    onClick={() => setEscolhendoSom(true)}
+                  >
+                    Trocar
+                  </button>
+                  <button type="button" data-testid="zona-som-tirar" onClick={() => mudarSom(null)}>
+                    Tirar
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="nota">Quem estiver dentro ouve; o resto da mesa não.</p>
+                {!escolhendoSom && (
+                  <button
+                    type="button"
+                    data-testid="zona-som-escolher"
+                    onClick={() => setEscolhendoSom(true)}
+                  >
+                    Escolher um som…
+                  </button>
+                )}
+              </>
+            )}
+            {escolhendoSom && (
+              <EscolherSom
+                fontes={p.fontes}
+                registrar={p.registrarSom}
+                testid="zona-som-escolher-lista"
+                aoEscolher={(s) => {
+                  mudarSom({
+                    hash: s.hash,
+                    nome: s.nome,
+                    volume: z.efeitos.som?.volume ?? 0.8,
+                    laco: z.efeitos.som?.laco ?? true,
+                  });
+                  setEscolhendoSom(false);
+                }}
+              />
+            )}
           </fieldset>
           <p className="nota" data-testid="zona-reacoes">
             {p.reacoes === 0

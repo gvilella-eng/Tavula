@@ -220,6 +220,7 @@ interface Cena {
   iluminacaoDinamica?: boolean;                          // lote 5: padrão ligada; desligada, o jogador vê tudo
   cartao?: boolean;                 // V10c, 2026-11-13: cena como cartão (imagem inteira, sem luz nem visão); sem o campo é mapa
   nevoa?: TracoDaNevoa[];           // N4, 2026-11-14: névoa pintada à mão; traços { forma, modo, pontos, raio? } em metros, na ordem; sem o campo não há névoa manual
+  trilha?: { hash, nome, volume };  // N5, 2026-11-14: trilha padrão da cena (asset "som"); começa ao levar o grupo
   luzAmbiente?: number;             // lote 6: 0 = escuridão total, 1 = dia (sem o campo = 1)
   fatorDeLuz?: number;              // lote 6: slider geral do painel de fontes (multiplica os raios)
 }
@@ -259,6 +260,7 @@ interface Desenho {                // lote 13: Estado.desenhos; chega a quem rec
 }
 
 // lote 14: Estado.compendio?: { hash, nomeOriginal, magias } aponta para o asset 'compendio' da mesa
+// N5: Estado.trilha?: { hash, nome, volume, inicioMs, servidorMs? } é a trilha que toca (asset "som"); EfeitosDaZona.som?: { hash, nome, volume, laco }
 // (o arquivo nunca fica na sala); o chat ganhou a mensagem 'magia' (pública, com a magia dentro)
 
 interface Parede {
@@ -717,7 +719,7 @@ Exemplo (respiração da montanha, da campanha de referência):
 Regras do motor:
 1. **Ações de uma lista fechada, descritas em JSON e validadas com zod**, nunca código livre:
    `luz.modificar`, `objeto.apagar` (chance, penalidade), `objeto.ajustarTempo`, `visao.limitar`,
-   `chat.anunciar`, `som.tocar`, `token.mostrar`/`token.ocultar`, `zona.ativar`, `evento.disparar`.
+   `chat.anunciar`, `som.tocar` (N5), `token.mostrar`/`token.ocultar`, `zona.ativar`, `evento.disparar`.
    Condições: `chance`, `tag`, `dentroDaZona`, `cena`. Seguro, testável com semente fixa e fácil de a IA
    gerar.
 2. **Efeito temporário é modificador com prazo**, nunca alteração do valor base. O valor final é base +
@@ -795,9 +797,7 @@ Regras do motor:
 - **Fixar e liberar.** `fixado` e `liberadoParaJogadores` moram **com a campanha**, no ciclo e no botão de evento (`Automacoes.botoes`, peça nova: nome, evento, cena, fixado, liberado). Um chip na barra de cima por item fixado: no ciclo, nome, fase, tempo até a próxima, disparar e pausar ou retomar; no evento, nome e disparar. O jogador vê **só o chip dos liberados**, com o nome e a ação (`Estado.botoes` e o evento `botoes.alterados`, nascidos da filtragem de `automacoes.alterado`; nada da definição). `botao.usar` (`ciclo:<id>` ou `evento:<id>`) não tem capacidade: a sala confere a liberação **a cada clique** e limita a 1 disparo aceito a cada 2 s por jogador (`muitas_mensagens`). Ver `docs/protocolo.md`, "Botões das automações (Lote 7b-3)".
 - **Campanhas prontas.** `fixtures/campanhas/chama-primordial.json` (a tabela de `docs/IDEIAS.md`: Tocha de 1800 s com penalidade de 60 s ao apagar, a respiração do Pulmão de 180 s, a rajada que encolhe e pode apagar, a expiração com visão de 1,5 m, as zonas Ar Morto e Câmara do Ar Rarefeito, o aviso ao mestre ao reacender, os suportes do Farol da Eclusa; sem imagens e sem nada da história secreta em texto que o jogador veja) e `5e-padrao.json` (mesa limpa, sem automação). Carregam pela importação de campanha (aba Mesa → Campanha → "Campanhas de exemplo", com a confirmação "Importar e substituir"); a lista troca os usuários e as permissões do arquivo pelos da mesa de agora.
 
-**Decidido pelo Vilella (2026-11-13):** a ação `som.tocar` fica fora do 7b. Ela entra junto com um lote de som
-ambiente, com os arquivos de som na pasta local, como as imagens. O 7b se divide em três lotes, 7b-1 a 7b-3
-(seção 7).
+- **Som ambiente e `som.tocar`** (N5, 2026-11-14). Os arquivos de áudio (mp3, ogg e wav, até 20 MB) ficam no computador do mestre, como as imagens, e viajam por pedaços como assets do tipo `som`; a sala guarda só a referência (hash, nome, volume). O painel **Som** do mestre tem a **trilha** (um som por vez, em laço, volume, parar, transição suave de 2 s; `Estado.trilha` leva o início no relógio real da sala, então todos ouvem alinhados e quem entra no meio ouve do ponto em que está), a **trilha padrão da cena** (`Cena.trilha`, começa ao levar o grupo) e os **efeitos** (um clique, uma vez). A zona ganha **"Som enquanto dentro"** (`efeitos.som`: som, volume e laço): o jogador cujo token está dentro ouve, com fade; a sala manda a cada jogador só a mensagem `som.zona` com hash, volume e laço, e a zona continua secreta (forma, nome e regras nunca chegam). A ação **`som.tocar`** (`hash`, `nome`, `volume`, `para`: todos, quem vê a cena ou quem controla o token do evento) entra na lista fechada, com o formulário no editor do 7b-3. Tocar é do mestre (capacidade `som.controlar`, não delegável). Cada pessoa tem em Preferências o cartão **Som** (volume geral, da trilha e dos efeitos, silenciar tudo; só neste navegador) e, no primeiro som que o navegador bloqueia, o aviso "Clique para ativar o som da mesa". Exportar e importar levam as referências (metas), nunca os arquivos; sem migração de banco. Detalhes em `docs/protocolo.md` ("Som ambiente (N5)").
 
 ### 4.12 MCP (configurar a mesa com IA)
 
@@ -1684,7 +1684,7 @@ para 30 s, ver a inspiração reduzir e apagar tochas, pausar e retomar pelo bot
   - os schemas de ciclo, evento, reação, ação, condição e modificador com prazo;
   - as automações guardadas na campanha;
   - as fases dos ciclos no agendador e os eventos do sistema;
-  - as ações da lista fechada (menos `som.tocar` e a zona);
+  - as ações da lista fechada (menos `som.tocar`, que entrou no N5, e a zona);
   - o sorteio pela semente da sala, o limite de encadeamento e o escopo por cena;
   - pausar a mesa pausa os ciclos;
   - nada de automação chega ao jogador;

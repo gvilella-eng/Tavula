@@ -9,6 +9,7 @@ import {
   Palette,
   ShieldCheck,
   User,
+  Volume2,
 } from "lucide-react";
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { type ArquivoDaFonte, temSeletorDePasta } from "./assets/fonte";
@@ -22,6 +23,8 @@ import { definirDicasLigadas, useDicasLigadas } from "./dicasLigadas";
 import { ListaDeAtalhos } from "./ListaDeAtalhos";
 import { MarcaSoNesteNavegador, SecaoDePreferencias } from "./SecaoDePreferencias";
 import { SeletorDeTema } from "./SeletorDeTema";
+import { CartaoDeSom } from "./som/CartaoDeSom";
+import { resumoDoSom, usePrefsDeSom } from "./som/prefsDeSom";
 import { lerTema, NOMES_DOS_TEMAS } from "./tema/temas";
 import { definirUnidade, useUnidade } from "./unidade";
 import type { LoteDoClaude } from "./useSala";
@@ -52,6 +55,9 @@ type PropsPreferencias = {
   lotesDoClaude: readonly LoteDoClaude[];
   /** P1: o Claude desta pessoa está conectado agora (a presença do 12-1). */
   claudeConectado: boolean;
+  /** N5: o navegador está bloqueando o som até alguém clicar (o cartão Som mostra o botão para ativar). */
+  somBloqueado: boolean;
+  aoAtivarSom: () => void;
   enviar: (tipo: string, dados: object) => string | null;
 };
 
@@ -166,8 +172,8 @@ function zero(): number {
 }
 
 /**
- * Aba Preferências (todos): o que é de cada pessoa. Sete seções recolhíveis, cada uma com o resumo do estado (P1): Conta,
- * Aparência, No mapa, Ajuda e arquivos, Conectar o Claude, Segurança (só com login) e Atalhos do teclado. O que vale para a
+ * Aba Preferências (todos): o que é de cada pessoa. Oito seções recolhíveis, cada uma com o resumo do estado (P1): Conta,
+ * Aparência, Som (N5), No mapa, Ajuda e arquivos, Conectar o Claude, Segurança (só com login) e Atalhos do teclado. O que vale para a
  * sala (regras, modelos de luz, papéis) está na aba Mesa, só do mestre.
  */
 export function AbaPreferencias({
@@ -184,9 +190,12 @@ export function AbaPreferencias({
   gerente,
   lotesDoClaude,
   claudeConectado,
+  somBloqueado,
+  aoAtivarSom,
   enviar,
 }: PropsPreferencias) {
   const dicas = useDicasLigadas();
+  const prefsDeSom = usePrefsDeSom();
   const unidade = useUnidade();
   const [tema, setTema] = useState(() => lerTema());
   const [tokens, setTokens] = useState<number | null>(null);
@@ -254,6 +263,17 @@ export function AbaPreferencias({
           <MarcaSoNesteNavegador />
         </div>
         <SeletorDeTema aoEscolher={setTema} />
+      </SecaoDePreferencias>
+      <SecaoDePreferencias
+        id="som"
+        titulo="Som"
+        icone={<Volume2 size={16} />}
+        resumo={resumoDoSom(prefsDeSom)}
+      >
+        <div className="pref-marca-linha">
+          <MarcaSoNesteNavegador />
+        </div>
+        <CartaoDeSom bloqueado={somBloqueado} aoAtivar={aoAtivarSom} />
       </SecaoDePreferencias>
       <SecaoDePreferencias
         id="mapa"

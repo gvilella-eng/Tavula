@@ -1,3 +1,4 @@
+import { ehArquivoDeSom } from "@tabletop/shared";
 import { gravarChave, lerChave } from "./armazem";
 
 /** Um arquivo de imagem que a fonte oferece (ainda sem ler o conteúdo). */
@@ -231,6 +232,15 @@ export class PastaLocal implements FonteDeAssets {
   }
 
   async listar(): Promise<ArquivoDaFonte[]> {
+    return this.varrerPasta(ehImagem);
+  }
+
+  /** N5: os arquivos de som (mp3, ogg e wav) da pasta, de `sons/` ou de qualquer subpasta. */
+  async listarSons(): Promise<ArquivoDaFonte[]> {
+    return this.varrerPasta(ehArquivoDeSom);
+  }
+
+  private async varrerPasta(servem: (nome: string) => boolean): Promise<ArquivoDaFonte[]> {
     const achados: ArquivoDaFonte[] = [];
     const varrer = async (dir: PastaComPermissao, caminho: string[]) => {
       for await (const e of dir.values()) {
@@ -238,7 +248,7 @@ export class PastaLocal implements FonteDeAssets {
           if (caminho.length < PROFUNDIDADE_MAXIMA && !PASTAS_IGNORADAS.has(e.name)) {
             await varrer(e as PastaComPermissao, [...caminho, e.name]);
           }
-        } else if (ehImagem(e.name)) {
+        } else if (servem(e.name)) {
           const arquivo = e as FileSystemFileHandle;
           const completo = [...caminho, e.name].join("/");
           const info = await arquivo.getFile();

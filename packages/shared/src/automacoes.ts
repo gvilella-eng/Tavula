@@ -1,5 +1,7 @@
 import { z } from "zod";
+import { HashSchema } from "./assets.ts";
 import type { Estado, Token } from "./estado.ts";
+import { ParaQuemOSomSchema, VolumeSchema } from "./som.ts";
 
 // ---------------------------------------------------------------------------------------------
 // Automações da mesa (Lote 7b-1, seção 4.11). Este arquivo só tem os DADOS: schemas zod, constantes e
@@ -179,7 +181,7 @@ export type AlvoDeToken = z.infer<typeof AlvoDeTokenSchema>;
 
 const Prazo = Segundos.optional();
 
-/** A lista FECHADA de ações (regra 1). `som.tocar` fica fora (decisão de 2026-11-13). */
+/** A lista FECHADA de ações (regra 1). `som.tocar` entrou no N5 (efeito de som, uma vez). */
 export const AcaoSchema = z.discriminatedUnion("acao", [
   /** Multiplica (`raioX`) e/ou soma (`raioSomaM`) o raio da luz por um prazo: um modificador, nunca o valor base. */
   z
@@ -226,6 +228,17 @@ export const AcaoSchema = z.discriminatedUnion("acao", [
     acao: z.literal("chat.anunciar"),
     texto: z.string().trim().min(1).max(300),
     para: z.enum(["todos", "mestre"]).default("todos"),
+  }),
+  /**
+   * N5: toca um som uma vez (o asset `som` já registrado), para todos, para quem vê a cena do evento ou para quem
+   * controla o token do evento. O mestre ouve sempre.
+   */
+  z.object({
+    acao: z.literal("som.tocar"),
+    hash: HashSchema,
+    nome: z.string().trim().min(1).max(200),
+    volume: VolumeSchema.default(0.8),
+    para: ParaQuemOSomSchema.default("todos"),
   }),
   z.object({ acao: z.literal("token.mostrar"), alvo: AlvoDeTokenSchema.optional() }),
   z.object({ acao: z.literal("token.ocultar"), alvo: AlvoDeTokenSchema.optional() }),

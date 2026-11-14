@@ -59,6 +59,7 @@ import {
   type RascunhoRepassado,
   rascunhoDentroDoLimite,
   registrarMensagem,
+  sonsDasZonasParaJogador,
   type TokenApagadoRecente,
   tempoDaSala,
   tokenDoCabecalho,
@@ -1948,7 +1949,12 @@ export class Sala extends DurableObject<Env> {
           this.erro(ws, intencao.id, "asset_inexistente", "Arquivo não encontrado.");
           return;
         }
-        this.enviar(ws, mensagem({ tipo: "asset.meta", dados: { meta } }));
+        // N5: o nome do arquivo de um som pode contar o que ele faz (uma zona secreta); o jogador só precisa dos bytes.
+        const paraEnviar =
+          meta.tipo === "som" && usuario.papel !== "mestre"
+            ? { ...meta, nomeOriginal: "som" }
+            : meta;
+        this.enviar(ws, mensagem({ tipo: "asset.meta", dados: { meta: paraEnviar } }));
         const total = meta.pedacos.length;
         if (total === 0) return; // manifesto de mapa: não há bytes, só os tiles
         const indices = faltam ?? Array.from({ length: total }, (_, i) => i);
@@ -2150,6 +2156,7 @@ export class Sala extends DurableObject<Env> {
       }),
     );
     if (usuario.papel === "mestre") this.enviar(ws, this.textoDoUso());
+    this.atualizarSonsDasZonas();
   }
 
   private marcarArraste(ws: WebSocket, id: string, ativo: boolean): void {
@@ -2260,12 +2267,42 @@ export class Sala extends DurableObject<Env> {
       }
       if (snapshotPara === "todos" || snapshotPara.includes(usuario.id)) {
         this.enviarSnapshot(ws, usuario);
+        // N5: o snapshot não leva o efeito de som (ele não está no estado): quem o ouve o recebe depois.
+        for (const ev of eventos) {
+          if (ev.tipo !== "som.efeitoTocado") continue;
+          const visto = eventoPara(ev, usuario, antes, this.estado, agoraMs);
+          if (visto) this.enviar(ws, mensagem({ tipo: "evento", dados: visto }));
+        }
         continue;
       }
       for (const ev of eventos) {
         const visto = eventoPara(ev, usuario, antes, this.estado, agoraMs);
         if (visto) this.enviar(ws, mensagem({ tipo: "evento", dados: visto }));
       }
+    }
+    this.atualizarSonsDasZonas();
+  }
+
+  /** N5: o que cada conexão já sabe dos sons de zona que ouve (só memória; recomeça vazio a cada conexão). */
+  private readonly sonsDasZonasEnviados = new WeakMap<WebSocket, string>();
+
+  /**
+   * N5: manda a cada jogador SÓ os sons que ele ouve por causa das zonas onde os tokens dele estão: nunca a zona, o
+   * nome nem as regras. Só manda quando a lista dele muda. Uma falha aqui nunca derruba o que a mesa já fez.
+   */
+  private atualizarSonsDasZonas(): void {
+    try {
+      for (const ws of this.ctx.getWebSockets()) {
+        const usuario = this.usuarioDe(ws);
+        if (usuario?.papel !== "jogador") continue;
+        const sons = sonsDasZonasParaJogador(this.estado, usuario);
+        const chave = JSON.stringify(sons);
+        if (chave === (this.sonsDasZonasEnviados.get(ws) ?? "[]")) continue;
+        this.sonsDasZonasEnviados.set(ws, chave);
+        this.enviar(ws, mensagem({ tipo: "som.zona", dados: { sons } }));
+      }
+    } catch (e) {
+      console.warn("Não consegui atualizar os sons das zonas", e);
     }
   }
 }

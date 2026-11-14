@@ -37,7 +37,23 @@ export const LIMITES_DE_ASSET = {
   inventario: 5000,
   /** O `magias.json` do compêndio (Lote 14): texto, nunca imagem. */
   bytesDoCompendio: 16 * 1024 * 1024,
+  /** Um arquivo de som (N5: mp3, ogg ou wav): 20 MB são 80 pedaços de 256 KB (assumido). */
+  bytesDoSom: 20 * 1024 * 1024,
 } as const;
+
+/** Os formatos de som aceitos (N5: mp3, ogg e wav), pelo tipo MIME que o navegador diz. */
+export const MIMES_DE_SOM = [
+  "audio/mpeg",
+  "audio/mp3",
+  "audio/ogg",
+  "audio/wav",
+  "audio/x-wav",
+  "audio/wave",
+] as const;
+
+export function mimeDeSomValido(mime: string): boolean {
+  return (MIMES_DE_SOM as readonly string[]).includes(mime.toLowerCase());
+}
 
 export const PX_POR_QUADRADO_PADRAO = 70;
 
@@ -53,8 +69,18 @@ export const ACRESCIMO_DA_CIFRA = 12 + 16;
  * jogador pode baixá-lo, mas só abre com a chave que a sala entrega ao levar o grupo.
  * `compendio` (Lote 14): o `magias.json` do mestre (texto, sem dimensões reais: 1 x 1). Só o compêndio
  * que a mesa definiu (`Estado.compendio`) é baixável por todos; os demais seguem a regra comum.
+ * `som` (N5): arquivo de áudio (mp3, ogg ou wav), sem dimensões reais (1 x 1). Todo jogador pode baixá-lo (a sala só
+ * diz qual tocar); a zona que o usa continua secreta, porque o hash não diz de onde veio.
  */
-export const TIPOS_DE_ASSET = ["mapa", "token", "retrato", "tile", "cifrado", "compendio"] as const;
+export const TIPOS_DE_ASSET = [
+  "mapa",
+  "token",
+  "retrato",
+  "tile",
+  "cifrado",
+  "compendio",
+  "som",
+] as const;
 export const TipoDeAssetSchema = z.enum(TIPOS_DE_ASSET);
 export type TipoDeAsset = z.infer<typeof TipoDeAssetSchema>;
 
@@ -134,6 +160,10 @@ export function validarMeta(meta: MetaNova | AssetMeta): string | null {
   if (meta.bytes <= 0) return "arquivo vazio";
   if (meta.tipo === "compendio" && meta.bytes > LIMITES_DE_ASSET.bytesDoCompendio) {
     return "compêndio grande demais";
+  }
+  if (meta.tipo === "som") {
+    if (!mimeDeSomValido(meta.mime)) return "só mp3, ogg e wav";
+    if (meta.bytes > LIMITES_DE_ASSET.bytesDoSom) return "som grande demais (até 20 MB)";
   }
   const limite =
     LIMITES_DE_ASSET.bytesPorArquivo + (meta.tipo === "cifrado" ? ACRESCIMO_DA_CIFRA : 0);
@@ -350,7 +380,7 @@ function metaDe(estado: Pick<Estado, "assets">, hash: string): AssetMeta | undef
 /** Todo hash que algo da campanha usa: mapas das cenas, imagens dos tokens e os tiles deles. */
 export function hashesUsados(
   estado: Pick<Estado, "assets" | "cenas" | "tokens" | "personagens"> &
-    Partial<Pick<Estado, "compendio" | "handouts">>,
+    Partial<Pick<Estado, "compendio" | "handouts" | "trilha" | "zonas" | "automacoes">>,
 ): Set<string> {
   const usados = new Set<string>();
   const usar = (hash: string | undefined) => {
@@ -371,6 +401,13 @@ export function hashesUsados(
   for (const h of estado.handouts ?? []) usar(h.imagemHash);
   // O compêndio da mesa (Lote 14): a meta vai na exportação (o arquivo, não).
   usar(estado.compendio?.hash);
+  // N5: os sons que a mesa usa (trilha, trilha de cada cena, som de zona e a ação `som.tocar`): só a referência.
+  usar(estado.trilha?.hash);
+  for (const c of estado.cenas) usar(c.trilha?.hash);
+  for (const z of estado.zonas ?? []) usar(z.efeitos.som?.hash);
+  for (const r of estado.automacoes?.reacoes ?? []) {
+    for (const a of r.fazer) if (a.acao === "som.tocar") usar(a.hash);
+  }
   return usados;
 }
 
@@ -419,6 +456,7 @@ export function assetVisivelPara(
   if (usuario.papel !== "jogador") return false;
   if (meta.tipo === "cifrado") return true;
   if (meta.tipo === "compendio" && estado.compendio?.hash === hash) return true;
+  if (meta.tipo === "som") return true;
   if (meta.donoId === usuario.id) return true;
   if (
     estado.tokens.some(

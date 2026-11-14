@@ -853,6 +853,26 @@ Continua em aberto, por ser decisão e não erro de doc: `ficha.verOutras` (seç
 
 **Suposições**: ver `docs/REDESIGN.md`, "N4 — como ficou".
 
+## N5 (2026-11-14): som ambiente
+**Onde mexer**
+- Dados e contas puras: `packages/shared/src/som.ts` (`TrilhaSchema`, `SomDaZonaSchema`, `AlvoDoEfeitoSchema`, `pontoDaTrilha`, `desvioDoRelogio`, `volumeFinal`, o MIME) e `somnucleo.ts` (`sonsDasZonasParaJogador`, `sonsDasZonasParaTokens`, `efeitoChegaPara`). O tipo de asset `som`, o limite de 20 MB, o MIME e a visibilidade estão em `assets.ts`; `hashesUsados` conta os sons da trilha, das cenas, das zonas e de `som.tocar`.
+- Estado e protocolo: `Estado.trilha`, `Cena.trilha` (`estado.ts`), `EfeitosDaZona.som` (`zonas.ts`), as intenções `som.trilha`, `som.parar`, `som.efeito` (capacidade `som.controlar`), `cena.editar { trilha }`, os eventos `som.trilhaAlterada` e `som.efeitoTocado` e a mensagem `som.zona` (`protocolo.ts`); as regras na `nucleo.ts` (intenções, `grupo.moverPara`, `eventoPara`, `visaoPara`, exportação) e a ação `som.tocar` em `automacoes.ts` e `automacoesnucleo.ts`.
+- Sala: `apps/server/src/sala.ts` (`atualizarSonsDasZonas`, o nome do som anonimizado em `asset.pedir`, o efeito depois do snapshot em `distribuir`) e `armazenamento.ts` (`carregarTrilha`/`gravarTrilha`, chave `trilha` da tabela `meta`).
+- Tela: `apps/web/src/som/` (`motorDeSom.ts` é o motor de áudio; `useSomDaMesa.ts` liga estado e mensagens ao motor; `prefsDeSom.ts`, `EscolherSom.tsx`, `CartaoDeSom.tsx`, `AvisoDoSom.tsx`, `Deslizante.tsx`), `PainelDoSom.tsx`, o "Som enquanto dentro" em `PainelDasZonas.tsx`, o formulário de `som.tocar` em `automacoes/FormularioDaReacao.tsx`, `registrarSom` em `assets/gerente.ts`, `listarSons` em `assets/fontes.ts` e `fonte.ts`.
+- Teste: `packages/shared/src/som.test.ts`, o fim de `apps/server/src/armazenamento.test.ts`, `e2e/tests/som-n5.spec.ts` e `ajudasSom.ts` (o wav de silêncio, o gancho `window.__tabletopSom`).
+
+**Frágil**
+- **O motor só liga em `iniciar()`**: o modo estrito do React monta, desmonta e monta o hook, e um `encerrar()` definitivo deixava a mesa muda. Mantenha `iniciar` idempotente e `encerrar` sem apagar o que "deve tocar".
+- A trilha depende de dois relógios: `inicioMs` (da sala) e `servidorMs` (refeito a cada cópia). Quem muda `visaoPara` ou `eventoPara` sem refazer o `servidorMs` desalinha a trilha de quem entra no meio.
+- O som da zona chega ao jogador por mensagem própria (`som.zona`), calculada depois de **todo** `distribuir` e de cada snapshot. Não ponha o hash do som da zona no snapshot nem em evento: é o que mantém a zona secreta. O nome do arquivo também não sai (`asset.pedir` troca por "som" para o jogador).
+- O efeito de som é um evento que não muda o estado: o `snapshotPara: "todos"` o engoliria, por isso `distribuir` o reenvia depois do snapshot. Não existe replay de eventos na reconexão: quem estava fora não ouve o efeito (certo).
+- Autoplay: o navegador recusa `play()` até um gesto; o motor guarda `bloqueado` e `ativar()` refaz tudo. O gancho de teste `simularBloqueio` finge o bloqueio (o Chrome do Playwright costuma deixar tocar).
+- O gancho `__tabletopSom.estado()` informa o que o motor DEVE estar tocando (volume final já com as preferências): não prova que saiu som da caixa.
+- Os E2E precisam esperar a meta do som no navegador (`esperarHashDoSom`) antes de usar o hash.
+- Problema antigo notado, fora do N5: `armazenamento.ts` apaga `colecao = 'handouts'` no `zona.apagada` (parece que deveria ser `'zonas'`). Confira antes de mexer.
+
+**Suposições**: ver `docs/REDESIGN.md`, "N5 — como ficou".
+
 ## 12-3 (2026-11-13): o MCP na própria sala, por HTTP
 **Onde mexer**
 - `apps/server/src/sala.ts`: `tratarIntencao(remetente, intencao)` é **o único** tratamento de intenção (WebSocket: `webSocketMessage` só lê, chama e responde; HTTP: `conexaoDoMcp` chama com `ws: null`). `rotaMcp` é a rota; `visaoDe(usuario)` é o snapshot do usuário (o WebSocket e as ferramentas leem o mesmo). `apps/server/src/index.ts`: `caminhoInterno` (`mcp` só POST) e o 405.

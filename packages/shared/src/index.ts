@@ -42,6 +42,8 @@ export * from "./relogio.ts";
 export * from "./reordenar.ts";
 export * from "./rolagens.ts";
 export * from "./semente.ts";
+export * from "./som.ts";
+export * from "./somnucleo.ts";
 export * from "./srd/index.ts";
 export * from "./uso.ts";
 export * from "./visao.ts";

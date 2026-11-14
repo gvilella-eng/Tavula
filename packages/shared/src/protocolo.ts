@@ -88,6 +88,13 @@ import {
 } from "./pastas.ts";
 import { ItemDeRascunhoSchema, MAXIMO_DE_ITENS_POR_PEDIDO } from "./rascunhos.ts";
 import { EspacoDoPedidoSchema, PedidoDeModeloSchema } from "./rolagens.ts";
+import {
+  AlvoDoEfeitoSchema,
+  SomTocandoSchema,
+  TrilhaDaCenaSchema,
+  TrilhaSchema,
+  VolumeSchema,
+} from "./som.ts";
 import { MudancasDaZonaSchema, ZonaNovaSchema, ZonaSchema } from "./zonas.ts";
 
 export const VERSAO_PROTOCOLO = 1;
@@ -674,6 +681,8 @@ export const IntencaoSchema = z.discriminatedUnion("tipo", [
       mostrarParedesAosJogadores: z.boolean().optional(),
       /** V10c: transforma a cena em cartão (`true`) ou a devolve a mapa (`false`). */
       cartao: z.boolean().optional(),
+      /** N5: a trilha padrão da cena (um asset `som` já registrado); `null` a tira. */
+      trilha: TrilhaDaCenaSchema.nullable().optional(),
     }),
   ),
   /**
@@ -931,6 +940,14 @@ export const IntencaoSchema = z.discriminatedUnion("tipo", [
    */
   intencao("compendio.definir", z.object({ compendio: CompendioDaMesaSchema.nullable() })),
   /**
+   * N5 (som ambiente), só o mestre (`som.controlar`). `som.trilha` põe a trilha (um som por vez, em laço) com o asset `som`
+   * já registrado; o mesmo som de novo só muda o volume (a trilha não recomeça). `som.parar` a tira. `som.efeito` toca um
+   * som uma vez para todos (transitório: não muda o estado, só chega a quem ouve).
+   */
+  intencao("som.trilha", z.object({ hash: HashSchema, volume: VolumeSchema })),
+  intencao("som.parar", SemDados),
+  intencao("som.efeito", z.object({ hash: HashSchema, volume: VolumeSchema })),
+  /**
    * Automações (7b-1, seção 4.11). Todas só do mestre (`automacao.editar`). `ciclo.criar` com `pausado`
    * cria o ciclo parado no começo (sem ele, roda assim que a mesa corre). Editar o período ou as fases
    * reinicia o ciclo (mantendo-o pausado, se estava).
@@ -1120,6 +1137,9 @@ export const capacidadeDaIntencao: Record<TipoIntencao, Capacidade | null> = {
   "desenho.limpar": "cena.editar",
   "desenho.rascunho": "desenho.criar",
   "compendio.definir": "mesa.configurar",
+  "som.trilha": "som.controlar",
+  "som.parar": "som.controlar",
+  "som.efeito": "som.controlar",
   // 7b-1: automações são dado do mestre (regra 7): nenhuma é delegável.
   "ciclo.criar": "automacao.editar",
   "ciclo.editar": "automacao.editar",
@@ -1290,6 +1310,16 @@ export const EventoSalaSchema = z.discriminatedUnion("tipo", [
   ),
   /** O compêndio da mesa mudou (`null`: sem compêndio). Todos recebem; é só a referência ao asset. */
   eventoDe("compendio.alterado", z.object({ compendio: CompendioDaMesaSchema.nullable() })),
+  /** N5: a trilha mudou (`null`: parou). Todos recebem; o `servidorMs` é refeito para cada um. */
+  eventoDe("som.trilhaAlterada", z.object({ trilha: TrilhaSchema.nullable() })),
+  /**
+   * N5: um efeito de som, uma vez (não muda o estado). A sala só o entrega a quem ouve (`efeitoChegaPara`); quem recebe vê
+   * sempre `alvo: todos` (nunca a cena nem o token por trás).
+   */
+  eventoDe(
+    "som.efeitoTocado",
+    z.object({ hash: HashSchema, volume: VolumeSchema, alvo: AlvoDoEfeitoSchema }),
+  ),
   /** Uma mensagem do chat, filtrada: quem não pode vê-la nunca a recebe. */
   eventoDe("chat.mensagem", z.object({ mensagem: MensagemSchema })),
   /** O mestre limpou o chat: todos esvaziam a conversa. */
@@ -1433,6 +1463,11 @@ export const MensagemDaSalaSchema = z.discriminatedUnion("tipo", [
    * V12: um ping no mapa (transitório: sem `seq`, não é gravado nem entra no histórico). Vai a quem vê a cena,
    * inclusive a quem pingou; `cor` é a do usuário, resolvida na sala.
    */
+  /**
+   * N5: os sons de zona que ESTE jogador ouve agora (os das zonas onde os tokens dele estão). Transitório e só dele:
+   * leva o som, nunca a zona (forma, nome, regras). A lista vazia manda parar.
+   */
+  mensagemDaSala("som.zona", z.object({ sons: z.array(SomTocandoSchema).max(50) })),
   mensagemDaSala(
     "mapa.pingado",
     z.object({

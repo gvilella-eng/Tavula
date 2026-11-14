@@ -7,6 +7,7 @@ import {
   MousePointer2,
   Ruler,
   SquareDashed,
+  Volume2,
 } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import type { IdDoAtalho } from "./atalhos";
@@ -35,6 +36,9 @@ type Props = {
   aoAlternarZonas: () => void;
   /** Névoa (N4, só do mestre, fora do "ver como"): liga e desliga a ferramenta. */
   aoAlternarNevoa: () => void;
+  /** Som (N5, só do mestre, fora do "ver como"): abre e fecha o painel de som. */
+  aoAlternarSom: () => void;
+  somAberto: boolean;
 };
 
 const MOTIVO_SEM_PINCEL = "Pincel desligado: o mestre tirou de você a permissão de desenhar.";
@@ -174,6 +178,17 @@ export function BarraDeFerramentas(p: Props) {
               }}
             >
               <CloudFog size={20} />
+            </Botao>
+            <Botao
+              testid="ferramenta-som"
+              nome="Som"
+              ativo={p.somAberto}
+              aoClicar={() => {
+                setDadosAbertos(false);
+                p.aoAlternarSom();
+              }}
+            >
+              <Volume2 size={20} />
             </Botao>
           </>
         )}

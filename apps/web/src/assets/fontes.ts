@@ -153,6 +153,43 @@ export class Fontes {
     return listas.flat();
   }
 
+  /** Sons escolhidos à mão nesta sessão (para quem não tem seletor de pasta, ou escolhe um arquivo fora dela). */
+  private sonsSoltos: File[] = [];
+
+  /** N5: os sons que o mestre pode usar agora: os da pasta (se autorizada) e os escolhidos à mão. */
+  async listarSons(): Promise<ArquivoDaFonte[]> {
+    const lista: ArquivoDaFonte[] = [];
+    if (this.pasta && this.estadoDaPasta === "autorizada") {
+      try {
+        lista.push(...(await this.pasta.listarSons()));
+      } catch {
+        // pasta sumiu ou perdeu a permissão: ficam só os escolhidos à mão
+      }
+    }
+    for (const f of this.sonsSoltos) {
+      lista.push({
+        id: `som-solto:${f.name}:${f.size}:${f.lastModified}`,
+        nome: f.name,
+        caminho: f.name,
+        tamanho: f.size,
+        abrir: async () => f,
+      });
+    }
+    return lista.sort((a, b) => a.caminho.localeCompare(b.caminho, "pt-BR"));
+  }
+
+  /** Guarda um som escolhido à mão (sem repetir o mesmo arquivo) e avisa quem observa. */
+  adicionarSomSolto(arquivo: File): void {
+    const igual = this.sonsSoltos.some(
+      (a) =>
+        a.name === arquivo.name &&
+        a.size === arquivo.size &&
+        a.lastModified === arquivo.lastModified,
+    );
+    if (!igual) this.sonsSoltos = [...this.sonsSoltos, arquivo];
+    this.mudou();
+  }
+
   adicionarSoltos(arquivos: Iterable<File>): void {
     this.soltos.adicionar(arquivos);
     this.mudou();

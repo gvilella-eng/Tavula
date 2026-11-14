@@ -44,6 +44,8 @@ const ROTULO: Record<string, string> = {
   alvo: "Alvo",
   modeloId: "Modelo",
   ids: "Tokens",
+  hash: "Som",
+  volume: "Volume",
 };
 
 const NOME_DO_TIPO: Record<string, string> = {

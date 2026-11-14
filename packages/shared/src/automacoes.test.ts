@@ -164,7 +164,7 @@ const objeto = (e: Estado, id: string) => e.luzes.find((l) => l.id === id);
 const nomes = (eventos: EventoSala[]) => eventos.map((e) => e.tipo);
 
 describe("os schemas das automações", () => {
-  it("uma ação fora da lista é recusada (sem código livre, sem som.tocar; zona.ativar pede o ligar ou desligar)", () => {
+  it("uma ação fora da lista é recusada (sem código livre; som.tocar pede o som; zona.ativar pede o ligar ou desligar)", () => {
     expect(AcaoSchema.safeParse({ acao: "som.tocar", arquivo: "x.mp3" }).success).toBe(false);
     expect(AcaoSchema.safeParse({ acao: "zona.ativar", zona: "z" }).success).toBe(false);
     expect(AcaoSchema.safeParse({ acao: "zona.ativar", zona: "z", ativa: true }).success).toBe(

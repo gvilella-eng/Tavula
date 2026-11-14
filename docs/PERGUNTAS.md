@@ -219,3 +219,7 @@ Sem pergunta nova para o Vilella: ele aprovou o plano do MCP. As suposições do
 ## 12-2: o servidor MCP (2026-11-13)
 
 Sem pergunta nova para o Vilella: ele aprovou o plano do MCP. As suposições do lote estão em `docs/REDESIGN.md`, "12-2 — como ficou" (todas com "(assumido)"). As que mais valem uma olhada: o MCP não leva o grupo para outra cena, não dispara eventos nem aperta botões (são ações ao vivo, só a pessoa pela mesa); o tamanho da cena não se muda (60 x 45 m); o compêndio do MCP é o arquivo do computador e não tem monstros (o NPC se monta por partes); "criar ou editar" é decidido pelo nome exato; a nota nova do mestre nasce só para ele; e o comando do Claude Code usa o caminho relativo `apps/mcp/dist/tavola-mcp.mjs` (rode na pasta do Távola).
+
+## N5: som ambiente (2026-11-14)
+
+Sem pergunta nova para o Vilella: ele aprovou o plano do som. As suposições do lote estão em `docs/REDESIGN.md`, "N5 — como ficou" (todas com "(assumido)"). A mais visível: os efeitos e os sons de zona só baixam na primeira vez que tocam (a zona é secreta, então não dá para adiantar sem dizer que ela existe).

@@ -11,6 +11,8 @@ import {
   type MensagemDaSala,
   type MetaNova,
   metaDoCifrado,
+  mimeDeSomValido,
+  mimeDoSomPeloNome,
   montarFrameDePedaco,
   type Pacote,
   pedacoConfere,
@@ -673,6 +675,47 @@ export class GerenteDeAssets {
     canal.enviar("asset.tenho", { hash });
     this.mudou();
     return hash;
+  }
+
+  /**
+   * Som ambiente (N5), só no mestre: confere o formato (mp3, ogg ou wav) e o tamanho (até 20 MB), guarda no cache,
+   * registra como asset `som` (a sala só recebe a meta; os bytes saem por pedaços, quando alguém pedir) e avisa que
+   * tenho. Devolve o hash e o nome. O mesmo arquivo registrado de novo dá o mesmo hash.
+   */
+  async registrarSom(arquivo: File): Promise<{ hash: string; nome: string }> {
+    const canal = this.d.canal();
+    if (!canal?.conectado()) throw new Error("Sem conexão com a sala.");
+    const mime = mimeDeSomValido(arquivo.type) ? arquivo.type : mimeDoSomPeloNome(arquivo.name);
+    if (mime === null || !mimeDeSomValido(mime)) throw new Error("Só mp3, ogg e wav.");
+    if (arquivo.size <= 0) throw new Error("O arquivo está vazio.");
+    if (arquivo.size > LIMITES_DE_ASSET.bytesDoSom)
+      throw new Error("Som grande demais (até 20 MB).");
+    const bytes = new Uint8Array(await arquivo.arrayBuffer());
+    const hash = await sha256Hex(bytes);
+    const nome = arquivo.name.replace(/\.[^.]+$/, "").slice(0, 200) || "Som";
+    const meta: MetaNova = {
+      hash,
+      tipo: "som",
+      mime,
+      bytes: bytes.length,
+      largura: 1,
+      altura: 1,
+      nomeOriginal: arquivo.name.slice(0, 200) || "som",
+      pedacos: await hashesDosPedacos(dividirEmPedacos(bytes)),
+    };
+    if (!this.completos.has(hash)) {
+      await this.d.cache.gravarArquivo(hash, bytes as BufferSource);
+      this.completos.add(hash);
+    }
+    await this.guardarMeta({ ...meta, donoId: this.d.meuId });
+    this.persistir();
+    if (canal.enviar("asset.registrar", { metas: [meta] }) === null) {
+      throw new Error("Sem conexão com a sala.");
+    }
+    canal.enviar("asset.tenho", { hash });
+    this.mudou();
+    this.prontosMudaram();
+    return { hash, nome };
   }
 
   /** O texto de um arquivo que já está no cache (o compêndio); `null` se ainda não chegou. */

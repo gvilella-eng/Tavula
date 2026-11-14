@@ -9,6 +9,7 @@ import { entrarNoMapa } from "./ajudasMapa";
 const ORDEM = [
   "Conta",
   "Aparência",
+  "Som",
   "No mapa",
   "Ajuda e arquivos",
   "Conectar o Claude",
@@ -26,7 +27,7 @@ test("a ordem das seções e só a Conta aberta por padrão; sem login, sem Segu
   expect(await titulos(p)).toEqual(ORDEM);
   await expect(p.getByTestId("pref-secao-seguranca")).toHaveCount(0);
   await expect(p.getByTestId("pref-secao-conta-titulo")).toHaveAttribute("aria-expanded", "true");
-  for (const id of ["aparencia", "mapa", "ajuda", "claude", "atalhos"]) {
+  for (const id of ["aparencia", "som", "mapa", "ajuda", "claude", "atalhos"]) {
     await expect(p.getByTestId(`pref-secao-${id}-titulo`)).toHaveAttribute(
       "aria-expanded",
       "false",
@@ -121,19 +122,20 @@ test("os resumos acompanham o estado: mapa, aparência e Claude", async ({ mesa 
   await expect(p.getByTestId("pref-resumo-claude")).toHaveText("2 tokens");
 });
 
-test("a marca 'só neste navegador' aparece em Aparência, No mapa e na pasta local", async ({
+test("a marca 'só neste navegador' aparece em Aparência, Som, No mapa e na pasta local", async ({
   mesa,
 }) => {
   const p = (await entrarNoMapa(mesa, "jogador-1")).pagina;
   await abrirPreferencia(p, "aparencia");
+  await abrirPreferencia(p, "som");
   await abrirPreferencia(p, "mapa");
   await abrirPreferencia(p, "ajuda");
-  for (const id of ["aparencia", "mapa", "ajuda"]) {
+  for (const id of ["aparencia", "som", "mapa", "ajuda"]) {
     await expect(
       p.getByTestId(`pref-secao-${id}`).getByTestId("pref-marca-navegador"),
     ).toBeVisible();
   }
-  await expect(p.getByTestId("pref-marca-navegador")).toHaveCount(3);
+  await expect(p.getByTestId("pref-marca-navegador")).toHaveCount(4);
   await expect(p.getByTestId("pref-marca-navegador").first()).toHaveText("só neste navegador");
   // Conta, Claude e Atalhos não levam a marca
   await expect(p.getByTestId("pref-secao-conta").getByTestId("pref-marca-navegador")).toHaveCount(

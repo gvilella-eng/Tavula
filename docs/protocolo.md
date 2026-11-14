@@ -826,7 +826,7 @@ delegável: o jogador que a mande recebe `sem_permissao`.
 `visao.limitar` (`alcanceM`, `porS?`, `alvo?`), `chat.anunciar` (`texto`, `para`: `todos` ou `mestre`), `token.mostrar`,
 `token.ocultar` (`alvo?`), `zona.ativar` (`zona?`, `ativa`; 7b-2) e `evento.disparar` (`evento`, `atrasoS?`). **Condições** (`condicao`): `chance`
 (`valor`), `tag` (`tag`), `cena` (`cenas`) e `dentroDaZona` (`zona?`; 7b-2). Sem `porS`, o prazo é o `duracaoS` da fase do ciclo; sem ele, 30 s.
-`som.tocar` não existe (fora do 7b).
+`som.tocar` (N5): `hash`, `nome`, `volume?` (0 a 1, padrão 0,8) e `para?` (`todos`, `cena` ou `token`; padrão `todos`), toca um efeito uma vez (ver "Som ambiente (N5)").
 
 **Eventos** que as reações ouvem: os das fases dos ciclos (nome livre), o manual, e os do sistema `objeto.acendeu`,
 `objeto.apagou`, `turno.inicio`, `cena.ativada`, `token.entrouNaZona` e `token.saiuDaZona` (7b-2). Tudo roda **na sala**: depois de cada intenção que mudou algo e quando o alarme
@@ -874,6 +874,25 @@ conferem que nenhum frame do jogador traz a zona.
 
 **Guardar.** Coleção nova `zonas` da tabela genérica `entidades` do SQLite (sem migração: o banco antigo não a tem e carrega sem zona). A exportação leva `zonas` (campo
 opcional; a versão do arquivo continua 13) e a importação confere ids únicos e cenas conhecidas. Duplicar a cena leva as zonas dela, com as reações (ids novos).
+
+### Som ambiente (N5)
+
+Os arquivos de áudio (mp3, ogg e wav, até 20 MB) são assets do tipo `som`, registrados só pelo mestre (`asset.registrar`, `largura` e `altura` 1 x 1; `validarMeta` confere o MIME e o tamanho) e transferidos por pedaços como as imagens. Qualquer jogador pode pedi-los, mas o `asset.meta` que ele recebe leva `nomeOriginal: "som"`. A sala guarda só a referência.
+
+| Intenção | `dados` | Efeito |
+|---|---|---|
+| `som.trilha` | `{ hash, volume }` | Capacidade `som.controlar` (só do mestre; não delegável). Põe a trilha (um som por vez, em laço). Recusa: `asset_inexistente` se não é um asset `som`. O mesmo som de novo só muda o volume (não recomeça) |
+| `som.parar` | `{}` | Tira a trilha |
+| `som.efeito` | `{ hash, volume }` | Toca um som uma vez, para todos. Não muda o estado |
+| `cena.editar` | `{ cenaId, trilha: { hash, nome, volume } \| null }` | (`cena.editar`) a trilha padrão da cena; `grupo.moverPara` a começa se a cena a tem e ela não é a que já toca |
+
+**Estado.** `Estado.trilha { hash, nome, volume (0 a 1), inicioMs, servidorMs? }` (opcional). `inicioMs` é o relógio real da sala quando a trilha começou; `servidorMs` é o relógio da sala no instante em que aquela cópia foi montada (a sala o refaz em cada snapshot e em cada `som.trilhaAlterada` que entrega). Com ele o navegador calcula o desvio dos relógios e o ponto do laço; quem entra no meio ouve do ponto em que a trilha está. `Cena.trilha { hash, nome, volume }` e `EfeitosDaZona.som { hash, nome, volume, laco }` (padrão `laco: true`) são campos opcionais: o banco e os arquivos antigos carregam sem eles.
+
+**Eventos.** `som.trilhaAlterada { trilha | null }` (todos; muda o estado) e `som.efeitoTocado { hash, volume, alvo }` (não muda o estado; `alvo`: `todos`, `{ cena }` ou `{ token }`). A sala só o entrega a quem ouve (`efeitoChegaPara`): o mestre sempre; o jogador os de `todos`, os da cena do grupo e os do token que controla, e **sempre com `alvo: todos`** (nunca a cena nem o token por trás). Se a intenção também manda um snapshot novo, o efeito é reenviado logo depois dele.
+
+**Mensagem da sala `som.zona { sons: [{ hash, volume, laco }] }`** (transitória: sem `seq`, não é gravada). Só o jogador a recebe, só quando a lista dele muda, e a lista vazia manda parar. É o som das zonas ligadas e publicadas onde há um token que ele controla (o mesmo som em duas zonas vale uma vez, no volume maior). **Sigilo (nota de segurança):** a zona nunca viaja: nada de id, forma, nome, efeitos ou reações; o jogador sabe que há um som a tocar, não de onde ele vem. O teste de unidade (`som.test.ts`) e o E2E (`som-n5.spec.ts`) conferem que nenhum frame do jogador traz a zona.
+
+**Guardar.** A trilha mora na chave `trilha` da tabela `meta` do SQLite (sem migração). A exportação leva `Cena.trilha`, o som das zonas e as metas dos sons usados (`hashesUsados`), nunca os bytes; `Estado.trilha` fica fora da exportação.
 
 ### Botões das automações (Lote 7b-3)
 

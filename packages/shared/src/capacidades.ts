@@ -30,6 +30,7 @@ export const CAPACIDADES_DO_MESTRE = [
   "campanha.exportar",
   "campanha.importar",
   "combate.gerir",
+  "som.controlar",
 ] as const;
 
 export type CapacidadeDelegavel = (typeof CAPACIDADES_DELEGAVEIS)[number];

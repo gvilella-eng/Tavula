@@ -849,3 +849,48 @@ describe("Armazenamento: névoa pintada à mão do N4", () => {
     expect(depois.carregar()?.cenas.find((c) => c.id === "cena-1")?.nevoa).toBeUndefined();
   });
 });
+
+describe("Armazenamento: a trilha do N5 (som ambiente)", () => {
+  const TRILHA = {
+    hash: "c".repeat(64),
+    nome: "taverna",
+    volume: 0.5,
+    inicioMs: 1_700_000_000_000,
+  };
+  const evento = (trilha: typeof TRILHA | null, seq: number): EventoSala => ({
+    seq,
+    origem: { usuarioId: "mestre", idPedido: "p" },
+    tipo: "som.trilhaAlterada",
+    dados: { trilha },
+  });
+
+  it("banco antigo (sem a chave `trilha`) abre sem trilha e sem migração nova", async () => {
+    const { sql } = await abrirBanco();
+    const original = new Armazenamento(sql as never);
+    original.migrar();
+    original.salvarTudo(estadoInicial(semente));
+    sql.exec("DELETE FROM meta WHERE chave = 'trilha'");
+    const reaberto = new Armazenamento(sql as never);
+    reaberto.migrar();
+    expect(reaberto.carregar()?.trilha).toBeUndefined();
+    expect(reaberto.carregar()?.tokens.length).toBeGreaterThan(3);
+  });
+
+  it("a trilha volta do SQLite, some ao parar e o valor ilegível vira sem trilha", async () => {
+    const { sql } = await abrirBanco();
+    const banco = new Armazenamento(sql as never);
+    banco.migrar();
+    const base = estadoInicial(semente);
+    banco.salvarTudo(base);
+    banco.salvarEventos({ ...base, seq: 1, trilha: TRILHA }, [evento(TRILHA, 1)]);
+    const reaberto = new Armazenamento(sql as never);
+    reaberto.migrar();
+    expect(reaberto.carregar()?.trilha).toEqual(TRILHA);
+    reaberto.salvarEventos({ ...base, seq: 2 }, [evento(null, 2)]);
+    expect(reaberto.carregar()?.trilha).toBeUndefined();
+    reaberto.gravarMeta("trilha", "{ não é json");
+    expect(reaberto.carregar()?.trilha).toBeUndefined();
+    reaberto.gravarMeta("trilha", JSON.stringify({ hash: "curto" }));
+    expect(reaberto.carregar()?.trilha).toBeUndefined();
+  });
+});

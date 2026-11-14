@@ -3729,4 +3729,25 @@ Ver `REDESIGN.md` ("N4") e `PASSAGEM.md` ("N4"). A névoa não é segredo: o que
 ### Roteiro manual
 `docs/ROTEIRO-DE-TESTES.md`, "N4".
 
-## Próximo: o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b e N4
+## Ajustes N5 — Som ambiente: trilha, efeitos, som por zona e `som.tocar` (entregue, aguardando o roteiro manual)
+
+### O que foi entregue
+- Asset `som` (mp3, ogg e wav, até 20 MB) que sai da pasta local do mestre e chega aos jogadores por pedaços, como as imagens.
+- Painel **Som** do mestre: trilha (um som por vez, em laço, volume, parar, troca suave de 2 s), trilha padrão da cena (começa ao levar o grupo) e efeitos (um clique, uma vez). Listas com busca.
+- **Som enquanto dentro** na zona: quem tem token dentro ouve, com fade; o jogador nunca recebe a zona (só `som.zona` com hash, volume e laço).
+- Ação **`som.tocar`** nas automações (todos, quem vê a cena ou quem controla o token do evento) e o formulário dela no editor.
+- **Preferências → Som** (volume geral, trilha, efeitos, silenciar tudo, tudo só neste navegador) e o aviso "Clique para ativar o som da mesa".
+
+### Como rodar
+`pnpm dev` como sempre. **Sem migração de banco**: a trilha mora na chave `trilha` da tabela `meta` (como o compêndio). Nenhuma dependência nova. Para ouvir de verdade: ponha mp3, ogg ou wav na pasta de imagens da mesa (qualquer subpasta, de preferência `sons/`) e abra Som na barra à esquerda; ou use "Escolher arquivo…".
+
+### Verificação
+Unidade: `packages/shared/src/som.test.ts` (22: formato e tamanho, quem registra, trilha e relógio, trilha da cena e `grupo.moverPara`, efeitos e quem ouve, volume, som por zona e quem ouve, sigilo da zona, `som.tocar` no motor, exportar e importar) e o fim de `apps/server/src/armazenamento.test.ts` (trilha no SQLite, banco antigo). E2E: `e2e/tests/som-n5.spec.ts` (4 testes, com wavs de silêncio gerados no teste e o gancho `window.__tabletopSom`). Alterado: `p1.spec.ts` (a seção Som entra na ordem e na marca "só neste navegador").
+
+### Decisões, frágil e desvios
+Ver `REDESIGN.md` ("N5") e `PASSAGEM.md` ("N5"). Desvio: os jogadores só baixam antes a trilha que toca e a trilha das cenas; efeitos e sons de zona baixam na primeira vez.
+
+### Roteiro manual
+`docs/ROTEIRO-DE-TESTES.md`, "N5".
+
+## Próximo: o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b, N4 e N5

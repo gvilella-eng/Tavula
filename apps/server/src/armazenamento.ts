@@ -38,6 +38,8 @@ import {
   type RelogioSala,
   RelogioSalaSchema,
   type Token,
+  type Trilha,
+  TrilhaSchema,
   type Usuario,
   type Zona,
   ZonaSchema,
@@ -391,6 +393,7 @@ export class Armazenamento {
       ...this.carregarMapa(),
       ...this.carregarCombate(),
       ...this.carregarCompendio(),
+      ...this.carregarTrilha(),
       ...this.carregarAutomacoes(),
       ...this.carregarZonas(),
       desenhos: this.carregarDesenhos(),
@@ -536,6 +539,23 @@ export class Armazenamento {
     }
   }
 
+  /** N5: a trilha que toca, na tabela `meta` (chave `trilha`, sem migração: o banco antigo não a tem = sem trilha). */
+  private carregarTrilha(): { trilha?: Trilha } {
+    const bruto = this.lerMeta("trilha");
+    if (bruto === null) return {};
+    try {
+      const r = TrilhaSchema.safeParse(JSON.parse(bruto));
+      return r.success ? { trilha: r.data } : {};
+    } catch {
+      return {};
+    }
+  }
+
+  private gravarTrilha(trilha: Trilha | undefined): void {
+    if (trilha === undefined) this.sql.exec("DELETE FROM meta WHERE chave = 'trilha'");
+    else this.gravarMeta("trilha", JSON.stringify(trilha));
+  }
+
   private gravarCompendio(compendio: CompendioDaMesa | undefined): void {
     if (compendio === undefined) this.sql.exec("DELETE FROM meta WHERE chave = 'compendio'");
     else this.gravarMeta("compendio", JSON.stringify(compendio));
@@ -643,6 +663,7 @@ export class Armazenamento {
     this.gravarMeta("ordem_de_turno", estado.ordemDeTurnoVisivel ? "1" : "0");
     this.gravarCombate(estado.combate);
     this.gravarCompendio(estado.compendio);
+    this.gravarTrilha(estado.trilha);
     this.gravarAutomacoes(estado);
     this.sql.exec("DELETE FROM desenhos");
     for (const d of estado.desenhos) this.gravarDesenho(d);
@@ -764,6 +785,9 @@ export class Armazenamento {
           break;
         case "combate.alterado":
           this.gravarCombate(estado.combate);
+          break;
+        case "som.trilhaAlterada":
+          this.gravarTrilha(estado.trilha);
           break;
         case "compendio.alterado":
           this.gravarCompendio(estado.compendio);

@@ -134,6 +134,8 @@ import {
   listarRascunhos,
 } from "./rascunhos.ts";
 import { marcoDoRelogio, restanteDoObjeto, tempoDaSala } from "./relogio.ts";
+import type { Trilha } from "./som.ts";
+import { efeitoChegaPara } from "./somnucleo.ts";
 import {
   type ContextoDeTochas,
   mochilaAjustar,
@@ -268,6 +270,11 @@ function metaDoAsset(estado: Estado, hash: string): AssetMeta | undefined {
   return estado.assets?.find((a) => a.hash === hash);
 }
 
+/** O nome que a trilha mostra: o do arquivo sem a extensão (até 200 caracteres). */
+function nomeDoSom(meta: AssetMeta): string {
+  return meta.nomeOriginal.replace(/\.[^.]+$/, "").slice(0, 200) || "Som";
+}
+
 function imagemDeTokenExiste(estado: Estado, hash: string): boolean {
   const tipo = metaDoAsset(estado, hash)?.tipo;
   return tipo === "token" || tipo === "retrato";
@@ -351,6 +358,7 @@ export function criarExportacao(estado: Estado, agora: string): Exportacao {
   // O chat também: é registro da sessão, mora na tabela própria da sala e fica fora da exportação.
   const {
     memoriaEsquecida: _sessao,
+    trilha: _trilha,
     acendimentos: _pendentes,
     chat: _chat,
     retratosDoChat: _retratos,
@@ -925,6 +933,15 @@ export function reduzir(estado: Estado, evento: EventoSala): Estado {
         ? semCompendio
         : { ...semCompendio, compendio: evento.dados.compendio };
     }
+    case "som.trilhaAlterada": {
+      const { trilha: _antiga, ...semTrilha } = base;
+      return evento.dados.trilha === null
+        ? semTrilha
+        : { ...semTrilha, trilha: evento.dados.trilha };
+    }
+    case "som.efeitoTocado":
+      // Transitório: só chega a quem ouve; não muda nada no estado.
+      return base;
     case "asset.registrado": {
       const { meta } = evento.dados;
       const atuais = base.assets ?? [];
@@ -1357,11 +1374,15 @@ function processarIntencao(
         if (problema) return recusa("dados_invalidos", `Arquivo recusado: ${problema}.`);
         if (
           usuario.papel !== "mestre" &&
-          (m.tipo === "mapa" || m.tipo === "tile" || m.tipo === "cifrado" || m.tipo === "compendio")
+          (m.tipo === "mapa" ||
+            m.tipo === "tile" ||
+            m.tipo === "cifrado" ||
+            m.tipo === "compendio" ||
+            m.tipo === "som")
         ) {
           return recusa(
             "sem_permissao",
-            "Só o mestre registra mapas, arquivos cifrados e o compêndio.",
+            "Só o mestre registra mapas, arquivos cifrados, sons e o compêndio.",
           );
         }
         if (m.tiles) {
@@ -1870,15 +1891,20 @@ function processarIntencao(
     }
 
     case "cena.editar": {
-      const { cenaId, nome, chegada, mostrarParedesAosJogadores, cartao } = intencao.dados;
+      const { cenaId, nome, chegada, mostrarParedesAosJogadores, cartao, trilha } = intencao.dados;
       const atual = estado.cenas.find((c) => c.id === cenaId);
       if (!atual) return recusa("cena_inexistente", SEM_CENA);
+      if (trilha && metaDoAsset(estado, trilha.hash)?.tipo !== "som") {
+        return recusa("asset_inexistente", "Som não encontrado.");
+      }
       const {
         chegada: _antiga,
         mostrarParedesAosJogadores: _mostrar,
         cartao: _cartao,
+        trilha: _trilhaAntiga,
         ...semChegada
       } = atual;
+      const novaTrilha = trilha === undefined ? atual.trilha : (trilha ?? undefined);
       const nova = chegada === undefined ? atual.chegada : (chegada ?? undefined);
       // Sem o campo (ou desligado) os jogadores não veem os contornos: só gravamos quando liga.
       const mostrar = mostrarParedesAosJogadores ?? atual.mostrarParedesAosJogadores ?? false;
@@ -1889,6 +1915,7 @@ function processarIntencao(
         ...(nova ? { chegada: limitarNaCena(nova, atual) } : {}),
         ...(mostrar ? { mostrarParedesAosJogadores: true } : {}),
         ...(ehCartao ? { cartao: true } : {}),
+        ...(novaTrilha ? { trilha: novaTrilha } : {}),
       };
       if (JSON.stringify(cena) === JSON.stringify(atual)) return aplicado();
       emitir({ tipo: "cena.editada", dados: { cena } });
@@ -2081,6 +2108,14 @@ function processarIntencao(
           })),
         },
       });
+      // N5: a trilha padrão da cena começa ao levar o grupo (a mesma que já toca segue, sem recomeçar).
+      const padrao = destino.trilha;
+      if (padrao && proximo.trilha?.hash !== padrao.hash) {
+        emitir({
+          tipo: "som.trilhaAlterada",
+          dados: { trilha: { ...padrao, inicioMs: agoraMs, servidorMs: agoraMs } },
+        });
+      }
       return { ...aplicado("todos"), grupoMovido: { cenaId: destino.id } };
     }
 
@@ -2673,6 +2708,36 @@ function processarIntencao(
       return aplicado();
     }
 
+    case "som.trilha": {
+      const { hash, volume } = intencao.dados;
+      const meta = metaDoAsset(estado, hash);
+      if (meta?.tipo !== "som") return recusa("asset_inexistente", "Som não encontrado.");
+      const atual = estado.trilha;
+      // O mesmo som de novo só muda o volume: a trilha não recomeça.
+      const trilha: Trilha =
+        atual?.hash === hash
+          ? { ...atual, volume, servidorMs: agoraMs }
+          : { hash, nome: nomeDoSom(meta), volume, inicioMs: agoraMs, servidorMs: agoraMs };
+      if (atual?.hash === hash && atual.volume === volume) return aplicado();
+      emitir({ tipo: "som.trilhaAlterada", dados: { trilha } });
+      return aplicado();
+    }
+
+    case "som.parar": {
+      if (estado.trilha === undefined) return aplicado();
+      emitir({ tipo: "som.trilhaAlterada", dados: { trilha: null } });
+      return aplicado();
+    }
+
+    case "som.efeito": {
+      const { hash, volume } = intencao.dados;
+      if (metaDoAsset(estado, hash)?.tipo !== "som") {
+        return recusa("asset_inexistente", "Som não encontrado.");
+      }
+      emitir({ tipo: "som.efeitoTocado", dados: { hash, volume, alvo: { tipo: "todos" } } });
+      return aplicado();
+    }
+
     case "campanha.exportar":
       return {
         ok: true,
@@ -2840,7 +2905,17 @@ function contextoDeLuz(e: Estado) {
  */
 export function visaoPara(estado: Estado, usuario: Visao, agoraMs?: number): Estado {
   const agora = agoraMs ?? agoraPadrao(estado);
-  const { acendimentos: _pendentes, retratosDoChat: _retratos, ...semPendencias } = estado;
+  const {
+    acendimentos: _pendentes,
+    retratosDoChat: _retratos,
+    trilha: trilhaDaSala,
+    ...semTrilha
+  } = estado;
+  // N5: a trilha vai com o relógio da sala de agora (o navegador calcula o desvio e o ponto em que a trilha está).
+  const semPendencias: Estado = {
+    ...semTrilha,
+    ...(trilhaDaSala ? { trilha: { ...trilhaDaSala, servidorMs: agora } } : {}),
+  };
   // O histórico completo mora na sala: aqui só entra o que este usuário pode ver (as últimas 200).
   const chat =
     estado.chat === undefined ? {} : { chat: chatParaUsuario(estado.chat, usuario, estado.config) };
@@ -2950,6 +3025,17 @@ export function eventoPara(
       const config = (depois ?? antes)?.config ?? { tempoParaJogadores: "oculto" as const };
       const visto = mensagemParaUsuario(evento.dados.mensagem, usuario, config);
       return visto ? { ...evento, dados: { mensagem: visto } } : null;
+    }
+    case "som.trilhaAlterada": {
+      // N5: a trilha é de todos; o relógio da sala vai refeito para a hora de agora.
+      const t = evento.dados.trilha;
+      return t === null ? evento : { ...evento, dados: { trilha: { ...t, servidorMs: agora } } };
+    }
+    case "som.efeitoTocado": {
+      // N5: só quem ouve recebe, e sempre como "para todos": o jogador não vê a cena nem o token por trás.
+      const ref = depois ?? antes;
+      if (!ref || !efeitoChegaPara(evento.dados.alvo, usuario, ref)) return null;
+      return { ...evento, dados: { ...evento.dados, alvo: { tipo: "todos" } } };
     }
     case "chat.limpo":
     case "compendio.alterado":

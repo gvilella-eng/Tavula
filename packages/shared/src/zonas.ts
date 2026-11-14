@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { Estado, ObjetoDeLuz, Ponto, Token } from "./estado.ts";
+import { SomDaZonaSchema } from "./som.ts";
 
 // ---------------------------------------------------------------------------------------------
 // Zonas (Lote 7b-2, seção 4.11, regra 6): polígonos de uma cena, só do mestre, com efeitos "enquanto
@@ -25,6 +26,8 @@ export const EfeitosDaZonaSchema = z.object({
   luzSomaM: z.number().min(-100).max(100).optional(),
   /** Limita o alcance de visão dos tokens dentro. */
   visaoMaxM: z.number().min(0.5).max(1000).optional(),
+  /** N5: um som que toca enquanto há um token dentro (só quem tem token dentro o ouve). */
+  som: SomDaZonaSchema.optional(),
 });
 export type EfeitosDaZona = z.infer<typeof EfeitosDaZonaSchema>;
 

@@ -483,6 +483,23 @@ O comando de **Preferências → Conectar o Claude** agora é uma linha só e fu
 10. **Duplicar e exportar.** Duplique a cena: a cópia tem a mesma névoa. Exporte a mesa e importe de novo: a névoa volta. Uma cena antiga, sem névoa, abre normal.
 11. **Pesado.** Pinte uns 100 traços de pincel seguidos: o mapa continua fluido. Passando de 300 traços, a sala avisa para usar Cobrir tudo ou Revelar tudo.
 
+## N5 — Som ambiente
+
+Antes: ponha dois ou três arquivos mp3, ogg ou wav na pasta de imagens da mesa (de preferência na subpasta `sons/`) ou tenha-os à mão. Abra a mesa em duas janelas: uma como mestre, outra como jogador. Na janela do jogador clique uma vez em qualquer lugar da página.
+
+1. **Abrir o painel.** Como mestre, clique em **Som** (alto-falante) na barra à esquerda. O painel tem Trilha, Efeitos e "Ouvir as zonas do token selecionado". O jogador não vê o botão.
+2. **Trilha.** Em Trilha, escolha um som da lista (ou "Escolher arquivo…"). Os dois ouvem a trilha em laço. Mexa no volume: muda para os dois. Escolha outro som: o primeiro some em cerca de 2 s enquanto o novo entra. **Parar** cala os dois.
+3. **Alinhamento.** Com a trilha tocando, entre numa terceira janela como outro jogador: ele ouve do ponto em que a trilha está (não do começo).
+4. **Efeitos.** Em Efeitos, clique num som: toca uma vez, nos dois. Clique de novo: toca outra vez. O volume dos efeitos é o do controle da seção.
+5. **Trilha da cena.** Com uma trilha tocando, em "Trilha desta cena" clique **Usar a que toca**, e depois Parar. Leve o grupo para outra cena e volte (Levar o grupo): a trilha da cena começa sozinha. **Tirar** desfaz.
+6. **Som na zona.** Ferramenta Zonas, selecione uma zona e, em "Som enquanto dentro", escolha um som (volume e "Repetir em laço"). Como jogador, mova o token para dentro da zona: o som entra com um fade; saia: ele some. O outro jogador, fora da zona, não ouve. O mestre ouve se ligar "Ouvir as zonas do token selecionado" e selecionar o token dentro da zona.
+7. **Sigilo.** Como jogador, confira que nada na tela diz que a zona existe (nome, forma, regras): só o som.
+8. **Automação.** Editor das automações, Nova reação, ação "Tocar um som": escolha o som, o volume e quem ouve (todos, quem está na cena ou quem controla o token do evento). Dispare o evento (botão ou ciclo): o som toca uma vez. Exemplo: a fase "inspiração" do Pulmão toca um sopro; entrar na zona do Ar Morto toca sussurros.
+9. **Preferências do jogador.** Aba Preferências → **Som**: o resumo mostra "Volume 80% · trilha ligada". Baixe o volume geral, o da trilha e o dos efeitos: só o som desta pessoa muda. **Silenciar tudo** cala tudo (o resumo vira "Tudo silenciado"); desmarcar volta.
+10. **Aviso de som.** Se o navegador bloquear o som (recarregue a página do jogador e não clique em nada antes da trilha tocar), aparece "Clique para ativar o som da mesa". Clique: o som começa. "Agora não" some com o aviso e não volta (o botão "Ativar o som da mesa" fica nas Preferências).
+11. **Exportar e importar.** Exporte a mesa e importe de novo: a trilha da cena, o som das zonas e as ações de som voltam (os arquivos continuam na sua pasta). Uma mesa antiga, sem som, abre normal.
+12. **Limites.** Tente um arquivo que não é mp3, ogg nem wav, ou maior que 20 MB: a lista recusa com uma mensagem clara.
+
 ## Se algo der errado
 - Anote a tela, o que fez e o que esperava, e mande para mim. Bug confirmado vai para `docs/BUGS.md`.
 - Para voltar à campanha de antes de mesas e contas, use a cópia de segurança indicada no topo.

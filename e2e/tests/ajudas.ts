@@ -69,6 +69,7 @@ export async function abrirAba(pagina: Page, id: string): Promise<void> {
 export type SecaoDePreferencias =
   | "conta"
   | "aparencia"
+  | "som"
   | "mapa"
   | "ajuda"
   | "claude"

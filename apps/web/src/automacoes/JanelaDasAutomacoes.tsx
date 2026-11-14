@@ -10,10 +10,12 @@ import {
 } from "@tabletop/shared";
 import { Pencil, Plus, Trash2, Workflow } from "lucide-react";
 import { type ReactNode, useState } from "react";
+import type { Fontes } from "../assets/fontes";
 import { BotaoComDica } from "../BotaoComDica";
 import { SeloDeRascunho } from "../claude/RascunhosDoClaude";
 import { MARGEM, noTopoAoCentro } from "../janelas/geometria";
 import { Janela } from "../janelas/Janela";
+import type { SomEscolhido } from "../som/EscolherSom";
 import { useTic } from "../tempo";
 import { FormularioDaReacao } from "./FormularioDaReacao";
 import { FormularioDoBotao } from "./FormularioDoBotao";
@@ -26,6 +28,9 @@ type Props = {
   estado: Estado;
   enviar: Enviar;
   salaMs: () => number | undefined;
+  /** N5: de onde vêm os sons e como adicionar um (a ação "Tocar um som"). */
+  fontes: Fontes;
+  registrarSom: (arquivo: File) => Promise<SomEscolhido>;
   aoFechar: () => void;
 };
 
@@ -53,11 +58,21 @@ const chaveDoGrupo = (f: Fica) => (f.tipo === "mesa" ? "mesa" : `${f.tipo}:${f.i
  * vivo), as reações (agrupadas por onde ficam), os eventos em uso e os botões de evento; cada peça tem um formulário
  * com o JSON ao lado. Só o mestre a vê.
  */
-export function JanelaDasAutomacoes({ estado, enviar, salaMs, aoFechar }: Props) {
+export function JanelaDasAutomacoes({
+  estado,
+  enviar,
+  salaMs,
+  fontes,
+  registrarSom,
+  aoFechar,
+}: Props) {
   const [vista, setVista] = useState<Vista>({ tipo: "lista" });
   const a = automacoesDe(estado);
   const opcoesDeCena = estado.cenas.map((c) => ({ id: c.id, nome: c.nome }));
   const eventos = eventosDoMestre(a);
+  const sonsDaMesa = (estado.assets ?? [])
+    .filter((m) => m.tipo === "som")
+    .map((m) => ({ hash: m.hash, nome: m.nomeOriginal.replace(/.[^.]+$/, "") }));
 
   const voltar = () => setVista({ tipo: "lista" });
 
@@ -128,6 +143,9 @@ export function JanelaDasAutomacoes({ estado, enviar, salaMs, aoFechar }: Props)
         modelos={estado.modelos.map((m) => ({ id: m.id, nome: m.nome }))}
         cenas={opcoesDeCena}
         zonas={(estado.zonas ?? []).map((z) => ({ id: z.id, nome: z.nome }))}
+        sons={sonsDaMesa}
+        fontes={fontes}
+        registrarSom={registrarSom}
         idsUsados={new Set(a.reacoes.map((r) => r.id))}
         eventos={eventos}
         aoSalvar={salvarReacao}

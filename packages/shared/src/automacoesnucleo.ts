@@ -28,6 +28,7 @@ import { cenaDoObjeto, tokenDoPersonagem } from "./luz.ts";
 import { cenaEhCartao } from "./paredes.ts";
 import type { CodigoDeErro, Intencao } from "./protocolo.ts";
 import { formatarDuracaoCurta, restanteDoObjeto, tempoDaSala } from "./relogio.ts";
+import type { AlvoDoEfeito } from "./som.ts";
 import { comHistorico, type ErroDaSala, type NovoEvento } from "./tochas.ts";
 import {
   entradasESaidas,
@@ -471,6 +472,38 @@ function aplicarAcao(
             visivelPara: acao.para === "mestre" ? { ids: [] } : "todos",
           },
         },
+      });
+      return;
+    }
+    case "som.tocar": {
+      const e = m.ctx.atual();
+      if (e.assets?.find((a) => a.hash === acao.hash)?.tipo !== "som") {
+        m.anotar(`${r.nome ?? r.id}: o som "${acao.nome}" não está mais na mesa.`);
+        return;
+      }
+      let destino: AlvoDoEfeito;
+      if (acao.para === "token") {
+        const tokenId = alvo.tokenId ?? ev.tokenId;
+        if (tokenId === undefined) {
+          m.anotar(
+            `${r.nome ?? r.id}: o som é "para o token do evento", e este evento não tem token.`,
+          );
+          return;
+        }
+        destino = { tipo: "token", tokenId };
+      } else if (acao.para === "cena") {
+        const cenaId =
+          cenas === null || cenas.includes(e.cenaAtivaId)
+            ? e.cenaAtivaId
+            : (cenas[0] ?? e.cenaAtivaId);
+        destino = { tipo: "cena", cenaId };
+      } else {
+        destino = { tipo: "todos" };
+      }
+      if (!m.contar()) return;
+      m.ctx.emitir({
+        tipo: "som.efeitoTocado",
+        dados: { hash: acao.hash, volume: acao.volume, alvo: destino },
       });
       return;
     }

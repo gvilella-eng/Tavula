@@ -115,6 +115,7 @@ import { PainelDasParedes } from "./PainelDasParedes";
 import { PainelDasZonas } from "./PainelDasZonas";
 import { PainelDeFontesDeLuz } from "./PainelDeFontesDeLuz";
 import { PainelDeIluminacao } from "./PainelDeIluminacao";
+import { PainelDoSom } from "./PainelDoSom";
 import { PainelDoToken } from "./PainelDoToken";
 import { PertoDoPonto } from "./PertoDoPonto";
 import { useFecharFora } from "./Popover";
@@ -128,6 +129,8 @@ import {
 } from "./preferencias";
 import { tituloDaMesa } from "./rotas";
 import { SeletorDeImagem } from "./SeletorDeImagem";
+import { AvisoDoSom } from "./som/AvisoDoSom";
+import { useSomDaMesa } from "./som/useSomDaMesa";
 import { Topo } from "./Topo";
 import { useTempoDaSala } from "./tempo";
 import { passosDoPapel } from "./tour/passos";
@@ -283,6 +286,8 @@ export function Mesa({
   const [configAberta, setConfigAberta] = useState(false);
   // 7b-3: o editor das automações (janela aberta pela aba Mesa; só do mestre).
   const [automacoesAbertas, setAutomacoesAbertas] = useState(false);
+  // N5: o painel de Som do mestre.
+  const [somAberto, setSomAberto] = useState(false);
   const [luzSelecionadaId, setLuzSelecionadaId] = useState<string | null>(null);
   // Pontos de luz (suporte e inflamável): o que o mestre edita e o tipo que a ferramenta cria.
   const [pontoSelecionadoId, setPontoSelecionadoId] = useState<string | null>(null);
@@ -548,6 +553,22 @@ export function Mesa({
   const versaoDoGerente = useSyncExternalStore(
     gerente?.assinar ?? semAssinatura,
     gerente?.versaoAtual ?? versaoZero,
+  );
+  // N5: o som da mesa (trilha, efeitos, zonas); o aviso "Clique para ativar" e o cartão das Preferências usam o `bloqueado`.
+  const som = useSomDaMesa({
+    estado,
+    gerente,
+    versaoDosProntos,
+    ouvir,
+    euMestre,
+    selecionadoId,
+  });
+  const registrarSom = useCallback(
+    (arquivo: File) => {
+      if (!gerente) return Promise.reject(new Error("Os arquivos da mesa ainda estão abrindo."));
+      return gerente.registrarSom(arquivo);
+    },
+    [gerente],
   );
   const imagens = useMemo<ImagensDoMapa | null>(
     () =>
@@ -1468,6 +1489,8 @@ export function Mesa({
                 gerente={gerente}
                 lotesDoClaude={lotesDoClaude}
                 claudeConectado={claudeConectado.includes(eu.id)}
+                somBloqueado={som.bloqueado}
+                aoAtivarSom={() => som.motor.ativar()}
                 enviar={enviar}
               />
             ),
@@ -1615,6 +1638,8 @@ export function Mesa({
             podeZonas={modoMestre}
             aoAlternarZonas={alternarZonas}
             aoAlternarNevoa={alternarNevoa}
+            aoAlternarSom={() => setSomAberto((v) => !v)}
+            somAberto={somAberto}
             aoEscolher={setFerramenta}
             pincel={pincel}
             aoMudarPincel={setPincel}
@@ -1870,8 +1895,21 @@ export function Mesa({
                 aoFechar={alternarNevoa}
               />
             )}
+            {modoMestre && somAberto && (
+              <PainelDoSom
+                trilha={estado.trilha ?? null}
+                cena={cena}
+                fontes={fontes}
+                registrar={registrarSom}
+                enviar={enviar}
+                aoFechar={() => setSomAberto(false)}
+              />
+            )}
+            <AvisoDoSom bloqueado={som.bloqueado} aoAtivar={() => som.motor.ativar()} />
             {modoMestre && ferramenta === "zonas" && (
               <PainelDasZonas
+                fontes={fontes}
+                registrarSom={registrarSom}
                 selecionada={zonaSelecionada}
                 reacoes={reacoesDaZona}
                 enviar={enviar}
@@ -1908,6 +1946,8 @@ export function Mesa({
                 estado={estado}
                 enviar={enviar}
                 salaMs={tempo.salaMs}
+                fontes={fontes}
+                registrarSom={registrarSom}
                 aoFechar={() => setAutomacoesAbertas(false)}
               />
             )}

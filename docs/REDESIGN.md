@@ -1669,6 +1669,33 @@ Menus (tipos de parede, importar e exportar, atalhos) e dois acertos que sobrara
 - Gerenciar a névoa pelo MCP (hoje só pela tela).
 - Névoa individual por jogador (cada um revela o seu): fora do pedido.
 
+## N5 — como ficou (2026-11-14)
+
+**O que foi feito**
+- **Som como asset.** Tipo novo `som` (mp3, ogg e wav, até 20 MB = 80 pedaços de 256 KB; `validarMeta` confere o MIME e o tamanho). O arquivo fica no computador do mestre (pasta local, `sons/` ou qualquer subpasta, ou um arquivo escolhido à mão) e viaja por pedaços pelo mesmo caminho das imagens, com cache OPFS. Só o mestre registra som. Todo jogador pode baixar qualquer som da mesa (`assetVisivelPara`), mas o `asset.meta` que ele recebe leva `nomeOriginal: "som"` (o nome do arquivo poderia contar o que a zona faz).
+- **Painel de Som** (botão de alto-falante na barra, só do mestre, fora do "ver como"): **Trilha** (nome, volume, Parar, lista com busca e "Escolher arquivo…"; trocar faz a transição de 2 s no navegador de cada um), a **trilha padrão da cena** ("Usar a que toca" e "Tirar") e **Efeitos** (um clique toca uma vez, com volume próprio). A opção "Ouvir as zonas do token selecionado" liga o som de zona também no mestre.
+- **Trilha e relógio.** `Estado.trilha { hash, nome, volume, inicioMs, servidorMs? }` (opcional, guardada na chave `trilha` da tabela `meta`). `inicioMs` é o relógio real da sala. Cada cópia que sai da sala (snapshot e evento) leva `servidorMs` = agora; o navegador calcula o desvio (`desvioDoRelogio`) e o ponto do laço (`pontoDaTrilha`), então quem entra no meio ouve do ponto em que está e quem se afasta mais de 1,5 s volta a ele. O mesmo som de novo só muda o volume.
+- **Som por zona.** `EfeitosDaZona.som { hash, nome, volume, laco }`. A sala calcula, depois de cada mudança, os sons das zonas onde há um token que o jogador controla (`sonsDasZonasParaJogador`) e manda a ele a mensagem transitória `som.zona { sons: [{ hash, volume, laco }] }` só quando a lista muda: nunca a zona, o nome nem as regras. Fade de entrada e saída de 1,2 s.
+- **`som.tocar` nas automações.** `{ acao: "som.tocar", hash, nome, volume (0,8), para: todos | cena | token }`. Emite o evento `som.efeitoTocado`; `eventoPara` entrega só a quem ouve (`efeitoChegaPara`) e sempre como "para todos". O editor ganhou o formulário (som da mesa ou "Adicionar um som à mesa", volume, quem ouve).
+- **Preferências → Som** (depois de Aparência): silenciar tudo, volume geral, da trilha e dos efeitos, resumo "Volume 80% · trilha ligada", marca "só neste navegador", botão "Ativar o som da mesa" quando o navegador bloqueia. Tudo em `tabletop:pref:som`, nunca vai à sala.
+- **Autoplay.** Quando o navegador recusa o primeiro som aparece o aviso "Clique para ativar o som da mesa" (com "Agora não", que fica guardado).
+- **Protocolo.** Intenções `som.trilha { hash, volume }`, `som.parar`, `som.efeito { hash, volume }` (capacidade nova `som.controlar`, só do mestre); `cena.editar` ganhou `trilha`. Eventos `som.trilhaAlterada` e `som.efeitoTocado`. Mensagem da sala `som.zona`. `grupo.moverPara` começa a trilha padrão da cena.
+- **Exportar e importar.** `hashesUsados` inclui o som da trilha, das cenas, das zonas e das ações `som.tocar`: a exportação leva a meta (nunca os bytes). `Estado.trilha` fica fora da exportação (o relógio dela é de outra sessão). Sem migração de banco: a trilha mora na chave `trilha` da tabela `meta`.
+
+**Decisões (assumido)**
+- (assumido) 20 MB por som e só mp3, ogg e wav. A lista aceita o arquivo pelo nome quando o navegador não diz o MIME.
+- (assumido) A trilha padrão da cena só começa ao levar o grupo; cena sem trilha deixa a que toca seguir. Se a trilha da cena é a que já toca, não recomeça.
+- (assumido) O mestre ouve efeitos e trilha sempre; as zonas só se ligar "Ouvir as zonas" e com o token selecionado.
+- (assumido) A pré-carga é a trilha que toca e a trilha padrão das cenas que a pessoa recebe. Os efeitos e os sons de zona baixam na primeira vez que tocam (a zona é secreta: não dá para adiantar sem dizer que ela existe).
+- (assumido) Som de zona sem laço toca uma vez por entrada.
+- (assumido) O volume geral começa em 80%, o da trilha e o dos efeitos em 100%.
+- (assumido) Efeito para "cena" vale para quem está na cena do grupo; "token" para quem controla o token do evento (o mestre ouve sempre). Um efeito disparado numa intenção que manda snapshot novo ainda chega, logo depois dele.
+- (assumido) O Claude (MCP) não ganhou ferramenta de som.
+
+**O que ficou para depois**
+- Pausar a trilha (hoje só tocar e parar), lista de reprodução, som posicional (volume pela distância), "Preparar" os sons de zona e de efeito e ferramenta de som no MCP.
+- Uma pasta de sons própria na tela inicial (hoje vale a pasta de imagens da mesa).
+
 ## Em aberto
 
 - **O plano R1 a R6 terminou** (R1, R2, R2b, R3, R4 em 2026-11-10; R5a, R5b, R6a e R6b em 2026-11-11). Agora o Vilella faz os ajustes

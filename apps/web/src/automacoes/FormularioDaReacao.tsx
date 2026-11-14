@@ -1,7 +1,10 @@
 import { type Acao, type CondicaoDeReacao, type Reacao, ReacaoSchema } from "@tabletop/shared";
 import { Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
+import type { Fontes } from "../assets/fontes";
 import { CampoDecimal, CampoDeDistancia } from "../Campo";
+import { Deslizante } from "../som/Deslizante";
+import { EscolherSom, type SomEscolhido } from "../som/EscolherSom";
 import { CampoDeEvento, CampoDeTexto, ErroDoCampo, EscolhaDeCenas, Marcador } from "./campos";
 import { EditorDaPeca } from "./Editor";
 import { erroDoCampo, errosEmPortugues } from "./erros";
@@ -30,6 +33,10 @@ type Props = {
   zonas: readonly Opcao[];
   idsUsados: ReadonlySet<string>;
   eventos: readonly string[];
+  /** N5: os sons já na mesa (para a ação "Tocar um som") e como adicionar outro. */
+  sons: readonly { hash: string; nome: string }[];
+  fontes: Fontes;
+  registrarSom: (arquivo: File) => Promise<SomEscolhido>;
   aoSalvar: (reacao: Reacao, nova: boolean) => void;
   aoCancelar: () => void;
 };
@@ -211,6 +218,9 @@ export function FormularioDaReacao(p: Props) {
                   zonas={p.zonas}
                   eventos={p.eventos}
                   podeTirar={fazer.length > 1}
+                  sons={p.sons}
+                  fontes={p.fontes}
+                  registrarSom={p.registrarSom}
                   mudar={mudar}
                   e={e}
                 />
@@ -351,6 +361,9 @@ function LinhaDeAcao(p: {
   modelos: readonly Opcao[];
   zonas: readonly Opcao[];
   eventos: readonly string[];
+  sons: readonly { hash: string; nome: string }[];
+  fontes: Fontes;
+  registrarSom: (arquivo: File) => Promise<SomEscolhido>;
   podeTirar: boolean;
   mudar: (caminho: Caminho, valor: unknown) => void;
   e: Erro;
@@ -501,6 +514,59 @@ function LinhaDeAcao(p: {
               <option value="mestre">Só o mestre</option>
             </select>
           </label>
+        </>
+      )}
+      {tipo === "som.tocar" && (
+        <>
+          <label className="campo-coluna">
+            Som
+            <select
+              data-testid={`form-acao-${i}-som`}
+              value={String(a.hash ?? "")}
+              aria-invalid={err("hash") !== undefined}
+              onChange={(ev) => {
+                const achado = p.sons.find((s) => s.hash === ev.target.value);
+                if (achado) p.mudar(base, { ...a, hash: achado.hash, nome: achado.nome });
+              }}
+            >
+              <option value="" disabled>
+                Escolha um som
+              </option>
+              {p.sons.map((s) => (
+                <option key={s.hash} value={s.hash}>
+                  {s.nome}
+                </option>
+              ))}
+            </select>
+          </label>
+          <ErroDoCampo erro={err("hash")} testid={`form-acao-${i}-som`} />
+          <Deslizante
+            testid={`form-acao-${i}-volume`}
+            rotulo="Volume do som"
+            valor={typeof a.volume === "number" ? a.volume : 0.8}
+            aoMudar={(v) => campo("volume", v)}
+          />
+          <label className="campo-coluna">
+            Quem ouve
+            <select
+              data-testid={`form-acao-${i}-para`}
+              value={String(a.para ?? "todos")}
+              onChange={(ev) => campo("para", ev.target.value)}
+            >
+              <option value="todos">Todos</option>
+              <option value="cena">Quem está na cena do evento</option>
+              <option value="token">Quem controla o token do evento</option>
+            </select>
+          </label>
+          <details className="avancado" data-testid={`form-acao-${i}-adicionar-som`}>
+            <summary>Adicionar um som à mesa</summary>
+            <EscolherSom
+              fontes={p.fontes}
+              registrar={p.registrarSom}
+              testid={`form-acao-${i}-escolher`}
+              aoEscolher={(s) => p.mudar(base, { ...a, hash: s.hash, nome: s.nome })}
+            />
+          </details>
         </>
       )}
       {tipo === "zona.ativar" && (
