@@ -107,6 +107,13 @@ A conjuração inata, os truques por nível, o ritual e os dardos, raios e alvos
 - **Vários grupos "N/dia"** no mesmo bloco e **ler o texto do monstro** ("À vontade: luz, mãos mágicas") para preencher a inata sozinha.
 - **Gastar o uso da inata pelo MCP** (`rolar` só rola).
 
+### Compêndio e mesa de som (Vilella, 2026-11-16)
+
+- **Imagens e tokens para cada monstro e item do compêndio.** Nas palavras dele: "Uma coisa que eu acho que seja um
+  problema, mas podemos resolver mais pra frente, é a criação de imagens e tokens para cada um dos monstros e itens da
+  lista. Mas deixamos para um futuro." Gerar ou associar arte própria a cada entrada (nunca arte da WotC), para o
+  monstro virar token sem o mestre procurar imagem.
+
 ## Descartadas (não propor de novo)
 
 - **Imagens no servidor** (R2 ou similar): imagens locais são a premissa e o diferencial do projeto.

@@ -30,9 +30,15 @@ test("o mestre configura 2 efeitos e 2 ambientes pela configuração, e o jogado
   await expect(j.getByTestId("ferramenta-som")).toHaveCount(0);
   await m.getByTestId("ferramenta-som").click();
   await expect(m.getByTestId("painel-som")).toBeVisible();
-  // os 8 + 8 lugares começam vazios, com o "adicionar"
-  await expect(m.getByTestId("som-efeitos").locator(".som-vazio")).toHaveCount(8);
-  await expect(m.getByTestId("som-ambientes").locator(".som-vazio")).toHaveCount(8);
+  // Q4b: a mesa começa vazia: um estado vazio claro, com o "Configurar", e o transporte desabilitado
+  await expect(m.getByTestId("som-vazio-geral")).toContainText("Nenhum som na mesa de som ainda");
+  await expect(m.getByTestId("som-efeitos")).toHaveCount(0);
+  await expect(m.getByTestId("som-transporte")).toBeDisabled();
+  await m.getByTestId("som-vazio-configurar").click();
+  await expect(m.getByTestId("som-config")).toBeVisible();
+  await expect(m.getByTestId("som-lugar-efeito-0")).toHaveAttribute("aria-pressed", "true");
+  await m.getByTestId("som-config-pronto").click();
+  await expect(m.getByTestId("som-config")).toHaveCount(0);
 
   // 1) o lugar vazio abre a configuração; o arquivo vira asset e o lugar já nasce com nome, ícone e cor
   await configurarLugar(m, "efeito", 0, arquivoWav("trovao-forte.wav", 2), "Trovão do céu!");
@@ -79,6 +85,7 @@ test("o mestre configura 2 efeitos e 2 ambientes pela configuração, e o jogado
     ["som.efeitoParar", {}],
     ["som.ambiente", { indice: 0, ligado: true }],
     ["som.volumeGeral", { volume: 0.2 }],
+    ["som.transporte", { tocando: true }],
     ["som.pararTudo", {}],
     ["som.apagar", { hash }],
     [
@@ -148,7 +155,7 @@ test("o efeito toca uma vez para o jogador (de novo, recomeça) e o parar corta;
   expect(j1.enviados.filter((f) => f.includes("som.") && f.includes("volume"))).toHaveLength(0);
 });
 
-test("dois ambientes ligados ao mesmo tempo, com volumes diferentes, chegam ao jogador; desligar um tira só ele; o volume geral e o Parar tudo valem para todos", async ({
+test("dois ambientes marcados só tocam com o Tocar, com volumes diferentes, e chegam ao jogador; desligar um tira só ele; o volume geral e o Parar valem para todos", async ({
   mesa,
 }) => {
   const mestre = await entrarNoMapa(mesa, "mestre");
@@ -164,11 +171,31 @@ test("dois ambientes ligados ao mesmo tempo, com volumes diferentes, chegam ao j
 
   // nada toca até alguém ligar
   expect((await somDe(j)).ambientes).toEqual([]);
+  await expect(m.getByTestId("som-transporte")).toHaveAttribute("data-tocando", "nao");
+  // Q4b: "Tocar" sem nenhum ambiente marcado só mostra a dica
+  await m.getByTestId("som-transporte").click();
+  await expect(m.getByTestId("som-transporte-dica")).toHaveText("Ligue um ou mais ambientes");
+  await expect(m.getByTestId("som-transporte")).toHaveAttribute("data-tocando", "nao");
+  // marcar dois ambientes com o transporte parado não toca nada, nem para o jogador
   await m.getByTestId("som-ambiente-ligar-0").click();
   await m.getByTestId("som-ambiente-ligar-1").click();
+  await expect(m.getByTestId("som-transporte-dica")).toHaveCount(0);
   await expect(m.getByTestId("som-ambiente-1")).toHaveAttribute("data-ligado", "sim");
   await m.getByTestId("som-ambiente-volume-1").fill("30");
+  // o volume sai com um respiro (120 ms): espera a mudança chegar à sala antes de tocar
+  await expect
+    .poll(() =>
+      mestre.enviados.some((f) => f.includes('"som.ambiente"') && f.includes('"volume":0.3')),
+    )
+    .toBe(true);
   await expect(m.getByTestId("som-ambiente-0")).toHaveAttribute("data-ligado", "sim");
+  await expect(m.getByTestId("som-ambiente-0")).toHaveAttribute("data-tocando", "nao");
+  await expect(m.getByTestId("som-resumo")).toContainText("0 efeitos e 0 ambientes tocando");
+  for (const p of [m, j]) expect((await somDe(p)).ambientes).toEqual([]);
+  // "Tocar" toca os dois, e o botão vira "Parar"
+  await m.getByTestId("som-transporte").click();
+  await expect(m.getByTestId("som-transporte")).toHaveAttribute("data-tocando", "sim");
+  await expect(m.getByTestId("som-transporte")).toContainText("Parar");
   for (const p of [m, j]) {
     await expect
       .poll(async () => (await somDe(p)).ambientes.map((a) => a.hash))
@@ -204,18 +231,25 @@ test("dois ambientes ligados ao mesmo tempo, com volumes diferentes, chegam ao j
   await expect.poll(async () => (await somDe(j)).efeitos.length).toBe(1);
   expect((await somDe(j)).efeitos[0]?.volume).toBeCloseTo(0.8 * 0.5 * 0.8, 5);
 
-  // Parar tudo: corta o efeito e desliga os ambientes, para todos, e o volume geral fica
-  await m.getByTestId("som-parar-tudo").click();
+  // Parar: corta o efeito e cala os ambientes, para todos; o volume geral fica e os ambientes seguem marcados
+  await m.getByTestId("som-transporte").click();
   for (const p of [m, j, j2.pagina]) {
     await expect.poll(async () => (await somDe(p)).ambientes.length).toBe(0);
     await expect.poll(async () => (await somDe(p)).efeitosTocando.length).toBe(0);
   }
-  await expect(m.getByTestId("som-ambiente-0")).toHaveAttribute("data-ligado", "nao");
+  await expect(m.getByTestId("som-transporte")).toHaveAttribute("data-tocando", "nao");
+  await expect(m.getByTestId("som-transporte")).toContainText("Tocar");
+  await expect(m.getByTestId("som-ambiente-0")).toHaveAttribute("data-ligado", "sim");
+  await expect(m.getByTestId("som-ambiente-0")).toHaveAttribute("data-tocando", "nao");
   await expect(m.getByTestId("som-mesa-geral-valor")).toHaveText("50%");
 
-  // o volume do ambiente nas preferências é só do jogador
-  await m.getByTestId("som-ambiente-ligar-1").click();
-  await expect.poll(async () => (await somDe(j)).ambientes.length).toBe(1);
+  // os efeitos seguem de um toque com o transporte parado
+  await m.getByTestId("som-efeito-0").click();
+  await expect.poll(async () => (await somDe(j)).efeitos.length).toBe(2);
+
+  // Tocar de novo traz os dois de volta; o volume do ambiente nas preferências é só do jogador
+  await m.getByTestId("som-transporte").click();
+  await expect.poll(async () => (await somDe(j)).ambientes.length).toBe(2);
   await abrirPreferencia(j, "som");
   await j.getByTestId("som-volume-trilha").fill("0");
   await expect(j.getByTestId("pref-resumo-som")).toHaveText("Volume 80% · ambientes desligados");
@@ -234,13 +268,14 @@ test("os ambientes da cena ligam ao levar o grupo; a janela vira faixa no pé da
   await m.getByTestId("som-config-pronto").click();
   const taverna = await esperarHashDoSom(m, "taverna.wav");
   await m.getByTestId("som-ambiente-ligar-0").click();
+  await m.getByTestId("som-transporte").click();
   await expect.poll(async () => (await somDe(j)).ambientes.length).toBe(1);
 
-  // a cena (a que o mestre vê) fica com os ambientes que tocam; parar tudo; ir e voltar liga de novo
+  // a cena (a que o mestre vê) fica com os ambientes marcados; parar; ir e voltar toca de novo (a cena põe o transporte a tocar)
   await expect(m.getByTestId("som-cena-ambientes")).toContainText("não mexe");
   await m.getByTestId("som-cena-usar").click();
   await expect(m.getByTestId("som-cena-ambientes")).toContainText("Taverna");
-  await m.getByTestId("som-parar-tudo").click();
+  await m.getByTestId("som-transporte").click();
   await expect.poll(async () => (await somDe(j)).ambientes.length).toBe(0);
   const criada = await enviarCru(m, intencaoCrua("cena.criar", { id: "cena-q4", nome: "Outra" }));
   expect(criada?.tipo).toBe("evento");
@@ -268,7 +303,7 @@ test("os ambientes da cena ligam ao levar o grupo; a janela vira faixa no pé da
     "som-efeitos",
     "som-ambientes",
     "som-mesa-geral",
-    "som-parar-tudo",
+    "som-transporte",
     "som-config-abrir",
   ]) {
     await expect(m.getByTestId("som-faixa").getByTestId(id)).toBeVisible();
@@ -320,6 +355,7 @@ test("apagar um som da mesa tira o som dos lugares (e para o que toca), com o av
   await expect(m.getByTestId("som-lugar-efeito-1")).toHaveAttribute("data-vazio", "nao");
   await m.getByTestId("som-config-pronto").click();
   await m.getByTestId("som-ambiente-ligar-0").click();
+  await m.getByTestId("som-transporte").click();
   await expect.poll(async () => (await somDe(j)).ambientes.map((a) => a.hash)).toEqual([chuva]);
 
   // apagar a chuva: a confirmação está na página e diz onde o som estava; cancelar não muda nada

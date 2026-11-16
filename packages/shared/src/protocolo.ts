@@ -975,6 +975,11 @@ export const IntencaoSchema = z.discriminatedUnion("tipo", [
     z.object({ indice: IndiceDoLugarSchema, ligado: z.boolean(), volume: VolumeSchema.optional() }),
   ),
   intencao("som.volumeGeral", z.object({ volume: VolumeSchema })),
+  /**
+   * Q4b: o transporte geral da mesa de som. `tocando: true` toca os ambientes marcados (recusa se não há nenhum);
+   * `false` os para e corta os efeitos, mas deixa os ambientes marcados.
+   */
+  intencao("som.transporte", z.object({ tocando: z.boolean() })),
   intencao("som.pararTudo", SemDados),
   intencao("som.apagar", z.object({ hash: HashSchema })),
   /**
@@ -1179,6 +1184,7 @@ export const capacidadeDaIntencao: Record<TipoIntencao, Capacidade | null> = {
   "som.efeitoParar": "som.controlar",
   "som.ambiente": "som.controlar",
   "som.volumeGeral": "som.controlar",
+  "som.transporte": "som.controlar",
   "som.pararTudo": "som.controlar",
   "som.apagar": "som.controlar",
   // 7b-1: automações são dado do mestre (regra 7): nenhuma é delegável.

@@ -8,7 +8,7 @@ import { useEffect, useState } from "react";
 export type Rota =
   | { tipo: "inicio" }
   /** `fichaId` (V9): `/m/<id>/ficha/<fichaId>` mostra só a ficha, na janela própria do navegador. */
-  | { tipo: "mesa"; id: string | null; bruto: string; fichaId?: string };
+  | { tipo: "mesa"; id: string | null; bruto: string; fichaId?: string; painel?: "som" };
 
 const decodificar = (texto: string): string => {
   try {
@@ -19,7 +19,7 @@ const decodificar = (texto: string): string => {
 };
 
 export function lerRota(caminho: string): Rota {
-  const m = /^\/m\/([^/]+)(?:\/ficha\/([^/]+))?\/?$/.exec(caminho);
+  const m = /^\/m\/([^/]+)(?:\/ficha\/([^/]+)|\/(som))?\/?$/.exec(caminho);
   if (!m) return { tipo: "inicio" };
   const bruto = decodificar(m[1] ?? "");
   const fichaId = m[2] === undefined ? undefined : decodificar(m[2]);
@@ -28,6 +28,7 @@ export function lerRota(caminho: string): Rota {
     id: normalizarIdDeMesa(bruto),
     bruto,
     ...(fichaId ? { fichaId } : {}),
+    ...(m[3] === "som" ? { painel: "som" as const } : {}),
   };
 }
 
@@ -36,6 +37,9 @@ export const caminhoDaMesa = (id: string) => `/m/${id}`;
 /** A rota da ficha na janela própria (V9). */
 export const caminhoDaFicha = (mesaId: string, fichaId: string) =>
   `/m/${mesaId}/ficha/${encodeURIComponent(fichaId)}`;
+
+/** A rota da mesa de som na janela própria (Q4b). */
+export const caminhoDoSom = (mesaId: string) => `/m/${mesaId}/som`;
 
 /** O link completo de uma mesa, para copiar e mandar. */
 export const linkDaMesa = (id: string) => `${location.origin}${caminhoDaMesa(id)}`;

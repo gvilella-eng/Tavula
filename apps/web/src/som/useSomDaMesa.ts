@@ -47,7 +47,10 @@ export function useSomDaMesa(p: Props) {
   }, [motor]);
 
   // Os ambientes da sala (inclusive os que já tocavam ao entrar) e o volume geral da mesa de som.
-  const somLigado = p.estado?.somLigado ?? null;
+  const daSala = p.estado?.somLigado ?? null;
+  // Q4b: os ambientes MARCADOS só tocam com o transporte tocando (sem o campo, como antes: toca se há ambiente marcado).
+  const transporteTocando = daSala ? (daSala.tocando ?? daSala.ambientes.length > 0) : false;
+  const somLigado = daSala && !transporteTocando ? { ...daSala, ambientes: [] } : daSala;
   const ligadoChave = somLigado
     ? `${somLigado.volumeGeral}|${somLigado.ambientes.map((a) => `${a.indice}:${a.hash}:${a.inicioMs}:${a.volume}`).join(",")}`
     : "";

@@ -9,6 +9,7 @@ import {
   lugaresDe,
   MAXIMO_DO_NOME_DO_LUGAR,
   pode,
+  tocandoAgora,
   usosDoSom,
   volumeGeralDe,
 } from "../../index.ts";
@@ -49,8 +50,8 @@ const rotuloDoGrupo = (g: GrupoDeSom) => (g === "efeito" ? "os efeitos" : "os am
 export const som = definir({
   nome: "som",
   descricao: [
-    "Só do mestre (ou de quem tem 'controlar o som'). A MESA DE SOM tem 8 efeitos (um toque toca uma vez, para todos) e 8 ambientes (ligam e desligam sozinhos, vários ao mesmo tempo, em laço, cada um com o próprio volume). Os arquivos sobem com `arquivos` (uso `som`); aqui se usa pelo nome do arquivo. `listar` mostra os sons, os 16 lugares e o que toca.",
-    `\`lugares\`: [{grupo:"efeito"|"ambiente", lugar:1-8, som, nome (até ${MAXIMO_DO_NOME_DO_LUGAR} letras), icone (${ICONES_DO_SOM.join("|")}), cor (${CORES_DO_SOM.join("|")}), volume}] configura um lugar (\`som: null\` o esvazia; em lugar já preenchido, o que não vier fica como está). \`efeito\`: {lugar (número ou nome do botão) ou som, volume} toca um efeito (de novo, recomeça); \`pararEfeito\`: true corta todos, ou um lugar. \`ambientes\`: [{lugar, ligado, volume}] liga ou desliga ambientes. \`volumeGeral\`: 0 a 1, vale para tudo. \`pararTudo\`: corta efeitos e ambientes. \`apagar\`: [nome do arquivo] tira o som da mesa, dos lugares, das zonas e das automações (o arquivo fica na pasta do computador). \`ambientesDaCena\`: [{cena, lugares: [1-8 ou nomes] | null}] define quais ambientes ligam quando o grupo vai para a cena (os outros desligam; \`null\` não mexe). \`zonas\`: [{cena, zona, som, laco}] põe o som de uma zona (\`som: null\` tira).`,
+    "Só do mestre (ou de quem tem 'controlar o som'). A MESA DE SOM tem 8 efeitos (um toque toca uma vez, para todos) e 8 ambientes (vários ao mesmo tempo, em laço, cada um com o próprio volume). Os arquivos sobem com `arquivos` (uso `som`); aqui se usa o nome do arquivo. `listar` mostra os sons, os 16 lugares e o que toca.",
+    `\`lugares\`: [{grupo:"efeito"|"ambiente", lugar:1-8, som, nome (até ${MAXIMO_DO_NOME_DO_LUGAR} letras), icone (${ICONES_DO_SOM.join("|")}), cor (${CORES_DO_SOM.join("|")}), volume}] configura um lugar (\`som: null\` o esvazia; o que não vier fica como está). \`efeito\`: {lugar (número ou nome do botão) ou som, volume} toca um efeito; \`pararEfeito\`: true corta todos, ou um lugar. \`ambientes\`: [{lugar, ligado, volume}] MARCA ou desmarca ambientes (e o volume de cada um): eles só tocam enquanto o TRANSPORTE toca. \`transporte\`: "tocar" toca os ambientes marcados (precisa de um) e "parar" os cala e corta os efeitos, deixando-os marcados. \`volumeGeral\`: 0 a 1, vale para tudo. \`pararTudo\`: corta efeitos e ambientes. \`apagar\`: [nome do arquivo] tira o som da mesa, dos lugares, das zonas e das automações. \`ambientesDaCena\`: [{cena, lugares: [1-8 ou nomes] | null}] define quais ambientes ligam quando o grupo vai para a cena (\`null\` não mexe). \`zonas\`: [{cena, zona, som, laco}] põe o som de uma zona (\`som: null\` tira).`,
     'Exemplo: {"lugares":[{"grupo":"ambiente","lugar":1,"som":"floresta.mp3","nome":"Floresta","icone":"vento","cor":"verde"}],"ambientes":[{"lugar":"Floresta","ligado":true,"volume":0.5}],"efeito":{"lugar":1}}',
   ].join(" "),
   entrada: z
@@ -93,6 +94,7 @@ export const som = definir({
         )
         .max(16)
         .optional(),
+      transporte: z.enum(["tocar", "parar"]).optional(),
       volumeGeral: z.number().min(0).max(1).optional(),
       pararTudo: z.boolean().optional(),
       apagar: z.array(z.string()).max(20).optional(),
@@ -145,7 +147,9 @@ export const som = definir({
             x
               ? `${i + 1} "${x.nome}" (${x.icone}, ${x.cor}, volume ${x.volume}${
                   grupo === "ambiente" && estado.somLigado?.ambientes.some((a) => a.indice === i)
-                    ? ", TOCANDO"
+                    ? tocandoAgora(estado)
+                      ? ", TOCANDO"
+                      : ", marcado (transporte parado)"
                     : ""
                 })`
               : `${i + 1} vazio`,
@@ -159,6 +163,7 @@ export const som = definir({
           `Efeitos: ${linha("efeito", l.efeitos)}.`,
           `Ambientes: ${linha("ambiente", l.ambientes)}.`,
           `Volume geral ${volumeGeralDe(estado)}.`,
+          `Transporte: ${tocandoAgora(estado) ? "tocando" : "parado"}.`,
         ].join(" "),
       );
     }
@@ -227,9 +232,19 @@ export const som = definir({
           ligado: a.ligado,
           ...(a.volume === undefined ? {} : { volume: a.volume }),
         });
+        const parado = !tocandoAgora(ctx.sala.estado());
         return a.ligado
-          ? `Ligou o ambiente do lugar ${indice + 1}.`
-          : `Desligou o ambiente do lugar ${indice + 1}.`;
+          ? `Marcou o ambiente do lugar ${indice + 1}${parado ? " (o transporte está parado: use o transporte tocar para ouvir)" : ""}.`
+          : `Desmarcou o ambiente do lugar ${indice + 1}.`;
+      });
+    }
+    if (e.transporte !== undefined) {
+      const quer = e.transporte;
+      await tente("transporte", async () => {
+        await passo(ctx, lote, "som.transporte", { tocando: quer === "tocar" });
+        return quer === "tocar"
+          ? "Tocando os ambientes marcados."
+          : "Parou o som (os ambientes seguem marcados).";
       });
     }
     if (e.volumeGeral !== undefined) {
@@ -301,7 +316,7 @@ export const som = definir({
       });
     }
     return r.saida(
-      "Nada a fazer: diga `listar`, `lugares`, `efeito`, `pararEfeito`, `ambientes`, `volumeGeral`, `pararTudo`, `apagar`, `ambientesDaCena` ou `zonas`.",
+      "Nada a fazer: diga `listar`, `lugares`, `efeito`, `pararEfeito`, `ambientes`, `transporte`, `volumeGeral`, `pararTudo`, `apagar`, `ambientesDaCena` ou `zonas`.",
     );
   },
 });

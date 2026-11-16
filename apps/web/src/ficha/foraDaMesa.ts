@@ -1,5 +1,5 @@
 import { useEffect, useSyncExternalStore } from "react";
-import { caminhoDaFicha } from "../rotas";
+import { caminhoDaFicha, caminhoDoSom } from "../rotas";
 
 /**
  * A ficha numa janela própria do navegador (V9). A mesa (janela principal) e as janelas das fichas se falam só por
@@ -173,6 +173,7 @@ export function abrirFichaEmJanela(
   mesaId: string,
   fichaId: string,
   medidaDaFicha: MedidaDaJanela,
+  caminho: string = caminhoDaFicha(mesaId, fichaId),
 ): boolean {
   const medida = lerMedidaGuardada(mesaId, fichaId) ?? medidaDaFicha;
   const partes = [
@@ -183,11 +184,7 @@ export function abrirFichaEmJanela(
   if (medida.x !== undefined && medida.y !== undefined) {
     partes.push(`left=${medida.x}`, `top=${medida.y}`);
   }
-  const janela = window.open(
-    caminhoDaFicha(mesaId, fichaId),
-    nomeDaJanela(mesaId, fichaId),
-    partes.join(","),
-  );
+  const janela = window.open(caminho, nomeDaJanela(mesaId, fichaId), partes.join(","));
   if (!janela) return false;
   graca.set(fichaId, Date.now() + GRACA_MS);
   definir(new Set([...fora, fichaId]));
@@ -197,6 +194,16 @@ export function abrirFichaEmJanela(
     // o navegador pode negar o foco
   }
   return true;
+}
+
+/**
+ * Q4b: a mesa de som também vai para uma janela própria, pelo mesmo caminho da ficha (o lock, o canal e a medida
+ * lembrada), com este id no lugar do id de uma ficha.
+ */
+export const ID_DA_MESA_DE_SOM = "mesa-de-som";
+
+export function abrirSomEmJanela(mesaId: string, medidaPadrao: MedidaDaJanela): boolean {
+  return abrirFichaEmJanela(mesaId, ID_DA_MESA_DE_SOM, medidaPadrao, caminhoDoSom(mesaId));
 }
 
 /**

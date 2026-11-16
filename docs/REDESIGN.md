@@ -2072,3 +2072,30 @@ O Vilella aprovou o desenho (Fita como padrão, Moldura como opção em Preferê
 **O que ficou para depois**
 - Balão por toque em tela sensível não foi testado em aparelho (só pelo código).
 
+
+## Q6 — como ficou (2026-11-16): a busca do compêndio e a mesa de som (Q2b + Q4b)
+
+Dois pedidos do Vilella num lote só. Q2b: a busca do compêndio e o espaço da aba. Q4b: a mesa de som em janela própria, a altura da faixa, a configuração por cima e o transporte Tocar/Parar.
+
+**O que foi feito**
+- **Busca (Q2b)**: `packages/shared/src/buscaDoCompendio.ts`, uma função pura usada pelas seções, pelo "Todas" e pela ferramenta `compendio` do MCP (`buscarMagias`, `buscarMonstros`, `buscarItensMagicos`, `buscarArmas`, `buscarItens`, `buscarEmTodas`). Normaliza (minúsculas, sem acento, sem pontuação). Cada palavra da consulta precisa casar com uma palavra do `nome` ou do `nomeOriginal`, em qualquer ordem. Casa por palavra inteira, começo de palavra, pedaço dentro da palavra (3 letras ou mais) e erro de digitação (distância de edição). Palavras de ligação (de, da, do, of, the...) da consulta não pesam. Com busca, cada bloco sai por relevância (inteira, começo, dentro, semelhante); sem busca, alfabético. As entradas são normalizadas uma vez (`WeakMap`), então cada tecla responde em poucos ms com ~1.100 entradas.
+- Placeholder "Buscar…". Espaço entre a lista, os botões e os "Créditos" (`.barra-do-mestre` e `.creditos-do-compendio`).
+- **Transporte (Q4b)**: `SomLigado.tocando?` (aditivo). Os interruptores dos ambientes só **marcam** (e dão o volume de cada um); o botão **Tocar / Parar** do pé da mesa de som (`som.transporte`) toca ou cala os marcados. Parar também corta os efeitos. Os efeitos seguem de um toque, com o transporte parado ou tocando. "Tocar" sem ambiente marcado mostra "Ligue um ou mais ambientes" (a sala recusa a intenção com `dados_invalidos`). Ao tocar, os marcados começam juntos, do mesmo instante. O "Parar tudo" saiu da tela (virou o "Parar"); a intenção `som.pararTudo` e a opção `pararTudo` do MCP continuam (desmarcam tudo e param).
+- **Janela própria (Q4b)**: rota `/m/<id>/som` (`SomEmJanelaPropria`), pelo mesmo caminho da ficha (V9): conexão própria sem presença a mais, o mesmo lock e canal de `ficha/foraDaMesa.ts` com o id `mesa-de-som`, medida da janela lembrada. A mesa tira o painel da tela enquanto a janela existe e o devolve ao fechar; o botão do Som, com a janela aberta, a traz para a frente. O som continua saindo da aba da mesa; a janela é só o controle. O "Ouvir" da configuração toca só na janela.
+- **Altura da faixa (Q4b)**: alça na borda de cima (`role="separator"`; setas, Shift, Home e End) e arrastar. Acima da altura natural (252 px) a faixa fica natural; abaixo, o corpo encolhe junto com `zoom` (escala 0,7 a 1) e só rola abaixo do mínimo sem rolagem (195 px). Layout igual (efeitos à esquerda, ambientes à direita). `tabletop:pref:som-faixa-altura`.
+- **Configuração por cima (Q4b)**: a janela de configuração usa a camada alta (`camadaAlta`, 45+), acima da faixa (30) e da janela do som (25+).
+- **Mesa vazia (Q4b)**: "Nenhum som na mesa de som ainda" e o botão "Configurar" na janela e na faixa; o transporte fica desabilitado. A configuração mostra "Sons que a mesa já tem" (os assets de som registrados antes), para pôr num lugar com um clique.
+
+**Decisões (assumido)**
+- Tolerância de erro: 1 em palavras de 4 a 7 letras, 2 em 8 ou mais, nenhuma em palavras curtas. Letras vizinhas trocadas contam como um erro.
+- O estado antigo (sem `tocando`) carrega como "tocando" se havia ambiente marcado. Estado novo começa parado.
+- Levar o grupo a uma cena que tem ambientes põe o transporte para tocar (a cena existe para isso); cena sem ambientes deixa o transporte como está.
+- Desmarcar o último ambiente com o transporte tocando não para o transporte (o botão segue "Parar").
+- O jogador recebe os ambientes marcados mesmo com o transporte parado (só o hash do som); o navegador decide o que toca (`tocando` falso: nada). Sem filtro extra na sala.
+- Pelo MCP, `ambientes` marca e `transporte: "tocar"` toca (o resultado avisa quando o transporte está parado).
+- A janela própria não mostra a barra de progresso dos efeitos (o som sai na aba da mesa).
+- Escala mínima da faixa 0,7 (texto de 13 px vira uns 9 px); abaixo disso rola.
+
+**O que ficou para depois**
+- Imagens e tokens para cada monstro e item do compêndio (`docs/IDEIAS.md`).
+- A janela própria do som não mostra os efeitos que tocam na aba da mesa.

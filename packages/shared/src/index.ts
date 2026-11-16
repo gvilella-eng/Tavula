@@ -2,6 +2,7 @@ export * from "./assets.ts";
 export * from "./ataques.ts";
 export * from "./automacoes.ts";
 export * from "./automacoesnucleo.ts";
+export * from "./buscaDoCompendio.ts";
 export * from "./capacidades.ts";
 export * from "./chat.ts";
 export * from "./cifra.ts";

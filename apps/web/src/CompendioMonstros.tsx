@@ -264,7 +264,7 @@ export function ListaDeMonstros({
       ) : (
         <BlocosDoCompendio
           escopo="monstros"
-          grupos={agruparMonstrosPorND(achados)}
+          grupos={agruparMonstrosPorND(achados, texto.trim() === "")}
           forcar={temFiltro}
           total={monstros.length}
           testid="compendio-lista-monstros"
@@ -642,7 +642,7 @@ export function ListaDeItensMagicos({
       ) : (
         <BlocosDoCompendio
           escopo="itensMagicos"
-          grupos={agruparItensMagicosPorRaridade(achados)}
+          grupos={agruparItensMagicosPorRaridade(achados, texto.trim() === "")}
           forcar={temFiltro}
           total={itens.length}
           testid="compendio-lista-entradas"

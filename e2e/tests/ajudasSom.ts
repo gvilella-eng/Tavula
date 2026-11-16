@@ -100,8 +100,8 @@ export const hashDoSom = (p: Page, nomeDoArquivo: string): Promise<string | unde
   );
 
 /**
- * Q4: põe um som num lugar da mesa de som pela configuração: abre o painel de Som (se ainda não está aberto), clica no
- * lugar vazio, escolhe o arquivo (o wav gerado aqui) e, se vier, dá o nome. Deixa a configuração aberta no lugar.
+ * Q4: põe um som num lugar da mesa de som pela configuração: abre o painel de Som (se ainda não está aberto), abre a
+ * configuração pela engrenagem, clica no lugar, escolhe o arquivo (o wav gerado aqui) e, se vier, dá o nome. Deixa a configuração aberta no lugar.
  */
 export async function configurarLugar(
   m: Page,
@@ -117,7 +117,8 @@ export async function configurarLugar(
     await m.getByTestId("ferramenta-som").click();
   }
   if (!(await m.getByTestId("som-config").isVisible())) {
-    await m.getByTestId(`som-${grupo}-vazio-${indice}`).click();
+    // Q4b: com a mesa vazia não há "adicionar" nos lugares; a engrenagem existe sempre.
+    await m.getByTestId("som-config-abrir").click();
   }
   await expect(m.getByTestId("som-config")).toBeVisible();
   await m.getByTestId(`som-lugar-${grupo}-${indice}`).click();

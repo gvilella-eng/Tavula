@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { HashSchema, LIMITES_DE_ASSET } from "./assets.ts";
+import { filtrarEOrdenar } from "./buscaDoCompendio.ts";
 import {
   dadosPorNivelDoTexto,
   lerPorNivelAcima,
@@ -453,13 +454,21 @@ export function lerCompendio(texto: string): LeituraDoCompendio {
 // Busca e filtros
 // ---------------------------------------------------------------------------------------------
 
+/** A ordem alfabética sem acento nem caixa (o desempate da busca e a ordem sem busca). */
+function compararPorNome(a: { nome: string }, b: { nome: string }): number {
+  return (
+    normalizarBusca(a.nome).localeCompare(normalizarBusca(b.nome), "pt-BR") ||
+    a.nome.localeCompare(b.nome, "pt-BR")
+  );
+}
+
 /** Sem acento e sem caixa (a mesma normalização do chat). */
 export function normalizarBusca(s: string): string {
   return s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().trim();
 }
 
 export type FiltroDeMagias = {
-  /** Cada palavra precisa aparecer no nome ou no nome original. */
+  /** Busca por palavra no nome ou no nome original (Q2b): sem acento, começo de palavra e erro de digitação. */
   texto?: string | undefined;
   nivel?: number | undefined;
   escola?: string | undefined;
@@ -473,9 +482,6 @@ export function buscarMagias(
   magias: readonly MagiaDoCompendio[],
   filtro: FiltroDeMagias = {},
 ): MagiaDoCompendio[] {
-  const palavras = normalizarBusca(filtro.texto ?? "")
-    .split(/\s+/)
-    .filter(Boolean);
   const escola = filtro.escola === undefined ? undefined : normalizarBusca(filtro.escola);
   const classe = filtro.classe === undefined ? undefined : normalizarBusca(filtro.classe);
   const passa = (m: MagiaDoCompendio): boolean => {
@@ -484,19 +490,9 @@ export function buscarMagias(
     if (classe !== undefined && !m.classes.some((c) => normalizarBusca(c) === classe)) return false;
     if (filtro.concentracao !== undefined && m.concentracao !== filtro.concentracao) return false;
     if (filtro.ritual !== undefined && m.ritual !== filtro.ritual) return false;
-    if (palavras.length > 0) {
-      const alvo = `${normalizarBusca(m.nome)} ${normalizarBusca(m.nomeOriginal ?? "")}`;
-      if (!palavras.every((p) => alvo.includes(p))) return false;
-    }
     return true;
   };
-  return magias
-    .filter(passa)
-    .sort(
-      (a, b) =>
-        normalizarBusca(a.nome).localeCompare(normalizarBusca(b.nome), "pt-BR") ||
-        a.nome.localeCompare(b.nome, "pt-BR"),
-    );
+  return filtrarEOrdenar(magias, filtro.texto, compararPorNome, passa);
 }
 
 /** Os valores de escola e de classe que existem no compêndio, para montar os filtros. */
@@ -741,9 +737,6 @@ export function buscarMonstros(
   monstros: readonly MonstroDoCompendio[],
   filtro: FiltroDeMonstros = {},
 ): MonstroDoCompendio[] {
-  const palavras = normalizarBusca(filtro.texto ?? "")
-    .split(/\s+/)
-    .filter(Boolean);
   const tipo = filtro.tipo === undefined ? undefined : normalizarBusca(filtro.tipo);
   const tamanho = filtro.tamanho === undefined ? undefined : normalizarBusca(filtro.tamanho);
   const de = filtro.ndDe === undefined ? -1 : posicaoDoND(filtro.ndDe);
@@ -754,19 +747,9 @@ export function buscarMonstros(
     const nd = posicaoDoND(m.nd);
     if (de >= 0 && nd < de) return false;
     if (ate >= 0 && nd > ate) return false;
-    if (palavras.length > 0) {
-      const alvo = `${normalizarBusca(m.nome)} ${normalizarBusca(m.nomeOriginal ?? "")}`;
-      if (!palavras.every((p) => alvo.includes(p))) return false;
-    }
     return true;
   };
-  return monstros
-    .filter(passa)
-    .sort(
-      (a, b) =>
-        normalizarBusca(a.nome).localeCompare(normalizarBusca(b.nome), "pt-BR") ||
-        a.nome.localeCompare(b.nome, "pt-BR"),
-    );
+  return filtrarEOrdenar(monstros, filtro.texto, compararPorNome, passa);
 }
 
 /** Os tipos base que existem nos monstros, para montar o filtro. */
@@ -797,9 +780,6 @@ export function buscarItensMagicos(
   itens: readonly ItemMagicoDoCompendio[],
   filtro: FiltroDeItensMagicos = {},
 ): ItemMagicoDoCompendio[] {
-  const palavras = normalizarBusca(filtro.texto ?? "")
-    .split(/\s+/)
-    .filter(Boolean);
   const tipo = filtro.tipo === undefined ? undefined : normalizarBusca(filtro.tipo);
   const passa = (i: ItemMagicoDoCompendio): boolean => {
     if (tipo !== undefined && normalizarBusca(tipoBaseDoItemMagico(i.tipo)) !== tipo) return false;
@@ -809,19 +789,9 @@ export function buscarItensMagicos(
       (i.sintonizacao?.necessaria === true) !== filtro.sintonizacao
     )
       return false;
-    if (palavras.length > 0) {
-      const alvo = `${normalizarBusca(i.nome)} ${normalizarBusca(i.nomeOriginal ?? "")}`;
-      if (!palavras.every((p) => alvo.includes(p))) return false;
-    }
     return true;
   };
-  return itens
-    .filter(passa)
-    .sort(
-      (a, b) =>
-        normalizarBusca(a.nome).localeCompare(normalizarBusca(b.nome), "pt-BR") ||
-        a.nome.localeCompare(b.nome, "pt-BR"),
-    );
+  return filtrarEOrdenar(itens, filtro.texto, compararPorNome, passa);
 }
 
 /** Os tipos base e as raridades que existem nos itens mágicos (na ordem das raridades). */

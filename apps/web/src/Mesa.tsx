@@ -81,6 +81,8 @@ import { EstadoDaMesa } from "./EstadoDaMesa";
 import { FaixaDeCenas, type PedirImagem } from "./FaixaDeCenas";
 import {
   abrirFichaEmJanela,
+  abrirSomEmJanela,
+  ID_DA_MESA_DE_SOM,
   TEXTO_DO_POPUP_BLOQUEADO,
   trazerFichaDeFora,
   useAcompanharFichasFora,
@@ -382,6 +384,21 @@ export function Mesa({
     },
     [mesa.id, avisar],
   );
+
+  // Q4b: a mesa de som numa janela própria (o mesmo caminho da ficha): sai da tela daqui e volta quando a janela fecha.
+  const somFora = fichasFora.has(ID_DA_MESA_DE_SOM);
+  const alternarSom = useCallback(() => {
+    if (somFora) {
+      // Com a janela aberta, o botão do som a traz para a frente (se ela sumiu, a mesa de som volta para cá).
+      if (!trazerFichaDeFora(mesa.id, ID_DA_MESA_DE_SOM)) setSomAberto(true);
+      return;
+    }
+    setSomAberto((v) => !v);
+  }, [somFora, mesa.id]);
+  const abrirSomEmOutraJanela = useCallback(() => {
+    // O tamanho da primeira vez (depois a janela lembra o dela): estreita e alta, como o painel do som.
+    if (!abrirSomEmJanela(mesa.id, { largura: 460, altura: 720 })) avisar(TEXTO_DO_POPUP_BLOQUEADO);
+  }, [mesa.id, avisar]);
 
   // Os handouts abertos em janelas (V3): os que a pessoa abre e os que o mestre manda abrir ("Mostrar agora").
   const {
@@ -1657,7 +1674,7 @@ export function Mesa({
             podeZonas={modoMestre}
             aoAlternarZonas={alternarZonas}
             aoAlternarNevoa={alternarNevoa}
-            aoAlternarSom={() => setSomAberto((v) => !v)}
+            aoAlternarSom={alternarSom}
             somAberto={somAberto}
             aoEscolher={setFerramenta}
             pincel={pincel}
@@ -1914,8 +1931,9 @@ export function Mesa({
                 aoFechar={alternarNevoa}
               />
             )}
-            {modoMestre && somAberto && (
+            {modoMestre && somAberto && !somFora && (
               <PainelDoSom
+                aoAbrirEmJanela={abrirSomEmOutraJanela}
                 estado={estado}
                 cena={cena}
                 efeitosEmAndamento={som.motor.efeitosEmAndamento()}

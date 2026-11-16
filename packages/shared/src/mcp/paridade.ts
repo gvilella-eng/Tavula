@@ -179,6 +179,7 @@ export const PARIDADE_COM_O_MCP: Record<TipoIntencao, EntradaDeParidade> = {
   "som.efeitoParar": via("som", "pararEfeito"),
   "som.ambiente": via("som", "ambientes"),
   "som.volumeGeral": via("som", "volumeGeral"),
+  "som.transporte": via("som", "transporte"),
   "som.pararTudo": via("som", "pararTudo"),
   "som.apagar": via("som", "apagar"),
 

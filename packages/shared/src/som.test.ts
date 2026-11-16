@@ -29,6 +29,7 @@ import {
   ReacaoSchema,
   sonsDasZonasParaJogador,
   sonsDasZonasParaTokens,
+  tocandoAgora,
   usosDoSom,
   validarMeta,
   visaoPara,
@@ -356,11 +357,12 @@ describe("os ambientes (Q4)", () => {
     expect(e.cenas.find((c) => c.id === "fora")?.ambientes).toEqual([0, 5]);
     // o jogador nunca vê os ambientes da cena
     expect(JSON.stringify(visaoPara(e, J1, T0))).not.toContain('ambientes":[0');
-    e = ok(e, "m", intencao("som.ambiente", { indice: 0, ligado: true }), 5).estado;
+    e = ok(e, "m", intencao("som.ambiente", { indice: 0, ligado: true }), 4).estado;
+    e = ok(e, "m", intencao("som.transporte", { tocando: true }), 4).estado; // Q4b: só toca com o transporte
     e = ok(e, "m", intencao("som.ambiente", { indice: 3, ligado: true }), 6).estado;
     const levado = ok(e, "m", intencao("grupo.moverPara", { cenaId: "fora" }), 20).estado;
     expect(ambientesLigados(levado)).toMatchObject([
-      { indice: 0, inicioMs: T0 + 5_000 }, // já tocava: não recomeça
+      { indice: 0, inicioMs: T0 + 4_000 }, // já tocava: não recomeça
       { indice: 5, inicioMs: T0 + 20_000 },
     ]);
     // cena sem a lista não mexe
@@ -820,5 +822,104 @@ describe("importar e exportar com som", () => {
     const exp = criarExportacao(antigo, iso(1));
     const lida = lerExportacao(JSON.parse(JSON.stringify(exp)));
     expect(lida.ok).toBe(true);
+  });
+});
+
+describe("o transporte da mesa de som (Q4b)", () => {
+  const comDois = () => {
+    let e = criarEstado();
+    e = poeLugar(e, "ambiente", 0, lugar(HASH_TRILHA, "Taverna", { volume: 0.4 }));
+    e = poeLugar(e, "ambiente", 3, lugar(HASH_SUSSURROS, "Vento", { volume: 0.7 }));
+    return e;
+  };
+  const tocar = (e: Estado, tocando: boolean, s = 0) =>
+    ok(e, "m", intencao("som.transporte", { tocando }), s);
+
+  it("marcar ambientes com o transporte parado só marca; Tocar toca os dois juntos, do mesmo instante", () => {
+    let e = comDois();
+    e = ok(e, "m", intencao("som.ambiente", { indice: 0, ligado: true }), 10).estado;
+    e = ok(e, "m", intencao("som.ambiente", { indice: 3, ligado: true }), 20).estado;
+    expect(ambientesLigados(e)).toHaveLength(2);
+    expect(tocandoAgora(e)).toBe(false);
+    expect(e.somLigado?.tocando).toBe(false);
+    expect(recusado(e, "j1", intencao("som.transporte", { tocando: true }))).toBe("sem_permissao");
+    const r = tocar(e, true, 30);
+    expect(tocandoAgora(r.estado)).toBe(true);
+    expect(ambientesLigados(r.estado)).toMatchObject([
+      { indice: 0, inicioMs: T0 + 30_000 },
+      { indice: 3, inicioMs: T0 + 30_000 },
+    ]);
+    // tocar de novo não muda nada
+    expect(tocar(r.estado, true).eventos).toHaveLength(0);
+  });
+
+  it("Tocar sem nenhum ambiente marcado é recusado (a tela mostra a dica)", () => {
+    expect(recusado(comDois(), "m", intencao("som.transporte", { tocando: true }))).toBe(
+      "dados_invalidos",
+    );
+  });
+
+  it("com o transporte tocando, ligar entra na hora e desligar tira só ele", () => {
+    let e = comDois();
+    e = ok(e, "m", intencao("som.ambiente", { indice: 0, ligado: true })).estado;
+    e = tocar(e, true, 5).estado;
+    e = ok(e, "m", intencao("som.ambiente", { indice: 3, ligado: true }), 40).estado;
+    expect(tocandoAgora(e)).toBe(true);
+    expect(ambientesLigados(e)).toMatchObject([
+      { indice: 0, inicioMs: T0 + 5_000 },
+      { indice: 3, inicioMs: T0 + 40_000 },
+    ]);
+    e = ok(e, "m", intencao("som.ambiente", { indice: 0, ligado: false }), 50).estado;
+    expect(ambientesLigados(e)).toMatchObject([{ indice: 3 }]);
+    expect(tocandoAgora(e)).toBe(true);
+  });
+
+  it("Parar cala os ambientes (que seguem marcados) e corta os efeitos; Tocar volta", () => {
+    let e = comDois();
+    e = ok(e, "m", intencao("som.ambiente", { indice: 0, ligado: true })).estado;
+    e = tocar(e, true).estado;
+    const parado = tocar(e, false);
+    expect(parado.eventos.map((x) => x.tipo)).toEqual(["som.efeitoParado", "som.ligadoAlterado"]);
+    expect(tocandoAgora(parado.estado)).toBe(false);
+    expect(ambientesLigados(parado.estado)).toHaveLength(1);
+    expect(tocandoAgora(tocar(parado.estado, true).estado)).toBe(true);
+    // parar o que já está parado só corta os efeitos
+    expect(tocar(parado.estado, false).eventos.map((x) => x.tipo)).toEqual(["som.efeitoParado"]);
+  });
+
+  it("o estado de antes do Q4b (sem o campo) vale como tocando se há ambiente marcado", () => {
+    const antigo = criarEstado({
+      somLigado: {
+        volumeGeral: 1,
+        ambientes: [{ indice: 0, hash: HASH_TRILHA, volume: 0.5, inicioMs: T0 }],
+      },
+    });
+    expect(tocandoAgora(antigo)).toBe(true);
+    expect(tocandoAgora(criarEstado())).toBe(false);
+    expect(tocandoAgora(criarEstado({ somLigado: { volumeGeral: 0.5, ambientes: [] } }))).toBe(
+      false,
+    );
+  });
+
+  it("levar o grupo para uma cena com ambientes põe o transporte para tocar, tudo do mesmo instante", () => {
+    let e = comDois();
+    e = ok(e, "m", intencao("som.ambiente", { indice: 3, ligado: true }), 2).estado;
+    expect(tocandoAgora(e)).toBe(false);
+    e = ok(e, "m", intencao("cena.editar", { cenaId: "fora", ambientes: [0, 3] })).estado;
+    e = ok(e, "m", intencao("grupo.moverPara", { cenaId: "fora" }), 20).estado;
+    expect(tocandoAgora(e)).toBe(true);
+    expect(ambientesLigados(e)).toMatchObject([
+      { indice: 0, inicioMs: T0 + 20_000 },
+      { indice: 3, inicioMs: T0 + 20_000 },
+    ]);
+  });
+
+  it("parar tudo volta ao começo: nada marcado e transporte parado", () => {
+    let e = comDois();
+    e = ok(e, "m", intencao("som.ambiente", { indice: 0, ligado: true })).estado;
+    e = tocar(e, true).estado;
+    e = ok(e, "m", intencao("som.pararTudo")).estado;
+    expect(tocandoAgora(e)).toBe(false);
+    expect(e.somLigado).toBeUndefined();
   });
 });

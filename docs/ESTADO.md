@@ -3922,4 +3922,28 @@ Ver `PASSAGEM.md` ("Q5").
 ### Roteiro manual
 `docs/ROTEIRO-DE-TESTES.md`, "Q5".
 
-## Próximo: o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b, N4, N5, M1, M2, Q1, Q2, Q4 e Q5
+## Ajustes Q6 — A busca do compêndio e a mesa de som (Q2b + Q4b) (entregue, aguardando o roteiro manual)
+
+### O que foi entregue
+- **Busca do compêndio**: por palavra, sem acento, começo de palavra e erro de digitação, em português e inglês, com ordem por relevância; placeholder "Buscar…"; espaço entre a lista, os botões e os "Créditos".
+- **Mesa de som**: transporte **Tocar / Parar** (os interruptores só marcam os ambientes); janela própria do navegador (`/m/<id>/som`); altura ajustável da faixa (tudo encolhe junto e, no mínimo, rola); a configuração por cima de tudo; mesa vazia com "Configurar"; lista dos sons que a mesa já tem na configuração.
+
+### Como rodar
+`pnpm dev` como sempre. Sem migração de banco (`SomLigado.tocando` é opcional e a sala já guardava o JSON). Mudança de protocolo: a intenção nova `som.transporte` e o campo `tocando` em `somLigado`. Testes em outras portas: `E2E_PORTA_SALA=8790 E2E_PORTA_WEB=5176`.
+
+### Verificação
+Ver o relatório do lote.
+
+### Decisões
+Ver `REDESIGN.md` ("Q6 — como ficou").
+
+### Desvios
+- O "Parar tudo" da tela virou o "Parar" do transporte (o brief pedia os dois; o transporte o substitui).
+
+### Frágil
+Ver `PASSAGEM.md` ("Q6").
+
+### Roteiro manual
+`docs/ROTEIRO-DE-TESTES.md`, "Q2b" e "Q4b".
+
+## Próximo: o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b, N4, N5, M1, M2, Q1, Q2, Q4, Q5 e Q6

@@ -993,3 +993,15 @@ Continua em aberto, por ser decisão e não erro de doc: `ficha.verOutras` (seç
 - `.mensagem-chat.seguida` esconde o cabeçalho com `clip-path` (continua no DOM para os testes e leitores de tela).
 
 **Suposições**: ver `docs/REDESIGN.md`, "Q5 — como ficou".
+
+## Q6 (2026-11-16): a busca do compêndio e a mesa de som (Q2b + Q4b)
+
+- Busca: `packages/shared/src/buscaDoCompendio.ts` (`prepararConsulta`, `pontuarBusca`, `filtrarEOrdenar`). As buscas de `compendio.ts` e `compendioSecoes.ts` passam por `filtrarEOrdenar`. As funções de agrupar (`agruparMagiasPorNivel` etc.) têm um segundo argumento `alfabetico`: com busca a tela passa `false` para manter a relevância.
+- **Frágil: o cache da busca é um `WeakMap` por objeto da entrada.** Se a tela copiar as entradas a cada tecla, o cache não vale e a busca fica mais lenta. Hoje as listas vêm estáveis do `useCompendio`.
+- Transporte: `SomLigado.tocando` e `tocandoAgora(estado)` em `mesadesom.ts`; `somLigadoOuNada` guarda o objeto se há ambiente marcado ou se o transporte toca. A intenção `som.transporte` (`nucleo.ts`) reinicia o relógio dos marcados ao tocar. `useSomDaMesa` passa ao motor uma lista vazia de ambientes quando o transporte está parado.
+- **Frágil: o estado sem `tocando`** (campanha antiga) vale como "tocando" se há ambiente marcado. Não mude essa regra sem uma migração.
+- Janela própria do som: `som/SomEmJanelaPropria.tsx`, rota `/m/<id>/som` (`rotas.ts`, `App.tsx`), id `mesa-de-som` em `ficha/foraDaMesa.ts` (o mesmo lock e canal das fichas). `PainelDoSom` tem a variante `propria`. Os testes da ficha que contam janelas abertas não são afetados (o id é outro).
+- Faixa: `AlcaDaFaixa` em `PainelDoSom.tsx` e as constantes e `escalaDaFaixa` de `som/modoDoSom.ts`. **Frágil: `ALTURA_NATURAL_DO_CORPO` (190) e `ALTURA_DO_TOPO_DA_FAIXA` (42) são medidas do CSS** (grid dos efeitos 2 × 64 px, ambientes 4 × 38 px). Se o CSS da faixa mudar, meça de novo (o E2E `som-q4b.spec.ts` falha se o corpo rolar acima do mínimo). A escala usa `zoom`.
+- A configuração do som usa `camadaAlta` (45+): fica acima da faixa (30) e das janelas comuns (25+).
+
+**Suposições**: ver `docs/REDESIGN.md`, "Q6 — como ficou".

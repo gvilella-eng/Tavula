@@ -193,6 +193,11 @@ describe("M2: som", () => {
       ambientes: [{ indice: 0, hash: HASH_SOM, volume: 0.3 }],
     });
     expect(sala.verdade.cenas[0]?.ambientes).toEqual([0]);
+    expect((await rodar(sala, "som", { listar: true })).texto).toContain(
+      "marcado (transporte parado)",
+    );
+    expect((await rodar(sala, "som", { transporte: "tocar" })).erro).toBeFalsy();
+    expect(sala.verdade.somLigado?.tocando).toBe(true);
     const lista = await rodar(sala, "som", { listar: true });
     expect(lista.texto).toContain("TOCANDO");
     await rodar(sala, "som", { pararTudo: true });

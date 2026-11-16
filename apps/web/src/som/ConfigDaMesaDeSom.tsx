@@ -168,6 +168,8 @@ export function ConfigDaMesaDeSom(p: Props) {
       icone={<Volume2 size={14} />}
       testid="som-config"
       corpoLivre
+      // Q4b: por cima de tudo (da faixa no pé da tela e da janela do som), sempre inteira na tela.
+      camadaAlta
       padrao={noTopoAoCentro(32)}
       largura={(area) => Math.min(760, area.largura - 24)}
       altura={(area) => Math.min(720, area.altura - 24)}
@@ -246,6 +248,11 @@ export function ConfigDaMesaDeSom(p: Props) {
             {atual && (
               <p className="som-arquivo-atual" data-testid="som-config-arquivo">
                 {nomeDoArquivoAtual}
+              </p>
+            )}
+            {sons.length > 0 && (
+              <p className="som-secao-nome som-ja-tem" data-testid="som-config-ja-tem">
+                Sons que a mesa já tem
               </p>
             )}
             {sons.length > 0 && (

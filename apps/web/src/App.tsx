@@ -13,6 +13,7 @@ import { Logo } from "./Logo";
 import { Mesa } from "./Mesa";
 import { lembrarMesa } from "./mesasLocais";
 import { irPara, tituloDaMesa, useRota } from "./rotas";
+import { SomEmJanelaPropria } from "./som/SomEmJanelaPropria";
 import { TelaInicial } from "./TelaInicial";
 import { tourAbreSozinho } from "./tour/abreSozinho";
 
@@ -25,10 +26,12 @@ const voltarAoInicio = () => irPara("/");
 function MesaEncontrada({
   mesa,
   fichaId,
+  painel,
   aoRenomear,
 }: {
   mesa: DadosDaMesa;
   fichaId?: string | undefined;
+  painel?: "som" | undefined;
   aoRenomear: (n: string) => void;
 }) {
   // `undefined` = ainda perguntando à sala; `null` = ninguém entrou nesta mesa.
@@ -53,6 +56,9 @@ function MesaEncontrada({
   if (falha) return <p role="alert">{falha}</p>;
   if (usuario === undefined) return <p>Conectando à sala…</p>;
   if (usuario === null) return <EntradaDaMesa mesa={mesa} aoEntrar={setUsuario} />;
+  if (painel === "som") {
+    return <SomEmJanelaPropria key={usuario.id} mesa={mesa} aoPerderSessao={aoPerderSessao} />;
+  }
   if (fichaId) {
     return (
       <FichaEmJanelaPropria
@@ -104,10 +110,12 @@ function RotaDaMesa({
   id,
   bruto,
   fichaId,
+  painel,
 }: {
   id: string | null;
   bruto: string;
   fichaId?: string | undefined;
+  painel?: "som" | undefined;
 }) {
   // `undefined`: consultando; `null`: não existe.
   const [mesa, setMesa] = useState<DadosDaMesa | null | undefined>(undefined);
@@ -134,12 +142,12 @@ function RotaDaMesa({
   // O título da aba é o nome da mesa (a janela própria da ficha põe o dela).
   const nome = mesa?.nome;
   useEffect(() => {
-    if (fichaId) return;
+    if (fichaId || painel) return;
     document.title = tituloDaMesa(nome);
     return () => {
       document.title = tituloDaMesa();
     };
-  }, [nome, fichaId]);
+  }, [nome, fichaId, painel]);
 
   const aoRenomear = useCallback((novo: string) => {
     setMesa((atual) => {
@@ -161,7 +169,15 @@ function RotaDaMesa({
     return <MesaNaoEncontrada texto={`Nenhuma mesa tem o id ${id}. Confira com quem mandou.`} />;
   }
   // `key`: trocar de mesa pelo histórico do navegador reinicia a tela.
-  return <MesaEncontrada key={mesa.id} mesa={mesa} fichaId={fichaId} aoRenomear={aoRenomear} />;
+  return (
+    <MesaEncontrada
+      key={mesa.id}
+      mesa={mesa}
+      fichaId={fichaId}
+      painel={painel}
+      aoRenomear={aoRenomear}
+    />
+  );
 }
 
 export function App() {
@@ -169,10 +185,11 @@ export function App() {
   if (rota.tipo === "inicio") return <TelaInicial />;
   return (
     <RotaDaMesa
-      key={`${rota.id ?? rota.bruto}/${rota.fichaId ?? ""}`}
+      key={`${rota.id ?? rota.bruto}/${rota.fichaId ?? ""}/${rota.painel ?? ""}`}
       id={rota.id}
       bruto={rota.bruto}
       fichaId={rota.fichaId}
+      painel={rota.painel}
     />
   );
 }

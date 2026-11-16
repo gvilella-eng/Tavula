@@ -86,7 +86,13 @@ export type AmbienteLigado = z.infer<typeof AmbienteLigadoSchema>;
 export const SomLigadoSchema = z.object({
   /** O volume geral da mesa de som (0 a 1): vale para efeitos e ambientes, para todos. */
   volumeGeral: VolumeSchema,
+  /** Os ambientes MARCADOS (Q4b): só tocam enquanto o transporte toca. */
   ambientes: z.array(AmbienteLigadoSchema).max(LUGARES_POR_GRUPO),
+  /**
+   * O transporte geral (Q4b): `true` toca os ambientes marcados, `false` os deixa marcados e calados. Sem o campo (estado
+   * de antes do Q4b) vale "tocando" se há ambiente marcado (assumido), como era.
+   */
+  tocando: z.boolean().optional(),
 });
 export type SomLigado = z.infer<typeof SomLigadoSchema>;
 
@@ -137,13 +143,25 @@ export function ambientesLigados(estado: Pick<Estado, "somLigado">): AmbienteLig
   return [...(estado.somLigado?.ambientes ?? [])].sort((a, b) => a.indice - b.indice);
 }
 
+/** O transporte da mesa de som toca agora? (Estado de antes do Q4b, sem o campo: toca se há ambiente marcado.) */
+export function tocandoAgora(estado: Pick<Estado, "somLigado">): boolean {
+  const s = estado.somLigado;
+  if (!s) return false;
+  return s.tocando ?? s.ambientes.length > 0;
+}
+
 export function volumeGeralDe(estado: Pick<Estado, "somLigado">): number {
   return estado.somLigado?.volumeGeral ?? VOLUME_GERAL_PADRAO;
 }
 
 /** O que a mesa guarda de som: `somLigado` sem ambientes e com o volume geral padrão não precisa existir. */
 export function somLigadoOuNada(s: SomLigado): SomLigado | undefined {
-  return s.ambientes.length === 0 && s.volumeGeral === VOLUME_GERAL_PADRAO ? undefined : s;
+  if (s.ambientes.length === 0 && s.tocando !== true) {
+    // Nada marcado e o transporte parado: só o volume geral (se não for o padrão) vale a pena guardar.
+    if (s.volumeGeral === VOLUME_GERAL_PADRAO) return undefined;
+    return { volumeGeral: s.volumeGeral, ambientes: [] };
+  }
+  return s;
 }
 
 /** Os ambientes da cena que ainda existem (índices válidos, sem repetir, em ordem). */
@@ -164,13 +182,16 @@ export function ambientesDaCena(
 export function ligadoSem(
   estado: Pick<Estado, "somLigado">,
   quais: (a: AmbienteLigado) => boolean,
+  /** Para o transporte junto (o "parar tudo"); sem ele o transporte fica como está. */
+  tocando: boolean = tocandoAgora(estado),
 ): { mudou: boolean; somLigado: SomLigado | null } {
   const atuais = ambientesLigados(estado);
   const ficam = atuais.filter((a) => !quais(a));
   if (ficam.length === atuais.length) return { mudou: false, somLigado: null };
   return {
     mudou: true,
-    somLigado: somLigadoOuNada({ volumeGeral: volumeGeralDe(estado), ambientes: ficam }) ?? null,
+    somLigado:
+      somLigadoOuNada({ volumeGeral: volumeGeralDe(estado), ambientes: ficam, tocando }) ?? null,
   };
 }
 
@@ -203,11 +224,22 @@ export function ligadosParaACena(
       },
     );
   }
+  // Q4b: a cena que tem ambientes põe o transporte para tocar (a cena existe para isso); sem ambientes, ele fica como está.
+  const tocando = querem.length > 0 ? true : tocandoAgora(estado);
   const igual =
     novos.length === atuais.length &&
-    novos.every((n, k) => atuais[k]?.indice === n.indice && atuais[k]?.hash === n.hash);
+    novos.every((n, k) => atuais[k]?.indice === n.indice && atuais[k]?.hash === n.hash) &&
+    tocando === tocandoAgora(estado);
   if (igual) return undefined;
-  return { volumeGeral: volumeGeralDe(estado), ambientes: novos };
+  // Saindo do transporte parado, tudo começa junto, agora.
+  const comecando = tocando && !tocandoAgora(estado);
+  return {
+    volumeGeral: volumeGeralDe(estado),
+    ambientes: comecando
+      ? novos.map((n) => ({ ...n, inicioMs: agoraMs, servidorMs: agoraMs }))
+      : novos,
+    tocando,
+  };
 }
 
 // ---------------------------------------------------------------------------------------------

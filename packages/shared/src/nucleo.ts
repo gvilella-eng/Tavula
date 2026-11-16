@@ -110,6 +110,7 @@ import {
   migrarSomDoN5,
   type SomLigado,
   somLigadoOuNada,
+  tocandoAgora,
   usosDoSom,
   volumeGeralDe,
 } from "./mesadesom.ts";
@@ -2819,8 +2820,41 @@ function processarIntencao(
             : { indice, hash: lugar.hash, volume: v, inicioMs: agoraMs, servidorMs: agoraMs };
         novos = [...atuais.filter((a) => a.indice !== indice), ambiente];
       }
-      const somLigado = somLigadoOuNada({ volumeGeral: volumeGeralDe(estado), ambientes: novos });
+      // Q4b: ligar só MARCA o ambiente; ele toca se o transporte já toca (então entra na hora, com o fade).
+      const somLigado = somLigadoOuNada({
+        volumeGeral: volumeGeralDe(estado),
+        ambientes: novos,
+        tocando: tocandoAgora(estado),
+      });
       emitir({ tipo: "som.ligadoAlterado", dados: { somLigado: somLigado ?? null } });
+      return aplicado();
+    }
+
+    case "som.transporte": {
+      const { tocando } = intencao.dados;
+      const marcados = ambientesLigados(estado);
+      if (tocando) {
+        if (marcados.length === 0) return recusa("dados_invalidos", "Ligue um ou mais ambientes.");
+        if (tocandoAgora(estado)) return aplicado();
+        // Os ambientes marcados começam juntos, agora.
+        const somLigado = somLigadoOuNada({
+          volumeGeral: volumeGeralDe(estado),
+          ambientes: marcados.map((a) => ({ ...a, inicioMs: agoraMs, servidorMs: agoraMs })),
+          tocando: true,
+        });
+        emitir({ tipo: "som.ligadoAlterado", dados: { somLigado: somLigado ?? null } });
+        return aplicado();
+      }
+      // Parar corta os efeitos que tocam e cala os ambientes, que seguem marcados.
+      emitir({ tipo: "som.efeitoParado", dados: {} });
+      if (tocandoAgora(estado)) {
+        const somLigado = somLigadoOuNada({
+          volumeGeral: volumeGeralDe(estado),
+          ambientes: marcados,
+          tocando: false,
+        });
+        emitir({ tipo: "som.ligadoAlterado", dados: { somLigado: somLigado ?? null } });
+      }
       return aplicado();
     }
 
@@ -2830,6 +2864,7 @@ function processarIntencao(
       const somLigado = somLigadoOuNada({
         volumeGeral: volume,
         ambientes: ambientesLigados(estado),
+        tocando: tocandoAgora(estado),
       });
       emitir({ tipo: "som.ligadoAlterado", dados: { somLigado: somLigado ?? null } });
       return aplicado();
@@ -2837,8 +2872,18 @@ function processarIntencao(
 
     case "som.pararTudo": {
       emitir({ tipo: "som.efeitoParado", dados: {} });
-      const r = ligadoSem(estado, () => true);
-      if (r.mudou) emitir({ tipo: "som.ligadoAlterado", dados: { somLigado: r.somLigado } });
+      const r = ligadoSem(estado, () => true, false);
+      if (r.mudou) {
+        emitir({ tipo: "som.ligadoAlterado", dados: { somLigado: r.somLigado } });
+      } else if (tocandoAgora(estado)) {
+        // Transporte tocando sem nada marcado: para também.
+        const somLigado = somLigadoOuNada({
+          volumeGeral: volumeGeralDe(estado),
+          ambientes: [],
+          tocando: false,
+        });
+        emitir({ tipo: "som.ligadoAlterado", dados: { somLigado: somLigado ?? null } });
+      }
       return aplicado();
     }
 

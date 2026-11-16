@@ -906,9 +906,10 @@ Os arquivos de áudio (mp3, ogg e wav, até 20 MB) são assets do tipo `som`, re
 | `som.lugar` | `{ grupo: "efeito" \| "ambiente", indice, lugar \| null }` | Capacidade `som.controlar` (só do mestre; não delegável). Põe ou esvazia um lugar. `asset_inexistente` se o arquivo não é um asset `som`. Trocar o arquivo de um ambiente que toca, ou esvaziá-lo, o desliga |
 | `som.efeito` | `{ lugar? , hash?, volume? }` (um dos dois) | Toca um efeito uma vez, para todos: pelo `lugar` (volume padrão dele) ou por um `hash` qualquer. O volume que sai já vai multiplicado pelo volume geral. `dados_invalidos` se o lugar está vazio. Não muda o estado |
 | `som.efeitoParar` | `{ lugar? }` | Corta o efeito do lugar (sem ele, todos) |
-| `som.ambiente` | `{ indice, ligado, volume? }` | Liga ou desliga o ambiente. Ligado de novo no mesmo som só muda o volume (não recomeça). `dados_invalidos` se o lugar está vazio |
+| `som.ambiente` | `{ indice, ligado, volume? }` | (Q4b: só MARCA ou desmarca; toca se o transporte toca.) Liga ou desliga o ambiente. Ligado de novo no mesmo som só muda o volume (não recomeça). `dados_invalidos` se o lugar está vazio |
 | `som.volumeGeral` | `{ volume }` | O volume geral da mesa de som (vale para efeitos, ambientes e `som.tocar`) |
-| `som.pararTudo` | `{}` | Corta os efeitos e desliga todos os ambientes (o volume geral fica) |
+| `som.transporte` | `{ tocando }` | Q4b, `som.controlar`. `true` toca os ambientes marcados (começam juntos, agora); sem nenhum marcado, `dados_invalidos` ("Ligue um ou mais ambientes"). `false` cala os ambientes (seguem marcados) e corta os efeitos. `somLigado.tocando` guarda o transporte; sem o campo vale "toca se há ambiente marcado". |
+| `som.pararTudo` | `{}` | Corta os efeitos, desmarca todos os ambientes e para o transporte (o volume geral fica) |
 | `som.apagar` | `{ hash }` | Tira o som da mesa: dos lugares, das zonas e das automações (a reação que só tocava esse som sai) e para o que tocava com ele. `asset_inexistente` se não é um som da mesa. O arquivo fica no computador do mestre |
 | `cena.editar` | `{ cenaId, ambientes: number[] \| null }` | Os ambientes (lugares) que ligam ao levar o grupo para a cena; `null` tira a lista. `grupo.moverPara` liga os marcados e desliga os outros (os que já tocam e continuam marcados seguem sem recomeçar); cena sem a lista não mexe |
 

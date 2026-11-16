@@ -420,15 +420,15 @@ type SecaoEscolhida = SecaoDoCompendio | "todas";
 
 const ROTULO_DA_BUSCA: Record<SecaoEscolhida, { placeholder: string; rotulo: string }> = {
   todas: {
-    placeholder: "Nome em português ou inglês…",
+    placeholder: "Buscar…",
     rotulo: "Buscar em todas as seções",
   },
-  magias: { placeholder: "Nome em português ou inglês…", rotulo: "Buscar magia" },
-  armas: { placeholder: "Nome em português ou inglês…", rotulo: "Buscar arma" },
-  itens: { placeholder: "Nome em português ou inglês…", rotulo: "Buscar item" },
-  monstros: { placeholder: "Nome em português ou inglês…", rotulo: "Buscar monstro" },
+  magias: { placeholder: "Buscar…", rotulo: "Buscar magia" },
+  armas: { placeholder: "Buscar…", rotulo: "Buscar arma" },
+  itens: { placeholder: "Buscar…", rotulo: "Buscar item" },
+  monstros: { placeholder: "Buscar…", rotulo: "Buscar monstro" },
   itensMagicos: {
-    placeholder: "Nome em português ou inglês…",
+    placeholder: "Buscar…",
     rotulo: "Buscar item mágico",
   },
 };
@@ -466,7 +466,11 @@ function ListaDeMagias({
     () => buscarMagias(magias, modoTodas ? { texto: filtro.texto } : filtro),
     [magias, filtro, modoTodas],
   );
-  const grupos = useMemo(() => agruparMagiasPorNivel(achadas), [achadas]);
+  const buscandoMagias = (filtro.texto ?? "").trim() !== "";
+  const grupos = useMemo(
+    () => agruparMagiasPorNivel(achadas, !buscandoMagias),
+    [achadas, buscandoMagias],
+  );
   const total = magias.length;
   const temFiltro = Object.values(filtro).some((v) => v !== undefined && v !== "");
   return (
@@ -890,7 +894,7 @@ function ListaDeEntradas({
       ) : tipo === "arma" ? (
         <BlocosDoCompendio
           escopo="armas"
-          grupos={agruparArmas(achadas as ArmaDoCompendio[])}
+          grupos={agruparArmas(achadas as ArmaDoCompendio[], texto.trim() === "")}
           forcar={texto.trim() !== ""}
           total={total}
           testid="compendio-lista-entradas"

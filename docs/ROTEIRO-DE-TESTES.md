@@ -562,6 +562,8 @@ Antes: a mesa com os seus arquivos reais (361 magias, 428 monstros, 274 itens m�
 
 ## Q4 — A mesa de som: 8 efeitos de um toque e 8 ambientes em laço
 
+(Desde o Q4b, "ligar" um ambiente só o marca e "Parar tudo" virou o "Parar" do transporte: leia os passos abaixo junto com "Q4b".)
+
 Antes de tudo: tenha na pasta `sons/` (ou à mão) uns 6 arquivos de áudio: 2 ou 3 efeitos curtos (trovão, porta, espada) e 3 ambientes longos (taverna, vento, chuva).
 
 1. **Configurar um efeito.** Abra Som na barra de ferramentas. Num lugar vazio de Efeitos, clique em "adicionar". Na configuração, escolha o arquivo do trovão, dê o nome "Trovão", escolha o ícone Trovão e a cor Azul. O nome para em 12 letras. "Ouvir" toca só para você. Clique em Pronto: o botão aparece na grade, com o ícone na cor escolhida.
@@ -590,3 +592,21 @@ Antes de tudo: tenha na pasta `sons/` (ou à mão) uns 6 arquivos de áudio: 2 o
 ## Se algo der errado
 - Anote a tela, o que fez e o que esperava, e mande para mim. Bug confirmado vai para `docs/BUGS.md`.
 - Para voltar à campanha de antes de mesas e contas, use a cópia de segurança indicada no topo.
+
+## Q2b — A busca do compêndio
+
+1. Na aba Compêndio, procure `fireball`: acha a Bola de Fogo (se a mesa ainda tem os arquivos antigos, sem o nome em inglês, recarregue os arquivos do compêndio). Procure `fire`, `bola fogo`, `fogo bola`, `foggo` e `firebal`: todas acham.
+2. Procure `misse` ou `MISSEIS`: acha Mísseis Mágicos. Procure `de zzzz`: não acha nada.
+3. A barra diz só "Buscar…". Nas seções Monstros, Itens mágicos, Armas, Itens e em "Todas" a busca é a mesma, e o melhor resultado vem primeiro dentro de cada bloco.
+4. Com a aba aberta como mestre, há espaço claro entre a lista e "Carregar arquivos do compêndio…", e entre os botões e "Créditos", nos temas escuros e no Pergaminho.
+
+## Q4b — A mesa de som: transporte, janela própria, altura da faixa
+
+1. **Tocar e Parar.** Marque dois ambientes (interruptores): nada toca, para você nem para o jogador. "Tocar" sem nenhum marcado mostra "Ligue um ou mais ambientes". Com dois marcados, "Tocar" toca os dois e o botão vira "Parar". Desmarque um: sai só ele. "Parar" cala tudo e corta os efeitos; os ambientes seguem marcados e o botão volta a "Tocar". Os efeitos tocam com o transporte parado ou tocando.
+2. **Cena.** Leve o grupo a uma cena com ambientes: o transporte passa a tocar.
+3. **Outra janela.** No botão de abrir em outra janela (janela ou faixa), a mesa de som abre numa janela do navegador. Toque um efeito e um ambiente por ela: o jogador ouve. A mesa mostra a janela do som sumida; fechar a janela devolve o painel. O botão do Som, com a janela aberta, a traz para a frente.
+4. **Altura da faixa.** Encaixe a faixa. Arraste a borda de cima (ou use as setas, Shift, Home e End com a alça focada): tudo encolhe junto, sem mudar de lugar; no mínimo aparece a barra de rolagem. Recarregue: a altura fica.
+5. **Configuração por cima.** Abra a configuração com a faixa e com a janela: ela abre por cima de tudo, inteira na tela.
+6. **Mesa vazia.** Numa mesa sem sons, a janela e a faixa dizem "Nenhum som na mesa de som ainda" e o botão "Configurar" abre a configuração; "Tocar" fica desabilitado.
+7. **Sons que a mesa já tem.** Na configuração, um lugar mostra "Sons que a mesa já tem" (os que você subiu antes, mesmo fora de um lugar) para pôr com um clique.
+8. **Claude.** Peça ao Claude para marcar ambientes e tocar (`transporte: "tocar"`).

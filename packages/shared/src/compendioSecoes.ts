@@ -1,3 +1,4 @@
+import { filtrarEOrdenar, pontuarBusca, prepararConsulta } from "./buscaDoCompendio.ts";
 import {
   type ArmaDoCompendio,
   type Compendio,
@@ -44,6 +45,7 @@ function agrupar<T extends { nome: string }, C extends string | number>(
   chaveDe: (e: T) => C,
   ordem: (a: C, b: C) => number,
   rotuloDe: (c: C) => string,
+  alfabetico: boolean,
 ): GrupoDoCompendio<T>[] {
   const mapa = new Map<C, T[]>();
   for (const e of entradas) {
@@ -57,7 +59,7 @@ function agrupar<T extends { nome: string }, C extends string | number>(
     .map(([c, lista]) => ({
       chave: String(c),
       rotulo: rotuloDe(c),
-      entradas: lista.sort(compararNomes),
+      entradas: alfabetico ? lista.sort(compararNomes) : lista,
     }));
 }
 
@@ -68,18 +70,21 @@ export const ROTULO_DO_BLOCO_DE_NIVEL = (nivel: number): string =>
 /** Magias por nível (truques primeiro), em ordem alfabética dentro de cada nível. Só os níveis que têm magia. */
 export function agruparMagiasPorNivel(
   magias: readonly MagiaDoCompendio[],
+  alfabetico = true,
 ): GrupoDoCompendio<MagiaDoCompendio>[] {
   return agrupar(
     magias,
     (m) => m.nivel,
     (a, b) => a - b,
     ROTULO_DO_BLOCO_DE_NIVEL,
+    alfabetico,
   );
 }
 
 /** Monstros por nível de desafio (0, 1/8, 1/4, 1/2, 1 ... 30), alfabético dentro. */
 export function agruparMonstrosPorND(
   monstros: readonly MonstroDoCompendio[],
+  alfabetico = true,
 ): GrupoDoCompendio<MonstroDoCompendio>[] {
   const pos = (nd: string) => {
     const p = NIVEIS_DE_DESAFIO.indexOf(nd);
@@ -90,18 +95,21 @@ export function agruparMonstrosPorND(
     (m) => m.nd,
     (a, b) => pos(a) - pos(b),
     (nd) => `ND ${nd}`,
+    alfabetico,
   );
 }
 
 /** Itens mágicos por raridade (comum ... artefato, varia), alfabético dentro. */
 export function agruparItensMagicosPorRaridade(
   itens: readonly ItemMagicoDoCompendio[],
+  alfabetico = true,
 ): GrupoDoCompendio<ItemMagicoDoCompendio>[] {
   return agrupar(
     itens,
     (i) => i.raridade,
     (a, b) => RARIDADES_DE_ITEM_MAGICO.indexOf(a) - RARIDADES_DE_ITEM_MAGICO.indexOf(b),
     (r) => ROTULO_DA_RARIDADE[r],
+    alfabetico,
   );
 }
 
@@ -121,6 +129,7 @@ const ROTULO_DAS_ARMAS: Record<(typeof ORDEM_DAS_ARMAS)[number], string> = {
 /** Armas em simples e marciais, cada uma em corpo a corpo e à distância, alfabético dentro. */
 export function agruparArmas(
   armas: readonly ArmaDoCompendio[],
+  alfabetico = true,
 ): GrupoDoCompendio<ArmaDoCompendio>[] {
   return agrupar(
     armas,
@@ -128,26 +137,27 @@ export function agruparArmas(
       `${a.categoria}-${a.distancia ? "distancia" : "corpo"}` as (typeof ORDEM_DAS_ARMAS)[number],
     (a, b) => ORDEM_DAS_ARMAS.indexOf(a) - ORDEM_DAS_ARMAS.indexOf(b),
     (c) => ROTULO_DAS_ARMAS[c],
+    alfabetico,
   );
 }
 
-/** Quem o texto da busca encontra: o nome em português ou o nome original (inglês), sem acento nem caixa. */
+/**
+ * Quem o texto da busca encontra (Q2b): por palavra, no nome em português ou no nome original (inglês), sem acento nem
+ * caixa, começo de palavra e erro de grafia (veja `buscaDoCompendio.ts`).
+ */
 export function casaComABusca(
   entrada: { nome: string; nomeOriginal?: string | undefined },
   texto: string,
 ): boolean {
-  const palavras = normalizarBusca(texto).split(/\s+/).filter(Boolean);
-  if (palavras.length === 0) return true;
-  const alvo = `${normalizarBusca(entrada.nome)} ${normalizarBusca(entrada.nomeOriginal ?? "")}`;
-  return palavras.every((p) => alvo.includes(p));
+  return pontuarBusca(entrada, prepararConsulta(texto)) !== null;
 }
 
 export function buscarArmas(armas: readonly ArmaDoCompendio[], texto = ""): ArmaDoCompendio[] {
-  return armas.filter((a) => casaComABusca(a, texto)).sort(compararNomes);
+  return filtrarEOrdenar(armas, texto, compararNomes);
 }
 
 export function buscarItens(itens: readonly ItemDoCompendio[], texto = ""): ItemDoCompendio[] {
-  return itens.filter((i) => casaComABusca(i, texto)).sort(compararNomes);
+  return filtrarEOrdenar(itens, texto, compararNomes);
 }
 
 export type AchadosEmTodas = {
@@ -169,7 +179,7 @@ export function buscarEmTodas(
 ): AchadosEmTodas {
   const por = <T extends { nome: string; nomeOriginal?: string | undefined }>(
     l: readonly T[] | undefined,
-  ): T[] => (l ?? []).filter((e) => casaComABusca(e, texto)).sort(compararNomes);
+  ): T[] => filtrarEOrdenar(l ?? [], texto, compararNomes);
   return {
     magias: por(c.magias),
     monstros: incluirMonstros ? por(c.monstros) : [],

@@ -119,7 +119,7 @@ chamada só. Se um nome for repetido ou não existir, a resposta diz o que corri
 | `automacoes` | mestre | Ciclos, reações, zonas e botões de evento; durante a sessão, disparar, pausar e retomar ciclos, soltar eventos e apertar botões (M2). |
 | `combate` | mestre (o jogador, o próprio turno) | M2. Montar a ordem de turno (tokens, fichas, avulsos), rolar iniciativa (todos, NPCs, faltam), editar, mover, próximo, anterior, passar, dar a vez, rodada, encerrar; mostrar ou esconder o painel. |
 | `mesa` | mestre | M2. Configuração da mesa, iluminação e memória do mapa, pastas (criar, renomear, visibilidade, apagar, mover itens), relógio (pausar, retomar, zerar), tirar o compêndio. |
-| `som` | mestre | M2, refeita no Q4. A mesa de som: configura os 16 lugares (arquivo, nome, ícone, cor, volume), toca efeito pelo nome ou pelo lugar, liga e desliga ambientes com volume, volume geral, parar tudo, apagar um som da mesa, ambientes da cena e som de zona, pelo nome do arquivo. |
+| `som` | mestre | M2, refeita no Q4. A mesa de som: configura os 16 lugares (arquivo, nome, ícone, cor, volume), toca efeito pelo nome ou pelo lugar, marca ambientes com volume e toca ou para o transporte (`transporte`: tocar ou parar; Q4b), volume geral, parar tudo, apagar um som da mesa, ambientes da cena e som de zona, pelo nome do arquivo. |
 | `chat` | todos | M2. Narrar, falar como uma ficha, sussurrar, emote, mostrar handout, cartão de característica ou magia, limpar o histórico. Sai "pelo Claude". |
 | `rolar` | todos | Rola dados (expressão, teste ou ataque da ficha); o chat marca "pelo Claude". |
 | `rascunhos` | mestre | Lista, publica e descarta o que o Claude criou. |
