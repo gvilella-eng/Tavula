@@ -103,8 +103,9 @@ test("atacar com uma ação (acerto e dano no chat, só o dano), expandir e mand
   await abrirAba(p, "chat");
   const cartao = p.getByTestId("modelo-ataque").filter({ hasText: "Clava Grande" });
   await expect(cartao).toHaveCount(1);
-  await cartao.hover(); // os dados e as fórmulas ficam no balão
+  await cartao.getByTestId("rolagem-metade").first().hover(); // o bônus do acerto fica no balão da metade do acerto
   await expect(cartao).toContainText(/\+\s?6/);
+  await cartao.getByTestId("rolagem-metade").last().hover(); // as fórmulas do dano, no da metade do dano
   // 20 natural dobra os dados (crítico, 1 em 20): 2d8 ou 4d8
   await expect(cartao.getByTestId("modelo-dano-formula")).toContainText(/[24]d8\s?\+\s?4/);
   await expect(p.getByTestId("chat-autor").last()).toHaveText("Ogro");

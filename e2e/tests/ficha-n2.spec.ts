@@ -164,7 +164,7 @@ test("truque no nível 5 rola 2 dados e o cartão diz o nível", async ({ mesa }
   await janela.getByTestId("npc-conj-magia-0").click();
   await janela.getByTestId("npc-conj-conjurar-0").click();
   await abrirAba(p, "chat");
-  await p.getByTestId("chat-mensagem").last().locator(".rc").hover();
+  await p.getByTestId("chat-mensagem").last().getByTestId("rolagem-metade").last().hover();
   const formula = p.getByTestId("modelo-dano-formula");
   await expect(formula).toHaveCount(1);
   // ND 5 vale como nível 5: 1d10 + 1d10

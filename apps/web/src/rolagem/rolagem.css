@@ -199,6 +199,10 @@
 }
 .rc[data-estilo="fita"] .rc-num {
   font: 400 36px / 38px var(--rc-fonte-numero);
+  /* A IM Fell tem algarismos de estilo antigo (3, 4, 5, 7 e 9 descem abaixo da linha): sobe o número e dá folga embaixo. */
+  position: relative;
+  top: -3px;
+  padding-bottom: 4px;
 }
 .rc[data-estilo="fita"] .rc-num[data-pequeno] {
   font-size: 22px;
@@ -263,6 +267,7 @@
 }
 .rc[data-estilo="moldura"] .rc-num {
   font: 600 32px / 38px var(--rc-fonte-numero);
+  padding-bottom: 2px;
 }
 .rc[data-estilo="moldura"] .rc-num[data-pequeno] {
   font-size: 18px;
@@ -311,6 +316,23 @@
   box-shadow: var(--sombra);
   pointer-events: none;
   animation: rc-balao-entra 140ms ease-out;
+}
+/* o balão de uma metade (Q5b): alinhado a ela, sem sair da coluna do chat */
+.rc-balao[data-metade="primeira"] {
+  right: auto;
+  width: max-content;
+  min-width: 50%;
+  max-width: 100%;
+}
+.rc-balao[data-metade="ultima"] {
+  left: auto;
+  width: max-content;
+  min-width: 50%;
+  max-width: 100%;
+}
+.rc-metade:focus-visible {
+  outline: 2px solid var(--foco);
+  outline-offset: -2px;
 }
 .rc-balao[data-lado="cima"] {
   bottom: calc(100% + 8px);

@@ -586,6 +586,7 @@ Antes de tudo: tenha na pasta `sons/` (ou à mão) uns 6 arquivos de áudio: 2 o
 7. **Moldura.** Preferências → Aparência → "Estilo das rolagens no chat": escolha Moldura. Os cartões do chat mudam na hora (linha dupla com cantoneiras, divisória com losango). Recarregue: continua Moldura. Volte para Fita.
 8. **Temas.** Repita 1 e 7 no Pergaminho (claro): números e fitas legíveis.
 9. **Várias rolagens seguidas** do mesmo jogador dividem o cabeçalho.
+10. **Balão por metade (Q5b).** Num ataque, deixe o mouse parado em cima do acerto: aparecem só os d20 (o descartado riscado, o bônus). Passe para o dano: o balão troca na hora, sem esperar, e mostra só os dados do dano, a fórmula e o tipo. Numa magia com CD, o balão do dano traz o espaço usado e os dardos. Com Tab, cada metade ganha foco e o seu balão; Esc fecha. O balão fica dentro da coluna do chat. Teste e `/r` simples continuam com um balão só.
 
 ## Q3 — Importar mapas do Dungeondraft
 

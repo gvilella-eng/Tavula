@@ -1,6 +1,7 @@
 import type { Rolagem } from "@tabletop/shared";
 import { EyeOff } from "lucide-react";
 import {
+  Fragment,
   type KeyboardEvent,
   type ReactNode,
   useCallback,
@@ -115,53 +116,70 @@ function ladoDoBalao(el: HTMLElement | null): "cima" | "baixo" {
     : "cima";
 }
 
+/** Esperinha ao sair de uma metade: se o mouse entra na outra nesse tempo, o balão troca sem esperar de novo. */
+const TROCA_ENTRE_METADES_MS = 90;
+
 /**
- * Quando o balão aparece (Q5): com o mouse parado ~350 ms em cima do cartão; no mesmo instante com o foco do teclado
- * (acessível); no toque, tocar abre e fecha; Esc fecha. O balão só é montado enquanto aberto.
+ * Quando o balão aparece (Q5, por metade no Q5b): com o mouse parado ~350 ms em cima da metade; no mesmo instante com
+ * o foco do teclado (acessível); no toque, tocar abre e fecha; Esc fecha. Passar de uma metade para a outra troca o
+ * balão sem esperar de novo. O balão só é montado enquanto aberto; `aberta` é o índice da metade com balão.
  */
 function useBalao() {
-  const [aberto, setAberto] = useState(false);
+  const [aberta, setAberta] = useState<number | null>(null);
   const [lado, setLado] = useState<"cima" | "baixo">("cima");
   const raiz = useRef<HTMLDivElement>(null);
   const relogio = useRef<number | undefined>(undefined);
+  const saida = useRef<number | undefined>(undefined);
   const id = useId();
 
   const limpar = useCallback(() => {
     if (relogio.current !== undefined) window.clearTimeout(relogio.current);
     relogio.current = undefined;
+    if (saida.current !== undefined) window.clearTimeout(saida.current);
+    saida.current = undefined;
   }, []);
   useEffect(() => limpar, [limpar]);
 
-  const abrir = useCallback(() => {
-    setLado(ladoDoBalao(raiz.current));
-    setAberto(true);
-  }, []);
+  const abrir = useCallback(
+    (i: number) => {
+      limpar();
+      setLado(ladoDoBalao(raiz.current));
+      setAberta(i);
+    },
+    [limpar],
+  );
   const fechar = useCallback(() => {
     limpar();
-    setAberto(false);
+    setAberta(null);
   }, [limpar]);
 
-  const props = {
+  const propsDa = (i: number) => ({
     onMouseEnter: () => {
+      const veioDeOutra = saida.current !== undefined;
       limpar();
-      relogio.current = window.setTimeout(abrir, ESPERA_DO_BALAO_MS);
+      if (veioDeOutra) abrir(i);
+      else relogio.current = window.setTimeout(() => abrir(i), ESPERA_DO_BALAO_MS);
     },
-    onMouseLeave: fechar,
-    onFocus: abrir,
+    onMouseLeave: () => {
+      limpar();
+      if (aberta === null) return;
+      saida.current = window.setTimeout(fechar, TROCA_ENTRE_METADES_MS);
+    },
+    onFocus: () => abrir(i),
     onBlur: fechar,
     onKeyDown: (e: KeyboardEvent) => {
-      if (e.key === "Escape" && aberto) {
+      if (e.key === "Escape" && aberta !== null) {
         e.stopPropagation();
         fechar();
       }
     },
     onPointerUp: (e: { pointerType: string }) => {
       if (e.pointerType !== "touch") return;
-      if (aberto) fechar();
-      else abrir();
+      if (aberta === i) fechar();
+      else abrir(i);
     },
-  };
-  return { aberto, lado, raiz, id, props };
+  });
+  return { aberta, lado, raiz, id, propsDa };
 }
 
 // --- as peças do cartão --------------------------------------------------------------------------
@@ -270,8 +288,13 @@ type PropsDoCartao = {
   colunas: ReactNode[];
   /** Linhas pequenas embaixo: o espaço usado, a CD, o PV. */
   rodape?: ReactNode;
-  /** O conteúdo do balão dos dados; só é montado com o balão aberto. */
-  balao: () => ReactNode;
+  /**
+   * O conteúdo do balão dos dados, um por metade (`null`: a metade não tem dados). Com uma metade só, o balão é do
+   * cartão todo. Só é montado com o balão aberto.
+   */
+  baloes: (null | (() => ReactNode))[];
+  /** O nome de cada metade para o leitor de tela ("acerto", "dano"), quando o balão é por metade. */
+  nomesDasMetades?: string[];
   dados?: Record<string, string | undefined>;
 };
 
@@ -287,14 +310,38 @@ export function CartaoNoChat({
   resumoSecreto,
   colunas,
   rodape,
-  balao,
+  baloes,
+  nomesDasMetades,
   dados,
 }: PropsDoCartao) {
   const estilo = useEstiloDasRolagens();
-  const { aberto, lado, raiz, id, props } = useBalao();
+  const { aberta, lado, raiz, id, propsDa } = useBalao();
+  const dividido = colunas.length > 1;
+  const aberto = aberta !== null;
+  const conteudo = (): ReactNode => {
+    if (!dividido || secreta || aberta === null)
+      // biome-ignore lint/suspicious/noArrayIndexKey: os balões são fixos
+      return baloes.map((b, i) => b && <Fragment key={i}>{b()}</Fragment>);
+    return baloes[aberta]?.();
+  };
+  const posicao =
+    !dividido || secreta || aberta === null
+      ? "todo"
+      : aberta === 0
+        ? "primeira"
+        : aberta === colunas.length - 1
+          ? "ultima"
+          : "meio";
   const balaoAberto = aberto && (
-    <div className="rc-balao" id={id} role="tooltip" data-lado={lado} data-testid="rolagem-balao">
-      {balao()}
+    <div
+      className="rc-balao"
+      id={id}
+      role="tooltip"
+      data-lado={lado}
+      data-metade={posicao}
+      data-testid="rolagem-balao"
+    >
+      {conteudo()}
     </div>
   );
   if (secreta) {
@@ -309,7 +356,7 @@ export function CartaoNoChat({
         tabIndex={0}
         aria-describedby={aberto ? id : undefined}
         {...dados}
-        {...props}
+        {...propsDa(0)}
       >
         <EyeOff size={12} aria-hidden="true" />
         <em className="rc-secreta-texto">
@@ -326,11 +373,10 @@ export function CartaoNoChat({
       data-estilo={estilo}
       data-tom={tom}
       data-testid={testid}
-      // biome-ignore lint/a11y/noNoninteractiveTabindex: o foco mostra os dados, como o mouse
-      tabIndex={0}
-      aria-describedby={aberto ? id : undefined}
+      tabIndex={dividido ? undefined : 0}
+      aria-describedby={!dividido && aberto ? id : undefined}
       {...dados}
-      {...props}
+      {...(dividido ? {} : propsDa(0))}
     >
       <div className="rc-borda">
         <div className="rc-miolo">
@@ -341,12 +387,24 @@ export function CartaoNoChat({
             <b />
           </div>
           <div className="rc-corpo">
-            {colunas.map((c, i) => (
-              // biome-ignore lint/suspicious/noArrayIndexKey: as metades são fixas
-              <div key={i} className="rc-metade">
-                {c}
-              </div>
-            ))}
+            {colunas.map((c, i) => {
+              const comBalao = dividido && !!baloes[i];
+              return (
+                <div
+                  // biome-ignore lint/suspicious/noArrayIndexKey: as metades são fixas
+                  key={i}
+                  className="rc-metade"
+                  data-testid={comBalao ? "rolagem-metade" : undefined}
+                  aria-describedby={comBalao && aberta === i ? id : undefined}
+                  {...(comBalao
+                    ? { tabIndex: 0, role: "group", "aria-label": nomesDasMetades?.[i] }
+                    : {})}
+                  {...(comBalao ? propsDa(i) : {})}
+                >
+                  {c}
+                </div>
+              );
+            })}
           </div>
           {rodape && <div className="rc-rodape">{rodape}</div>}
         </div>

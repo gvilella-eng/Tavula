@@ -174,7 +174,7 @@ export function CorpoDoModelo({ mensagem, modelo: m }: { mensagem: Mensagem; mod
             </span>
           </Complemento>
         }
-        balao={() => <LinhaDoBalao rolagem={m.rolagem} />}
+        baloes={[() => <LinhaDoBalao rolagem={m.rolagem} />]}
       />
     );
   }
@@ -212,7 +212,7 @@ export function CorpoDoModelo({ mensagem, modelo: m }: { mensagem: Mensagem; mod
         }
         colunas={[<ColunaDoD20 key="t" rolagem={m.rolagem} vantagem={m.vantagem} tom={tom} />]}
         rodape={m.cd === undefined ? null : <Complemento>CD {m.cd}</Complemento>}
-        balao={() => <LinhaDoBalao rolagem={m.rolagem} />}
+        baloes={[() => <LinhaDoBalao rolagem={m.rolagem} />]}
       />
     );
   }
@@ -277,18 +277,22 @@ export function CorpoDoModelo({ mensagem, modelo: m }: { mensagem: Mensagem; mod
       }
       colunas={[colunaDaEsquerda, colunaDoDano]}
       rodape={rodapeDoEspaco(espaco)}
-      balao={() => (
-        <>
-          <LinhaDoBalao rolagem={m.acerto} nome="acerto" />
-          <LinhaDoBalao
-            rolagem={m.dano}
-            nome="dano"
-            texto={formulaDoDano}
-            testidDaFormula="modelo-dano-formula"
-          />
-          <BalaoDoEspaco e={espaco} critico={m.critico} />
-        </>
-      )}
+      nomesDasMetades={[m.salvaguarda ? "salvaguarda" : "acerto", "dano"]}
+      baloes={[
+        // com salvaguarda a CD não tem dado: o acerto (e o 20 natural) ficam no balão da metade da CD
+        () => <LinhaDoBalao rolagem={m.acerto} nome="acerto" />,
+        () => (
+          <>
+            <LinhaDoBalao
+              rolagem={m.dano}
+              nome="dano"
+              texto={formulaDoDano}
+              testidDaFormula="modelo-dano-formula"
+            />
+            <BalaoDoEspaco e={espaco} critico={m.critico} />
+          </>
+        ),
+      ]}
     />
   );
 }
@@ -341,15 +345,19 @@ export function CorpoDaRolagemLivre({ mensagem }: { mensagem: Mensagem }) {
         }
         colunas={colunas}
         rodape={rodapeDoEspaco(espaco)}
-        balao={() => (
-          <>
-            <LinhaDoBalao
-              rolagem={primeira}
-              texto={`${formulaDaRolagem(primeira)}${rotulo.tipoTexto ? ` ${rotulo.tipoTexto.toLowerCase()}` : ""}`}
-            />
-            <BalaoDoEspaco e={espaco} critico={false} />
-          </>
-        )}
+        nomesDasMetades={rotulo.cd !== undefined ? ["CD", "dano"] : ["dano"]}
+        baloes={[
+          ...(rotulo.cd !== undefined ? [null] : []),
+          () => (
+            <>
+              <LinhaDoBalao
+                rolagem={primeira}
+                texto={`${formulaDaRolagem(primeira)}${rotulo.tipoTexto ? ` ${rotulo.tipoTexto.toLowerCase()}` : ""}`}
+              />
+              <BalaoDoEspaco e={espaco} critico={false} />
+            </>
+          ),
+        ]}
       />
     );
   }
@@ -394,15 +402,13 @@ export function CorpoDaRolagemLivre({ mensagem }: { mensagem: Mensagem }) {
             ]
       }
       rodape={rodapeDoEspaco(espaco)}
-      balao={() => (
+      nomesDasMetades={rolagens.map((_, i) => `rolagem ${i + 1}`)}
+      baloes={rolagens.map((r, i) => () => (
         <>
-          {rolagens.map((r, i) => (
-            // biome-ignore lint/suspicious/noArrayIndexKey: a lista é fixa
-            <LinhaDoBalao key={i} rolagem={r} />
-          ))}
-          <BalaoDoEspaco e={espaco} critico={false} />
+          <LinhaDoBalao rolagem={r} />
+          {i === rolagens.length - 1 && <BalaoDoEspaco e={espaco} critico={false} />}
         </>
-      )}
+      ))}
     />
   );
 }

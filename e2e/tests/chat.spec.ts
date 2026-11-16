@@ -441,11 +441,12 @@ test("modelos: ataque, teste com CD e vantagem pelo formulário", async ({ mesa 
   await expect(ataque.getByTestId("rolagem-total")).toHaveCount(2);
   await expect(ataque.getByTestId("rolagem-total-descartado")).toHaveCount(1);
   await expect(ataque.getByTestId("rolagem-balao")).toHaveCount(0);
-  await ataque.hover();
+  await ataque.getByTestId("rolagem-metade").first().hover(); // Q5b: o balão é da metade do acerto
   await expect(ataque.getByTestId("rolagem-balao")).toBeVisible();
   // os dois d20, o descartado esmaecido, e o jogador comum não tem a opção "oculta"
   await expect(ataque.getByTestId("d20-chip")).toHaveCount(2);
   await expect(ataque.locator('[data-testid="d20-chip"][data-descartado="true"]')).toHaveCount(1);
+  await ataque.getByTestId("rolagem-metade").last().hover(); // e o do dano tem os dados do dano
   await expect(ataque.getByTestId("dado-rolado").first()).toBeVisible();
   await expect(p.getByTestId("modelo-oculta")).toHaveCount(0);
 

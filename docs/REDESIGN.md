@@ -2072,6 +2072,18 @@ O Vilella aprovou o desenho (Fita como padrão, Moldura como opção em Preferê
 **O que ficou para depois**
 - Balão por toque em tela sensível não foi testado em aparelho (só pelo código).
 
+
+### Q5b — o balão por metade (2026-11-16)
+Pedido do Vilella: "se passo o mouse por cima do acerto, mostra os dados do acerto; se passo em cima do dano, mostra o do dano". Só visual (`rolagem/CartaoNoChat.tsx`, `CorpoDaRolagem.tsx`, `rolagem.css`); sem protocolo nem banco.
+- Cartões divididos (ataque: acerto | dano; magia de salvaguarda: CD | dano; `/r` com várias rolagens): cada metade tem o seu balão, `data-testid="rolagem-metade"` (com `data-metade` = "acerto", "dano"...). O cartão em si deixa de ser focável; cada metade é (Tab), com `aria-label` e `aria-describedby` quando aberto.
+- Acerto: os d20, o descartado riscado, o bônus. Dano: os dados, a fórmula com o tipo (e "(nível 5)", "metade"), o bloco do espaço (dado a mais) e os dardos. Nada saiu do balão: o que não é de nenhuma metade foi para a do dano.
+- Passar de uma metade para a outra troca o balão sem esperar os 350 ms de novo (folga de 90 ms na saída); sair do cartão fecha. Esc fecha. Toque: tocar numa metade abre a dela; tocar na mesma fecha.
+- O balão fica alinhado à metade (esquerda no acerto, direita no dano), largura mínima de meia coluna e nunca maior que o cartão (`data-metade` do balão: primeira, ultima, todo).
+- Cartões de uma metade só (teste, vida, `/r` simples, dardos): como antes, o cartão todo abre o balão.
+- A rolagem oculta (linha pequena) mostra os balões todos juntos, como antes.
+- Decisões (assumido): com salvaguarda a metade da CD não tem dado; o balão dela mostra o acerto, que saiu da frente. No `/r` de dano com CD, a metade da CD não tem balão nem foco (não há dado nela). Nos `/r` com várias rolagens, o dado a mais do espaço vai no balão da última.
+- Testes: `q5.spec` (acerto só d20, dano só dano, troca sem espera, teclado) e os specs que passavam o mouse no cartão agora passam na metade certa (`chat`, `ficha-livro`, `ficha-n2`, `ficha-npc`).
+
 ## Q3 — como ficou (2026-11-16)
 
 **O que foi feito**
