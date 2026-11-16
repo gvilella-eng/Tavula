@@ -317,6 +317,23 @@
   pointer-events: none;
   animation: rc-balao-entra 140ms ease-out;
 }
+/* o balão de uma metade (Q5b): alinhado a ela, sem sair da coluna do chat */
+.rc-balao[data-metade="primeira"] {
+  right: auto;
+  width: max-content;
+  min-width: 50%;
+  max-width: 100%;
+}
+.rc-balao[data-metade="ultima"] {
+  left: auto;
+  width: max-content;
+  min-width: 50%;
+  max-width: 100%;
+}
+.rc-metade:focus-visible {
+  outline: 2px solid var(--foco);
+  outline-offset: -2px;
+}
 .rc-balao[data-lado="cima"] {
   bottom: calc(100% + 8px);
 }

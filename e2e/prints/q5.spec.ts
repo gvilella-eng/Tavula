@@ -100,12 +100,20 @@ for (const c of COMBINACOES) {
         await foto(p, `chat-${estilo}-${c.tema}-${c.nome}`);
 
         // o balão: sobre a vantagem, o ataque crítico e os dardos
-        for (const [i, nome] of [
-          [1, "vantagem"],
-          [3, "critico"],
-          [5, "dardos"],
+        // (Q5b: nos cartões divididos o balão é por metade: o acerto e o dano, cada um com o seu)
+        for (const [i, nome, metade] of [
+          [1, "vantagem", null],
+          [3, "critico-acerto", 0],
+          [3, "critico-dano", 1],
+          [4, "cd-acerto", 0],
+          [4, "cd-dano", 1],
+          [5, "dardos", null],
         ] as const) {
-          await p.getByTestId("chat-mensagem").nth(i).locator(".rc").hover();
+          const cartao = p.getByTestId("chat-mensagem").nth(i).locator(".rc");
+          await (metade === null
+            ? cartao
+            : cartao.getByTestId("rolagem-metade").nth(metade)
+          ).hover();
           await expect(p.getByTestId("rolagem-balao")).toBeVisible();
           await foto(p, `balao-${nome}-${estilo}-${c.tema}-${c.nome}`);
           await p.mouse.move(5, 5);

@@ -188,9 +188,11 @@ test("magia de salvaguarda (CD | dano) e dardos por nível", async ({ mesa }) =>
   await expect(bola.getByTestId("icone-de-dano")).toHaveAttribute("aria-label", "fogo");
   await expect(bola).toContainText("metade");
   // o acerto, que saiu da frente, está no balão
-  await bola.hover();
+  await bola.getByTestId("rolagem-metade").first().hover();
   const balaoDaBola = bola.getByTestId("rolagem-balao");
   await expect(balaoDaBola).toContainText("acerto");
+  await expect(balaoDaBola.getByTestId("modelo-dano-formula")).toHaveCount(0);
+  await bola.getByTestId("rolagem-metade").last().hover(); // a troca de metade não espera os 350 ms de novo
   await expect(balaoDaBola.getByTestId("modelo-dano-formula")).toContainText("8d6 fogo");
 
   // dardos: o total no cartão e cada dardo no balão
@@ -273,6 +275,71 @@ test("o balão dos dados: mouse parado, foco, Esc; a rolagem oculta é uma linha
   // os dados dela também ficam no balão
   await secreta.hover();
   await expect(secreta.getByTestId("rolagem-balao")).toBeVisible();
+});
+
+test("o balão é por metade: o acerto mostra só o d20, o dano só o dano; teclado e troca sem espera", async ({
+  mesa,
+}) => {
+  const j1 = await mesa.entrar("jogador-1");
+  const p = j1.pagina;
+  await abrirAba(p, "chat");
+  const espada: Ataque = {
+    nome: "Espada curta",
+    bonus: 4,
+    dano: "1d6+2",
+    danoTipo: "Perfurante",
+    vantagem: "normal",
+  };
+  await semente(
+    p,
+    achar(espada, (r) => !r.critico && !r.falhaCritica),
+  );
+  await mandar(p, "chat.modelo", { modelo: "ataque", ...espada });
+  const cartao = p.getByTestId("modelo-ataque").first();
+  const metades = cartao.getByTestId("rolagem-metade");
+  await expect(metades).toHaveCount(2);
+  const balao = cartao.getByTestId("rolagem-balao");
+  await expect(balao).toHaveCount(0);
+
+  // mouse parado no acerto: só o d20, nada do dano
+  const antes = Date.now();
+  await metades.first().hover();
+  await expect(balao).toBeVisible();
+  expect(Date.now() - antes).toBeGreaterThanOrEqual(300);
+  await expect(balao.getByTestId("d20-chip")).toHaveCount(1);
+  await expect(balao.getByTestId("modelo-dano-formula")).toHaveCount(0);
+  await expect(balao.getByTestId("dado-rolado")).toHaveCount(0);
+  // o balão fica na coluna do cartão, alinhado à metade do acerto
+  const caixaCartao = await cartao.boundingBox();
+  const caixaBalao = await balao.boundingBox();
+  expect(caixaBalao?.x).toBeGreaterThanOrEqual((caixaCartao?.x ?? 0) - 1);
+  expect((caixaBalao?.x ?? 0) + (caixaBalao?.width ?? 0)).toBeLessThanOrEqual(
+    (caixaCartao?.x ?? 0) + (caixaCartao?.width ?? 0) + 1,
+  );
+
+  // passar para o dano troca o balão sem esperar os 350 ms de novo
+  await metades.last().hover();
+  await expect(balao.getByTestId("modelo-dano-formula")).toContainText("1d6 + 2 perfurante", {
+    timeout: 250,
+  });
+  await expect(balao.getByTestId("dado-rolado")).toHaveCount(1);
+  await expect(balao.getByTestId("d20-chip")).toHaveCount(0);
+
+  // sair do cartão fecha
+  await p.mouse.move(0, 0);
+  await expect(balao).toHaveCount(0);
+
+  // teclado: cada metade tem o seu foco e o seu balão; Esc fecha
+  await metades.first().focus();
+  await expect(balao.getByTestId("d20-chip")).toHaveCount(1);
+  await expect(balao.getByTestId("modelo-dano-formula")).toHaveCount(0);
+  await p.keyboard.press("Tab");
+  await expect(metades.last()).toBeFocused();
+  await expect(balao.getByTestId("modelo-dano-formula")).toBeVisible();
+  await expect(balao.getByTestId("d20-chip")).toHaveCount(0);
+  await expect(metades.last()).toHaveAttribute("aria-describedby", /.+/);
+  await p.keyboard.press("Escape");
+  await expect(balao).toHaveCount(0);
 });
 
 test("Preferências → Aparência: trocar para Moldura muda o estilo, é lembrado e não vai para a sala", async ({
