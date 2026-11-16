@@ -24,7 +24,7 @@ async function mcpDe(s: Sessao): Promise<{ mcp: ClienteMcpHttp; token: string }>
 
 const CENA = "Cena inicial";
 
-test("névoa revelada, texto no mapa, parede apagada, chat e trilha: o jogador vê e o Desfazer volta", async ({
+test("névoa revelada, texto no mapa, parede apagada, chat e ambiente: o jogador vê e o Desfazer volta", async ({
   mesa,
 }) => {
   const mestre = await entrarNoMapa(mesa, "mestre");
@@ -71,13 +71,16 @@ test("névoa revelada, texto no mapa, parede apagada, chat e trilha: o jogador v
     .poll(() => jogador.frames.some((f) => f.includes("peloClaude") && f.includes("vento frio")))
     .toBe(true);
 
-  // Trilha: o som sobe pela caixa e toca.
+  // Ambiente: o som sobe pela caixa, ganha um lugar na mesa de som e toca.
   const pedido = await mcp.chamar("arquivos", { uso: "som", nome: "floresta.wav" });
   const enviado = await enviarPor(linkDoTexto(pedido.texto), wavMudo());
   expect(enviado.json?.estado, enviado.corpo).toBe("aplicado");
-  const toca = await mcp.chamar("som", { trilha: { som: "floresta", volume: 0.4 } });
+  const toca = await mcp.chamar("som", {
+    lugares: [{ grupo: "ambiente", lugar: 1, som: "floresta", nome: "Floresta" }],
+    ambientes: [{ lugar: 1, ligado: true, volume: 0.4 }],
+  });
   expect(toca.erro, toca.texto).toBe(false);
-  await expect.poll(() => jogador.frames.some((f) => f.includes("som.trilha"))).toBe(true);
+  await expect.poll(() => jogador.frames.some((f) => f.includes("som.ligadoAlterado"))).toBe(true);
 
   // Desfazer: o texto e a névoa voltam (um lote por chamada: o do texto é o mais novo com desenhos).
   // (Depois de um Desfazer a sala manda um snapshot novo a todos: o teste lê o estado por uma conexão própria.)

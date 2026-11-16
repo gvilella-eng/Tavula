@@ -877,6 +877,8 @@ opcional; a versão do arquivo continua 13) e a importação confere ids únicos
 
 ### Som ambiente (N5)
 
+(Q4: a trilha única e a trilha da cena deste capítulo foram trocadas pela mesa de som, descrita na seção seguinte. O que não mudou: o asset `som`, o som da zona, a mensagem `som.zona`, a ação `som.tocar` e `som.efeitoTocado`.)
+
 Os arquivos de áudio (mp3, ogg e wav, até 20 MB) são assets do tipo `som`, registrados só pelo mestre (`asset.registrar`, `largura` e `altura` 1 x 1; `validarMeta` confere o MIME e o tamanho) e transferidos por pedaços como as imagens. Qualquer jogador pode pedi-los, mas o `asset.meta` que ele recebe leva `nomeOriginal: "som"`. A sala guarda só a referência.
 
 | Intenção | `dados` | Efeito |
@@ -893,6 +895,30 @@ Os arquivos de áudio (mp3, ogg e wav, até 20 MB) são assets do tipo `som`, re
 **Mensagem da sala `som.zona { sons: [{ hash, volume, laco }] }`** (transitória: sem `seq`, não é gravada). Só o jogador a recebe, só quando a lista dele muda, e a lista vazia manda parar. É o som das zonas ligadas e publicadas onde há um token que ele controla (o mesmo som em duas zonas vale uma vez, no volume maior). **Sigilo (nota de segurança):** a zona nunca viaja: nada de id, forma, nome, efeitos ou reações; o jogador sabe que há um som a tocar, não de onde ele vem. O teste de unidade (`som.test.ts`) e o E2E (`som-n5.spec.ts`) conferem que nenhum frame do jogador traz a zona.
 
 **Guardar.** A trilha mora na chave `trilha` da tabela `meta` do SQLite (sem migração). A exportação leva `Cena.trilha`, o som das zonas e as metas dos sons usados (`hashesUsados`), nunca os bytes; `Estado.trilha` fica fora da exportação.
+
+
+### Mesa de som (Q4)
+
+8 efeitos e 8 ambientes, cada um num "lugar" (índice 0 a 7) com `Lugar { hash, nome (1 a 12 letras), icone, cor, volume (0 a 1) }`. `icone`: chama, vento, espadas, porta, sino, gota, caveira, trovao, passos, multidao, musica, criatura. `cor`: ambar, laranja, verde, azul, vermelho, pedra.
+
+| Intenção | `dados` | Efeito |
+|---|---|---|
+| `som.lugar` | `{ grupo: "efeito" \| "ambiente", indice, lugar \| null }` | Capacidade `som.controlar` (só do mestre; não delegável). Põe ou esvazia um lugar. `asset_inexistente` se o arquivo não é um asset `som`. Trocar o arquivo de um ambiente que toca, ou esvaziá-lo, o desliga |
+| `som.efeito` | `{ lugar? , hash?, volume? }` (um dos dois) | Toca um efeito uma vez, para todos: pelo `lugar` (volume padrão dele) ou por um `hash` qualquer. O volume que sai já vai multiplicado pelo volume geral. `dados_invalidos` se o lugar está vazio. Não muda o estado |
+| `som.efeitoParar` | `{ lugar? }` | Corta o efeito do lugar (sem ele, todos) |
+| `som.ambiente` | `{ indice, ligado, volume? }` | Liga ou desliga o ambiente. Ligado de novo no mesmo som só muda o volume (não recomeça). `dados_invalidos` se o lugar está vazio |
+| `som.volumeGeral` | `{ volume }` | O volume geral da mesa de som (vale para efeitos, ambientes e `som.tocar`) |
+| `som.pararTudo` | `{}` | Corta os efeitos e desliga todos os ambientes (o volume geral fica) |
+| `som.apagar` | `{ hash }` | Tira o som da mesa: dos lugares, das zonas e das automações (a reação que só tocava esse som sai) e para o que tocava com ele. `asset_inexistente` se não é um som da mesa. O arquivo fica no computador do mestre |
+| `cena.editar` | `{ cenaId, ambientes: number[] \| null }` | Os ambientes (lugares) que ligam ao levar o grupo para a cena; `null` tira a lista. `grupo.moverPara` liga os marcados e desliga os outros (os que já tocam e continuam marcados seguem sem recomeçar); cena sem a lista não mexe |
+
+Saíram `som.trilha` e `som.parar`.
+
+**Estado.** `Estado.mesaDeSom { efeitos: (Lugar \| null)[], ambientes: (Lugar \| null)[] }` (opcional; até 8 de cada; só o mestre recebe; entra na exportação). `Estado.somLigado { volumeGeral, ambientes: [{ indice, hash, volume, inicioMs, servidorMs? }] }` (opcional; todos recebem, só com hash e volume; **não** entra na exportação). `inicioMs` é o relógio real da sala quando o ambiente começou e `servidorMs` o relógio da sala no instante em que aquela cópia foi montada (refeito em cada snapshot e em cada `som.ligadoAlterado` entregue): é o alinhamento do N5, agora por ambiente. `Cena.ambientes` (opcional, só do mestre; o jogador recebe a cena sem ele).
+
+**Eventos.** `som.ligadoAlterado { somLigado | null }` (todos), `som.lugarAlterado { grupo, indice, lugar | null }` (só o mestre), `som.efeitoTocado { hash, volume, alvo, lugar? }` (como no N5; `lugar` deixa o mestre mostrar o progresso), `som.efeitoParado { lugar? }` (todos; transitório) e `asset.removido { hash }` (só o mestre). Depois de um snapshot novo a todos a sala reenvia também o `som.efeitoParado`.
+
+**Conversão do N5.** Ao ler (banco e arquivos exportados), `migrarSomDoN5`: a `Estado.trilha` que tocava vira um ambiente ligado (mesmo `inicioMs`) e a `Cena.trilha` vira um ambiente da cena; cada arquivo ganha um lugar de ambiente (ícone musica, cor ambar, nome do arquivo cortado em 12 letras). Sem lugar livre a trilha antiga é descartada. Sem migração de banco: o som mora nas chaves `mesa_de_som` e `som_ligado` da tabela `meta`; a chave `trilha` some na primeira leitura.
 
 ### Botões das automações (Lote 7b-3)
 

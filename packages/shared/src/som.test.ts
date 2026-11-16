@@ -3,6 +3,7 @@ import {
   type AssetMeta,
   type Automacoes,
   AutomacoesSchema,
+  ambientesLigados,
   assetVisivelPara,
   criarExportacao,
   desvioDoRelogio,
@@ -17,6 +18,8 @@ import {
   IntencaoSchema,
   LIMITES_DE_ASSET,
   lerExportacao,
+  lugaresDe,
+  migrarSomDoN5,
   mimeDeSomValido,
   mimeDoSomPeloNome,
   modelosPadrao,
@@ -26,9 +29,11 @@ import {
   ReacaoSchema,
   sonsDasZonasParaJogador,
   sonsDasZonasParaTokens,
+  usosDoSom,
   validarMeta,
   visaoPara,
   volumeFinal,
+  volumeGeralDe,
   type Zona,
   ZonaSchema,
 } from "./index.ts";
@@ -172,143 +177,409 @@ describe("o asset de som", () => {
   });
 });
 
-describe("a trilha", () => {
-  it("o mestre toca, troca e para; o jogador não pode", () => {
+/** Um lugar completo da mesa de som. */
+const lugar = (hash: string, nome: string, extra: Record<string, unknown> = {}) => ({
+  hash,
+  nome,
+  icone: "chama",
+  cor: "ambar",
+  volume: 0.5,
+  ...extra,
+});
+const poeLugar = (
+  e: Estado,
+  grupo: "efeito" | "ambiente",
+  indice: number,
+  l: ReturnType<typeof lugar> | null,
+) => ok(e, "m", intencao("som.lugar", { grupo, indice, lugar: l })).estado;
+const J1 = { id: "j1", papel: "jogador" as const };
+const MESTRE = { id: "m", papel: "mestre" as const };
+
+describe("a mesa de som (Q4): os 16 lugares", () => {
+  it("só o mestre configura; 8 lugares por grupo, nome de até 12 letras, só som registrado", () => {
     const e = criarEstado();
-    expect(recusado(e, "j1", intencao("som.trilha", { hash: HASH_TRILHA, volume: 0.5 }))).toBe(
+    const dados = { grupo: "efeito", indice: 0, lugar: lugar(HASH_SOPRO, "Sopro") };
+    expect(recusado(e, "j1", intencao("som.lugar", dados))).toBe("sem_permissao");
+    const base = { v: 1, id: "x", tipo: "som.lugar" };
+    const parse = (d: object) => IntencaoSchema.safeParse({ ...base, dados: d }).success;
+    expect(parse({ ...dados, indice: 7 })).toBe(true);
+    expect(parse({ ...dados, indice: 8 })).toBe(false);
+    expect(parse({ ...dados, lugar: lugar(HASH_SOPRO, "treze letras!") })).toBe(false);
+    expect(parse({ ...dados, lugar: lugar(HASH_SOPRO, "") })).toBe(false);
+    expect(parse({ ...dados, lugar: lugar(HASH_SOPRO, "x", { icone: "foguete" }) })).toBe(false);
+    expect(parse({ ...dados, lugar: lugar(HASH_SOPRO, "x", { cor: "rosa" }) })).toBe(false);
+    expect(parse({ ...dados, lugar: lugar(HASH_SOPRO, "x", { volume: 1.5 }) })).toBe(false);
+    expect(
+      recusado(e, "m", intencao("som.lugar", { ...dados, lugar: lugar(HASH_OUTRA, "Nada") })),
+    ).toBe("asset_inexistente");
+    const com = poeLugar(e, "efeito", 0, lugar(HASH_SOPRO, "Sopro"));
+    expect(lugaresDe(com.mesaDeSom).efeitos[0]?.nome).toBe("Sopro");
+    expect(lugaresDe(com.mesaDeSom).efeitos).toHaveLength(8);
+    expect(lugaresDe(com.mesaDeSom).ambientes.every((x) => x === null)).toBe(true);
+    expect(hashesUsados(com).has(HASH_SOPRO)).toBe(true);
+  });
+
+  it("os 8 lugares dos dois grupos enchem e esvaziam; mesa vazia some do estado", () => {
+    let e = criarEstado();
+    const hashes = [HASH_SOPRO, HASH_SUSSURROS, HASH_TRILHA];
+    for (let i = 0; i < 8; i++) {
+      e = poeLugar(e, "efeito", i, lugar(hashes[i % 3] as string, `E${i}`));
+      e = poeLugar(e, "ambiente", i, lugar(hashes[i % 3] as string, `A${i}`));
+    }
+    expect(lugaresDe(e.mesaDeSom).efeitos.filter(Boolean)).toHaveLength(8);
+    expect(lugaresDe(e.mesaDeSom).ambientes.filter(Boolean)).toHaveLength(8);
+    for (let i = 0; i < 8; i++) {
+      e = poeLugar(e, "efeito", i, null);
+      e = poeLugar(e, "ambiente", i, null);
+    }
+    expect(e.mesaDeSom).toBeUndefined();
+  });
+
+  it("efeito ou ambiente num lugar vazio é recusado", () => {
+    const e = criarEstado();
+    expect(recusado(e, "m", intencao("som.efeito", { lugar: 3 }))).toBe("dados_invalidos");
+    expect(recusado(e, "m", intencao("som.ambiente", { indice: 3, ligado: true }))).toBe(
+      "dados_invalidos",
+    );
+    expect(IntencaoSchema.safeParse({ v: 1, id: "x", tipo: "som.efeito", dados: {} }).success).toBe(
+      false,
+    );
+  });
+});
+
+describe("os ambientes (Q4)", () => {
+  const comDois = () => {
+    let e = criarEstado();
+    e = poeLugar(e, "ambiente", 0, lugar(HASH_TRILHA, "Taverna", { volume: 0.4 }));
+    e = poeLugar(e, "ambiente", 3, lugar(HASH_SUSSURROS, "Vento", { volume: 0.7 }));
+    return e;
+  };
+
+  it("dois ambientes ligam juntos, cada um com o seu volume e o seu início; desligar tira só ele", () => {
+    const e = comDois();
+    expect(recusado(e, "j1", intencao("som.ambiente", { indice: 0, ligado: true }))).toBe(
       "sem_permissao",
     );
-    expect(recusado(e, "j1", intencao("som.parar"))).toBe("sem_permissao");
-    expect(recusado(e, "j1", intencao("som.efeito", { hash: HASH_SOPRO, volume: 0.5 }))).toBe(
-      "sem_permissao",
-    );
-    const tocando = ok(
-      e,
+    const um = ok(e, "m", intencao("som.ambiente", { indice: 0, ligado: true }), 10).estado;
+    const dois = ok(
+      um,
       "m",
-      intencao("som.trilha", { hash: HASH_TRILHA, volume: 0.5 }),
-      10,
+      intencao("som.ambiente", { indice: 3, ligado: true, volume: 0.2 }),
+      30,
     ).estado;
-    expect(tocando.trilha).toMatchObject({
-      hash: HASH_TRILHA,
-      nome: "taverna",
-      volume: 0.5,
-      inicioMs: T0 + 10_000,
-    });
-    // o mesmo som de novo só muda o volume: a trilha não recomeça
+    expect(ambientesLigados(dois)).toMatchObject([
+      { indice: 0, hash: HASH_TRILHA, volume: 0.4, inicioMs: T0 + 10_000 },
+      { indice: 3, hash: HASH_SUSSURROS, volume: 0.2, inicioMs: T0 + 30_000 },
+    ]);
+    // só muda o volume: o ambiente não recomeça
     const mais = ok(
-      tocando,
+      dois,
       "m",
-      intencao("som.trilha", { hash: HASH_TRILHA, volume: 0.9 }),
+      intencao("som.ambiente", { indice: 0, ligado: true, volume: 0.9 }),
       50,
-    ).estado;
-    expect(mais.trilha).toMatchObject({ volume: 0.9, inicioMs: T0 + 10_000 });
-    // outro som recomeça
-    const outra = ok(
-      mais,
-      "m",
-      intencao("som.trilha", { hash: HASH_SOPRO, volume: 0.9 }),
-      60,
-    ).estado;
-    expect(outra.trilha).toMatchObject({ hash: HASH_SOPRO, inicioMs: T0 + 60_000 });
-    const parada = ok(outra, "m", intencao("som.parar")).estado;
-    expect(parada.trilha).toBeUndefined();
+    );
+    expect(ambientesLigados(mais.estado)[0]).toMatchObject({ volume: 0.9, inicioMs: T0 + 10_000 });
+    // ligar de novo no mesmo volume não muda nada
+    expect(
+      ok(mais.estado, "m", intencao("som.ambiente", { indice: 0, ligado: true, volume: 0.9 }))
+        .eventos,
+    ).toHaveLength(0);
+    const sem = ok(mais.estado, "m", intencao("som.ambiente", { indice: 0, ligado: false }), 60);
+    expect(ambientesLigados(sem.estado)).toMatchObject([{ indice: 3, hash: HASH_SUSSURROS }]);
+    const nada = ok(sem.estado, "m", intencao("som.ambiente", { indice: 3, ligado: false })).estado;
+    expect(nada.somLigado).toBeUndefined();
   });
 
-  it("recusa o que não é um som registrado", () => {
-    const e = criarEstado();
-    expect(recusado(e, "m", intencao("som.trilha", { hash: HASH_OUTRA, volume: 0.5 }))).toBe(
-      "asset_inexistente",
-    );
-    expect(recusado(e, "m", intencao("som.efeito", { hash: HASH_OUTRA, volume: 0.5 }))).toBe(
-      "asset_inexistente",
-    );
-    const comMapa = criarEstado({
-      assets: [{ ...som(HASH_OUTRA, "mapa"), tipo: "mapa", mime: "image/webp" }],
-    });
-    expect(recusado(comMapa, "m", intencao("som.trilha", { hash: HASH_OUTRA, volume: 0.5 }))).toBe(
-      "asset_inexistente",
-    );
-  });
-
-  it("quem entra no meio recebe a trilha com o relógio da sala de agora (alinhamento)", () => {
-    const e = ok(
-      criarEstado(),
-      "m",
-      intencao("som.trilha", { hash: HASH_TRILHA, volume: 0.5 }),
-      0,
-    ).estado;
-    const visao = visaoPara(e, { id: "j1", papel: "jogador" }, T0 + 95_000);
-    expect(visao.trilha).toMatchObject({
-      hash: HASH_TRILHA,
-      inicioMs: T0,
-      servidorMs: T0 + 95_000,
-    });
-    // o navegador está 2 s atrás da sala: o desvio corrige
-    const agoraLocal = T0 + 93_000;
-    const desvio = desvioDoRelogio(visao.trilha ?? { servidorMs: 0 }, agoraLocal);
+  it("quem entra no meio recebe cada ambiente com o relógio da sala de agora (alinhamento por ambiente)", () => {
+    let e = comDois();
+    e = ok(e, "m", intencao("som.ambiente", { indice: 0, ligado: true }), 0).estado;
+    e = ok(e, "m", intencao("som.ambiente", { indice: 3, ligado: true }), 20).estado;
+    const visao = visaoPara(e, J1, T0 + 95_000);
+    expect(visao.somLigado?.ambientes).toMatchObject([
+      { indice: 0, inicioMs: T0, servidorMs: T0 + 95_000 },
+      { indice: 3, inicioMs: T0 + 20_000, servidorMs: T0 + 95_000 },
+    ]);
+    const agoraLocal = T0 + 93_000; // o navegador está 2 s atrás da sala
+    const [a, b] = visao.somLigado?.ambientes ?? [];
+    const desvio = desvioDoRelogio(a ?? { servidorMs: 0 }, agoraLocal);
     expect(desvio).toBe(2_000);
-    // 95 s depois do início, num arquivo de 40 s: ponto 15 s
-    expect(pontoDaTrilha({ inicioMs: T0 }, agoraLocal, desvio, 40)).toBeCloseTo(15, 5);
-    // sem a duração, devolve o tempo corrido
+    // 95 s depois do início num arquivo de 40 s: ponto 15 s; o segundo começou 20 s depois: 75 s, num de 30 s: 15 s
+    expect(pontoDaTrilha({ inicioMs: a?.inicioMs ?? 0 }, agoraLocal, desvio, 40)).toBeCloseTo(
+      15,
+      5,
+    );
+    expect(pontoDaTrilha({ inicioMs: b?.inicioMs ?? 0 }, agoraLocal, desvio, 30)).toBeCloseTo(
+      15,
+      5,
+    );
+    // sem a duração devolve o tempo corrido; nunca negativo
     expect(pontoDaTrilha({ inicioMs: T0 }, agoraLocal, desvio)).toBeCloseTo(95, 5);
-    // nunca negativo (trilha que "começa no futuro" por causa de um relógio adiantado)
     expect(pontoDaTrilha({ inicioMs: T0 + 5_000 }, T0, 0, 40)).toBe(0);
   });
 
-  it("o evento da trilha chega a todos com o relógio refeito e some da exportação", () => {
-    const r = ok(criarEstado(), "m", intencao("som.trilha", { hash: HASH_TRILHA, volume: 0.5 }), 3);
-    const ev = r.eventos.find((x) => x.tipo === "som.trilhaAlterada") as EventoSala;
-    for (const quem of [
-      { id: "m", papel: "mestre" as const },
-      { id: "j1", papel: "jogador" as const },
-    ]) {
-      const visto = eventoPara(ev, quem, criarEstado(), r.estado, T0 + 7_000);
-      expect(visto).toMatchObject({
-        tipo: "som.trilhaAlterada",
-        dados: { trilha: { hash: HASH_TRILHA, servidorMs: T0 + 7_000 } },
+  it("o evento chega a todos com o relógio refeito; a exportação leva os lugares e não leva o que toca", () => {
+    const e = comDois();
+    const r = ok(e, "m", intencao("som.ambiente", { indice: 0, ligado: true }), 3);
+    const ev = r.eventos.find((x) => x.tipo === "som.ligadoAlterado") as EventoSala;
+    for (const quem of [MESTRE, J1]) {
+      expect(eventoPara(ev, quem, e, r.estado, T0 + 7_000)).toMatchObject({
+        tipo: "som.ligadoAlterado",
+        dados: { somLigado: { ambientes: [{ hash: HASH_TRILHA, servidorMs: T0 + 7_000 }] } },
       });
     }
-    // o relógio de uma sessão não é da campanha: a exportação não leva a trilha, só o som como referência
-    const exp = criarExportacao(r.estado, iso(5));
-    expect(JSON.stringify(exp)).not.toContain("inicioMs");
+    const texto = JSON.stringify(criarExportacao(r.estado, iso(5)));
+    expect(texto).not.toContain("inicioMs");
+    expect(texto).toContain("Taverna");
+    const lida = lerExportacao(JSON.parse(texto));
+    expect(lida.ok && lugaresDe(lida.exportacao.dados.mesaDeSom).ambientes[0]?.nome).toBe(
+      "Taverna",
+    );
   });
 
-  it("a trilha da cena começa ao levar o grupo, e a que já toca segue sem recomeçar", () => {
-    let e = criarEstado();
-    expect(recusado(e, "j1", intencao("cena.editar", { cenaId: "fora", trilha: null }))).toBe(
+  it("trocar o arquivo de um ambiente que toca, ou esvaziá-lo, desliga o ambiente", () => {
+    let e = comDois();
+    e = ok(e, "m", intencao("som.ambiente", { indice: 0, ligado: true })).estado;
+    const renomeado = poeLugar(e, "ambiente", 0, lugar(HASH_TRILHA, "Salão", { volume: 0.4 }));
+    expect(ambientesLigados(renomeado)).toHaveLength(1); // só o nome mudou: segue tocando
+    const trocado = poeLugar(e, "ambiente", 0, lugar(HASH_SOPRO, "Outro"));
+    expect(ambientesLigados(trocado)).toHaveLength(0);
+    expect(ambientesLigados(poeLugar(e, "ambiente", 0, null))).toHaveLength(0);
+  });
+
+  it("os ambientes da cena ligam ao levar o grupo e os outros desligam; os que já tocam seguem", () => {
+    let e = comDois();
+    e = poeLugar(e, "ambiente", 5, lugar(HASH_SOPRO, "Chuva"));
+    expect(recusado(e, "j1", intencao("cena.editar", { cenaId: "fora", ambientes: [0] }))).toBe(
       "sem_permissao",
     );
-    expect(
-      recusado(
-        e,
-        "m",
-        intencao("cena.editar", {
-          cenaId: "fora",
-          trilha: { hash: HASH_OUTRA, nome: "x", volume: 0.5 },
-        }),
-      ),
-    ).toBe("asset_inexistente");
-    e = ok(
-      e,
-      "m",
-      intencao("cena.editar", {
-        cenaId: "fora",
-        trilha: { hash: HASH_TRILHA, nome: "taverna", volume: 0.4 },
-      }),
-    ).estado;
-    expect(e.cenas.find((c) => c.id === "fora")?.trilha).toMatchObject({ hash: HASH_TRILHA });
-    expect(hashesUsados(e).has(HASH_TRILHA)).toBe(true);
+    e = ok(e, "m", intencao("cena.editar", { cenaId: "fora", ambientes: [5, 0, 5] })).estado;
+    expect(e.cenas.find((c) => c.id === "fora")?.ambientes).toEqual([0, 5]);
+    // o jogador nunca vê os ambientes da cena
+    expect(JSON.stringify(visaoPara(e, J1, T0))).not.toContain('ambientes":[0');
+    e = ok(e, "m", intencao("som.ambiente", { indice: 0, ligado: true }), 5).estado;
+    e = ok(e, "m", intencao("som.ambiente", { indice: 3, ligado: true }), 6).estado;
     const levado = ok(e, "m", intencao("grupo.moverPara", { cenaId: "fora" }), 20).estado;
-    expect(levado.trilha).toMatchObject({ hash: HASH_TRILHA, volume: 0.4, inicioMs: T0 + 20_000 });
-    // de volta à cena sem trilha: a que toca segue
+    expect(ambientesLigados(levado)).toMatchObject([
+      { indice: 0, inicioMs: T0 + 5_000 }, // já tocava: não recomeça
+      { indice: 5, inicioMs: T0 + 20_000 },
+    ]);
+    // cena sem a lista não mexe
     const volta = ok(levado, "m", intencao("grupo.moverPara", { cenaId: "pulmao" }), 40).estado;
-    expect(volta.trilha).toMatchObject({ inicioMs: T0 + 20_000 });
-    // para a cena com a mesma trilha que já toca: não recomeça
-    const denovo = ok(volta, "m", intencao("grupo.moverPara", { cenaId: "fora" }), 60).estado;
-    expect(denovo.trilha).toMatchObject({ inicioMs: T0 + 20_000 });
-    // tirar a trilha da cena
-    const sem = ok(denovo, "m", intencao("cena.editar", { cenaId: "fora", trilha: null })).estado;
-    expect(sem.cenas.find((c) => c.id === "fora")?.trilha).toBeUndefined();
+    expect(ambientesLigados(volta)).toHaveLength(2);
+    // lista vazia: silêncio; null: tira a lista
+    const quieta = ok(
+      volta,
+      "m",
+      intencao("cena.editar", { cenaId: "fora", ambientes: [] }),
+    ).estado;
+    expect(
+      ambientesLigados(ok(quieta, "m", intencao("grupo.moverPara", { cenaId: "fora" }), 50).estado),
+    ).toHaveLength(0);
+    const sem = ok(volta, "m", intencao("cena.editar", { cenaId: "fora", ambientes: null })).estado;
+    expect(sem.cenas.find((c) => c.id === "fora")?.ambientes).toBeUndefined();
+  });
+});
+
+describe("volume geral e parar tudo (Q4)", () => {
+  it("o volume geral vale para os efeitos (já multiplicado) e fica no estado ao lado dos ambientes", () => {
+    let e = poeLugar(criarEstado(), "efeito", 1, lugar(HASH_SOPRO, "Sopro", { volume: 0.8 }));
+    e = poeLugar(e, "ambiente", 0, lugar(HASH_TRILHA, "Taverna"));
+    expect(recusado(e, "j1", intencao("som.volumeGeral", { volume: 0.5 }))).toBe("sem_permissao");
+    e = ok(e, "m", intencao("som.volumeGeral", { volume: 0.5 })).estado;
+    expect(volumeGeralDe(e)).toBe(0.5);
+    const r = ok(e, "m", intencao("som.efeito", { lugar: 1 }));
+    const tocado = r.eventos.find((x) => x.tipo === "som.efeitoTocado");
+    expect(tocado?.dados).toMatchObject({ hash: HASH_SOPRO, lugar: 1 });
+    expect(tocado?.dados).toMatchObject({ volume: expect.closeTo(0.4, 5) });
+    // ligar um ambiente guarda o geral junto
+    e = ok(e, "m", intencao("som.ambiente", { indice: 0, ligado: true })).estado;
+    expect(e.somLigado?.volumeGeral).toBe(0.5);
+    // o jogador recebe o volume geral (vale para todos), sem o nome do ambiente
+    const visao = visaoPara(e, J1, T0);
+    expect(visao.somLigado?.volumeGeral).toBe(0.5);
+    expect(JSON.stringify(visao)).not.toContain("Taverna");
+    // de volta ao padrão sem ambiente: nada guardado
+    const limpo = ok(
+      ok(e, "m", intencao("som.ambiente", { indice: 0, ligado: false })).estado,
+      "m",
+      intencao("som.volumeGeral", { volume: 1 }),
+    ).estado;
+    expect(limpo.somLigado).toBeUndefined();
+  });
+
+  it("parar tudo corta os efeitos e desliga todos os ambientes, mas guarda o volume geral", () => {
+    let e = poeLugar(criarEstado(), "ambiente", 0, lugar(HASH_TRILHA, "Taverna"));
+    e = poeLugar(e, "ambiente", 1, lugar(HASH_SOPRO, "Sopro"));
+    e = ok(e, "m", intencao("som.ambiente", { indice: 0, ligado: true })).estado;
+    e = ok(e, "m", intencao("som.ambiente", { indice: 1, ligado: true })).estado;
+    e = ok(e, "m", intencao("som.volumeGeral", { volume: 0.6 })).estado;
+    expect(recusado(e, "j1", intencao("som.pararTudo"))).toBe("sem_permissao");
+    const r = ok(e, "m", intencao("som.pararTudo"));
+    expect(ambientesLigados(r.estado)).toHaveLength(0);
+    expect(r.estado.somLigado).toEqual({ volumeGeral: 0.6, ambientes: [] });
+    expect(r.eventos.map((x) => x.tipo)).toEqual(["som.efeitoParado", "som.ligadoAlterado"]);
+    // o corte de um efeito (um lugar ou todos) chega ao jogador
+    const parar = ok(e, "m", intencao("som.efeitoParar", { lugar: 2 })).eventos[0] as EventoSala;
+    expect(eventoPara(parar, J1, e, e, T0)).toMatchObject({ dados: { lugar: 2 } });
+  });
+});
+
+describe("apagar um som da mesa (Q4)", () => {
+  it("sai da mesa, dos lugares, das zonas e das automações, e o aviso diz onde estava", () => {
+    let e = criarEstado();
+    e = poeLugar(e, "efeito", 2, lugar(HASH_SUSSURROS, "Susto"));
+    e = poeLugar(e, "ambiente", 4, lugar(HASH_SUSSURROS, "Cochicho"));
+    e = poeLugar(e, "ambiente", 5, lugar(HASH_TRILHA, "Taverna"));
+    e = ok(e, "m", intencao("som.ambiente", { indice: 4, ligado: true })).estado;
+    e = ok(e, "m", intencao("som.ambiente", { indice: 5, ligado: true })).estado;
+    e = { ...e, zonas: [zona()] };
+    const reacao = (id: string, fazer: object[]) =>
+      ReacaoSchema.parse({ id, nome: id, fica: { tipo: "mesa" }, ao: "turno.inicio", fazer });
+    const automacoes: Automacoes = AutomacoesSchema.parse({
+      reacoes: [
+        reacao("so-som", [
+          { acao: "som.tocar", hash: HASH_SUSSURROS, nome: "sussurros", volume: 0.5 },
+        ]),
+        reacao("misto", [
+          { acao: "chat.anunciar", texto: "oi" },
+          { acao: "som.tocar", hash: HASH_SUSSURROS, nome: "sussurros", volume: 0.5 },
+        ]),
+        reacao("outro", [{ acao: "som.tocar", hash: HASH_TRILHA, nome: "taverna", volume: 0.5 }]),
+      ],
+    });
+    e = { ...e, automacoes };
+    const usos = usosDoSom(e, HASH_SUSSURROS);
+    expect(usos.lugares).toEqual([
+      { grupo: "efeito", indice: 2, nome: "Susto" },
+      { grupo: "ambiente", indice: 4, nome: "Cochicho" },
+    ]);
+    expect(usos.zonas).toEqual([SEGREDO]);
+    expect(usos.automacoes).toEqual(["so-som", "misto"]);
+
+    expect(recusado(e, "j1", intencao("som.apagar", { hash: HASH_SUSSURROS }))).toBe(
+      "sem_permissao",
+    );
+    expect(recusado(e, "m", intencao("som.apagar", { hash: HASH_OUTRA }))).toBe(
+      "asset_inexistente",
+    );
+    const r = ok(e, "m", intencao("som.apagar", { hash: HASH_SUSSURROS }));
+    const depois = r.estado;
+    expect(depois.assets?.some((a) => a.hash === HASH_SUSSURROS)).toBe(false);
+    expect(depois.assets?.some((a) => a.hash === HASH_TRILHA)).toBe(true);
+    expect(lugaresDe(depois.mesaDeSom).efeitos[2]).toBeNull();
+    expect(lugaresDe(depois.mesaDeSom).ambientes[4]).toBeNull();
+    expect(lugaresDe(depois.mesaDeSom).ambientes[5]?.nome).toBe("Taverna");
+    expect(ambientesLigados(depois).map((a) => a.indice)).toEqual([5]);
+    expect(depois.zonas?.[0]?.efeitos.som).toBeUndefined();
+    expect(depois.automacoes?.reacoes.map((x) => x.id)).toEqual(["misto", "outro"]);
+    expect(depois.automacoes?.reacoes[0]?.fazer).toHaveLength(1);
+    expect(usosDoSom(depois, HASH_SUSSURROS)).toEqual({ lugares: [], zonas: [], automacoes: [] });
+    // o jogador nunca recebe o evento do lugar nem o da meta
+    for (const ev of r.eventos) {
+      const visto = eventoPara(ev, J1, e, depois, T0);
+      if (ev.tipo === "som.lugarAlterado" || ev.tipo === "asset.removido") expect(visto).toBeNull();
+    }
+  });
+});
+
+describe("o jogador não vê a mesa de som (Q4)", () => {
+  it("a visão e os eventos do jogador não trazem nome, ícone nem cor dos lugares", () => {
+    let e = poeLugar(criarEstado(), "efeito", 0, lugar(HASH_SOPRO, "Segredo"));
+    e = poeLugar(e, "ambiente", 0, lugar(HASH_TRILHA, "Oculta", { icone: "criatura" }));
+    expect(e.mesaDeSom).toBeDefined();
+    const visao = visaoPara(e, J1, T0);
+    expect(visao.mesaDeSom).toBeUndefined();
+    const texto = JSON.stringify(visao);
+    expect(texto).not.toContain("Segredo");
+    expect(texto).not.toContain("Oculta");
+    expect(visaoPara(e, MESTRE, T0).mesaDeSom).toBeDefined();
+    const r = ok(
+      criarEstado(),
+      "m",
+      intencao("som.lugar", { grupo: "efeito", indice: 1, lugar: lugar(HASH_SOPRO, "Z") }),
+    );
+    const ev = r.eventos[0] as EventoSala;
+    expect(eventoPara(ev, J1, criarEstado(), r.estado, T0)).toBeNull();
+    expect(eventoPara(ev, MESTRE, criarEstado(), r.estado, T0)).not.toBeNull();
+  });
+});
+
+describe("a conversão do som do N5 (Q4)", () => {
+  const antigo = () => {
+    const e = criarEstado();
+    return {
+      ...e,
+      trilha: {
+        hash: HASH_TRILHA,
+        nome: "taverna.wav",
+        volume: 0.4,
+        inicioMs: T0 + 1000,
+        servidorMs: T0 + 5000,
+      },
+      cenas: e.cenas.map((c) =>
+        c.id === "fora"
+          ? { ...c, trilha: { hash: HASH_SUSSURROS, nome: "sussurros", volume: 0.3 } }
+          : c,
+      ),
+    } satisfies Estado;
+  };
+
+  it("a trilha que tocava vira um ambiente ligado e a da cena vira um ambiente da cena", () => {
+    const novo = migrarSomDoN5(antigo());
+    expect(novo.trilha).toBeUndefined();
+    expect(novo.cenas.every((c) => c.trilha === undefined)).toBe(true);
+    const ambientes = lugaresDe(novo.mesaDeSom).ambientes;
+    expect(ambientes[0]).toMatchObject({
+      hash: HASH_TRILHA,
+      nome: "taverna",
+      icone: "musica",
+      cor: "ambar",
+      volume: 0.4,
+    });
+    expect(ambientes[1]).toMatchObject({ hash: HASH_SUSSURROS, nome: "sussurros", volume: 0.3 });
+    expect(ambientesLigados(novo)).toMatchObject([
+      { indice: 0, hash: HASH_TRILHA, volume: 0.4, inicioMs: T0 + 1000 },
+    ]);
+    expect(novo.cenas.find((c) => c.id === "fora")?.ambientes).toEqual([1]);
+    // idempotente: o que já foi convertido não muda mais
+    expect(migrarSomDoN5(novo)).toBe(novo);
+  });
+
+  it("a mesma música na trilha e na cena usa um lugar só; sem lugar livre a trilha antiga é descartada", () => {
+    const e = antigo();
+    const mesmo = migrarSomDoN5({
+      ...e,
+      cenas: e.cenas.map((c) =>
+        c.id === "fora" ? { ...c, trilha: { hash: HASH_TRILHA, nome: "t", volume: 0.4 } } : c,
+      ),
+    });
+    expect(lugaresDe(mesmo.mesaDeSom).ambientes.filter(Boolean)).toHaveLength(1);
+    expect(mesmo.cenas.find((c) => c.id === "fora")?.ambientes).toEqual([0]);
+    let cheio: Estado = criarEstado();
+    for (let i = 0; i < 8; i++) cheio = poeLugar(cheio, "ambiente", i, lugar(HASH_SOPRO, `A${i}`));
+    const sem = migrarSomDoN5({ ...cheio, trilha: antigo().trilha });
+    expect(ambientesLigados(sem)).toHaveLength(0);
+    expect(sem.trilha).toBeUndefined();
+  });
+
+  it("um arquivo exportado no N5 (trilha da cena, sem mesa de som) abre convertido", () => {
+    const e = antigo();
+    const comTrilhaDaCena = { ...e, trilha: undefined };
+    const texto = JSON.stringify(criarExportacao(comTrilhaDaCena, iso(1)));
+    const lida = lerExportacao(JSON.parse(texto));
+    expect(lida.ok).toBe(true);
+    if (!lida.ok) return;
+    expect(lida.exportacao.dados.cenas.find((c) => c.id === "fora")?.trilha).toBeUndefined();
+    expect(lida.exportacao.dados.cenas.find((c) => c.id === "fora")?.ambientes).toEqual([0]);
+    expect(lugaresDe(lida.exportacao.dados.mesaDeSom).ambientes[0]?.hash).toBe(HASH_SUSSURROS);
+    // importar aplica a conversão e a mesa começa sem nada tocando
+    const importado = ok(
+      criarEstado(),
+      "m",
+      intencao("campanha.importar", { dados: JSON.parse(texto) }),
+    ).estado;
+    expect(importado.somLigado).toBeUndefined();
+    expect(importado.cenas.find((c) => c.id === "fora")?.ambientes).toEqual([0]);
   });
 });
 
@@ -316,7 +587,7 @@ describe("os efeitos", () => {
   it("tocar um efeito vai a todos e não muda o estado", () => {
     const e = criarEstado();
     const r = ok(e, "m", intencao("som.efeito", { hash: HASH_SOPRO, volume: 0.7 }));
-    expect(JSON.stringify(r.estado.trilha)).toBe(undefined);
+    expect(r.estado.somLigado).toBeUndefined();
     const ev = r.eventos.find((x) => x.tipo === "som.efeitoTocado") as EventoSala;
     expect(ev).toBeDefined();
     for (const id of ["m", "j1", "j2"]) {
@@ -525,14 +796,8 @@ describe("a ação som.tocar das automações", () => {
 describe("importar e exportar com som", () => {
   it("a exportação leva as referências (metas, trilha da cena, som da zona), nunca os bytes, e relê", () => {
     let e = criarEstado();
-    e = ok(
-      e,
-      "m",
-      intencao("cena.editar", {
-        cenaId: "fora",
-        trilha: { hash: HASH_TRILHA, nome: "taverna", volume: 0.4 },
-      }),
-    ).estado;
+    e = poeLugar(e, "ambiente", 0, lugar(HASH_TRILHA, "Taverna", { volume: 0.4 }));
+    e = ok(e, "m", intencao("cena.editar", { cenaId: "fora", ambientes: [0] })).estado;
     e = { ...e, zonas: [zona()] };
     const exp = criarExportacao(e, iso(1));
     const texto = JSON.stringify(exp);
@@ -541,7 +806,8 @@ describe("importar e exportar com som", () => {
     const lida = lerExportacao(JSON.parse(texto));
     expect(lida.ok).toBe(true);
     if (!lida.ok) return;
-    expect(lida.exportacao.dados.cenas.find((c) => c.id === "fora")?.trilha).toMatchObject({
+    expect(lida.exportacao.dados.cenas.find((c) => c.id === "fora")?.ambientes).toEqual([0]);
+    expect(lugaresDe(lida.exportacao.dados.mesaDeSom).ambientes[0]).toMatchObject({
       hash: HASH_TRILHA,
     });
     expect(lida.exportacao.dados.zonas?.[0]?.efeitos.som).toMatchObject({ hash: HASH_SUSSURROS });

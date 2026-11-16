@@ -1916,8 +1916,10 @@ export function Mesa({
             )}
             {modoMestre && somAberto && (
               <PainelDoSom
-                trilha={estado.trilha ?? null}
+                estado={estado}
                 cena={cena}
+                efeitosEmAndamento={som.motor.efeitosEmAndamento()}
+                ouvir={(hash, volume) => som.motor.tocarEfeito(hash, volume)}
                 fontes={fontes}
                 registrar={registrarSom}
                 enviar={enviar}

@@ -2811,7 +2811,7 @@ export class Sala extends DurableObject<Env> {
         this.enviarSnapshot(ws, usuario);
         // N5: o snapshot não leva o efeito de som (ele não está no estado): quem o ouve o recebe depois.
         for (const ev of eventos) {
-          if (ev.tipo !== "som.efeitoTocado") continue;
+          if (ev.tipo !== "som.efeitoTocado" && ev.tipo !== "som.efeitoParado") continue;
           const visto = eventoPara(ev, usuario, antes, this.estado, agoraMs);
           if (visto) this.enviar(ws, mensagem({ tipo: "evento", dados: visto }));
         }

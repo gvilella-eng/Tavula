@@ -1,19 +1,21 @@
 import {
+  type AmbienteLigado,
   desvioDoRelogio,
   FADE_DA_ZONA_MS,
+  FADE_DO_AMBIENTE_MS,
   pontoDaTrilha,
+  type SomLigado,
   type SomTocando,
-  TRANSICAO_DA_TRILHA_MS,
-  type Trilha,
+  VOLUME_GERAL_PADRAO,
   volumeFinal,
 } from "@tabletop/shared";
 import { type PrefsDeSom, prefsDeSom } from "./prefsDeSom";
 
 /**
- * N5: o motor de som deste navegador. Recebe o que DEVE tocar (a trilha, os sons das zonas onde o jogador está, os
- * efeitos) e cuida do resto: baixar o arquivo, ajustar o ponto da trilha ao relógio da sala, o fade, o volume das
- * preferências e o bloqueio de som automático do navegador (que só deixa tocar depois de um gesto).
- * Nada daqui vai para a sala. O estado "o que está tocando" é lido pelo gancho de teste, sem depender do áudio real.
+ * N5/Q4: o motor de som deste navegador. Recebe o que DEVE tocar (os ambientes ligados da mesa de som, os sons das zonas
+ * onde o jogador está, os efeitos) e cuida do resto: baixar o arquivo, ajustar o ponto de cada ambiente ao relógio da
+ * sala, o fade, o volume das preferências e o bloqueio de som automático do navegador (que só deixa tocar depois de um
+ * gesto). Nada daqui vai para a sala. O estado "o que está tocando" é lido pelo gancho de teste, sem depender do áudio real.
  */
 
 export type FonteDeAudio = {
@@ -23,7 +25,7 @@ export type FonteDeAudio = {
   garantir(hash: string): void;
 };
 
-type Categoria = "trilha" | "zona" | "efeito";
+type Categoria = "ambiente" | "zona" | "efeito";
 
 type Canal = {
   hash: string;
@@ -32,31 +34,51 @@ type Canal = {
   /** O volume do som (0 a 1), antes das preferências. */
   volume: number;
   rampa?: ReturnType<typeof setInterval> | undefined;
+  /** Efeito da mesa de som: o lugar (0 a 7); `null` nos de automação e nos de arquivo solto. */
+  lugar?: number | null;
 };
 
+/** Um ambiente que a sala quer tocando: o que veio dela mais o desvio do relógio dela em relação a este navegador. */
+type AmbienteDesejado = { ligado: AmbienteLigado; desvio: number };
+
 export type EstadoDoSom = {
-  trilha: { hash: string; volume: number; tocando: boolean } | null;
+  /** Os ambientes que tocam agora (o volume já com o geral da mesa e as preferências). */
+  ambientes: { indice: number; hash: string; volume: number; tocando: boolean }[];
   zonas: { hash: string; volume: number }[];
   /** Os efeitos tocados desde que a página abriu (o volume já com as preferências). */
-  efeitos: { hash: string; volume: number }[];
+  efeitos: { hash: string; volume: number; lugar: number | null }[];
+  /** Os efeitos que ainda estão tocando agora. */
+  efeitosTocando: { hash: string; lugar: number | null }[];
   bloqueado: boolean;
+};
+
+/** Um efeito que está tocando (a janela do mestre desenha a barra de progresso com isto). */
+export type EfeitoTocando = {
+  /** Muda a cada toque (a barra recomeça). */
+  chave: number;
+  lugar: number | null;
+  hash: string;
+  /** Duração do arquivo em segundos (`null` enquanto não se sabe). */
+  duracaoS: number | null;
 };
 
 const PASSO_DA_RAMPA_MS = 40;
 const AJUSTE_DE_VOLUME_MS = 250;
-/** A trilha que passa disto do relógio da sala é reposicionada (o resto é latência da rede). */
+/** Um ambiente que passa disto do relógio da sala é reposicionado (o resto é latência da rede). */
 const DESVIO_ACEITO_S = 1.5;
 
 export class MotorDeSom {
-  private trilhaDesejada: Trilha | null = null;
-  private desvio = 0;
+  private ambientesDesejados: AmbienteDesejado[] = [];
+  private volumeGeral = VOLUME_GERAL_PADRAO;
   private zonasDesejadas: SomTocando[] = [];
-  private trilhaAtual: Canal | null = null;
+  private readonly ambientes = new Map<number, Canal>();
   private readonly zonas = new Map<string, Canal>();
   /** Sons de zona sem laço que já tocaram desde que o jogador entrou (tocam uma vez por entrada). */
   private readonly semLacoTocados = new Set<string>();
   private readonly urls = new Map<string, string>();
-  private readonly efeitosTocados: { hash: string; volume: number }[] = [];
+  private readonly efeitosTocados: { hash: string; volume: number; lugar: number | null }[] = [];
+  private readonly efeitosAtivos = new Map<number, { canal: Canal; info: EfeitoTocando }>();
+  private proximaChave = 1;
   private bloqueado = false;
   private encerrado = true;
   private fila: Promise<void> = Promise.resolve();
@@ -98,31 +120,49 @@ export class MotorDeSom {
     return this.bloqueado;
   }
 
+  /** Os efeitos que estão tocando agora (a janela do mestre mostra a barra e o "parar"). */
+  efeitosEmAndamento(): EfeitoTocando[] {
+    return [...this.efeitosAtivos.values()].map((e) => e.info);
+  }
+
   estado(): EstadoDoSom {
     const p = prefsDeSom();
     return {
-      trilha: this.trilhaAtual
-        ? {
-            hash: this.trilhaAtual.hash,
-            volume: this.volumeDe(this.trilhaAtual, p),
-            tocando: true,
-          }
-        : null,
+      ambientes: [...this.ambientes.entries()]
+        .sort((a, b) => a[0] - b[0])
+        .map(([indice, c]) => ({
+          indice,
+          hash: c.hash,
+          volume: this.volumeDe(c, p),
+          tocando: true,
+        })),
       zonas: [...this.zonas.values()].map((c) => ({ hash: c.hash, volume: this.volumeDe(c, p) })),
       efeitos: [...this.efeitosTocados],
+      efeitosTocando: [...this.efeitosAtivos.values()].map((e) => ({
+        hash: e.info.hash,
+        lugar: e.info.lugar,
+      })),
       bloqueado: this.bloqueado,
     };
   }
 
   // --- o que deve tocar -----------------------------------------------------------------------
 
-  /** A trilha da sala (`null`: parada) e o relógio dela em relação ao deste navegador. */
-  definirTrilha(trilha: Trilha | null): void {
-    const mudouDeSom = trilha?.hash !== this.trilhaDesejada?.hash;
-    const mudouInicio = trilha?.inicioMs !== this.trilhaDesejada?.inicioMs;
-    if (trilha) this.desvio = desvioDoRelogio(trilha, Date.now());
-    this.trilhaDesejada = trilha;
-    if (mudouDeSom || mudouInicio || trilha === null) this.reconciliar();
+  /** O que toca da mesa de som (`null`: nada) e o relógio de cada ambiente em relação ao deste navegador. */
+  definirAmbientes(somLigado: SomLigado | null): void {
+    const agora = Date.now();
+    const antes = JSON.stringify(
+      this.ambientesDesejados.map((a) => [a.ligado.indice, a.ligado.hash, a.ligado.inicioMs]),
+    );
+    this.ambientesDesejados = (somLigado?.ambientes ?? []).map((ligado) => ({
+      ligado,
+      desvio: desvioDoRelogio(ligado, agora),
+    }));
+    this.volumeGeral = somLigado?.volumeGeral ?? VOLUME_GERAL_PADRAO;
+    const depois = JSON.stringify(
+      this.ambientesDesejados.map((a) => [a.ligado.indice, a.ligado.hash, a.ligado.inicioMs]),
+    );
+    if (antes !== depois) this.reconciliar();
     else this.aplicarVolumes();
   }
 
@@ -132,23 +172,63 @@ export class MotorDeSom {
     this.reconciliar();
   }
 
-  /** Um efeito, uma vez. */
-  tocarEfeito(hash: string, volume: number): void {
+  /** Um efeito, uma vez. Tocar de novo o do mesmo lugar (ou o mesmo arquivo solto) recomeça. */
+  tocarEfeito(hash: string, volume: number, lugar?: number): void {
     if (this.encerrado) return;
     const p = prefsDeSom();
     const final = volumeFinal(volume, p.geral, p.efeitos, p.silenciado);
-    this.efeitosTocados.push({ hash, volume: final });
+    const idLugar = lugar ?? null;
+    this.efeitosTocados.push({ hash, volume: final, lugar: idLugar });
+    // O antigo do mesmo lugar (ou do mesmo arquivo, sem lugar) para na hora.
+    for (const [chave, e] of [...this.efeitosAtivos]) {
+      const igual =
+        idLugar === null ? e.info.lugar === null && e.info.hash === hash : e.info.lugar === idLugar;
+      if (!igual) continue;
+      this.efeitosAtivos.delete(chave);
+      this.soltar(e.canal);
+    }
     this.mudou();
     if (final <= 0) return;
     this.fonte.garantir(hash);
+    const chave = this.proximaChave++;
     void (async () => {
       const url = await this.urlDoArquivo(hash);
       if (url === null || this.encerrado) return;
       const canal = this.novoCanal(hash, "efeito", volume, url, false);
+      canal.lugar = idLugar;
+      const info: EfeitoTocando = { chave, lugar: idLugar, hash, duracaoS: null };
+      this.efeitosAtivos.set(chave, { canal, info });
       this.ajustar(canal, final, 0);
-      canal.el.addEventListener("ended", () => this.soltar(canal), { once: true });
+      const acabou = () => {
+        if (this.efeitosAtivos.get(chave)?.canal === canal) this.efeitosAtivos.delete(chave);
+        this.soltar(canal);
+        this.mudou();
+      };
+      canal.el.addEventListener("ended", acabou, { once: true });
+      const medir = () => {
+        const d = canal.el.duration;
+        if (Number.isFinite(d) && d > 0 && this.efeitosAtivos.get(chave)?.canal === canal) {
+          info.duracaoS = d;
+          this.mudou();
+        }
+      };
+      if (Number.isFinite(canal.el.duration) && canal.el.duration > 0) medir();
+      else canal.el.addEventListener("loadedmetadata", medir, { once: true });
+      this.mudou();
       await this.comecar(canal);
     })();
+  }
+
+  /** Corta o efeito do `lugar` (sem ele, todos os efeitos). */
+  pararEfeito(lugar?: number): void {
+    let mexeu = false;
+    for (const [chave, e] of [...this.efeitosAtivos]) {
+      if (lugar !== undefined && e.info.lugar !== lugar) continue;
+      this.efeitosAtivos.delete(chave);
+      this.soltar(e.canal);
+      mexeu = true;
+    }
+    if (mexeu) this.mudou();
   }
 
   /** O arquivo chegou (ou algo mudou): tenta de novo o que estava esperando. */
@@ -173,9 +253,16 @@ export class MotorDeSom {
   encerrar(): void {
     this.encerrado = true;
     this.desinscrever();
-    for (const c of [this.trilhaAtual, ...this.zonas.values()]) if (c) this.soltar(c);
-    this.trilhaAtual = null;
+    for (const c of [
+      ...this.ambientes.values(),
+      ...this.zonas.values(),
+      ...[...this.efeitosAtivos.values()].map((e) => e.canal),
+    ]) {
+      this.soltar(c);
+    }
+    this.ambientes.clear();
     this.zonas.clear();
+    this.efeitosAtivos.clear();
     for (const u of this.urls.values()) URL.revokeObjectURL(u);
     this.urls.clear();
   }
@@ -183,9 +270,10 @@ export class MotorDeSom {
   // --- por dentro -----------------------------------------------------------------------------
 
   private volumeDe(c: Canal, p: PrefsDeSom): number {
-    const cat =
-      c.categoria === "trilha" ? p.trilha : c.categoria === "efeito" ? p.efeitos : p.efeitos;
-    return volumeFinal(c.volume, p.geral, cat, p.silenciado);
+    // As preferências guardam o volume dos ambientes na chave `trilha` (nome do N5, para não perder o que a pessoa ajustou).
+    const cat = c.categoria === "ambiente" ? p.trilha : p.efeitos;
+    const base = c.categoria === "ambiente" ? c.volume * this.volumeGeral : c.volume;
+    return volumeFinal(base, p.geral, cat, p.silenciado);
   }
 
   private async urlDoArquivo(hash: string): Promise<string | null> {
@@ -259,12 +347,16 @@ export class MotorDeSom {
 
   private aplicarVolumes(): void {
     const p = prefsDeSom();
-    const todos = [this.trilhaAtual, ...this.zonas.values()];
-    for (const c of todos) {
-      if (c) this.ajustar(c, this.volumeDe(c, p), AJUSTE_DE_VOLUME_MS);
+    for (const d of this.ambientesDesejados) {
+      const c = this.ambientes.get(d.ligado.indice);
+      if (c && c.hash === d.ligado.hash) c.volume = d.ligado.volume;
     }
-    if (this.trilhaAtual && this.trilhaDesejada)
-      this.trilhaAtual.volume = this.trilhaDesejada.volume;
+    const todos = [
+      ...this.ambientes.values(),
+      ...this.zonas.values(),
+      ...[...this.efeitosAtivos.values()].map((e) => e.canal),
+    ];
+    for (const c of todos) this.ajustar(c, this.volumeDe(c, p), AJUSTE_DE_VOLUME_MS);
     this.mudou();
   }
 
@@ -277,52 +369,58 @@ export class MotorDeSom {
 
   private async reconciliarAgora(depoisDoGesto: boolean): Promise<void> {
     if (this.encerrado) return;
-    await this.reconciliarTrilha(depoisDoGesto);
+    await this.reconciliarAmbientes(depoisDoGesto);
     await this.reconciliarZonas(depoisDoGesto);
   }
 
-  private async reconciliarTrilha(depoisDoGesto: boolean): Promise<void> {
-    const alvo = this.trilhaDesejada;
-    const atual = this.trilhaAtual;
+  private async reconciliarAmbientes(depoisDoGesto: boolean): Promise<void> {
     const p = prefsDeSom();
-    if (atual && alvo && atual.hash === alvo.hash) {
-      atual.volume = alvo.volume;
-      this.ajustar(atual, this.volumeDe(atual, p), AJUSTE_DE_VOLUME_MS);
-      // A trilha que se afastou do relógio da sala (a aba ficou parada, por exemplo) volta ao ponto.
-      const ponto = pontoDaTrilha(alvo, Date.now(), this.desvio, atual.el.duration);
-      if (
-        Number.isFinite(atual.el.duration) &&
-        Math.abs(atual.el.currentTime - ponto) > DESVIO_ACEITO_S &&
-        // perto da emenda do laço os dois lados "estão certos"
-        Math.abs(atual.el.currentTime - ponto) < atual.el.duration - DESVIO_ACEITO_S
-      ) {
-        atual.el.currentTime = ponto;
+    const querem = new Map(this.ambientesDesejados.map((d) => [d.ligado.indice, d]));
+    // Desligado (ou trocado por outro arquivo): some com fade de 1,5 s.
+    for (const [indice, canal] of [...this.ambientes]) {
+      const q = querem.get(indice);
+      if (q && q.ligado.hash === canal.hash) continue;
+      this.ambientes.delete(indice);
+      this.ajustar(canal, 0, FADE_DO_AMBIENTE_MS, () => this.soltar(canal));
+    }
+    for (const q of querem.values()) {
+      const { ligado, desvio } = q;
+      const existente = this.ambientes.get(ligado.indice);
+      if (existente) {
+        existente.volume = ligado.volume;
+        this.ajustar(existente, this.volumeDe(existente, p), AJUSTE_DE_VOLUME_MS);
+        // O ambiente que se afastou do relógio da sala (a aba ficou parada, por exemplo) volta ao ponto.
+        const ponto = pontoDaTrilha(ligado, Date.now(), desvio, existente.el.duration);
+        const d = existente.el.duration;
+        if (
+          Number.isFinite(d) &&
+          Math.abs(existente.el.currentTime - ponto) > DESVIO_ACEITO_S &&
+          // perto da emenda do laço os dois lados "estão certos"
+          Math.abs(existente.el.currentTime - ponto) < d - DESVIO_ACEITO_S
+        ) {
+          existente.el.currentTime = ponto;
+        }
+        if (depoisDoGesto && existente.el.paused) await this.comecar(existente);
+        continue;
       }
-      if (depoisDoGesto && atual.el.paused) await this.comecar(atual);
-      return;
+      this.fonte.garantir(ligado.hash);
+      const url = await this.urlDoArquivo(ligado.hash);
+      const aindaQuer = this.ambientesDesejados.some(
+        (d) => d.ligado.indice === ligado.indice && d.ligado.hash === ligado.hash,
+      );
+      if (url === null || this.encerrado || !aindaQuer || this.ambientes.has(ligado.indice)) {
+        continue;
+      }
+      const canal = this.novoCanal(ligado.hash, "ambiente", ligado.volume, url, true);
+      this.ambientes.set(ligado.indice, canal);
+      const posicionar = () => {
+        canal.el.currentTime = pontoDaTrilha(ligado, Date.now(), desvio, canal.el.duration);
+      };
+      if (Number.isFinite(canal.el.duration) && canal.el.duration > 0) posicionar();
+      else canal.el.addEventListener("loadedmetadata", posicionar, { once: true });
+      this.ajustar(canal, this.volumeDe(canal, p), FADE_DO_AMBIENTE_MS);
+      await this.comecar(canal);
     }
-    if (atual) {
-      // Troca suave: a de antes some em 2 s e a nova entra na mesma hora.
-      this.trilhaAtual = null;
-      this.ajustar(atual, 0, TRANSICAO_DA_TRILHA_MS, () => this.soltar(atual));
-    }
-    if (!alvo) return;
-    this.fonte.garantir(alvo.hash);
-    const url = await this.urlDoArquivo(alvo.hash);
-    if (url === null || this.encerrado || this.trilhaDesejada?.hash !== alvo.hash) return;
-    const canal = this.novoCanal(alvo.hash, "trilha", alvo.volume, url, true);
-    this.trilhaAtual = canal;
-    const posicionar = () => {
-      canal.el.currentTime = pontoDaTrilha(alvo, Date.now(), this.desvio, canal.el.duration);
-    };
-    if (Number.isFinite(canal.el.duration) && canal.el.duration > 0) posicionar();
-    else canal.el.addEventListener("loadedmetadata", posicionar, { once: true });
-    this.ajustar(
-      canal,
-      this.volumeDe(canal, p),
-      atual ? TRANSICAO_DA_TRILHA_MS : AJUSTE_DE_VOLUME_MS,
-    );
-    await this.comecar(canal);
   }
 
   private async reconciliarZonas(depoisDoGesto: boolean): Promise<void> {

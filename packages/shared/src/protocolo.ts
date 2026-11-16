@@ -79,6 +79,12 @@ import {
   OperacaoDeFichaSchema,
 } from "./ficha.ts";
 import { CENA_PADRAO } from "./mapa.ts";
+import {
+  GrupoDeSomSchema,
+  IndiceDoLugarSchema,
+  LugarDeSomSchema,
+  SomLigadoSchema,
+} from "./mesadesom.ts";
 import { TracoDaNevoaSchema } from "./nevoa.ts";
 import { modelosPadrao } from "./objetos.ts";
 import {
@@ -89,13 +95,7 @@ import {
 } from "./pastas.ts";
 import { ItemDeRascunhoSchema, MAXIMO_DE_ITENS_POR_PEDIDO } from "./rascunhos.ts";
 import { EspacoDoPedidoSchema, PedidoDeModeloSchema } from "./rolagens.ts";
-import {
-  AlvoDoEfeitoSchema,
-  SomTocandoSchema,
-  TrilhaDaCenaSchema,
-  TrilhaSchema,
-  VolumeSchema,
-} from "./som.ts";
+import { AlvoDoEfeitoSchema, SomTocandoSchema, VolumeSchema } from "./som.ts";
 import { MudancasDaZonaSchema, ZonaNovaSchema, ZonaSchema } from "./zonas.ts";
 
 export const VERSAO_PROTOCOLO = 1;
@@ -682,8 +682,8 @@ export const IntencaoSchema = z.discriminatedUnion("tipo", [
       mostrarParedesAosJogadores: z.boolean().optional(),
       /** V10c: transforma a cena em cartão (`true`) ou a devolve a mapa (`false`). */
       cartao: z.boolean().optional(),
-      /** N5: a trilha padrão da cena (um asset `som` já registrado); `null` a tira. */
-      trilha: TrilhaDaCenaSchema.nullable().optional(),
+      /** Q4: os ambientes da mesa de som (lugares 0 a 7) que ligam ao levar o grupo para a cena; `null` tira a lista. */
+      ambientes: z.array(IndiceDoLugarSchema).max(8).nullable().optional(),
     }),
   ),
   /**
@@ -941,13 +941,42 @@ export const IntencaoSchema = z.discriminatedUnion("tipo", [
    */
   intencao("compendio.definir", z.object({ compendio: CompendioDaMesaSchema.nullable() })),
   /**
-   * N5 (som ambiente), só o mestre (`som.controlar`). `som.trilha` põe a trilha (um som por vez, em laço) com o asset `som`
-   * já registrado; o mesmo som de novo só muda o volume (a trilha não recomeça). `som.parar` a tira. `som.efeito` toca um
-   * som uma vez para todos (transitório: não muda o estado, só chega a quem ouve).
+   * Q4 (mesa de som), só o mestre (`som.controlar`). `som.lugar` põe (ou, com `null`, tira) um dos 16 lugares (8 efeitos e
+   * 8 ambientes; o asset `som` já registrado). `som.efeito` toca um efeito uma vez para todos, pelo `lugar` (com o volume
+   * padrão dele) ou por um `hash` qualquer; tocar de novo recomeça (transitório: não muda o estado, só chega a quem ouve).
+   * `som.efeitoParar` corta o efeito do `lugar` (sem ele, todos). `som.ambiente` liga ou desliga o ambiente de um lugar
+   * (vários ao mesmo tempo, em laço), com volume próprio. `som.volumeGeral` vale para todos. `som.pararTudo` corta efeitos e
+   * ambientes. `som.apagar` tira o som da mesa: dos lugares, das zonas e das automações que o usam (o arquivo fica no
+   * computador do mestre).
    */
-  intencao("som.trilha", z.object({ hash: HashSchema, volume: VolumeSchema })),
-  intencao("som.parar", SemDados),
-  intencao("som.efeito", z.object({ hash: HashSchema, volume: VolumeSchema })),
+  intencao(
+    "som.lugar",
+    z.object({
+      grupo: GrupoDeSomSchema,
+      indice: IndiceDoLugarSchema,
+      lugar: LugarDeSomSchema.nullable(),
+    }),
+  ),
+  intencao(
+    "som.efeito",
+    z
+      .object({
+        lugar: IndiceDoLugarSchema.optional(),
+        hash: HashSchema.optional(),
+        volume: VolumeSchema.optional(),
+      })
+      .refine((d) => d.lugar !== undefined || d.hash !== undefined, {
+        message: "Diga o lugar ou o arquivo do efeito.",
+      }),
+  ),
+  intencao("som.efeitoParar", z.object({ lugar: IndiceDoLugarSchema.optional() })),
+  intencao(
+    "som.ambiente",
+    z.object({ indice: IndiceDoLugarSchema, ligado: z.boolean(), volume: VolumeSchema.optional() }),
+  ),
+  intencao("som.volumeGeral", z.object({ volume: VolumeSchema })),
+  intencao("som.pararTudo", SemDados),
+  intencao("som.apagar", z.object({ hash: HashSchema })),
   /**
    * Automações (7b-1, seção 4.11). Todas só do mestre (`automacao.editar`). `ciclo.criar` com `pausado`
    * cria o ciclo parado no começo (sem ele, roda assim que a mesa corre). Editar o período ou as fases
@@ -1145,9 +1174,13 @@ export const capacidadeDaIntencao: Record<TipoIntencao, Capacidade | null> = {
   "desenho.limpar": "cena.editar",
   "desenho.rascunho": "desenho.criar",
   "compendio.definir": "mesa.configurar",
-  "som.trilha": "som.controlar",
-  "som.parar": "som.controlar",
+  "som.lugar": "som.controlar",
   "som.efeito": "som.controlar",
+  "som.efeitoParar": "som.controlar",
+  "som.ambiente": "som.controlar",
+  "som.volumeGeral": "som.controlar",
+  "som.pararTudo": "som.controlar",
+  "som.apagar": "som.controlar",
   // 7b-1: automações são dado do mestre (regra 7): nenhuma é delegável.
   "ciclo.criar": "automacao.editar",
   "ciclo.editar": "automacao.editar",
@@ -1321,16 +1354,38 @@ export const EventoSalaSchema = z.discriminatedUnion("tipo", [
   ),
   /** O compêndio da mesa mudou (`null`: sem compêndio). Todos recebem; é só a referência ao asset. */
   eventoDe("compendio.alterado", z.object({ compendio: CompendioDaMesaSchema.nullable() })),
-  /** N5: a trilha mudou (`null`: parou). Todos recebem; o `servidorMs` é refeito para cada um. */
-  eventoDe("som.trilhaAlterada", z.object({ trilha: TrilhaSchema.nullable() })),
   /**
-   * N5: um efeito de som, uma vez (não muda o estado). A sala só o entrega a quem ouve (`efeitoChegaPara`); quem recebe vê
-   * sempre `alvo: todos` (nunca a cena nem o token por trás).
+   * Q4: o que toca mudou (ambientes ligados e volume geral; `null`: nada toca e o volume geral é o padrão). Todos recebem; o
+   * `servidorMs` é refeito para cada um.
+   */
+  eventoDe("som.ligadoAlterado", z.object({ somLigado: SomLigadoSchema.nullable() })),
+  /** Q4: um lugar da mesa de som mudou (`null`: ficou vazio). SÓ o mestre recebe (nome, ícone e cor são dele). */
+  eventoDe(
+    "som.lugarAlterado",
+    z.object({
+      grupo: GrupoDeSomSchema,
+      indice: IndiceDoLugarSchema,
+      lugar: LugarDeSomSchema.nullable(),
+    }),
+  ),
+  /**
+   * N5/Q4: um efeito de som, uma vez (não muda o estado). A sala só o entrega a quem ouve (`efeitoChegaPara`); quem recebe vê
+   * sempre `alvo: todos` (nunca a cena nem o token por trás). `lugar` (efeito da mesa de som) deixa a tela do mestre
+   * mostrar o progresso e cortar só aquele; o volume já vem com o volume geral.
    */
   eventoDe(
     "som.efeitoTocado",
-    z.object({ hash: HashSchema, volume: VolumeSchema, alvo: AlvoDoEfeitoSchema }),
+    z.object({
+      hash: HashSchema,
+      volume: VolumeSchema,
+      alvo: AlvoDoEfeitoSchema,
+      lugar: IndiceDoLugarSchema.optional(),
+    }),
   ),
+  /** Q4: cortar o efeito do `lugar` (sem ele, todos os efeitos). Todos recebem. */
+  eventoDe("som.efeitoParado", z.object({ lugar: IndiceDoLugarSchema.optional() })),
+  /** Q4: o som saiu da mesa (só a referência; o arquivo fica no computador do mestre). Só mestres recebem. */
+  eventoDe("asset.removido", z.object({ hash: HashSchema })),
   /** Uma mensagem do chat, filtrada: quem não pode vê-la nunca a recebe. */
   eventoDe("chat.mensagem", z.object({ mensagem: MensagemSchema })),
   /** O mestre limpou o chat: todos esvaziam a conversa. */

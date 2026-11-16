@@ -158,24 +158,64 @@ describe("M2: combate", () => {
 });
 
 describe("M2: som", () => {
-  it("toca a trilha pelo nome do arquivo e define a trilha da cena", async () => {
+  it("configura os lugares, toca efeito e ambiente pelo nome, e define os ambientes da cena", async () => {
     const sala = new SalaSimulada("m");
     comSom(sala);
     const r = await rodar(sala, "som", {
-      trilha: { som: "floresta", volume: 0.5 },
-      trilhaDaCena: [{ cena: "Taverna", som: "floresta.mp3" }],
+      lugares: [
+        {
+          grupo: "ambiente",
+          lugar: 1,
+          som: "floresta",
+          nome: "Floresta",
+          icone: "vento",
+          cor: "verde",
+          volume: 0.5,
+        },
+        { grupo: "efeito", lugar: 2, som: "floresta.mp3", nome: "Trovão", icone: "trovao" },
+      ],
+      ambientes: [{ lugar: "Floresta", ligado: true, volume: 0.3 }],
+      efeito: { lugar: "Trovão" },
+      ambientesDaCena: [{ cena: "Taverna", lugares: ["Floresta"] }],
+      volumeGeral: 0.7,
     });
     expect(r.erro).toBeFalsy();
-    expect(sala.verdade.trilha?.hash).toBe(HASH_SOM);
-    expect(sala.verdade.trilha?.volume).toBe(0.5);
-    expect(sala.verdade.cenas[0]?.trilha?.nome).toBe("floresta.mp3");
-    await rodar(sala, "som", { trilha: "parar" });
-    expect(sala.verdade.trilha).toBeUndefined();
+    expect(sala.verdade.mesaDeSom?.ambientes[0]).toMatchObject({
+      hash: HASH_SOM,
+      nome: "Floresta",
+      icone: "vento",
+      cor: "verde",
+      volume: 0.5,
+    });
+    expect(sala.verdade.mesaDeSom?.efeitos[1]).toMatchObject({ nome: "Trovão", icone: "trovao" });
+    expect(sala.verdade.somLigado).toMatchObject({
+      volumeGeral: 0.7,
+      ambientes: [{ indice: 0, hash: HASH_SOM, volume: 0.3 }],
+    });
+    expect(sala.verdade.cenas[0]?.ambientes).toEqual([0]);
+    const lista = await rodar(sala, "som", { listar: true });
+    expect(lista.texto).toContain("TOCANDO");
+    await rodar(sala, "som", { pararTudo: true });
+    expect(sala.verdade.somLigado?.ambientes).toEqual([]);
+    const apagou = await rodar(sala, "som", { apagar: ["floresta"] });
+    expect(apagou.erro).toBeFalsy();
+    expect(apagou.texto).toContain("estava em");
+    expect(sala.verdade.mesaDeSom).toBeUndefined();
+    expect(sala.verdade.assets?.some((a) => a.hash === HASH_SOM)).toBe(false);
+  });
+
+  it("lugar vazio ou desconhecido dá erro claro", async () => {
+    const sala = new SalaSimulada("m");
+    comSom(sala);
+    const r = await rodar(sala, "som", { ambientes: [{ lugar: 4, ligado: true }] });
+    expect(r.texto).toContain("vazio");
+    const s = await rodar(sala, "som", { efeito: { lugar: "Nada" } });
+    expect(s.texto).toContain("Não existe");
   });
 
   it("sem som na mesa, diz o que fazer", async () => {
     const sala = new SalaSimulada("m");
-    const r = await rodar(sala, "som", { trilha: { som: "x.mp3" } });
+    const r = await rodar(sala, "som", { lugares: [{ grupo: "efeito", lugar: 1, som: "x.mp3" }] });
     expect(r.erro).toBe(true);
     expect(r.texto).toContain("arquivos");
   });

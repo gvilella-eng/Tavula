@@ -560,6 +560,21 @@ Antes: a mesa com os seus arquivos reais (361 magias, 428 monstros, 274 itens m�
 8. **Adicionar e arrastar.** Ache uma arma em Todas e use Adicionar; arraste uma magia para a ficha aberta. As duas funcionam como antes.
 9. **Conferir nomes.** Abra 10 magias, 10 monstros e 10 itens mágicos ao acaso e veja se o nome em inglês confere. O que ficou sem nome em inglês (6 magias, 6 monstros, 15 itens) aparece só com o nome em português.
 
+## Q4 — A mesa de som: 8 efeitos de um toque e 8 ambientes em laço
+
+Antes de tudo: tenha na pasta `sons/` (ou à mão) uns 6 arquivos de áudio: 2 ou 3 efeitos curtos (trovão, porta, espada) e 3 ambientes longos (taverna, vento, chuva).
+
+1. **Configurar um efeito.** Abra Som na barra de ferramentas. Num lugar vazio de Efeitos, clique em "adicionar". Na configuração, escolha o arquivo do trovão, dê o nome "Trovão", escolha o ícone Trovão e a cor Azul. O nome para em 12 letras. "Ouvir" toca só para você. Clique em Pronto: o botão aparece na grade, com o ícone na cor escolhida.
+2. **Tocar um efeito.** Com um jogador conectado, toque o efeito: o jogador ouve uma vez, até o fim, e o botão mostra a barra de progresso e um quadradinho de parar. Toque de novo no meio: recomeça. Pare pelo quadradinho: corta para todos.
+3. **Configurar ambientes.** Em Ambientes, configure três (Taverna, Vento, Chuva) com ícone e cor diferentes. Ligue a Taverna e o Vento ao mesmo tempo: os dois tocam juntos. Mexa no volume de cada um; um jogador entrando agora ouve os dois, cada um do ponto em que está. Desligue a Taverna: só ela some, com a saída suave.
+4. **Volume geral e Parar tudo.** Baixe o volume geral: efeitos e ambientes ficam mais baixos para todos, sem recomeçar. "Parar tudo" corta o efeito e desliga os ambientes; o volume geral continua onde estava.
+5. **Ambientes da cena.** Com a Taverna ligada, em "Ambientes desta cena" clique em "Usar os que tocam". Desligue tudo, leve o grupo a outra cena sem lista (nada muda) e volte: a Taverna liga sozinha. "Tirar" faz a cena não mexer nos ambientes.
+6. **Janela e faixa.** No botão de encaixar da janela, passe para a faixa no pé da tela: efeitos à esquerda, ambientes em duas colunas, volume geral e Parar tudo no alto. Recolha e abra a faixa. Recarregue a página: continua em faixa. Solte em janela e confira que nada que tocava parou.
+7. **Apagar um som.** Ponha o mesmo arquivo em um efeito e em um ambiente e ligue o ambiente. Na configuração, "Apagar este som da mesa": a confirmação diz onde o som estava (o efeito e o ambiente). Cancele: nada muda. Apague: os dois lugares ficam vazios, o ambiente para e o arquivo continua na pasta `sons/`. Escolha o mesmo arquivo de novo num lugar: funciona.
+8. **O que o jogador não vê.** O jogador não tem o botão Som nem a faixa; só ouve. O volume dele (Preferências, cartão Som, agora com "Ambientes") é só dele.
+9. **A campanha antiga.** Abra a campanha que tinha trilha: a trilha que tocava vira um ambiente ligado, e a trilha de cada cena vira um ambiente da cena. Confira os nomes (cortados em 12 letras) e ajuste ícone e cor.
+10. **Claude.** Peça ao Claude para configurar um lugar, ligar um ambiente e apagar um som pela ferramenta `som`.
+
 ## Q5 — As rolagens no chat (Fita e Moldura)
 
 1. **Fita é o padrão.** Abra o chat e mande uma rolagem pela ficha (um ataque com dano). Deve vir num cartão de cantos chanfrados, o nome numa fita no topo, acerto e dano lado a lado do mesmo tamanho, o dano só com o ícone do tipo (passe o mouse no ícone: o nome do tipo aparece).

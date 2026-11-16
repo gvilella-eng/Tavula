@@ -5985,3 +5985,564 @@ button.inicio-botao-largo {
   font-style: italic;
   color: var(--texto-suave);
 }
+
+/* --- Mesa de som (Q4): janela, faixa e configuração ------------------------------------------- */
+
+.painel-som {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px 12px;
+  font-size: 13px;
+}
+.som-secao {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 6px 0 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--texto-suave);
+}
+.som-secao-nome {
+  margin-top: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--texto-suave);
+}
+.som-efeitos {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-auto-rows: 80px;
+  gap: 8px;
+}
+.som-efeito-celula {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+}
+.som-efeito {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  height: 100%;
+  padding: 0 4px;
+  overflow: hidden;
+  background: var(--painel);
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 500;
+}
+.som-efeito[data-tocando="sim"] {
+  background: var(--acento-suave);
+  border-color: var(--acento-forte);
+}
+.som-circulo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: var(--campo);
+  border-radius: 50%;
+  color: var(--cor-do-som, var(--texto-suave));
+}
+.som-nome {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.som-barra {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 3px;
+  width: 100%;
+  background: var(--acento-forte);
+  transform-origin: left center;
+  animation-name: som-progresso;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
+@keyframes som-progresso {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+.som-parar-efeito {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  background: var(--campo);
+  border-color: var(--acento-forte);
+  border-radius: 6px;
+  color: var(--acento-forte);
+}
+.som-vazio {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  background: transparent;
+  border: 1px dashed var(--borda);
+  border-radius: 10px;
+  color: var(--texto-suave);
+  font-size: 12px;
+}
+.som-vazio-linha {
+  flex-direction: row;
+  height: 44px;
+  border-radius: 8px;
+}
+.som-ambientes {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.som-ambiente {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 44px;
+  padding: 0 10px;
+  background: var(--painel);
+  border: 1px solid var(--borda);
+  border-radius: 8px;
+}
+.som-ambiente[data-ligado="sim"] {
+  border-color: var(--acento-forte);
+}
+.som-interruptor {
+  position: relative;
+  flex: none;
+  width: 36px;
+  height: 20px;
+  padding: 0;
+  background: var(--borda);
+  border: 0;
+  border-radius: 999px;
+}
+.som-interruptor span {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  background: var(--texto);
+  border-radius: 50%;
+}
+.som-interruptor[aria-checked="true"] {
+  background: var(--acento);
+}
+.som-interruptor[aria-checked="true"] span {
+  left: 18px;
+  background: var(--acento-texto);
+}
+.som-icone {
+  flex: none;
+  display: flex;
+  align-items: center;
+  color: var(--texto-suave);
+}
+.som-config-lugar .som-icone {
+  color: var(--cor-do-som, var(--texto-suave));
+}
+.som-ambiente[data-ligado="sim"] .som-icone {
+  color: var(--cor-do-som, var(--texto-suave));
+}
+.som-nome-linha {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+  color: var(--texto-suave);
+}
+.som-ambiente[data-ligado="sim"] .som-nome-linha {
+  color: var(--texto);
+}
+.som-ambiente-vol {
+  flex: none;
+  width: 150px;
+}
+.som-apagado {
+  opacity: 0.6;
+}
+.som-cena {
+  margin-top: 4px;
+}
+.som-cena .nota {
+  margin: 0 0 6px;
+}
+.som-pe {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--texto-suave);
+}
+.painel-som > .som-pe {
+  margin-top: 4px;
+  padding-top: 10px;
+  border-top: 1px solid var(--borda);
+}
+.som-pe-vol {
+  flex: 1;
+  min-width: 90px;
+}
+.som-pe-rotulo {
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 500;
+}
+.som-parar-tudo {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  background: var(--campo);
+  border-color: var(--perigo);
+  color: var(--perigo);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.som-pe-nota {
+  margin: 0;
+}
+
+/* A faixa no pé da tela (dentro da área do mapa). */
+.som-faixa {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 8px;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  background: var(--painel);
+  border: 1px solid var(--borda);
+  border-radius: var(--raio);
+  box-shadow: var(--sombra);
+}
+.som-faixa-topo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  padding: 4px 8px 4px 12px;
+  background: var(--cabecalho);
+  border-radius: var(--raio) var(--raio) 0 0;
+}
+.som-faixa[data-recolhida="sim"] .som-faixa-topo {
+  border-radius: var(--raio);
+}
+.som-faixa-topo h2 {
+  margin: 0;
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 14px;
+}
+.som-faixa-icone {
+  color: var(--acento-forte);
+}
+.som-resumo {
+  font-size: 12px;
+  color: var(--texto-suave);
+  white-space: nowrap;
+}
+.som-faixa-espaco {
+  flex: 1;
+}
+.som-faixa-topo .som-pe {
+  flex: none;
+}
+.som-faixa-topo .som-pe-vol {
+  flex: none;
+  width: 200px;
+}
+.som-faixa-corpo {
+  display: flex;
+  gap: 16px;
+  padding: 8px 12px 12px;
+}
+.som-faixa-coluna {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.som-faixa-efeitos {
+  flex: 0 1 36%;
+}
+.som-faixa-efeitos .som-efeitos {
+  grid-auto-rows: 64px;
+}
+.som-faixa-ambientes {
+  flex: 1;
+}
+.som-faixa-ambientes .som-ambientes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px 8px;
+}
+.som-faixa-ambientes .som-ambiente,
+.som-faixa-ambientes .som-vazio-linha {
+  height: 38px;
+}
+.som-faixa-ambientes .som-ambiente-vol {
+  width: 96px;
+}
+
+/* A configuração. */
+.som-config-conta {
+  margin-right: 6px;
+  font-size: 12px;
+  color: var(--texto-suave);
+  white-space: nowrap;
+}
+.som-config {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+.som-config-corpo {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+.som-config-esquerda {
+  flex: none;
+  width: 230px;
+  padding: 12px;
+  overflow-y: auto;
+  background: var(--campo);
+  border-right: 1px solid var(--borda);
+}
+.som-config-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.som-config-lugar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 30px;
+  padding: 0 8px;
+  background: transparent;
+  border-color: transparent;
+  border-radius: 6px;
+  text-align: left;
+}
+.som-config-lugar[data-ativo="sim"] {
+  background: var(--acento-suave);
+  border-color: var(--acento-forte);
+}
+.som-num {
+  width: 14px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--texto-suave);
+}
+.som-config-lugar[data-vazio="nao"] .som-nome-linha {
+  color: var(--texto);
+}
+.som-vazio-texto {
+  font-weight: 400;
+  font-style: italic;
+}
+.som-config-direita {
+  flex: 1;
+  min-width: 0;
+  padding: 14px 18px;
+  overflow-y: auto;
+}
+.som-config-titulo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.som-btn-icone {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+.som-config-nome-grande {
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 26px;
+}
+.som-config-direita .nota {
+  margin: 2px 0 0;
+}
+.som-arquivo-atual {
+  margin: 4px 0 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.som-arquivos {
+  margin: 6px 0 0;
+  padding: 0;
+  max-height: 96px;
+  overflow-y: auto;
+  list-style: none;
+  background: var(--painel);
+  border: 1px solid var(--borda);
+  border-radius: 8px;
+}
+.som-arquivo-opcao {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  font-size: 12px;
+}
+.som-arquivo-opcao span:first-of-type {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.som-config-nome {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 6px;
+}
+.som-config-nome input {
+  flex: 1;
+  min-width: 0;
+  height: 32px;
+}
+.som-config-nome .nota {
+  margin: 0;
+  white-space: nowrap;
+}
+.som-config-icones {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 6px;
+  margin: 6px 0 0;
+  padding: 0;
+  border: 0;
+}
+.som-config-icone {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 40px;
+  padding: 0;
+  background: var(--campo);
+  color: var(--cor-do-som, var(--texto-suave));
+}
+.som-config-icone[aria-pressed="true"] {
+  background: var(--acento-suave);
+  border-color: var(--acento-forte);
+}
+.som-config-cores {
+  display: flex;
+  gap: 10px;
+  margin: 6px 0 0;
+  padding: 0;
+  border: 0;
+}
+.som-config-cor {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  background: var(--cor-do-som);
+  border: 2px solid var(--borda);
+  border-radius: 50%;
+}
+.som-config-cor[aria-pressed="true"] {
+  border-color: var(--texto);
+  outline: 2px solid var(--cor-do-som);
+  outline-offset: 2px;
+}
+.som-config-volume {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 6px;
+}
+.som-config-vol {
+  flex: 1;
+}
+.som-config-apagar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 18px;
+  background: var(--campo);
+  border-top: 1px solid var(--borda);
+}
+.som-config-apagar-botao {
+  flex: none;
+  width: 230px;
+}
+.som-config-apagar-botao .nota {
+  margin: 6px 0 0;
+}
+.som-config-confirma {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  background: var(--perigo-fundo);
+  border: 1px solid var(--perigo);
+  border-radius: 8px;
+  font-size: 12px;
+}
+.som-config-confirma p {
+  margin: 0;
+}
+.som-config-confirma .linha-botoes {
+  flex: none;
+  flex-wrap: nowrap;
+}
+.som-pasta {
+  margin: 6px 0 4px;
+}
+.som-pasta-titulo {
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--acento-forte);
+}

@@ -14,6 +14,7 @@ import { CompendioDaMesaSchema } from "./compendio.ts";
 import { CondicaoSchema } from "./condicoes.ts";
 import { DesenhoSchema } from "./desenho.ts";
 import { FichaSchema } from "./ficha.ts";
+import { IndiceDoLugarSchema, MesaDeSomSchema, SomLigadoSchema } from "./mesadesom.ts";
 import { TracosDaNevoaSchema } from "./nevoa.ts";
 import { TrilhaDaCenaSchema, TrilhaSchema } from "./som.ts";
 import { MAXIMO_DE_ZONAS, ZonaSchema } from "./zonas.ts";
@@ -104,8 +105,16 @@ export const CenaSchema = z.object({
    * por cima da luz e da visão, e também na cena-cartão. Sem o campo não há névoa manual (cena antiga).
    */
   nevoa: TracosDaNevoaSchema.optional(),
-  /** N5: a trilha padrão da cena; começa ao levar o grupo para ela. Sem o campo a trilha que toca segue como está. */
+  /**
+   * N5 (LEGADO, só para ler o que já existia): a trilha padrão da cena. A leitura (`migrarSomDoN5`) a troca por
+   * `ambientes` e o campo some; nada novo o escreve.
+   */
   trilha: TrilhaDaCenaSchema.optional(),
+  /**
+   * Q4: os ambientes da mesa de som (lugares 0 a 7) que ligam ao levar o grupo para esta cena; os outros desligam.
+   * Sem o campo a cena não mexe nos ambientes que tocam. Só o mestre recebe.
+   */
+  ambientes: z.array(IndiceDoLugarSchema).max(8).optional(),
   /** 12-1: rascunho do Claude do mestre: a cena em rascunho não pode virar a cena do grupo. */
   rascunho: z.boolean().optional(),
 });
@@ -647,10 +656,20 @@ export const EstadoSchema = z.object({
    */
   compendio: CompendioDaMesaSchema.optional(),
   /**
-   * N5: a trilha que toca agora (só a referência ao asset `som` e quando começou). Todos recebem; não entra na
-   * exportação (o relógio dela seria de outra sessão). Sem o campo não há trilha.
+   * N5 (LEGADO): a trilha única que tocava. A leitura (`migrarSomDoN5`) a troca por um ambiente ligado em
+   * `somLigado`; nada novo a escreve.
    */
   trilha: TrilhaSchema.optional(),
+  /**
+   * Q4: a mesa de som (os 16 lugares: arquivo, nome, ícone, cor e volume padrão). SÓ o mestre recebe (o jogador
+   * nunca vê nome nem ícone); entra na exportação. Sem o campo a mesa de som está vazia.
+   */
+  mesaDeSom: MesaDeSomSchema.optional(),
+  /**
+   * Q4: o que toca agora (ambientes ligados e o volume geral). Todos recebem (só hash e volume, nunca o nome); não
+   * entra na exportação (o relógio dos ambientes seria de outra sessão). Sem o campo não há ambiente tocando.
+   */
+  somLigado: SomLigadoSchema.optional(),
   /** Metadados dos assets registrados. Só existe na sala e na visão do mestre (nunca do jogador). */
   assets: z.array(AssetMetaSchema).optional(),
   /**

@@ -9,6 +9,7 @@ import {
   type Estado,
   LIMITES_DO_ENVIO,
   limparNomeDoEnvio,
+  lugaresDe,
   motivoDoFormato,
   negarEnvio,
   type OpcoesDoEnvio,
@@ -58,8 +59,14 @@ function ondeEhUsado(estado: Estado, hash: string): string[] {
   const usos: string[] = [];
   for (const c of estado.cenas) {
     if (c.mapa?.assetHash === hash) usos.push(`mapa da cena ${c.nome}`);
-    if (c.trilha?.hash === hash) usos.push(`trilha da cena ${c.nome}`);
   }
+  const lugares = lugaresDe(estado.mesaDeSom);
+  lugares.efeitos.forEach((l, i) => {
+    if (l?.hash === hash) usos.push(`efeito ${i + 1} da mesa de som`);
+  });
+  lugares.ambientes.forEach((l, i) => {
+    if (l?.hash === hash) usos.push(`ambiente ${i + 1} da mesa de som`);
+  });
   for (const t of estado.tokens) if (t.assetHash === hash) usos.push(`imagem do token ${t.nome}`);
   for (const p of estado.personagens) {
     if (p.retratoHash === hash) usos.push(`retrato de ${p.nome}`);
@@ -174,7 +181,7 @@ export const arquivos = definir({
   descricao: [
     "Sobe arquivos do computador para a mesa (mapa da cena, token, retrato da ficha, imagem do handout, som, compêndio) e usa arquivos que já estão na mesa. Fluxo: gere ou ache o arquivo no computador, chame `enviar`, rode no shell o comando que ela devolve (curl) e pronto: a resposta do curl já diz o que foi feito.",
     '`enviar` devolve um link de envio de uso único (vale 15 min); o comando é `curl -sS -T "<caminho do arquivo>" "<link>"`. Sem shell (Claude Desktop, claude.ai), passe o arquivo em `base64` (até 2 MB; gasta contexto). Formatos: imagem png, jpg, webp ou gif; som mp3, ogg ou wav; compêndio json.',
-    "Alvos, pelo nome: mapa -> `cena` (padrão: a cena ativa); token -> `token` (e `cena`, se o nome se repete) ou `ficha` (vira o token padrão da ficha); retrato -> `ficha`; handout -> `handout`; som -> `cena` opcional (vira a trilha padrão dela). No mapa, `quadrados` (45 = 45 x 45) ou `pxPorQuadrado` (padrão 70) ajusta o tamanho da cena à imagem.",
+    "Alvos, pelo nome: mapa -> `cena` (padrão: a cena ativa); token -> `token` (e `cena`, se o nome se repete) ou `ficha` (vira o token padrão da ficha); retrato -> `ficha`; handout -> `handout`; som -> entra na mesa (depois a ferramenta `som` o põe num lugar da mesa de som). No mapa, `quadrados` (45 = 45 x 45) ou `pxPorQuadrado` (padrão 70) ajusta o tamanho da cena à imagem.",
     "`estado` consulta um envio (`envio`: o id) e espera até 20 s. `listar` mostra os arquivos da mesa e onde são usados (só o mestre). `usar` põe na mesa um arquivo que já existe (`hash`: 6+ letras do `listar`, e o mesmo `uso` e alvo do `enviar`), sem reenviar. O que o Claude põe vale no lote do `desfazer`; o arquivo fica na pasta.",
     'Exemplos: {"acao":"enviar","uso":"mapa","nome":"cripta.png","cena":"Cripta","quadrados":45}; {"acao":"enviar","uso":"retrato","nome":"goblin.png","ficha":"Goblin"}; {"acao":"estado","envio":"env-..."}; {"acao":"usar","uso":"mapa","hash":"a1b2c3d4","cena":"Cripta"}.',
   ].join(" "),
@@ -191,7 +198,9 @@ export const arquivos = definir({
       cena: z
         .string()
         .optional()
-        .describe("Mapa: a cena. Som: a cena que ganha a trilha. Token: filtra os tokens da cena."),
+        .describe(
+          "Mapa: a cena. Som: sem efeito (o som entra na mesa; a ferramenta `som` o põe num lugar). Token: filtra os tokens da cena.",
+        ),
       token: z.string().optional().describe("Token: o nome do token da cena."),
       ficha: z
         .string()

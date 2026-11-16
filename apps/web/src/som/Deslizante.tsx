@@ -7,17 +7,19 @@ type Props = {
   valor: number;
   aoMudar: (v: number) => void;
   desligado?: boolean;
+  /** Classe extra no contêiner (a mesa de som dimensiona e esmaece o seu). */
+  classe?: string;
 };
 
 /** Deslizante de 0 a 100% que acompanha um valor de 0 a 1 e entrega o que a pessoa arrasta (também com as setas). */
-export function Deslizante({ testid, rotulo, valor, aoMudar, desligado }: Props) {
+export function Deslizante({ testid, rotulo, valor, aoMudar, desligado, classe }: Props) {
   const [local, setLocal] = useState(Math.round(valor * 100));
   const arrastando = useRef(false);
   useEffect(() => {
     if (!arrastando.current) setLocal(Math.round(valor * 100));
   }, [valor]);
   return (
-    <div className="deslizante">
+    <div className={classe ? `deslizante ${classe}` : "deslizante"}>
       <input
         type="range"
         min={0}

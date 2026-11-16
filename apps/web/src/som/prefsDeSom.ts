@@ -78,8 +78,8 @@ export function usePrefsDeSom(): PrefsDeSom {
   return useSyncExternalStore(assinarPrefsDeSom, prefsDeSom, () => PREFS_DE_SOM_PADRAO);
 }
 
-/** O resumo da sanfona: "Volume 80% · trilha ligada". */
+/** O resumo da sanfona: "Volume 80% · ambientes ligados". */
 export function resumoDoSom(p: PrefsDeSom): string {
   if (p.silenciado) return "Tudo silenciado";
-  return `Volume ${Math.round(p.geral * 100)}% · trilha ${p.trilha > 0 ? "ligada" : "desligada"}`;
+  return `Volume ${Math.round(p.geral * 100)}% · ambientes ${p.trilha > 0 ? "ligados" : "desligados"}`;
 }

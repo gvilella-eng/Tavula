@@ -2005,6 +2005,38 @@ Os lotes 7b-1 a 7b-3 (motor, zonas, editor e campanhas) vêm depois dos ajustes 
 - Lista virtual (não precisou: só os blocos abertos desenham; um bloco aberto com ~100 linhas é rápido).
 - Categoria nos Itens do equipamento (o dado não tem).
 
+## Q4 — como ficou (2026-11-16)
+
+**O que foi feito**
+- A mesa de som no lugar do painel de Som do N5: 8 efeitos de um toque e 8 ambientes em laço. O desenho foi aprovado pelo Vilella ("Gostei muito da mesa de som, muito mesmo") e segue os três quadros: `SomUso` (janela), `SomDoca` (faixa) e `SomConfig` (configuração).
+- Efeitos: grade 4×2 de botões grandes (ícone num círculo, nome de até 12 letras). Um toque toca uma vez, até o fim, para todos. O que toca mostra a barra de progresso e um "parar" no canto; tocar de novo recomeça.
+- Ambientes: 8 linhas com interruptor, ícone, nome e volume próprio. Ligam e desligam sozinhos, vários ao mesmo tempo, em laço, com entrada e saída suaves de 1,5 s. Cada um começa no ponto certo pelo relógio da sala (quem entra no meio ouve do ponto em que o ambiente está).
+- No pé: volume geral (vale para efeitos, ambientes e o som das automações, para todos) e "Parar tudo". Lugar vazio mostra "+ adicionar" e abre a configuração.
+- Janela ou faixa: a janela flutuante é o padrão; o botão da janela a encaixa como faixa no pé da área do mapa (efeitos à esquerda, ambientes em 2 colunas), e a faixa tem o botão de soltar em janela e o de recolher. A escolha e o recolhimento ficam por pessoa em `tabletop:pref:som-modo` e `tabletop:pref:som-faixa-recolhida` (nada vai para a sala).
+- Configuração (engrenagem da janela e da faixa, ou o "adicionar" de um lugar vazio): os 16 lugares à esquerda; à direita o lugar escolhido, com o arquivo (os sons já na mesa e "Escolher arquivo…" da pasta `sons/`), o nome do botão (12 letras), 12 ícones (lucide-react: chama, vento, espadas, porta, sino, gota, caveira, trovão, passos, multidão, música e criatura), 6 cores de etiqueta, o volume padrão, "Ouvir" (só neste navegador), "Tirar deste lugar" e "Apagar este som da mesa" (a confirmação aparece na própria janela e diz onde o som estava).
+- "Apagar este som da mesa" é a intenção nova `som.apagar`: tira o asset da mesa e de todos os lugares, zonas e automações que o usam (a reação que só tocava aquele som sai junto) e para o que tocava com ele. O arquivo continua na pasta `sons/` do computador.
+- Os ambientes da cena substituem a trilha da cena: no painel, "Usar os que tocam" grava os que tocam agora na cena (`Cena.ambientes`); ao levar o grupo, ligam os marcados e desligam os outros (os que já tocam seguem sem recomeçar). Cena sem a lista não mexe em nada; lista vazia é silêncio.
+- A ferramenta `som` do MCP passou a configurar os lugares (arquivo, nome, ícone, cor, volume), tocar efeito pelo nome ou pelo lugar, ligar e desligar ambientes com volume, volume geral, parar tudo, apagar som e ambientes da cena.
+- Extra: o `envio-m1.spec.ts` "envio com a mesa do mestre fechada" não falha mais na primeira tentativa: o teste espera a presença do mestre cair (vista por um jogador) antes de enviar.
+
+**Decisões (assumido)**
+- Os dados: `Estado.mesaDeSom` (os lugares; só o mestre recebe; vai na exportação) e `Estado.somLigado` (ambientes ligados e volume geral; todos recebem só hash e volume; não vai na exportação, é da sessão). `Estado.trilha` e `Cena.trilha` ficaram só para ler o que já existia.
+- A conversão do N5 é feita ao ler (`migrarSomDoN5`), no banco e em arquivos exportados: a trilha que tocava vira um ambiente ligado (no mesmo ponto), e a trilha de cada cena vira um ambiente da cena. Cada arquivo ganha um lugar de ambiente (ícone de música, etiqueta âmbar, nome do arquivo cortado em 12 letras); se os 8 lugares estão cheios, a trilha antiga é descartada. No banco a conversão é gravada na primeira leitura e a chave `trilha` some.
+- O volume do efeito sai da sala já multiplicado pelo volume geral da mesa de som; o dos ambientes o navegador multiplica (para o geral valer na hora, sem recomeçar nada).
+- Trocar o arquivo de um ambiente que toca, ou esvaziá-lo, desliga o ambiente. Só renomear não.
+- Mexer no volume de um ambiente desligado muda o volume padrão do lugar; ligado, muda só o volume dele agora.
+- O envio de um som (Claude, M1) agora só põe o som na mesa; ele ganha um lugar pela configuração ou pela ferramenta `som`. Antes virava a trilha da cena.
+- A ação `som.tocar` das automações continua tocando por arquivo (não escolhe o lugar da mesa de som); o volume geral vale para ela.
+- "Ouvir as zonas do token selecionado" foi para a configuração (antes ficava no painel de Som).
+- Tokens de tema novos `etiquetaAzul` e `etiquetaVermelho` (as outras quatro cores da etiqueta usam tokens que já existiam: acento, perigo, sucesso e texto suave), com contraste conferido em `temas.test.ts`.
+- No cartão Som das Preferências, "Trilha" virou "Ambientes" (a chave `trilha` das preferências não mudou, para não perder o ajuste de quem já mexeu).
+
+**O que ficou para depois**
+- Escolher o lugar da mesa de som na ação `som.tocar` das automações.
+- Baixar antes, no jogador, os arquivos dos efeitos (hoje o jogador só os baixa no primeiro toque; o primeiro toque pode não soar se o arquivo ainda não chegou, como no N5).
+- Ambientes da cena na faixa (só a janela tem o "Usar os que tocam").
+- Ordenar ou arrastar os lugares.
+
 ## Q5 — como ficou (2026-11-16)
 
 O Vilella aprovou o desenho (Fita como padrão, Moldura como opção em Preferências). Código em `apps/web/src/rolagem/`; CSS em `rolagem/rolagem.css`. Só visual: sem mudança de protocolo, de banco ou da tabela de paridade.

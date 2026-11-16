@@ -99,6 +99,20 @@ import {
   podeMoverToken,
   tokenVisivelPara,
 } from "./mapa.ts";
+import {
+  type AmbienteLigado,
+  ambientesLigados,
+  comLugar,
+  ligadoSem,
+  ligadosParaACena,
+  lugarDe,
+  mesaVazia,
+  migrarSomDoN5,
+  type SomLigado,
+  somLigadoOuNada,
+  usosDoSom,
+  volumeGeralDe,
+} from "./mesadesom.ts";
 import { acrescentarTraco, tirarUltimoTraco } from "./nevoa.ts";
 import {
   modelosParaJogador,
@@ -134,7 +148,6 @@ import {
   listarRascunhos,
 } from "./rascunhos.ts";
 import { marcoDoRelogio, restanteDoObjeto, tempoDaSala } from "./relogio.ts";
-import type { Trilha } from "./som.ts";
 import { efeitoChegaPara } from "./somnucleo.ts";
 import {
   type ContextoDeTochas,
@@ -270,9 +283,15 @@ function metaDoAsset(estado: Estado, hash: string): AssetMeta | undefined {
   return estado.assets?.find((a) => a.hash === hash);
 }
 
-/** O nome que a trilha mostra: o do arquivo sem a extensão (até 200 caracteres). */
-function nomeDoSom(meta: AssetMeta): string {
-  return meta.nomeOriginal.replace(/\.[^.]+$/, "").slice(0, 200) || "Som";
+/** A cena como o jogador a recebe: sem os ambientes da mesa de som (nem a trilha antiga), que são do mestre. */
+function cenaParaJogador(cena: Cena): Cena {
+  const { trilha: _trilha, ambientes: _ambientes, ...resto } = cena;
+  return resto;
+}
+
+/** Os ambientes ligados com o relógio da sala de `agora` (cada quem calcula o desvio e o ponto em que o ambiente está). */
+function ligadoComRelogio(s: SomLigado, agora: number): SomLigado {
+  return { ...s, ambientes: s.ambientes.map((a) => ({ ...a, servidorMs: agora })) };
 }
 
 function imagemDeTokenExiste(estado: Estado, hash: string): boolean {
@@ -359,6 +378,7 @@ export function criarExportacao(estado: Estado, agora: string): Exportacao {
   const {
     memoriaEsquecida: _sessao,
     trilha: _trilha,
+    somLigado: _somLigado,
     acendimentos: _pendentes,
     chat: _chat,
     retratosDoChat: _retratos,
@@ -609,7 +629,9 @@ export function lerExportacao(
       return { ok: false, motivo: `retrato sem meta no personagem ${p.id}` };
     }
   }
-  return { ok: true, exportacao: r.data };
+  // Q4: o som do N5 (trilha e trilha da cena) vira a mesa de som.
+  const dados = migrarSomDoN5(r.data.dados);
+  return { ok: true, exportacao: { ...r.data, dados } };
 }
 
 /**
@@ -933,15 +955,24 @@ export function reduzir(estado: Estado, evento: EventoSala): Estado {
         ? semCompendio
         : { ...semCompendio, compendio: evento.dados.compendio };
     }
-    case "som.trilhaAlterada": {
-      const { trilha: _antiga, ...semTrilha } = base;
-      return evento.dados.trilha === null
-        ? semTrilha
-        : { ...semTrilha, trilha: evento.dados.trilha };
+    case "som.ligadoAlterado": {
+      const { somLigado: _antigo, ...semLigado } = base;
+      return evento.dados.somLigado === null
+        ? semLigado
+        : { ...semLigado, somLigado: evento.dados.somLigado };
+    }
+    case "som.lugarAlterado": {
+      const { grupo, indice, lugar } = evento.dados;
+      const mesa = comLugar(base.mesaDeSom, grupo, indice, lugar);
+      const { mesaDeSom: _antiga, ...semMesa } = base;
+      return mesaVazia(mesa) ? semMesa : { ...semMesa, mesaDeSom: mesa };
     }
     case "som.efeitoTocado":
-      // Transitório: só chega a quem ouve; não muda nada no estado.
+    case "som.efeitoParado":
+      // Transitórios: só chegam a quem ouve; não mudam nada no estado.
       return base;
+    case "asset.removido":
+      return { ...base, assets: (base.assets ?? []).filter((a) => a.hash !== evento.dados.hash) };
     case "asset.registrado": {
       const { meta } = evento.dados;
       const atuais = base.assets ?? [];
@@ -1891,20 +1922,25 @@ function processarIntencao(
     }
 
     case "cena.editar": {
-      const { cenaId, nome, chegada, mostrarParedesAosJogadores, cartao, trilha } = intencao.dados;
+      const { cenaId, nome, chegada, mostrarParedesAosJogadores, cartao, ambientes } =
+        intencao.dados;
       const atual = estado.cenas.find((c) => c.id === cenaId);
       if (!atual) return recusa("cena_inexistente", SEM_CENA);
-      if (trilha && metaDoAsset(estado, trilha.hash)?.tipo !== "som") {
-        return recusa("asset_inexistente", "Som não encontrado.");
-      }
+      // Q4: os ambientes da cena (lugares da mesa de som), sem repetir e em ordem; `null` tira a lista.
+      const novosAmbientes =
+        ambientes === undefined
+          ? atual.ambientes
+          : ambientes === null
+            ? undefined
+            : [...new Set(ambientes)].sort((a, b) => a - b);
       const {
         chegada: _antiga,
         mostrarParedesAosJogadores: _mostrar,
         cartao: _cartao,
         trilha: _trilhaAntiga,
+        ambientes: _ambientesAntigos,
         ...semChegada
       } = atual;
-      const novaTrilha = trilha === undefined ? atual.trilha : (trilha ?? undefined);
       const nova = chegada === undefined ? atual.chegada : (chegada ?? undefined);
       // Sem o campo (ou desligado) os jogadores não veem os contornos: só gravamos quando liga.
       const mostrar = mostrarParedesAosJogadores ?? atual.mostrarParedesAosJogadores ?? false;
@@ -1915,7 +1951,7 @@ function processarIntencao(
         ...(nova ? { chegada: limitarNaCena(nova, atual) } : {}),
         ...(mostrar ? { mostrarParedesAosJogadores: true } : {}),
         ...(ehCartao ? { cartao: true } : {}),
-        ...(novaTrilha ? { trilha: novaTrilha } : {}),
+        ...(novosAmbientes === undefined ? {} : { ambientes: novosAmbientes }),
       };
       if (JSON.stringify(cena) === JSON.stringify(atual)) return aplicado();
       emitir({ tipo: "cena.editada", dados: { cena } });
@@ -2108,12 +2144,13 @@ function processarIntencao(
           })),
         },
       });
-      // N5: a trilha padrão da cena começa ao levar o grupo (a mesma que já toca segue, sem recomeçar).
-      const padrao = destino.trilha;
-      if (padrao && proximo.trilha?.hash !== padrao.hash) {
+      // Q4: os ambientes da cena ligam ao levar o grupo e os outros desligam (os que já tocam e continuam marcados
+      // seguem sem recomeçar). Cena sem a lista não mexe em nada.
+      const ligados = ligadosParaACena(proximo, destino, agoraMs);
+      if (ligados) {
         emitir({
-          tipo: "som.trilhaAlterada",
-          dados: { trilha: { ...padrao, inicioMs: agoraMs, servidorMs: agoraMs } },
+          tipo: "som.ligadoAlterado",
+          dados: { somLigado: somLigadoOuNada(ligados) ?? null },
         });
       }
       return { ...aplicado("todos"), grupoMovido: { cenaId: destino.id } };
@@ -2713,33 +2750,130 @@ function processarIntencao(
       return aplicado();
     }
 
-    case "som.trilha": {
-      const { hash, volume } = intencao.dados;
-      const meta = metaDoAsset(estado, hash);
-      if (meta?.tipo !== "som") return recusa("asset_inexistente", "Som não encontrado.");
-      const atual = estado.trilha;
-      // O mesmo som de novo só muda o volume: a trilha não recomeça.
-      const trilha: Trilha =
-        atual?.hash === hash
-          ? { ...atual, volume, servidorMs: agoraMs }
-          : { hash, nome: nomeDoSom(meta), volume, inicioMs: agoraMs, servidorMs: agoraMs };
-      if (atual?.hash === hash && atual.volume === volume) return aplicado();
-      emitir({ tipo: "som.trilhaAlterada", dados: { trilha } });
-      return aplicado();
-    }
-
-    case "som.parar": {
-      if (estado.trilha === undefined) return aplicado();
-      emitir({ tipo: "som.trilhaAlterada", dados: { trilha: null } });
+    case "som.lugar": {
+      const { grupo, indice, lugar } = intencao.dados;
+      if (lugar && metaDoAsset(estado, lugar.hash)?.tipo !== "som") {
+        return recusa("asset_inexistente", "Som não encontrado.");
+      }
+      const antes = lugarDe(estado.mesaDeSom, grupo, indice);
+      if (JSON.stringify(antes) === JSON.stringify(lugar)) return aplicado();
+      emitir({ tipo: "som.lugarAlterado", dados: { grupo, indice, lugar } });
+      // Trocar o arquivo de um ambiente que toca (ou tirá-lo) desliga o ambiente: ele não segue tocando o antigo.
+      if (grupo === "ambiente" && antes && lugar?.hash !== antes.hash) {
+        const r = ligadoSem(proximo, (a) => a.indice === indice);
+        if (r.mudou) emitir({ tipo: "som.ligadoAlterado", dados: { somLigado: r.somLigado } });
+      }
       return aplicado();
     }
 
     case "som.efeito": {
-      const { hash, volume } = intencao.dados;
+      const { lugar: indice, hash: hashPedido, volume } = intencao.dados;
+      const lugar = indice === undefined ? null : lugarDe(estado.mesaDeSom, "efeito", indice);
+      if (indice !== undefined && !lugar) {
+        return recusa("dados_invalidos", "Este lugar está vazio.");
+      }
+      const hash = hashPedido ?? lugar?.hash;
+      if (hash === undefined || metaDoAsset(estado, hash)?.tipo !== "som") {
+        return recusa("asset_inexistente", "Som não encontrado.");
+      }
+      const base = volume ?? lugar?.volume ?? 0.8;
+      emitir({
+        tipo: "som.efeitoTocado",
+        dados: {
+          hash,
+          volume: Math.min(1, Math.max(0, base * volumeGeralDe(estado))),
+          alvo: { tipo: "todos" },
+          ...(indice === undefined ? {} : { lugar: indice }),
+        },
+      });
+      return aplicado();
+    }
+
+    case "som.efeitoParar": {
+      const { lugar } = intencao.dados;
+      emitir({ tipo: "som.efeitoParado", dados: lugar === undefined ? {} : { lugar } });
+      return aplicado();
+    }
+
+    case "som.ambiente": {
+      const { indice, ligado, volume } = intencao.dados;
+      const atuais = ambientesLigados(estado);
+      const atual = atuais.find((a) => a.indice === indice);
+      let novos: AmbienteLigado[];
+      if (!ligado) {
+        if (!atual) return aplicado();
+        novos = atuais.filter((a) => a.indice !== indice);
+      } else {
+        const lugar = lugarDe(estado.mesaDeSom, "ambiente", indice);
+        if (!lugar) return recusa("dados_invalidos", "Este lugar está vazio.");
+        if (metaDoAsset(estado, lugar.hash)?.tipo !== "som") {
+          return recusa("asset_inexistente", "Som não encontrado.");
+        }
+        const mesmoSom = atual?.hash === lugar.hash;
+        const v = volume ?? (mesmoSom ? atual.volume : lugar.volume);
+        // Já tocando: só muda o volume, o ambiente não recomeça.
+        if (atual && mesmoSom && atual.volume === v) return aplicado();
+        const ambiente: AmbienteLigado =
+          atual && mesmoSom
+            ? { ...atual, volume: v }
+            : { indice, hash: lugar.hash, volume: v, inicioMs: agoraMs, servidorMs: agoraMs };
+        novos = [...atuais.filter((a) => a.indice !== indice), ambiente];
+      }
+      const somLigado = somLigadoOuNada({ volumeGeral: volumeGeralDe(estado), ambientes: novos });
+      emitir({ tipo: "som.ligadoAlterado", dados: { somLigado: somLigado ?? null } });
+      return aplicado();
+    }
+
+    case "som.volumeGeral": {
+      const { volume } = intencao.dados;
+      if (volumeGeralDe(estado) === volume) return aplicado();
+      const somLigado = somLigadoOuNada({
+        volumeGeral: volume,
+        ambientes: ambientesLigados(estado),
+      });
+      emitir({ tipo: "som.ligadoAlterado", dados: { somLigado: somLigado ?? null } });
+      return aplicado();
+    }
+
+    case "som.pararTudo": {
+      emitir({ tipo: "som.efeitoParado", dados: {} });
+      const r = ligadoSem(estado, () => true);
+      if (r.mudou) emitir({ tipo: "som.ligadoAlterado", dados: { somLigado: r.somLigado } });
+      return aplicado();
+    }
+
+    case "som.apagar": {
+      const { hash } = intencao.dados;
       if (metaDoAsset(estado, hash)?.tipo !== "som") {
         return recusa("asset_inexistente", "Som não encontrado.");
       }
-      emitir({ tipo: "som.efeitoTocado", dados: { hash, volume, alvo: { tipo: "todos" } } });
+      const usos = usosDoSom(estado, hash);
+      // Corta o que toca com este arquivo e tira o som dos lugares, das zonas e das automações.
+      emitir({ tipo: "som.efeitoParado", dados: {} });
+      const r = ligadoSem(estado, (a) => a.hash === hash);
+      if (r.mudou) emitir({ tipo: "som.ligadoAlterado", dados: { somLigado: r.somLigado } });
+      for (const u of usos.lugares) {
+        emitir({
+          tipo: "som.lugarAlterado",
+          dados: { grupo: u.grupo, indice: u.indice, lugar: null },
+        });
+      }
+      for (const z of proximo.zonas ?? []) {
+        if (z.efeitos.som?.hash !== hash) continue;
+        const { som: _som, ...efeitos } = z.efeitos;
+        emitir({ tipo: "zona.alterada", dados: { zona: { ...z, efeitos } } });
+      }
+      const automacoes = proximo.automacoes;
+      if (automacoes && usos.automacoes.length > 0) {
+        const reacoes = automacoes.reacoes.flatMap((x) => {
+          if (!x.fazer.some((a) => a.acao === "som.tocar" && a.hash === hash)) return [x];
+          const fazer = x.fazer.filter((a) => !(a.acao === "som.tocar" && a.hash === hash));
+          // Sem mais nenhuma ação a reação não tem o que fazer: sai junto.
+          return fazer.length === 0 ? [] : [{ ...x, fazer }];
+        });
+        emitir({ tipo: "automacoes.alterado", dados: { automacoes: { ...automacoes, reacoes } } });
+      }
+      emitir({ tipo: "asset.removido", dados: { hash } });
       return aplicado();
     }
 
@@ -2913,13 +3047,14 @@ export function visaoPara(estado: Estado, usuario: Visao, agoraMs?: number): Est
   const {
     acendimentos: _pendentes,
     retratosDoChat: _retratos,
-    trilha: trilhaDaSala,
+    trilha: _trilhaAntiga,
+    somLigado: ligadoDaSala,
     ...semTrilha
   } = estado;
-  // N5: a trilha vai com o relógio da sala de agora (o navegador calcula o desvio e o ponto em que a trilha está).
+  // Q4: os ambientes vão com o relógio da sala de agora (o navegador calcula o desvio e o ponto em que cada um está).
   const semPendencias: Estado = {
     ...semTrilha,
-    ...(trilhaDaSala ? { trilha: { ...trilhaDaSala, servidorMs: agora } } : {}),
+    ...(ligadoDaSala ? { somLigado: ligadoComRelogio(ligadoDaSala, agora) } : {}),
   };
   // O histórico completo mora na sala: aqui só entra o que este usuário pode ver (as últimas 200).
   const chat =
@@ -2941,6 +3076,8 @@ export function visaoPara(estado: Estado, usuario: Visao, agoraMs?: number): Est
     botoes: _botoes,
     efeitos: _efeitos,
     zonas: _zonas,
+    // Q4: nome, ícone e cor dos lugares da mesa de som são do mestre.
+    mesaDeSom: _mesaDeSom,
     ...resto
   } = semPendencias;
   // 7b-3: do que o mestre liberou, o jogador recebe só o rótulo de cada botão.
@@ -2965,7 +3102,7 @@ export function visaoPara(estado: Estado, usuario: Visao, agoraMs?: number): Est
       jogadores: estado.permissoes.jogadores,
       porUsuario: propria ? { [usuario.id]: propria } : {},
     },
-    cenas: [cenaAtiva(estado)],
+    cenas: [cenaParaJogador(cenaAtiva(estado))],
     tokens: estado.tokens.filter((t) => tokenVisivelPara(t, usuario, estado.cenaAtivaId)),
     // V10c: numa cena-cartão as paredes guardadas não chegam ao jogador (não têm efeito).
     paredes: cenaEhCartao(cenaAtiva(estado))
@@ -3031,11 +3168,17 @@ export function eventoPara(
       const visto = mensagemParaUsuario(evento.dados.mensagem, usuario, config);
       return visto ? { ...evento, dados: { mensagem: visto } } : null;
     }
-    case "som.trilhaAlterada": {
-      // N5: a trilha é de todos; o relógio da sala vai refeito para a hora de agora.
-      const t = evento.dados.trilha;
-      return t === null ? evento : { ...evento, dados: { trilha: { ...t, servidorMs: agora } } };
+    case "som.ligadoAlterado": {
+      // Q4: o que toca é de todos; o relógio da sala vai refeito para a hora de agora.
+      const s = evento.dados.somLigado;
+      return s === null ? evento : { ...evento, dados: { somLigado: ligadoComRelogio(s, agora) } };
     }
+    case "som.lugarAlterado":
+    case "asset.removido":
+      // Nome, ícone e cor dos lugares são do mestre; o jogador não guarda metas de som da mesa.
+      return mestre ? evento : null;
+    case "som.efeitoParado":
+      return evento;
     case "som.efeitoTocado": {
       // N5: só quem ouve recebe, e sempre como "para todos": o jogador não vê a cena nem o token por trás.
       const ref = depois ?? antes;
@@ -3202,7 +3345,10 @@ export function eventoPara(
       if (evento.dados.usuarioId === undefined) return evento;
       return mestre || evento.dados.usuarioId === usuario.id ? evento : null;
     case "cena.editada":
-      return mestre || evento.dados.cena.id === ativaDepois ? evento : null;
+      if (mestre) return evento;
+      return evento.dados.cena.id === ativaDepois
+        ? { ...evento, dados: { cena: cenaParaJogador(evento.dados.cena) } }
+        : null;
     case "nevoa.tracada":
     case "nevoa.desfeita":
       // N4: a névoa manual não é segredo; o jogador recebe a da cena em que o grupo está.

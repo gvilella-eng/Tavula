@@ -25,6 +25,7 @@ import {
 import type { FonteDeAleatoriedade } from "./dados.ts";
 import type { Estado, Modificador, ObjetoDeLuz, Token } from "./estado.ts";
 import { cenaDoObjeto, tokenDoPersonagem } from "./luz.ts";
+import { volumeGeralDe } from "./mesadesom.ts";
 import { cenaEhCartao } from "./paredes.ts";
 import type { CodigoDeErro, Intencao } from "./protocolo.ts";
 import { formatarDuracaoCurta, restanteDoObjeto, tempoDaSala } from "./relogio.ts";
@@ -503,7 +504,8 @@ function aplicarAcao(
       if (!m.contar()) return;
       m.ctx.emitir({
         tipo: "som.efeitoTocado",
-        dados: { hash: acao.hash, volume: acao.volume, alvo: destino },
+        // Q4: o volume geral da mesa de som vale também para o som das automações.
+        dados: { hash: acao.hash, volume: acao.volume * volumeGeralDe(e), alvo: destino },
       });
       return;
     }
