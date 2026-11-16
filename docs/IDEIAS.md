@@ -24,12 +24,10 @@ voltarem) e notas sobre a campanha de referência. Quando algo for decidido, sai
 
 Desenhar paredes à mão em mapas de caverna (formas orgânicas) é o custo escondido de cada sessão.
 
-- **Importar `.uvtt` / `.dd2vtt`** (Universal VTT, exportado pelo Dungeondraft e outros editores):
-  imagem, paredes, portas e luzes de uma vez. A imagem continua indo para a pasta local do mestre.
 - **Exportar da Masmorra** (projeto 3D da campanha, `../Dungeon`): um `--export-tabletop` que corta o
   mundo SDF na altura dos pés, gera a imagem vista de cima e extrai o contorno das paredes (marching
   squares + simplificação), com os POIs virando notas do mestre. As convenções já batem (metros,
-  1 quadrado = 1,5 m, −Z = norte). A integração seria só por arquivo (de preferência `.uvtt`), sem
+  1 quadrado = 1,5 m, −Z = norte). A integração seria só por arquivo (de preferência `.uvtt`, que a Távola já importa desde o Q3), sem
   ligar os projetos. Exceção: o Poço do Eco (espiral de ~160 m de queda) precisa de mapas por altura.
 
 ### Tour de introdução (combinado com o Vilella, 2026-11-11; depois do V5)

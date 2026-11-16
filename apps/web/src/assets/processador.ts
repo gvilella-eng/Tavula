@@ -1,4 +1,4 @@
-import type { MetaNova } from "@tabletop/shared";
+import type { ImportacaoDeMapa, MetaNova } from "@tabletop/shared";
 
 /** Resultado do processamento: os arquivos já em WebP (e o manifesto, se o mapa foi fatiado). */
 export type Resultado = {
@@ -8,9 +8,19 @@ export type Resultado = {
   manifesto?: MetaNova;
 };
 
+/** Q3: o que o worker tirou de um Universal VTT: a imagem (como arquivo, na extensão certa) e a cena já convertida. */
+export type UvttLido = {
+  imagem: Blob;
+  extensao: string;
+  importacao: ImportacaoDeMapa;
+  /** Quanto tempo o worker levou para ler e decodificar (para medir). */
+  ms: number;
+};
+
 export type PedidoDoWorker =
   | { id: number; tipo: "hash"; arquivo: Blob }
   | { id: number; tipo: "miniatura"; arquivo: Blob; lado: number }
+  | { id: number; tipo: "uvtt"; arquivo: Blob; nome: string; idDaCena: string }
   | {
       id: number;
       tipo: "processar";
@@ -23,6 +33,7 @@ export type PedidoDoWorker =
 export type RespostaDoWorker =
   | { id: number; ok: true; tipo: "hash"; hash: string }
   | { id: number; ok: true; tipo: "miniatura"; imagem: Blob }
+  | { id: number; ok: true; tipo: "uvtt"; lido: UvttLido }
   | { id: number; ok: true; tipo: "processar"; resultado: Resultado }
   | { id: number; ok: false; erro: string };
 
@@ -69,6 +80,14 @@ export class Processador {
     if (!r.ok) throw new Error(r.erro);
     if (r.tipo !== "processar") throw new Error("resposta inesperada");
     return r.resultado;
+  }
+
+  /** Lê o Universal VTT fora da thread da página (o JSON e o base64 têm dezenas de MB). Lança com o motivo se não serve. */
+  async lerUniversalVtt(arquivo: Blob, nome: string, idDaCena: string): Promise<UvttLido> {
+    const r = await this.chamar({ tipo: "uvtt", arquivo, nome, idDaCena });
+    if (!r.ok) throw new Error(r.erro);
+    if (r.tipo !== "uvtt") throw new Error("resposta inesperada");
+    return r.lido;
   }
 
   async miniatura(arquivo: Blob, lado = 96): Promise<Blob> {

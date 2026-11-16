@@ -1721,7 +1721,9 @@ export class Sala extends DurableObject<Env> {
     };
     if (intencao.tipo === "caixa.falhar") return falhar(intencao.dados.motivo);
 
-    const { hash, magias } = intencao.dados;
+    const { hash, magias, importacao } = intencao.dados;
+    if (e.uso === "mapa-uvtt" && !importacao)
+      return falhar("O navegador não mandou a cena lida do arquivo.");
     // O `asset.registrar` do navegador vem antes, mas a sala pode estar no meio de outra coisa: espera um pouco pelo registro.
     let meta = this.estado.assets?.find((a) => a.hash === hash);
     for (let i = 0; !meta && i < 40; i++) {
@@ -1730,7 +1732,7 @@ export class Sala extends DurableObject<Env> {
     }
     if (!meta) return falhar("A mesa não registrou o arquivo processado.");
     const tipoCerto =
-      e.uso === "mapa"
+      e.uso === "mapa" || e.uso === "mapa-uvtt"
         ? meta.tipo === "mapa"
         : e.uso === "som"
           ? meta.tipo === "som"
@@ -1739,14 +1741,10 @@ export class Sala extends DurableObject<Env> {
             : meta.tipo === "token" || meta.tipo === "retrato";
     if (!tipoCerto) return falhar("O arquivo processado não é do tipo certo para este uso.");
 
-    const aplicar = usoDoArquivo(
-      e.uso,
-      e.alvo,
-      hash,
-      meta,
-      e.opcoes,
-      magias === undefined ? {} : { magias },
-    );
+    const aplicar = usoDoArquivo(e.uso, e.alvo, hash, meta, e.opcoes, {
+      ...(magias === undefined ? {} : { magias }),
+      ...(importacao ? { importacao } : {}),
+    });
     if (!aplicar.ok) return falhar(aplicar.motivo);
     if (aplicar.tipo !== null) {
       const doClaude = this.estado.usuarios.find((u) => u.id === e.usuarioId);

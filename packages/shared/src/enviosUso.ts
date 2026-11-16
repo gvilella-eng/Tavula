@@ -26,13 +26,16 @@ export function negarEnvio(
   alvo: AlvoDoEnvio,
   opcoes: OpcoesDoEnvio,
 ): string | null {
-  if (usuario.papel !== "mestre" && (uso === "mapa" || uso === "som" || uso === "compendio")) {
+  if (
+    usuario.papel !== "mestre" &&
+    (uso === "mapa" || uso === "mapa-uvtt" || uso === "som" || uso === "compendio")
+  ) {
     return `Só o mestre põe ${ROTULO_DO_USO[uso]}.`;
   }
   const falso: AssetMeta = {
     hash: HASH_DE_PROVA,
     tipo:
-      uso === "mapa"
+      uso === "mapa" || uso === "mapa-uvtt"
         ? "mapa"
         : uso === "som"
           ? "som"

@@ -1,6 +1,11 @@
 import { z } from "zod";
 import { type AssetMeta, HashSchema, LIMITES_DE_ASSET } from "./assets.ts";
 import { bytesParaBase64Url } from "./contas.ts";
+import {
+  type ImportacaoDeMapa,
+  ImportacaoDeMapaSchema,
+  resumoDaImportacao,
+} from "./importarUvtt.ts";
 
 // M1: o Claude sobe arquivos para a mesa. O arquivo vai do computador do mestre para a sala por um link de envio de uso único
 // (o modelo nunca vê o token), espera numa caixa de entrada temporária e o navegador do mestre o processa pelo mesmo caminho do
@@ -10,7 +15,15 @@ import { bytesParaBase64Url } from "./contas.ts";
 // --- Os usos ----------------------------------------------------------------------------------
 
 /** Para que o arquivo serve. O nome é o que o Claude escreve na ferramenta. */
-export const USOS_DE_ENVIO = ["mapa", "token", "retrato", "handout", "som", "compendio"] as const;
+export const USOS_DE_ENVIO = [
+  "mapa",
+  "token",
+  "retrato",
+  "handout",
+  "som",
+  "compendio",
+  "mapa-uvtt",
+] as const;
 export const UsoDeEnvioSchema = z.enum(USOS_DE_ENVIO);
 export type UsoDeEnvio = z.infer<typeof UsoDeEnvioSchema>;
 
@@ -22,6 +35,7 @@ export const ROTULO_DO_USO: Record<UsoDeEnvio, string> = {
   handout: "imagem do handout",
   som: "som",
   compendio: "compêndio",
+  "mapa-uvtt": "mapa Universal VTT (Dungeondraft)",
 };
 
 /** O tipo de conteúdo que cada uso aceita. */
@@ -33,6 +47,7 @@ export const FAMILIA_DO_USO: Record<UsoDeEnvio, FamiliaDeFormato> = {
   handout: "imagem",
   som: "som",
   compendio: "json",
+  "mapa-uvtt": "json",
 };
 
 // --- Limites ----------------------------------------------------------------------------------
@@ -68,6 +83,7 @@ export const LIMITES_DO_ENVIO = {
 export function limiteDoUso(uso: UsoDeEnvio): number {
   switch (uso) {
     case "mapa":
+    case "mapa-uvtt":
       return LIMITES_DO_ENVIO.bytesDoMapa;
     case "som":
       return LIMITES_DO_ENVIO.bytesDoSom;
@@ -242,9 +258,28 @@ export function usoDoArquivo(
   hash: string,
   meta: MetaDaImagem | undefined,
   opcoes: OpcoesDoEnvio,
-  extras: { magias?: number } = {},
+  extras: { magias?: number; importacao?: ImportacaoDeMapa } = {},
 ): UsoAplicado {
   switch (uso) {
+    case "mapa-uvtt": {
+      // Q3: o navegador do mestre leu o arquivo e mandou a cena pronta (`importacao`); a sala a cria como o Claude. Na prova de
+      // permissão (`negarEnvio`) ainda não há arquivo: uma cena vazia basta para as regras responderem.
+      const i: ImportacaoDeMapa = extras.importacao ?? {
+        id: "prova-uvtt",
+        nome: "prova",
+        pxPorQuadrado: 70,
+        paredes: [],
+        fontes: [],
+      };
+      return {
+        ok: true,
+        tipo: "cena.importarMapa",
+        dados: { ...i, assetHash: hash },
+        frase: resumoDaImportacao(i)
+          .replace(/^Cena criada/, "cena criada")
+          .replace(/\.$/, ""),
+      };
+    }
     case "mapa": {
       const px = pxDoMapa(meta, opcoes);
       if (px === "invalido") {
@@ -364,6 +399,8 @@ export const ConclusaoDoEnvioSchema = z.object({
   hash: HashSchema,
   /** Só no compêndio: quantas magias o navegador leu. */
   magias: z.number().int().min(0).max(100_000).optional(),
+  /** Só no mapa Universal VTT: a cena que o navegador montou do arquivo (sem a imagem; o `hash` é o dela). */
+  importacao: ImportacaoDeMapaSchema.optional(),
 });
 
 export const FalhaDoEnvioSchema = z.object({

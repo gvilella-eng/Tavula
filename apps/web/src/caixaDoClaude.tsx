@@ -1,4 +1,9 @@
-import { type EnvioPendente, lerCompendio, type UsoDeEnvio } from "@tabletop/shared";
+import {
+  type EnvioPendente,
+  type ImportacaoDeMapa,
+  lerCompendio,
+  type UsoDeEnvio,
+} from "@tabletop/shared";
 import { Bot } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { Fontes } from "./assets/fontes";
@@ -12,6 +17,7 @@ import type { GerenteDeAssets } from "./assets/gerente";
 /** A subpasta da pasta local onde a cópia do arquivo vai (só com a pasta liberada para escrita). */
 const SUBPASTA_DO_USO: Record<UsoDeEnvio, string | null> = {
   mapa: "mapas",
+  "mapa-uvtt": "mapas",
   token: "tokens",
   retrato: "retratos",
   handout: "handouts",
@@ -45,8 +51,13 @@ async function processar(
   envio: EnvioPendente,
   arquivo: File,
   gerente: GerenteDeAssets,
-): Promise<{ hash: string; magias?: number }> {
+): Promise<{ hash: string; magias?: number; importacao?: ImportacaoDeMapa; copia?: File }> {
   switch (envio.uso) {
+    case "mapa-uvtt": {
+      // Q3: o worker lê o arquivo do Dungeondraft; a imagem entra como mapa e a cena convertida vai na conclusão.
+      const lido = await gerente.lerMapaUniversalVtt(arquivo);
+      return { hash: lido.hash, importacao: lido.importacao, copia: lido.imagem };
+    }
     case "mapa":
       return { hash: await gerente.usarArquivo(arquivo, "mapa") };
     case "token":
@@ -68,7 +79,11 @@ async function processar(
 }
 
 /** Guarda uma cópia na subpasta certa da pasta local, se ela está liberada para escrita (nunca derruba o envio). */
-async function copiarParaAPasta(fontes: Fontes, uso: UsoDeEnvio, arquivo: File): Promise<void> {
+export async function copiarParaAPasta(
+  fontes: Fontes,
+  uso: UsoDeEnvio,
+  arquivo: File,
+): Promise<void> {
   const sub = SUBPASTA_DO_USO[uso];
   const pasta = fontes.pastaDoCompendio();
   if (!sub || !pasta) return;
@@ -132,11 +147,12 @@ export function useCaixaDoClaude({
             if (!r.ok) throw new Error("A mesa não entregou o arquivo.");
             const arquivo = new File([await r.blob()], envio.nome, { type: envio.mime });
             const feito = await processar(envio, arquivo, gerente);
-            await copiarParaAPasta(fontes, envio.uso, arquivo);
+            await copiarParaAPasta(fontes, envio.uso, feito.copia ?? arquivo);
             const mandou = enviarAtual.current("caixa.concluir", {
               envioId: envio.id,
               hash: feito.hash,
               ...(feito.magias !== undefined ? { magias: feito.magias } : {}),
+              ...(feito.importacao ? { importacao: feito.importacao } : {}),
             });
             if (mandou === null) throw new Error("Sem conexão com a sala.");
           } catch (e) {

@@ -2,6 +2,7 @@ import { type Cena, cenaEhCartao, type Estado } from "@tabletop/shared";
 import {
   Copy,
   Eye,
+  FileDown,
   Flag,
   Map as IconeMapa,
   PackageCheck,
@@ -41,6 +42,8 @@ type Props = {
   aoLevarGrupo: (cenaId: string) => void;
   /** Cifra e envia o preparo; devolve uma mensagem de erro, ou `null` se deu certo. */
   aoPreparar: (cenaId: string) => Promise<string | null>;
+  /** Q3: importa um mapa do Dungeondraft (Universal VTT) como cena nova. */
+  aoImportarMapa: (arquivo: File) => void;
   pedirImagem: PedirImagem;
 };
 
@@ -346,8 +349,10 @@ export function FaixaDeCenas({
   aoIrPara,
   aoLevarGrupo,
   aoPreparar,
+  aoImportarMapa,
   pedirImagem,
 }: Props) {
+  const entradaUvtt = useRef<HTMLInputElement>(null);
   const [menu, setMenu] = useState<{ cenaId: string; x: number; y: number } | null>(null);
   const [apagando, setApagando] = useState<string | null>(null);
   const [configurando, setConfigurando] = useState<string | null>(null);
@@ -470,6 +475,32 @@ export function FaixaDeCenas({
             <Plus size={22} />
             <span>Nova cena</span>
           </button>
+        </li>
+        <li className="cena-card nova">
+          <button
+            type="button"
+            className="cena-card-nova"
+            data-testid="cena-importar-uvtt"
+            aria-label="Importar mapa (Dungeondraft / Universal VTT)…"
+            title="Importar mapa (Dungeondraft / Universal VTT)…"
+            onClick={() => entradaUvtt.current?.click()}
+          >
+            <FileDown size={22} />
+            <span>Importar mapa</span>
+            <small>Dungeondraft / Universal VTT…</small>
+          </button>
+          <input
+            ref={entradaUvtt}
+            type="file"
+            hidden
+            accept=".dd2vtt,.uvtt,.df2vtt,.json"
+            data-testid="cena-importar-uvtt-arquivo"
+            onChange={(e) => {
+              const arquivo = e.target.files?.[0];
+              e.target.value = "";
+              if (arquivo) aoImportarMapa(arquivo);
+            }}
+          />
         </li>
       </ul>
       {menu && cenaDoMenu && (

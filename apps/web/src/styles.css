@@ -1399,6 +1399,33 @@ button[aria-disabled="true"]:hover {
   color: var(--acento-forte);
   border-color: var(--acento-forte);
 }
+.cena-card-nova small {
+  max-width: 100%;
+  padding: 0 4px;
+  font-size: 10.5px;
+  line-height: 1.2;
+  text-align: center;
+}
+/* O aviso da importação fica no canto de baixo, à esquerda, para não cobrir a faixa de cenas. */
+.aviso-caixa.aviso-importacao {
+  top: auto;
+  bottom: 16px;
+  left: 68px;
+  transform: none;
+}
+.aviso-importacao-fechar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  background: transparent;
+  color: var(--texto-suave);
+  border: 0;
+  border-radius: 4px;
+}
+.aviso-importacao-fechar:hover {
+  color: var(--texto);
+}
 
 /* --- menu de contexto ----------------------------------------------------------------------- */
 
