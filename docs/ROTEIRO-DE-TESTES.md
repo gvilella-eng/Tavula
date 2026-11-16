@@ -546,6 +546,20 @@ Antes: uma mesa com um token que tem ficha, o compêndio na pasta `compendio/` e
 7. **Pasta com chave.** Numa mesa com a chave da pasta, entre como mestre no segundo navegador escolhendo a pasta da chave: a pasta vira a pasta da mesa ali (o aviso de escolher não aparece) e os arquivos carregam dela.
 8. **Pasta errada.** Escolha outra pasta qualquer no segundo navegador: o aviso passa para "Faltam arquivos desta mesa e a pasta escolhida neste navegador não os tem" com "Trocar a pasta da mesa".
 
+## Q2 — O compêndio por seções, com blocos e busca em português e inglês
+
+Antes: a mesa com os seus arquivos reais (361 magias, 428 monstros, 274 itens mágicos) na pasta `compendio/`. Os arquivos com o nome em inglês são os regravados pelo Q2 (leia `docs/COMPENDIO.md`).
+
+1. **Seções.** Aba Compêndio: no alto, Todas, Magias, Monstros, Itens mágicos, Armas e Itens (só as que têm entradas). Como jogador, Monstros não aparece.
+2. **Magias por nível.** Em Magias, os blocos Truques, 1º nível ... 9º nível, fechados, com a contagem no título. Abra o 3º nível: as magias vêm em ordem alfabética. Feche. Recarregue a página: o que você deixou aberto continua aberto.
+3. **Monstros por ND.** Em Monstros, os blocos ND 0, 1/8, 1/4, 1/2, 1, 2 ... 30, nessa ordem. Abra o ND 1/4.
+4. **Itens mágicos por raridade.** Em Itens mágicos, Comum, Incomum, Raro, Muito raro, Lendário, Artefato, Varia. Filtre por Raridade e por Sintonização.
+5. **Filtros.** Em Magias, escolha a classe Bruxo e a escola Evocação: os blocos que têm resultado se abrem sozinhos. Troque para Monstros: os filtros de magia somem e aparecem os de tipo e tamanho. "Limpar filtros" volta tudo.
+6. **Busca em todas as seções.** Em Todas, digite "fogo": aparecem Magias, Itens mágicos e Monstros com resultado, cada um num bloco, com os blocos de nível, ND e raridade dentro. Digite "fireball": a Bola de Fogo aparece (o nome em inglês fica pequeno ao lado). Digite "bola de fogo" e "BOLA DE FOGO": o mesmo.
+7. **Aviso de outra seção.** Em Magias, digite "goblin": a lista fica vazia e aparece "Buscar em todas as seções". Clique: o goblin aparece.
+8. **Adicionar e arrastar.** Ache uma arma em Todas e use Adicionar; arraste uma magia para a ficha aberta. As duas funcionam como antes.
+9. **Conferir nomes.** Abra 10 magias, 10 monstros e 10 itens mágicos ao acaso e veja se o nome em inglês confere. O que ficou sem nome em inglês (6 magias, 6 monstros, 15 itens) aparece só com o nome em português.
+
 ## Se algo der errado
 - Anote a tela, o que fez e o que esperava, e mande para mim. Bug confirmado vai para `docs/BUGS.md`.
 - Para voltar à campanha de antes de mesas e contas, use a cópia de segurança indicada no topo.

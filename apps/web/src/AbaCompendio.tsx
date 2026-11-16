@@ -1,7 +1,13 @@
 import {
+  type AchadosEmTodas,
   type ArmaDoCompendio,
+  agruparArmas,
+  agruparMagiasPorNivel,
   aplicarEntradaNaFicha,
   apresentacaoDoPersonagem,
+  buscarArmas,
+  buscarEmTodas,
+  buscarItens,
   buscarMagias,
   CAMINHO_DO_COMPENDIO,
   type EntradaDoCompendio,
@@ -10,11 +16,14 @@ import {
   fichaNova,
   fichaTemMagia,
   type ItemDoCompendio,
+  type ItemMagicoDoCompendio,
   type MagiaDoCompendio,
-  normalizarBusca,
+  type MonstroDoCompendio,
   opcoesDeFiltro,
   podeEditarPersonagem,
   ROTULO_DO_NIVEL_DE_MAGIA,
+  SECOES_DO_COMPENDIO,
+  type SecaoDoCompendio,
   sha256Hex,
   type Usuario,
 } from "@tabletop/shared";
@@ -28,7 +37,7 @@ import {
   Search,
   Sparkles,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { BotaoDaPasta, TEXTO_DO_CASO, useCasoDaPasta } from "./AvisoDaPasta";
 import type { Fontes } from "./assets/fontes";
 import type { GerenteDeAssets } from "./assets/gerente";
@@ -39,6 +48,13 @@ import {
   MarcasDaMagia,
   TextoDaMagia,
 } from "./CartaoDaMagia";
+import {
+  BlocoRecolhivel,
+  BlocosDoCompendio,
+  LIMITE_PARA_ABRIR_TUDO,
+  NomeOriginal,
+  useBlocosAbertos,
+} from "./CompendioBlocos";
 import { ListaDeItensMagicos, ListaDeMonstros } from "./CompendioMonstros";
 import { TEXTO_DO_EXEMPLO_SRD } from "./exemploSrd";
 import { comecarArrastoDoCompendio } from "./ficha/ordem";
@@ -399,15 +415,315 @@ function CartaoDaMagia({
   );
 }
 
-type SecaoDoCompendio = "magias" | "armas" | "itens" | "monstros" | "itensMagicos";
+/** Q2: a seção que a aba mostra; "todas" é a busca por nome em tudo. */
+type SecaoEscolhida = SecaoDoCompendio | "todas";
 
-const ROTULO_DA_BUSCA: Record<SecaoDoCompendio, { placeholder: string; rotulo: string }> = {
-  magias: { placeholder: "Buscar magia (nome ou nome original)…", rotulo: "Buscar magia" },
-  armas: { placeholder: "Buscar arma…", rotulo: "Buscar arma" },
-  itens: { placeholder: "Buscar item…", rotulo: "Buscar item" },
-  monstros: { placeholder: "Buscar monstro (nome ou nome original)…", rotulo: "Buscar monstro" },
-  itensMagicos: { placeholder: "Buscar item mágico…", rotulo: "Buscar item mágico" },
+const ROTULO_DA_BUSCA: Record<SecaoEscolhida, { placeholder: string; rotulo: string }> = {
+  todas: {
+    placeholder: "Nome em português ou inglês…",
+    rotulo: "Buscar em todas as seções",
+  },
+  magias: { placeholder: "Nome em português ou inglês…", rotulo: "Buscar magia" },
+  armas: { placeholder: "Nome em português ou inglês…", rotulo: "Buscar arma" },
+  itens: { placeholder: "Nome em português ou inglês…", rotulo: "Buscar item" },
+  monstros: { placeholder: "Nome em português ou inglês…", rotulo: "Buscar monstro" },
+  itensMagicos: {
+    placeholder: "Nome em português ou inglês…",
+    rotulo: "Buscar item mágico",
+  },
 };
+
+const ROTULO_DO_BOTAO_DA_SECAO: Record<SecaoEscolhida, string> = {
+  todas: "Todas",
+  magias: "Magias",
+  monstros: "Monstros",
+  itensMagicos: "Itens mágicos",
+  armas: "Armas",
+  itens: "Itens",
+};
+
+type PropsDaListaDeMagias = {
+  magias: readonly MagiaDoCompendio[];
+  filtro: FiltroDeMagias;
+  /** Sem filtros nem contagem (a lista de dentro do "Todas"). */
+  modoTodas?: boolean;
+  mudar: (parte: Partial<FiltroDeMagias>) => void;
+  limpar: () => void;
+  aoAbrir: (nome: string) => void;
+};
+
+/** Q2: as magias em blocos por nível (truques primeiro), alfabético dentro; com os filtros de classe, escola etc. */
+function ListaDeMagias({
+  magias,
+  filtro,
+  modoTodas = false,
+  mudar,
+  limpar,
+  aoAbrir,
+}: PropsDaListaDeMagias) {
+  const opcoes = useMemo(() => opcoesDeFiltro(magias), [magias]);
+  const achadas = useMemo(
+    () => buscarMagias(magias, modoTodas ? { texto: filtro.texto } : filtro),
+    [magias, filtro, modoTodas],
+  );
+  const grupos = useMemo(() => agruparMagiasPorNivel(achadas), [achadas]);
+  const total = magias.length;
+  const temFiltro = Object.values(filtro).some((v) => v !== undefined && v !== "");
+  return (
+    <>
+      {!modoTodas && (
+        <>
+          <div className="filtros-do-compendio" data-testid="compendio-filtros">
+            <select
+              data-testid="compendio-nivel"
+              aria-label="Nível"
+              value={filtro.nivel ?? ""}
+              onChange={(e) =>
+                mudar({ nivel: e.target.value === "" ? undefined : Number(e.target.value) })
+              }
+            >
+              <option value="">Todos os níveis</option>
+              {NIVEIS.map((n) => (
+                <option key={n} value={n}>
+                  {ROTULO_DO_NIVEL_DE_MAGIA(n)}
+                </option>
+              ))}
+            </select>
+            <select
+              data-testid="compendio-escola"
+              aria-label="Escola"
+              value={filtro.escola ?? ""}
+              onChange={(e) => mudar({ escola: e.target.value })}
+            >
+              <option value="">Todas as escolas</option>
+              {opcoes.escolas.map((e) => (
+                <option key={e} value={e}>
+                  {e}
+                </option>
+              ))}
+            </select>
+            <select
+              data-testid="compendio-classe"
+              aria-label="Classe"
+              value={filtro.classe ?? ""}
+              onChange={(e) => mudar({ classe: e.target.value })}
+            >
+              <option value="">Todas as classes</option>
+              {opcoes.classes.map((e) => (
+                <option key={e} value={e}>
+                  {e}
+                </option>
+              ))}
+            </select>
+            <label className="linha-opcao">
+              <input
+                type="checkbox"
+                data-testid="compendio-concentracao"
+                checked={filtro.concentracao === true}
+                onChange={(e) => mudar({ concentracao: e.target.checked })}
+              />
+              Concentração
+            </label>
+            <label className="linha-opcao">
+              <input
+                type="checkbox"
+                data-testid="compendio-ritual"
+                checked={filtro.ritual === true}
+                onChange={(e) => mudar({ ritual: e.target.checked })}
+              />
+              Ritual
+            </label>
+          </div>
+          <div className="barra-do-compendio">
+            <span className="nota contagem-do-compendio" data-testid="compendio-contagem">
+              {temFiltro ? `${achadas.length} de ${total}` : `${total}`}{" "}
+              {total === 1 ? "magia" : "magias"}
+            </span>
+            {temFiltro && (
+              <button
+                type="button"
+                className="link"
+                data-testid="compendio-limpar"
+                onClick={limpar}
+              >
+                Limpar filtros
+              </button>
+            )}
+          </div>
+        </>
+      )}
+      {achadas.length === 0 ? (
+        <p className="nota" data-testid="compendio-nenhuma">
+          Nenhuma magia encontrada.
+        </p>
+      ) : (
+        <BlocosDoCompendio
+          escopo="magias"
+          grupos={grupos}
+          forcar={temFiltro}
+          total={total}
+          testid="compendio-lista"
+          renderEntrada={(m) => (
+            <li key={m.nome}>
+              <button
+                type="button"
+                className="item-de-magia"
+                data-testid="compendio-item"
+                data-nome={m.nome}
+                draggable
+                onDragStart={(e) => comecarArrastoDoCompendio(e, { tipo: "magia", magia: m })}
+                onClick={() => aoAbrir(m.nome)}
+              >
+                <span className="nome-da-magia">
+                  {m.nome} <NomeOriginal nome={m.nomeOriginal} />
+                </span>
+                <span className="nivel-e-escola">
+                  {linhaDeNivelEEscola(m)} <MarcasDaMagia magia={m} />
+                </span>
+              </button>
+            </li>
+          )}
+        />
+      )}
+    </>
+  );
+}
+
+type PropsDaSecaoTodas = {
+  achados: AchadosEmTodas;
+  magias: readonly MagiaDoCompendio[];
+  monstros: readonly MonstroDoCompendio[];
+  itensMagicos: readonly ItemMagicoDoCompendio[];
+  armas: readonly ArmaDoCompendio[];
+  itens: readonly ItemDoCompendio[];
+  filtro: FiltroDeMagias;
+  estado: Estado;
+  eu: Usuario;
+  enviar: Enviar;
+  aoAbrirMagia: (nome: string) => void;
+  aoAbrirFicha: ((personagemId: string) => void) | undefined;
+};
+
+/** Q2: a busca por nome em todas as seções: cada seção com resultado vira um bloco, e dentro dele os blocos da seção. */
+function SecaoTodas(p: PropsDaSecaoTodas) {
+  const texto = p.filtro.texto ?? "";
+  const buscando = texto.trim() !== "";
+  const geral =
+    p.magias.length + p.monstros.length + p.itensMagicos.length + p.armas.length + p.itens.length;
+  const blocos = useBlocosAbertos(buscando, geral <= LIMITE_PARA_ABRIR_TUDO);
+  const secoes: { id: SecaoDoCompendio; n: number; corpo: () => ReactNode }[] = [
+    {
+      id: "magias",
+      n: p.achados.magias.length,
+      corpo: () => (
+        <ListaDeMagias
+          magias={p.magias}
+          filtro={{ texto }}
+          modoTodas
+          mudar={() => undefined}
+          limpar={() => undefined}
+          aoAbrir={p.aoAbrirMagia}
+        />
+      ),
+    },
+    {
+      id: "monstros",
+      n: p.achados.monstros.length,
+      corpo: () => (
+        <ListaDeMonstros
+          monstros={p.monstros}
+          magias={p.magias}
+          texto={texto}
+          estado={p.estado}
+          eu={p.eu}
+          enviar={p.enviar}
+          modoTodas
+          {...(p.aoAbrirFicha ? { aoAbrirFicha: p.aoAbrirFicha } : {})}
+        />
+      ),
+    },
+    {
+      id: "itensMagicos",
+      n: p.achados.itensMagicos.length,
+      corpo: () => (
+        <ListaDeItensMagicos
+          itens={p.itensMagicos}
+          texto={texto}
+          estado={p.estado}
+          eu={p.eu}
+          enviar={p.enviar}
+          modoTodas
+        />
+      ),
+    },
+    {
+      id: "armas",
+      n: p.achados.armas.length,
+      corpo: () => (
+        <ListaDeEntradas
+          tipo="arma"
+          armas={p.armas}
+          itens={p.itens}
+          texto={texto}
+          estado={p.estado}
+          eu={p.eu}
+          enviar={p.enviar}
+          modoTodas
+        />
+      ),
+    },
+    {
+      id: "itens",
+      n: p.achados.itens.length,
+      corpo: () => (
+        <ListaDeEntradas
+          tipo="item"
+          armas={p.armas}
+          itens={p.itens}
+          texto={texto}
+          estado={p.estado}
+          eu={p.eu}
+          enviar={p.enviar}
+          modoTodas
+        />
+      ),
+    },
+  ];
+  const totais: Record<SecaoDoCompendio, number> = {
+    magias: p.magias.length,
+    monstros: p.monstros.length,
+    itensMagicos: p.itensMagicos.length,
+    armas: p.armas.length,
+    itens: p.itens.length,
+  };
+  const visiveis = secoes.filter((s) => (buscando ? s.n > 0 : totais[s.id] > 0));
+  if (buscando && visiveis.length === 0)
+    return (
+      <p className="nota" data-testid="compendio-nenhuma">
+        Nada encontrado em nenhuma seção.
+      </p>
+    );
+  return (
+    <div className="secoes-em-blocos" data-testid="compendio-todas">
+      {visiveis.map((s) => {
+        const rotulo = SECOES_DO_COMPENDIO.find((x) => x.id === s.id)?.rotulo ?? s.id;
+        const chave = `todas:${s.id}`;
+        return (
+          <BlocoRecolhivel
+            key={s.id}
+            id={`todas-${s.id}`}
+            titulo={rotulo}
+            contagem={buscando ? s.n : totais[s.id]}
+            aberto={blocos.aberto(chave)}
+            aoAlternar={() => blocos.alternar(chave)}
+          >
+            {s.corpo()}
+          </BlocoRecolhivel>
+        );
+      })}
+    </div>
+  );
+}
 
 const comVirgula = (n: number) => String(n).replace(".", ",");
 
@@ -425,6 +741,58 @@ function metaDoItem(i: ItemDoCompendio): string {
     .join(" · ");
 }
 
+type LinhaDaEntrada = {
+  entrada: EntradaDoCompendio;
+  nome: string;
+  nomeOriginal: string | undefined;
+  meta: string;
+};
+
+function LinhaDeEntrada({
+  tipo,
+  linha: l,
+  podeAdicionar,
+  aoAdicionar,
+}: {
+  tipo: "arma" | "item";
+  linha: LinhaDaEntrada;
+  podeAdicionar: boolean;
+  aoAdicionar: (entrada: EntradaDoCompendio, nome: string) => void;
+}) {
+  return (
+    <li>
+      <div className="entrada-do-compendio">
+        <button
+          type="button"
+          className="entrada-arrastavel"
+          draggable
+          data-testid={`compendio-entrada-${tipo}`}
+          data-nome={l.nome}
+          title="Arraste para a ficha aberta"
+          onDragStart={(e) => comecarArrastoDoCompendio(e, l.entrada)}
+        >
+          <GripVertical size={14} className="alca-da-entrada" aria-hidden />
+          <span className="textos-da-entrada">
+            <span className="nome-da-magia">
+              {l.nome} <NomeOriginal nome={l.nomeOriginal} />
+            </span>
+            <span className="nivel-e-escola">{l.meta}</span>
+          </span>
+        </button>
+        <button
+          type="button"
+          data-testid={`compendio-${tipo}-adicionar`}
+          aria-label={`Adicionar ${l.nome} à ficha`}
+          disabled={!podeAdicionar}
+          onClick={() => aoAdicionar(l.entrada, l.nome)}
+        >
+          <BookPlus size={14} /> Adicionar
+        </button>
+      </div>
+    </li>
+  );
+}
+
 /**
  * As armas ou os itens do compêndio (V4b): cada linha se arrasta para a ficha aberta (as áreas que a aceitam acendem)
  * e o botão "Adicionar" é o caminho do teclado, com a mesma conversão. Quem recebe é a ficha escolhida em "Ficha de".
@@ -437,6 +805,7 @@ function ListaDeEntradas({
   estado,
   eu,
   enviar,
+  modoTodas = false,
 }: {
   tipo: "arma" | "item";
   armas: readonly ArmaDoCompendio[];
@@ -445,41 +814,31 @@ function ListaDeEntradas({
   estado: Estado;
   eu: Usuario;
   enviar: Enviar;
+  /** Q2: dentro do "Todas": sem a escolha da ficha nem a dica. */
+  modoTodas?: boolean;
 }) {
   const meus = estado.personagens.filter((p) => podeEditarPersonagem(p, eu));
   const [alvo, escolherAlvo] = useAlvoDaFicha(meus);
   const [aviso, setAviso] = useState<{ tipo: "ok" | "erro"; texto: string } | null>(null);
-  const busca = normalizarBusca(texto);
-  const linhas: { entrada: EntradaDoCompendio; nome: string; meta: string }[] =
+  const achadas = useMemo(
+    () => (tipo === "arma" ? buscarArmas(armas, texto) : buscarItens(itens, texto)),
+    [tipo, armas, itens, texto],
+  );
+  const total = tipo === "arma" ? armas.length : itens.length;
+  const linhaDe = (e: ArmaDoCompendio | ItemDoCompendio): LinhaDaEntrada =>
     tipo === "arma"
-      ? armas.map((a) => ({
-          entrada: { tipo: "arma", arma: a },
-          nome: a.nome,
-          meta: metaDaArma(a),
-        }))
-      : itens.map((i) => ({
-          entrada: { tipo: "item", item: i },
-          nome: i.nome,
-          meta: metaDoItem(i),
-        }));
-  const achadas = linhas
-    .filter(
-      (l) =>
-        busca === "" ||
-        normalizarBusca(l.nome)
-          .concat(
-            " ",
-            normalizarBusca(
-              l.entrada.tipo === "arma"
-                ? (l.entrada.arma.nomeOriginal ?? "")
-                : l.entrada.tipo === "item"
-                  ? (l.entrada.item.nomeOriginal ?? "")
-                  : "",
-            ),
-          )
-          .includes(busca),
-    )
-    .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+      ? {
+          entrada: { tipo: "arma", arma: e as ArmaDoCompendio },
+          nome: e.nome,
+          nomeOriginal: e.nomeOriginal,
+          meta: metaDaArma(e as ArmaDoCompendio),
+        }
+      : {
+          entrada: { tipo: "item", item: e as ItemDoCompendio },
+          nome: e.nome,
+          nomeOriginal: e.nomeOriginal,
+          meta: metaDoItem(e as ItemDoCompendio),
+        };
 
   function adicionar(entrada: EntradaDoCompendio, nome: string) {
     if (!alvo) return;
@@ -499,7 +858,7 @@ function ListaDeEntradas({
 
   return (
     <div data-testid={`compendio-${tipo}s`}>
-      {meus.length > 0 ? (
+      {modoTodas ? null : meus.length > 0 ? (
         <label className="linha-opcao ficha-de-quem">
           Ficha de
           <select
@@ -523,42 +882,38 @@ function ListaDeEntradas({
           Você não edita nenhum personagem: não há ficha para receber.
         </p>
       )}
-      <p className="nota">Arraste para a ficha aberta ou use Adicionar.</p>
+      {!modoTodas && <p className="nota">Arraste para a ficha aberta ou use Adicionar.</p>}
       {achadas.length === 0 ? (
         <p className="nota" data-testid="compendio-nenhuma">
           Nada encontrado.
         </p>
+      ) : tipo === "arma" ? (
+        <BlocosDoCompendio
+          escopo="armas"
+          grupos={agruparArmas(achadas as ArmaDoCompendio[])}
+          forcar={texto.trim() !== ""}
+          total={total}
+          testid="compendio-lista-entradas"
+          renderEntrada={(a) => (
+            <LinhaDeEntrada
+              key={a.nome}
+              tipo={tipo}
+              linha={linhaDe(a)}
+              podeAdicionar={!!alvo}
+              aoAdicionar={adicionar}
+            />
+          )}
+        />
       ) : (
         <ul className="lista-de-magias" data-testid="compendio-lista-entradas">
-          {achadas.map((l) => (
-            <li key={l.nome}>
-              <div className="entrada-do-compendio">
-                <button
-                  type="button"
-                  className="entrada-arrastavel"
-                  draggable
-                  data-testid={`compendio-entrada-${tipo}`}
-                  data-nome={l.nome}
-                  title="Arraste para a ficha aberta"
-                  onDragStart={(e) => comecarArrastoDoCompendio(e, l.entrada)}
-                >
-                  <GripVertical size={14} className="alca-da-entrada" aria-hidden />
-                  <span className="textos-da-entrada">
-                    <span className="nome-da-magia">{l.nome}</span>
-                    <span className="nivel-e-escola">{l.meta}</span>
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  data-testid={`compendio-${tipo}-adicionar`}
-                  aria-label={`Adicionar ${l.nome} à ficha`}
-                  disabled={!alvo}
-                  onClick={() => adicionar(l.entrada, l.nome)}
-                >
-                  <BookPlus size={14} /> Adicionar
-                </button>
-              </div>
-            </li>
+          {(achadas as ItemDoCompendio[]).map((i) => (
+            <LinhaDeEntrada
+              key={i.nome}
+              tipo={tipo}
+              linha={linhaDe(i)}
+              podeAdicionar={!!alvo}
+              aoAdicionar={adicionar}
+            />
           ))}
         </ul>
       )}
@@ -601,7 +956,7 @@ export function AbaCompendio({
   const [filtro, setFiltro] = useState<FiltroDeMagias>({});
   const [aberta, setAberta] = useState<string | null>(null);
   // V4b: o arquivo pode trazer armas e itens além das magias; cada tipo tem a sua lista.
-  const [secao, setSecao] = useState<SecaoDoCompendio>("magias");
+  const [secao, setSecao] = useState<SecaoEscolhida>("magias");
   // O mestre usou o exemplo do SRD nesta visita: onde ele ficou (na pasta, ou só até recarregar).
   const [resultadoDaCarga, setResultadoDaCarga] = useState<ResultadoDosArquivos | null>(null);
   async function carregarArquivos(arquivos: File[]) {
@@ -628,16 +983,38 @@ export function AbaCompendio({
   // chega a todos (é um asset só); esconder é da tela, não do dado (docs/PASSAGEM.md, frágeis).
   const monstros = euMestre ? (c.compendio?.monstros ?? []) : [];
   const itensMagicos = c.compendio?.itensMagicos ?? [];
-  const temExtras =
-    armas.length > 0 ||
-    itensDoCompendio.length > 0 ||
-    monstros.length > 0 ||
-    itensMagicos.length > 0;
-  const secaoAtual: SecaoDoCompendio = temExtras ? secao : "magias";
-  const opcoes = useMemo(() => opcoesDeFiltro(magias ?? []), [magias]);
-  const achadas = useMemo(() => buscarMagias(magias ?? [], filtro), [magias, filtro]);
+  // Q2: as seções que têm entradas, na ordem da tela; com duas ou mais aparece o seletor (e o "Todas").
+  const totaisDasSecoes: Record<SecaoDoCompendio, number> = {
+    magias: magias?.length ?? 0,
+    monstros: monstros.length,
+    itensMagicos: itensMagicos.length,
+    armas: armas.length,
+    itens: itensDoCompendio.length,
+  };
+  const disponiveis = SECOES_DO_COMPENDIO.filter((s) => totaisDasSecoes[s.id] > 0).map((s) => s.id);
+  const temExtras = disponiveis.length > 1;
+  const secaoAtual: SecaoEscolhida = !temExtras
+    ? (disponiveis[0] ?? "magias")
+    : secao === "todas" || disponiveis.includes(secao)
+      ? secao
+      : (disponiveis[0] ?? "magias");
+  const textoDaBusca = filtro.texto ?? "";
+  const achadosEmTodas = useMemo(
+    () =>
+      buscarEmTodas(
+        { magias: magias ?? [], monstros, itensMagicos, armas, itens: itensDoCompendio },
+        textoDaBusca,
+        euMestre,
+      ),
+    [magias, monstros, itensMagicos, armas, itensDoCompendio, textoDaBusca, euMestre],
+  );
   const selecionada = aberta === null ? undefined : magias?.find((m) => m.nome === aberta);
-  const temFiltro = Object.values(filtro).some((v) => v !== undefined && v !== "");
+  // Q2: busca sem resultado na seção escolhida, mas com resultado em outra: oferece buscar em todas.
+  const achouEmOutraSecao =
+    textoDaBusca.trim() !== "" &&
+    secaoAtual !== "todas" &&
+    achadosEmTodas[secaoAtual].length === 0 &&
+    SECOES_DO_COMPENDIO.some((s) => s.id !== secaoAtual && achadosEmTodas[s.id].length > 0);
 
   function mudar(parte: Partial<FiltroDeMagias>) {
     setFiltro((f) => {
@@ -704,7 +1081,6 @@ export function AbaCompendio({
     );
   }
 
-  const total = magias?.length ?? 0;
   return (
     <div data-testid="aba-compendio-conteudo" data-situacao="pronto">
       {selecionada ? (
@@ -737,29 +1113,23 @@ export function AbaCompendio({
           )}
           {temExtras && (
             <fieldset className="secoes-do-compendio" aria-label="O que listar">
-              {(
-                [
-                  ["magias", "Magias", total],
-                  ["armas", "Armas", armas.length],
-                  ["itens", "Itens", itensDoCompendio.length],
-                  ["monstros", "Monstros", monstros.length],
-                  ["itensMagicos", "Mágicos", itensMagicos.length],
-                ] as const
-              )
-                .filter(([id, , n]) => id === "magias" || n > 0)
-                .map(([id, rotulo, n]) => (
-                  <button
-                    key={id}
-                    type="button"
-                    className="secao-do-compendio"
-                    data-testid={`compendio-secao-${id}`}
-                    aria-pressed={secaoAtual === id}
-                    title={`${id === "itensMagicos" ? "Itens mágicos" : rotulo}: ${n}`}
-                    onClick={() => setSecao(id)}
-                  >
-                    {rotulo}
-                  </button>
-                ))}
+              {(["todas", ...disponiveis] as const).map((id) => (
+                <button
+                  key={id}
+                  type="button"
+                  className="secao-do-compendio"
+                  data-testid={`compendio-secao-${id}`}
+                  aria-pressed={secaoAtual === id}
+                  title={
+                    id === "todas"
+                      ? "Buscar por nome em todas as seções"
+                      : `${ROTULO_DO_BOTAO_DA_SECAO[id]}: ${totaisDasSecoes[id]}`
+                  }
+                  onClick={() => setSecao(id)}
+                >
+                  {ROTULO_DO_BOTAO_DA_SECAO[id]}
+                </button>
+              ))}
             </fieldset>
           )}
           <label className="campo-busca">
@@ -773,114 +1143,29 @@ export function AbaCompendio({
               onChange={(e) => mudar({ texto: e.target.value })}
             />
           </label>
-          {secaoAtual === "magias" ? (
-            <>
-              <div className="filtros-do-compendio" data-testid="compendio-filtros">
-                <select
-                  data-testid="compendio-nivel"
-                  aria-label="Nível"
-                  value={filtro.nivel ?? ""}
-                  onChange={(e) =>
-                    mudar({ nivel: e.target.value === "" ? undefined : Number(e.target.value) })
-                  }
-                >
-                  <option value="">Todos os níveis</option>
-                  {NIVEIS.map((n) => (
-                    <option key={n} value={n}>
-                      {ROTULO_DO_NIVEL_DE_MAGIA(n)}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  data-testid="compendio-escola"
-                  aria-label="Escola"
-                  value={filtro.escola ?? ""}
-                  onChange={(e) => mudar({ escola: e.target.value })}
-                >
-                  <option value="">Todas as escolas</option>
-                  {opcoes.escolas.map((e) => (
-                    <option key={e} value={e}>
-                      {e}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  data-testid="compendio-classe"
-                  aria-label="Classe"
-                  value={filtro.classe ?? ""}
-                  onChange={(e) => mudar({ classe: e.target.value })}
-                >
-                  <option value="">Todas as classes</option>
-                  {opcoes.classes.map((e) => (
-                    <option key={e} value={e}>
-                      {e}
-                    </option>
-                  ))}
-                </select>
-                <label className="linha-opcao">
-                  <input
-                    type="checkbox"
-                    data-testid="compendio-concentracao"
-                    checked={filtro.concentracao === true}
-                    onChange={(e) => mudar({ concentracao: e.target.checked })}
-                  />
-                  Concentração
-                </label>
-                <label className="linha-opcao">
-                  <input
-                    type="checkbox"
-                    data-testid="compendio-ritual"
-                    checked={filtro.ritual === true}
-                    onChange={(e) => mudar({ ritual: e.target.checked })}
-                  />
-                  Ritual
-                </label>
-              </div>
-              <div className="barra-do-compendio">
-                <span className="nota contagem-do-compendio" data-testid="compendio-contagem">
-                  {temFiltro ? `${achadas.length} de ${total}` : `${total}`}{" "}
-                  {total === 1 ? "magia" : "magias"}
-                </span>
-                {temFiltro && (
-                  <button
-                    type="button"
-                    className="link"
-                    data-testid="compendio-limpar"
-                    onClick={() => setFiltro({})}
-                  >
-                    Limpar filtros
-                  </button>
-                )}
-              </div>
-              {achadas.length === 0 ? (
-                <p className="nota" data-testid="compendio-nenhuma">
-                  Nenhuma magia encontrada.
-                </p>
-              ) : (
-                <ul className="lista-de-magias" data-testid="compendio-lista">
-                  {achadas.map((m) => (
-                    <li key={m.nome}>
-                      <button
-                        type="button"
-                        className="item-de-magia"
-                        data-testid="compendio-item"
-                        data-nome={m.nome}
-                        draggable
-                        onDragStart={(e) =>
-                          comecarArrastoDoCompendio(e, { tipo: "magia", magia: m })
-                        }
-                        onClick={() => setAberta(m.nome)}
-                      >
-                        <span className="nome-da-magia">{m.nome}</span>
-                        <span className="nivel-e-escola">
-                          {linhaDeNivelEEscola(m)} <MarcasDaMagia magia={m} />
-                        </span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </>
+          {secaoAtual === "todas" ? (
+            <SecaoTodas
+              achados={achadosEmTodas}
+              magias={magias ?? []}
+              monstros={monstros}
+              itensMagicos={itensMagicos}
+              armas={armas}
+              itens={itensDoCompendio}
+              filtro={filtro}
+              estado={estado}
+              eu={eu}
+              enviar={enviar}
+              aoAbrirMagia={setAberta}
+              aoAbrirFicha={aoAbrirFicha}
+            />
+          ) : secaoAtual === "magias" ? (
+            <ListaDeMagias
+              magias={magias ?? []}
+              filtro={filtro}
+              mudar={mudar}
+              limpar={() => setFiltro({})}
+              aoAbrir={setAberta}
+            />
           ) : secaoAtual === "monstros" ? (
             <ListaDeMonstros
               monstros={monstros}
@@ -909,6 +1194,19 @@ export function AbaCompendio({
               eu={eu}
               enviar={enviar}
             />
+          )}
+          {achouEmOutraSecao && (
+            <p className="nota" data-testid="compendio-achou-em-outra">
+              Nada nesta seção, mas há resultados em outras.{" "}
+              <button
+                type="button"
+                className="link"
+                data-testid="compendio-buscar-em-todas"
+                onClick={() => setSecao("todas")}
+              >
+                Buscar em todas as seções
+              </button>
+            </p>
           )}
           {euMestre && (
             <div

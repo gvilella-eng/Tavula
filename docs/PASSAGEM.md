@@ -946,3 +946,20 @@ Continua em aberto, por ser decisão e não erro de doc: `ficha.verOutras` (seç
 - `campanhasDeExemplo.ts` saiu; `fixtures/campanhas/*.json` seguem usadas pelos testes (`campanhasProntas.test.ts` e `automacoes-editor.spec.ts`).
 
 **Suposições**: ver `docs/REDESIGN.md`, "Q1 — como ficou".
+
+## Q2 (2026-11-16): o compêndio por seções, com blocos e busca em português e inglês
+**Onde mexer**
+- Lógica pura: `packages/shared/src/compendioSecoes.ts` (`agruparMagiasPorNivel`, `agruparMonstrosPorND`, `agruparItensMagicosPorRaridade`, `agruparArmas`, `casaComABusca`, `buscarEmTodas`, `SECOES_DO_COMPENDIO`) e `sintonizacao` em `buscarItensMagicos` (`compendio.ts`). Testes em `compendioSecoes.test.ts`.
+- Blocos: `apps/web/src/CompendioBlocos.tsx` (`BlocoRecolhivel`, `BlocosDoCompendio`, `useBlocosAbertos`, `NomeOriginal`). O que a pessoa abriu fica em `tabletop:pref:compendio-blocos` (`preferencias.ts`, `lerBlocosDoCompendio`). Estilo `.bloco-do-compendio*` e `.nome-original` no fim do `styles.css`.
+- Telas: `AbaCompendio.tsx` (seletor de seção, `ListaDeMagias`, `SecaoTodas`, `ListaDeEntradas` para armas e itens) e `CompendioMonstros.tsx` (`ListaDeMonstros`, `ListaDeItensMagicos`, ambos com `modoTodas`).
+- Extrator: `packages/shared/src/extrator/nomes.ts` (`lerTabelaDeNomes`, `aplicarNomesOriginais`) e a opção `--nomes` do `cli.ts`.
+- Testes: `e2e/tests/compendio-q2.spec.ts` (arquivo de teste gerado no próprio spec, com 30 magias de enchimento para passar do limite que abre tudo).
+
+**Frágil**
+- Os `data-testid` dos blocos vêm do rótulo do grupo: `compendio-bloco-<seção>-<chave>` (a chave do ND "1/4" vira `1_4`; em "Todas", `compendio-bloco-todas-<seção>`). Os testes dependem disso.
+- Seção com 24 entradas ou menos abre todos os blocos por padrão (`LIMITE_PARA_ABRIR_TUDO`). Os E2E antigos contam com isso (o exemplo do SRD é curto); um compêndio de teste maior precisa abrir o bloco antes.
+- Em "Todas" cada lista de seção roda com `modoTodas` (sem filtros, contagem nem "Ficha de"); o "Adicionar" usa a ficha em foco (`useAlvoDaFicha`). A lista de monstros guarda o cartão aberto no próprio estado: ao fechar o bloco ele some junto.
+- A ordem das magias na lista é por nível; quem espera a lista alfabética geral (como o E2E antigo `compendio.spec.ts`, "filtros") precisa ler os blocos.
+- Os nomes em inglês dos arquivos do Vilella vêm de uma tabela local (`nomes-originais.json`, na pasta do compêndio, fora do git), escrita de memória sobre o D&D 5e oficial; o que não se soube ficou sem nome. Conferir por amostra.
+
+**Suposições**: ver `docs/REDESIGN.md`, "Q2 — como ficou".

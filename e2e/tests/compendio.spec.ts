@@ -105,7 +105,8 @@ test("o mestre aponta a pasta; o jogador busca 'bola' e 'misseis' (sem acento) e
 test("filtros de nível, escola, classe, concentração e ritual", async ({ mesa }) => {
   const { j1 } = await mesaComCompendio(mesa);
   const p = j1.pagina;
-  expect(await itens(p)).toEqual(["Bola de Fogo", "Detectar Magia", "Mísseis Mágicos"]);
+  // Q2: a lista vem em blocos por nível (1º nível antes do 3º), alfabética dentro de cada bloco.
+  expect(await itens(p)).toEqual(["Detectar Magia", "Mísseis Mágicos", "Bola de Fogo"]);
 
   await p.getByTestId("compendio-nivel").selectOption("1");
   expect(await itens(p)).toEqual(["Detectar Magia", "Mísseis Mágicos"]);

@@ -1,5 +1,5 @@
 /// <reference types="node" />
-import { existsSync, mkdirSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { lerCompendio } from "../compendio.ts";
@@ -10,6 +10,7 @@ import {
   extrairMonstrosDoLivro,
   type ResultadoDoLivro,
 } from "./livros.ts";
+import { aplicarNomesOriginais, lerTabelaDeNomes, type TabelaDeNomes } from "./nomes.ts";
 import { lerPdf, letrasDoLivro } from "./pdf.ts";
 import { type LivroDoRelatorio, montarRelatorio } from "./relatorio.ts";
 
@@ -42,8 +43,12 @@ const LIVROS = [
   },
 ];
 
-export function lerArgumentos(argv: readonly string[]): { livros?: string; saida?: string } {
-  const lidos: { livros?: string; saida?: string } = {};
+export function lerArgumentos(argv: readonly string[]): {
+  livros?: string;
+  saida?: string;
+  nomes?: string;
+} {
+  const lidos: { livros?: string; saida?: string; nomes?: string } = {};
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     const proximo = argv[i + 1];
@@ -52,6 +57,9 @@ export function lerArgumentos(argv: readonly string[]): { livros?: string; saida
       i++;
     } else if (a === "--saida" && proximo) {
       lidos.saida = proximo;
+      i++;
+    } else if (a === "--nomes" && proximo) {
+      lidos.nomes = proximo;
       i++;
     }
   }
@@ -74,10 +82,10 @@ export function estaDentro(pasta: string, raiz: string): boolean {
 }
 
 async function principal(): Promise<number> {
-  const { livros, saida } = lerArgumentos(process.argv.slice(2));
+  const { livros, saida, nomes } = lerArgumentos(process.argv.slice(2));
   if (!livros || !saida) {
     console.error(
-      'Uso: pnpm compendio:extrair -- --livros "<pasta dos PDFs>" --saida "<pasta de saída>"',
+      'Uso: pnpm compendio:extrair -- --livros "<pasta dos PDFs>" --saida "<pasta de saída>" [--nomes "<nomes-originais.json>"]',
     );
     return 2;
   }
@@ -95,6 +103,25 @@ async function principal(): Promise<number> {
     return 2;
   }
   mkdirSync(pastaDeSaida, { recursive: true });
+  // Q2: a tabela de nomes em inglês (opcional) fica fora do repositório, na pasta de saída por padrão.
+  const arquivoDeNomes = nomes ? resolve(base, nomes) : join(pastaDeSaida, "nomes-originais.json");
+  let tabelaDeNomes: TabelaDeNomes | null = null;
+  if (existsSync(arquivoDeNomes)) {
+    if (estaDentro(arquivoDeNomes, raizDoRepositorio())) {
+      console.error("A tabela de nomes está dentro do repositório: escolha outra pasta.");
+      return 2;
+    }
+    const lida = lerTabelaDeNomes(readFileSync(arquivoDeNomes, "utf8"));
+    if (!lida.ok) {
+      console.error(`Tabela de nomes (${arquivoDeNomes}): ${lida.motivo}.`);
+      return 2;
+    }
+    tabelaDeNomes = lida.tabela;
+    console.log(`Nomes em inglês: ${arquivoDeNomes}`);
+  } else if (nomes) {
+    console.error(`Tabela de nomes não encontrada: ${arquivoDeNomes}`);
+    return 2;
+  }
   const pdfs = readdirSync(pastaDosLivros).filter((n) => n.toLowerCase().endsWith(".pdf"));
 
   const relatorio: LivroDoRelatorio[] = [];
@@ -123,15 +150,30 @@ async function principal(): Promise<number> {
     let texto: string;
     if (livro.chave === "magias") {
       const r = extrairMagiasDoLivro(paginas);
+      if (tabelaDeNomes) {
+        const n = aplicarNomesOriginais(r.validas, tabelaDeNomes.magias);
+        r.validas = n.entradas;
+        console.log(`  nomes em inglês: ${n.preenchidos} de ${r.validas.length} magias`);
+      }
       magiasLidas = r.validas;
       resultado = r;
       texto = JSON.stringify(arquivoDoCompendio("magias", { magias: r.validas }));
     } else if (livro.chave === "monstros") {
       const r = extrairMonstrosDoLivro(paginas, magiasLidas as { nome: string }[]);
+      if (tabelaDeNomes) {
+        const n = aplicarNomesOriginais(r.validas, tabelaDeNomes.monstros);
+        r.validas = n.entradas;
+        console.log(`  nomes em inglês: ${n.preenchidos} de ${r.validas.length} monstros`);
+      }
       resultado = r;
       texto = JSON.stringify(arquivoDoCompendio("monstros", { monstros: r.validas }));
     } else {
       const r = extrairItensDoLivro(paginas);
+      if (tabelaDeNomes) {
+        const n = aplicarNomesOriginais(r.validas, tabelaDeNomes.itens);
+        r.validas = n.entradas;
+        console.log(`  nomes em inglês: ${n.preenchidos} de ${r.validas.length} itens mágicos`);
+      }
       resultado = r;
       texto = JSON.stringify(arquivoDoCompendio("itens", { itensMagicos: r.validas }));
     }

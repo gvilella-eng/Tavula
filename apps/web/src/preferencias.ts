@@ -133,6 +133,35 @@ export function gravarJanela(id: string, pref: PreferenciaDeJanela): void {
   }
 }
 
+// --- blocos abertos do Compêndio (Q2, só deste navegador) --------------------------------------
+
+export const CHAVE_BLOCOS_DO_COMPENDIO = "tabletop:pref:compendio-blocos";
+
+/** O que a pessoa abriu (true) ou fechou (false) em cada bloco ("magias:3"); o que nunca mexeu não aparece. */
+export function lerBlocosDoCompendio(): Record<string, boolean> {
+  try {
+    const bruto = localStorage.getItem(CHAVE_BLOCOS_DO_COMPENDIO);
+    if (!bruto) return {};
+    const lido: unknown = JSON.parse(bruto);
+    if (typeof lido !== "object" || lido === null || Array.isArray(lido)) return {};
+    const saida: Record<string, boolean> = {};
+    for (const [id, v] of Object.entries(lido)) if (typeof v === "boolean") saida[id] = v;
+    return saida;
+  } catch {
+    return {};
+  }
+}
+
+export function gravarBlocoDoCompendio(id: string, aberto: boolean): void {
+  try {
+    const todos = lerBlocosDoCompendio();
+    todos[id] = aberto;
+    localStorage.setItem(CHAVE_BLOCOS_DO_COMPENDIO, JSON.stringify(todos));
+  } catch {
+    // sem localStorage: vale só nesta sessão
+  }
+}
+
 // --- seções abertas da aba Preferências (P1, só deste navegador) -------------------------------
 
 export const CHAVE_SECOES_DE_PREFERENCIAS = "tabletop:pref:secoes";

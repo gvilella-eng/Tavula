@@ -1980,3 +1980,27 @@ Os lotes 7b-1 a 7b-3 (motor, zonas, editor e campanhas) vêm depois dos ajustes 
 **O que ficou para depois**
 - Jogadores com pasta própria para guardar o que recebem (hoje o cache basta).
 - Apagar da pasta as cópias de arquivos que a mesa não usa mais.
+
+## Q2 — como ficou (2026-11-16)
+
+**O que foi feito**
+- A aba Compêndio por seções: Magias, Monstros (só o mestre, como antes), Itens mágicos, Armas e Itens, mais "Todas" para a busca por nome. O seletor só aparece quando há duas ou mais seções com entradas.
+- Blocos recolhíveis em cada seção, no desenho da sanfona das Preferências (título com a contagem, seta, `aria-expanded`): magias por nível (Truques, 1º ao 9º nível), monstros por ND (0, 1/8, 1/4, 1/2, 1 ... 30), itens mágicos por raridade (comum ... artefato, varia) e armas em simples e marciais, corpo a corpo e à distância. Alfabético (sem acento nem caixa) dentro de cada bloco. Itens (equipamento) é uma lista só, alfabética: o dado não tem categoria.
+- Só os blocos abertos desenham as linhas; a lista de ~1.100 entradas abre só com os cabeçalhos.
+- Filtros: classe e escola (e nível, concentração, ritual) nas magias; tipo, tamanho e ND de/até nos monstros; tipo, raridade e sintonização (novo) nos itens mágicos. Filtro que não vale para a seção escolhida some. "Limpar filtros" onde já havia.
+- Busca em "Todas": o resultado vem agrupado por seção (um bloco por seção com resultado) e, dentro, pelos blocos da seção. Acha pelo `nome` e pelo `nomeOriginal`, sem acento e sem caixa ("fireball" acha "Bola de Fogo"). O nome em inglês aparece pequeno e em itálico ao lado do nome. O jogador nunca vê monstro, nem na busca.
+- Numa seção sem resultado, mas com resultado em outra, a aba oferece "Buscar em todas as seções".
+- `packages/shared/src/compendioSecoes.ts` (funções puras: agrupar por nível, ND, raridade e categoria; `casaComABusca`; `buscarEmTodas`; `buscarArmas`/`buscarItens`) e `buscarItensMagicos` com `sintonizacao`.
+- Extrator: `--nomes <arquivo>` (ou `nomes-originais.json` na pasta de saída) preenche o `nomeOriginal`. `extrator/nomes.ts`, com teste de nomes inventados. A tabela nunca entra no repositório.
+- MCP: a ferramenta `compendio` já buscava pelo `nomeOriginal`, sem acento (`mcp/compendio.ts`); nada a mudar.
+
+**Decisões (assumido)**
+- A seção que abre é Magias (como antes); "Todas" é uma escolha do seletor, não o padrão. O texto da busca vale na seção escolhida; para buscar em tudo, "Todas" (ou o aviso "Buscar em todas as seções").
+- Blocos fechados por padrão quando a seção tem mais de 24 entradas; com 24 ou menos (o exemplo do SRD, um arquivo curto) abrem todos. Com busca ou filtro, abrem os que têm resultado, e o que se fecha nessa hora vale só até a busca mudar.
+- O que a pessoa abre ou fecha fica em `tabletop:pref:compendio-blocos` (localStorage, só deste navegador, nada vai para a sala). Chave: `<seção>:<bloco>` (por exemplo `magias:3`); em "Todas", `todas:<seção>`.
+- Em "Todas" só a busca por nome vale (os filtros por seção ficam na seção). "Adicionar" usa a ficha em foco, a mesma regra do "Ficha de".
+- A ordem na lista de magias mudou de propósito: antes era alfabética no geral, agora é por nível e depois alfabética.
+
+**O que ficou para depois**
+- Lista virtual (não precisou: só os blocos abertos desenham; um bloco aberto com ~100 linhas é rápido).
+- Categoria nos Itens do equipamento (o dado não tem).

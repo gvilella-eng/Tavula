@@ -3835,4 +3835,31 @@ Ver `PASSAGEM.md` ("Q1").
 ### Roteiro manual
 `docs/ROTEIRO-DE-TESTES.md`, "Q1".
 
-## Próximo: o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b, N4, N5, M1, M2 e Q1
+## Ajustes Q2 — O compêndio por seções, com blocos recolhíveis e busca em português e inglês (entregue, aguardando o roteiro manual)
+
+### O que foi entregue
+- A aba Compêndio por seções (Magias, Monstros só para o mestre, Itens mágicos, Armas, Itens e "Todas"), cada uma com blocos recolhíveis: magias por nível, monstros por ND, itens mágicos por raridade, armas por categoria e alcance. Alfabético dentro. A contagem no título do bloco.
+- Filtros de classe e escola (magias), tipo e tamanho (monstros), raridade e sintonização (itens mágicos); os que não valem somem.
+- Busca em todas as seções, em português e inglês, sem acento e sem caixa; o nome em inglês pequeno ao lado.
+- Extrator com `--nomes` (tabela local `nomes-originais.json`), e a tabela do Vilella gerada fora do repositório.
+- Os três JSON do Vilella regravados com o nome em inglês.
+
+### Como rodar
+`pnpm dev` como sempre. Sem migração e sem mudança de protocolo. Para regravar os arquivos com a tabela: `pnpm compendio:extrair -- --livros "<pasta dos PDFs>" --saida "<pasta do compêndio>"` (a tabela `nomes-originais.json` na pasta de saída é lida sozinha). Ver `docs/COMPENDIO.md`.
+
+### Verificação
+Ver o relatório do lote (números do `pnpm verify` e dos prints).
+
+### Decisões
+Ver `REDESIGN.md` ("Q2 — como ficou").
+
+### Desvios
+Nenhum.
+
+### Frágil
+Ver `PASSAGEM.md` ("Q2").
+
+### Roteiro manual
+`docs/ROTEIRO-DE-TESTES.md`, "Q2".
+
+## Próximo: o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b, N4, N5, M1, M2, Q1 e Q2

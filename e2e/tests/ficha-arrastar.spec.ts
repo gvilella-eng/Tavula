@@ -81,6 +81,8 @@ async function arrastar(
   /** O alvo só aparece depois que o arrasto começa. */
   surge = false,
 ) {
+  // Q2: com os blocos a lista do compêndio é mais alta: a linha de origem pode estar abaixo da dobra.
+  await origem.scrollIntoViewIfNeeded();
   if (!surge) await alvo.scrollIntoViewIfNeeded();
   const o = await centro(origem);
   await p.mouse.move(o.x, o.y);

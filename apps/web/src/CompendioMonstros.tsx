@@ -1,4 +1,6 @@
 import {
+  agruparItensMagicosPorRaridade,
+  agruparMonstrosPorND,
   aplicarEntradaNaFicha,
   apresentacaoDoPersonagem,
   buscarItensMagicos,
@@ -26,6 +28,7 @@ import {
 } from "@tabletop/shared";
 import { ArrowLeft, BookPlus, GripVertical, UserPlus } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { BlocosDoCompendio, NomeOriginal } from "./CompendioBlocos";
 import { comecarArrastoDoCompendio } from "./ficha/ordem";
 import { useAlvoDaFicha } from "./useAlvoDaFicha";
 
@@ -111,6 +114,8 @@ type PropsDosMonstros = {
   eu: Usuario;
   enviar: Enviar;
   aoAbrirFicha?: (id: string) => void;
+  /** Q2: dentro do "Todas": sem filtros nem contagem (a aba mostra a seção como um bloco). */
+  modoTodas?: boolean;
 };
 
 function entradaDoMonstro(m: MonstroDoCompendio, magias: readonly MagiaDoCompendio[]) {
@@ -130,6 +135,7 @@ export function ListaDeMonstros({
   eu,
   enviar,
   aoAbrirFicha,
+  modoTodas = false,
 }: PropsDosMonstros) {
   const [tipo, setTipo] = useState("");
   const [tamanho, setTamanho] = useState("");
@@ -167,93 +173,102 @@ export function ListaDeMonstros({
   }
   return (
     <div data-testid="compendio-monstros">
-      <div className="filtros-do-monstro" data-testid="compendio-filtros-monstros">
-        <select
-          data-testid="compendio-monstro-tipo"
-          aria-label="Tipo de criatura"
-          value={tipo}
-          onChange={(e) => setTipo(e.target.value)}
-        >
-          <option value="">Todos os tipos</option>
-          {opcoes.tipos.map((t) => (
-            <option key={t} value={t}>
-              {t}
-            </option>
-          ))}
-        </select>
-        <select
-          data-testid="compendio-monstro-tamanho"
-          aria-label="Tamanho"
-          value={tamanho}
-          onChange={(e) => setTamanho(e.target.value)}
-        >
-          <option value="">Todos os tamanhos</option>
-          {TAMANHOS_DE_MONSTRO.map((t) => (
-            <option key={t} value={t}>
-              {t}
-            </option>
-          ))}
-        </select>
-        <select
-          data-testid="compendio-monstro-nd-de"
-          aria-label="ND a partir de"
-          value={ndDe}
-          onChange={(e) => setNdDe(e.target.value)}
-        >
-          <option value="">ND de qualquer</option>
-          {NIVEIS_DE_DESAFIO.map((n) => (
-            <option key={n} value={n}>
-              ND de {n}
-            </option>
-          ))}
-        </select>
-        <select
-          data-testid="compendio-monstro-nd-ate"
-          aria-label="ND até"
-          value={ndAte}
-          onChange={(e) => setNdAte(e.target.value)}
-        >
-          <option value="">ND até qualquer</option>
-          {NIVEIS_DE_DESAFIO.map((n) => (
-            <option key={n} value={n}>
-              ND até {n}
-            </option>
-          ))}
-        </select>
-      </div>
-      <div className="barra-do-compendio">
-        <span className="nota contagem-do-compendio" data-testid="compendio-contagem">
-          {temFiltro ? `${achados.length} de ${monstros.length}` : `${monstros.length}`}{" "}
-          {monstros.length === 1 ? "monstro" : "monstros"}
-        </span>
-        {temFiltro && (
-          <button
-            type="button"
-            className="link"
-            data-testid="compendio-limpar"
-            onClick={() => {
-              setTipo("");
-              setTamanho("");
-              setNdDe("");
-              setNdAte("");
-            }}
-          >
-            Limpar filtros
-          </button>
-        )}
-      </div>
-      <p className="nota">
-        {npc.podeCriar
-          ? "Arraste para o mapa ou use Criar NPC."
-          : "Só o mestre cria NPCs a partir dos monstros."}
-      </p>
+      {!modoTodas && (
+        <>
+          <div className="filtros-do-monstro" data-testid="compendio-filtros-monstros">
+            <select
+              data-testid="compendio-monstro-tipo"
+              aria-label="Tipo de criatura"
+              value={tipo}
+              onChange={(e) => setTipo(e.target.value)}
+            >
+              <option value="">Todos os tipos</option>
+              {opcoes.tipos.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+            <select
+              data-testid="compendio-monstro-tamanho"
+              aria-label="Tamanho"
+              value={tamanho}
+              onChange={(e) => setTamanho(e.target.value)}
+            >
+              <option value="">Todos os tamanhos</option>
+              {TAMANHOS_DE_MONSTRO.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+            <select
+              data-testid="compendio-monstro-nd-de"
+              aria-label="ND a partir de"
+              value={ndDe}
+              onChange={(e) => setNdDe(e.target.value)}
+            >
+              <option value="">ND de qualquer</option>
+              {NIVEIS_DE_DESAFIO.map((n) => (
+                <option key={n} value={n}>
+                  ND de {n}
+                </option>
+              ))}
+            </select>
+            <select
+              data-testid="compendio-monstro-nd-ate"
+              aria-label="ND até"
+              value={ndAte}
+              onChange={(e) => setNdAte(e.target.value)}
+            >
+              <option value="">ND até qualquer</option>
+              {NIVEIS_DE_DESAFIO.map((n) => (
+                <option key={n} value={n}>
+                  ND até {n}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="barra-do-compendio">
+            <span className="nota contagem-do-compendio" data-testid="compendio-contagem">
+              {temFiltro ? `${achados.length} de ${monstros.length}` : `${monstros.length}`}{" "}
+              {monstros.length === 1 ? "monstro" : "monstros"}
+            </span>
+            {temFiltro && (
+              <button
+                type="button"
+                className="link"
+                data-testid="compendio-limpar"
+                onClick={() => {
+                  setTipo("");
+                  setTamanho("");
+                  setNdDe("");
+                  setNdAte("");
+                }}
+              >
+                Limpar filtros
+              </button>
+            )}
+          </div>
+          <p className="nota">
+            {npc.podeCriar
+              ? "Arraste para o mapa ou use Criar NPC."
+              : "Só o mestre cria NPCs a partir dos monstros."}
+          </p>
+        </>
+      )}
       {achados.length === 0 ? (
         <p className="nota" data-testid="compendio-nenhuma">
           Nenhum monstro encontrado.
         </p>
       ) : (
-        <ul className="lista-de-magias" data-testid="compendio-lista-monstros">
-          {achados.map((m) => (
+        <BlocosDoCompendio
+          escopo="monstros"
+          grupos={agruparMonstrosPorND(achados)}
+          forcar={temFiltro}
+          total={monstros.length}
+          testid="compendio-lista-monstros"
+          renderEntrada={(m) => (
             <li key={m.nome}>
               <div className="entrada-do-compendio">
                 <button
@@ -270,7 +285,9 @@ export function ListaDeMonstros({
                     <GripVertical size={14} className="alca-da-entrada" aria-hidden />
                   )}
                   <span className="textos-da-entrada">
-                    <span className="nome-da-magia">{m.nome}</span>
+                    <span className="nome-da-magia">
+                      {m.nome} <NomeOriginal nome={m.nomeOriginal} />
+                    </span>
                     <span className="nivel-e-escola">{metaDoMonstro(m)}</span>
                   </span>
                 </button>
@@ -286,8 +303,8 @@ export function ListaDeMonstros({
                 )}
               </div>
             </li>
-          ))}
-        </ul>
+          )}
+        />
       )}
       <MensagemDeAviso aviso={npc.aviso} />
     </div>
@@ -475,18 +492,22 @@ export function ListaDeItensMagicos({
   estado,
   eu,
   enviar,
+  modoTodas = false,
 }: {
   itens: readonly ItemMagicoDoCompendio[];
   texto: string;
   estado: Estado;
   eu: Usuario;
   enviar: Enviar;
+  /** Q2: dentro do "Todas": sem filtros nem contagem. */
+  modoTodas?: boolean;
 }) {
   const meus = estado.personagens.filter((p: Personagem) => podeEditarPersonagem(p, eu));
   const [alvo, escolherAlvo] = useAlvoDaFicha(meus);
   const [aviso, setAviso] = useState<Aviso>(null);
   const [tipo, setTipo] = useState("");
   const [raridade, setRaridade] = useState("");
+  const [sintonizacao, setSintonizacao] = useState("");
   const [abertos, setAbertos] = useState<ReadonlySet<string>>(new Set());
   const opcoes = useMemo(() => opcoesDeItensMagicos(itens), [itens]);
   const achados = useMemo(
@@ -495,10 +516,11 @@ export function ListaDeItensMagicos({
         texto,
         tipo: tipo || undefined,
         raridade: (raridade || undefined) as ItemMagicoDoCompendio["raridade"] | undefined,
+        sintonizacao: sintonizacao === "" ? undefined : sintonizacao === "sim",
       }),
-    [itens, texto, tipo, raridade],
+    [itens, texto, tipo, raridade, sintonizacao],
   );
-  const temFiltro = tipo !== "" || raridade !== "" || texto !== "";
+  const temFiltro = tipo !== "" || raridade !== "" || sintonizacao !== "" || texto !== "";
 
   function alternar(nome: string) {
     setAbertos((a) => {
@@ -526,85 +548,105 @@ export function ListaDeItensMagicos({
 
   return (
     <div data-testid="compendio-itensMagicos">
-      <div className="filtros-do-monstro" data-testid="compendio-filtros-itens-magicos">
-        <select
-          data-testid="compendio-item-magico-tipo"
-          aria-label="Tipo de item"
-          value={tipo}
-          onChange={(e) => setTipo(e.target.value)}
-        >
-          <option value="">Todos os tipos</option>
-          {opcoes.tipos.map((t) => (
-            <option key={t} value={t}>
-              {t}
-            </option>
-          ))}
-        </select>
-        <select
-          data-testid="compendio-item-magico-raridade"
-          aria-label="Raridade"
-          value={raridade}
-          onChange={(e) => setRaridade(e.target.value)}
-        >
-          <option value="">Todas as raridades</option>
-          {opcoes.raridades.map((r) => (
-            <option key={r} value={r}>
-              {ROTULO_DA_RARIDADE[r]}
-            </option>
-          ))}
-        </select>
-      </div>
-      <div className="barra-do-compendio">
-        <span className="nota contagem-do-compendio" data-testid="compendio-contagem">
-          {temFiltro ? `${achados.length} de ${itens.length}` : `${itens.length}`}{" "}
-          {itens.length === 1 ? "item mágico" : "itens mágicos"}
-        </span>
-        {temFiltro && (
-          <button
-            type="button"
-            className="link"
-            data-testid="compendio-limpar"
-            onClick={() => {
-              setTipo("");
-              setRaridade("");
-            }}
-          >
-            Limpar filtros
-          </button>
-        )}
-      </div>
-      {meus.length > 0 ? (
-        <label className="linha-opcao ficha-de-quem">
-          Ficha de
-          <select
-            data-testid="compendio-alvo"
-            aria-label="Ficha que recebe"
-            value={alvo?.id ?? ""}
-            onChange={(e) => {
-              escolherAlvo(e.target.value);
-              setAviso(null);
-            }}
-          >
-            {meus.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.nome}
-              </option>
-            ))}
-          </select>
-        </label>
-      ) : (
-        <p className="nota" data-testid="compendio-sem-personagem">
-          Você não edita nenhum personagem: não há ficha para receber.
-        </p>
+      {!modoTodas && (
+        <>
+          <div className="filtros-do-monstro" data-testid="compendio-filtros-itens-magicos">
+            <select
+              data-testid="compendio-item-magico-tipo"
+              aria-label="Tipo de item"
+              value={tipo}
+              onChange={(e) => setTipo(e.target.value)}
+            >
+              <option value="">Todos os tipos</option>
+              {opcoes.tipos.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+            <select
+              data-testid="compendio-item-magico-raridade"
+              aria-label="Raridade"
+              value={raridade}
+              onChange={(e) => setRaridade(e.target.value)}
+            >
+              <option value="">Todas as raridades</option>
+              {opcoes.raridades.map((r) => (
+                <option key={r} value={r}>
+                  {ROTULO_DA_RARIDADE[r]}
+                </option>
+              ))}
+            </select>
+            <select
+              data-testid="compendio-item-magico-sintonizacao"
+              aria-label="Sintonização"
+              value={sintonizacao}
+              onChange={(e) => setSintonizacao(e.target.value)}
+            >
+              <option value="">Com ou sem sintonização</option>
+              <option value="sim">Exige sintonização</option>
+              <option value="nao">Não exige sintonização</option>
+            </select>
+          </div>
+          <div className="barra-do-compendio">
+            <span className="nota contagem-do-compendio" data-testid="compendio-contagem">
+              {temFiltro ? `${achados.length} de ${itens.length}` : `${itens.length}`}{" "}
+              {itens.length === 1 ? "item mágico" : "itens mágicos"}
+            </span>
+            {temFiltro && (
+              <button
+                type="button"
+                className="link"
+                data-testid="compendio-limpar"
+                onClick={() => {
+                  setTipo("");
+                  setRaridade("");
+                  setSintonizacao("");
+                }}
+              >
+                Limpar filtros
+              </button>
+            )}
+          </div>
+          {meus.length > 0 ? (
+            <label className="linha-opcao ficha-de-quem">
+              Ficha de
+              <select
+                data-testid="compendio-alvo"
+                aria-label="Ficha que recebe"
+                value={alvo?.id ?? ""}
+                onChange={(e) => {
+                  escolherAlvo(e.target.value);
+                  setAviso(null);
+                }}
+              >
+                {meus.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.nome}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : (
+            <p className="nota" data-testid="compendio-sem-personagem">
+              Você não edita nenhum personagem: não há ficha para receber.
+            </p>
+          )}
+          <p className="nota">Arraste para a ficha aberta ou use Adicionar.</p>
+        </>
       )}
-      <p className="nota">Arraste para a ficha aberta ou use Adicionar.</p>
       {achados.length === 0 ? (
         <p className="nota" data-testid="compendio-nenhuma">
           Nenhum item mágico encontrado.
         </p>
       ) : (
-        <ul className="lista-de-magias" data-testid="compendio-lista-entradas">
-          {achados.map((i) => {
+        <BlocosDoCompendio
+          escopo="itensMagicos"
+          grupos={agruparItensMagicosPorRaridade(achados)}
+          forcar={temFiltro}
+          total={itens.length}
+          testid="compendio-lista-entradas"
+          renderEntrada={(i) => {
             const aberto = abertos.has(i.nome);
             return (
               <li key={i.nome}>
@@ -624,7 +666,9 @@ export function ListaDeItensMagicos({
                   >
                     <GripVertical size={14} className="alca-da-entrada" aria-hidden />
                     <span className="textos-da-entrada">
-                      <span className="nome-da-magia">{i.nome}</span>
+                      <span className="nome-da-magia">
+                        {i.nome} <NomeOriginal nome={i.nomeOriginal} />
+                      </span>
                       <span className="nivel-e-escola">
                         <span
                           className="raridade-do-item"
@@ -656,8 +700,8 @@ export function ListaDeItensMagicos({
                 )}
               </li>
             );
-          })}
-        </ul>
+          }}
+        />
       )}
       <MensagemDeAviso aviso={aviso} />
     </div>

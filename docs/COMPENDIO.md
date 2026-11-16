@@ -44,9 +44,23 @@ Se preferir, copie os arquivos para a pasta `compendio/` da pasta local da mesa 
 
 ## O que cada arquivo tem
 
-- **Magias.** Nome, nível, escola, tempo, alcance, componentes (com o material), duração, concentração, ritual, classes (das listas por classe do capítulo 11), descrição e "Em níveis superiores". O livro não traz o nome em inglês, então `nomeOriginal` fica vazio.
+- **Magias.** Nome, nível, escola, tempo, alcance, componentes (com o material), duração, concentração, ritual, classes (das listas por classe do capítulo 11), descrição e "Em níveis superiores". O livro não traz o nome em inglês, então `nomeOriginal` fica vazio, a não ser que você passe a tabela de nomes (próxima seção).
 - **Monstros.** O bloco inteiro: tipo, tamanho, tendência, CA, PV com a fórmula, deslocamento, atributos, testes de resistência, perícias, resistências, imunidades, sentidos, idiomas, ND e XP, traços, ações, reações e ações lendárias. As ações trazem acerto, alcance, dano e tipo (dano duplo, salvaguarda, recarga e usos por dia) quando o texto permite. A Conjuração Inata e a Conjuração por espaços viram os campos estruturados (os nomes das magias seguem os do Livro do Jogador).
 - **Itens mágicos.** Nome, tipo, raridade, sintonização (e por quem), descrição e, em arma com "+N de bônus", o `bonus`.
+
+## Os nomes em inglês (Q2)
+
+Os PDFs em português não trazem o nome original. Para a busca em inglês ("fireball" achar "Bola de Fogo"), o extrator lê uma tabela local:
+
+```
+{ "magias": { "Bola de Fogo": "Fireball" }, "monstros": { "Goblin": "Goblin" }, "itens": { "Anel de Proteção": "Ring of Protection" } }
+```
+
+- O arquivo se chama `nomes-originais.json` e fica **na pasta de saída** (a mesma do `--saida`): o extrator o lê sozinho. Outra pasta: `--nomes "<arquivo>"`. A pasta de saída e a tabela nunca entram no repositório.
+- A chave é o nome em português do jogo, sem se importar com acento ou caixa. Quem não está na tabela fica sem `nomeOriginal`. Um `nomeOriginal` que o livro já trouxesse não é trocado.
+- "itens" vale para os itens mágicos.
+- Depois de mudar a tabela, rode o extrator de novo e use "Recarregar" na aba Compêndio.
+- A tabela do Vilella (em `Documentos\Pessoal\RPG\Compendio-Tavola\nomes-originais.json`) foi escrita de memória, com os nomes oficiais do D&D 5e. Ficaram sem nome em inglês 6 magias, 6 monstros e 15 itens mágicos (os que não deu para saber com segurança).
 
 ## O que o extrator não faz
 

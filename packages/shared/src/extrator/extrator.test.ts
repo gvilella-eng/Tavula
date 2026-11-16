@@ -25,6 +25,7 @@ import {
   lerMonstro,
   numerosDaAcao,
 } from "./monstros.ts";
+import { aplicarNomesOriginais, lerTabelaDeNomes } from "./nomes.ts";
 import { amostraDeNomes, montarRelatorio } from "./relatorio.ts";
 
 // Tudo aqui é INVENTADO: imita o formato dos livros (duas colunas, versalete, rótulos), sem uma linha do conteúdo
@@ -802,5 +803,43 @@ describe("arquivo, relatório e linha de comando", () => {
     expect(estaDentro("/repo", "/repo")).toBe(true);
     expect(estaDentro("/outro/pasta", "/repo")).toBe(false);
     expect(estaDentro("/repo-irmao", "/repo")).toBe(false);
+  });
+});
+
+describe("nomes em inglês (Q2)", () => {
+  it("lê a tabela, com seção ausente vazia, e recusa formato errado", () => {
+    const ok = lerTabelaDeNomes('{"magias":{"Bola Inventada":"Invented Ball"}}');
+    expect(ok).toEqual({
+      ok: true,
+      tabela: { magias: { "Bola Inventada": "Invented Ball" }, monstros: {}, itens: {} },
+    });
+    expect(lerTabelaDeNomes("nao json").ok).toBe(false);
+    expect(lerTabelaDeNomes('{"magias":[]}').ok).toBe(false);
+    expect(lerTabelaDeNomes('{"monstros":{"A":3}}').ok).toBe(false);
+  });
+
+  it("preenche o nomeOriginal sem acento nem caixa e respeita o que já existe", () => {
+    const r = aplicarNomesOriginais(
+      [
+        { nome: "Mísseis Inventados" },
+        { nome: "Sem Nome" },
+        { nome: "Pronto", nomeOriginal: "Ready" },
+      ],
+      { "misseis inventados": "Invented Missiles", Pronto: "Outro" },
+    );
+    expect(r.preenchidos).toBe(1);
+    expect(r.entradas.map((e) => e.nomeOriginal)).toEqual([
+      "Invented Missiles",
+      undefined,
+      "Ready",
+    ]);
+  });
+
+  it("lê o argumento --nomes", () => {
+    expect(lerArgumentos(["--livros", "L", "--saida", "S", "--nomes", "N.json"])).toEqual({
+      livros: "L",
+      saida: "S",
+      nomes: "N.json",
+    });
   });
 });

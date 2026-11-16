@@ -788,6 +788,8 @@ export type FiltroDeItensMagicos = {
   texto?: string | undefined;
   tipo?: string | undefined;
   raridade?: RaridadeDeItemMagico | undefined;
+  /** Q2: true = só os que exigem sintonização; false = só os que não exigem. */
+  sintonizacao?: boolean | undefined;
 };
 
 /** Os itens mágicos que passam pelos filtros, em ordem alfabética. */
@@ -802,6 +804,11 @@ export function buscarItensMagicos(
   const passa = (i: ItemMagicoDoCompendio): boolean => {
     if (tipo !== undefined && normalizarBusca(tipoBaseDoItemMagico(i.tipo)) !== tipo) return false;
     if (filtro.raridade !== undefined && i.raridade !== filtro.raridade) return false;
+    if (
+      filtro.sintonizacao !== undefined &&
+      (i.sintonizacao?.necessaria === true) !== filtro.sintonizacao
+    )
+      return false;
     if (palavras.length > 0) {
       const alvo = `${normalizarBusca(i.nome)} ${normalizarBusca(i.nomeOriginal ?? "")}`;
       if (!palavras.every((p) => alvo.includes(p))) return false;
