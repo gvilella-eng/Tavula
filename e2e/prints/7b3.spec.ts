@@ -1,7 +1,15 @@
-import { mkdirSync } from "node:fs";
+import { mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Page } from "@playwright/test";
-import { abrirAba, test as base, enviarCru, expect, intencaoCrua, Mesa } from "../tests/ajudas";
+import {
+  abrirAba,
+  test as base,
+  enviarCru,
+  expect,
+  importarCampanha,
+  intencaoCrua,
+  Mesa,
+} from "../tests/ajudas";
 import { entrarNoMapa, pontoNaPagina } from "../tests/ajudasMapa";
 
 // Prints do lote 7b-3 (o editor das automações, os botões na barra, o painel das Zonas à direita): Grimório em 1600×900 e
@@ -96,8 +104,13 @@ for (const c of COMBINACOES) {
 
       // a Chama Primordial pela lista de exemplos; o ciclo fixado aparece na barra
       await abrirAba(m, "mesa");
-      await m.getByTestId("exemplo-chama-primordial-escolher").click();
-      await m.getByTestId("importar-confirmar").click();
+      await importarCampanha(m, {
+        name: "chama-primordial.json",
+        mimeType: "application/json",
+        buffer: readFileSync(
+          new URL("../../fixtures/campanhas/chama-primordial.json", import.meta.url),
+        ),
+      });
       await expect(m.getByTestId("chip-ciclo-respiracao")).toBeVisible();
       await mandar(m, "ciclo.editar", {
         id: "respiracao",

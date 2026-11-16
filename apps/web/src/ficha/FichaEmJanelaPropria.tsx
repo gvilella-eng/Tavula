@@ -87,6 +87,7 @@ export function FichaEmJanelaPropria({ mesa, fichaId, aoPerderSessao }: Props) {
       euMestre: () => euAtual.current?.papel === "mestre",
       nomeDoUsuario: (id) => estadoAtual.current?.usuarios.find((u) => u.id === id)?.nome,
       destinoDeCopia: () => fontes.destinoDeCopia(),
+      pastaDosArquivos: () => fontes.pastaDosArquivos(),
       ganchos: ganchosDoTeste,
     });
     let vivo = true;

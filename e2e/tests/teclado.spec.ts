@@ -173,16 +173,17 @@ test("Shift+F10 abre o menu do token selecionado; setas e Enter marcam uma condi
   await expect(menu).toBeVisible();
   await expect(menu).toHaveAttribute("aria-label", /Token: /);
   // o foco vai para o primeiro item; as setas andam
-  await expect.poll(() => emFoco(p)).toBe("menu-token-editar");
+  // (Q1: o primeiro item agora é "Abrir ficha", logo antes de "Editar token…")
+  await expect.poll(() => emFoco(p)).toBe("menu-token-abrir-ficha");
   await p.keyboard.press("ArrowDown");
-  await expect.poll(() => emFoco(p)).toBe("menu-token-iniciativa");
-  await p.keyboard.press("ArrowUp");
   await expect.poll(() => emFoco(p)).toBe("menu-token-editar");
+  await p.keyboard.press("ArrowUp");
+  await expect.poll(() => emFoco(p)).toBe("menu-token-abrir-ficha");
   // End vai ao último controle (o campo da concentração; nele Home e End são do texto); a seta para baixo dá a volta
   await p.keyboard.press("End");
   await expect.poll(() => emFoco(p)).toBe("concentracao-input");
   await p.keyboard.press("ArrowDown");
-  await expect.poll(() => emFoco(p)).toBe("menu-token-editar");
+  await expect.poll(() => emFoco(p)).toBe("menu-token-abrir-ficha");
 
   // Enter marca "Caído": o mesmo frame do clique
   await descerAte(p, "condicao-caido");
@@ -236,8 +237,8 @@ test("o jogador abre o menu do token que controla, pelo teclado, e não o de out
   await expect(p.getByTestId("menu-token")).toHaveAttribute("aria-label", "Token: Aldric");
   // sem "Editar token…" (é do mestre): o foco vai para o primeiro item que existe
   await expect(p.getByTestId("menu-token-editar")).toHaveCount(0);
-  // (N1: o primeiro item que existe agora é "Marcar como morto")
-  await expect.poll(() => emFoco(p)).toBe("menu-token-morto");
+  // (Q1: o primeiro item que existe agora é "Abrir ficha")
+  await expect.poll(() => emFoco(p)).toBe("menu-token-abrir-ficha");
   await p.keyboard.press("Escape");
   await expect(p.getByTestId("menu-token")).toHaveCount(0);
   await expect(p.getByTestId("mapa")).toBeFocused();

@@ -90,8 +90,18 @@ export class Memoria implements FonteDeAssets {
     this.outros.set(caminho, texto);
   }
 
+  /** Só os testes e2e: põe bytes na "pasta" como se tivessem sido gravados (uma pasta que outro navegador encheu). */
+  importarBytes(caminho: string, bytes: Uint8Array): void {
+    this.gravadosEm.set(caminho, bytes);
+    if (caminho.endsWith(".json")) this.outros.set(caminho, new TextDecoder().decode(bytes));
+  }
+
   async abrirPorCaminho(caminho: readonly string[]): Promise<File | null> {
     const chave = caminho.join("/");
+    const gravado = this.gravadosEm.get(chave);
+    if (gravado) {
+      return new File([gravado as BlobPart], caminho[caminho.length - 1] ?? chave);
+    }
     const texto = this.outros.get(chave);
     if (texto === undefined) return null;
     return new File([texto], caminho[caminho.length - 1] ?? chave, { type: "application/json" });
@@ -137,7 +147,14 @@ const chaveDaPasta = (mesaId: string) => `handle:${mesaId}`;
 /** A chave de antes do C1, quando a pasta era uma só. */
 const CHAVE_ANTIGA_DA_PASTA = "handle";
 
-const PASTAS_IGNORADAS = new Set(["recebidos", "backup", "node_modules", ".git"]);
+const PASTAS_IGNORADAS = new Set([
+  "recebidos",
+  "backup",
+  "node_modules",
+  ".git",
+  // Q1: a cópia dos arquivos da mesa, com o hash por nome: não é biblioteca de imagens nem de sons
+  "arquivos-da-mesa",
+]);
 const PROFUNDIDADE_MAXIMA = 4;
 
 export const temSeletorDePasta = () =>

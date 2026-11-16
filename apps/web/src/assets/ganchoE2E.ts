@@ -1,5 +1,5 @@
 import { bytesParaHex, sha256Hex } from "@tabletop/shared";
-import type { Fontes } from "./fontes";
+import type { EstadoDaPasta, Fontes } from "./fontes";
 import type { GanchosE2E, GerenteDeAssets } from "./gerente";
 
 /**
@@ -44,6 +44,24 @@ export function instalarGanchoDeAssets(gerente: GerenteDeAssets, fontes: Fontes)
     },
     /** Faz a "pasta" dos testes (a `Memoria`) valer como a pasta local com escrita (compêndio: "Usar o exemplo"). */
     usarMemoriaComoPasta: (valor: boolean) => fontes.definirMemoriaComoPasta(valor),
+    /** Q1: o estado da "pasta" dos testes: `nenhuma`, `reautorizar` ou `autorizada` (`null` desliga a simulação). */
+    simularPasta: (estado: EstadoDaPasta | null) => fontes.simularPasta(estado),
+    /** Q1: tudo o que a "pasta" guarda (arquivos gravados), em base64, para levar a OUTRO navegador (a mesma pasta do computador). */
+    exportarPasta: () =>
+      (fontes.memoria?.gravados() ?? []).map((g) => ({
+        caminho: g.caminho,
+        base64: btoa(Array.from(g.bytes, (b) => String.fromCharCode(b)).join("")),
+      })),
+    /** Q1: o outro lado: põe na "pasta" deste navegador o que `exportarPasta` devolveu. */
+    importarPasta: (lista: { caminho: string; base64: string }[]) => {
+      for (const l of lista) {
+        fontes.memoria?.importarBytes(
+          l.caminho,
+          Uint8Array.from(atob(l.base64), (c) => c.charCodeAt(0)),
+        );
+      }
+      fontes.notificar();
+    },
     /** O que foi "gravado na pasta" (a `Memoria` do modo e2e): caminho, tamanho e SHA-256. */
     gravados: async () => {
       const lista = fontes.memoria?.gravados() ?? [];

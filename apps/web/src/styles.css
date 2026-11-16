@@ -953,10 +953,16 @@ textarea {
 }
 .transferencias li {
   display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 2px 8px;
-  align-items: center;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 2px;
   margin-bottom: 6px;
+}
+/* Q1: o nome numa linha só, cortado com reticências (o nome inteiro está no title); o status vai abaixo. */
+.transferencias .nome {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .transferencias progress {
   grid-column: 1 / -1;
@@ -5608,23 +5614,6 @@ button.inicio-botao-largo {
   border-color: var(--perigo);
 }
 
-/* 7b-3: a lista de campanhas de exemplo junto ao Importar */
-.campanhas-de-exemplo {
-  margin-top: 10px;
-}
-.campanhas-de-exemplo h5 {
-  margin: 0 0 4px;
-  font-size: 12px;
-  color: var(--texto-suave);
-}
-.campanhas-de-exemplo li {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 4px;
-  padding: 6px 0;
-}
-
 /* --- o acesso do Claude (12-1) ------------------------------------------------------------------------ */
 
 /* O selo "Rascunho": o que o Claude criou e os jogadores ainda não veem. Só tokens do tema. */
@@ -5776,14 +5765,12 @@ button.inicio-botao-largo {
   border: 1px solid var(--borda);
   border-radius: 6px;
 }
-.claude-tokens,
-.claude-lotes ul {
+.claude-tokens {
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
-.claude-token,
-.claude-lote {
+.claude-token {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -5803,13 +5790,6 @@ button.inicio-botao-largo {
 .claude-token .confirmar-limpar {
   width: 100%;
   margin-top: 0;
-}
-.claude-lote[data-desfeito="true"] {
-  opacity: 0.6;
-}
-.claude-lote-texto {
-  min-width: 0;
-  flex: 1 1 160px;
 }
 .claude-subtitulo {
   margin: 8px 0 0;
@@ -6093,6 +6073,26 @@ button.inicio-botao-largo {
   background: var(--painel);
   color: var(--texto);
   border: 1px solid var(--borda);
+  border-radius: var(--raio);
+  box-shadow: var(--sombra);
+}
+/* Q1: o aviso da pasta da mesa (reautorizar, escolher ou trocar), no alto da área do mapa. */
+.aviso-pasta {
+  position: absolute;
+  left: 50%;
+  top: 12px;
+  transform: translateX(-50%);
+  z-index: 41;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  max-width: min(560px, calc(100% - 24px));
+  padding: 8px 12px;
+  font-size: 13px;
+  background: var(--painel);
+  color: var(--texto);
+  border: 1px solid var(--acento);
   border-radius: var(--raio);
   box-shadow: var(--sombra);
 }

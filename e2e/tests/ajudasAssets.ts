@@ -174,6 +174,12 @@ type GanchoDosAssets = {
   adicionarNaPasta(caminho: string, texto: string): void;
   /** A "pasta" dos testes (a `Memoria`) passa a valer como a pasta local com escrita (R5b). */
   usarMemoriaComoPasta(valor: boolean): void;
+  /** Q1: o estado da "pasta" dos testes (`nenhuma`, `reautorizar` ou `autorizada`). */
+  simularPasta(estado: "nenhuma" | "reautorizar" | "autorizada" | null): void;
+  /** Q1: tudo o que a "pasta" guarda, em base64, para levar a outro navegador (a mesma pasta do computador). */
+  exportarPasta(): { caminho: string; base64: string }[];
+  /** Q1: põe na "pasta" deste navegador o que `exportarPasta` devolveu. */
+  importarPasta(lista: { caminho: string; base64: string }[]): void;
 };
 
 type ImagensVistas = {

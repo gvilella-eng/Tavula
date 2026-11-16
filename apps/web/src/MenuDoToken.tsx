@@ -10,6 +10,7 @@ import {
 import {
   Backpack,
   Check,
+  FileText,
   Flame,
   FlameKindling,
   Layers,
@@ -37,6 +38,8 @@ type Props = {
   enviar: (tipo: string, dados: object) => string | null;
   /** Aberto pelo teclado (Shift+F10 ou a tecla de menu): o foco vai para o primeiro item. */
   teclado?: boolean;
+  /** Q1: "Abrir ficha": abre a janela da ficha do personagem do token. */
+  aoAbrirFicha: (personagemId: string) => void;
   /** "Editar token…": seleciona o token e abre o painel dele (só o mestre). */
   aoEditar: () => void;
   aoFechar: () => void;
@@ -59,6 +62,7 @@ const CAMADAS_DO_MENU: readonly (readonly [Camada, string])[] = [
 function alturaDoMenu(mestre: boolean, tochas: number): number {
   return (
     44 +
+    31 +
     31 +
     (mestre ? 76 + 28 + 3 * 31 : 0) +
     (tochas > 0 ? 28 + tochas * 76 : 0) +
@@ -84,6 +88,7 @@ export function MenuDoToken({
   euMestre,
   enviar,
   teclado,
+  aoAbrirFicha,
   aoEditar,
   aoFechar,
 }: Props) {
@@ -95,6 +100,9 @@ export function MenuDoToken({
   if (!token) return null;
   const naOrdem = estado.combate?.entradas.find((e) => e.tokenId === tokenId);
   const ativas = new Set<Condicao>(token.condicoes ?? []);
+  // Q1: com ficha que esta pessoa vê (a sala só manda ao jogador as que ele pode ver).
+  const temFicha =
+    token.personagemId !== undefined && estado.personagens.some((p) => p.id === token.personagemId);
   // As tochas na mão do personagem deste token.
   const tochas = estado.luzes.filter(
     (l) =>
@@ -130,6 +138,22 @@ export function MenuDoToken({
       onKeyDown={aoTeclarNoMenu}
     >
       <div className="nota menu-titulo">{token.nome}</div>
+      {temFicha && token.personagemId !== undefined && (
+        <button
+          type="button"
+          role="menuitem"
+          className="item-menu"
+          data-testid="menu-token-abrir-ficha"
+          onClick={() => {
+            const id = token.personagemId;
+            aoFechar();
+            if (id !== undefined) aoAbrirFicha(id);
+          }}
+        >
+          <FileText size={16} />
+          <span>Abrir ficha</span>
+        </button>
+      )}
       {euMestre && (
         <>
           <button

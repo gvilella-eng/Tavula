@@ -1,4 +1,13 @@
-import { abrirAba, abrirPreferencia, expect, ID_DA_MESA, type Sessao, test } from "./ajudas";
+import {
+  abrirAba,
+  abrirPreferencia,
+  enviarCru,
+  expect,
+  ID_DA_MESA,
+  intencaoCrua,
+  type Sessao,
+  test,
+} from "./ajudas";
 import { ClaudeWs, gerarToken, SALA_E2E, tentarAbrir } from "./ajudasClaude";
 import { abrirHandout } from "./ajudasFicha";
 import { entrarNoMapa } from "./ajudasMapa";
@@ -393,34 +402,28 @@ test("Desfazer o que o Claude fez: o lote some com o que foi criado (mesmo publi
     { loteId: "L3", lote: "renomeou" },
   );
 
-  // os lotes do Claude do mestre aparecem em Preferências, do mais novo ao mais velho
+  // Q1: Preferências não lista mais os lotes nem tem o botão Desfazer; o Desfazer segue existindo para o MCP (a intenção
+  // `claude.desfazer`), que aqui é mandada do navegador do mestre.
   await abrirPreferencia(m, "claude");
-  const lotes = m.getByTestId("claude-lote");
-  await expect(lotes).toHaveCount(3);
-  await expect(lotes.nth(0)).toContainText("Claude: renomeou");
-  await expect(lotes.nth(2)).toContainText("Claude: criou 2 NPCs");
-  await expect(lotes.nth(2)).toContainText("2 itens");
+  await expect(m.getByTestId("claude-lotes")).toHaveCount(0);
+  await expect(m.getByTestId("claude-desfazer")).toHaveCount(0);
+  const desfazer = (loteId: string) => enviarCru(m, intencaoCrua("claude.desfazer", { loteId }));
 
   // desfaz o primeiro (L1): NPC-UM e NPC-DOIS somem
-  await lotes.nth(2).getByTestId("claude-desfazer").click();
+  await desfazer("L1");
   await abrirAba(m, "fichas");
   await expect(m.getByTestId("ficha-item-npc-1")).toHaveCount(0);
   await expect(m.getByTestId("ficha-item-npc-2")).toHaveCount(0);
   await expect(m.getByTestId("ficha-item-npc-3")).toBeVisible();
-  await abrirPreferencia(m, "claude");
-  await expect(m.getByTestId("claude-lote").nth(2)).toHaveAttribute("data-desfeito", "true");
 
-  // desfazer o lote L2 (criou o NPC-TRES, que a mesa/Claude depois mudou): o item é pulado e o aviso diz qual; o L3 antes
-  await m.getByTestId("claude-lote").nth(0).getByTestId("claude-desfazer").click(); // L3: volta o nome
-  await abrirAba(m, "fichas");
+  // desfazer o lote L2 (criou o NPC-TRES, que a mesa/Claude depois mudou): o L3 antes, que volta o nome
+  await desfazer("L3");
   await expect(m.getByTestId("ficha-nome-npc-3")).toHaveText("NPC-TRES");
-  await abrirPreferencia(m, "claude");
-  await m.getByTestId("claude-lote").nth(1).getByTestId("claude-desfazer").click(); // L2: o NPC-TRES some
-  await abrirAba(m, "fichas");
+  await desfazer("L2"); // o NPC-TRES some
   await expect(m.getByTestId("ficha-item-npc-3")).toHaveCount(0);
 });
 
-test("'Desfazer tudo o que o Claude fez' (com confirmação) e o aviso do item que mudou depois", async ({
+test("desfazer os lotes do Claude, do mais novo ao mais velho, pela intenção (sem tela em Preferências)", async ({
   mesa,
 }) => {
   const mestre = await entrarNoMapa(mesa, "mestre");
@@ -445,10 +448,9 @@ test("'Desfazer tudo o que o Claude fez' (com confirmação) e o aviso do item q
     { id: "b", mudancas: { nome: "NPC-B2" } },
     { loteId: "C", lote: "renomeou B" },
   );
-  await abrirPreferencia(m, "claude");
-  await m.getByTestId("claude-desfazer-tudo").click();
-  await expect(m.getByTestId("claude-desfazer-tudo-confirmacao")).toBeVisible();
-  await m.getByTestId("claude-desfazer-tudo-confirmar").click();
+  for (const loteId of ["C", "B", "A"]) {
+    await enviarCru(m, intencaoCrua("claude.desfazer", { loteId }));
+  }
   await abrirAba(m, "fichas");
   await expect(m.getByTestId("ficha-item-a")).toHaveCount(0);
   await expect(m.getByTestId("ficha-item-b")).toHaveCount(0);

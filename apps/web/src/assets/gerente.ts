@@ -62,6 +62,8 @@ type Dependencias = {
   euMestre: () => boolean;
   nomeDoUsuario: (id: string) => string | undefined;
   destinoDeCopia: () => FonteDeAssets | null;
+  /** Q1: a pasta da mesa com escrita (só o mestre a usa): guarda uma cópia de cada arquivo da mesa em `arquivos-da-mesa/`. */
+  pastaDosArquivos: () => FonteDeAssets | null;
   ganchos: () => GanchosE2E | undefined;
 };
 
@@ -73,6 +75,9 @@ const TENTATIVAS_POR_PEDACO = 5;
 const TENTATIVAS_DO_ARQUIVO = 3;
 const PARADO_MS = 20_000;
 const REPERGUNTAR_MS = 30_000;
+
+/** Q1: a subpasta da pasta da mesa onde cada arquivo do cache tem uma cópia, com o hash por nome. */
+export const PASTA_DOS_ARQUIVOS_DA_MESA = "arquivos-da-mesa";
 
 const dormir = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 const semDono = ({ donoId: _d, ...resto }: AssetMeta): MetaNova => resto;
@@ -434,6 +439,7 @@ export class GerenteDeAssets {
     this.d.canal()?.enviar("asset.tenho", { hash });
     this.aoFicarPronto(hash);
     void this.copiarSePreciso(meta);
+    void this.guardarNaPasta(hash);
   }
 
   private aoFicarPronto(hash: string): void {
@@ -626,6 +632,7 @@ export class GerenteDeAssets {
         await this.d.cache.gravarArquivo(meta.hash, bytes as BufferSource);
         this.completos.add(meta.hash);
         await this.guardarMeta({ ...meta, donoId: this.d.meuId });
+        void this.guardarNaPasta(meta.hash);
         metas.push(meta);
       }
       if (r.manifesto) {
@@ -667,6 +674,7 @@ export class GerenteDeAssets {
       await this.d.cache.gravarArquivo(hash, bytes as BufferSource);
       this.completos.add(hash);
     }
+    void this.guardarNaPasta(hash);
     await this.guardarMeta({ ...meta, donoId: this.d.meuId });
     this.persistir();
     if (canal.enviar("asset.registrar", { metas: [meta] }) === null) {
@@ -707,6 +715,7 @@ export class GerenteDeAssets {
       await this.d.cache.gravarArquivo(hash, bytes as BufferSource);
       this.completos.add(hash);
     }
+    void this.guardarNaPasta(hash);
     await this.guardarMeta({ ...meta, donoId: this.d.meuId });
     this.persistir();
     if (canal.enviar("asset.registrar", { metas: [meta] }) === null) {
@@ -716,6 +725,71 @@ export class GerenteDeAssets {
     this.mudou();
     this.prontosMudaram();
     return { hash, nome };
+  }
+
+  // --- a cópia na pasta da mesa (Q1) ---------------------------------------------------------
+
+  private readonly naPasta = new Set<string>();
+  private sincronizando: Promise<void> | null = null;
+
+  /**
+   * Só no mestre, com a pasta liberada para escrita: copia o arquivo do cache para `arquivos-da-mesa/<hash>`. Assim a
+   * pasta guarda tudo o que a mesa usa e outro navegador do mesmo computador carrega dela, sem o primeiro estar online.
+   * Nunca derruba nada: sem pasta ou com erro, o cache segue valendo.
+   */
+  async guardarNaPasta(hash: string): Promise<void> {
+    if (!this.d.euMestre() || this.naPasta.has(hash) || !this.completos.has(hash)) return;
+    const pasta = this.d.pastaDosArquivos();
+    if (!pasta?.podeGravar) return;
+    try {
+      const arquivo = await this.d.cache.lerArquivo(hash);
+      if (!arquivo) return;
+      await pasta.gravar([PASTA_DOS_ARQUIVOS_DA_MESA], hash, arquivo);
+      this.naPasta.add(hash);
+    } catch (e) {
+      console.warn("Não consegui guardar o arquivo na pasta da mesa", e);
+    }
+  }
+
+  /**
+   * Só no mestre, com a pasta liberada (ao abrir a mesa, ao escolher ou reautorizar a pasta e quando chegam metas
+   * novas): traz da pasta o que a mesa usa e este navegador não tem (confere o hash de cada um) e leva para a pasta o
+   * que o cache tem e ela não. `metas` são as metas da mesa que este navegador deve ter.
+   */
+  sincronizarComAPasta(metas: readonly AssetMeta[]): Promise<void> {
+    if (!this.d.euMestre() || !this.d.pastaDosArquivos()) return Promise.resolve();
+    const anterior = this.sincronizando ?? Promise.resolve();
+    const atual = anterior
+      .then(() => this.sincronizar(metas))
+      .catch((e) => console.warn("Não consegui sincronizar com a pasta da mesa", e));
+    this.sincronizando = atual;
+    return atual;
+  }
+
+  private async sincronizar(metas: readonly AssetMeta[]): Promise<void> {
+    const pasta = this.d.pastaDosArquivos();
+    if (!pasta) return;
+    for (const meta of metas) {
+      if (this.completos.has(meta.hash) || meta.tiles) continue;
+      const arquivo = await pasta.abrirPorCaminho([PASTA_DOS_ARQUIVOS_DA_MESA, meta.hash]);
+      if (!arquivo) continue;
+      const bytes = new Uint8Array(await arquivo.arrayBuffer());
+      if (!(await arquivoConfere(meta, bytes))) continue; // arquivo estranho na pasta: ignora
+      this.metas.set(meta.hash, meta);
+      await this.d.cache.gravarMeta(meta);
+      await this.d.cache.gravarArquivo(meta.hash, bytes as BufferSource);
+      this.completos.add(meta.hash);
+      this.naPasta.add(meta.hash);
+      const st = this.status.get(meta.hash);
+      if (st) {
+        st.estado = "pronto";
+        delete st.mensagem;
+        st.recebidos = st.total = meta.pedacos.length;
+      }
+      this.d.canal()?.enviar("asset.tenho", { hash: meta.hash });
+      this.aoFicarPronto(meta.hash);
+    }
+    for (const hash of [...this.completos]) await this.guardarNaPasta(hash);
   }
 
   /** O texto de um arquivo que já está no cache (o compêndio); `null` se ainda não chegou. */

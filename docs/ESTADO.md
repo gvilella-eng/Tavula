@@ -3805,4 +3805,34 @@ Ver `PASSAGEM.md` ("M2").
 ### Roteiro manual
 `docs/ROTEIRO-DE-TESTES.md`, "M2".
 
-## Próximo: o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b, N4, N5, M1 e M2
+## Ajustes Q1 — Ajustes do Vilella e os arquivos entre navegadores (entregue, aguardando o roteiro manual)
+
+### O que foi entregue
+- "Abrir ficha" no topo do clique direito do token (mestre, e jogador no próprio token).
+- Preferências → Claude sem a lista "O que o Claude fez" (o `claude.desfazer` segue para o MCP). Importar sem "Campanhas de exemplo". A mesa nova já nascia no 5e padrão; um teste de unidade garante.
+- Transferências: nome numa linha com reticências, status abaixo.
+- Cópia dos arquivos da mesa em `arquivos-da-mesa/<hash>` na pasta (só o mestre, pasta liberada), trazida de volta ao abrir, escolher ou reautorizar a pasta. Aviso na mesa e na aba Compêndio: reautorizar, escolher ou trocar a pasta. `docs/ARQUIVOS.md` explica tudo.
+- Entrar como mestre pela chave da pasta lembra a pasta como a da mesa.
+
+### Como rodar
+`pnpm dev` como sempre. Sem migração e sem mudança de protocolo.
+
+### Verificação
+- `pnpm verify` uma vez: typecheck e lint limpos; unidade 1156 (shared), 138 (server), 135 (web), 19 (mcp); E2E 452 testes, 450 passaram e 2 falharam: `teclado.spec.ts` (Shift+F10 no token, do mestre e do jogador), porque o foco agora cai em "Abrir ficha". Mudei a expectativa (mudança de propósito) e rodei só `teclado.spec.ts` e `q1.spec.ts`: passaram. Nenhum teste instável.
+- Novos: `e2e/tests/q1.spec.ts` (abrir ficha; Preferências e Importar; Transferências a 1280 e 1600; recarregar sem a pasta e reautorizar; segundo navegador de mestre e pasta errada) e o teste da mesa nova em `campanhasProntas.test.ts`.
+- Alterados por mudança de propósito: `claude-12-1.spec.ts` (o Desfazer agora é pela intenção, não por botão), `automacoes-editor.spec.ts` e `prints/7b3.spec.ts` (as campanhas entram pelo arquivo, não pela lista), `teclado.spec.ts` (primeiro item do menu). Saiu `campanhasDeExemplo.test.ts` (a lista saiu).
+
+### Decisões
+Ver `REDESIGN.md` ("Q1 — como ficou").
+
+### Desvios
+- A hipótese do brief (arquivos do Claude e compêndio não iam para o cache) não se confirmou: já iam. O que faltava era a cópia na pasta para o segundo navegador.
+- A escolha de pasta e a permissão de verdade só se testam à mão: no E2E a pasta é simulada.
+
+### Frágil
+Ver `PASSAGEM.md` ("Q1").
+
+### Roteiro manual
+`docs/ROTEIRO-DE-TESTES.md`, "Q1".
+
+## Próximo: o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b, N4, N5, M1, M2 e Q1

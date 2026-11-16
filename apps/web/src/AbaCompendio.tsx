@@ -29,6 +29,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { BotaoDaPasta, TEXTO_DO_CASO, useCasoDaPasta } from "./AvisoDaPasta";
 import type { Fontes } from "./assets/fontes";
 import type { GerenteDeAssets } from "./assets/gerente";
 import {
@@ -595,6 +596,8 @@ export function AbaCompendio({
     fontes,
     enviar,
   });
+  // Q1: o mestre sem a pasta liberada vê o que fazer, em vez de "ninguém com o arquivo está online".
+  const casoDaPasta = useCasoDaPasta(euMestre, fontes, gerente);
   const [filtro, setFiltro] = useState<FiltroDeMagias>({});
   const [aberta, setAberta] = useState<string | null>(null);
   // V4b: o arquivo pode trazer armas e itens além das magias; cada tipo tem a sua lista.
@@ -679,6 +682,13 @@ export function AbaCompendio({
             Recebendo o compêndio do mestre
             {c.total > 0 ? ` (${c.recebidos}/${c.total})` : ""}…
           </p>
+        ) : c.situacao === "indisponivel" && casoDaPasta ? (
+          <div data-testid="compendio-pasta" data-caso={casoDaPasta}>
+            <p className="nota">
+              O compêndio existe, mas este navegador não tem o arquivo. {TEXTO_DO_CASO[casoDaPasta]}
+            </p>
+            <BotaoDaPasta caso={casoDaPasta} fontes={fontes} testid="compendio-pasta-acao" />
+          </div>
         ) : c.situacao === "indisponivel" ? (
           <p className="nota" data-testid="compendio-indisponivel">
             O compêndio existe, mas ninguém com o arquivo está online. Assim que o mestre conectar,

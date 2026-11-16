@@ -370,11 +370,13 @@ test("a campanha '5e padrão' carrega e roda sem nenhuma automação", async ({ 
     },
   });
   await abrirAba(p, "mesa");
-  await expect(p.getByTestId("campanhas-de-exemplo")).toBeVisible();
-  await p.getByTestId("exemplo-5e-padrao-escolher").click();
-  await expect(p.getByTestId("importar-nome")).toHaveText("5e padrão");
-  await expect(p.getByTestId("importar-aviso")).toBeVisible();
-  await p.getByTestId("importar-confirmar").click();
+  // Q1: a lista de exemplos saiu da tela; o arquivo "5e padrão" é só fixture e entra como qualquer campanha exportada
+  await expect(p.getByTestId("campanhas-de-exemplo")).toHaveCount(0);
+  await importarCampanha(p, {
+    name: "5e-padrao.json",
+    mimeType: "application/json",
+    buffer: readFileSync(new URL("../../fixtures/campanhas/5e-padrao.json", import.meta.url)),
+  });
 
   await expect(p.getByTestId("automacoes-resumo")).toHaveText("Nenhuma automação nesta mesa.");
   await expect(p.getByTestId("modelo-modelo-tocha")).toBeVisible();
@@ -396,15 +398,19 @@ const lerCampanha = (nome: string) =>
     readFileSync(new URL(`../../fixtures/campanhas/${nome}`, import.meta.url), "utf8"),
   ) as Campanha;
 
-test("a 'Chama Primordial' pelo exemplo da lista carrega as automações e o ciclo fixado na barra", async ({
+test("a 'Chama Primordial' (arquivo de fixture) carrega as automações e o ciclo fixado na barra", async ({
   mesa,
 }) => {
   const mestre = await entrarNoMapa(mesa, "mestre");
   const p = mestre.pagina;
   await abrirAba(p, "mesa");
-  await p.getByTestId("exemplo-chama-primordial-escolher").click();
-  await expect(p.getByTestId("importar-nome")).toHaveText("A Chama Primordial");
-  await p.getByTestId("importar-confirmar").click();
+  await importarCampanha(p, {
+    name: "chama-primordial.json",
+    mimeType: "application/json",
+    buffer: readFileSync(
+      new URL("../../fixtures/campanhas/chama-primordial.json", import.meta.url),
+    ),
+  });
   await expect(p.getByTestId("automacoes-resumo")).toHaveText(
     "1 ciclo · 4 reações · 1 botão de evento",
   );

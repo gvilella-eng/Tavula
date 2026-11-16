@@ -56,6 +56,7 @@ import { AbaChat } from "./AbaChat";
 import { AbaCompendio } from "./AbaCompendio";
 import { AbaFichas } from "./AbaFichas";
 import { AbaMesa, testidDaSecaoDaMesa } from "./AbaMesa";
+import { AvisoDaPasta } from "./AvisoDaPasta";
 import { AvisoPerto } from "./AvisoPerto";
 import { AbaPreferencias } from "./abas";
 import { type DadosDaMesa, marcarTourVisto } from "./api";
@@ -226,7 +227,6 @@ export function Mesa({
     avisoDeContas,
     pendentesDaCaixa,
     claudeConectado,
-    lotesDoClaude,
     enviar,
     enviarBinario,
     bufferizado,
@@ -518,6 +518,7 @@ export function Mesa({
       euMestre: () => euAtual.current?.papel === "mestre",
       nomeDoUsuario: (id) => estadoAtual.current?.usuarios.find((u) => u.id === id)?.nome,
       destinoDeCopia: () => fontes.destinoDeCopia(),
+      pastaDosArquivos: () => fontes.pastaDosArquivos(),
       ganchos: ganchosDoTeste,
     });
     let vivo = true;
@@ -1238,6 +1239,15 @@ export function Mesa({
     versaoDosProntos,
   ]);
 
+  // Q1: o mestre com a pasta liberada: traz dela o que a mesa usa e este navegador não tem, e guarda nela o que só o cache
+  // tem. Roda ao abrir, ao escolher ou reautorizar a pasta e quando chegam arquivos novos à mesa.
+  const versaoDasFontes = useSyncExternalStore(fontes.assinar, fontes.versaoAtual);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `versaoDasFontes` avisa que a pasta mudou; `assetsDoEstado` que a mesa ganhou arquivos
+  useEffect(() => {
+    if (!gerente || !pronto || !euMestre || !assetsDoEstado) return;
+    void gerente.sincronizarComAPasta(assetsDoEstado);
+  }, [gerente, pronto, euMestre, assetsDoEstado, versaoDasFontes, conectado]);
+
   /** O personagem que mexe nas tochas: o do token selecionado ou o primeiro que eu controlo. */
   function meuPersonagemId(): string | undefined {
     if (!estado || !eu) return undefined;
@@ -1498,11 +1508,9 @@ export function Mesa({
                 login={login}
                 fontes={fontes}
                 gerente={gerente}
-                lotesDoClaude={lotesDoClaude}
                 claudeConectado={claudeConectado.includes(eu.id)}
                 somBloqueado={som.bloqueado}
                 aoAtivarSom={() => som.motor.ativar()}
-                enviar={enviar}
               />
             ),
           },
@@ -1918,6 +1926,7 @@ export function Mesa({
             )}
             <AvisoDoSom bloqueado={som.bloqueado} aoAtivar={() => som.motor.ativar()} />
             <AvisoDaCaixaDoClaude andamento={andamentoDaCaixa} />
+            <AvisoDaPasta euMestre={euMestre} fontes={fontes} gerente={gerente} />
             {modoMestre && ferramenta === "zonas" && (
               <PainelDasZonas
                 fontes={fontes}
@@ -1992,6 +2001,7 @@ export function Mesa({
                 euMestre={euMestre}
                 enviar={enviar}
                 teclado={menuDoToken.teclado === true}
+                aoAbrirFicha={abrirOuTrazerFicha}
                 aoEditar={() => {
                   setSelecionadoId(menuDoToken.tokenId);
                   setPainelDoTokenAberto(true);

@@ -27,7 +27,6 @@ import { CartaoDeSom } from "./som/CartaoDeSom";
 import { resumoDoSom, usePrefsDeSom } from "./som/prefsDeSom";
 import { lerTema, NOMES_DOS_TEMAS } from "./tema/temas";
 import { definirUnidade, useUnidade } from "./unidade";
-import type { LoteDoClaude } from "./useSala";
 
 const ROTULO_DO_ESTADO: Record<StatusDeAsset["estado"], string> = {
   pedindo: "pedindo",
@@ -51,14 +50,11 @@ type PropsPreferencias = {
   login?: string | undefined;
   fontes: Fontes;
   gerente: GerenteDeAssets | null;
-  /** 12-1: os lotes recentes do Claude deste usuário e como mandar o "Desfazer". */
-  lotesDoClaude: readonly LoteDoClaude[];
   /** P1: o Claude desta pessoa está conectado agora (a presença do 12-1). */
   claudeConectado: boolean;
   /** N5: o navegador está bloqueando o som até alguém clicar (o cartão Som mostra o botão para ativar). */
   somBloqueado: boolean;
   aoAtivarSom: () => void;
-  enviar: (tipo: string, dados: object) => string | null;
 };
 
 /** A pasta local de imagens: escolher, reautorizar e ver o que há nela. */
@@ -146,7 +142,9 @@ function Transferencias({ gerente }: { gerente: GerenteDeAssets }) {
       <ul className="lista-simples transferencias" data-testid="transferencias">
         {emAndamento.map((s) => (
           <li key={s.hash} data-testid="transferencia" data-hash={s.hash} data-estado={s.estado}>
-            <span className="nome">{s.nome}</span>
+            <span className="nome" title={s.nome}>
+              {s.nome}
+            </span>
             <span className="estado-presenca">{ROTULO_DO_ESTADO[s.estado]}</span>
             {s.total > 0 && <progress value={s.recebidos} max={s.total} />}
           </li>
@@ -188,11 +186,9 @@ export function AbaPreferencias({
   login,
   fontes,
   gerente,
-  lotesDoClaude,
   claudeConectado,
   somBloqueado,
   aoAtivarSom,
-  enviar,
 }: PropsPreferencias) {
   const dicas = useDicasLigadas();
   const prefsDeSom = usePrefsDeSom();
@@ -212,7 +208,6 @@ export function AbaPreferencias({
   const emAndamento = gerente
     ? gerente.listarStatus().filter((s) => s.estado !== "pronto").length
     : 0;
-  const desfaziveis = lotesDoClaude.filter((l) => !l.desfeito && l.desfazivel).length;
 
   const resumoDoMapa = [
     unidade === "m" ? "Metros" : "Pés",
@@ -230,8 +225,7 @@ export function AbaPreferencias({
           ? " · conectado agora"
           : ultimoUsoDoClaude !== null
             ? ` · usado ${haQuanto(ultimoUsoDoClaude)}`
-            : "") +
-        (desfaziveis > 0 ? ` · ${plural(desfaziveis, "lote", "lotes")} para desfazer` : "");
+            : "");
 
   return (
     <div className="pref-lista" data-testid="preferencias">
@@ -353,8 +347,6 @@ export function AbaPreferencias({
       >
         <ConectarOClaude
           mesaId={mesaId}
-          lotes={lotesDoClaude}
-          enviar={enviar}
           aoContarTokens={contarTokens}
           conectado={claudeConectado}
         />

@@ -512,6 +512,8 @@ function RecuperarPelaPasta({
       // A pasta errada é recusada antes de pedir o desafio.
       if (arquivo.mesaId !== mesa.id) throw new Error("Esta pasta é de outra mesa.");
       await recuperarPelaPasta(mesa.id, login, senha, arquivo.chavePrivada);
+      // Q1: a pasta que provou ser do mestre vira a pasta da mesa neste navegador: os arquivos carregam dela.
+      await pasta.lembrarPara(mesa.id).catch(() => {});
       const u = await usuarioDaSessao(mesa.id);
       if (!u) throw new Error("Não foi possível abrir a sessão. Tente de novo.");
       aoPronto({ u });

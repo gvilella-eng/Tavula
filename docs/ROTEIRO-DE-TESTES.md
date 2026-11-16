@@ -506,7 +506,7 @@ Antes: o Claude conectado (Preferências → Conectar o Claude) num computador c
 
 1. **Mapa.** Peça: "Ponha o arquivo <caminho> como mapa da cena <nome> e ajuste para 45 x 45 quadrados". O Claude chama `arquivos`, roda o comando curl e o mapa aparece na cena do mestre e do jogador; a cena fica com o tamanho da imagem. Se a imagem é grande (3000 px ou mais), ela é cortada em tiles como pelo botão.
 2. **Aviso.** Enquanto a mesa processa, aparece "O Claude enviou 1 arquivo" no alto do mapa e depois "Pronto".
-3. **Desfazer.** Em Preferências → O que o Claude fez, desfaça o último lote: o mapa sai da cena. O arquivo continua na sua pasta de imagens.
+3. **Desfazer.** Peça ao Claude: "desfaça o último envio". O mapa sai da cena (Preferências não tem mais a lista de desfazer, desde o Q1). O arquivo continua na sua pasta de imagens.
 4. **Token e retrato.** Peça: "Use o arquivo <caminho> como imagem do token do <nome>" e "como retrato da ficha do <nome>". A imagem entra (reduzida a 512 px).
 5. **Mesa fechada.** Feche a janela do mestre e peça outro arquivo ao Claude. O Claude diz que o arquivo espera na caixa. Abra a mesa como mestre: aparece "O Claude enviou 1 arquivo" e a mesa aplica sozinha.
 6. **Som e compêndio.** Peça um som como trilha da cena e um arquivo de compêndio (json). O som toca nos jogadores; o compêndio da mesa muda.
@@ -530,8 +530,21 @@ Antes: o Claude conectado como mestre, a mesa aberta como mestre e outra janela 
 8. **Som.** Peça "toque a trilha floresta a 40%" e "pare a trilha".
 9. **Tokens e fichas.** Peça "mova o Goblin 1 para a coluna 12, linha 8, marque como amedrontado e com 3 de vida" e "gaste um dado de vida d8 da Brisa".
 10. **Configurar a mesa.** Peça "crie a pasta Vilarejo visível para todos" e "pause a mesa".
-11. **Desfazer.** Em Preferências, "O que o Claude fez": desfaça o lote do texto e o da névoa. Chat, rolagens, combate e som não voltam (de propósito).
+11. **Desfazer.** Peça ao Claude: "desfaça o texto e a névoa" (Preferências não tem mais a lista, desde o Q1). Chat, rolagens, combate e som não voltam (de propósito).
 12. **Jogador.** No Claude do jogador, peça "cubra a névoa" e "monte o combate": ele diz que não pode.
+
+## Q1 — Ajustes do Vilella e os arquivos entre navegadores
+
+Antes: uma mesa com um token que tem ficha, o compêndio na pasta `compendio/` e o Chrome (ou Edge) com a pasta da mesa escolhida. Leia `docs/ARQUIVOS.md`.
+
+1. **Abrir ficha.** Clique com o botão direito num token com ficha: "Abrir ficha" é o primeiro item do menu e abre a ficha. Como jogador, faça o mesmo no seu token.
+2. **Preferências → Claude.** Não há mais a lista "O que o Claude fez". O selo "Rascunhos do Claude (N)" segue no topo.
+3. **Importar.** Aba Mesa → Importar: só "Escolher arquivo…", sem campanhas de exemplo. Crie uma mesa nova: ela já vem como o 5e padrão (sem automação; a tocha, a lanterna e a fogueira).
+4. **Transferências.** Preferências → Ajuda e arquivos → Transferências, com um arquivo indisponível de nome longo: o nome fica numa linha, cortado com reticências (passe o mouse para ver inteiro); o status vai abaixo. Confira em 1280×720 e 1600×900.
+5. **Pasta sem permissão.** Feche o navegador e abra a mesa de novo como mestre. Aparece, na mesa, "A pasta da mesa precisa de permissão de novo" com "Reautorizar a pasta da mesa". Clique: o aviso some. O compêndio estava lá o tempo todo (o cache do navegador guarda); se o cache foi limpo, ele volta da pasta sem subir de novo.
+6. **Segundo navegador.** Com a mesa aberta como mestre no Chrome, e já com mapa, token e compêndio, feche. Abra a mesa como mestre no Edge (mesmo computador). Antes do Q1 não tinha nada. Agora aparece "Os arquivos desta mesa ficam numa pasta do seu computador. Escolha a pasta da mesa neste navegador." e a aba Compêndio diz o mesmo. Clique em "Escolher a pasta da mesa" e escolha a mesma pasta do Chrome: o mapa, os tokens e o compêndio carregam, sem o Chrome aberto.
+7. **Pasta com chave.** Numa mesa com a chave da pasta, entre como mestre no segundo navegador escolhendo a pasta da chave: a pasta vira a pasta da mesa ali (o aviso de escolher não aparece) e os arquivos carregam dela.
+8. **Pasta errada.** Escolha outra pasta qualquer no segundo navegador: o aviso passa para "Faltam arquivos desta mesa e a pasta escolhida neste navegador não os tem" com "Trocar a pasta da mesa".
 
 ## Se algo der errado
 - Anote a tela, o que fez e o que esperava, e mande para mim. Bug confirmado vai para `docs/BUGS.md`.

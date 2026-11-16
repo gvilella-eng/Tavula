@@ -926,3 +926,23 @@ Continua em aberto, por ser decisão e não erro de doc: `ficha.verOutras` (seç
 - O MCP em stdio (`apps/mcp`) não tem a caixa: `arquivos` responde que precisa do HTTP.
 
 **Suposições**: ver `docs/REDESIGN.md`, "M1 — como ficou".
+
+## Q1 (2026-11-16): ajustes do Vilella e os arquivos entre navegadores
+**Onde mexer**
+- Cópia na pasta: `apps/web/src/assets/gerente.ts` (`guardarNaPasta`, `sincronizarComAPasta`, `PASTA_DOS_ARQUIVOS_DA_MESA`) e `assets/fontes.ts` (`pastaDosArquivos()`). `Mesa.tsx` chama `sincronizarComAPasta(estado.assets)` num efeito que reage à pasta (`fontes.versaoAtual`), ao estado dos assets e à conexão.
+- Aviso da pasta: `apps/web/src/AvisoDaPasta.tsx` (`casoDaPasta`, `AvisoDaPasta`, `BotaoDaPasta`, `useCasoDaPasta`); a aba Compêndio usa o mesmo caso. Estilo `.aviso-pasta` no alto da área do mapa.
+- "Abrir ficha": `MenuDoToken.tsx` (`aoAbrirFicha`), ligado ao `abrirOuTrazerFicha` da `Mesa.tsx`.
+- Transferências: `.transferencias` no `styles.css`.
+- Doc para o Vilella: `docs/ARQUIVOS.md`.
+- Testes: `e2e/tests/q1.spec.ts`; ganchos novos do modo e2e em `assets/ganchoE2E.ts` (`simularPasta`, `exportarPasta`, `importarPasta`).
+
+**Frágil**
+- A "pasta" dos testes é a `Memoria`; `Fontes.simularPasta` a faz valer como pasta com o estado que o teste quiser. Com a simulação ligada, `escolherPasta` e `reautorizar` só mudam o estado simulado (não há seletor no Playwright). O seletor e a permissão de verdade só se conferem à mão (roteiro Q1).
+- `sincronizarComAPasta` roda em fila (uma de cada vez) e varre as metas da mesa a cada mudança de `estado.assets`: com centenas de arquivos é uma `getFileHandle` por arquivo que falta. Hoje é barato; se pesar, guardar em memória o que já foi conferido.
+- A cópia só vale com a pasta autorizada; sem isso o cache segue sendo a única fonte. O aviso "escolher" só aparece se algum asset está `indisponivel` (nenhum online manda).
+- A pasta `arquivos-da-mesa` está em `PASTAS_IGNORADAS` (`assets/fonte.ts`): não aparece como biblioteca de imagens nem de sons.
+- Entrar como mestre pela chave da pasta (`EntradaDaMesa.tsx`) agora chama `lembrarPara`; nas pastas de teste (`pastaDoMestre.ts`) isso não faz nada.
+- Preferências não lista mais os lotes do Claude: `lotesDoClaude` ainda vem de `useSala.ts`, mas nada o mostra. O Desfazer é só do MCP.
+- `campanhasDeExemplo.ts` saiu; `fixtures/campanhas/*.json` seguem usadas pelos testes (`campanhasProntas.test.ts` e `automacoes-editor.spec.ts`).
+
+**Suposições**: ver `docs/REDESIGN.md`, "Q1 — como ficou".

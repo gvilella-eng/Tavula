@@ -40,10 +40,25 @@ export class Fontes {
   }
 
   get estado(): EstadoDaPasta {
-    return this.estadoDaPasta;
+    return this.simulacao ?? this.estadoDaPasta;
   }
   get nomeDaPasta(): string | null {
+    if (this.simulacao !== null && this.simulacao !== "nenhuma") return "pasta-de-teste";
     return this.pasta?.nome ?? null;
+  }
+
+  /** Só nos testes e2e: a `Memoria` faz o papel da pasta, com o estado que o teste mandar (nenhuma, reautorizar, autorizada). */
+  private simulacao: EstadoDaPasta | null = null;
+  simularPasta(estado: EstadoDaPasta | null): void {
+    if (this.memoria === null) return;
+    this.simulacao = estado;
+    this.mudou();
+  }
+
+  /** Q1: onde o mestre guarda uma cópia de cada arquivo da mesa (`arquivos-da-mesa/`): a pasta autorizada ou, nos testes, a simulada. */
+  pastaDosArquivos(): FonteDeAssets | null {
+    if (this.simulacao !== null) return this.simulacao === "autorizada" ? this.memoria : null;
+    return this.pastaGravavel();
   }
 
   /** Recupera a pasta de uma visita anterior. A permissão pode exigir um clique (reautorizar). */
@@ -67,12 +82,21 @@ export class Fontes {
   }
 
   async escolherPasta(): Promise<void> {
+    // nos testes não há seletor de verdade: escolher é a pasta simulada ficar autorizada
+    if (this.memoria !== null) {
+      this.simularPasta("autorizada");
+      return;
+    }
     this.pasta = await PastaLocal.escolher(this.mesaId);
     await this.conferirPermissao();
   }
 
   /** Precisa ser chamado direto de um clique: o navegador exige gesto do usuário. */
   async reautorizar(): Promise<boolean> {
+    if (this.simulacao !== null) {
+      this.simularPasta("autorizada");
+      return true;
+    }
     const ok = (await this.pasta?.autorizar()) ?? false;
     await this.conferirPermissao();
     return ok;
@@ -115,7 +139,10 @@ export class Fontes {
       if (this.pasta && this.estadoDaPasta === "autorizada") {
         f = await this.pasta.abrirPorCaminho(caminho);
       }
-      f ??= (await this.memoria?.abrirPorCaminho(caminho)) ?? null;
+      // simulando a pasta (testes): a memória só vale com ela autorizada
+      if (this.simulacao === null || this.simulacao === "autorizada") {
+        f ??= (await this.memoria?.abrirPorCaminho(caminho)) ?? null;
+      }
       if (f) achados.push(f);
     }
     return achados.length > 0 ? achados : [...this.compendiosSoltos];

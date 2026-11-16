@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   automacoesDe,
   type Estado,
+  estadoDeMesaNova,
   fonteComSemente,
   type Intencao,
   IntencaoSchema,
@@ -211,5 +212,20 @@ describe("a Chama Primordial rodando", () => {
     if (!r.ok) throw new Error(r.erro.mensagem);
     expect(automacoesDe(r.estado).ciclos).toEqual([]);
     expect(r.eventos).toEqual([]);
+  });
+});
+
+describe("Q1: a mesa nova nasce no padrão 5e", () => {
+  it("tem os mesmos modelos de luz, regras e pastas do arquivo '5e padrão' e nenhuma automação", () => {
+    const lida = lerExportacao(ler("5e-padrao.json"));
+    if (!lida.ok) throw new Error(lida.motivo);
+    const padrao = lida.exportacao.dados;
+    const nova = estadoDeMesaNova(T0);
+    expect(nova.modelos).toEqual(padrao.modelos);
+    expect(nova.config).toEqual(padrao.config);
+    expect(nova.pastas).toEqual(padrao.pastas);
+    expect(nova.luzes).toEqual([]);
+    expect(automacoesDe(nova).ciclos).toEqual([]);
+    expect(automacoesDe(nova).reacoes).toEqual([]);
   });
 });

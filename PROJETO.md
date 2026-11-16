@@ -403,6 +403,14 @@ Estrutura sugerida:
 - mestre: `mapas/`, `tokens/`, `sons/`, `handouts/`, `recebidos/<jogador>/`, `backup/`
 - jogador: `tokens/`, `retratos/`, `fichas/`
 
+**Cópia dos arquivos da mesa na pasta (Q1, 2026-11-16).** O mestre, com a pasta liberada para escrita, guarda
+em `arquivos-da-mesa/<hash>` uma cópia de cada arquivo que entra no cache dele (mapa e tiles, token, retrato,
+handout, som, compêndio, o que o Claude mandou, o que um jogador subiu). Ao abrir a mesa, ao escolher ou
+reautorizar a pasta e quando chegam metas novas, o navegador traz da pasta o que a mesa usa e ele não tem
+(conferindo o hash) e leva para a pasta o que só o cache tem. Assim um segundo navegador do mestre, com a mesma
+pasta, carrega tudo sem o primeiro estar online. Sem protocolo novo, sem migração. O mestre vê o aviso da pasta
+(reautorizar, escolher ou trocar) na mesa e na aba Compêndio. Ver `docs/ARQUIVOS.md`.
+
 **Identidade por conteúdo.** O asset é identificado pelo SHA-256 do arquivo (depois do processamento).
 Se o arquivo for movido ou renomeado, o app reescaneia a pasta e encontra pelo hash.
 

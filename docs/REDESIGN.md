@@ -1952,3 +1952,31 @@ Os lotes 7b-1 a 7b-3 (motor, zonas, editor e campanhas) vêm depois dos ajustes 
 **O que ficou para depois**
 - Forma "texto" de verdade nos desenhos (hoje são traços).
 - Tocha do jogador pelo Claude do jogador.
+
+## Q1 — como ficou (2026-11-16)
+
+**O que foi feito**
+- "Abrir ficha" no clique direito do token, no topo do menu, para quem vê a ficha do personagem do token (mestre, e o jogador no próprio token).
+- Preferências → Claude: saiu a lista "O que o Claude fez" com os botões Desfazer. Ficam o selo "Rascunhos do Claude (N)" no topo e o fluxo dos rascunhos. A intenção `claude.desfazer` segue existindo para o MCP; a tabela de paridade não mudou.
+- Aba Mesa → Importar: saiu o bloco "Campanhas de exemplo". Fica só "Escolher arquivo…". `campanhasDeExemplo.ts` e seu teste saíram; os arquivos de `fixtures/campanhas/` ficam só como fixture de teste (a Chama Primordial inclusive). A mesa nova já nascia no padrão 5e; agora um teste de unidade garante (modelos de luz, regras, pastas e nenhuma automação iguais ao arquivo "5e padrão").
+- Preferências → Transferências: o nome do arquivo numa linha só, com reticências (nome inteiro no `title`), e o status abaixo.
+- Cópia dos arquivos da mesa na pasta (o ponto principal). Só o mestre, com a pasta liberada para escrita: cada arquivo que entra no cache do navegador (mapa e tiles, token, retrato, handout, som, compêndio, arquivos do Claude, o que um jogador subiu) ganha uma cópia em `arquivos-da-mesa/<hash>` na pasta da mesa. Ao abrir a mesa, ao escolher ou reautorizar a pasta e quando chegam arquivos novos, o navegador traz da pasta o que a mesa usa e ele não tem (conferindo o hash de cada um) e leva para a pasta o que só o cache tem.
+- Aviso da pasta, visível na mesa (e na aba Compêndio, no lugar de "ninguém com o arquivo está online"), só para o mestre: "Reautorizar a pasta da mesa" (a permissão caiu), "Escolher a pasta da mesa" (este navegador não tem a pasta e há arquivos que ninguém online manda) e "Trocar a pasta da mesa" (a pasta escolhida não tem o que falta).
+- Entrar como mestre pela chave da pasta agora lembra essa pasta como a pasta da mesa neste navegador.
+- `docs/ARQUIVOS.md`: como os arquivos da mesa funcionam, em linguagem simples.
+
+**O que o segundo navegador de mestre via (cenário do Vilella, reproduzido no E2E)**
+- Antes: nada. Sem mapa, sem tokens com imagem; a aba Compêndio dizia "O compêndio existe, mas ninguém com o arquivo está online"; em Transferências os arquivos ficavam "indisponível (ninguém com o arquivo está online)". Nenhum aviso na mesa, nenhum botão.
+- Agora: o aviso "Os arquivos desta mesa ficam numa pasta do seu computador. Escolha a pasta da mesa neste navegador." com o botão; a aba Compêndio diz o mesmo; escolhida a mesma pasta, o mapa, o token e o compêndio carregam dela, sem o primeiro navegador online.
+
+**Decisões (assumido)**
+- O compêndio e os arquivos do Claude já iam para o cache do navegador (`registrarCompendio`, `usarArquivo`); a hipótese de que não iam não se confirmou. O que faltava era o outro navegador (ou um cache limpo): sem a pasta com os arquivos, nada os traz de volta. Por isso a cópia na pasta.
+- A cópia fica em `arquivos-da-mesa/` com o hash por nome, sem pasta por tipo: um arquivo, uma cópia, conferida pelo hash. Essa pasta não entra na biblioteca de imagens nem de sons.
+- Pasta "cifrada" (chave da pasta, C3): a cópia é independente da chave; o que a chave ganha é que o login pela pasta passa a lembrá-la como a pasta da mesa. No E2E a pasta da chave é simulada, então esse "lembrar" só foi conferido por leitura do código.
+- O aviso de "escolher" só aparece se há arquivo que ninguém online manda: o mestre que nunca usou pasta e tem tudo no cache não vê nada.
+- Jogadores não copiam nada para a pasta (a pasta é do mestre).
+- "Abrir ficha" vale também para o jogador no próprio token. O menu só abre para quem controla o token, e a sala só manda ao jogador as fichas que ele pode ver.
+
+**O que ficou para depois**
+- Jogadores com pasta própria para guardar o que recebem (hoje o cache basta).
+- Apagar da pasta as cópias de arquivos que a mesa não usa mais.

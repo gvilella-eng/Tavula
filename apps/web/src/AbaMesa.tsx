@@ -14,7 +14,6 @@ import { Download, Upload, Workflow } from "lucide-react";
 import { type ChangeEvent, useEffect, useRef, useState } from "react";
 import { type DadosDaMesa, renomearMesa } from "./api";
 import { resumoDasAutomacoes } from "./automacoes/resumo";
-import { CAMPANHAS_DE_EXEMPLO, exemploParaEstaMesa } from "./campanhasDeExemplo";
 import { SecaoDeContas } from "./contas/SecaoDeContas";
 import { IdDaMesa } from "./IdDaMesa";
 import { SecaoMesa, SecaoObjetosDeLuz } from "./PainelDaMesa";
@@ -176,14 +175,6 @@ export function AbaMesa({
       dados = null; // a sala recusa e o aviso aparece
     }
     setEscolhido({ nome: arquivo.name, dados, resumo: resumoDaCampanha(dados) });
-  }
-
-  /** Um exemplo pronto espera a mesma confirmação "Importar e substituir" de um arquivo escolhido. */
-  function escolherExemplo(id: string) {
-    const exemplo = CAMPANHAS_DE_EXEMPLO.find((c) => c.id === id);
-    if (!exemplo) return;
-    const dados = exemploParaEstaMesa(exemplo.texto, estado);
-    setEscolhido({ nome: exemplo.nome, dados, resumo: resumoDaCampanha(dados) });
   }
 
   function importarEscolhido() {
@@ -370,24 +361,6 @@ export function AbaMesa({
           >
             <Upload size={16} /> Escolher arquivo…
           </button>
-          <div className="campanhas-de-exemplo" data-testid="campanhas-de-exemplo">
-            <h5>Campanhas de exemplo</h5>
-            <ul className="lista-simples">
-              {CAMPANHAS_DE_EXEMPLO.map((c) => (
-                <li key={c.id} data-testid={`exemplo-${c.id}`}>
-                  <strong>{c.nome}</strong>
-                  <span className="nota">{c.descricao}</span>
-                  <button
-                    type="button"
-                    data-testid={`exemplo-${c.id}-escolher`}
-                    onClick={() => escolherExemplo(c.id)}
-                  >
-                    Escolher “{c.nome}”
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </div>
           {escolhido && (
             <div className="importar-escolhido" data-testid="importar-escolhido">
               <p>
