@@ -2004,3 +2004,39 @@ Os lotes 7b-1 a 7b-3 (motor, zonas, editor e campanhas) vêm depois dos ajustes 
 **O que ficou para depois**
 - Lista virtual (não precisou: só os blocos abertos desenham; um bloco aberto com ~100 linhas é rápido).
 - Categoria nos Itens do equipamento (o dado não tem).
+
+## Q5 — como ficou (2026-11-16)
+
+O Vilella aprovou o desenho (Fita como padrão, Moldura como opção em Preferências). Código em `apps/web/src/rolagem/`; CSS em `rolagem/rolagem.css`. Só visual: sem mudança de protocolo, de banco ou da tabela de paridade.
+
+**O que foi feito**
+- `CartaoNoChat` (um componente, dois estilos só no CSS, `data-estilo`): fita (ou título em versalete), régua, corpo com uma ou duas metades, rodapé, balão. Fita: cantos chanfrados e fita com corte em V; Moldura: linha dupla com cantoneiras, régua com losango e divisória com losango.
+- Cores só de tokens do tema. Dano: o número no `--texto` e o ícone no `--acento-forte` (nunca vermelho nem laranja). Crítico: `--critico` (verde fixo) na fita e na moldura e, no número, o verde misturado 72% com o `--texto` do tema (para o contraste de texto grande valer também nos temas claros; teste em `rolagem/contraste.test.ts`). Falha crítica (1 natural): fita e número num cinza apagado (`--texto-suave`).
+- Balão (`role="tooltip"`): monta só aberto; abre com o mouse parado 350 ms, no mesmo instante com o foco, toque abre e fecha, Esc fecha; abre para cima, ou para baixo se o cartão está colado no topo da lista; não empurra o chat.
+- Vantagem e desvantagem: `totaisDaVantagem` calcula os dois totais da própria rolagem (d20 e bônus), sem mudar o protocolo.
+- Preferência `tabletop:pref:estiloDasRolagens` (`rolagem/estilo.ts`, `useSyncExternalStore`: muda ao vivo, sem frame para a sala). Seletor com prévia em Preferências → Aparência.
+- Cartões seguidos (mesmo autor, personagem, "pelo Claude" e sigilo, até 3 min) dividem o cabeçalho (`rolagem/agrupar.ts`); o cabeçalho continua no DOM, escondido visualmente.
+
+**Inventário: como cada mensagem ficou (Fita e Moldura iguais no conteúdo; só o visual muda)**
+- Teste de atributo, perícia, salvaguarda, iniciativa (`modelo: teste`): nome na fita, número grande; com CD, "CD n" embaixo e "Sucesso"/"Falha" na fita; 20/1 natural na fita; d20 no balão.
+- Ataque (`modelo: ataque`): fita com o nome (mais "nível 5", "3º espaço", "Crítico", "1 natural"); acerto | dano, do mesmo tamanho; dano com o ícone; acerto, dano, fórmula (com tipo e "(nível n)") e dados no balão. Com dano extra de espaço: o dano grande é o total (principal + extra) e o detalhe vai no balão.
+- Magia de salvaguarda: com acerto (`ataque` com `salvaguarda`): CD do atributo | dano, "metade n" embaixo do dano; o acerto vai no balão. Só dano (chega como `/r` com comentário "Nome, CD 14, tipo"): o comentário é lido por `lerRotuloDeDano` e vira o mesmo cartão CD | dano (assumido: não há dado no protocolo, então lê-se o texto que a ficha escreve).
+- Cura / dado de vida (`modelo: vida`): total grande e "+n PV (a/b)" embaixo.
+- Dardos e raios por nível (N2): o número é a soma; cada dardo e o total ficam no balão. Truque por nível: "nível 5" na fita. Ritual, inata, "com espaço de nº": linha pequena embaixo (`espaco-usado`).
+- Característica e magia (cartões próprios): sem mudança.
+- `/r` livre: fita com o comentário (ou a expressão), número grande; vantagem escrita (`2d20kh1`) divide em dois totais; vários dados somam num total, cada um no balão; mais de uma rolagem na mensagem (antigas) vira uma metade por rolagem.
+- `[[...]]` dentro de frase: continua o total pequeno com os dados no hover (não é cartão).
+- Rolagem oculta: linha pequena em itálico com o ícone e "Rolagem oculta · nome: total", sem caixa; os dados no balão. Sussurro: só texto, sem mudança.
+- Marca "pelo Claude": no cabeçalho, como antes. Avisos de automação: sem rolagem, sem mudança.
+
+**Ícones por tipo de dano (lucide-react)**: ácido FlaskConical, contundente Hammer, cortante Sword, elétrico Zap, energia (a "Força" da ficha) Sparkles, fogo Flame, frio Snowflake, necrótico Skull, perfurante Pickaxe, psíquico Brain, radiante Sun, trovejante Volume2, veneno Biohazard; cura Heart.
+
+**Decisões (assumido)**
+- Fontes do desenho: IM Fell English SC na Fita e Cormorant SC + Cinzel na Moldura (já empacotadas pelo `ficha.css`), em vez de Inter e Space Grotesk, por serem a especificação visual aprovada.
+- A fita metade `--borda`, metade `--cabecalho` (o texto sobre `--borda` não dava 4,5:1 no tema Licantropo).
+- O texto "Ataque · " saiu da frente do nome; o espaço de magia com dado a mais mostra "3º espaço" na fita.
+- Os testes que liam as fórmulas e os dados agora passam o mouse no cartão antes (o balão só existe aberto).
+
+**O que ficou para depois**
+- Balão por toque em tela sensível não foi testado em aparelho (só pelo código).
+

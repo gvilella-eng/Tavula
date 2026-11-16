@@ -17,6 +17,7 @@ import { type KeyboardEvent, useLayoutEffect, useRef, useState } from "react";
 import { BotaoComDica } from "./BotaoComDica";
 import { MensagemDoChat } from "./MensagemDoChat";
 import type { ImagensDoMapa } from "./mapa/mapaPixi";
+import { continuaORemetente } from "./rolagem/agrupar";
 
 type Enviar = (tipo: string, dados: object) => string | null;
 
@@ -321,9 +322,10 @@ export function AbaChat({
           </button>
         )}
         {chat.length === 0 && <p className="nota">Nenhuma mensagem ainda.</p>}
-        {chat.map((m) => (
+        {chat.map((m, i) => (
           <MensagemDoChat
             key={m.id}
+            seguida={continuaORemetente(chat[i - 1], m)}
             mensagem={m}
             usuarios={estado.usuarios}
             euId={eu.id}

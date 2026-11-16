@@ -1,0 +1,524 @@
+/* Q5: as rolagens no chat. Dois estilos sobre o mesmo cartão (`.rc`): a Fita (padrão) e a Moldura de grimório.
+   Só tokens do tema; o crítico é o verde fixo (`--critico`) e a falha crítica fica num cinza apagado. O dano é branco
+   (o texto do tema) com o ícone em âmbar: nunca vermelho nem laranja. */
+
+.rc {
+  --rc-linha: color-mix(in srgb, var(--texto) 18%, var(--borda));
+  --rc-fita-fundo: color-mix(in srgb, var(--borda) 50%, var(--cabecalho));
+  --rc-fita-cor: var(--texto);
+  --rc-nome-cor: var(--texto);
+  --rc-ouro: var(--acento);
+  --rc-numero-critico: color-mix(in srgb, var(--critico) 72%, var(--texto));
+  position: relative;
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  margin-top: 4px;
+  color: var(--texto);
+  cursor: default;
+}
+.rc[data-estilo="fita"] {
+  --rc-fonte-nome: "IM Fell English SC", var(--fonte-titulo), Georgia, serif;
+  --rc-fonte-numero: "IM Fell English SC", var(--fonte-titulo), Georgia, serif;
+  --rc-fonte-rotulo: "IM Fell English SC", var(--fonte-titulo), Georgia, serif;
+}
+.rc[data-estilo="moldura"] {
+  --rc-fonte-nome: "Cormorant SC", Georgia, serif;
+  --rc-fonte-numero: "Cinzel", var(--fonte-titulo), Georgia, serif;
+  --rc-fonte-rotulo: "Cormorant SC", Georgia, serif;
+}
+.rc[data-tom="critico"] {
+  --rc-linha: var(--critico);
+  --rc-fita-fundo: var(--critico);
+  --rc-fita-cor: var(--critico-texto);
+  --rc-nome-cor: var(--rc-numero-critico);
+  --rc-ouro: var(--critico);
+}
+.rc[data-tom="falha"] {
+  --rc-fita-fundo: color-mix(in srgb, var(--borda) 60%, var(--painel));
+  --rc-fita-cor: var(--texto-suave);
+  --rc-nome-cor: var(--texto-suave);
+  --rc-ouro: var(--texto-suave);
+}
+.rc:focus-visible {
+  outline: 2px solid var(--foco);
+  outline-offset: 2px;
+}
+
+.rc-borda,
+.rc-miolo,
+.rc-fita,
+.rc-coluna,
+.rc-metade,
+.rc-rodape {
+  display: block;
+}
+.rc-miolo {
+  box-sizing: border-box;
+}
+
+/* --- o corpo: um número no meio, ou duas metades lado a lado do mesmo tamanho --- */
+.rc-corpo {
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+}
+.rc-metade {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+}
+.rc-coluna {
+  padding: 2px 4px;
+}
+.rc-metade:not(:first-child)::before {
+  position: absolute;
+  left: 0;
+  width: 1px;
+  content: "";
+}
+.rc-rotulo {
+  color: var(--texto-suave);
+  text-transform: lowercase;
+}
+.rc-num {
+  display: inline-block;
+  color: var(--texto);
+  font-variant-numeric: tabular-nums;
+}
+.rc-num[data-tom="critico"] {
+  color: var(--rc-numero-critico);
+}
+.rc-num[data-tom="falha"] {
+  color: var(--texto-suave);
+}
+.rc-num[data-pequeno] {
+  color: var(--texto-suave);
+  opacity: 0.55;
+}
+.rc-duplo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+.rc-traco {
+  width: 1px;
+  height: 24px;
+  background: var(--rc-linha);
+}
+.rc-dano {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.rc-tipo {
+  display: inline-flex;
+  color: var(--acento-forte);
+}
+.rc-vantagem {
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--acento-forte);
+}
+.rc-complemento {
+  font-size: 11px;
+  line-height: 14px;
+  color: var(--texto-suave);
+}
+.rc-rodape {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 8px 8px;
+  font-size: 11.5px;
+  color: var(--texto-suave);
+}
+.rc-corpo:not(:has(~ .rc-rodape)) {
+  padding-bottom: 8px;
+}
+.rc[data-estilo="moldura"] .rc-corpo:not(:has(~ .rc-rodape)) {
+  padding-bottom: 0;
+}
+.rc[data-estilo="moldura"] .rc-rodape {
+  padding: 2px 0 0;
+}
+.rc-fita-parte {
+  white-space: normal;
+}
+
+/* --- Fita: cantos chanfrados, o nome numa fita reta com corte em V só nas pontas --- */
+.rc[data-estilo="fita"] .rc-borda {
+  padding: 1px;
+  background: var(--rc-linha);
+  clip-path: polygon(
+    10px 0,
+    calc(100% - 10px) 0,
+    100% 10px,
+    100% calc(100% - 10px),
+    calc(100% - 10px) 100%,
+    10px 100%,
+    0 calc(100% - 10px),
+    0 10px
+  );
+}
+.rc[data-estilo="fita"] .rc-miolo {
+  background: var(--painel);
+  clip-path: polygon(
+    9px 0,
+    calc(100% - 9px) 0,
+    100% 9px,
+    100% calc(100% - 9px),
+    calc(100% - 9px) 100%,
+    9px 100%,
+    0 calc(100% - 9px),
+    0 9px
+  );
+}
+.rc[data-estilo="fita"] .rc-fita {
+  box-sizing: border-box;
+  min-height: 26px;
+  padding: 4px 16px;
+  font: 400 14px / 18px var(--rc-fonte-nome);
+  letter-spacing: 0.04em;
+  text-align: center;
+  color: var(--rc-fita-cor);
+  background: var(--rc-fita-fundo);
+  clip-path: polygon(0 0, 100% 0, calc(100% - 9px) 50%, 100% 100%, 0 100%, 9px 50%);
+}
+.rc[data-estilo="fita"] .rc-regra {
+  display: none;
+}
+.rc[data-estilo="fita"] .rc-corpo {
+  padding: 2px 6px 0;
+}
+.rc[data-estilo="fita"] .rc-num {
+  font: 400 36px / 38px var(--rc-fonte-numero);
+}
+.rc[data-estilo="fita"] .rc-num[data-pequeno] {
+  font-size: 22px;
+  line-height: 38px;
+}
+.rc[data-estilo="fita"] .rc-rotulo {
+  font: 400 11px / 14px var(--rc-fonte-rotulo);
+  letter-spacing: 0.08em;
+}
+.rc[data-estilo="fita"] .rc-metade:not(:first-child)::before {
+  top: 8px;
+  bottom: 8px;
+  background: var(--rc-linha);
+}
+
+/* --- Moldura de grimório: linha dupla fina com cantoneiras, nome em versalete com régua e losango --- */
+.rc[data-estilo="moldura"] .rc-borda {
+  padding: 5px;
+  background: color-mix(in srgb, var(--painel) 88%, var(--fundo));
+  border: 1px solid var(--rc-linha);
+}
+.rc[data-estilo="moldura"] .rc-miolo {
+  --o: var(--rc-ouro);
+  padding: 5px 6px 8px;
+  text-align: center;
+  border: 1px solid color-mix(in srgb, var(--rc-ouro) 32%, transparent);
+  background:
+    linear-gradient(var(--o), var(--o)) left top / 14px 2px no-repeat,
+    linear-gradient(var(--o), var(--o)) left top / 2px 14px no-repeat,
+    linear-gradient(var(--o), var(--o)) right top / 14px 2px no-repeat,
+    linear-gradient(var(--o), var(--o)) right top / 2px 14px no-repeat,
+    linear-gradient(var(--o), var(--o)) left bottom / 14px 2px no-repeat,
+    linear-gradient(var(--o), var(--o)) left bottom / 2px 14px no-repeat,
+    linear-gradient(var(--o), var(--o)) right bottom / 14px 2px no-repeat,
+    linear-gradient(var(--o), var(--o)) right bottom / 2px 14px no-repeat;
+}
+.rc[data-estilo="moldura"] .rc-fita {
+  font: 700 13px / 18px var(--rc-fonte-nome);
+  letter-spacing: 0.12em;
+  text-align: center;
+  color: var(--rc-nome-cor);
+}
+.rc[data-estilo="moldura"] .rc-regra {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 2px 14px 4px;
+}
+.rc[data-estilo="moldura"] .rc-regra b {
+  flex: 1;
+  height: 1px;
+  background: color-mix(in srgb, var(--rc-ouro) 38%, transparent);
+}
+.rc[data-estilo="moldura"] .rc-regra i {
+  width: 5px;
+  height: 5px;
+  background: var(--rc-ouro);
+  transform: rotate(45deg);
+}
+.rc[data-estilo="moldura"] .rc-corpo {
+  padding: 0;
+}
+.rc[data-estilo="moldura"] .rc-num {
+  font: 600 32px / 38px var(--rc-fonte-numero);
+}
+.rc[data-estilo="moldura"] .rc-num[data-pequeno] {
+  font-size: 18px;
+  line-height: 38px;
+}
+.rc[data-estilo="moldura"] .rc-rotulo {
+  font: 600 11px / 14px var(--rc-fonte-rotulo);
+  letter-spacing: 0.12em;
+}
+.rc[data-estilo="moldura"] .rc-metade:not(:first-child)::before {
+  top: 2px;
+  bottom: 2px;
+  background: color-mix(in srgb, var(--rc-ouro) 42%, transparent);
+}
+.rc[data-estilo="moldura"] .rc-metade:not(:first-child)::after {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 7px;
+  height: 7px;
+  content: "";
+  background: var(--rc-ouro);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--painel) 88%, var(--fundo));
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+
+/* --- o balão dos dados: só existe com o mouse parado ou o foco; não empurra o chat --- */
+.rc-balao {
+  position: absolute;
+  right: 0;
+  left: 0;
+  z-index: 30;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
+  padding: 7px 10px;
+  font-size: 12px;
+  line-height: 1.25;
+  color: var(--texto-suave);
+  background: var(--fundo);
+  border: 1px solid var(--borda);
+  outline: 1px solid color-mix(in srgb, var(--acento) 25%, transparent);
+  outline-offset: 2px;
+  box-shadow: var(--sombra);
+  pointer-events: none;
+  animation: rc-balao-entra 140ms ease-out;
+}
+.rc-balao[data-lado="cima"] {
+  bottom: calc(100% + 8px);
+}
+.rc-balao[data-lado="baixo"] {
+  top: calc(100% + 8px);
+}
+@keyframes rc-balao-entra {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rc-balao {
+    animation: none;
+  }
+}
+.rc-balao-linha {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  align-items: center;
+  justify-content: center;
+}
+.rc-balao-parte {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  align-items: center;
+  justify-content: center;
+}
+.rc-balao-nome {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: lowercase;
+}
+.rc-balao-titulo {
+  font-weight: 600;
+  color: var(--texto);
+}
+.rc-balao-total strong {
+  font-family: var(--fonte-titulo);
+  font-size: 15px;
+  color: var(--texto);
+}
+.rc-balao-nota,
+.rc-balao-barra {
+  font-size: 11px;
+}
+.rc-balao-dardo {
+  display: inline-flex;
+  gap: 3px;
+  align-items: center;
+}
+.rc-chips {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+.rc-chip {
+  min-width: 24px;
+  padding: 0 6px;
+  font: 400 15px / 20px var(--rc-fonte-numero, var(--fonte-titulo));
+  text-align: center;
+  color: var(--texto);
+  background: var(--campo);
+  border: 1px solid var(--borda);
+  border-radius: 2px;
+}
+.rc[data-estilo="moldura"] .rc-chip {
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 0;
+}
+.rc-chip.dim {
+  text-decoration: line-through;
+  opacity: 0.45;
+}
+.rc-chip.ok {
+  border-color: var(--acento-forte);
+}
+.rc-chip.crit {
+  background: color-mix(in srgb, var(--critico) 24%, var(--campo));
+  border-color: var(--critico);
+}
+.rc-chip.nat1 {
+  color: var(--texto-suave);
+  border-style: dashed;
+  border-color: var(--texto-suave);
+}
+
+/* --- rolagem secreta: uma linha pequena em itálico com o ícone, sem caixa e sem destaque --- */
+.rc-secreta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: auto;
+  padding: 0 2px;
+  font-size: 12px;
+  font-style: italic;
+  color: var(--texto-suave);
+}
+.rc-secreta-texto {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.rc.rc-secreta[data-estilo] .rc-num {
+  font: inherit;
+  font-weight: 700;
+  font-style: normal;
+  color: var(--texto);
+}
+.mensagem-chat.oculta .mensagem-corpo:has(.rc-secreta) {
+  padding: 0;
+  background: none;
+  border-left: 0;
+}
+
+/* --- cartões seguidos do mesmo remetente dividem o cabeçalho --- */
+.mensagem-chat.seguida {
+  margin-top: -2px;
+}
+.mensagem-chat.seguida > .avatar-item {
+  visibility: hidden;
+  height: 0;
+}
+.mensagem-chat.seguida .mensagem-corpo {
+  position: relative;
+}
+.mensagem-chat.seguida .mensagem-corpo > header {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* --- Preferências → Aparência: o estilo das rolagens --- */
+.seletor-de-estilo {
+  margin: 8px 0;
+  min-width: 0;
+}
+.seletor-de-estilo-grade {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.opcao-de-estilo {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: stretch;
+  min-width: 0;
+  padding: 6px;
+  font-size: 12px;
+  text-align: center;
+  cursor: pointer;
+  border: 1px solid var(--borda);
+  border-radius: 8px;
+}
+.opcao-de-estilo[data-atual="true"] {
+  border-color: var(--acento);
+  background: var(--acento-suave);
+}
+.opcao-de-estilo input {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  margin: 0;
+  cursor: pointer;
+  opacity: 0;
+}
+.opcao-de-estilo:has(input:focus-visible) {
+  outline: 2px solid var(--foco);
+  outline-offset: 2px;
+}
+.opcao-de-estilo-nome {
+  color: var(--texto-suave);
+}
+.opcao-de-estilo[data-atual="true"] .opcao-de-estilo-nome {
+  color: var(--texto);
+}
+.rc-previa {
+  margin-top: 0;
+  pointer-events: none;
+}
+.rc.rc-previa[data-estilo] .rc-fita {
+  min-height: 20px;
+  padding-top: 2px;
+  padding-bottom: 2px;
+  font-size: 11px;
+  line-height: 14px;
+}
+.rc.rc-previa[data-estilo] .rc-num {
+  font-size: 22px;
+  line-height: 28px;
+}
+.rc.rc-previa[data-estilo] .rc-miolo {
+  min-height: 78px;
+}
+.rc.rc-previa[data-estilo] .rc-corpo {
+  padding-bottom: 6px;
+}

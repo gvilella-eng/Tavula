@@ -2388,49 +2388,31 @@ button[aria-disabled="true"]:hover {
   color: var(--oculta);
 }
 .etiqueta-sigilo.oculta {
-  color: var(--perigo);
+  color: var(--texto-suave);
 }
-/* A rolagem no chat (V4a): bloco baixo, nome em destaque, total grande, d20 discretos. */
+/* A rolagem no meio de uma frase (`[[1d20+5]]`): o total pequeno e, com o mouse ou o foco, os dados um a um.
+   Os cartões de rolagem do chat (Q5) moram em rolagem/rolagem.css. */
 .cartao-rolagem {
   position: relative;
   display: inline-flex;
-  flex-direction: row;
   gap: 6px;
   align-items: center;
   min-width: 0;
-  padding: 0;
   cursor: default;
   vertical-align: middle;
-}
-.rolagem-rotulo {
-  order: 3;
-  font-size: 10px;
-  text-transform: uppercase;
-  color: var(--texto-suave);
 }
 .rolagem-total {
   display: inline-flex;
   flex: none;
   align-items: center;
   justify-content: center;
-  min-width: 44px;
-  height: 34px;
-  padding: 0 7px;
-  font-family: "Cinzel", var(--fonte-titulo);
-  font-size: 23px;
-  font-weight: 700;
-  line-height: 1;
   color: var(--texto);
   background: var(--campo);
   border: 1px solid var(--borda);
   border-radius: 6px;
-}
-.cartao-rolagem.dano .rolagem-total {
-  border-color: var(--perigo);
-}
-.rolagem-expressao {
-  font-size: 11px;
-  color: var(--texto-suave);
+  font-family: "Cinzel", var(--fonte-titulo);
+  font-weight: 700;
+  line-height: 1;
 }
 .cartao-rolagem.embutido {
   gap: 6px;
@@ -2507,205 +2489,6 @@ button[aria-disabled="true"]:hover {
   color: var(--falha-critica-texto);
   background: var(--falha-critica);
   border-color: var(--falha-critica);
-}
-.chips-d20 {
-  display: inline-flex;
-  flex: none;
-  gap: 4px;
-}
-.chip-d20 {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 22px;
-  height: 22px;
-  padding: 0 3px;
-  font-family: "Cinzel", var(--fonte-titulo);
-  font-size: 12px;
-  font-weight: 700;
-  border: 1px solid var(--borda);
-  border-radius: 4px;
-}
-.chip-d20.descartado {
-  opacity: 0.4;
-}
-.chip-d20.usado {
-  border-color: var(--acento-forte);
-}
-.chip-d20.nat20 {
-  color: var(--critico-texto);
-  background: var(--critico);
-  border-color: var(--critico);
-}
-.chip-d20.nat1 {
-  color: var(--falha-critica-texto);
-  background: var(--falha-critica);
-  border-color: var(--falha-critica);
-}
-.modelo {
-  margin-top: 2px;
-}
-.modelo-bloco {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  padding: 6px 9px;
-  background: var(--campo);
-  border: 1px solid var(--borda);
-  border-radius: 6px;
-}
-/* O cartão da rolagem e o bloco do espaço de magia (V6): uma peça só, a borda do meio é comum. */
-.cartao-colado {
-  display: flex;
-  flex-direction: column;
-  margin-top: 2px;
-}
-.cartao-colado > .modelo {
-  margin-top: 0;
-}
-.cartao-colado > .modelo-bloco:not(:last-child) {
-  border-bottom-width: 0;
-  border-bottom-right-radius: 0;
-  border-bottom-left-radius: 0;
-}
-.cartao-colado > .bloco-espaco {
-  margin-top: 0;
-  background: var(--cabecalho);
-  border-top-right-radius: 0;
-  border-top-left-radius: 0;
-}
-.bloco-total {
-  font-size: 13px;
-  color: var(--texto-suave);
-}
-.bloco-total strong {
-  font-family: var(--fonte-titulo);
-  font-size: 17px;
-  color: var(--texto);
-}
-.modelo-bloco.teste {
-  flex-direction: row;
-  gap: 8px;
-  align-items: center;
-  min-height: 48px;
-}
-.bloco-textos {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-.bloco-titulo {
-  font-family: var(--fonte-titulo);
-  font-size: 16px;
-  font-weight: 600;
-  line-height: 1.1;
-}
-.bloco-espaco .bloco-titulo {
-  font-size: 14px;
-}
-.bloco-sub {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  align-items: center;
-  font-size: 12px;
-  color: var(--texto-suave);
-}
-.bloco-cabeca {
-  display: flex;
-  gap: 8px;
-  align-items: baseline;
-}
-.bloco-linha {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 8px;
-  align-items: center;
-}
-.bloco-formula {
-  font-size: 12.5px;
-  line-height: 1.15;
-}
-.bloco-cd {
-  display: inline-flex;
-  gap: 6px;
-  align-items: center;
-}
-.bloco-cd-valor {
-  display: inline-flex;
-  align-items: center;
-  height: 34px;
-  padding: 0 7px;
-  font-family: "Cinzel", var(--fonte-titulo);
-  font-size: 16px;
-  font-weight: 700;
-  border: 1px solid var(--borda);
-  border-radius: 6px;
-}
-.modelo-titulo {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  align-items: center;
-}
-.modelo-linha {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 4px;
-}
-.etiqueta-vantagem,
-.etiqueta-cd {
-  padding: 0 6px;
-  font-size: 11px;
-  background: var(--cabecalho);
-  border: 1px solid var(--borda);
-  border-radius: 999px;
-}
-.tag-natural {
-  display: inline-flex;
-  align-items: center;
-  height: 17px;
-  padding: 0 6px;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  border-radius: 9px;
-}
-.tag-natural.critico {
-  color: var(--critico-texto);
-  background: var(--critico);
-}
-.tag-natural.falha {
-  color: var(--falha-critica-texto);
-  background: var(--falha-critica);
-}
-.tag-natural.sucesso {
-  color: var(--sucesso-texto);
-  background: var(--sucesso);
-}
-.bloco-espaco .bloco-cabeca {
-  flex-wrap: wrap;
-  gap: 2px 8px;
-}
-.bloco-espaco .tag-natural {
-  white-space: nowrap;
-}
-.veredito {
-  margin: 4px 0 0;
-  font-weight: 700;
-}
-.veredito.critico,
-.veredito.sucesso {
-  color: var(--aviso);
-}
-.veredito.sucesso {
-  color: var(--sucesso);
-}
-.veredito.falha {
-  color: var(--perigo);
 }
 .mensagem-chat.tipo-modelo .mensagem-autor {
   font-size: 12px;
@@ -4544,11 +4327,6 @@ kbd {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-}
-.bloco-item {
-  display: inline-flex;
-  gap: 6px;
-  align-items: center;
 }
 
 /* V4b: armas e itens do compêndio, que se arrastam para a ficha */

@@ -103,6 +103,7 @@ test("atacar com uma ação (acerto e dano no chat, só o dano), expandir e mand
   await abrirAba(p, "chat");
   const cartao = p.getByTestId("modelo-ataque").filter({ hasText: "Clava Grande" });
   await expect(cartao).toHaveCount(1);
+  await cartao.hover(); // os dados e as fórmulas ficam no balão
   await expect(cartao).toContainText(/\+\s?6/);
   // 20 natural dobra os dados (crítico, 1 em 20): 2d8 ou 4d8
   await expect(cartao.getByTestId("modelo-dano-formula")).toContainText(/[24]d8\s?\+\s?4/);
@@ -112,6 +113,7 @@ test("atacar com uma ação (acerto e dano no chat, só o dano), expandir e mand
   const antes = await p.getByTestId("chat-mensagem").count();
   await janela.getByTestId("npc-acao-dano-1").click();
   await expect(p.getByTestId("chat-mensagem")).toHaveCount(antes + 1);
+  await p.getByTestId("chat-mensagem").last().locator(".rc").hover(); // a fórmula fica no balão
   await expect(p.getByTestId("chat-mensagem").last()).toContainText(/2d6\s?\+\s?4/);
   await expect(p.getByTestId("chat-mensagem").last()).toContainText("Azagaia");
 

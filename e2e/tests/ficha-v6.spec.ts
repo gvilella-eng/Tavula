@@ -66,6 +66,7 @@ test("conjurar com espaço maior: o menu só traz o que dá para gastar e o chat
 
   await expect(janela.getByTestId("espacos-restantes-4")).toHaveText("3");
   await abrirAba(p, "chat");
+  await p.getByTestId("modelo-livre").hover(); // o dado a mais fica no balão
   const bloco = p.getByTestId("bloco-espaco");
   await expect(bloco).toHaveCount(1);
   await expect(p.getByTestId("bloco-espaco-titulo")).toHaveText("Espaço de 4º · +1d6");
@@ -74,15 +75,10 @@ test("conjurar com espaço maior: o menu só traz o que dá para gastar e o chat
     (await p.getByTestId("bloco-espaco-metade").textContent())?.replace(/\D/g, ""),
   );
   expect(meio).toBe(Math.floor(total / 2));
-  // o cartão principal e o bloco são uma peça só: mesma largura, sem espaço entre eles
-  const cartao = await p.getByTestId("modelo-livre").boundingBox();
-  const colado = await bloco.boundingBox();
-  expect(cartao && colado).toBeTruthy();
-  if (cartao && colado) {
-    expect(Math.abs(cartao.x - colado.x)).toBeLessThan(1);
-    expect(Math.abs(cartao.width - colado.width)).toBeLessThan(1);
-    expect(Math.abs(cartao.y + cartao.height - colado.y)).toBeLessThan(2);
-  }
+  // o balão não empurra o chat: o bloco está dentro do balão do cartão
+  await expect(p.getByTestId("modelo-livre").getByTestId("rolagem-balao")).toContainText(
+    "Espaço de 4º",
+  );
   // uma mensagem só
   await expect(p.getByTestId("chat-mensagem").filter({ has: bloco })).toHaveCount(1);
   await expect(p.getByTestId("chat-mensagem").filter({ hasText: "Bola de Fogo" })).toHaveCount(1);
@@ -131,9 +127,14 @@ test("Esc cancela sem gastar; o teclado escolhe (setas, Enter e o número do ní
   await p.keyboard.press("4");
   await expect(janela.getByTestId("espacos-restantes-4")).toHaveText("3");
   await abrirAba(p, "chat");
-  await expect(p.getByTestId("bloco-espaco-titulo")).toHaveCount(2);
-  await expect(p.getByTestId("bloco-espaco-titulo").first()).toHaveText("Espaço de 5º · +2d6");
-  await expect(p.getByTestId("bloco-espaco-titulo").last()).toHaveText("Espaço de 4º · +1d6");
+  const cartoes = p.getByTestId("modelo-livre");
+  await expect(cartoes).toHaveCount(2);
+  await cartoes.first().hover();
+  await expect(p.getByTestId("bloco-espaco-titulo")).toHaveText("Espaço de 5º · +2d6");
+  await p.mouse.move(0, 0);
+  await expect(p.getByTestId("bloco-espaco-titulo")).toHaveCount(0);
+  await cartoes.last().hover();
+  await expect(p.getByTestId("bloco-espaco-titulo")).toHaveText("Espaço de 4º · +1d6");
 });
 
 test("sem porNivelAcima não há bloco: o cartão diz o espaço; sem espaço nenhum avisa; truque não pergunta", async ({

@@ -1,4 +1,5 @@
 import type { Page } from "@playwright/test";
+import { PORTA_WEB_E2E } from "../portas.ts";
 import {
   abrirAba,
   abrirPreferencia,
@@ -310,7 +311,9 @@ test("a Origin é conferida no WebSocket e nos POSTs: de outro site, 403; sem Or
   request,
 }) => {
   const s = await mesa.abrir();
-  const base = new URL(s.pagina.url() === "about:blank" ? "http://127.0.0.1:5174" : s.pagina.url());
+  const base = new URL(
+    s.pagina.url() === "about:blank" ? `http://127.0.0.1:${PORTA_WEB_E2E}` : s.pagina.url(),
+  );
   const propria = base.origin;
 
   const de = (origin: string) => ({ headers: { Origin: origin }, data: { nome: "" } });

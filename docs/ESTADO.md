@@ -127,13 +127,14 @@ mestre** (só mestres). Protocolo completo em `docs/protocolo.md`.
   mesma máquina: use perfis ou janelas anônimas do Chrome (o cookie é por navegador).
 - `pnpm verify`: typecheck + Biome + unidade + E2E.
 - `pnpm dev:e2e`: sobe só os servidores do E2E (sala `8788`, front `5174`, estado em
-  `e2e/.estado-sala`, `MODO=teste`), útil para depurar um teste.
+  `e2e/.estado-sala`, `MODO=teste`), útil para depurar um teste. Outras portas (Q5): variáveis
+  `E2E_PORTA_SALA` e `E2E_PORTA_WEB` (ver "Ajustes Q5").
 - A campanha real é zerada apagando `apps/server/.wrangler/state`.
 
 ### Isolamento do E2E
 
 O Playwright **não** usa mais o `pnpm dev`. Ele sobe dois `webServer` próprios:
-`wrangler dev --port 8788 --persist-to ../../e2e/.estado-sala --var MODO:teste` e `vite --mode e2e`
+`wrangler dev --port 8788 --persist-to ../../e2e/.estado-sala --var MODO:teste` (hoje por `apps/server/scripts/dev-e2e.mjs`, que lê `E2E_PORTA_SALA`) e `vite --mode e2e`
 (portas de `apps/web/.env.e2e`: `TABLETOP_PORTA_WEB=5174`, `TABLETOP_PORTA_SALA=8788`). O `vite.config.ts`
 lê essas variáveis (ambiente ou `.env.<modo>`) e, sem elas, usa 5173/8787. As rotas `POST /teste/zerar`
 (apaga o estado do DO e reaplica o seed) e `POST /teste/reiniciar-sala` (`ctx.abort()`) só existem com
@@ -3862,4 +3863,35 @@ Ver `PASSAGEM.md` ("Q2").
 ### Roteiro manual
 `docs/ROTEIRO-DE-TESTES.md`, "Q2".
 
-## Próximo: o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b, N4, N5, M1, M2, Q1 e Q2
+## Ajustes Q5 — As rolagens no chat no visual novo (entregue, aguardando o roteiro manual)
+
+### O que foi entregue
+- Cada rolagem do chat é um cartão, em dois estilos: **Fita** (padrão) e **Moldura de grimório**, o desenho que o Vilella aprovou. O número é o que mais aparece; no ataque, acerto e dano lado a lado, do mesmo tamanho; na magia de salvaguarda, CD e dano.
+- O dano é o número mais só o ícone do tipo (13 tipos da 5e, mais cura); o nome do tipo fica no `aria-label` e no `title`.
+- Os dados saem da frente: aparecem num balão com o mouse parado ~350 ms em cima do cartão (ou com o foco do teclado; no toque, tocar abre e fecha; Esc fecha). O balão só é montado enquanto aberto.
+- Vantagem e desvantagem mostram os dois totais, o que vale grande e o descartado pequeno e esmaecido, com o rótulo.
+- Rolagem oculta: uma linha pequena em itálico com o ícone, sem caixa.
+- Cartões seguidos do mesmo remetente dividem o cabeçalho.
+- Preferências → Aparência: "Estilo das rolagens no chat" (Fita ou Moldura), com prévia, por pessoa, em `tabletop:pref:estiloDasRolagens`.
+- **Portas do E2E configuráveis** (para duas cópias rodarem testes ao mesmo tempo): `E2E_PORTA_SALA` (padrão 8788) e `E2E_PORTA_WEB` (padrão 5174). Veja "Como rodar".
+
+### Como rodar
+`pnpm dev` como sempre. Sem migração e sem mudança de protocolo. Para testar com outras portas (por exemplo numa segunda cópia do repositório):
+`$env:E2E_PORTA_SALA=8790; $env:E2E_PORTA_WEB=5176; pnpm verify` (PowerShell) ou `E2E_PORTA_SALA=8790 E2E_PORTA_WEB=5176 pnpm verify` (bash). Valem para o `pnpm verify`, os specs, os prints e o `pnpm dev:e2e`. Sem elas, nada muda (8788/5174). As portas vêm de `e2e/portas.ts` (configs do Playwright e ajudas dos testes); a sala sobe por `apps/server/scripts/dev-e2e.mjs` (lê `E2E_PORTA_SALA`) e o Vite lê `TABLETOP_PORTA_*`, que o Playwright preenche a partir delas. Como cada cópia usa portas diferentes, o `reuseExistingServer` nunca reaproveita o servidor da outra. Nunca use 8787/5173 (o `pnpm dev`).
+
+### Verificação
+Ver o relatório do lote.
+
+### Decisões
+Ver `REDESIGN.md` ("Q5 — como ficou").
+
+### Desvios
+Nenhum.
+
+### Frágil
+Ver `PASSAGEM.md` ("Q5").
+
+### Roteiro manual
+`docs/ROTEIRO-DE-TESTES.md`, "Q5".
+
+## Próximo: o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b, N4, N5, M1, M2, Q1, Q2 e Q5

@@ -55,7 +55,7 @@ test("o editor da engrenagem: cria um ataque, muda o bônus mágico e a prévia 
   await abrirAba(mestre.pagina, "chat");
   const cartao = mestre.pagina.getByTestId("modelo-ataque").filter({ hasText: "Lâmina Solar" });
   await expect(cartao).toBeVisible();
-  await expect(cartao).toContainText("Ataque · Lâmina Solar");
+  await expect(cartao).toContainText("Lâmina Solar");
   await expect(cartao.getByTestId("modelo-cd")).toBeVisible();
 
   // voltar: a linha está na lista, com os botões de acerto e dano
@@ -259,14 +259,15 @@ test("crítico: o 20 natural fica no verde fixo e o dano é do crítico; PV temp
   const bloco = mestre.pagina.getByTestId("modelo-ataque").filter({ hasText: "Cimitarra" });
   await expect(bloco).toBeVisible();
   await expect(bloco).toHaveAttribute("data-critico", "true");
-  await expect(bloco.locator(".chip-d20.nat20")).toHaveCount(1);
+  await expect(bloco).toHaveAttribute("data-tom", "critico");
   await expect(bloco.getByTestId("modelo-veredito")).toHaveText("Crítico");
   const verde = await bloco
-    .getByTestId("rolagem-total")
-    .first()
+    .locator(".rc-fita")
     .evaluate((e) => getComputedStyle(e).backgroundColor);
   expect(verde).toBe("rgb(47, 164, 106)");
-  // os dados do dano dobraram: 2d6+7
+  // os dados (no balão, com o mouse parado): o 20 natural marcado e os do dano dobrados: 2d6+7
+  await bloco.hover();
+  await expect(bloco.locator(".rc-chip.crit")).toHaveCount(1);
   await expect(bloco.getByTestId("modelo-dano-formula")).toContainText("2d6 + 7");
   expect((await request.post("/teste/dados")).ok()).toBe(true);
 

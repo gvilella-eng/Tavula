@@ -21,6 +21,7 @@ import { haQuanto } from "./claude/textosDoClaude";
 import { TrocarSenha } from "./contas/TrocarSenha";
 import { definirDicasLigadas, useDicasLigadas } from "./dicasLigadas";
 import { ListaDeAtalhos } from "./ListaDeAtalhos";
+import { SeletorDoEstilo } from "./rolagem/SeletorDoEstilo";
 import { MarcaSoNesteNavegador, SecaoDePreferencias } from "./SecaoDePreferencias";
 import { SeletorDeTema } from "./SeletorDeTema";
 import { CartaoDeSom } from "./som/CartaoDeSom";
@@ -257,6 +258,7 @@ export function AbaPreferencias({
           <MarcaSoNesteNavegador />
         </div>
         <SeletorDeTema aoEscolher={setTema} />
+        <SeletorDoEstilo />
       </SecaoDePreferencias>
       <SecaoDePreferencias
         id="som"

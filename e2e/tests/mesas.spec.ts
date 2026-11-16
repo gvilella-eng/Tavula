@@ -1,6 +1,7 @@
 import type { APIRequestContext, Page } from "@playwright/test";
 import { derivarSenha } from "../../packages/shared/src/contas.ts";
 import { gerarIdDeMesa } from "../../packages/shared/src/mesas.ts";
+import { PORTA_WEB_E2E } from "../portas.ts";
 import {
   abrirAba,
   abrirAbaInicial,
@@ -177,7 +178,9 @@ test("abre pelo id digitado com maiúsculas e espaços e pelo link colado", asyn
   await expect(page.getByTestId("tela-inicial")).toBeVisible();
   await expect(page).toHaveURL(/\/$/);
   await abrirAbaInicial(page, "entrar");
-  await page.getByTestId("inicio-entrar-campo").fill(`http://127.0.0.1:5174/m/${id.toUpperCase()}`);
+  await page
+    .getByTestId("inicio-entrar-campo")
+    .fill(`http://127.0.0.1:${PORTA_WEB_E2E}/m/${id.toUpperCase()}`);
   await page.getByTestId("inicio-entrar-campo").press("Enter");
   await expect(page).toHaveURL(new RegExp(`/m/${id}$`));
   await expect(page.getByTestId("entrada-nome-da-mesa")).toHaveText("Mesa dos ids");

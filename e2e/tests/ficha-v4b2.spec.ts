@@ -138,7 +138,9 @@ test("a seção Conjuração: CD e ataque pelo ND, bolinhas, conjurar gasta o es
   await janela.getByTestId("npc-conj-ataque").click();
   await abrirAba(p, "chat");
   // a magia de salvaguarda sai no bloco de dano com a CD; a de ataque, no bloco de ataque
-  await expect(p.getByText("Bola de Fogo, CD 15")).toHaveCount(1);
+  const bola = p.getByTestId("modelo-livre").filter({ hasText: "Bola de Fogo" });
+  await expect(bola).toHaveCount(1);
+  await expect(bola.getByTestId("modelo-cd-valor")).toHaveText("15");
   await expect(p.getByTestId("modelo-ataque").filter({ hasText: "Raio de Fogo" })).toHaveCount(1);
 });
 

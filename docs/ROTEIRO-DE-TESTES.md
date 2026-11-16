@@ -560,6 +560,18 @@ Antes: a mesa com os seus arquivos reais (361 magias, 428 monstros, 274 itens m�
 8. **Adicionar e arrastar.** Ache uma arma em Todas e use Adicionar; arraste uma magia para a ficha aberta. As duas funcionam como antes.
 9. **Conferir nomes.** Abra 10 magias, 10 monstros e 10 itens mágicos ao acaso e veja se o nome em inglês confere. O que ficou sem nome em inglês (6 magias, 6 monstros, 15 itens) aparece só com o nome em português.
 
+## Q5 — As rolagens no chat (Fita e Moldura)
+
+1. **Fita é o padrão.** Abra o chat e mande uma rolagem pela ficha (um ataque com dano). Deve vir num cartão de cantos chanfrados, o nome numa fita no topo, acerto e dano lado a lado do mesmo tamanho, o dano só com o ícone do tipo (passe o mouse no ícone: o nome do tipo aparece).
+2. **Balão.** Deixe o mouse parado ~meio segundo em cima de um cartão: aparecem os dados (o d20 descartado riscado, o que vale com borda âmbar) e a fórmula. Tire o mouse: some, e o chat não pula. Com Tab no cartão, o mesmo; Esc fecha.
+3. **Vantagem e desvantagem.** Rode com vantagem e com desvantagem: os dois totais aparecem, o que vale grande, o outro pequeno e apagado, com a palavra pequena embaixo.
+4. **Crítico e falha.** Um 20 natural deixa cartão, fita e número num verde; um 1 natural, num cinza apagado. Nada vermelho nem laranja no dano.
+5. **Magia de salvaguarda e dardos.** Uma magia com CD mostra CD e dano lado a lado. Mísseis Mágicos no 2º espaço: o total no cartão, cada dardo no balão.
+6. **Rolagem oculta** (como mestre): uma linha pequena em itálico, sem caixa.
+7. **Moldura.** Preferências → Aparência → "Estilo das rolagens no chat": escolha Moldura. Os cartões do chat mudam na hora (linha dupla com cantoneiras, divisória com losango). Recarregue: continua Moldura. Volte para Fita.
+8. **Temas.** Repita 1 e 7 no Pergaminho (claro): números e fitas legíveis.
+9. **Várias rolagens seguidas** do mesmo jogador dividem o cabeçalho.
+
 ## Se algo der errado
 - Anote a tela, o que fez e o que esperava, e mande para mim. Bug confirmado vai para `docs/BUGS.md`.
 - Para voltar à campanha de antes de mesas e contas, use a cópia de segurança indicada no topo.

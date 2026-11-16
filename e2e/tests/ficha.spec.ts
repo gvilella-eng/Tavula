@@ -128,7 +128,7 @@ test("clicar num ataque ou numa perícia (com vantagem) manda o cartão para o c
     await abrirAba(outro.pagina, "chat");
     const cartao = outro.pagina.getByTestId("modelo-ataque").filter({ hasText: "Cimitarra" });
     await expect(cartao).toBeVisible();
-    await expect(cartao.getByTestId("cartao-rolagem")).toHaveCount(2); // acerto e dano
+    await expect(cartao.getByTestId("rolagem-total")).toHaveCount(2); // acerto e dano
     await expect(
       outro.pagina
         .getByTestId("chat-mensagem")
@@ -153,7 +153,8 @@ test("clicar num ataque ou numa perícia (com vantagem) manda o cartão para o c
   await expect(teste).toBeVisible();
   await expect(teste).toContainText("vantagem");
   await expect(janela.getByTestId("vantagem-vantagem")).toHaveAttribute("aria-pressed", "true");
-  // com vantagem os dois d20 aparecem, o descartado esmaecido
+  // com vantagem os dois d20 aparecem (no balão), o descartado esmaecido
+  await teste.hover();
   await expect(teste.getByTestId("d20-chip")).toHaveCount(2);
   await expect(teste.locator('[data-testid="d20-chip"][data-descartado="true"]')).toHaveCount(1);
   // sem vantagem, a mesma perícia não leva a etiqueta

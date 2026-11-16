@@ -22,6 +22,7 @@ import { createRoot } from "react-dom/client";
 import { App } from "./App";
 import "./styles.css";
 import "./ficha/ficha.css";
+import "./rolagem/rolagem.css";
 import { aplicarTema, lerTema } from "./tema/temas";
 
 // O tema vale desde antes da primeira renderização (preferência deste navegador).

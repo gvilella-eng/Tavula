@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import { PORTA_SALA_E2E, PORTA_WEB_E2E } from "../portas.ts";
 import { ID_DA_MESA } from "./ajudas";
 
 // 12-2: ajudas dos testes do servidor MCP (`apps/mcp`). O teste sobe o servidor DE VERDADE (o arquivo gerado pelo build),
@@ -15,8 +16,8 @@ export const ARQUIVO_DO_MCP = `${PASTA_DO_MCP}/dist/tavola-mcp.mjs`;
 const COMPENDIO_DE_EXEMPLO = `${RAIZ}fixtures/compendio/exemplo-srd.json`;
 
 /** A sala de teste direto (o Worker) e o front de teste (o proxy do Vite, como o `pnpm dev` do usuário). */
-export const URL_DA_SALA = "http://127.0.0.1:8788";
-export const URL_PELO_VITE = "http://127.0.0.1:5174";
+export const URL_DA_SALA = `http://127.0.0.1:${PORTA_SALA_E2E}`;
+export const URL_PELO_VITE = `http://127.0.0.1:${PORTA_WEB_E2E}`;
 
 /** Gera `apps/mcp/dist/tavola-mcp.mjs` (esbuild: menos de um segundo). */
 export function construirOMcp(): void {

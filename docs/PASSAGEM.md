@@ -963,3 +963,18 @@ Continua em aberto, por ser decisão e não erro de doc: `ficha.verOutras` (seç
 - Os nomes em inglês dos arquivos do Vilella vêm de uma tabela local (`nomes-originais.json`, na pasta do compêndio, fora do git), escrita de memória sobre o D&D 5e oficial; o que não se soube ficou sem nome. Conferir por amostra.
 
 **Suposições**: ver `docs/REDESIGN.md`, "Q2 — como ficou".
+
+## Q5 (2026-11-16): as rolagens no chat (Fita e Moldura)
+**Onde mexer**
+- Cartão: `apps/web/src/rolagem/CartaoNoChat.tsx` (peças, balão, gesto do mouse parado/foco/toque), conteúdo por tipo em `rolagem/CorpoDaRolagem.tsx` (`CorpoDoModelo`: teste, ataque, vida; `CorpoDaRolagemLivre`: `/r`), chamados por `MensagemDoChat.tsx`. O `CartaoDeRolagem.tsx` ficou só para o `[[...]]` dentro de frase.
+- Lógica pura: `rolagem/totais.ts` (`totaisDaVantagem`, `naturalDoD20`, `lerRotuloDeDano`), `rolagem/danos.ts` (tipos de dano) e `IconeDoDano.tsx` (ícones), `rolagem/agrupar.ts` (cabeçalho dividido). Testes ao lado (`*.test.ts`), inclusive o contraste em todos os temas.
+- Estilo: `rolagem/estilo.ts` (preferência, `useEstiloDasRolagens`), `rolagem/SeletorDoEstilo.tsx` (Preferências → Aparência), CSS em `rolagem/rolagem.css` (importado no `main.tsx`).
+- Portas do E2E: `e2e/portas.ts` e `apps/server/scripts/dev-e2e.mjs` (`E2E_PORTA_SALA`, `E2E_PORTA_WEB`).
+
+**Frágil**
+- O cartão de dano de magia de salvaguarda sem acerto depende do texto que a ficha manda (`rolador.dano`: "Nome (nível n), CD x, tipo"). Mudar esse texto desfaz o cartão CD | dano (cai no cartão livre, sem perder dado). `lerRotuloDeDano` tem teste.
+- Os dados, fórmulas e blocos de espaço e dardos só existem no balão: todo teste que os lê precisa passar o mouse no cartão antes (`hover()`).
+- A cor do número crítico é uma `color-mix` com o `--texto`; se `--critico` ou o `--painel` de um tema mudar, rode `rolagem/contraste.test.ts`.
+- `.mensagem-chat.seguida` esconde o cabeçalho com `clip-path` (continua no DOM para os testes e leitores de tela).
+
+**Suposições**: ver `docs/REDESIGN.md`, "Q5 — como ficou".

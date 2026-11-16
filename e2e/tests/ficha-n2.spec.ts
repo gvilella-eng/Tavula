@@ -164,10 +164,12 @@ test("truque no nível 5 rola 2 dados e o cartão diz o nível", async ({ mesa }
   await janela.getByTestId("npc-conj-magia-0").click();
   await janela.getByTestId("npc-conj-conjurar-0").click();
   await abrirAba(p, "chat");
+  await p.getByTestId("chat-mensagem").last().locator(".rc").hover();
   const formula = p.getByTestId("modelo-dano-formula");
   await expect(formula).toHaveCount(1);
   // ND 5 vale como nível 5: 1d10 + 1d10
-  await expect(formula).toHaveText("2d10 fogo (nível 5)");
+  // (um 20 natural, 1 em 20, dobra os dados do crítico: 4d10)
+  await expect(formula).toHaveText(/^[24]d10 fogo \(nível 5\)$/);
 });
 
 test("ritual não gasta espaço e Mísseis Mágicos no 2º espaço mostra 4 dardos", async ({ mesa }) => {
@@ -235,6 +237,7 @@ test("ritual não gasta espaço e Mísseis Mágicos no 2º espaço mostra 4 dard
   const msg = p.getByTestId("chat-mensagem").filter({ hasText: "Mísseis Mágicos" });
   await expect(msg).toHaveCount(1);
   await expect(msg.getByTestId("espaco-usado")).toHaveText("com espaço de 2º · 4 dardos");
+  await msg.locator(".rc").hover();
   await expect(msg.getByTestId("bloco-quantidade-titulo")).toHaveText("4 dardos · 1d4 + 1 cada");
   const total = Number(
     await msg.getByTestId("bloco-quantidade-total").locator("strong").textContent(),
@@ -245,5 +248,12 @@ test("ritual não gasta espaço e Mísseis Mágicos no 2º espaço mostra 4 dard
   // no nível da magia, nada de quantidade
   await janela.getByTestId("magia-conjurar-1").click();
   await escolherEspaco(p, 1);
+  const cartoes = p.getByTestId("modelo-livre");
+  await expect(cartoes).toHaveCount(2);
+  await cartoes.first().hover(); // a conjuração de 2º espaço tem o bloco (no balão)...
   await expect(p.getByTestId("bloco-quantidade")).toHaveCount(1);
+  await p.mouse.move(0, 0);
+  await cartoes.last().hover(); // ...a do nível da magia, não
+  await expect(p.getByTestId("rolagem-balao")).toBeVisible();
+  await expect(p.getByTestId("bloco-quantidade")).toHaveCount(0);
 });

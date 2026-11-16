@@ -1,12 +1,13 @@
 import { request as httpRequest } from "node:http";
 import { expect, type Page } from "@playwright/test";
+import { PORTA_SALA_E2E } from "../portas.ts";
 import { ID_DA_MESA } from "./ajudas";
 
 // 12-1: ajudas dos testes do acesso do Claude. O servidor MCP é o 12-2; aqui um WebSocket do Node com o cabeçalho
 // `Authorization: Bearer <token>` imita o cliente dele (um processo Node, sem `Origin`, não um navegador).
 
 /** A sala direto (o Worker do `dev:e2e`), onde um cliente que não é navegador se conecta. */
-export const SALA_E2E = "127.0.0.1:8788";
+export const SALA_E2E = `127.0.0.1:${PORTA_SALA_E2E}`;
 
 /** Gera um token do Claude pela API, com a sessão (o cookie) da página. Devolve o token e o id dele. */
 export async function gerarToken(
