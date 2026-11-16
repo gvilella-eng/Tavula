@@ -1,9 +1,9 @@
 import type { Page } from "@playwright/test";
 import { abrirAba, abrirPreferencia, enviarCru, expect, intencaoCrua, test } from "./ajudas";
 import { entrarNoMapa, type GanchoDoMapa, pontoNaPagina } from "./ajudasMapa";
-import { arquivoWav, enviarEEsperarSnapshot, esperarHashDoSom, somDe } from "./ajudasSom";
+import { arquivoWav, esperarHashDoSom, somDe } from "./ajudasSom";
 
-// N5: som ambiente. O mestre toca a trilha e os efeitos pelo painel de Som, a zona toca um som para quem está dentro, a
+// N5: som ambiente. (A trilha e os efeitos do mestre passaram para a mesa de som: som-q4.spec.ts.) A zona toca um som para quem está dentro, a
 // automação `som.tocar` toca um efeito, e cada pessoa ajusta o volume nas Preferências. Os arquivos são wavs de silêncio
 // gerados aqui; o gancho `__tabletopSom` diz o que "está tocando" (o volume já com as preferências).
 
@@ -34,135 +34,11 @@ const centrar = (p: Page, x: number, y: number) =>
     [x, y],
   );
 
-/** 0,8 (volume do som) × 0,8 (volume geral padrão) × 1 (categoria): o que o jogador ouve com os padrões. */
-const COM_OS_PADROES = 0.64;
-
-test("o mestre toca a trilha e o jogador a ouve; o efeito toca uma vez por clique; volume zero, silenciar e parar funcionam", async ({
+test("o aviso 'Clique para ativar o som' aparece quando o navegador bloqueia, ativa com um clique e guarda o Agora não", async ({
   mesa,
 }) => {
-  const mestre = await entrarNoMapa(mesa, "mestre");
   const j1 = await entrarNoMapa(mesa, "jogador-1");
-  const m = mestre.pagina;
   const j = j1.pagina;
-
-  // o botão e o painel são só do mestre
-  await expect(j.getByTestId("ferramenta-som")).toHaveCount(0);
-  await m.getByTestId("ferramenta-som").click();
-  await expect(m.getByTestId("painel-som")).toBeVisible();
-  await expect(m.getByTestId("som-trilha-agora")).toHaveText("Parada");
-  expect((await somDe(j)).trilha).toBeNull();
-
-  // escolher um arquivo vira asset e toca como trilha
-  await m.getByTestId("som-trilha-escolher-arquivo").setInputFiles(arquivoWav("taverna.wav", 1));
-  await expect(m.getByTestId("som-trilha-agora")).toHaveText("taverna");
-  const hash = await esperarHashDoSom(m, "taverna.wav");
-  expect(hash).toMatch(/^[0-9a-f]{64}$/);
-  // o jogador baixa o arquivo (pelo mesmo caminho dos assets de imagem) e passa a ouvir, no volume dele
-  for (const p of [m, j]) {
-    await expect.poll(async () => (await somDe(p)).trilha?.hash).toBe(hash);
-    await expect
-      .poll(async () => (await somDe(p)).trilha?.volume ?? 0)
-      .toBeCloseTo(COM_OS_PADROES, 5);
-  }
-
-  // o volume da trilha do mestre vale para todos (e o jogador ainda tem o dele)
-  await m.getByTestId("som-trilha-volume").fill("50");
-  await expect.poll(async () => (await somDe(j)).trilha?.volume ?? 0).toBeCloseTo(0.5 * 0.8, 5);
-  await m.getByTestId("som-trilha-volume").fill("80");
-  await expect
-    .poll(async () => (await somDe(j)).trilha?.volume ?? 0)
-    .toBeCloseTo(COM_OS_PADROES, 5);
-
-  // efeitos: um clique, uma vez
-  await m.getByTestId("som-efeito-arquivo").setInputFiles(arquivoWav("sopro.wav", 2));
-  const sopro = await esperarHashDoSom(m, "sopro.wav");
-  expect(sopro).toMatch(/^[0-9a-f]{64}$/);
-  for (const p of [m, j]) {
-    await expect.poll(async () => (await somDe(p)).efeitos.length).toBe(1);
-    expect((await somDe(p)).efeitos[0]).toMatchObject({ hash: sopro });
-    expect((await somDe(p)).efeitos[0]?.volume).toBeCloseTo(COM_OS_PADROES, 5);
-  }
-  await m.getByTestId("som-efeito-item").filter({ hasText: "sopro.wav" }).click();
-  for (const p of [m, j]) await expect.poll(async () => (await somDe(p)).efeitos.length).toBe(2);
-  // trocar a trilha não toca efeito nenhum
-  expect((await somDe(j)).efeitos).toHaveLength(2);
-
-  // o jogador: volume e silenciar são só dele
-  await abrirPreferencia(j, "som");
-  await expect(j.getByTestId("pref-resumo-som")).toHaveText("Volume 80% · trilha ligada");
-  await j.getByTestId("som-silenciar").check();
-  await expect(j.getByTestId("pref-resumo-som")).toHaveText("Tudo silenciado");
-  await expect.poll(async () => (await somDe(j)).trilha?.volume).toBe(0);
-  expect((await somDe(m)).trilha?.volume).toBeCloseTo(COM_OS_PADROES, 5);
-  await m.getByTestId("som-efeito-item").filter({ hasText: "sopro.wav" }).click();
-  await expect.poll(async () => (await somDe(j)).efeitos.length).toBe(3);
-  expect((await somDe(j)).efeitos[2]?.volume).toBe(0);
-  await j.getByTestId("som-silenciar").uncheck();
-  await expect
-    .poll(async () => (await somDe(j)).trilha?.volume ?? 0)
-    .toBeCloseTo(COM_OS_PADROES, 5);
-  // volume da trilha em zero: a trilha segue "tocando" (no relógio da sala), sem som
-  await j.getByTestId("som-volume-trilha").fill("0");
-  await expect(j.getByTestId("pref-resumo-som")).toHaveText("Volume 80% · trilha desligada");
-  await expect.poll(async () => (await somDe(j)).trilha?.volume).toBe(0);
-  expect((await somDe(j)).trilha?.hash).toBe(hash);
-  await j.getByTestId("som-volume-trilha").fill("100");
-  await expect
-    .poll(async () => (await somDe(j)).trilha?.volume ?? 0)
-    .toBeCloseTo(COM_OS_PADROES, 5);
-  // volume dos efeitos em zero
-  await j.getByTestId("som-volume-efeitos").fill("0");
-  await m.getByTestId("som-efeito-item").filter({ hasText: "sopro.wav" }).click();
-  await expect.poll(async () => (await somDe(j)).efeitos.length).toBe(4);
-  expect((await somDe(j)).efeitos[3]?.volume).toBe(0);
-  // a escolha é do navegador: nada disso foi mandado à sala
-  expect(j1.enviados.filter((f) => f.includes("som.") && f.includes("volume"))).toHaveLength(0);
-
-  // quem entra no meio ouve a trilha que já toca
-  const j2 = await entrarNoMapa(mesa, "jogador-2");
-  await expect.poll(async () => (await somDe(j2.pagina)).trilha?.hash).toBe(hash);
-
-  // parar: some para todos
-  await m.getByTestId("som-trilha-parar").click();
-  await expect(m.getByTestId("som-trilha-agora")).toHaveText("Parada");
-  for (const p of [m, j, j2.pagina]) {
-    await expect.poll(async () => (await somDe(p)).trilha).toBeNull();
-  }
-  // o jogador não consegue tocar nem parar nada
-  const recusa = await enviarCru(j, intencaoCrua("som.trilha", { hash, volume: 0.5 }));
-  expect(recusa?.dados.codigo).toBe("sem_permissao");
-  const recusaEfeito = await enviarCru(j, intencaoCrua("som.efeito", { hash: sopro, volume: 0.5 }));
-  expect(recusaEfeito?.dados.codigo).toBe("sem_permissao");
-});
-
-test("a trilha da cena começa ao levar o grupo, e o aviso 'Clique para ativar o som' guarda a escolha", async ({
-  mesa,
-}) => {
-  const mestre = await entrarNoMapa(mesa, "mestre");
-  const j1 = await entrarNoMapa(mesa, "jogador-1");
-  const m = mestre.pagina;
-  const j = j1.pagina;
-  await m.getByTestId("ferramenta-som").click();
-  await m.getByTestId("som-trilha-escolher-arquivo").setInputFiles(arquivoWav("vento.wav", 1));
-  const vento = await esperarHashDoSom(m, "vento.wav");
-  await expect.poll(async () => (await somDe(j)).trilha?.hash).toBe(vento);
-  // usar a que toca como a trilha desta cena, e parar
-  await m.getByTestId("som-cena-usar").click();
-  await expect(m.getByTestId("som-cena-trilha")).toContainText("vento");
-  await m.getByTestId("som-trilha-parar").click();
-  await expect.poll(async () => (await somDe(j)).trilha).toBeNull();
-  // outra cena para levar o grupo e voltar
-  await ok(m, "cena.criar", { id: "cena-som", nome: "Outra" });
-  expect(
-    await enviarEEsperarSnapshot(m, intencaoCrua("grupo.moverPara", { cenaId: "cena-som" })),
-  ).toBe("snapshot");
-  await expect.poll(async () => (await somDe(j)).trilha).toBeNull();
-  expect(
-    await enviarEEsperarSnapshot(m, intencaoCrua("grupo.moverPara", { cenaId: "cena-1" })),
-  ).toBe("snapshot");
-  await expect.poll(async () => (await somDe(j)).trilha?.hash).toBe(vento);
-  await expect.poll(async () => (await somDe(m)).trilha?.hash).toBe(vento);
-
   // o aviso do navegador que bloqueia o som: aparece, ativa com um clique, ou "Agora não" e não volta
   await expect(j.getByTestId("aviso-som")).toHaveCount(0);
   await j.evaluate(() =>

@@ -30,9 +30,12 @@ export const arquivoWav = (nome: string, segundos: number) => ({
 });
 
 export type EstadoDoSom = {
-  trilha: { hash: string; volume: number; tocando: boolean } | null;
+  /** Os ambientes que tocam (o volume já com o geral da mesa de som e as preferências). */
+  ambientes: { indice: number; hash: string; volume: number; tocando: boolean }[];
   zonas: { hash: string; volume: number }[];
-  efeitos: { hash: string; volume: number }[];
+  efeitos: { hash: string; volume: number; lugar: number | null }[];
+  /** Os efeitos que ainda estão tocando agora. */
+  efeitosTocando: { hash: string; lugar: number | null }[];
   bloqueado: boolean;
 };
 
@@ -95,3 +98,34 @@ export const hashDoSom = (p: Page, nomeDoArquivo: string): Promise<string | unde
         .find((m) => m.tipo === "som" && m.nomeOriginal === n)?.hash,
     nomeDoArquivo,
   );
+
+/**
+ * Q4: põe um som num lugar da mesa de som pela configuração: abre o painel de Som (se ainda não está aberto), clica no
+ * lugar vazio, escolhe o arquivo (o wav gerado aqui) e, se vier, dá o nome. Deixa a configuração aberta no lugar.
+ */
+export async function configurarLugar(
+  m: Page,
+  grupo: "efeito" | "ambiente",
+  indice: number,
+  arquivo: ReturnType<typeof arquivoWav>,
+  nome?: string,
+): Promise<void> {
+  if (
+    !(await m.getByTestId("painel-som").isVisible()) &&
+    !(await m.getByTestId("som-faixa").isVisible())
+  ) {
+    await m.getByTestId("ferramenta-som").click();
+  }
+  if (!(await m.getByTestId("som-config").isVisible())) {
+    await m.getByTestId(`som-${grupo}-vazio-${indice}`).click();
+  }
+  await expect(m.getByTestId("som-config")).toBeVisible();
+  await m.getByTestId(`som-lugar-${grupo}-${indice}`).click();
+  await m.getByTestId("som-config-escolher-arquivo").setInputFiles(arquivo);
+  await expect(m.getByTestId(`som-lugar-${grupo}-${indice}`)).toHaveAttribute("data-vazio", "nao");
+  if (nome !== undefined) {
+    await m.getByTestId("som-config-nome").fill(nome);
+    await m.getByTestId("som-config-nome").blur();
+    await expect(m.getByTestId(`som-lugar-${grupo}-${indice}`)).toContainText(nome.slice(0, 12));
+  }
+}

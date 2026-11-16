@@ -300,21 +300,13 @@ export function usoDoArquivo(
         dados: { id: alvo.handoutId, mudancas: { imagemHash: hash } },
         frase: "a imagem entrou no handout",
       };
-    case "som": {
-      if (!alvo.cenaId) {
-        return { ok: true, tipo: null, frase: "o som ficou na mesa (sem cena: nada tocando)" };
-      }
-      const nome = (meta?.nomeOriginal ?? "Som").replace(/\.[^.]+$/, "").slice(0, 200) || "Som";
+    case "som":
+      // Q4: o som só entra na mesa; ele ganha um lugar na mesa de som pela configuração (ou pela ferramenta `som`).
       return {
         ok: true,
-        tipo: "cena.editar",
-        dados: {
-          cenaId: alvo.cenaId,
-          trilha: { hash, nome, volume: opcoes.volume ?? 0.6 },
-        },
-        frase: "o som virou a trilha padrão da cena",
+        tipo: null,
+        frase: "o som ficou na mesa (ponha-o num lugar da mesa de som para tocar)",
       };
-    }
     case "compendio": {
       const nome = (meta?.nomeOriginal ?? "compendio.json").slice(0, 200);
       return {

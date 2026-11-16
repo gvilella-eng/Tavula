@@ -3862,4 +3862,32 @@ Ver `PASSAGEM.md` ("Q2").
 ### Roteiro manual
 `docs/ROTEIRO-DE-TESTES.md`, "Q2".
 
-## Próximo: o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b, N4, N5, M1, M2, Q1 e Q2
+## Ajustes Q4 — A mesa de som: 8 efeitos de um toque e 8 ambientes em laço (entregue, aguardando o roteiro manual)
+
+### O que foi entregue
+- A mesa de som do mestre (janela flutuante ou faixa no pé da tela): 8 efeitos (um toque, uma vez, para todos; barra de progresso e "parar"), 8 ambientes (interruptor e volume próprio, vários ao mesmo tempo, em laço, entrada e saída de 1,5 s), volume geral e "Parar tudo".
+- A configuração dos 16 lugares: arquivo, nome (12 letras), 12 ícones, 6 cores de etiqueta, volume padrão, "Ouvir", "Tirar deste lugar" e "Apagar este som da mesa" (com confirmação e o aviso de onde o som estava).
+- Ambientes da cena (no lugar da trilha da cena): ligam ao levar o grupo, os outros desligam.
+- A trilha única e a trilha da cena do N5 são convertidas ao ler (no banco e nos arquivos exportados).
+- Intenções novas (`som.controlar`, só do mestre): `som.lugar`, `som.efeitoParar`, `som.ambiente`, `som.volumeGeral`, `som.pararTudo`, `som.apagar`; `som.efeito` ganhou o `lugar`. Saíram `som.trilha` e `som.parar`. Eventos novos: `som.ligadoAlterado`, `som.lugarAlterado` (só o mestre), `som.efeitoParado`, `asset.removido` (só o mestre). A ferramenta `som` do MCP faz tudo isso (tabela de paridade em dia).
+- O teste instável do `envio-m1.spec.ts` ("envio com a mesa do mestre fechada") foi corrigido na causa.
+
+### Como rodar
+`pnpm dev` como sempre. **Sem migração de banco** (o som mora em chaves novas da tabela `meta`: `mesa_de_som` e `som_ligado`). A campanha que já existe carrega: a trilha antiga vira um ambiente na primeira leitura.
+
+### Verificação
+Ver o relatório do lote (números do `pnpm verify` e dos prints).
+
+### Decisões
+Ver `REDESIGN.md` ("Q4 — como ficou").
+
+### Desvios
+Nenhum.
+
+### Frágil
+Ver `PASSAGEM.md` ("Q4").
+
+### Roteiro manual
+`docs/ROTEIRO-DE-TESTES.md`, "Q4".
+
+## Próximo: o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b, N4, N5, M1, M2, Q1, Q2 e Q4

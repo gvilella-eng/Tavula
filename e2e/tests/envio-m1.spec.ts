@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { enviarCru, expect, intencaoCrua, type Sessao, test } from "./ajudas";
+import { abrirAba, enviarCru, expect, intencaoCrua, type Sessao, test } from "./ajudas";
 import { assets, imagensDoMapa, pngDeRuido } from "./ajudasAssets";
 import { ClaudeWs, gerarToken } from "./ajudasClaude";
 import { enviarPor, idDoEnvio, linkDoTexto, pngGrande, wavMudo } from "./ajudasEnvio";
@@ -166,8 +166,15 @@ test("envio com a mesa do mestre fechada: ao abrir, a mesa avisa 'O Claude envio
 }) => {
   const mestre = await entrarNoMapa(mesa, "mestre");
   const { mcp } = await mcpDe(mestre);
+  // Um jogador vê a presença: é por ele que sabemos que a sala já registrou a saída do mestre.
+  const observador = await entrarNoMapa(mesa, "jogador-1");
+  await abrirAba(observador.pagina, "chat");
+  await expect(observador.pagina.getByTestId("presenca-estado-mestre")).toHaveText("online");
   // O mestre fecha a mesa; o Claude continua (o token vale sem o navegador).
   await mestre.contexto.close();
+  await expect(observador.pagina.getByTestId("presenca-estado-mestre")).not.toHaveText("online", {
+    timeout: 20_000,
+  });
 
   const pedido = await mcp.chamar("arquivos", {
     uso: "mapa",
@@ -355,11 +362,11 @@ test("sem shell: o arquivo vai em base64 (token) e o som e o compêndio entram p
   expect(demais.erro).toBe(true);
   expect(demais.texto).toMatch(/2 MB/);
 
-  // Som: vira a trilha padrão da cena; o arquivo fica registrado como som.
+  // Som: só entra na mesa (um lugar da mesa de som o faz tocar); o arquivo fica registrado como som.
   const pedidoSom = await mcp.chamar("arquivos", { uso: "som", nome: "taverna.wav", cena: CENA });
   const somEnviado = await enviarPor(linkDoTexto(pedidoSom.texto), wavMudo());
   expect(somEnviado.json?.estado, somEnviado.corpo).toBe("aplicado");
-  expect(somEnviado.json?.mensagem).toMatch(/trilha padrão da cena/);
+  expect(somEnviado.json?.mensagem).toMatch(/lugar da mesa de som/);
   expect(
     (await assets(mestre.pagina, "metas")).find((m) => m.nomeOriginal === "taverna.wav")?.tipo,
   ).toBe("som");

@@ -31,6 +31,7 @@ export * from "./luz.ts";
 export * from "./mapa.ts";
 export * from "./membros.ts";
 export * from "./memoria.ts";
+export * from "./mesadesom.ts";
 export * from "./mesas.ts";
 export * from "./nevoa.ts";
 export * from "./nucleo.ts";

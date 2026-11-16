@@ -854,6 +854,8 @@ Continua em aberto, por ser decisão e não erro de doc: `ficha.verOutras` (seç
 **Suposições**: ver `docs/REDESIGN.md`, "N4 — como ficou".
 
 ## N5 (2026-11-14): som ambiente
+
+(Q4, 2026-11-16: a trilha única, a trilha da cena e o painel de Som deste lote foram trocados pela mesa de som; veja "Q4" abaixo. O resto do N5 vale: som de zona, `som.tocar`, motor, preferências e o aviso do primeiro som.)
 **Onde mexer**
 - Dados e contas puras: `packages/shared/src/som.ts` (`TrilhaSchema`, `SomDaZonaSchema`, `AlvoDoEfeitoSchema`, `pontoDaTrilha`, `desvioDoRelogio`, `volumeFinal`, o MIME) e `somnucleo.ts` (`sonsDasZonasParaJogador`, `sonsDasZonasParaTokens`, `efeitoChegaPara`). O tipo de asset `som`, o limite de 20 MB, o MIME e a visibilidade estão em `assets.ts`; `hashesUsados` conta os sons da trilha, das cenas, das zonas e de `som.tocar`.
 - Estado e protocolo: `Estado.trilha`, `Cena.trilha` (`estado.ts`), `EfeitosDaZona.som` (`zonas.ts`), as intenções `som.trilha`, `som.parar`, `som.efeito` (capacidade `som.controlar`), `cena.editar { trilha }`, os eventos `som.trilhaAlterada` e `som.efeitoTocado` e a mensagem `som.zona` (`protocolo.ts`); as regras na `nucleo.ts` (intenções, `grupo.moverPara`, `eventoPara`, `visaoPara`, exportação) e a ação `som.tocar` em `automacoes.ts` e `automacoesnucleo.ts`.
@@ -963,3 +965,17 @@ Continua em aberto, por ser decisão e não erro de doc: `ficha.verOutras` (seç
 - Os nomes em inglês dos arquivos do Vilella vêm de uma tabela local (`nomes-originais.json`, na pasta do compêndio, fora do git), escrita de memória sobre o D&D 5e oficial; o que não se soube ficou sem nome. Conferir por amostra.
 
 **Suposições**: ver `docs/REDESIGN.md`, "Q2 — como ficou".
+
+## Q4 (2026-11-16): a mesa de som
+
+- Dados e contas puras: `packages/shared/src/mesadesom.ts` (os 16 lugares `LugarDeSomSchema`, `MesaDeSomSchema`, `SomLigadoSchema`, `lugaresDe`/`comLugar`/`lugarDe`, `ligadosParaACena`, `ligadoSem`, `usosDoSom`, e a conversão do N5, `migrarSomDoN5`). `som.ts` continua com o que é de todo som (volume, alinhamento pelo relógio, `pontoDaTrilha`, `desvioDoRelogio`, `volumeFinal`, som de zona); `TrilhaSchema` e `TrilhaDaCenaSchema` ficam só para ler o que já existia.
+- Estado e protocolo: `Estado.mesaDeSom` (só o mestre recebe; vai na exportação), `Estado.somLigado` (todos recebem; fora da exportação), `Cena.ambientes` (só o mestre), as intenções `som.lugar`, `som.efeito` (`lugar` ou `hash`), `som.efeitoParar`, `som.ambiente`, `som.volumeGeral`, `som.pararTudo`, `som.apagar`, `cena.editar { ambientes }`, e os eventos `som.ligadoAlterado`, `som.lugarAlterado`, `som.efeitoTocado` (com `lugar`), `som.efeitoParado` e `asset.removido` (`protocolo.ts`). As regras: `nucleo.ts` (intenções, `grupo.moverPara`, `reduzir`, `visaoPara`, `eventoPara`, `lerExportacao`, `cenaParaJogador`), `automacoesnucleo.ts` (o volume geral vale para `som.tocar`) e `assets.ts` (`hashesUsados` conta os lugares).
+- Sala: `armazenamento.ts` (`carregarSom`/`gravarSom`, chaves `mesa_de_som` e `som_ligado` da `meta`, `converterSomDoN5` na leitura, `asset.removido` apaga a meta) e `sala.ts` (`som.efeitoParado` também vai depois do snapshot).
+- Tela: `PainelDoSom.tsx` (a janela e a faixa), `som/ConfigDaMesaDeSom.tsx`, `som/iconesDoSom.tsx` (os 12 ícones e as 6 cores), `som/modoDoSom.ts` (janela ou faixa por pessoa, `useEnvioAdiado`), `som/motorDeSom.ts` (agora com vários ambientes e efeitos por lugar), `som/useSomDaMesa.ts`. Tokens de tema `etiquetaAzul` e `etiquetaVermelho`.
+- MCP: `mcp/ferramentas/som.ts` (lugares, efeito, pararEfeito, ambientes, volumeGeral, pararTudo, apagar, ambientesDaCena, zonas) e as entradas novas de `mcp/paridade.ts`.
+- **Frágil: a conversão do N5 grava ao ler.** `Armazenamento.converterSomDoN5` roda em todo `carregar()`, grava as chaves novas, apaga a chave `trilha` e regrava as cenas que tinham `trilha`. É idempotente (sem som antigo não faz nada) e tem try/catch: se falhar, a mesa abre sem o som antigo.
+- **Frágil: o jogador só baixa o arquivo de um efeito no primeiro toque.** O mestre sabe os arquivos dos lugares e os baixa antes; o jogador não sabe quais são (não recebe a mesa de som). O primeiro toque de um efeito novo pode não soar para quem ainda não tem o arquivo.
+- **Frágil: a janela de configuração edita por lugar, com cópia local.** `ConfigDaMesaDeSom` guarda o que a pessoa mudou em cada lugar (`locais`) até a sala devolver; sem isso, ícone e cor mudados em seguida se atropelavam, e a mudança adiada (nome, volume) caía no lugar errado. Um lugar esvaziado volta a valer o da sala; uma mudança que o Claude fizer ao mesmo tempo no mesmo lugar só aparece ao trocar de lugar.
+- **Frágil: o gerente de assets não esquece o som apagado.** `som.apagar` tira a meta da sala e do estado do mestre, mas o cache do navegador guarda a meta e os bytes; registrar o mesmo arquivo de novo funciona (`asset.registrar` sempre é mandado).
+- O volume geral é multiplicado em dois lugares de propósito: a sala multiplica o dos efeitos (que não ficam no estado) e o navegador o dos ambientes (para valer na hora, sem recomeçar).
+

@@ -17,7 +17,7 @@ type Props = {
 };
 
 /**
- * N5: liga o som da mesa. A trilha vem do estado da sala; os efeitos e os sons de zona, das mensagens dela. O mestre
+ * N5/Q4: liga o som da mesa. Os ambientes vêm do estado da sala; os efeitos e os sons de zona, das mensagens dela. O mestre
  * ouve também as zonas do token que selecionou, se ligou "ouvir as zonas". No modo de teste expõe
  * `window.__tabletopSom.estado()` com o que está tocando, sem depender do áudio real.
  */
@@ -46,22 +46,24 @@ export function useSomDaMesa(p: Props) {
     return () => motor.encerrar();
   }, [motor]);
 
-  // A trilha da sala (inclusive a que já tocava ao entrar).
-  const trilha = p.estado?.trilha ?? null;
-  const trilhaChave = trilha ? `${trilha.hash}|${trilha.inicioMs}|${trilha.volume}` : "";
-  // biome-ignore lint/correctness/useExhaustiveDependencies: refaz quando a trilha muda de verdade (a cópia traz um `servidorMs` novo a cada snapshot)
+  // Os ambientes da sala (inclusive os que já tocavam ao entrar) e o volume geral da mesa de som.
+  const somLigado = p.estado?.somLigado ?? null;
+  const ligadoChave = somLigado
+    ? `${somLigado.volumeGeral}|${somLigado.ambientes.map((a) => `${a.indice}:${a.hash}:${a.inicioMs}:${a.volume}`).join(",")}`
+    : "";
+  // biome-ignore lint/correctness/useExhaustiveDependencies: refaz quando o que toca muda de verdade (a cópia traz um `servidorMs` novo a cada snapshot)
   useEffect(() => {
-    motor.definirTrilha(trilha);
-  }, [motor, trilhaChave]);
+    motor.definirAmbientes(somLigado);
+  }, [motor, ligadoChave]);
 
-  // Baixar antes: a trilha padrão das cenas que a pessoa recebe chega ao cache sem esperar o grupo mudar de cena.
-  const trilhasDasCenas = (p.estado?.cenas ?? [])
-    .flatMap((c) => (c.trilha ? [c.trilha.hash] : []))
+  // Baixar antes (só o mestre sabe quais são): os ambientes dos lugares chegam ao cache sem esperar ligar.
+  const dosLugares = (p.estado?.mesaDeSom?.ambientes ?? [])
+    .flatMap((l) => (l ? [l.hash] : []))
     .join(",");
   useEffect(() => {
     if (!p.gerente) return;
-    for (const hash of trilhasDasCenas.split(",")) if (hash) p.gerente.garantir(hash);
-  }, [p.gerente, trilhasDasCenas]);
+    for (const hash of dosLugares.split(",")) if (hash) p.gerente.garantir(hash);
+  }, [p.gerente, dosLugares]);
 
   // Um som que acabou de chegar ao cache pode destravar o que esperava por ele.
   // biome-ignore lint/correctness/useExhaustiveDependencies: roda quando a contagem dos prontos muda
@@ -77,7 +79,9 @@ export function useSomDaMesa(p: Props) {
     () =>
       p.ouvir((o) => {
         if (o.tipo === "evento" && o.evento.tipo === "som.efeitoTocado") {
-          motor.tocarEfeito(o.evento.dados.hash, o.evento.dados.volume);
+          motor.tocarEfeito(o.evento.dados.hash, o.evento.dados.volume, o.evento.dados.lugar);
+        } else if (o.tipo === "evento" && o.evento.tipo === "som.efeitoParado") {
+          motor.pararEfeito(o.evento.dados.lugar);
         } else if (o.tipo === "somDaZona") {
           setZonasDaSala(o.sons);
         } else if (o.tipo === "conectado") {

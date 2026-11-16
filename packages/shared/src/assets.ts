@@ -380,7 +380,9 @@ function metaDe(estado: Pick<Estado, "assets">, hash: string): AssetMeta | undef
 /** Todo hash que algo da campanha usa: mapas das cenas, imagens dos tokens e os tiles deles. */
 export function hashesUsados(
   estado: Pick<Estado, "assets" | "cenas" | "tokens" | "personagens"> &
-    Partial<Pick<Estado, "compendio" | "handouts" | "trilha" | "zonas" | "automacoes">>,
+    Partial<
+      Pick<Estado, "compendio" | "handouts" | "trilha" | "zonas" | "automacoes" | "mesaDeSom">
+    >,
 ): Set<string> {
   const usados = new Set<string>();
   const usar = (hash: string | undefined) => {
@@ -404,6 +406,10 @@ export function hashesUsados(
   // N5: os sons que a mesa usa (trilha, trilha de cada cena, som de zona e a ação `som.tocar`): só a referência.
   usar(estado.trilha?.hash);
   for (const c of estado.cenas) usar(c.trilha?.hash);
+  // Q4: os arquivos dos 16 lugares da mesa de som.
+  for (const l of [...(estado.mesaDeSom?.efeitos ?? []), ...(estado.mesaDeSom?.ambientes ?? [])]) {
+    usar(l?.hash);
+  }
   for (const z of estado.zonas ?? []) usar(z.efeitos.som?.hash);
   for (const r of estado.automacoes?.reacoes ?? []) {
     for (const a of r.fazer) if (a.acao === "som.tocar") usar(a.hash);

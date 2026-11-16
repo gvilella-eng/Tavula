@@ -42,6 +42,13 @@ const PARES: Par[] = [
     ["textoSuave", f],
     ["acentoForte", f],
   ]),
+  // Q4: o ícone da etiqueta dos lugares da mesa de som (sobre o campo escuro do botão) e o nome da cor no painel.
+  ...(["painel", "cabecalho", "campo"] as const).flatMap((f): Par[] => [
+    ["etiquetaAzul", f],
+    ["etiquetaVermelho", f],
+  ]),
+  ["sucesso", "campo"],
+  ["aviso", "campo"],
   ["acentoTexto", "acento"],
   ["perigoTexto", "perigo"],
   ["sucesso", "painel"],

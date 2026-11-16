@@ -145,7 +145,7 @@ describe("M1: o que cada uso aplica na mesa", () => {
     expect(usoDoArquivo("handout", {}, hash, meta, {})).toMatchObject({ ok: false });
   });
 
-  it("som: a trilha padrão da cena (ou só fica na mesa); compêndio: aponta o arquivo e conta as magias", () => {
+  it("som: só entra na mesa (um lugar da mesa de som o faz tocar); compêndio: aponta o arquivo e conta as magias", () => {
     expect(
       usoDoArquivo(
         "som",
@@ -154,10 +154,7 @@ describe("M1: o que cada uso aplica na mesa", () => {
         { ...meta, nomeOriginal: "taverna.mp3" },
         { volume: 0.3 },
       ),
-    ).toMatchObject({
-      tipo: "cena.editar",
-      dados: { cenaId: "c1", trilha: { hash, nome: "taverna", volume: 0.3 } },
-    });
+    ).toMatchObject({ ok: true, tipo: null });
     expect(usoDoArquivo("som", {}, hash, meta, {})).toMatchObject({ ok: true, tipo: null });
     expect(
       usoDoArquivo(

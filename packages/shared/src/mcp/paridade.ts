@@ -174,9 +174,13 @@ export const PARIDADE_COM_O_MCP: Record<TipoIntencao, EntradaDeParidade> = {
   "combate.darVez": via("combate", "passos", "darVez"),
 
   // --- som ---
-  "som.trilha": via("som", "trilha"),
-  "som.parar": via("som", "trilha", "parar"),
+  "som.lugar": via("som", "lugares"),
   "som.efeito": via("som", "efeito"),
+  "som.efeitoParar": via("som", "pararEfeito"),
+  "som.ambiente": via("som", "ambientes"),
+  "som.volumeGeral": via("som", "volumeGeral"),
+  "som.pararTudo": via("som", "pararTudo"),
+  "som.apagar": via("som", "apagar"),
 
   // --- automações ---
   "ciclo.criar": via("automacoes", "ciclos"),

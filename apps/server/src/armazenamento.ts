@@ -21,8 +21,11 @@ import {
   MAXIMO_DE_LOTES_POR_USUARIO,
   type Mensagem,
   MensagemSchema,
+  type MesaDeSom,
+  MesaDeSomSchema,
   type ModeloDeObjeto,
   migrarNotasParaHandouts,
+  migrarSomDoN5,
   modelosPadrao,
   type ObjetoDeLuz,
   objetoDoBanco,
@@ -37,6 +40,8 @@ import {
   personagemDoBanco,
   type RelogioSala,
   RelogioSalaSchema,
+  type SomLigado,
+  SomLigadoSchema,
   type Token,
   type Trilha,
   TrilhaSchema,
@@ -420,7 +425,7 @@ export class Armazenamento {
       )
       .toArray()
       .map((l) => JSON.parse(l.dados) as Usuario);
-    return {
+    const lido: Estado = {
       seq: Number(this.lerMeta("seq") ?? "0"),
       usuarios,
       // Capacidades novas (lotes futuros) entram com o padrão sem perder o que já foi salvo.
@@ -428,11 +433,31 @@ export class Armazenamento {
       ...this.carregarMapa(),
       ...this.carregarCombate(),
       ...this.carregarCompendio(),
-      ...this.carregarTrilha(),
+      ...this.carregarSom(),
       ...this.carregarAutomacoes(),
       ...this.carregarZonas(),
       desenhos: this.carregarDesenhos(),
     };
+    return this.converterSomDoN5(lido);
+  }
+
+  /**
+   * Q4: o som do N5 (a trilha que tocava e a trilha de cada cena) vira a mesa de som. A conversão é idempotente e fica
+   * gravada (a chave `trilha` some, os lugares e os ambientes ligados vão para as chaves novas, as cenas para a tabela).
+   * Se algo falhar a mesa abre do mesmo jeito (sem a conversão, o som antigo só não toca).
+   */
+  private converterSomDoN5(lido: Estado): Estado {
+    try {
+      const novo = migrarSomDoN5(lido);
+      if (novo === lido) return lido;
+      this.gravarSom(novo);
+      this.sql.exec("DELETE FROM meta WHERE chave = 'trilha'");
+      for (const c of novo.cenas) this.gravarEntidade("cenas", c.id, c);
+      return novo;
+    } catch (e) {
+      console.warn("Som: não consegui converter a trilha do N5", e);
+      return lido;
+    }
   }
 
   /** Cenas, tokens e assets. Banco do Lote 1 (sem cena): cria a cena padrão, sem quebrar o resto. */
@@ -574,21 +599,42 @@ export class Armazenamento {
     }
   }
 
-  /** N5: a trilha que toca, na tabela `meta` (chave `trilha`, sem migração: o banco antigo não a tem = sem trilha). */
-  private carregarTrilha(): { trilha?: Trilha } {
-    const bruto = this.lerMeta("trilha");
-    if (bruto === null) return {};
-    try {
-      const r = TrilhaSchema.safeParse(JSON.parse(bruto));
-      return r.success ? { trilha: r.data } : {};
-    } catch {
-      return {};
-    }
+  /**
+   * O som da mesa, na tabela `meta` (sem migração: o banco antigo não tem as chaves = sem som): `mesa_de_som` (os 16
+   * lugares, Q4), `som_ligado` (os ambientes que tocam e o volume geral, Q4) e `trilha` (a trilha única do N5, só para
+   * ler: `converterSomDoN5` a troca por um ambiente ligado). Valor ilegível vira "sem".
+   */
+  private carregarSom(): { mesaDeSom?: MesaDeSom; somLigado?: SomLigado; trilha?: Trilha } {
+    const ler = <T>(
+      chave: string,
+      schema: { safeParse(v: unknown): { success: boolean; data?: T } },
+    ) => {
+      const bruto = this.lerMeta(chave);
+      if (bruto === null) return undefined;
+      try {
+        const r = schema.safeParse(JSON.parse(bruto));
+        return r.success ? r.data : undefined;
+      } catch {
+        return undefined;
+      }
+    };
+    const mesaDeSom = ler<MesaDeSom>("mesa_de_som", MesaDeSomSchema);
+    const somLigado = ler<SomLigado>("som_ligado", SomLigadoSchema);
+    const trilha = ler<Trilha>("trilha", TrilhaSchema);
+    return {
+      ...(mesaDeSom ? { mesaDeSom } : {}),
+      ...(somLigado ? { somLigado } : {}),
+      ...(trilha ? { trilha } : {}),
+    };
   }
 
-  private gravarTrilha(trilha: Trilha | undefined): void {
-    if (trilha === undefined) this.sql.exec("DELETE FROM meta WHERE chave = 'trilha'");
-    else this.gravarMeta("trilha", JSON.stringify(trilha));
+  private gravarSom(estado: Pick<Estado, "mesaDeSom" | "somLigado">): void {
+    const grava = (chave: string, valor: unknown) => {
+      if (valor === undefined) this.sql.exec("DELETE FROM meta WHERE chave = ?", chave);
+      else this.gravarMeta(chave, JSON.stringify(valor));
+    };
+    grava("mesa_de_som", estado.mesaDeSom);
+    grava("som_ligado", estado.somLigado);
   }
 
   private gravarCompendio(compendio: CompendioDaMesa | undefined): void {
@@ -698,7 +744,8 @@ export class Armazenamento {
     this.gravarMeta("ordem_de_turno", estado.ordemDeTurnoVisivel ? "1" : "0");
     this.gravarCombate(estado.combate);
     this.gravarCompendio(estado.compendio);
-    this.gravarTrilha(estado.trilha);
+    this.gravarSom(estado);
+    this.sql.exec("DELETE FROM meta WHERE chave = 'trilha'");
     this.gravarAutomacoes(estado);
     this.sql.exec("DELETE FROM desenhos");
     for (const d of estado.desenhos) this.gravarDesenho(d);
@@ -821,8 +868,12 @@ export class Armazenamento {
         case "combate.alterado":
           this.gravarCombate(estado.combate);
           break;
-        case "som.trilhaAlterada":
-          this.gravarTrilha(estado.trilha);
+        case "som.ligadoAlterado":
+        case "som.lugarAlterado":
+          this.gravarSom(estado);
+          break;
+        case "asset.removido":
+          this.sql.exec("DELETE FROM entidades WHERE colecao = 'assets' AND id = ?", ev.dados.hash);
           break;
         case "compendio.alterado":
           this.gravarCompendio(estado.compendio);

@@ -32,10 +32,10 @@ export function CartaoDeSom({ bloqueado, aoAtivar }: Props) {
         />
       </div>
       <div className="pref-som-linha">
-        <span>Trilha</span>
+        <span>Ambientes</span>
         <Deslizante
           testid="som-volume-trilha"
-          rotulo="Volume da trilha"
+          rotulo="Volume dos ambientes"
           valor={prefs.trilha}
           desligado={prefs.silenciado}
           aoMudar={(v) => mudarPrefsDeSom({ trilha: v })}

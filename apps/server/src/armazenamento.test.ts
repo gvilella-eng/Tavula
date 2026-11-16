@@ -1,4 +1,5 @@
 import {
+  type AssetMeta,
   AutomacoesSchema,
   type Combate,
   type Desenho,
@@ -850,47 +851,129 @@ describe("Armazenamento: névoa pintada à mão do N4", () => {
   });
 });
 
-describe("Armazenamento: a trilha do N5 (som ambiente)", () => {
-  const TRILHA = {
-    hash: "c".repeat(64),
-    nome: "taverna",
-    volume: 0.5,
-    inicioMs: 1_700_000_000_000,
+describe("Armazenamento: a mesa de som (Q4) e a conversão do som do N5", () => {
+  const H1 = "c".repeat(64);
+  const H2 = "d".repeat(64);
+  const origem = { usuarioId: "mestre", idPedido: "p" };
+  const lugar = { hash: H1, nome: "Taverna", icone: "musica", cor: "ambar", volume: 0.4 } as const;
+  const ligado = {
+    volumeGeral: 0.7,
+    ambientes: [{ indice: 0, hash: H1, volume: 0.4, inicioMs: 1_700_000_000_000 }],
   };
-  const evento = (trilha: typeof TRILHA | null, seq: number): EventoSala => ({
-    seq,
-    origem: { usuarioId: "mestre", idPedido: "p" },
-    tipo: "som.trilhaAlterada",
-    dados: { trilha },
-  });
-
-  it("banco antigo (sem a chave `trilha`) abre sem trilha e sem migração nova", async () => {
-    const { sql } = await abrirBanco();
-    const original = new Armazenamento(sql as never);
-    original.migrar();
-    original.salvarTudo(estadoInicial(semente));
-    sql.exec("DELETE FROM meta WHERE chave = 'trilha'");
-    const reaberto = new Armazenamento(sql as never);
-    reaberto.migrar();
-    expect(reaberto.carregar()?.trilha).toBeUndefined();
-    expect(reaberto.carregar()?.tokens.length).toBeGreaterThan(3);
-  });
-
-  it("a trilha volta do SQLite, some ao parar e o valor ilegível vira sem trilha", async () => {
+  const aberto = async () => {
     const { sql } = await abrirBanco();
     const banco = new Armazenamento(sql as never);
     banco.migrar();
     const base = estadoInicial(semente);
     banco.salvarTudo(base);
-    banco.salvarEventos({ ...base, seq: 1, trilha: TRILHA }, [evento(TRILHA, 1)]);
-    const reaberto = new Armazenamento(sql as never);
-    reaberto.migrar();
-    expect(reaberto.carregar()?.trilha).toEqual(TRILHA);
-    reaberto.salvarEventos({ ...base, seq: 2 }, [evento(null, 2)]);
-    expect(reaberto.carregar()?.trilha).toBeUndefined();
-    reaberto.gravarMeta("trilha", "{ não é json");
-    expect(reaberto.carregar()?.trilha).toBeUndefined();
-    reaberto.gravarMeta("trilha", JSON.stringify({ hash: "curto" }));
-    expect(reaberto.carregar()?.trilha).toBeUndefined();
+    const reabrir = () => {
+      const r = new Armazenamento(sql as never);
+      r.migrar();
+      return r;
+    };
+    return { sql, banco, base, reabrir };
+  };
+
+  it("banco antigo (sem as chaves do som) abre sem mesa de som e sem migração nova", async () => {
+    const { banco, reabrir } = await aberto();
+    const versao = banco.lerMeta("versao_esquema");
+    const lido = reabrir().carregar();
+    expect(lido?.mesaDeSom).toBeUndefined();
+    expect(lido?.somLigado).toBeUndefined();
+    expect(lido?.trilha).toBeUndefined();
+    expect(reabrir().lerMeta("versao_esquema")).toBe(versao);
+  });
+
+  it("os lugares e o que toca voltam do SQLite; valor ilegível vira vazio", async () => {
+    const { banco, base, reabrir } = await aberto();
+    const mesa = { efeitos: [], ambientes: [lugar] };
+    const estado = { ...base, seq: 1, mesaDeSom: mesa, somLigado: ligado };
+    banco.salvarEventos(estado, [
+      { seq: 1, origem, tipo: "som.lugarAlterado", dados: { grupo: "ambiente", indice: 0, lugar } },
+      { seq: 1, origem, tipo: "som.ligadoAlterado", dados: { somLigado: ligado } },
+    ] as EventoSala[]);
+    const lido = reabrir().carregar();
+    expect(lido?.mesaDeSom).toEqual(mesa);
+    expect(lido?.somLigado).toEqual(ligado);
+    const r = reabrir();
+    r.salvarEventos({ ...base, seq: 2 }, [
+      { seq: 2, origem, tipo: "som.ligadoAlterado", dados: { somLigado: null } },
+      {
+        seq: 2,
+        origem,
+        tipo: "som.lugarAlterado",
+        dados: { grupo: "ambiente", indice: 0, lugar: null },
+      },
+    ] as EventoSala[]);
+    expect(reabrir().carregar()?.mesaDeSom).toBeUndefined();
+    expect(reabrir().carregar()?.somLigado).toBeUndefined();
+    r.gravarMeta("mesa_de_som", "{ não é json");
+    r.gravarMeta("som_ligado", JSON.stringify({ volumeGeral: 9 }));
+    const ruim = reabrir().carregar();
+    expect(ruim?.mesaDeSom).toBeUndefined();
+    expect(ruim?.somLigado).toBeUndefined();
+  });
+
+  it("a trilha e a trilha da cena do N5 viram a mesa de som, uma vez, e a chave antiga some", async () => {
+    const { sql, banco, base, reabrir } = await aberto();
+    const cena = base.cenas[0];
+    if (!cena) throw new Error("sem cena");
+    banco.gravarMeta(
+      "trilha",
+      JSON.stringify({ hash: H1, nome: "taverna.mp3", volume: 0.5, inicioMs: 1_700_000_000_000 }),
+    );
+    // a cena como o N5 a gravava: com `trilha`
+    sql.exec(
+      "UPDATE entidades SET dados = ? WHERE colecao = 'cenas' AND id = ?",
+      JSON.stringify({ ...cena, trilha: { hash: H2, nome: "vento", volume: 0.3 } }),
+      cena.id,
+    );
+    const lido = reabrir().carregar();
+    const ambientes = lido?.mesaDeSom?.ambientes ?? [];
+    expect(ambientes[0]).toMatchObject({ hash: H1, nome: "taverna", volume: 0.5 });
+    expect(ambientes[1]).toMatchObject({ hash: H2, nome: "vento", volume: 0.3 });
+    expect(lido?.somLigado?.ambientes).toMatchObject([
+      { indice: 0, hash: H1, inicioMs: 1_700_000_000_000 },
+    ]);
+    expect(lido?.cenas.find((c) => c.id === cena.id)?.ambientes).toEqual([1]);
+    expect(lido?.trilha).toBeUndefined();
+    // gravado: a segunda leitura vem direto das chaves novas, sem trilha e sem duplicar
+    expect(banco.lerMeta("trilha")).toBeNull();
+    const denovo = reabrir().carregar();
+    expect(denovo?.mesaDeSom).toEqual(lido?.mesaDeSom);
+    expect(denovo?.somLigado).toEqual(lido?.somLigado);
+    expect(denovo?.cenas.find((c) => c.id === cena.id)?.ambientes).toEqual([1]);
+    expect(JSON.stringify(denovo?.cenas)).not.toContain('"trilha"');
+  });
+
+  it("apagar um som tira a meta do banco", async () => {
+    const { banco, base, reabrir } = await aberto();
+    const meta = {
+      hash: H1,
+      tipo: "som",
+      mime: "audio/wav",
+      bytes: 10,
+      largura: 1,
+      altura: 1,
+      donoId: "mestre",
+      nomeOriginal: "x.wav",
+      pedacos: ["e".repeat(64)],
+    } satisfies AssetMeta;
+    banco.salvarEventos({ ...base, seq: 1, assets: [meta] }, [
+      { seq: 1, origem, tipo: "asset.registrado", dados: { meta } },
+    ] as EventoSala[]);
+    expect(
+      reabrir()
+        .carregar()
+        ?.assets?.some((a) => a.hash === H1),
+    ).toBe(true);
+    banco.salvarEventos({ ...base, seq: 2, assets: [] }, [
+      { seq: 2, origem, tipo: "asset.removido", dados: { hash: H1 } },
+    ] as EventoSala[]);
+    expect(
+      reabrir()
+        .carregar()
+        ?.assets?.some((a) => a.hash === H1),
+    ).toBeFalsy();
   });
 });
