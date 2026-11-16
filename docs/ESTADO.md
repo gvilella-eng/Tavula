@@ -3971,4 +3971,27 @@ Ver `PASSAGEM.md` ("Q6").
 ### Roteiro manual
 `docs/ROTEIRO-DE-TESTES.md`, "Q2b" e "Q4b".
 
-## Próximo: o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b, N4, N5, M1, M2, Q1, Q2, Q3, Q4, Q5 e Q6
+## Ajustes Q9 — A Conjuração do NPC com a interface da aba Magias (entregue, aguardando o roteiro manual)
+
+### O que foi entregue
+- A seção Conjuração do NPC usa o mesmo componente de círculos da aba Magias do personagem (`ficha/CirculoDeMagias.tsx`): espaços totais e restantes, uma linha por magia com Conjurar, chat e engrenagem, "+ Círculo", Recuperar espaços, reordenar e soltar do compêndio por círculo. Fica só do NPC: CD e ataque pelo ND e a conjuração inata. Sem "Prep.".
+
+### Como rodar
+`pnpm dev` como sempre. Sem migração, sem protocolo. Testes em outras portas: `E2E_PORTA_SALA=8794 E2E_PORTA_WEB=5180`.
+
+### Verificação
+Ver o relatório do lote.
+
+### Decisões
+Ver `REDESIGN.md` ("Q9 — como ficou").
+
+### Desvios
+- Nenhum.
+
+### Frágil
+Ver `PASSAGEM.md` (seção Conjuração do NPC).
+
+### Roteiro manual
+`docs/ROTEIRO-DE-TESTES.md`, "Q9".
+
+## Próximo: o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b, N4, N5, M1, M2, Q1, Q2, Q3, Q4, Q5, Q6 e Q9

@@ -628,3 +628,14 @@ Antes de tudo: tenha na pasta `sons/` (ou à mão) uns 6 arquivos de áudio: 2 o
 6. **Mesa vazia.** Numa mesa sem sons, a janela e a faixa dizem "Nenhum som na mesa de som ainda" e o botão "Configurar" abre a configuração; "Tocar" fica desabilitado.
 7. **Sons que a mesa já tem.** Na configuração, um lugar mostra "Sons que a mesa já tem" (os que você subiu antes, mesmo fora de um lugar) para pôr com um clique.
 8. **Claude.** Peça ao Claude para marcar ambientes e tocar (`transporte: "tocar"`).
+
+## Q9 — A Conjuração do NPC com a interface da aba Magias
+
+1. Abra um NPC com magias (por exemplo o Mago do compêndio) e vá à fita Conjuração. Cada círculo tem o mesmo desenho da aba Magias de um personagem: o título, "Espaços totais", "Restantes n", as bolinhas e uma linha por magia com nome, escola, Conjurar, ícone de chat e engrenagem. Não há "Prep.".
+2. Conjure uma magia de 1º círculo: o menu pede o espaço, "Restantes" cai um e a bolinha esvazia; o cartão sai no chat. "Recuperar espaços" devolve.
+3. Clique no nome da magia: o texto abre na própria linha, com "mandar ao chat" (e tirar, para quem edita). A engrenagem abre o editor embaixo da linha.
+4. "+ Círculo" mostra o próximo círculo vazio; preencha "Espaços totais" e escreva uma magia nova.
+5. Arraste uma magia do compêndio para o NPC: ela cai no círculo dela (só esse círculo acende). Alt+↑/↓ numa linha em foco reordena.
+6. Abaixo dos círculos ficam a conjuração inata (À vontade, 1/dia cada, N/dia) como antes.
+7. Compare com a aba Magias de um personagem: as duas devem parecer a mesma interface.
+8. Como jogador, com o NPC mostrado: vê as magias e os espaços, sem controles de edição.
