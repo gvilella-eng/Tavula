@@ -1,15 +1,20 @@
 import {
+  base64ParaBytes,
+  converterUvtt,
+  detectarFormato,
   dividirEmPedacos,
   hashesDosPedacos,
+  LIMITES_DA_IMPORTACAO,
   LIMITES_DE_ASSET,
   ladoDoTile,
+  lerUniversalVtt,
   type MetaNova,
   montarManifestoDeMapa,
   precisaFatiar,
   retangulosDeTiles,
   sha256Hex,
 } from "@tabletop/shared";
-import type { PedidoDoWorker, RespostaDoWorker, Resultado } from "./processador";
+import type { PedidoDoWorker, RespostaDoWorker, Resultado, UvttLido } from "./processador";
 
 // Processamento pesado fora da thread da página: decodifica a imagem, redimensiona, converte para
 // WebP (OffscreenCanvas), fatia o mapa grande em tiles e calcula os hashes.
@@ -147,6 +152,36 @@ async function miniatura(arquivo: Blob, lado: number): Promise<Blob> {
   }
 }
 
+/** Q3: lê o Universal VTT (JSON com a imagem em base64), decodifica a imagem e converte o resto para a cena da Távola. */
+async function lerUvtt(p: Extract<PedidoDoWorker, { tipo: "uvtt" }>): Promise<UvttLido> {
+  const inicio = performance.now();
+  if (p.arquivo.size > LIMITES_DA_IMPORTACAO.bytesDoArquivo) {
+    throw new Error(
+      `Arquivo grande demais: o limite é ${LIMITES_DA_IMPORTACAO.bytesDoArquivo / 1024 / 1024} MB.`,
+    );
+  }
+  const lido = lerUniversalVtt(await p.arquivo.text());
+  if (!lido.ok) throw new Error(lido.motivo);
+  const { imagemBase64, ...dados } = lido.dados;
+  if (!imagemBase64) throw new Error("O arquivo não traz a imagem do mapa.");
+  const bytes = base64ParaBytes(imagemBase64);
+  if (!bytes) throw new Error("A imagem do arquivo não está em base64 válido.");
+  const formato = detectarFormato(bytes);
+  if (formato?.familia !== "imagem") {
+    throw new Error("A imagem do arquivo não é png, jpg, webp nem gif.");
+  }
+  const { importacao } = converterUvtt(
+    { ...dados, imagemBase64: null },
+    { id: p.idDaCena, nome: p.nome },
+  );
+  return {
+    imagem: new Blob([bytes as BufferSource], { type: formato.mime }),
+    extensao: formato.extensao,
+    importacao,
+    ms: Math.round(performance.now() - inicio),
+  };
+}
+
 // O projeto compila com a lib DOM; aqui só o que o worker usa do escopo global dele.
 const escopo = self as unknown as {
   onmessage: ((e: MessageEvent<PedidoDoWorker>) => void) | null;
@@ -160,6 +195,8 @@ escopo.onmessage = async (e: MessageEvent<PedidoDoWorker>) => {
     if (p.tipo === "hash") {
       const hash = await sha256Hex(new Uint8Array(await p.arquivo.arrayBuffer()));
       resposta = { id: p.id, ok: true, tipo: "hash", hash };
+    } else if (p.tipo === "uvtt") {
+      resposta = { id: p.id, ok: true, tipo: "uvtt", lido: await lerUvtt(p) };
     } else if (p.tipo === "miniatura") {
       resposta = {
         id: p.id,

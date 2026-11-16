@@ -5,6 +5,7 @@ import {
   decifrarEConferir,
   dividirEmPedacos,
   hashesDosPedacos,
+  type ImportacaoDeMapa,
   LIMITES_DE_ASSET,
   lerFrameDePedaco,
   limiteDeTextura,
@@ -14,6 +15,7 @@ import {
   mimeDeSomValido,
   mimeDoSomPeloNome,
   montarFrameDePedaco,
+  nomeDaCenaDoArquivo,
   type Pacote,
   pedacoConfere,
   sha256Hex,
@@ -649,6 +651,22 @@ export class GerenteDeAssets {
     this.mudou();
     this.prontosMudaram();
     return principal;
+  }
+
+  /**
+   * Q3: importa um mapa do Dungeondraft (Universal VTT). O worker lê o arquivo e decodifica a imagem; a imagem entra pelo mesmo
+   * caminho do botão de subir o mapa (`usarArquivo`: tiles, cifra, cópia na pasta da mesa). Devolve o hash do mapa, a cena
+   * convertida (para a intenção `cena.importarMapa`) e a imagem (para a cópia em `mapas/`). Lança com o motivo se não serve.
+   */
+  async lerMapaUniversalVtt(
+    arquivo: File,
+  ): Promise<{ hash: string; importacao: ImportacaoDeMapa; imagem: File; ms: number }> {
+    const idDaCena = `cena-${crypto.randomUUID().slice(0, 8)}`;
+    const nome = nomeDaCenaDoArquivo(arquivo.name);
+    const lido = await this.d.processador.lerUniversalVtt(arquivo, nome, idDaCena);
+    const imagem = new File([lido.imagem], `${nome}.${lido.extensao}`, { type: lido.imagem.type });
+    const hash = await this.usarArquivo(imagem, "mapa");
+    return { hash, importacao: lido.importacao, imagem, ms: lido.ms };
   }
 
   /**

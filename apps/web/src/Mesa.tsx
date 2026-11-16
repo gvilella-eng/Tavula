@@ -8,6 +8,7 @@ import {
   type DesenhoNovo,
   dentroDaAreaDaBandeira,
   type Exportacao,
+  ehArquivoUniversalVtt,
   ehPersonagemDeJogador,
   encaixarNoGrid,
   type FonteDeLuz,
@@ -27,6 +28,7 @@ import {
   podeColocarProprioToken,
   podeEditarPersonagem,
   podeMoverToken,
+  resumoDaImportacao,
   type TipoDeParede,
   type Token,
   visaoLimitadaNaCena,
@@ -56,6 +58,7 @@ import { AbaChat } from "./AbaChat";
 import { AbaCompendio } from "./AbaCompendio";
 import { AbaFichas } from "./AbaFichas";
 import { AbaMesa, testidDaSecaoDaMesa } from "./AbaMesa";
+import { AvisoDaImportacao, type EstadoDaImportacao } from "./AvisoDaImportacao";
 import { AvisoDaPasta } from "./AvisoDaPasta";
 import { AvisoPerto } from "./AvisoPerto";
 import { AbaPreferencias } from "./abas";
@@ -72,7 +75,7 @@ import { JanelaDasAutomacoes } from "./automacoes/JanelaDasAutomacoes";
 import { BarraDeFerramentas } from "./BarraDeFerramentas";
 import { BarraLateral, type PedidoDeAba } from "./BarraLateral";
 import { BotaoComDica } from "./BotaoComDica";
-import { AvisoDaCaixaDoClaude, useCaixaDoClaude } from "./caixaDoClaude";
+import { AvisoDaCaixaDoClaude, copiarParaAPasta, useCaixaDoClaude } from "./caixaDoClaude";
 import { type CamadaDeTrabalho, camadaDoNovoToken } from "./camadas";
 import { RascunhosDoClaude } from "./claude/RascunhosDoClaude";
 import { pedirTokenNoMapa, TEXTO_FORA_DA_BANDEIRA } from "./colocarNoMapa";
@@ -599,6 +602,51 @@ export function Mesa({
     },
     [gerente],
   );
+  // Q3: importar um mapa do Dungeondraft (Universal VTT) pelo botão do painel de cenas ou arrastando o arquivo para a mesa.
+  const [importacao, setImportacao] = useState<EstadoDaImportacao | null>(null);
+  const importarMapaUvtt = useCallback(
+    async (arquivo: File) => {
+      if (!euMestre) return;
+      if (!gerente) {
+        setImportacao({ fase: "erro", texto: "os arquivos da mesa ainda estão abrindo." });
+        return;
+      }
+      setImportacao({ fase: "lendo", nome: arquivo.name });
+      try {
+        const lido = await gerente.lerMapaUniversalVtt(arquivo);
+        await copiarParaAPasta(fontes, "mapa-uvtt", lido.imagem);
+        if (enviar("cena.importarMapa", { ...lido.importacao, assetHash: lido.hash }) === null) {
+          throw new Error("Sem conexão com a sala.");
+        }
+        setImportacao({ fase: "pronto", texto: resumoDaImportacao(lido.importacao) });
+      } catch (e) {
+        setImportacao({
+          fase: "erro",
+          texto: e instanceof Error ? e.message : "o arquivo não serviu.",
+        });
+      }
+    },
+    [euMestre, gerente, fontes, enviar],
+  );
+  useEffect(() => {
+    if (!euMestre) return;
+    const temArquivo = (e: DragEvent) => e.dataTransfer?.types.includes("Files") === true;
+    const sobre = (e: DragEvent) => {
+      if (temArquivo(e)) e.preventDefault();
+    };
+    const soltou = (e: DragEvent) => {
+      const arquivo = [...(e.dataTransfer?.files ?? [])].find((f) => ehArquivoUniversalVtt(f.name));
+      if (!arquivo) return;
+      e.preventDefault();
+      void importarMapaUvtt(arquivo);
+    };
+    window.addEventListener("dragover", sobre);
+    window.addEventListener("drop", soltou);
+    return () => {
+      window.removeEventListener("dragover", sobre);
+      window.removeEventListener("drop", soltou);
+    };
+  }, [euMestre, importarMapaUvtt]);
   const imagens = useMemo<ImagensDoMapa | null>(
     () =>
       gerente
@@ -1774,6 +1822,7 @@ export function Mesa({
                   setCenaVistaId(null);
                 }}
                 aoPreparar={prepararCena}
+                aoImportarMapa={(arquivo) => void importarMapaUvtt(arquivo)}
                 pedirImagem={pedirImagem}
               />
             )}
@@ -1946,6 +1995,7 @@ export function Mesa({
             )}
             <AvisoDoSom bloqueado={som.bloqueado} aoAtivar={() => som.motor.ativar()} />
             <AvisoDaCaixaDoClaude andamento={andamentoDaCaixa} />
+            <AvisoDaImportacao estado={importacao} aoDispensar={() => setImportacao(null)} />
             <AvisoDaPasta euMestre={euMestre} fontes={fontes} gerente={gerente} />
             {modoMestre && ferramenta === "zonas" && (
               <PainelDasZonas

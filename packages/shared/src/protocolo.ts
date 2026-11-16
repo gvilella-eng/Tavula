@@ -78,6 +78,7 @@ import {
   MAXIMO_DE_OPERACOES,
   OperacaoDeFichaSchema,
 } from "./ficha.ts";
+import { ImportacaoDeMapaSchema } from "./importarUvtt.ts";
 import { CENA_PADRAO } from "./mapa.ts";
 import {
   GrupoDeSomSchema,
@@ -693,6 +694,12 @@ export const IntencaoSchema = z.discriminatedUnion("tipo", [
   intencao("nevoa.tracar", z.object({ cenaId: IdSchema, traco: TracoDaNevoaSchema })),
   intencao("nevoa.desfazer", z.object({ cenaId: IdSchema })),
   intencao("cena.duplicar", z.object({ cenaId: IdSchema, novoId: IdSchema })),
+  /**
+   * Q3: cria uma cena inteira a partir de um mapa importado (Dungeondraft / Universal VTT): a cena já com o mapa (o asset do tipo
+   * `mapa` já está registrado), as paredes e portas, as fontes de luz e a luz ambiente, num pedido só. Não leva o grupo para a
+   * cena. É um passo só do Desfazer do Claude.
+   */
+  intencao("cena.importarMapa", ImportacaoDeMapaSchema.extend({ assetHash: HashSchema })),
   intencao("cena.apagar", z.object({ cenaId: IdSchema })),
   /** Uma única mensagem leva o grupo e torna a cena de destino a ativa. */
   intencao("grupo.moverPara", z.object({ cenaId: IdSchema })),
@@ -1113,6 +1120,7 @@ export const capacidadeDaIntencao: Record<TipoIntencao, Capacidade | null> = {
   "nevoa.desfazer": "cena.editar",
   "cena.editar": "cena.editar",
   "cena.duplicar": "cena.editar",
+  "cena.importarMapa": "cena.editar",
   "cena.apagar": "cena.editar",
   "grupo.moverPara": "cena.editar",
   "cena.preparar": "cena.editar",

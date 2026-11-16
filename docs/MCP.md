@@ -123,7 +123,7 @@ chamada só. Se um nome for repetido ou não existir, a resposta diz o que corri
 | `chat` | todos | M2. Narrar, falar como uma ficha, sussurrar, emote, mostrar handout, cartão de característica ou magia, limpar o histórico. Sai "pelo Claude". |
 | `rolar` | todos | Rola dados (expressão, teste ou ataque da ficha); o chat marca "pelo Claude". |
 | `rascunhos` | mestre | Lista, publica e descarta o que o Claude criou. |
-| `arquivos` | todos (jogador: só o que é dele) | Sobe um arquivo do computador para a mesa (mapa da cena, token, retrato, imagem de handout, som, compêndio) e usa um arquivo que já está na mesa (M1). |
+| `arquivos` | todos (jogador: só o que é dele) | Sobe um arquivo do computador para a mesa (mapa da cena, mapa do Dungeondraft / Universal VTT, token, retrato, imagem de handout, som, compêndio) e usa um arquivo que já está na mesa (M1). |
 | `desfazer` | todos | Lista o que o Claude fez e desfaz um lote inteiro. |
 
 `cenas` (M2) também duplica uma cena (`duplicarDe`) e leva o grupo (`levarGrupo`); `fichas` apaga, gasta dado de vida e ajusta a mochila; `objetos` acende, passa e guarda tochas e ajusta tempo e raio dos objetos de luz.
@@ -146,6 +146,8 @@ Coordenadas de cena são em **células**, a partir do canto de cima à esquerda 
 3. A ferramenta devolve um **link de envio de uso único** (vale 15 minutos) e o comando pronto: `curl -sS -T "<caminho do arquivo>" "<link>"`. O Claude roda no shell e a resposta do curl já diz o que foi feito. **O token nunca passa pelo modelo**: o link é que autoriza.
 4. O navegador do mestre baixa o arquivo da caixa de entrada da sala, processa pelo mesmo caminho do botão de subir (tiles, redução, cifra) e a sala aplica o uso como o Claude, no lote dele (o Desfazer tira o mapa ou a imagem; o arquivo fica na pasta). Com a mesa do mestre fechada, o arquivo espera (até 24 h) e a mesa mostra "O Claude enviou 1 arquivo" e processa sozinha ao abrir.
 5. Sem shell (Claude Desktop, claude.ai): `base64` na mesma chamada, até 2 MB (gasta contexto).
+
+**Mapa do Dungeondraft (Q3):** `uso: "dungeondraft"` (ou `uvtt`, `mapa universal vtt`) com um `.dd2vtt`, `.uvtt` ou `.df2vtt`. O navegador do mestre lê o arquivo (no worker) e cria uma **cena nova** com o nome do arquivo: o mapa na grade do arquivo, as paredes, as portas (fechadas como no arquivo) e as luzes; não leva o grupo para a cena. A resposta do curl traz o resumo ("Cena criada: 1 mapa, 142 paredes, 6 portas, 9 luzes."). Só o mestre; sem alvo nem `quadrados`; `usar` não vale para ele. O `desfazer` apaga a cena criada. Exemplo: *"Importe este .dd2vtt"*.
 
 Outras ações: `estado` (consulta um envio, espera até 20 s), `listar` (os arquivos da mesa e onde são usados; só o mestre) e `usar` (põe na mesa um arquivo que já existe, pelo hash, sem reenviar). O jogador só põe imagem no que é dele (o próprio token, o retrato da própria ficha, o próprio handout); mapa, som e compêndio são do mestre.
 

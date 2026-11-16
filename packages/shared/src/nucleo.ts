@@ -2085,6 +2085,75 @@ function processarIntencao(
       return aplicado();
     }
 
+    case "cena.importarMapa": {
+      const d = intencao.dados;
+      if (estado.cenas.some((c) => c.id === d.id)) {
+        return recusa("dados_invalidos", "Já existe uma cena com esse id.");
+      }
+      const meta = metaDoAsset(estado, d.assetHash);
+      if (meta?.tipo !== "mapa") return recusa("asset_inexistente", "Mapa não encontrado.");
+      const { quadradoM, visivel } = CENA_PADRAO.grid;
+      const { larguraM, alturaM } = tamanhoDaCenaComMapa(meta, d.pxPorQuadrado, quadradoM);
+      if (larguraM > 1000 || alturaM > 1000) {
+        return recusa("dados_invalidos", "O mapa fica grande demais com esse px por quadrado.");
+      }
+      const cena: Cena = {
+        id: d.id,
+        nome: d.nome,
+        larguraM,
+        alturaM,
+        grid: { quadradoM, visivel },
+        mapa: { assetHash: d.assetHash, pxPorQuadrado: d.pxPorQuadrado },
+        ...(d.luzAmbiente === undefined || d.luzAmbiente === 1
+          ? {}
+          : { luzAmbiente: d.luzAmbiente }),
+      };
+      const idsDeParede = new Set(estado.paredes.map((p) => p.id));
+      const paredes: Parede[] = [];
+      for (const n of d.paredes) {
+        if (idsDeParede.has(n.id)) {
+          return recusa("dados_invalidos", "Já existe uma parede com esse id.");
+        }
+        idsDeParede.add(n.id);
+        const a = limitarNaCena(n.a, cena);
+        const b = limitarNaCena(n.b, cena);
+        // Parede sem comprimento (a borda do mapa a achatou) não entra; o resto da importação segue.
+        if (a.x === b.x && a.y === b.y) continue;
+        const meio = n.meio ? limitarNaCena(n.meio, cena) : undefined;
+        paredes.push({
+          id: n.id,
+          cenaId: cena.id,
+          a,
+          b,
+          ...(meio && arcoPorTresPontos(a, meio, b) ? { meio } : {}),
+          tipo: n.tipo,
+          ...estadoDaParede(n.tipo, n.estado),
+        });
+      }
+      const idsDeLuz = new Set(estado.luzes.map((l) => l.id));
+      const fontes: FonteDeLuz[] = [];
+      for (const f of d.fontes) {
+        if (idsDeLuz.has(f.id)) {
+          return recusa("dados_invalidos", "Já existe uma fonte de luz com esse id.");
+        }
+        idsDeLuz.add(f.id);
+        const portador = portadorValido(estado, cena, f.portador);
+        if (!portador) continue;
+        fontes.push({
+          ...f,
+          cenaId: cena.id,
+          portador,
+          saldoMs: null,
+          modificadores: [],
+          historico: [],
+        });
+      }
+      emitir({ tipo: "cena.criada", dados: { cena } });
+      for (const parede of paredes) emitir({ tipo: "parede.criada", dados: { parede } });
+      for (const fonte of fontes) emitir({ tipo: "fonte.criada", dados: { fonte } });
+      return aplicado();
+    }
+
     case "cena.apagar": {
       const { cenaId } = intencao.dados;
       if (!estado.cenas.some((c) => c.id === cenaId)) return recusa("cena_inexistente", SEM_CENA);

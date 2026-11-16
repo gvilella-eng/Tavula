@@ -3922,6 +3922,31 @@ Ver `PASSAGEM.md` ("Q5").
 ### Roteiro manual
 `docs/ROTEIRO-DE-TESTES.md`, "Q5".
 
+## Ajustes Q3 — Importar mapas do Dungeondraft (entregue, aguardando o roteiro manual)
+
+### O que foi entregue
+- O card "Importar mapa — Dungeondraft / Universal VTT…" no painel de cenas (só o mestre) e o arrastar do arquivo para a mesa criam uma cena nova a partir de um `.dd2vtt`, `.uvtt` ou `.df2vtt`: o mapa na grade certa, as paredes, as portas e as luzes, com o resumo no aviso.
+- A intenção `cena.importarMapa` cria tudo num pedido só (um passo do Desfazer).
+- `arquivos.enviar` do Claude ganhou o uso `dungeondraft` (caixa da M1; a sala cria a cena como o Claude, no lote dele).
+
+### Como rodar
+`pnpm dev` como sempre. Sem migração e sem campo novo no estado. Para testar à mão, ver o "Q3" em `docs/ROTEIRO-DE-TESTES.md`.
+
+### Verificação
+Ver o relatório do lote.
+
+### Decisões
+Ver `REDESIGN.md` ("Q3 — como ficou").
+
+### Desvios
+Nenhum.
+
+### Frágil
+Ver `PASSAGEM.md` ("Q3").
+
+### Roteiro manual
+`docs/ROTEIRO-DE-TESTES.md`, "Q3".
+
 ## Ajustes Q6 — A busca do compêndio e a mesa de som (Q2b + Q4b) (entregue, aguardando o roteiro manual)
 
 ### O que foi entregue
@@ -3946,4 +3971,4 @@ Ver `PASSAGEM.md` ("Q6").
 ### Roteiro manual
 `docs/ROTEIRO-DE-TESTES.md`, "Q2b" e "Q4b".
 
-## Próximo: o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b, N4, N5, M1, M2, Q1, Q2, Q4, Q5 e Q6
+## Próximo: o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b, N4, N5, M1, M2, Q1, Q2, Q3, Q4, Q5 e Q6

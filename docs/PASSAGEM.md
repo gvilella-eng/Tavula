@@ -994,6 +994,22 @@ Continua em aberto, por ser decisão e não erro de doc: `ficha.verOutras` (seç
 
 **Suposições**: ver `docs/REDESIGN.md`, "Q5 — como ficou".
 
+## Q3 (2026-11-16): importar mapas do Dungeondraft (Universal VTT)
+**Onde mexer**
+- Puro e compartilhado: `packages/shared/src/importarUvtt.ts` (`lerUniversalVtt` lê o JSON com tolerância e desconta a origem; `base64ParaBytes` decodifica a imagem aos pedaços; `converterUvtt` faz quadrados virarem metros, paredes, portas e fontes de luz dentro de `LIMITES_DA_IMPORTACAO`; `ImportacaoDeMapaSchema`; `resumoDaImportacao`). Testes: `importarUvtt.test.ts` (leitura, conversão, limites, a intenção na sala e o Desfazer).
+- Protocolo e sala: a intenção `cena.importarMapa` (`protocolo.ts`; o caso em `nucleo.ts`, depois de `cena.duplicar`; capacidade `cena.editar`). O uso de envio `mapa-uvtt` (`envios.ts`, `enviosUso.ts`, `arquivos.ts` do MCP; `sala.ts` `concluirEnvio` passa a `importacao` ao `usoDoArquivo`). Paridade: `mcp/paridade.ts` (`cena.importarMapa` via `arquivos`/`enviar`).
+- Tela: `FaixaDeCenas.tsx` (card e `<input type="file">`), `Mesa.tsx` (`importarMapaUvtt`, o arrastar na janela, `AvisoDaImportacao.tsx`), `assets/gerente.ts` (`lerMapaUniversalVtt`), `assets/processador.ts` e `processador.worker.ts` (o pedido `uvtt`, fora da thread da página), `caixaDoClaude.tsx` (o uso `mapa-uvtt`).
+- E2E: `e2e/tests/q3.spec.ts` (o `.dd2vtt` é gerado no teste).
+
+**Frágil**
+- A cena inteira vai num único frame (`cena.importarMapa`, e `caixa.concluir.importacao` no caminho do Claude): o teto de 3000 paredes e 200 luzes mantém o frame abaixo de 1 MiB (o limite do WebSocket da sala). Subir os tetos exige quebrar em vários pedidos.
+- O processamento do arquivo está duplicado de propósito entre o botão (`Mesa.importarMapaUvtt`) e a caixa do Claude (`caixaDoClaude.processar`), mas os dois passam por `gerente.lerMapaUniversalVtt`; a conversão (`converterUvtt`) é uma só.
+- O trecho de parede sobre uma porta é descartado por geometria (extremos a até 0,05 quadrado do segmento da porta). Um mapa que desenha a parede por cima da porta com outro desenho pode ficar com a porta sob uma parede.
+- O E2E depende de `veNoPonto` do gancho do mapa e de a semente deixar o `jogador-1` ver 6 m além do token.
+- Desfazer a importação do Claude só apaga a cena se ninguém mexeu nela depois (regra do 12-1: a cena sai se está vazia de tokens; as paredes e luzes importadas saem antes).
+
+**Suposições**: ver `docs/REDESIGN.md`, "Q3 — como ficou".
+
 ## Q6 (2026-11-16): a busca do compêndio e a mesa de som (Q2b + Q4b)
 
 - Busca: `packages/shared/src/buscaDoCompendio.ts` (`prepararConsulta`, `pontuarBusca`, `filtrarEOrdenar`). As buscas de `compendio.ts` e `compendioSecoes.ts` passam por `filtrarEOrdenar`. As funções de agrupar (`agruparMagiasPorNivel` etc.) têm um segundo argumento `alfabetico`: com busca a tela passa `false` para manter a relevância.

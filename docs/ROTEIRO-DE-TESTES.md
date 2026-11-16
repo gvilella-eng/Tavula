@@ -588,6 +588,24 @@ Antes de tudo: tenha na pasta `sons/` (ou à mão) uns 6 arquivos de áudio: 2 o
 7. **Moldura.** Preferências → Aparência → "Estilo das rolagens no chat": escolha Moldura. Os cartões do chat mudam na hora (linha dupla com cantoneiras, divisória com losango). Recarregue: continua Moldura. Volte para Fita.
 8. **Temas.** Repita 1 e 7 no Pergaminho (claro): números e fitas legíveis.
 9. **Várias rolagens seguidas** do mesmo jogador dividem o cabeçalho.
+10. **Balão por metade (Q5b).** Num ataque, deixe o mouse parado em cima do acerto: aparecem só os d20 (o descartado riscado, o bônus). Passe para o dano: o balão troca na hora, sem esperar, e mostra só os dados do dano, a fórmula e o tipo. Numa magia com CD, o balão do dano traz o espaço usado e os dardos. Com Tab, cada metade ganha foco e o seu balão; Esc fecha. O balão fica dentro da coluna do chat. Teste e `/r` simples continuam com um balão só.
+
+## Q3 — Importar mapas do Dungeondraft
+
+**Onde achar arquivos para testar:** no Dungeondraft, *File → Export → Universal VTT* gera um `.dd2vtt` do seu mapa. Muitos autores de mapas (Patreon, itch.io, o próprio Dungeondraft com os mapas de exemplo) distribuem o `.dd2vtt` junto com o PNG. O Dungeon Alchemist (*Export → Universal VTT*) e o DungeonFog (`.df2vtt`) exportam o mesmo formato. Se o mapa vem só como PNG, não serve: precisa do arquivo do Universal VTT.
+
+1. **A opção.** Como mestre, abra a faixa de cenas (Cena → Cenas). Depois de "Nova cena" há o card "Importar mapa — Dungeondraft / Universal VTT…". Como jogador, a faixa nem existe.
+2. **Importar.** Clique no card e escolha o `.dd2vtt`. Um aviso no alto diz "Importando…" e depois "Cena criada: 1 mapa, N paredes, N portas, N luzes." Dispense no X.
+3. **A cena.** Um card novo, com o nome do arquivo. Abra-a: o mapa deve ter o tamanho certo (a grade da imagem bate com a da mesa), com as paredes (use a ferramenta Paredes ou a Visão do mestre para ver os contornos), as portas e as luzes. O grupo continua na cena de antes.
+4. **Portas.** As que o arquivo diz fechadas começam fechadas (clique para abrir e fechar). Não deve haver parede por baixo de porta.
+5. **Visão.** Leve o grupo para a cena e ponha o token de um jogador numa sala: ele não enxerga através das paredes nem da porta fechada, e passa a enxergar quando a porta abre.
+6. **Luz.** Mapa com luz "cozida" fica claro (dia). Confira as luzes no painel de fontes de luz (cor e alcance aproximados).
+7. **Arrastar.** Arraste um `.dd2vtt` do computador para a janela da mesa: importa do mesmo jeito.
+8. **Arquivo ruim.** Arraste um `.dd2vtt` sem imagem (ou um JSON qualquer renomeado): o aviso fica vermelho e diz por que não importou; nenhuma cena nasce.
+9. **Mapa grande.** Importe um mapa de muitas paredes (mais de 3000): o aviso diz quantas entraram. A aba não deve travar; o JSON de dezenas de MB é lido em segundo plano.
+10. **Cópias.** Com a pasta da mesa liberada, a imagem fica em `mapas/` e em `arquivos-da-mesa/`.
+11. **Claude.** Peça: "importe este .dd2vtt" (com o arquivo no computador). O Claude usa `arquivos` com o uso `dungeondraft`, roda o curl e a resposta traz o resumo. Depois peça "desfaça": a cena some.
+12. **Exportar e importar a mesa.** Exporte a campanha e importe de novo: a cena importada vem com as paredes e as luzes.
 
 ## Se algo der errado
 - Anote a tela, o que fez e o que esperava, e mande para mim. Bug confirmado vai para `docs/BUGS.md`.

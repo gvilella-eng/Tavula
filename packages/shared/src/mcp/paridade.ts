@@ -78,6 +78,7 @@ export const PARIDADE_COM_O_MCP: Record<TipoIntencao, EntradaDeParidade> = {
   "cena.editar": via("cenas", "cenas"),
   "cena.apagar": via("cenas", "cenas", "apagar"),
   "cena.duplicar": via("cenas", "cenas", "duplicarDe"),
+  "cena.importarMapa": via("arquivos", "enviar", "uso dungeondraft (mapa Universal VTT)"),
   "cena.configurarGrid": via("cenas", "cenas", "grid"),
   "cena.configurarIluminacao": via("cenas", "cenas", "iluminacao"),
   "cena.definirMapa": via("arquivos", "enviar", "uso mapa"),

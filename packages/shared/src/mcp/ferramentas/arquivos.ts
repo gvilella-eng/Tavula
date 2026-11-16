@@ -32,6 +32,9 @@ const FORMAS_DO_USO = [
   "som",
   "compendio",
   "compêndio",
+  "mapa universal vtt",
+  "dungeondraft",
+  "uvtt",
 ] as const;
 
 /** As duas formas de escrever cada uso (a curta e a da mesa) viram o uso de verdade. */
@@ -49,6 +52,10 @@ function usoDe(forma: (typeof FORMAS_DO_USO)[number]): UsoDeEnvio {
     case "compendio":
     case "compêndio":
       return "compendio";
+    case "mapa universal vtt":
+    case "dungeondraft":
+    case "uvtt":
+      return "mapa-uvtt";
     default:
       return forma;
   }
@@ -179,9 +186,10 @@ function pedidoDe(
 export const arquivos = definir({
   nome: "arquivos",
   descricao: [
-    "Sobe arquivos do computador para a mesa (mapa da cena, token, retrato da ficha, imagem do handout, som, compêndio) e usa arquivos que já estão na mesa. Fluxo: gere ou ache o arquivo no computador, chame `enviar`, rode no shell o comando que ela devolve (curl) e pronto: a resposta do curl já diz o que foi feito.",
-    '`enviar` devolve um link de envio de uso único (vale 15 min); o comando é `curl -sS -T "<caminho do arquivo>" "<link>"`. Sem shell (Claude Desktop, claude.ai), passe o arquivo em `base64` (até 2 MB; gasta contexto). Formatos: imagem png, jpg, webp ou gif; som mp3, ogg ou wav; compêndio json.',
-    "Alvos, pelo nome: mapa -> `cena` (padrão: a cena ativa); token -> `token` (e `cena`, se o nome se repete) ou `ficha` (vira o token padrão da ficha); retrato -> `ficha`; handout -> `handout`; som -> entra na mesa (depois a ferramenta `som` o põe num lugar da mesa de som). No mapa, `quadrados` (45 = 45 x 45) ou `pxPorQuadrado` (padrão 70) ajusta o tamanho da cena à imagem.",
+    "Sobe arquivos do computador para a mesa (mapa, token, retrato, imagem do handout, som, compêndio) e usa os que já estão nela. Fluxo: chame `enviar`, rode no shell o comando que ela devolve (curl) e pronto: a resposta do curl diz o que foi feito.",
+    'O link de `enviar` vale 15 min, uma vez: `curl -sS -T "<caminho do arquivo>" "<link>"`. Sem shell, passe o arquivo em `base64` (até 2 MB). Formatos: imagem png, jpg, webp ou gif; som mp3, ogg ou wav; compêndio json.',
+    'Mapa do Dungeondraft (.dd2vtt, .uvtt, .df2vtt): `uso` "dungeondraft"; o navegador do mestre cria uma cena nova (mapa, paredes, portas, luzes) sem levar o grupo. Só o mestre.',
+    "Alvos, pelo nome: mapa -> `cena` (padrão: a ativa); token -> `token` (e `cena`) ou `ficha` (token padrão); retrato -> `ficha`; handout -> `handout`; som -> entra na mesa (a ferramenta `som` o põe num lugar). No mapa, `quadrados` (45 = 45 x 45) ou `pxPorQuadrado` (padrão 70) ajusta o tamanho da cena.",
     "`estado` consulta um envio (`envio`: o id) e espera até 20 s. `listar` mostra os arquivos da mesa e onde são usados (só o mestre). `usar` põe na mesa um arquivo que já existe (`hash`: 6+ letras do `listar`, e o mesmo `uso` e alvo do `enviar`), sem reenviar. O que o Claude põe vale no lote do `desfazer`; o arquivo fica na pasta.",
     'Exemplos: {"acao":"enviar","uso":"mapa","nome":"cripta.png","cena":"Cripta","quadrados":45}; {"acao":"enviar","uso":"retrato","nome":"goblin.png","ficha":"Goblin"}; {"acao":"estado","envio":"env-..."}; {"acao":"usar","uso":"mapa","hash":"a1b2c3d4","cena":"Cripta"}.',
   ].join(" "),
@@ -268,7 +276,9 @@ export const arquivos = definir({
     }
 
     if (e.uso === undefined)
-      throw new ErroDoMcp("Diga o `uso`: mapa, token, retrato, handout, som ou compêndio.");
+      throw new ErroDoMcp(
+        "Diga o `uso`: mapa, token, retrato, handout, som, compêndio ou dungeondraft (mapa Universal VTT).",
+      );
     const uso = usoDe(e.uso);
     const alvo = alvoDoPedido(estado, e);
     const opcoes: OpcoesDoEnvio = {
@@ -282,6 +292,11 @@ export const arquivos = definir({
         throw new ErroDoMcp(
           "Só o mestre usa os arquivos que já estão na mesa; o jogador envia o dele com `enviar`.",
         );
+      if (uso === "mapa-uvtt") {
+        throw new ErroDoMcp(
+          "O mapa Universal VTT só entra pelo `enviar`: o arquivo é lido pelo navegador do mestre e vira uma cena nova.",
+        );
+      }
       if (e.hash === undefined) throw new ErroDoMcp("Diga o `hash` do arquivo (veja `listar`).");
       const meta = acharAsset(estado, e.hash);
       const serve =

@@ -84,9 +84,22 @@ describe("M1: enviar", () => {
     expect(caixa.pedidos.map((p) => p.uso)).toEqual(["mapa", "compendio"]);
   });
 
+  it("Q3: o mapa do Dungeondraft entra pelo `enviar` (uso dungeondraft); `usar` é recusado", async () => {
+    const { sala, caixa } = salaDe(MESTRE);
+    const r = await rodar(sala, { uso: "dungeondraft", nome: "cripta.dd2vtt" });
+    expect(r.texto).toContain("mapa Universal VTT");
+    expect(caixa.pedidos[0]).toMatchObject({ uso: "mapa-uvtt", nome: "cripta.dd2vtt" });
+    await rodar(sala, { uso: "uvtt", nome: "b.uvtt" });
+    await rodar(sala, { uso: "mapa universal vtt", nome: "c.df2vtt" });
+    expect(caixa.pedidos.map((p) => p.uso)).toEqual(["mapa-uvtt", "mapa-uvtt", "mapa-uvtt"]);
+    const usar = await chamar(sala, { acao: "usar", uso: "dungeondraft", hash: "abcdef" });
+    expect(usar.isError).toBe(true);
+    expect(usar.content[0]?.text).toMatch(/só entra pelo `enviar`/);
+  });
+
   it("o jogador não consegue pôr mapa, som nem compêndio (a regra da tela vale)", async () => {
     const { sala, caixa } = salaDe(ANA);
-    for (const uso of ["mapa", "som", "compendio"]) {
+    for (const uso of ["mapa", "som", "compendio", "dungeondraft"]) {
       const r = await chamar(sala, { uso, nome: "x.png" });
       expect(r.isError, uso).toBe(true);
       expect(r.content[0]?.text).toMatch(/Só o mestre/);

@@ -27,6 +27,7 @@ export * from "./ficha.ts";
 export * from "./iluminacao.ts";
 export * from "./importarFichaPdf.ts";
 export * from "./importarTraducoes.ts";
+export * from "./importarUvtt.ts";
 export * from "./limitador.ts";
 export * from "./luz.ts";
 export * from "./mapa.ts";

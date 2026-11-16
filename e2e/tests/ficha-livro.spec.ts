@@ -266,8 +266,9 @@ test("crítico: o 20 natural fica no verde fixo e o dano é do crítico; PV temp
     .evaluate((e) => getComputedStyle(e).backgroundColor);
   expect(verde).toBe("rgb(47, 164, 106)");
   // os dados (no balão, com o mouse parado): o 20 natural marcado e os do dano dobrados: 2d6+7
-  await bloco.hover();
+  await bloco.getByTestId("rolagem-metade").first().hover();
   await expect(bloco.locator(".rc-chip.crit")).toHaveCount(1);
+  await bloco.getByTestId("rolagem-metade").last().hover();
   await expect(bloco.getByTestId("modelo-dano-formula")).toContainText("2d6 + 7");
   expect((await request.post("/teste/dados")).ok()).toBe(true);
 

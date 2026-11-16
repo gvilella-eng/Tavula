@@ -2073,6 +2073,44 @@ O Vilella aprovou o desenho (Fita como padrão, Moldura como opção em Preferê
 - Balão por toque em tela sensível não foi testado em aparelho (só pelo código).
 
 
+### Q5b — o balão por metade (2026-11-16)
+Pedido do Vilella: "se passo o mouse por cima do acerto, mostra os dados do acerto; se passo em cima do dano, mostra o do dano". Só visual (`rolagem/CartaoNoChat.tsx`, `CorpoDaRolagem.tsx`, `rolagem.css`); sem protocolo nem banco.
+- Cartões divididos (ataque: acerto | dano; magia de salvaguarda: CD | dano; `/r` com várias rolagens): cada metade tem o seu balão, `data-testid="rolagem-metade"` (com `data-metade` = "acerto", "dano"...). O cartão em si deixa de ser focável; cada metade é (Tab), com `aria-label` e `aria-describedby` quando aberto.
+- Acerto: os d20, o descartado riscado, o bônus. Dano: os dados, a fórmula com o tipo (e "(nível 5)", "metade"), o bloco do espaço (dado a mais) e os dardos. Nada saiu do balão: o que não é de nenhuma metade foi para a do dano.
+- Passar de uma metade para a outra troca o balão sem esperar os 350 ms de novo (folga de 90 ms na saída); sair do cartão fecha. Esc fecha. Toque: tocar numa metade abre a dela; tocar na mesma fecha.
+- O balão fica alinhado à metade (esquerda no acerto, direita no dano), largura mínima de meia coluna e nunca maior que o cartão (`data-metade` do balão: primeira, ultima, todo).
+- Cartões de uma metade só (teste, vida, `/r` simples, dardos): como antes, o cartão todo abre o balão.
+- A rolagem oculta (linha pequena) mostra os balões todos juntos, como antes.
+- Decisões (assumido): com salvaguarda a metade da CD não tem dado; o balão dela mostra o acerto, que saiu da frente. No `/r` de dano com CD, a metade da CD não tem balão nem foco (não há dado nela). Nos `/r` com várias rolagens, o dado a mais do espaço vai no balão da última.
+- Testes: `q5.spec` (acerto só d20, dano só dano, troca sem espera, teclado) e os specs que passavam o mouse no cartão agora passam na metade certa (`chat`, `ficha-livro`, `ficha-n2`, `ficha-npc`).
+
+## Q3 — como ficou (2026-11-16)
+
+**O que foi feito**
+- Importar mapas do Dungeondraft (Universal VTT: `.dd2vtt`, `.uvtt`, `.df2vtt`). No painel de cenas, o card "Importar mapa — Dungeondraft / Universal VTT…" (só o mestre; o jogador não tem a faixa). Escolher o arquivo, ou arrastá-lo para qualquer lugar da mesa, cria **uma cena nova** com o nome do arquivo (sem a extensão).
+- A imagem entra como mapa **pelo mesmo caminho do botão de subir** (`GerenteDeAssets.usarArquivo`: WebP, tiles, cifra, cópia em `arquivos-da-mesa/`), mais a cópia em `mapas/` da pasta da mesa. A grade bate: `pxPorQuadrado` = `pixels_per_grid`, a cena com o tamanho da imagem (quadrado de 1,5 m).
+- Paredes (`line_of_sight` e `objects_line_of_sight`: um segmento por par de pontos), portas (`portals`, fechadas ou abertas como no arquivo) e luzes (`lights`) viram paredes, portas e fontes de luz fixas da Távola. A origem do mapa (`map_origin`) é descontada.
+- Um aviso no alto da mesa: "Cena criada: 1 mapa, 142 paredes, 6 portas, 9 luzes." e o que foi ignorado ou cortado. Fica até a pessoa dispensar.
+- A leitura (JSON de dezenas de MB, base64) e a decodificação da imagem rodam no **worker** do processador (`assets/processador.worker.ts`, pedido `uvtt`), fora da thread da página. Medida: decodificar 24 MB de imagem em base64 leva ~170 ms (teste de unidade, com a montagem do arquivo inclusa).
+- Intenção nova `cena.importarMapa` (`cena.editar`): cria a cena inteira (cena com mapa, paredes, portas, fontes de luz e luz ambiente) **num pedido só**, em vez de centenas de mensagens, e é um passo só do Desfazer.
+- Claude: `arquivos.enviar` ganhou o uso `dungeondraft` (também `uvtt` e `mapa universal vtt`; no código `mapa-uvtt`). O arquivo passa pela caixa da M1; o navegador do mestre o lê pelo mesmo importador e manda a cena pronta na conclusão (`caixa.concluir.importacao`); a sala a cria **como o Claude**, no lote dele (o `desfazer` apaga a cena criada). O resultado volta no curl: "Pronto: cripta.dd2vtt (mapa Universal VTT (Dungeondraft)). Cena criada: ...".
+
+**Decisões (assumido)**
+- Nome da cena = nome do arquivo sem extensão, até 64 letras.
+- Quadrado = 1,5 m (como toda cena nova). A cena é criada e o grupo não se mexe (não leva o grupo para ela).
+- Luz: alcance em metros = quadrados × 1,5, metade em luz plena e metade em penumbra; cor = ARGB do arquivo sem o alfa; intensidade do arquivo limitada a 0–1; não tremula; nome "Luz n". Luz sem alcance fica na cena sem iluminar (com aviso).
+- Luz ambiente: `baked_lighting` (ou falta de `ambient_light`) = dia (1, o padrão da cena, sem o campo); sem luz cozida vale o brilho da cor de `ambient_light`.
+- `objects_line_of_sight` vira parede comum (bloqueia visão como as demais). O trecho de parede que fica inteiro sobre uma porta é ignorado (a porta o substitui; evita porta sob parede), com aviso.
+- Segmentos repetidos (mesmos pontos, em qualquer sentido) entram uma vez.
+- Limites: 3000 paredes e portas juntas por cena (portas primeiro), 200 luzes, arquivo de até 64 MB (o teto do mapa). O que passa não entra e o aviso diz quantos. 3000 paredes ocupam uns 400 KB de um frame (o limite do WebSocket é 1 MiB). A grade do arquivo fora de 10 a 1000 px por quadrado é recusada. Mapa com mais de 1000 m de lado (limite da cena) é recusado com o motivo.
+- O que o jogador recebe: nada da cena enquanto o grupo não está nela (a sala só manda ao jogador a cena ativa; teste dos frames no E2E). Paredes e portas importadas valem para visão e passagem como as desenhadas à mão.
+- Sem migração de banco e sem campo novo no estado: a cena sai com os campos que já existiam.
+- Arquivo sem `image` (ou com imagem que não é png, jpg, webp nem gif): não cria cena e o aviso diz por quê.
+
+**O que ficou para depois**
+- Portas "freestanding", a cor do `ambient_light` como tom da cena e as sombras (`shadows`) das luzes.
+- Importar vários arquivos de uma vez.
+
 ## Q6 — como ficou (2026-11-16): a busca do compêndio e a mesa de som (Q2b + Q4b)
 
 Dois pedidos do Vilella num lote só. Q2b: a busca do compêndio e o espaço da aba. Q4b: a mesa de som em janela própria, a altura da faixa, a configuração por cima e o transporte Tocar/Parar.
