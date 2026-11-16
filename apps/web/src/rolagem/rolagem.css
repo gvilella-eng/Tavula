@@ -199,6 +199,10 @@
 }
 .rc[data-estilo="fita"] .rc-num {
   font: 400 36px / 38px var(--rc-fonte-numero);
+  /* A IM Fell tem algarismos de estilo antigo (3, 4, 5, 7 e 9 descem abaixo da linha): sobe o número e dá folga embaixo. */
+  position: relative;
+  top: -3px;
+  padding-bottom: 4px;
 }
 .rc[data-estilo="fita"] .rc-num[data-pequeno] {
   font-size: 22px;
@@ -263,6 +267,7 @@
 }
 .rc[data-estilo="moldura"] .rc-num {
   font: 600 32px / 38px var(--rc-fonte-numero);
+  padding-bottom: 2px;
 }
 .rc[data-estilo="moldura"] .rc-num[data-pequeno] {
   font-size: 18px;
