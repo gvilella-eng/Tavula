@@ -48,7 +48,18 @@ const numero = (r: number, g: number, b: number) =>
   (Math.round(Math.min(255, Math.max(0, g))) << 8) |
   Math.round(Math.min(255, Math.max(0, b)));
 
-const plano = (pontos: Ponto[]) => pontos.flatMap((q) => [q.x * PX_POR_M, q.y * PX_POR_M]);
+/** O mesmo polígono vira pixels várias vezes por atualização (e pelo CacheDeLuz entre elas): guarda por identidade. */
+const planos = new WeakMap<readonly Ponto[], number[]>();
+
+/** Nunca mute o array devolvido: o Graphics do Pixi guarda a referência (e ela é compartilhada pelo cache). */
+const plano = (pontos: readonly Ponto[]): number[] => {
+  let feito = planos.get(pontos);
+  if (!feito) {
+    feito = pontos.flatMap((q) => [q.x * PX_POR_M, q.y * PX_POR_M]);
+    planos.set(pontos, feito);
+  }
+  return feito;
+};
 
 /** Cor que uma luz soma por passo (penumbra ou luz plena), já tingida e com a tremulação aplicada. */
 function corDoPasso(cor: string, fator: number): number {
@@ -203,7 +214,7 @@ export class CamadaDeLuz {
     const ctx = this.memoria.imagem === m.imagem ? null : this.memoria.canvas.getContext("2d");
     if (ctx) {
       this.memoria.imagem = m.imagem;
-      const dados = new ImageData(new Uint8ClampedArray(m.imagem), m.colunas, m.linhas);
+      const dados = new ImageData(m.imagem as Uint8ClampedArray<ArrayBuffer>, m.colunas, m.linhas); // o putImageData copia já, então a cópia extra era à toa
       ctx.putImageData(dados, 0, 0);
       this.memoria.source.update();
     }
@@ -262,7 +273,11 @@ export class CamadaDeLuz {
     for (const p of modelo.escuro) {
       if (p.length >= 3) this.gEscuro.poly(plano(p)).fill(0xffffff);
     }
-    this.desenhar(this.passoCinza1, t.dv, true);
+    // Sem visão no escuro o cinza nem aparece (`cinza.visible` abaixo) e `desenharLuz` não lê `dv` (o sprite fica
+    // invisível): pula os dois passes de textura cheia. Ao voltar a haver escuro, esta mesma função os refaz antes
+    // de qualquer uso, então nunca se vê textura velha.
+    const temEscuro = modelo.escuro.length > 0;
+    if (temEscuro) this.desenhar(this.passoCinza1, t.dv, true);
     this.spriteCinzaNaLuz.texture = t.dv;
     this.spriteDvNoCinza.texture = t.dv;
     this.dimensionar(w, h);
@@ -276,7 +291,7 @@ export class CamadaDeLuz {
     } else {
       this.gCinzaApagar.rect(0, 0, w, h).fill(0xffffff);
     }
-    this.desenhar(this.passoCinza2, t.cinza, true);
+    if (temEscuro) this.desenhar(this.passoCinza2, t.cinza, true);
     this.cinza.texture = t.cinza;
     this.multiplicar.visible = true;
     this.brilho.visible = true;
