@@ -112,6 +112,41 @@ A conjuração inata, os truques por nível, o ritual e os dardos, raios e alvos
   lista. Mas deixamos para um futuro." Gerar ou associar arte própria a cada entrada (nunca arte da WotC), para o
   monstro virar token sem o mestre procurar imagem.
 
+### Desempenho: auditado e não feito (2026-11-17, branch `otimizacoes`)
+
+A auditoria dos lotes O1–O4 (ver `ESTADO.md`) achou mais do que entrou. Ficou de fora o que tinha risco de mudar
+comportamento, pedia mudança de protocolo ou migração, ou só compensa depois de medir. Nada aqui foi medido: são
+estimativas por leitura do código. Antes de fazer qualquer item, medir com o Performance do Chrome e o Profiler do React.
+
+- **Interface**
+  - `React.memo` + fatias do estado nas abas e painéis (hoje toda aba recebe `estado` inteiro e re-renderiza a cada
+    evento, mesmo fechada). É a mudança estrutural que mais renderia; mexe na assinatura de quase todos os painéis.
+  - Compêndio lido uma vez por hash (hoje cada ficha aberta e a aba fazem o próprio `JSON.parse` + zod de um arquivo
+    de MB) e, depois, num Worker.
+  - Ficha: `aplicarOperacoes` valida a ficha inteira duas vezes por tecla (`useFicha.ts`).
+  - Régua, zoom e dica do mapa fazem `setState` na Mesa a cada movimento do mouse; levar para um componente folha.
+    `PertoDoPonto` mede o layout a cada render.
+  - `lazy` dentro da Mesa (Tour, editor de automações, revisão do PDF) e `manualChunks`.
+- **Mapa**
+  - Prévias de ponteiro (névoa, paredes, laço) uma vez por quadro, não por evento.
+  - `definirCena` refaz tudo quando só a névoa mudou.
+  - Tremulação da luz refaz a geometria a ~11 Hz; token com imagem usa uma máscara por token; texturas de cenas
+    anteriores nunca são liberadas; a névoa re-renderiza todos os traços a cada traço novo.
+  - A imagem da memória do mapa é refeita por quadro enquanto a fonte anda (pesa em mapas muito grandes).
+- **Sala**
+  - Chat em memória entre rodadas (hoje a primeira página só é reaproveitada dentro de uma rodada de snapshots).
+  - Diário do Claude regrava o lote inteiro a cada passo; o motor de automações clona a fatia a cada intenção.
+  - Acordar da hibernação relê e valida até 2000 mensagens do chat.
+  - Ficha e névoa viajam e são gravadas inteiras a cada edição: mandar só a diferença pede evento novo no
+    protocolo (ficha) ou migração (névoa).
+- **Geometria**
+  - Polígono de visão sem corte por alcance quando a visão é ilimitada: custo cresce com o número de paredes. Risco
+    alto (os testes fixam os valores).
+  - `marcarVisto` testa ponto-em-polígono por célula; daria para rasterizar por varredura.
+
+**Decidido não fazer:** tirar a validação zod das mensagens no navegador (ela aplica os valores padrão; sem ela os
+dados mudam de forma).
+
 ## Descartadas (não propor de novo)
 
 - **Imagens no servidor** (R2 ou similar): imagens locais são a premissa e o diferencial do projeto.

@@ -4106,4 +4106,33 @@ Ver `PASSAGEM.md` ("Q11").
 ### Roteiro manual
 `docs/ROTEIRO-DE-TESTES.md`, "Q11".
 
+## Otimizações O1–O4 — A mesa mais rápida, sem mudar o que ela faz (branch `otimizacoes`, aguardando teste manual)
+
+Feito em 2026-11-17 num worktree separado (`.claude/worktrees/otimizacoes`, branch `otimizacoes`, a partir de `redesign` em `1b7a751`). **Nenhuma função nova, nenhuma mudança de protocolo, nenhuma migração.** Só o mesmo resultado com menos trabalho. A única diferença de comportamento é a do slider da luz ambiente (abaixo).
+
+### O que foi entregue
+- **O1, sala (`28cb80a`)**: cada evento é serializado uma vez (não uma por conexão) e o snapshot uma vez por usuário; a rodada de snapshots lê a primeira página do chat e os membros uma vez; `reagendarLuzes` reprograma o alarme uma vez no fim (`Agendador.anotar`); a identidade do socket fica em cache; `contarMensagem` não faz mais um SELECT por mensagem; o estado em memória não é recriado em `token.mover`/ping/rascunho; `diffDoEstado` pula o item que é o mesmo objeto.
+- **O2, pacote compartilhado (`d59d0c4`)**: ordenação do compêndio com `Intl.Collator` de módulo e nome normalizado em cache; busca com as formas do nome guardadas por entrada; `segmentosDaParede` em `WeakMap` por parede; caixa envolvente por traço da névoa; `bytesDoJson` com `TextEncoder`; `classeSrd` com índice; `arrumarNoGrid` reaproveita os candidatos.
+- **O3, mapa (`f73c96c`)**: o pan não redesenha paredes, zonas, marcas de luz nem bandeira (só dependem do zoom); o pincel e o rascunho alheio redesenham só o traço em andamento; `definirOpcoes` só refaz paredes/zonas e marcas de luz quando muda uma opção que elas leem; a camada de luz pula os dois passes de cinza sem visão no escuro; "token sob névoa" em cache por token; segmentos de visão e paredes da cena em cache por referência; hover de porta e de token mais barato; a grade só é refeita quando muda.
+- **O4, interface (`a8cc298`)**: a Mesa não re-renderiza a cada pedaço de arquivo recebido; `MensagemDoChat` em `memo`; índice de magias na ficha (`magiaDoCompendio`); a busca do compêndio nas 5 seções deixa de rodar em todo render; visão, tokens da cena e não lidas em `useMemo`; soltar um token não recria as opções do mapa; `MarcasDoToken` só escreve o estilo quando muda; rotas em `lazy` (o JS inicial caiu de 1.860 kB para 238 kB; a Mesa virou um pedaço próprio de 1.009 kB).
+
+### Diferença de comportamento (uma só)
+- O slider da **luz ambiente** (Configurar iluminação) envia no máximo um valor a cada 90 ms, e o último sempre sai (também ao fechar o painel). Antes era uma mensagem por passo. É o mesmo `useEnvioSuave` que os sliders das fontes de luz já usavam (agora em `apps/web/src/useEnvioSuave.ts`).
+
+### Verificação
+`pnpm verify` (uma vez, com os quatro lotes): typecheck e lint limpos; unidade 1297 (shared, +3 de equivalência) + 140 (server) + 223 (web) + 19 (mcp); **E2E 500 de 500, nenhum instável** (52,8 min). **Não houve medição de tempo antes e depois**: os ganhos vêm da leitura do código (frequência × custo); o único número medido é o tamanho do build.
+
+### Frágil
+- Os caches por referência (`WeakMap` de segmentos de parede, caixa da névoa, polígono em pixels, índice de magias, "token sob névoa", segmentos de visão) valem porque o estado é imutável: o `reduzir` sempre cria objeto novo. Código novo que **mute no lugar** uma parede, um traço da névoa, um polígono ou o compêndio deixa o cache velho.
+- `QUEM_LE_A_OPCAO` (`mapaPixi.ts`): toda opção nova do mapa precisa ser classificada (o `Record` dá erro de compilação se faltar). Se `desenharParedes`, `desenharZonas` ou `desenharMarcasDeLuz` passarem a ler outra opção, a classificação tem de acompanhar, senão o desenho fica velho ao trocar a opção.
+- `aplicarVista(true)` (pan) pula o que só depende do zoom. Algo novo dentro de `mundo` que dependa da posição da vista precisa ser redesenhado à parte.
+- `redesenharAndamento` não refaz os desenhos gravados: o que mudar a lista dos gravados tem de chamar `redesenharDesenhos`.
+- A rodada de snapshots (`RodadaDeSnapshots`, `sala.ts`) só pode viver dentro de um laço síncrono: nada pode gravar no banco no meio.
+
+### O que ficou de fora
+Ver `IDEIAS.md`, "Desempenho: auditado e não feito".
+
+### Roteiro manual
+Não há função nova. Vale passar pelo uso normal com atenção a: arrastar a vista e dar zoom com paredes e zonas na tela; pincel com vários desenhos; selecionar tokens; visão de jogador com névoa e com visão no escuro; chat longo; busca do compêndio; ficha de conjurador; slider da luz ambiente; baixar um mapa grande com a mesa aberta.
+
 ## Próximo: o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b, N4, N5, M1, M2, Q1, Q2, Q3, Q4, Q5, Q6, Q7, Q8, Q9, Q10 e Q11
