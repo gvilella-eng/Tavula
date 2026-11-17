@@ -13,7 +13,7 @@ import {
   type Vantagem,
 } from "@tabletop/shared";
 import { Dices, Send, Trash2 } from "lucide-react";
-import { type KeyboardEvent, memo, useLayoutEffect, useRef, useState } from "react";
+import { type KeyboardEvent, memo, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { BotaoComDica } from "./BotaoComDica";
 import { MensagemDoChat } from "./MensagemDoChat";
 import type { ImagensDoMapa } from "./mapa/mapaPixi";
@@ -236,6 +236,27 @@ function AbaChatBase({
   const ultima = chat[chat.length - 1];
   const primeira = chat[0];
 
+  // Os elementos das mensagens só são refeitos quando muda o que eles mostram: digitar na caixa ou a edição de uma
+  // ficha (que troca `personagens`, lido pelo "Como:") não recria as ~200 linhas a cada render da aba.
+  const chatDoEstado = estado.chat;
+  const usuarios = estado.usuarios;
+  const euId = eu.id;
+  const mensagens = useMemo(
+    () =>
+      (chatDoEstado ?? []).map((m, i, todas) => (
+        <MensagemDoChat
+          key={m.id}
+          seguida={continuaORemetente(todas[i - 1], m)}
+          mensagem={m}
+          usuarios={usuarios}
+          euId={euId}
+          imagens={imagens}
+          versaoDasImagens={versaoDasImagens}
+        />
+      )),
+    [chatDoEstado, usuarios, euId, imagens, versaoDasImagens],
+  );
+
   // Rola para o fim quando chega mensagem (se eu estava perto do fim ou a mensagem é minha) e ao
   // abrir a aba; ao carregar anteriores, mantém na tela o que eu estava lendo.
   // biome-ignore lint/correctness/useExhaustiveDependencies: reage ao que muda na lista e à visibilidade
@@ -326,17 +347,7 @@ function AbaChatBase({
           </button>
         )}
         {chat.length === 0 && <p className="nota">Nenhuma mensagem ainda.</p>}
-        {chat.map((m, i) => (
-          <MensagemDoChat
-            key={m.id}
-            seguida={continuaORemetente(chat[i - 1], m)}
-            mensagem={m}
-            usuarios={estado.usuarios}
-            euId={eu.id}
-            imagens={imagens}
-            versaoDasImagens={versaoDasImagens}
-          />
-        ))}
+        {mensagens}
         {ajuda && (
           <div className="chat-ajuda" data-testid="chat-ajuda">
             <strong>Comandos do chat</strong>
