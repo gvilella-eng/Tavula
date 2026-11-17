@@ -12,7 +12,8 @@ export class Agendador {
     private readonly armazenamento: DurableObjectStorage,
   ) {}
 
-  async agendar(tipo: string, chave: string, quando: number, dados: unknown = {}): Promise<void> {
+  /** Insere o vencimento sem mexer no alarme: quem anota em lote chama `reprogramar()` uma vez no fim. */
+  anotar(tipo: string, chave: string, quando: number, dados: unknown = {}): void {
     this.sql.exec(
       "INSERT OR REPLACE INTO agenda (tipo, chave, quando, dados) VALUES (?, ?, ?, ?)",
       tipo,
@@ -20,6 +21,10 @@ export class Agendador {
       quando,
       JSON.stringify(dados),
     );
+  }
+
+  async agendar(tipo: string, chave: string, quando: number, dados: unknown = {}): Promise<void> {
+    this.anotar(tipo, chave, quando, dados);
     await this.reprogramar();
   }
 
