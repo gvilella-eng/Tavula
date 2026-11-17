@@ -8,6 +8,7 @@
   },
   "scripts": {
     "dev": "concurrently -n servidor,web -c blue,green \"pnpm --filter @tabletop/server dev\" \"pnpm --filter @tabletop/web dev\"",
+    "jogar": "concurrently -n servidor,web -c blue,green \"pnpm --filter @tabletop/server dev\" \"pnpm --filter @tabletop/web jogar\"",
     "typecheck": "pnpm -r --parallel typecheck",
     "lint": "biome check .",
     "format": "biome format --write .",

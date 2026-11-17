@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "jogar": "vite build && vite preview",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "dev:e2e": "vite --mode e2e"
