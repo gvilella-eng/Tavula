@@ -16,7 +16,6 @@ import type { GerenteDeAssets, StatusDeAsset } from "./assets/gerente";
 import { NOME_DO_EXEMPLO_SRD, TEXTO_DO_EXEMPLO_SRD } from "./exemploSrd";
 
 const semAssinatura = () => () => {};
-const versaoZero = () => 0;
 
 type Parametros = {
   /** O compêndio da mesa (`Estado.compendio`): só a referência. */
@@ -77,12 +76,15 @@ export function useCompendio({
   const ultima = useRef({ referencia, enviar, gerente, fontes });
   ultima.current = { referencia, enviar, gerente, fontes };
 
-  const versaoDoGerente = useSyncExternalStore(
-    gerente?.assinar ?? semAssinatura,
-    gerente?.versaoAtual ?? versaoZero,
-  );
-  const versaoDasFontes = useSyncExternalStore(fontes.assinar, fontes.versaoAtual);
   const hashDaMesa = referencia?.hash;
+  // Só o que este hook lê do arquivo do compêndio (pronto, estado, progresso) vira snapshot: pedaços de outros arquivos não re-renderizam.
+  const lerChaveDoArquivo = useCallback((): string => {
+    if (!gerente || hashDaMesa === undefined) return "";
+    const s = gerente.statusDe(hashDaMesa);
+    return `${gerente.estaPronto(hashDaMesa)}|${s?.estado}|${s?.recebidos}|${s?.total}|${s?.mensagem}`;
+  }, [gerente, hashDaMesa]);
+  const chaveDoArquivo = useSyncExternalStore(gerente?.assinar ?? semAssinatura, lerChaveDoArquivo);
+  const versaoDasFontes = useSyncExternalStore(fontes.assinar, fontes.versaoAtual);
 
   // Todos: pede o arquivo do compêndio da mesa (idempotente) e lê as magias quando ele está no cache.
   useEffect(() => {
@@ -90,7 +92,7 @@ export function useCompendio({
     gerente.garantir(hashDaMesa);
   }, [gerente, hashDaMesa]);
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: `versaoDoGerente` avisa que algo chegou ao cache
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `chaveDoArquivo` avisa que o arquivo do compêndio mudou no cache
   useEffect(() => {
     if (!gerente || hashDaMesa === undefined) {
       setLido(null);
@@ -112,7 +114,7 @@ export function useCompendio({
     return () => {
       vivo = false;
     };
-  }, [gerente, hashDaMesa, versaoDoGerente, lido?.hash]);
+  }, [gerente, hashDaMesa, chaveDoArquivo, lido?.hash]);
 
   /** Mestre: lê o arquivo da pasta, valida e, se mudou, registra e define o compêndio da mesa. */
   const carregarDaPasta = useCallback(async (): Promise<void> => {

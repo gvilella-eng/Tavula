@@ -860,15 +860,15 @@ export function recarregarInata(f: Ficha): Partial<Ficha> {
 
 export const MAXIMO_DE_OPERACOES = 200;
 
+const CODIFICADOR_DE_TEXTO = new TextEncoder();
+
 /** Tamanho em bytes (UTF-8) do JSON de um valor. */
 export function bytesDoJson(valor: unknown): number {
   const texto = JSON.stringify(valor);
-  let bytes = 0;
-  for (const ch of texto) {
-    const c = ch.codePointAt(0) ?? 0;
-    bytes += c < 0x80 ? 1 : c < 0x800 ? 2 : c < 0x10000 ? 3 : 4;
-  }
-  return bytes;
+  // (valor sem JSON, como `undefined`, sempre deu TypeError no laço antigo: mantém.)
+  if (texto === undefined) throw new TypeError("O valor não tem representação em JSON.");
+  // O codificador nativo conta os bytes UTF-8 sem o laço por code point (roda a cada tecla na edição da ficha).
+  return CODIFICADOR_DE_TEXTO.encode(texto).length;
 }
 
 /**

@@ -240,13 +240,20 @@ export function pontosDaParede(p: Pick<Parede, "a" | "b" | "meio">): Ponto[] {
  * Parede reta (toda parede antiga) devolve um segmento só, igual ao de sempre.
  */
 export function segmentosDaParede(p: Pick<Parede, "a" | "b" | "meio">): { a: Ponto; b: Ponto }[] {
+  // Os segmentos de cada parede, calculados uma vez (a trigonometria do arco): o estado é imutável, então uma parede
+  // editada ou alternada é um objeto novo e o cache se invalida sozinho. O resultado é somente leitura.
+  const guardado = SEGMENTOS_POR_PAREDE.get(p);
+  if (guardado) return guardado;
   const pontos = pontosDaParede(p);
   const segmentos: { a: Ponto; b: Ponto }[] = [];
   for (let i = 1; i < pontos.length; i++) {
     segmentos.push({ a: pontos[i - 1] as Ponto, b: pontos[i] as Ponto });
   }
+  SEGMENTOS_POR_PAREDE.set(p, segmentos);
   return segmentos;
 }
+
+const SEGMENTOS_POR_PAREDE = new WeakMap<object, { a: Ponto; b: Ponto }[]>();
 
 /** Direção (unitária) com que a parede chega em `b`: é a tangente de onde um arco tangente continua. */
 export function tangenteNoFim(p: Pick<Parede, "a" | "b" | "meio">): Ponto {

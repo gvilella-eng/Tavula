@@ -312,6 +312,27 @@ export function suavizar(atual: number, alvo: number, dtMs: number, constanteMs:
   return Math.abs(alvo - proximo) < 0.002 ? alvo : proximo;
 }
 
+// Os ~1.681 deslocamentos candidatos não dependem dos argumentos: montados e ordenados uma vez (somente leitura).
+let CANDIDATOS_DO_GRID: { dx: number; dy: number }[] | null = null;
+
+function candidatosDoGrid(): { dx: number; dy: number }[] {
+  if (CANDIDATOS_DO_GRID) return CANDIDATOS_DO_GRID;
+  const raio = 20;
+  const candidatos: { dx: number; dy: number }[] = [];
+  for (let dy = -raio; dy <= raio; dy++) {
+    for (let dx = -raio; dx <= raio; dx++) candidatos.push({ dx, dy });
+  }
+  candidatos.sort(
+    (a, b) =>
+      Math.abs(a.dy) - Math.abs(b.dy) ||
+      Math.abs(a.dx) - Math.abs(b.dx) ||
+      a.dy - b.dy ||
+      b.dx - a.dx,
+  );
+  CANDIDATOS_DO_GRID = candidatos;
+  return candidatos;
+}
+
 /**
  * Arruma tokens lado a lado a partir do ponto de chegada, sem sobreposição. Cada token ocupa
  * `tamanho × tamanho` quadrados; os candidatos são as posições do grid em torno da chegada, da
@@ -327,18 +348,7 @@ export function arrumarNoGrid(
   jaNoMapa: readonly { x: number; y: number; tamanhoQuadrados: number }[] = [],
 ): { x: number; y: number }[] {
   const q = cena.grid.quadradoM;
-  const raio = 20;
-  const candidatos: { dx: number; dy: number }[] = [];
-  for (let dy = -raio; dy <= raio; dy++) {
-    for (let dx = -raio; dx <= raio; dx++) candidatos.push({ dx, dy });
-  }
-  candidatos.sort(
-    (a, b) =>
-      Math.abs(a.dy) - Math.abs(b.dy) ||
-      Math.abs(a.dx) - Math.abs(b.dx) ||
-      a.dy - b.dy ||
-      b.dx - a.dx,
-  );
+  const candidatos = candidatosDoGrid();
   const ocupadas = new Set<string>();
   const celulasDe = (centro: { x: number; y: number }, tamanho: number) => {
     const i0 = Math.round((centro.x - (tamanho * q) / 2) / q);

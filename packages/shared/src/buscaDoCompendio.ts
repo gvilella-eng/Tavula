@@ -68,10 +68,13 @@ export function toleranciaDeErros(tamanho: number): number {
 /** Distância de edição (inserir, tirar, trocar e inverter letras vizinhas), cortando cedo acima de `limite`. */
 export function distanciaDeEdicao(a: string, b: string, limite: number): number {
   if (Math.abs(a.length - b.length) > limite) return limite + 1;
-  let anterior2: number[] = [];
-  let anterior = Array.from({ length: b.length + 1 }, (_, j) => j);
+  // Três linhas reaproveitadas entre chamadas (a função não é reentrante): evita alocar arrays a cada palavra comparada.
+  let anterior2 = LINHAS_DE_EDICAO[0] as number[];
+  let anterior = LINHAS_DE_EDICAO[1] as number[];
+  let atual = LINHAS_DE_EDICAO[2] as number[];
+  for (let j = 0; j <= b.length; j++) anterior[j] = j;
   for (let i = 1; i <= a.length; i++) {
-    const atual = [i];
+    atual[0] = i;
     let menor = i;
     for (let j = 1; j <= b.length; j++) {
       const custo = a[i - 1] === b[j - 1] ? 0 : 1;
@@ -83,15 +86,19 @@ export function distanciaDeEdicao(a: string, b: string, limite: number): number 
       if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) {
         v = Math.min(v, (anterior2[j - 2] ?? 0) + 1);
       }
-      atual.push(v);
+      atual[j] = v;
       if (v < menor) menor = v;
     }
     if (menor > limite) return limite + 1;
+    const velha = anterior2;
     anterior2 = anterior;
     anterior = atual;
+    atual = velha;
   }
   return anterior[b.length] ?? limite + 1;
 }
+
+const LINHAS_DE_EDICAO: number[][] = [[], [], []];
 
 const NOTA_INTEIRA = 4;
 const NOTA_COMECO = 3;
@@ -120,17 +127,26 @@ function notaDaPalavra(p: string, palavras: readonly string[]): number {
   return melhor;
 }
 
-// As palavras de cada entrada, normalizadas uma vez só (a lista do compêndio tem ~1.100 entradas e a busca roda a cada tecla).
-const preparadas = new WeakMap<object, string[]>();
+// As palavras e as formas inteiras do nome de cada entrada, normalizadas uma vez só (a lista do compêndio tem ~1.100 entradas e a busca roda a cada tecla).
+type EntradaPreparada = { palavras: string[]; nome: string; nomeOriginal: string };
+const preparadas = new WeakMap<object, EntradaPreparada>();
 
-function palavrasDaEntrada(entrada: { nome: string; nomeOriginal?: string | undefined }): string[] {
+function prepararEntrada(entrada: {
+  nome: string;
+  nomeOriginal?: string | undefined;
+}): EntradaPreparada {
   const guardado = preparadas.get(entrada);
   if (guardado) return guardado;
   const palavras = normalizarParaBusca(`${entrada.nome} ${entrada.nomeOriginal ?? ""}`)
     .split(" ")
     .filter(Boolean);
-  preparadas.set(entrada, palavras);
-  return palavras;
+  const feito = {
+    palavras,
+    nome: normalizarParaBusca(entrada.nome),
+    nomeOriginal: normalizarParaBusca(entrada.nomeOriginal ?? ""),
+  };
+  preparadas.set(entrada, feito);
+  return feito;
 }
 
 /**
@@ -142,7 +158,7 @@ export function pontuarBusca(
   consulta: ConsultaPreparada | null,
 ): number | null {
   if (consulta === null) return 0;
-  const palavras = palavrasDaEntrada(entrada);
+  const { palavras, nome, nomeOriginal } = prepararEntrada(entrada);
   let total = 0;
   for (const p of consulta.palavras) {
     const n = notaDaPalavra(p, palavras);
@@ -150,10 +166,7 @@ export function pontuarBusca(
     total += n;
   }
   const inteira = consulta.palavras.join(" ");
-  if (
-    normalizarParaBusca(entrada.nome) === inteira ||
-    normalizarParaBusca(entrada.nomeOriginal ?? "") === inteira
-  ) {
+  if (nome === inteira || nomeOriginal === inteira) {
     total += 2;
   }
   return total;

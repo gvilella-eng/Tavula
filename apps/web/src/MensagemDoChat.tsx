@@ -1,6 +1,6 @@
 import type { Mensagem, Usuario } from "@tabletop/shared";
 import { Bot, EyeOff, Lock } from "lucide-react";
-import type { ReactNode } from "react";
+import { memo, type ReactNode } from "react";
 import { Avatar } from "./Avatar";
 import { CartaoDaCaracteristicaNoChat, CartaoDaMagiaNoChat } from "./CartaoDaMagia";
 import { CartaoDeRolagem } from "./CartaoDeRolagem";
@@ -39,7 +39,8 @@ function textoComRolagens(mensagem: Mensagem): ReactNode[] {
 }
 
 /** Uma mensagem do chat: quem falou (retrato e nome), a hora, o tipo e o conteúdo. */
-export function MensagemDoChat({
+// Props estáveis entre eventos (mensagem, fatia de usuários, imagens): só re-renderiza quando algo dela muda.
+export const MensagemDoChat = memo(function MensagemDoChat({
   mensagem,
   usuarios,
   euId,
@@ -159,4 +160,4 @@ export function MensagemDoChat({
       </div>
     </article>
   );
-}
+});

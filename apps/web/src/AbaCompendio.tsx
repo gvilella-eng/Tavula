@@ -100,6 +100,12 @@ const EXEMPLO_DO_FORMATO = `{
 }`;
 
 const NIVEIS = Array.from({ length: 10 }, (_, n) => n);
+// Listas vazias estáveis: `?? []` criava um array novo por render e refazia a busca nas 5 seções a cada evento da sala.
+const SEM_MAGIAS: MagiaDoCompendio[] = [];
+const SEM_ARMAS: ArmaDoCompendio[] = [];
+const SEM_ITENS: ItemDoCompendio[] = [];
+const SEM_MONSTROS: MonstroDoCompendio[] = [];
+const SEM_ITENS_MAGICOS: ItemMagicoDoCompendio[] = [];
 
 /**
  * Compêndio vazio (ou com o arquivo da pasta errado), visto pelo mestre: a ação principal é usar o exemplo
@@ -981,12 +987,12 @@ export function AbaCompendio({
   }, []);
   const exemploEmUso = hashDoExemplo !== null && estado.compendio?.hash === hashDoExemplo;
   const magias = c.compendio?.magias;
-  const armas = c.compendio?.armas ?? [];
-  const itensDoCompendio = c.compendio?.itens ?? [];
+  const armas = c.compendio?.armas ?? SEM_ARMAS;
+  const itensDoCompendio = c.compendio?.itens ?? SEM_ITENS;
   // N3a (assumido): o bloco do monstro é segredo do mestre, então a seção só aparece para ele. O arquivo do compêndio
   // chega a todos (é um asset só); esconder é da tela, não do dado (docs/PASSAGEM.md, frágeis).
-  const monstros = euMestre ? (c.compendio?.monstros ?? []) : [];
-  const itensMagicos = c.compendio?.itensMagicos ?? [];
+  const monstros = euMestre ? (c.compendio?.monstros ?? SEM_MONSTROS) : SEM_MONSTROS;
+  const itensMagicos = c.compendio?.itensMagicos ?? SEM_ITENS_MAGICOS;
   // Q2: as seções que têm entradas, na ordem da tela; com duas ou mais aparece o seletor (e o "Todas").
   const totaisDasSecoes: Record<SecaoDoCompendio, number> = {
     magias: magias?.length ?? 0,
@@ -1006,7 +1012,7 @@ export function AbaCompendio({
   const achadosEmTodas = useMemo(
     () =>
       buscarEmTodas(
-        { magias: magias ?? [], monstros, itensMagicos, armas, itens: itensDoCompendio },
+        { magias: magias ?? SEM_MAGIAS, monstros, itensMagicos, armas, itens: itensDoCompendio },
         textoDaBusca,
         euMestre,
       ),
@@ -1150,7 +1156,7 @@ export function AbaCompendio({
           {secaoAtual === "todas" ? (
             <SecaoTodas
               achados={achadosEmTodas}
-              magias={magias ?? []}
+              magias={magias ?? SEM_MAGIAS}
               monstros={monstros}
               itensMagicos={itensMagicos}
               armas={armas}
@@ -1164,7 +1170,7 @@ export function AbaCompendio({
             />
           ) : secaoAtual === "magias" ? (
             <ListaDeMagias
-              magias={magias ?? []}
+              magias={magias ?? SEM_MAGIAS}
               filtro={filtro}
               mudar={mudar}
               limpar={() => setFiltro({})}
@@ -1173,7 +1179,7 @@ export function AbaCompendio({
           ) : secaoAtual === "monstros" ? (
             <ListaDeMonstros
               monstros={monstros}
-              magias={magias ?? []}
+              magias={magias ?? SEM_MAGIAS}
               texto={filtro.texto ?? ""}
               estado={estado}
               eu={eu}

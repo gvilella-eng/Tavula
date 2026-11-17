@@ -281,6 +281,51 @@ export type OpcoesDoMapa = {
   podePingar: boolean;
 };
 
+/**
+ * Quem lê cada opção entre as três funções de desenho caras que `definirOpcoes` pode pular: `paredes`
+ * (`desenharParedes` + `desenharZonas`), `luz` (`desenharMarcasDeLuz`) e os desenhos gravados (que não leem
+ * nenhuma opção). `nenhuma`: conferido, nenhuma das três lê. O `Record` obriga a classificar toda opção nova.
+ */
+const QUEM_LE_A_OPCAO: Record<keyof OpcoesDoMapa, "paredes" | "luz" | "ambas" | "nenhuma"> = {
+  ferramenta: "paredes",
+  modoMestre: "ambas",
+  contornos: "paredes",
+  paredeSelecionadaId: "paredes",
+  zonaSelecionadaId: "paredes",
+  tipoDaNovaParede: "paredes",
+  mostrarLuzes: "luz",
+  luzSelecionadaId: "luz",
+  euMestre: "nenhuma",
+  camadaTrabalho: "nenhuma",
+  ehDoGrupo: "nenhuma",
+  encaixe: "nenhuma",
+  reguaGrudar: "nenhuma",
+  unidade: "nenhuma",
+  vidaDaBarra: "nenhuma",
+  selecionadoId: "nenhuma",
+  tambemSelecionadosIds: "nenhuma",
+  podeMover: "nenhuma",
+  controla: "nenhuma",
+  controlaNaVisao: "nenhuma",
+  nevoa: "nenhuma",
+  visao: "nenhuma",
+  mostrarBandeira: "nenhuma",
+  acenderAreaDaBandeira: "nenhuma",
+  pontoSelecionadoId: "nenhuma",
+  tipoDoNovoPonto: "nenhuma",
+  alcanceInteracaoM: "nenhuma",
+  restanteDe: "nenhuma",
+  duracaoDe: "nenhuma",
+  podeMexerNaTocha: "nenhuma",
+  tokenDaVezId: "nenhuma",
+  pincel: "nenhuma",
+  podeDesenhar: "nenhuma",
+  usuarioId: "nenhuma",
+  desenhoSelecionadoId: "nenhuma",
+  tokenParaPor: "nenhuma",
+  podePingar: "nenhuma",
+};
+
 /** V12: um ping que a sala mandou (a cor e o autor são dela). */
 export type PingNoMapa = {
   cenaId: string;
@@ -430,6 +475,8 @@ type Visual = {
   /** Q11: a barra de vida logo abaixo do token (só se a tela pode mostrá-la) e o que ela desenhou por último. */
   barra: Graphics;
   barraDesenhada: { chave: string; fracao: number; temp: number } | null;
+  /** O último teste do centro contra a névoa e as entradas dele (lista por referência, x e y); `pontoNaNevoa` é pura. */
+  sobNevoa?: { lista: unknown; x: number; y: number; dentro: boolean };
   /** Marcadores de condição desenhados na borda (posição em px do mundo, relativa ao centro). */
   marcas: MarcaVisual[];
   /** A imagem do token já apareceu (senão vale o círculo gerado). */
@@ -649,6 +696,12 @@ export class MapaPixi {
   /** O desenho arrastado (deslocamento ao vivo, antes de a sala confirmar). */
   private desenhoMovido: { id: string; dx: number; dy: number; chave: string } | null = null;
   private zoomDosDesenhos = 0;
+  /** O zoom com que `aplicarVista` refez por último o que só depende do zoom (NaN: ainda não refez). */
+  private zoomAplicado = Number.NaN;
+  /** O que `desenharCena` desenhou por último (tamanho, grade). */
+  private chaveDaCena = "";
+  /** Os desenhos gravados como o último `redesenharDesenhos` os montou (a seleção se acha aqui). */
+  private itensGravados: DesenhoNaTela[] = [];
   /** Ids que a borracha tocou neste arrasto (o pedido sai ao soltar). */
   private readonly apagadosPelaBorracha = new Set<string>();
   /** Bandeira do ponto de chegada do grupo (só o mestre a vê e arrasta). */
@@ -991,11 +1044,28 @@ export class MapaPixi {
   definirOpcoes(opcoes: OpcoesDoMapa): void {
     const trocouFerramenta = opcoes.ferramenta !== this.opcoes.ferramenta;
     const trocouUnidade = opcoes.unidade !== this.opcoes.unidade;
+    // Quais opções mudaram (Object.is): só as que paredes/zonas/marcas de luz leem as refazem (ver QUEM_LE_A_OPCAO).
+    const antes = this.opcoes;
+    let refazParedes = false;
+    let refazLuz = false;
+    for (const chave of Object.keys(opcoes) as (keyof OpcoesDoMapa)[]) {
+      if (Object.is(opcoes[chave], antes[chave])) continue;
+      const quem = QUEM_LE_A_OPCAO[chave];
+      if (quem === undefined) {
+        // Chave que não conheço: refaz tudo, como antes.
+        refazParedes = true;
+        refazLuz = true;
+      } else {
+        if (quem === "paredes" || quem === "ambas") refazParedes = true;
+        if (quem === "luz" || quem === "ambas") refazLuz = true;
+      }
+    }
     this.opcoes = opcoes;
     if (!this.pronto) return;
     if (trocouUnidade && !trocouFerramenta) this.desenharRegua();
     if (trocouFerramenta || !opcoes.podeDesenhar) this.cancelarTraco();
-    this.redesenharDesenhos();
+    // Os gravados não leem opção nenhuma: só o andamento e a seleção (que leem pincel, ferramenta, usuário) refazem.
+    this.redesenharAndamento();
     this.atualizarPrevia();
     if (trocouFerramenta) {
       this.limparRegua();
@@ -1018,8 +1088,8 @@ export class MapaPixi {
     this.atualizarEstilos();
     this.atualizarBandeira();
     this.atualizarCursor();
-    this.desenharParedes();
-    this.desenharMarcasDeLuz();
+    if (refazParedes) this.desenharParedes();
+    if (refazLuz) this.desenharMarcasDeLuz();
   }
 
   /** As fontes de luz da cena (o que a sala mandou para quem está olhando). */
@@ -1295,16 +1365,24 @@ export class MapaPixi {
     this.vista.y = Math.min(this.altura() - margem, Math.max(margem - h, this.vista.y));
   }
 
-  private aplicarVista(): void {
+  /**
+   * `soMoveu`: o chamador só deslocou a vista (pan). O que vive dentro de `mundo` e só depende do zoom
+   * (paredes, zonas, marcas de luz, bandeira) não precisa ser refeito se o zoom é o mesmo da última vez.
+   */
+  private aplicarVista(soMoveu = false): void {
     this.sujo = true;
     this.limitarVista();
     this.mundo.position.set(this.vista.x, this.vista.y);
     this.mundo.scale.set(this.vista.zoom);
-    this.retornos().zoom(this.vista.zoom);
     this.desenharRegua();
-    this.escalarBandeira();
-    this.desenharParedes();
-    this.desenharMarcasDeLuz();
+    // Só o pan pula: qualquer outro chamador refaz tudo como antes (e o primeiro zoom é NaN, então desenha).
+    if (!soMoveu || this.zoomAplicado !== this.vista.zoom) {
+      this.zoomAplicado = this.vista.zoom;
+      this.retornos().zoom(this.vista.zoom);
+      this.escalarBandeira();
+      this.desenharParedes();
+      this.desenharMarcasDeLuz();
+    }
     if (this.zoomDosDesenhos !== this.vista.zoom) this.redesenharDesenhos();
   }
 
@@ -1331,6 +1409,10 @@ export class MapaPixi {
     if (!cena) return;
     const w = cena.larguraM * PX_POR_M;
     const h = cena.alturaM * PX_POR_M;
+    // Só lê tamanho, visibilidade e passo da grade (as cores são fixas, não vêm do tema): igual ao último desenho, pula.
+    const chave = `${w}|${h}|${cena.grid.visivel}|${cena.grid.quadradoM}`;
+    if (chave === this.chaveDaCena) return;
+    this.chaveDaCena = chave;
     this.fundo.clear().rect(0, 0, w, h).fill(0x151a22).stroke({ width: 2, color: 0x2c3442 });
     this.grade.clear();
     if (!cena.grid.visivel) return;
@@ -1905,6 +1987,26 @@ export class MapaPixi {
       : this.luzes;
   }
 
+  private paredesDaCenaFeitas: {
+    lista: unknown;
+    cena: string | undefined;
+    itens: Parede[];
+  } | null = null;
+
+  /** As paredes da cena atual; o filtro só lê a lista (por referência) e o id da cena, então guarda o resultado. */
+  private paredesDaCena(): Parede[] {
+    const cenaId = this.cena?.id;
+    const f = this.paredesDaCenaFeitas;
+    if (f && f.lista === this.paredes && f.cena === cenaId) return f.itens;
+    const itens = this.paredes.filter((q) => q.cenaId === cenaId);
+    this.paredesDaCenaFeitas = { lista: this.paredes, cena: cenaId, itens };
+    return itens;
+  }
+
+  /** Os segmentos que bloqueiam a visão na cena e de que lista de paredes e cena saíram. */
+  private segmentosDaVisao: ReturnType<typeof segmentosDaParede> | null = null;
+  private segmentosDe: { lista: unknown; cena: string } = { lista: null, cena: "" };
+
   /** Os polígonos de visão e de luz e as texturas da luz (só roda quando algo que afeta a luz muda). */
   private recalcularVisao(): void {
     this.visaoSuja = false;
@@ -1917,9 +2019,19 @@ export class MapaPixi {
       this.atualizarVisibilidadeDosTokens();
       return;
     }
-    const segmentos = this.paredes
-      .filter((p) => p.cenaId === cena.id && bloqueiaVisao(p))
-      .flatMap((p) => segmentosDaParede(p));
+    // Cache: o filtro só lê a lista `this.paredes` (por referência; `definirParedes` troca a lista) e o id da cena.
+    let segmentos = this.segmentosDaVisao;
+    if (
+      !segmentos ||
+      this.segmentosDe.lista !== this.paredes ||
+      this.segmentosDe.cena !== cena.id
+    ) {
+      segmentos = this.paredes
+        .filter((p) => p.cenaId === cena.id && bloqueiaVisao(p))
+        .flatMap((p) => segmentosDaParede(p));
+      this.segmentosDaVisao = segmentos;
+      this.segmentosDe = { lista: this.paredes, cena: cena.id };
+    }
     const olhos = fontes.flatMap((f) => {
       const v = this.visuais.get(f.tokenId);
       return v ? [{ x: v.x, y: v.y, alcanceM: f.alcanceM, visaoNoEscuroM: f.visaoNoEscuroM }] : [];
@@ -2099,8 +2211,9 @@ export class MapaPixi {
     this.visibilidadeSuja = false;
     this.sujo = true;
     const { modo, fontes } = this.opcoes.visao;
+    const idsDasFontes = new Set(fontes.map((f) => f.tokenId)); // um Set por chamada em vez de um some() por token
     for (const v of this.visuais.values()) {
-      const ehFonte = fontes.some((f) => f.tokenId === v.token.id);
+      const ehFonte = idsDasFontes.has(v.token.id);
       v.container.visible =
         !this.tokenSobNevoa(v) &&
         (modo !== "jogador" ||
@@ -2125,7 +2238,12 @@ export class MapaPixi {
     const nevoa = this.cena?.nevoa;
     if (!nevoa || nevoa.length === 0) return false;
     if (this.opcoes.controlaNaVisao(v.token)) return false;
-    return pontoNaNevoa(nevoa, { x: v.x, y: v.y });
+    // Cache por token: só refaz o teste (até milhares de pontos) se a lista da névoa ou o centro do token mudaram.
+    const c = v.sobNevoa;
+    if (c && c.lista === nevoa && c.x === v.x && c.y === v.y) return c.dentro;
+    const dentro = pontoNaNevoa(nevoa, { x: v.x, y: v.y });
+    v.sobNevoa = { lista: nevoa, x: v.x, y: v.y, dentro };
+    return dentro;
   }
 
   /** O que a névoa na tela já reflete: a lista de traços (por referência), quem olha e o tamanho da cena. */
@@ -3300,11 +3418,11 @@ export class MapaPixi {
       if (parede.cenaId !== cena.id) continue;
       if (parede.tipo !== "porta" && !(this.opcoes.modoMestre && parede.tipo === "secreta"))
         continue;
-      if (!this.portaVisivel(parede)) continue;
+      // A distância (barata) primeiro; `portaVisivel` (veNoPonto) só para quem seria o novo melhor. Mesmo resultado.
       const meio = meioDaParede(parede);
       const t = this.paraTela(meio.x, meio.y);
       const d = Math.hypot(p.x - t.x, p.y - t.y);
-      if (d <= melhor) {
+      if (d <= melhor && this.portaVisivel(parede)) {
         melhor = d;
         achada = parede;
       }
@@ -3682,12 +3800,18 @@ export class MapaPixi {
     // De baixo para cima: mapa, tokens, mestre; dentro de cada camada vale o último desenhado.
     const peso = (v: Visual) =>
       v.token.camada === "mestre" ? 2 : v.token.camada === "mapa" ? 0 : 1;
-    const ordem = [...this.visuais.values()]
-      .filter((v) => v.container.visible && this.selecionavel(v.token))
-      .sort((a, b) => peso(a) - peso(b));
-    for (const v of ordem) {
+    // Um laço só, sem copiar nem ordenar: vence o de maior peso e, no empate de peso, o último na ordem do Map
+    // (o mesmo que o sort estável + "o último acertado" de antes).
+    let pesoAchado = -1;
+    for (const v of this.visuais.values()) {
+      if (!v.container.visible || !this.selecionavel(v.token)) continue;
+      const pesoDele = peso(v);
+      if (pesoDele < pesoAchado) continue;
       const raio = Math.max((v.token.tamanhoQuadrados * this.quadradoM()) / 2, minimo);
-      if (Math.hypot(m.x - v.x, m.y - v.y) <= raio) achado = v;
+      if (Math.hypot(m.x - v.x, m.y - v.y) <= raio) {
+        achado = v;
+        pesoAchado = pesoDele;
+      }
     }
     return achado;
   }
@@ -4191,7 +4315,7 @@ export class MapaPixi {
     if (g.tipo === "pan") {
       this.vista.x = g.vistaInicial.x + (p.x - g.inicio.x);
       this.vista.y = g.vistaInicial.y + (p.y - g.inicio.y);
-      this.aplicarVista();
+      this.aplicarVista(true);
       return;
     }
     if (g.tipo === "bandeira") {
@@ -4239,14 +4363,7 @@ export class MapaPixi {
     alvo = limitarNaCena(alvo, this.cena);
     // O jogador não atravessa parede, porta fechada, janela nem parede invisível: o token fica onde
     // ainda podia estar (a sala confere de novo ao soltar; o mestre ignora).
-    if (
-      !this.opcoes.euMestre &&
-      trajetoBloqueado(
-        g.origem,
-        alvo,
-        this.paredes.filter((q) => q.cenaId === this.cena?.id),
-      )
-    ) {
+    if (!this.opcoes.euMestre && trajetoBloqueado(g.origem, alvo, this.paredesDaCena())) {
       return;
     }
     if (g.junto.length > 0) {
@@ -4744,18 +4861,18 @@ export class MapaPixi {
   /** Traço em andamento de outra pessoa (`desenho.rascunhando`). */
   rascunhoRecebido(desenho: Desenho): void {
     this.rascunhosAlheios.set(desenho.id, desenho);
-    this.redesenharDesenhos();
+    this.redesenharAndamento(); // rascunho alheio não entra nos gravados
   }
 
   /** O autor soltou, cancelou ou saiu: o rascunho some. */
   rascunhoEncerrado(id: string): void {
-    if (this.rascunhosAlheios.delete(id)) this.redesenharDesenhos();
+    if (this.rascunhosAlheios.delete(id)) this.redesenharAndamento();
   }
 
   limparRascunhos(): void {
     if (this.rascunhosAlheios.size === 0) return;
     this.rascunhosAlheios.clear();
-    this.redesenharDesenhos();
+    this.redesenharAndamento();
   }
 
   private desenhosDaCena(): Desenho[] {
@@ -4778,7 +4895,32 @@ export class MapaPixi {
         gravados.push({ desenho });
       }
     }
+    // Entradas dos gravados: this.desenhos, a cena, apagadosLocais, pendentes, desenhoMovido e o zoom (nenhuma de `opcoes`).
     this.desenhoLayer.desenharGravados(gravados, zoom);
+    this.itensGravados = gravados;
+    this.desenharAndamentoESelecao(gravados, cenaId, zoom);
+  }
+
+  /**
+   * Só o traço em andamento (o meu e os alheios) e a seleção: o barato. Os gravados não mudam no pointermove do
+   * traço, num rascunho alheio nem numa troca de `opcoes` (nada disso entra na lista deles); tudo o mais que os
+   * muda chama `redesenharDesenhos`. Zoom diferente do último desenhado (ou nenhum desenho ainda) refaz tudo.
+   */
+  private redesenharAndamento(): void {
+    if (!this.pronto) return;
+    if (this.zoomDosDesenhos !== this.vista.zoom) {
+      this.redesenharDesenhos();
+      return;
+    }
+    this.sujo = true;
+    this.desenharAndamentoESelecao(this.itensGravados, this.cena?.id, this.vista.zoom);
+  }
+
+  private desenharAndamentoESelecao(
+    gravados: DesenhoNaTela[],
+    cenaId: string | undefined,
+    zoom: number,
+  ): void {
     const andamento: DesenhoNaTela[] = [...this.rascunhosAlheios.values()]
       .filter((d) => d.cenaId === cenaId)
       .map((desenho) => ({ desenho, alpha: 0.85 }));
@@ -4849,7 +4991,7 @@ export class MapaPixi {
       );
       this.gesto = { tipo: "traco", id, pontos: [inicio], limitador };
       this.app.canvas.setPointerCapture(e.pointerId);
-      this.redesenharDesenhos();
+      this.redesenharAndamento();
       limitador.enviar(undefined);
       return;
     }
@@ -4894,7 +5036,7 @@ export class MapaPixi {
     } else {
       g.pontos = [g.pontos[0] ?? alvo, alvo];
     }
-    this.redesenharDesenhos();
+    this.redesenharAndamento(); // só o traço cresce; os gravados ficam como estão
     g.limitador.enviar(undefined);
   }
 
@@ -4994,7 +5136,7 @@ export class MapaPixi {
     g.limitador.cancelar();
     this.gesto = null;
     this.retornos().rascunhoDeDesenho(g.id, null);
-    this.redesenharDesenhos();
+    this.redesenharAndamento();
     this.atualizarCursor();
   }
 
@@ -5156,7 +5298,7 @@ export class MapaPixi {
     const suave = t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2;
     this.vista.x = a.de.x + (a.para.x - a.de.x) * suave;
     this.vista.y = a.de.y + (a.para.y - a.de.y) * suave;
-    this.aplicarVista();
+    this.aplicarVista(true);
     if (t >= 1) this.panAnimado = null;
   }
 

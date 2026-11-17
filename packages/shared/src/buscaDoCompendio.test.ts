@@ -134,3 +134,49 @@ describe("busca do compêndio (Q2b)", () => {
     expect(porBusca).toBeLessThan(30);
   });
 });
+
+describe("otimizações da busca (equivalência com a versão antiga)", () => {
+  // A versão de antes, com arrays novos a cada chamada.
+  function distanciaAntiga(a: string, b: string, limite: number): number {
+    if (Math.abs(a.length - b.length) > limite) return limite + 1;
+    let anterior2: number[] = [];
+    let anterior = Array.from({ length: b.length + 1 }, (_, j) => j);
+    for (let i = 1; i <= a.length; i++) {
+      const atual = [i];
+      let menor = i;
+      for (let j = 1; j <= b.length; j++) {
+        const custo = a[i - 1] === b[j - 1] ? 0 : 1;
+        let v = Math.min(
+          (anterior[j] ?? 0) + 1,
+          (atual[j - 1] ?? 0) + 1,
+          (anterior[j - 1] ?? 0) + custo,
+        );
+        if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) {
+          v = Math.min(v, (anterior2[j - 2] ?? 0) + 1);
+        }
+        atual.push(v);
+        if (v < menor) menor = v;
+      }
+      if (menor > limite) return limite + 1;
+      anterior2 = anterior;
+      anterior = atual;
+    }
+    return anterior[b.length] ?? limite + 1;
+  }
+
+  it("distanciaDeEdicao com buffers reutilizados dá o mesmo que a versão antiga", () => {
+    let semente = 7;
+    const alea = () => {
+      semente = (semente * 1664525 + 1013904223) % 4294967296;
+      return semente / 4294967296;
+    };
+    const palavra = () =>
+      Array.from({ length: Math.floor(alea() * 9) }, () => "abcd"[Math.floor(alea() * 4)]).join("");
+    for (let k = 0; k < 4000; k++) {
+      const a = palavra();
+      const b = palavra();
+      const limite = Math.floor(alea() * 4);
+      expect(distanciaDeEdicao(a, b, limite)).toBe(distanciaAntiga(a, b, limite));
+    }
+  });
+});

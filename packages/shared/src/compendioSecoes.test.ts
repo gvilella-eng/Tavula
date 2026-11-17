@@ -13,6 +13,7 @@ import {
   agruparMonstrosPorND,
   buscarEmTodas,
   casaComABusca,
+  compararNomes,
 } from "./compendioSecoes.ts";
 
 const magia = (nome: string, nivel: number, nomeOriginal?: string): MagiaDoCompendio => ({
@@ -133,5 +134,55 @@ describe("busca por nome em português e inglês (Q2)", () => {
     expect(buscarEmTodas(c, "torch", true).itens).toHaveLength(1);
     expect(buscarEmTodas(c, "fogo", false).monstros).toHaveLength(0);
     expect(buscarEmTodas(c, "fogo", false).itensMagicos).toHaveLength(1);
+  });
+});
+
+describe("ordenação por nome (equivalência com a versão antiga)", () => {
+  const antiga = (a: { nome: string }, b: { nome: string }): number => {
+    const norm = (s: string) => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().trim();
+    return (
+      norm(a.nome).localeCompare(norm(b.nome), "pt-BR") || a.nome.localeCompare(b.nome, "pt-BR")
+    );
+  };
+
+  it("compararNomes ordena igual à comparação antiga, inclusive nos empates", () => {
+    const nomes = [
+      "Árvore",
+      "arvore",
+      "Arvore",
+      "ÁRVORE",
+      "Zebra",
+      "zebra",
+      "Écu",
+      "Ecu",
+      "ecu",
+      "Ação",
+      "Acao",
+      "Bola de Fogo",
+      "bola de fogo",
+      "Bôla de Fogo",
+      " Bola",
+      "Bola",
+      "Ñandu",
+      "Nandu",
+      "Çedilha",
+      "Cedilha",
+      "Orc",
+      "Órc",
+      "orc",
+      "",
+      "A",
+      "a",
+      "á",
+      "Ab",
+      "ab",
+      "Ac",
+    ].map((nome) => ({ nome }));
+    for (const a of nomes) {
+      for (const b of nomes) {
+        expect(Math.sign(compararNomes(a, b))).toBe(Math.sign(antiga(a, b)));
+      }
+    }
+    expect([...nomes].sort(compararNomes)).toEqual([...nomes].sort(antiga));
   });
 });

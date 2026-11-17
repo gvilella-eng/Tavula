@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import {
   comRetentativa,
   consultarMesa,
@@ -7,15 +7,23 @@ import {
   type UsuarioDaEntrada,
   usuarioDaSessao,
 } from "./api";
-import { EntradaDaMesa } from "./contas/EntradaDaMesa";
-import { FichaEmJanelaPropria } from "./ficha/FichaEmJanelaPropria";
 import { Logo } from "./Logo";
-import { Mesa } from "./Mesa";
 import { lembrarMesa } from "./mesasLocais";
 import { irPara, tituloDaMesa, useRota } from "./rotas";
-import { SomEmJanelaPropria } from "./som/SomEmJanelaPropria";
-import { TelaInicial } from "./TelaInicial";
 import { tourAbreSozinho } from "./tour/abreSozinho";
+
+// Cada rota vira um pedaço próprio: a tela inicial não baixa o pixi.js nem a Mesa inteira.
+const EntradaDaMesa = lazy(() =>
+  import("./contas/EntradaDaMesa").then((m) => ({ default: m.EntradaDaMesa })),
+);
+const FichaEmJanelaPropria = lazy(() =>
+  import("./ficha/FichaEmJanelaPropria").then((m) => ({ default: m.FichaEmJanelaPropria })),
+);
+const Mesa = lazy(() => import("./Mesa").then((m) => ({ default: m.Mesa })));
+const SomEmJanelaPropria = lazy(() =>
+  import("./som/SomEmJanelaPropria").then((m) => ({ default: m.SomEmJanelaPropria })),
+);
+const TelaInicial = lazy(() => import("./TelaInicial").then((m) => ({ default: m.TelaInicial })));
 
 const voltarAoInicio = () => irPara("/");
 
@@ -55,31 +63,45 @@ function MesaEncontrada({
 
   if (falha) return <p role="alert">{falha}</p>;
   if (usuario === undefined) return <p>Conectando à sala…</p>;
-  if (usuario === null) return <EntradaDaMesa mesa={mesa} aoEntrar={setUsuario} />;
+  if (usuario === null) {
+    return (
+      <Suspense fallback={null}>
+        <EntradaDaMesa mesa={mesa} aoEntrar={setUsuario} />
+      </Suspense>
+    );
+  }
   if (painel === "som") {
-    return <SomEmJanelaPropria key={usuario.id} mesa={mesa} aoPerderSessao={aoPerderSessao} />;
+    return (
+      <Suspense fallback={null}>
+        <SomEmJanelaPropria key={usuario.id} mesa={mesa} aoPerderSessao={aoPerderSessao} />
+      </Suspense>
+    );
   }
   if (fichaId) {
     return (
-      <FichaEmJanelaPropria
-        key={usuario.id}
-        mesa={mesa}
-        fichaId={fichaId}
-        aoPerderSessao={aoPerderSessao}
-      />
+      <Suspense fallback={null}>
+        <FichaEmJanelaPropria
+          key={usuario.id}
+          mesa={mesa}
+          fichaId={fichaId}
+          aoPerderSessao={aoPerderSessao}
+        />
+      </Suspense>
     );
   }
   return (
-    <Mesa
-      key={usuario.id}
-      mesa={mesa}
-      login={usuario.login}
-      tourAutomatico={tourAbreSozinho(usuario)}
-      aoSair={aoSair}
-      aoPerderSessao={aoPerderSessao}
-      aoTrocarDeMesa={voltarAoInicio}
-      aoRenomear={aoRenomear}
-    />
+    <Suspense fallback={null}>
+      <Mesa
+        key={usuario.id}
+        mesa={mesa}
+        login={usuario.login}
+        tourAutomatico={tourAbreSozinho(usuario)}
+        aoSair={aoSair}
+        aoPerderSessao={aoPerderSessao}
+        aoTrocarDeMesa={voltarAoInicio}
+        aoRenomear={aoRenomear}
+      />
+    </Suspense>
   );
 }
 
@@ -182,7 +204,13 @@ function RotaDaMesa({
 
 export function App() {
   const rota = useRota();
-  if (rota.tipo === "inicio") return <TelaInicial />;
+  if (rota.tipo === "inicio") {
+    return (
+      <Suspense fallback={null}>
+        <TelaInicial />
+      </Suspense>
+    );
+  }
   return (
     <RotaDaMesa
       key={`${rota.id ?? rota.bruto}/${rota.fichaId ?? ""}/${rota.painel ?? ""}`}

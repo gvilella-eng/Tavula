@@ -307,7 +307,9 @@ export function aplicarEntradaNaFicha(
   const item = entrada.item;
   if (npc) {
     const lista = f.caracteristicas ?? [];
-    if (lista.some((c) => normalizarBusca(c.nome) === normalizarBusca(item.nome))) {
+    // O nome do item não muda no laço: normaliza uma vez só.
+    const nomeDoTraco = normalizarBusca(item.nome);
+    if (lista.some((c) => normalizarBusca(c.nome) === nomeDoTraco)) {
       return { ok: false, motivo: `${item.nome} já é um traço.` };
     }
     const traco: Caracteristica = {
@@ -322,7 +324,9 @@ export function aplicarEntradaNaFicha(
     };
   }
   const itens = f.itens ?? [];
-  const existente = itens.findIndex((i) => normalizarBusca(i.nome) === normalizarBusca(item.nome));
+  // O nome do item não muda no laço: normaliza uma vez só.
+  const nomeDoItem = normalizarBusca(item.nome);
+  const existente = itens.findIndex((i) => normalizarBusca(i.nome) === nomeDoItem);
   const atual = itens[existente];
   if (atual) {
     return {
@@ -374,7 +378,9 @@ function aplicarItemMagico(
   const operacoes: OperacaoDeFicha[] = [];
   if (npc) {
     const lista = f.caracteristicas ?? [];
-    if (lista.some((c) => normalizarBusca(c.nome) === normalizarBusca(i.nome))) {
+    // O nome do item não muda no laço: normaliza uma vez só.
+    const nomeDoTraco = normalizarBusca(i.nome);
+    if (lista.some((c) => normalizarBusca(c.nome) === nomeDoTraco)) {
       return { ok: false, motivo: `${i.nome} já é um traço.` };
     }
     const traco: Caracteristica = {
@@ -401,7 +407,9 @@ function aplicarItemMagico(
     return { ok: true, operacoes, texto: `${i.nome} entrou como traço.` };
   }
   const itens = f.itens ?? [];
-  const existente = itens.findIndex((x) => normalizarBusca(x.nome) === normalizarBusca(i.nome));
+  // O nome do item não muda no laço: normaliza uma vez só.
+  const nomeDoItem = normalizarBusca(i.nome);
+  const existente = itens.findIndex((x) => normalizarBusca(x.nome) === nomeDoItem);
   const atual = itens[existente];
   if (atual) {
     return {

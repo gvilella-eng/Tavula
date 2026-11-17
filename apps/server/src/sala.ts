@@ -165,6 +165,17 @@ type Identidade = {
   tokenId?: string;
 };
 
+/** Cache de UMA rodada síncrona de snapshots (nada é gravado no meio): nunca sobrevive à rodada. */
+type RodadaDeSnapshots = {
+  /** O texto do snapshot por usuário (várias abas do mesmo usuário veem o mesmo). */
+  textos: Map<string, string>;
+  /** A primeira página do histórico do chat, lida uma vez. */
+  chat?: Mensagem[];
+  membros?: string[];
+};
+
+const novaRodada = (): RodadaDeSnapshots => ({ textos: new Map() });
+
 /** Quem manda uma intenção: um socket (o navegador ou a conexão do Claude) ou uma chamada HTTP do MCP (`ws: null`). */
 type Remetente = {
   ws: WebSocket | null;
@@ -264,6 +275,8 @@ export class Sala extends DurableObject<Env> {
   private mensagensDesdeGravacaoDoUso = 0;
   private mensagensDesdeEnvioDoUso = 0;
   private ultimoEnvioDoUso = 0;
+  /** O vencimento `uso.enviar` já está na agenda? (memória: some na hibernação, então `false` confere na agenda.) */
+  private usoAgendado = false;
   /**
    * Tokens que cada socket está arrastando (mandou `token.mover` e ainda não `token.soltar`). Só
    * memória: enquanto alguém arrasta, a sala recebe mensagens e não hiberna.
@@ -419,7 +432,8 @@ export class Sala extends DurableObject<Env> {
     return derivarMembros(
       this.estado.usuarios,
       this.contas.usuariosComContaAtiva(),
-      this.presentesDeTeste(),
+      // Fora do teste o `derivarMembros` ignora os presentes: nem lê a meta nem faz o JSON.parse.
+      this.ehTeste ? this.presentesDeTeste() : [],
       this.ehTeste,
     );
   }
@@ -444,10 +458,12 @@ export class Sala extends DurableObject<Env> {
 
   /** A lista de membros mudou: um snapshot novo para todos. */
   private difundirSnapshots(): void {
+    const rodada = novaRodada();
     for (const ws of this.ctx.getWebSockets()) {
       const usuario = this.usuarioDe(ws);
-      if (usuario) this.enviarSnapshot(ws, usuario);
+      if (usuario) this.enviarSnapshot(ws, usuario, rodada);
     }
+    this.atualizarSonsDasZonas();
   }
 
   /**
@@ -657,10 +673,12 @@ export class Sala extends DurableObject<Env> {
     if (mudadas.length === 0) return;
     this.banco.gravarUsuarios(mudadas);
     this.estado = { ...this.estado, usuarios };
+    const rodada = novaRodada();
     for (const ws of this.ctx.getWebSockets()) {
       const usuario = this.usuarioDe(ws);
-      if (usuario) this.enviarSnapshot(ws, usuario);
+      if (usuario) this.enviarSnapshot(ws, usuario, rodada);
     }
+    this.atualizarSonsDasZonas();
     this.difundirPresenca();
   }
 
@@ -1083,6 +1101,7 @@ export class Sala extends DurableObject<Env> {
         : {}),
     };
     servidor.serializeAttachment(identidade);
+    this.identidades.set(servidor, identidade);
 
     // A conexão do Claude não vira outra pessoa: não conta como presença, não segura a mesa sem mestre, não baixa
     // arquivos nem recebe os avisos de contas (o Claude não mexe em contas). Só a marca "Claude conectado" aparece.
@@ -1781,6 +1800,8 @@ export class Sala extends DurableObject<Env> {
       this.banco.apagarTudo();
       this.contas.apagarTudo();
       await this.ctx.storage.deleteAlarm();
+      // A agenda foi apagada junto: o `uso.enviar` precisa ser agendado de novo.
+      this.usoAgendado = false;
       this.estado = estadoInicial(semente);
       this.fonteDeDadosDeTeste = null;
       this.taxaDoChat.clear();
@@ -2021,11 +2042,14 @@ export class Sala extends DurableObject<Env> {
     } else if (r.eventos.length > 0) this.banco.salvarEventos(r.estado, r.eventos);
     const antes = this.estado;
     // O histórico do chat mora no banco: o estado em memória nunca o acumula.
-    const { chat: _historico, ...semChat } = r.estado;
-    this.estado =
-      intencao.tipo === "campanha.importar"
-        ? { ...semChat, retratosDoChat: this.banco.retratosDoChat() }
-        : semChat;
+    // Transitórias (mover, ping, rascunho) devolvem o mesmo objeto: não recria o estado à toa (~20/s).
+    if (intencao.tipo === "campanha.importar") {
+      const { chat: _historico, ...semChat } = r.estado;
+      this.estado = { ...semChat, retratosDoChat: this.banco.retratosDoChat() };
+    } else if (r.estado !== antes) {
+      const { chat: _historico, ...semChat } = r.estado;
+      this.estado = semChat;
+    }
     // 12-1: o que a conexão do Claude mudou entra no diário do Desfazer, agrupado pelo `loteId` do pedido.
     if (doClaude && r.eventos.length > 0) {
       this.anotarNoDiario(usuario.id, intencao, antes, r.estado, agoraMs);
@@ -2315,7 +2339,8 @@ export class Sala extends DurableObject<Env> {
       const sala = tempoDaSala(relogio, agora);
       for (const l of this.estado.luzes) {
         const ms = proximoMarcoDoObjeto(l, sala, this.estado.config.estagios);
-        if (ms !== null) await this.agenda.agendar("luz.marco", l.id, agora + Math.ceil(ms) + 5);
+        // `anotar` não reprograma o alarme a cada luz: o `reprogramar()` do fim cobre todas de uma vez.
+        if (ms !== null) this.agenda.anotar("luz.marco", l.id, agora + Math.ceil(ms) + 5);
       }
     }
     // 7b-1: um vencimento só para as automações (a próxima fase de ciclo, evento pendente ou fim de efeito).
@@ -2323,8 +2348,7 @@ export class Sala extends DurableObject<Env> {
     if (!relogio.pausada) {
       const agora = Date.now();
       const ms = proximoMarcoDasAutomacoes(this.estado, tempoDaSala(relogio, agora));
-      if (ms !== null)
-        await this.agenda.agendar("automacao.marco", "proximo", agora + Math.ceil(ms) + 5);
+      if (ms !== null) this.agenda.anotar("automacao.marco", "proximo", agora + Math.ceil(ms) + 5);
     }
     await this.agenda.reprogramar();
   }
@@ -2405,8 +2429,12 @@ export class Sala extends DurableObject<Env> {
       agora - this.ultimoEnvioDoUso >= INTERVALO_USO_MS
     ) {
       this.enviarUso();
-    } else if (!this.agenda.existe("uso.enviar", "uso")) {
-      await this.agenda.agendar("uso.enviar", "uso", this.ultimoEnvioDoUso + INTERVALO_USO_MS);
+    } else if (!this.usoAgendado) {
+      // Um SELECT por mensagem era demais: o campo em memória evita; só confere a agenda quando está `false`.
+      if (!this.agenda.existe("uso.enviar", "uso")) {
+        await this.agenda.agendar("uso.enviar", "uso", this.ultimoEnvioDoUso + INTERVALO_USO_MS);
+      }
+      this.usoAgendado = true;
     }
   }
 
@@ -2419,6 +2447,7 @@ export class Sala extends DurableObject<Env> {
     this.ultimoEnvioDoUso = Date.now();
     this.mensagensDesdeEnvioDoUso = 0;
     this.agenda.cancelar("uso.enviar", "uso");
+    this.usoAgendado = false;
     const texto = this.textoDoUso();
     for (const ws of this.ctx.getWebSockets()) {
       if (this.usuarioDe(ws)?.papel === "mestre") this.enviar(ws, texto);
@@ -2628,8 +2657,15 @@ export class Sala extends DurableObject<Env> {
 
   // --- Envio ----------------------------------------------------------------------------------
 
+  /** Cache da identidade por socket: o `deserializeAttachment` clona a cada leitura. Vazio após a hibernação (lê de novo). */
+  private readonly identidades = new WeakMap<WebSocket, Identidade>();
+
   private identidadeDe(ws: WebSocket): Identidade | null {
-    return (ws.deserializeAttachment() as Identidade | null) ?? null;
+    const guardada = this.identidades.get(ws);
+    if (guardada) return guardada;
+    const lida = (ws.deserializeAttachment() as Identidade | null) ?? null;
+    if (lida) this.identidades.set(ws, lida);
+    return lida;
   }
 
   private usuarioDe(ws: WebSocket): Usuario | null {
@@ -2658,11 +2694,17 @@ export class Sala extends DurableObject<Env> {
     usuario: Usuario,
     antesDoSeq: number | null,
     quantas: number,
+    rodada?: RodadaDeSnapshots,
   ): { mensagens: Mensagem[]; temMais: boolean } {
     const achadas: Mensagem[] = [];
     let corte = antesDoSeq;
     for (;;) {
-      const pagina = this.banco.chatAntes(corte, PAGINA_DO_HISTORICO);
+      // Na rodada de snapshots nada é gravado: a primeira página do chat é lida uma vez só para todos.
+      let pagina: Mensagem[];
+      if (corte === null && rodada) {
+        rodada.chat ??= this.banco.chatAntes(null, PAGINA_DO_HISTORICO);
+        pagina = rodada.chat;
+      } else pagina = this.banco.chatAntes(corte, PAGINA_DO_HISTORICO);
       for (const m of pagina) {
         const visto = mensagemParaUsuario(m, usuario, this.estado.config);
         if (visto) achadas.push(visto);
@@ -2678,25 +2720,39 @@ export class Sala extends DurableObject<Env> {
     };
   }
 
+  /** Os membros, lidos do banco uma vez por rodada de snapshots. */
+  private membrosDaRodada(rodada?: RodadaDeSnapshots): string[] {
+    if (!rodada) return this.membrosIds();
+    rodada.membros ??= this.membrosIds();
+    return rodada.membros;
+  }
+
   /** O estado como ESTE usuário o vê (o do snapshot): é o que o WebSocket e as ferramentas do MCP por HTTP enxergam. */
-  private visaoDe(usuario: Usuario): Estado {
-    const { mensagens } = this.chatVisivelPara(usuario, null, LIMITES_DO_CHAT.noSnapshot);
+  private visaoDe(usuario: Usuario, rodada?: RodadaDeSnapshots): Estado {
+    const { mensagens } = this.chatVisivelPara(usuario, null, LIMITES_DO_CHAT.noSnapshot, rodada);
     return {
       ...visaoPara({ ...this.estado, chat: mensagens }, usuario, Date.now()),
-      membros: this.membrosIds(),
+      membros: this.membrosDaRodada(rodada),
     };
   }
 
-  private enviarSnapshot(ws: WebSocket, usuario: Usuario): void {
-    this.enviar(
-      ws,
-      mensagem({
+  /**
+   * Com `rodada` (um laço que manda snapshot a todos), o texto sai uma vez por usuário e o chamador chama
+   * `atualizarSonsDasZonas` uma vez depois do laço; sem ela, é um envio avulso e a chamada fica aqui.
+   */
+  private enviarSnapshot(ws: WebSocket, usuario: Usuario, rodada?: RodadaDeSnapshots): void {
+    // A visão só depende do usuário (a conexão do Claude e o navegador dele veem o mesmo): uma serialização por usuário.
+    let texto = rodada?.textos.get(usuario.id);
+    if (texto === undefined) {
+      texto = mensagem({
         tipo: "snapshot",
-        dados: { usuarioId: usuario.id, estado: this.visaoDe(usuario) },
-      }),
-    );
+        dados: { usuarioId: usuario.id, estado: this.visaoDe(usuario, rodada) },
+      });
+      rodada?.textos.set(usuario.id, texto);
+    }
+    this.enviar(ws, texto);
     if (usuario.papel === "mestre") this.enviar(ws, this.textoDoUso());
-    this.atualizarSonsDasZonas();
+    if (!rodada) this.atualizarSonsDasZonas();
   }
 
   private marcarArraste(ws: WebSocket, id: string, ativo: boolean): void {
@@ -2799,6 +2855,17 @@ export class Sala extends DurableObject<Env> {
   /** Entrega cada evento (filtrado por usuário) ou, para quem pede, um snapshot novo. */
   private distribuir(eventos: EventoSala[], snapshotPara: "todos" | string[], antes: Estado): void {
     const agoraMs = Date.now();
+    const rodada = novaRodada();
+    // `eventoPara` devolve a mesma referência para vários sockets: cada evento visto é serializado uma vez só.
+    const textosDosEventos = new Map<EventoSala, string>();
+    const textoDoEvento = (visto: EventoSala): string => {
+      let t = textosDosEventos.get(visto);
+      if (t === undefined) {
+        t = mensagem({ tipo: "evento", dados: visto });
+        textosDosEventos.set(visto, t);
+      }
+      return t;
+    };
     for (const ws of this.ctx.getWebSockets()) {
       const usuario = this.usuarioDe(ws);
       if (!usuario) {
@@ -2806,18 +2873,18 @@ export class Sala extends DurableObject<Env> {
         continue;
       }
       if (snapshotPara === "todos" || snapshotPara.includes(usuario.id)) {
-        this.enviarSnapshot(ws, usuario);
+        this.enviarSnapshot(ws, usuario, rodada);
         // N5: o snapshot não leva o efeito de som (ele não está no estado): quem o ouve o recebe depois.
         for (const ev of eventos) {
           if (ev.tipo !== "som.efeitoTocado" && ev.tipo !== "som.efeitoParado") continue;
           const visto = eventoPara(ev, usuario, antes, this.estado, agoraMs);
-          if (visto) this.enviar(ws, mensagem({ tipo: "evento", dados: visto }));
+          if (visto) this.enviar(ws, textoDoEvento(visto));
         }
         continue;
       }
       for (const ev of eventos) {
         const visto = eventoPara(ev, usuario, antes, this.estado, agoraMs);
-        if (visto) this.enviar(ws, mensagem({ tipo: "evento", dados: visto }));
+        if (visto) this.enviar(ws, textoDoEvento(visto));
       }
     }
     this.atualizarSonsDasZonas();

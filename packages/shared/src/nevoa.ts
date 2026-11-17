@@ -59,8 +59,49 @@ function distanciaAoSegmento(p: Ponto, a: Ponto, b: Ponto): number {
   return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy));
 }
 
+type Caixa = { x0: number; y0: number; x1: number; y1: number };
+
+// A caixa envolvente de cada traço (pontos, mais o raio no pincel, mais uma folga), calculada uma vez: o estado é imutável.
+// `null` = sem caixa (sempre faz o teste completo). A folga cobre com sobra as tolerâncias de `pontoNaZona` (1e-9) e o
+// erro de arredondamento do `hypot`: a caixa só descarta o que o teste completo com certeza rejeitaria.
+const FOLGA_DA_CAIXA = 1e-6;
+const CAIXAS = new WeakMap<object, Caixa | null>();
+
+function caixaDoTraco(t: TracoDaNevoa): Caixa | null {
+  const guardada = CAIXAS.get(t);
+  if (guardada !== undefined) return guardada;
+  const pts = t.pontos;
+  const minimo =
+    t.forma === "pincel" ? 1 : t.forma === "retangulo" ? 2 : t.forma === "poligono" ? 3 : 0;
+  let caixa: Caixa | null = null;
+  if (minimo > 0 && pts.length >= minimo) {
+    const folga = FOLGA_DA_CAIXA + (t.forma === "pincel" ? (t.raio ?? 0) : 0);
+    let x0 = Number.POSITIVE_INFINITY;
+    let y0 = Number.POSITIVE_INFINITY;
+    let x1 = Number.NEGATIVE_INFINITY;
+    let y1 = Number.NEGATIVE_INFINITY;
+    for (const q of pts) {
+      if (q.x < x0) x0 = q.x;
+      if (q.x > x1) x1 = q.x;
+      if (q.y < y0) y0 = q.y;
+      if (q.y > y1) y1 = q.y;
+    }
+    caixa = { x0: x0 - folga, y0: y0 - folga, x1: x1 + folga, y1: y1 + folga };
+  }
+  CAIXAS.set(t, caixa);
+  return caixa;
+}
+
 /** O traço contém o ponto (o pincel é a faixa de raio `raio` em volta do caminho)? */
 export function tracoContem(t: TracoDaNevoa, p: Ponto): boolean {
+  const c = caixaDoTraco(t);
+  // Fora da caixa envolvente: nenhum dos testes abaixo aceitaria o ponto (evita percorrer todos os pontos do traço).
+  if (c !== null && (p.x < c.x0 || p.x > c.x1 || p.y < c.y0 || p.y > c.y1)) return false;
+  return tracoContemSemAtalho(t, p);
+}
+
+/** O teste completo, sem a caixa envolvente (exportado só para o teste de equivalência). */
+export function tracoContemSemAtalho(t: TracoDaNevoa, p: Ponto): boolean {
   const pts = t.pontos;
   switch (t.forma) {
     case "tudo":

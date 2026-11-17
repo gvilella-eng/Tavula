@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Campo } from "./Campo";
 import { noTopoAoCentro } from "./janelas/geometria";
 import { Janela } from "./janelas/Janela";
+import { useEnvioSuave } from "./useEnvioSuave";
 
 type Props = {
   cena: Cena;
@@ -21,6 +22,8 @@ export function PainelDeIluminacao({ cena, config, enviar, aoFechar }: Props) {
   const ambiente = luzAmbienteDa(cena);
   const [local, setLocal] = useState(Math.round(ambiente * 100));
   const arrastando = useRef(false);
+  // O slider manda no máximo um valor a cada 90 ms (o último sempre sai, também ao fechar o painel): sem uma mensagem por passo.
+  const suave = useEnvioSuave(90, true);
   const [esquecida, setEsquecida] = useState(false);
   useEffect(() => {
     if (!arrastando.current) setLocal(Math.round(ambiente * 100));
@@ -71,7 +74,9 @@ export function PainelDeIluminacao({ cena, config, enviar, aoFechar }: Props) {
             onChange={(e) => {
               const v = Number(e.target.value);
               setLocal(v);
-              enviar("cena.configurarIluminacao", { cenaId: cena.id, luzAmbiente: v / 100 });
+              suave("ambiente", () =>
+                enviar("cena.configurarIluminacao", { cenaId: cena.id, luzAmbiente: v / 100 }),
+              );
             }}
           />
           <output data-testid="config-luz-ambiente-valor">{local}%</output>

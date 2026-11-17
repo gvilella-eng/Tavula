@@ -170,6 +170,14 @@ export class GerenteDeAssets {
     return [...this.status.values()].map(({ ultimoPedaco: _u, ultimaPergunta: _p, ...s }) => s);
   }
 
+  /** Há algum arquivo sendo pedido ou baixado? Leitura barata (sem alocar), para assinar só esse booleano. */
+  readonly haTransferencia = (): boolean => {
+    for (const s of this.status.values()) {
+      if (s.estado === "pedindo" || s.estado === "baixando") return true;
+    }
+    return false;
+  };
+
   // --- consultas ------------------------------------------------------------------------------
 
   meta(hash: string): AssetMeta | undefined {

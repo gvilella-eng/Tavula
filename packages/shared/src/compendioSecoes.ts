@@ -2,11 +2,11 @@ import { filtrarEOrdenar, pontuarBusca, prepararConsulta } from "./buscaDoCompen
 import {
   type ArmaDoCompendio,
   type Compendio,
+  compararPorNome,
   type ItemDoCompendio,
   type ItemMagicoDoCompendio,
   type MagiaDoCompendio,
   type MonstroDoCompendio,
-  normalizarBusca,
   RARIDADES_DE_ITEM_MAGICO,
   ROTULO_DA_RARIDADE,
   ROTULO_DO_NIVEL_DE_MAGIA,
@@ -34,10 +34,8 @@ export type GrupoDoCompendio<T> = { chave: string; rotulo: string; entradas: T[]
 
 /** Ordem alfabética sem acento nem caixa (a mesma de `buscarMagias`). */
 export function compararNomes(a: { nome: string }, b: { nome: string }): number {
-  return (
-    normalizarBusca(a.nome).localeCompare(normalizarBusca(b.nome), "pt-BR") ||
-    a.nome.localeCompare(b.nome, "pt-BR")
-  );
+  // Mesma regra de `compararPorNome` (Collator de módulo e nome normalizado em cache).
+  return compararPorNome(a, b);
 }
 
 function agrupar<T extends { nome: string }, C extends string | number>(

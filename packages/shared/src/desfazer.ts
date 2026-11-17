@@ -122,7 +122,9 @@ export function diffDoEstado(antes: Estado, depois: Estado): Delta[] {
     for (const [id, item] of d) {
       const velho = a.get(id);
       if (velho === undefined) saida.push({ c, id, antes: null, depois: item });
-      else if (estavel(velho) !== estavel(item)) saida.push({ c, id, antes: velho, depois: item });
+      // o `reduzir` preserva a referência do que não tocou: o mesmo objeto nem chega a ser serializado
+      else if (velho !== item && estavel(velho) !== estavel(item))
+        saida.push({ c, id, antes: velho, depois: item });
     }
     for (const [id, item] of a) {
       if (!d.has(id)) saida.push({ c, id, antes: item, depois: null });

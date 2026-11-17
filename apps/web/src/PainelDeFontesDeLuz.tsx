@@ -13,6 +13,7 @@ import { Campo, CampoDeDistancia } from "./Campo";
 import { noCanto } from "./janelas/geometria";
 import { Janela } from "./janelas/Janela";
 import { type TempoDaTela, useTic } from "./tempo";
+import { useEnvioSuave } from "./useEnvioSuave";
 
 type Props = {
   cena: Cena;
@@ -32,32 +33,6 @@ type Props = {
   enviar: (tipo: string, dados: object) => string | null;
   aoFechar: () => void;
 };
-
-/**
- * Envia no máximo um valor a cada `ms` por chave (o último vale): um slider arrastado não vira uma
- * mensagem por pixel.
- */
-function useEnvioSuave(ms = 90) {
-  const pendentes = useRef(new Map<string, ReturnType<typeof setTimeout>>());
-  const ultimos = useRef(new Map<string, () => void>());
-  useEffect(() => {
-    const temporizadores = pendentes.current;
-    return () => {
-      for (const t of temporizadores.values()) clearTimeout(t);
-    };
-  }, []);
-  return (chave: string, enviar: () => void) => {
-    ultimos.current.set(chave, enviar);
-    if (pendentes.current.has(chave)) return;
-    pendentes.current.set(
-      chave,
-      setTimeout(() => {
-        pendentes.current.delete(chave);
-        ultimos.current.get(chave)?.();
-      }, ms),
-    );
-  };
-}
 
 /** Slider de 0 a 100% que acompanha o valor da sala (0 a 1) e envia o que o mestre arrasta. */
 function Deslizante(props: {

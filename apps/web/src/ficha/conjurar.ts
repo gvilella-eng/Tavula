@@ -5,6 +5,7 @@ import {
   extraDeEspaco,
   extraDoTruque,
   type Magia,
+  type MagiaDoCompendio,
   magiaInataParaRolar,
   nivelParaTruque,
   normalizarBusca,
@@ -23,8 +24,24 @@ export type OpcaoDeConjuracao = OpcaoDeEspaco | "ritual";
 /** A magia do compêndio com o mesmo nome (sem acento nem caixa), se houver. */
 export function magiaDoCompendio(compendio: PropsDaAba["compendio"], nome: string) {
   if (!compendio) return undefined;
-  const alvo = normalizarBusca(nome);
-  return compendio.magias.find((m) => normalizarBusca(m.nome) === alvo);
+  return indiceDeMagias(compendio.magias).get(normalizarBusca(nome));
+}
+
+// O compêndio é imutável depois de lido: o índice por nome normalizado é montado uma vez por lista de magias
+// (e não normaliza todas as magias a cada linha de magia a cada render da ficha).
+const INDICES_DE_MAGIAS = new WeakMap<readonly MagiaDoCompendio[], Map<string, MagiaDoCompendio>>();
+function indiceDeMagias(magias: readonly MagiaDoCompendio[]): Map<string, MagiaDoCompendio> {
+  let indice = INDICES_DE_MAGIAS.get(magias);
+  if (!indice) {
+    indice = new Map();
+    // A primeira que casa vence, como no `find` de antes.
+    for (const m of magias) {
+      const chave = normalizarBusca(m.nome);
+      if (!indice.has(chave)) indice.set(chave, m);
+    }
+    INDICES_DE_MAGIAS.set(magias, indice);
+  }
+  return indice;
 }
 
 const um = (caminho: string, valor: unknown) => [{ caminho, valor }];
