@@ -1384,6 +1384,13 @@ eventos, iluminação, visão noturna, ordem de turno) aparece só como **interf
   por linha): **Ir para** (o mestre passa a ver aquela cena), **Levar grupo**, **Duplicar**, **Preparar**
   (com progresso) e **Apagar** (com confirmação). Acrescentado por necessidade: **Configurar…** (nome,
   mapa da cena, pixels por quadrado, grid).
+- **(Q7, 2026-11-16)** os cards têm todos o mesmo tamanho e ficam numa **grade que cresce para baixo**
+  (até 3 linhas; depois, rolagem vertical no painel, sem rolagem horizontal). Campo **"Buscar cena…"** no
+  alto (por nome, sem acento, por palavra e começo, com erro pequeno; o número do card é o da ordem real).
+  **Botão direito no vazio** (ou Shift+F10 na grade) abre "Nova cena" e "Importar mapa". **Clicar fora do
+  painel o fecha** (o botão da barra alterna; menus e diálogos dele não fecham). As barras de rolagem do app
+  usam os tokens de tema `rolagemPolegar` e `rolagemTrilho`. Os cartões de magia e de característica no chat
+  chegam com a descrição aberta (esconder é local).
 
 **Também entra:**
 - o menu superior e as barras como descritos;

@@ -8,14 +8,16 @@ import {
   PackageCheck,
   Plus,
   RectangleHorizontal,
+  Search,
   Settings2,
   Trash2,
   UsersRound,
 } from "lucide-react";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { type KeyboardEvent, type ReactNode, useEffect, useRef, useState } from "react";
 import { dentroDaArea } from "./area";
 import { ConfigurarCena } from "./ConfigurarCena";
 import { SeloDeRascunho } from "./claude/RascunhosDoClaude";
+import { filtrarCenas } from "./filtroDeCenas";
 import type { ImagensDoMapa } from "./mapa/mapaPixi";
 import { useFecharFora } from "./Popover";
 import { previaDoMapa } from "./previaDaCena";
@@ -45,7 +47,15 @@ type Props = {
   /** Q3: importa um mapa do Dungeondraft (Universal VTT) como cena nova. */
   aoImportarMapa: (arquivo: File) => void;
   pedirImagem: PedirImagem;
+  /** Q7: clicar fora do painel (ou Esc na busca vazia) fecha o painel. */
+  aoFechar: () => void;
+  /** Q7: cliques fora do painel que NÃO o fecham (por exemplo, agarrar a bandeira de chegada no mapa). */
+  naoFechaEm?: (e: PointerEvent) => boolean;
 };
+
+/** Q7: o que, fora do painel, não conta como "clicar fora": o botão da barra, menus e diálogos. */
+const FORA_QUE_NAO_FECHA =
+  '[data-testid="menu-cenas"], [role="menu"], [role="dialog"], [role="alertdialog"], .fundo-modal';
 
 /** Prévia do mapa em baixa resolução; sem mapa (ou enquanto não chega), um padrão de grid. */
 function Previa({
@@ -223,6 +233,7 @@ function Card({
       data-vista={vista}
       onContextMenu={(e) => {
         e.preventDefault();
+        e.stopPropagation();
         const r = e.currentTarget.getBoundingClientRect();
         aoMenu(r.right + 6, r.top);
       }}
@@ -265,6 +276,7 @@ function Card({
             // biome-ignore lint/a11y/noStaticElementInteractions: o duplo clique é um atalho; o menu tem Configurar…
             <span
               className="cena-nome"
+              title={cena.nome}
               data-testid={`cena-nome-${cena.id}`}
               onDoubleClick={(e) => {
                 e.stopPropagation();
@@ -351,15 +363,42 @@ export function FaixaDeCenas({
   aoPreparar,
   aoImportarMapa,
   pedirImagem,
+  aoFechar,
+  naoFechaEm,
 }: Props) {
+  const raiz = useRef<HTMLElement>(null);
+  const [busca, setBusca] = useState("");
   const entradaUvtt = useRef<HTMLInputElement>(null);
-  const [menu, setMenu] = useState<{ cenaId: string; x: number; y: number } | null>(null);
+  const [menu, setMenu] = useState<{ cenaId: string | null; x: number; y: number } | null>(null);
   const [apagando, setApagando] = useState<string | null>(null);
   const [configurando, setConfigurando] = useState<string | null>(null);
   const [mensagens, setMensagens] = useState<Record<string, string | null>>({});
   const [preparando, setPreparando] = useState<Set<string>>(new Set());
 
   const cenaDoMenu = estado.cenas.find((c) => c.id === menu?.cenaId);
+  const aoFecharRef = useRef(aoFechar);
+  aoFecharRef.current = aoFechar;
+  const naoFechaEmRef = useRef(naoFechaEm);
+  naoFechaEmRef.current = naoFechaEm;
+  const algoAbertoRef = useRef(false);
+  algoAbertoRef.current = apagando !== null || configurando !== null;
+
+  // Q7: clicar fora do painel fecha. Não conta: o botão da barra que o abre (ele alterna), menus e diálogos
+  // (os do painel e o seletor de arquivo que a configuração abre).
+  useEffect(() => {
+    function aoApertar(e: PointerEvent) {
+      const alvo = e.target;
+      if (!(alvo instanceof Element) || !raiz.current || raiz.current.contains(alvo)) return;
+      if (algoAbertoRef.current) return;
+      if (alvo.closest(FORA_QUE_NAO_FECHA)) return;
+      if (naoFechaEmRef.current?.(e)) return;
+      aoFecharRef.current();
+    }
+    document.addEventListener("pointerdown", aoApertar, true);
+    return () => document.removeEventListener("pointerdown", aoApertar, true);
+  }, []);
+
+  const cenasVisiveis = filtrarCenas(estado.cenas, busca);
   const cenaApagando = estado.cenas.find((c) => c.id === apagando);
   const cenaConfigurando = estado.cenas.find((c) => c.id === configurando);
 
@@ -441,36 +480,109 @@ export function FaixaDeCenas({
     ];
   }
 
+  function criarCena() {
+    enviar("cena.criar", {
+      id: `cena-${crypto.randomUUID().slice(0, 8)}`,
+      nome: `Cena ${estado.cenas.length + 1}`,
+    });
+  }
+
+  /** Q7: o menu do espaço vazio da grade: criar ou importar (o que os dois últimos cards fazem). */
+  const itensDoVazio: ItemDeMenu[] = [
+    { id: "nova", rotulo: "Nova cena", icone: <Plus size={16} />, aoClicar: criarCena },
+    {
+      id: "importar",
+      rotulo: "Importar mapa — Dungeondraft / Universal VTT…",
+      icone: <FileDown size={16} />,
+      aoClicar: () => entradaUvtt.current?.click(),
+    },
+  ];
+
+  function menuPorTeclado(e: KeyboardEvent) {
+    if (!(e.key === "ContextMenu" || (e.shiftKey && e.key === "F10"))) return;
+    if (e.target instanceof HTMLInputElement) return;
+    e.preventDefault();
+    const alvo = e.target instanceof Element ? e.target : null;
+    const card = alvo?.closest<HTMLElement>(".cena-card[data-cena-id]");
+    if (card) {
+      const r = card.getBoundingClientRect();
+      setMenu({
+        cenaId: card.dataset.cenaId ?? null,
+        x: dentroDaArea(r.right + 6, r.top, 192, 0).left,
+        y: r.top,
+      });
+      return;
+    }
+    const r = (alvo ?? e.currentTarget).getBoundingClientRect();
+    const p = dentroDaArea(r.left + 12, r.top + 12, 340, 90);
+    setMenu({ cenaId: null, x: p.left, y: p.top });
+  }
+
   return (
-    <section className="faixa-cenas" data-testid="faixa-cenas" aria-label="Cenas">
-      <ul className="faixa-lista">
-        {estado.cenas.map((c, i) => (
-          <Card
-            key={c.id}
-            cena={c}
-            numero={i + 1}
-            doGrupo={c.id === estado.cenaAtivaId}
-            vista={c.id === cenaVistaId}
-            preparo={preparos.find((p) => p.cenaId === c.id)}
-            mensagem={mensagens[c.id] ?? null}
-            imagens={imagens}
-            versaoDasImagens={versaoDasImagens}
-            aoClicar={() => aoIrPara(c.id)}
-            aoRenomear={(nome) => enviar("cena.editar", { cenaId: c.id, nome })}
-            aoMenu={(x, y) => setMenu({ cenaId: c.id, x: dentroDaArea(x, y, 192, 0).left, y })}
-          />
-        ))}
+    <section
+      ref={raiz}
+      className="faixa-cenas"
+      data-testid="faixa-cenas"
+      aria-label="Cenas"
+      onKeyDown={menuPorTeclado}
+    >
+      <label className="faixa-busca">
+        <Search size={16} aria-hidden="true" />
+        <input
+          type="search"
+          data-testid="cenas-busca"
+          placeholder="Buscar cena…"
+          aria-label="Buscar cena"
+          value={busca}
+          onChange={(e) => setBusca(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key !== "Escape") return;
+            e.stopPropagation();
+            if (busca !== "") setBusca("");
+            else aoFechar();
+          }}
+        />
+      </label>
+      <ul
+        className="faixa-lista"
+        data-testid="faixa-lista"
+        onContextMenu={(e) => {
+          if (e.target instanceof HTMLInputElement) return;
+          e.preventDefault();
+          const p = dentroDaArea(e.clientX, e.clientY, 340, 90);
+          setMenu({ cenaId: null, x: p.left, y: p.top });
+        }}
+      >
+        {cenasVisiveis.length === 0 && (
+          <li className="faixa-sem-resultado" data-testid="cenas-sem-resultado" role="status">
+            Nenhuma cena com esse nome
+          </li>
+        )}
+        {cenasVisiveis.map((c) => {
+          const i = estado.cenas.indexOf(c);
+          return (
+            <Card
+              key={c.id}
+              cena={c}
+              numero={i + 1}
+              doGrupo={c.id === estado.cenaAtivaId}
+              vista={c.id === cenaVistaId}
+              preparo={preparos.find((p) => p.cenaId === c.id)}
+              mensagem={mensagens[c.id] ?? null}
+              imagens={imagens}
+              versaoDasImagens={versaoDasImagens}
+              aoClicar={() => aoIrPara(c.id)}
+              aoRenomear={(nome) => enviar("cena.editar", { cenaId: c.id, nome })}
+              aoMenu={(x, y) => setMenu({ cenaId: c.id, x: dentroDaArea(x, y, 192, 0).left, y })}
+            />
+          );
+        })}
         <li className="cena-card nova">
           <button
             type="button"
             className="cena-card-nova"
             data-testid="cena-nova"
-            onClick={() =>
-              enviar("cena.criar", {
-                id: `cena-${crypto.randomUUID().slice(0, 8)}`,
-                nome: `Cena ${estado.cenas.length + 1}`,
-              })
-            }
+            onClick={criarCena}
           >
             <Plus size={22} />
             <span>Nova cena</span>
@@ -503,11 +615,11 @@ export function FaixaDeCenas({
           />
         </li>
       </ul>
-      {menu && cenaDoMenu && (
+      {menu && (menu.cenaId === null || cenaDoMenu) && (
         <MenuDeContexto
           x={menu.x}
           y={menu.y}
-          itens={itensDe(cenaDoMenu)}
+          itens={cenaDoMenu ? itensDe(cenaDoMenu) : itensDoVazio}
           aoFechar={() => setMenu(null)}
         />
       )}

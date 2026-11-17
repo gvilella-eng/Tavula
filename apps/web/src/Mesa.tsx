@@ -1823,6 +1823,8 @@ export function Mesa({
                 }}
                 aoPreparar={prepararCena}
                 aoImportarMapa={(arquivo) => void importarMapaUvtt(arquivo)}
+                aoFechar={() => setFaixaAberta(false)}
+                naoFechaEm={(e) => mapa.current?.bandeiraSobOPonteiro(e) ?? false}
                 pedirImagem={pedirImagem}
               />
             )}

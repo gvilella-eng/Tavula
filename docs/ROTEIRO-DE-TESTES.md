@@ -628,3 +628,14 @@ Antes de tudo: tenha na pasta `sons/` (ou à mão) uns 6 arquivos de áudio: 2 o
 6. **Mesa vazia.** Numa mesa sem sons, a janela e a faixa dizem "Nenhum som na mesa de som ainda" e o botão "Configurar" abre a configuração; "Tocar" fica desabilitado.
 7. **Sons que a mesa já tem.** Na configuração, um lugar mostra "Sons que a mesa já tem" (os que você subiu antes, mesmo fora de um lugar) para pôr com um clique.
 8. **Claude.** Peça ao Claude para marcar ambientes e tocar (`transporte: "tocar"`).
+
+## Q7 — O painel de cenas em grade, barras do tema, descrição aberta no chat
+
+1. **Grade.** Menu Cena → Cenas. Todos os cards têm o mesmo tamanho (inclusive o do mapa largo e o do mapa alto); o nome longo termina em reticências e a dica mostra o nome inteiro. Crie cenas até passar de 3 linhas: aparecem 3 linhas e uma barra de rolagem vertical (nunca horizontal). "Nova cena" e "Importar mapa" ficam no fim.
+2. **Buscar.** Digite parte do nome, sem acento, e com uma letra errada: os cards filtram; o número de cada card não muda. "Nenhuma cena com esse nome" quando nada casa. Esc limpa; Esc de novo fecha o painel.
+3. **Botão direito no vazio.** Botão direito no espaço entre dois cards (ou depois do último): menu com "Nova cena" e "Importar mapa — Dungeondraft / Universal VTT…", e cada um faz o que o card faz. Com o foco num card ou num botão da grade, Shift+F10 (ou a tecla de menu) abre o menu.
+4. **Fechar.** Clique no mapa, em outra aba ou em outro botão da barra: o painel fecha. Clique no botão Cenas: alterna. Clique em itens do menu, nos diálogos de apagar e configurar, no seletor de arquivo: não fecha. Trocar de cena pelo card não fecha.
+5. **A faixa.** Com um mapa de verdade (taverna importada), troque de cena várias vezes pelo card e por "Levar grupo" com o painel aberto: nada do mapa anterior deve ficar na tela. Se aparecer, tire um print e diga qual mapa.
+6. **Barras de rolagem.** Em Vampiro (vinho), Grimório e Pergaminho: a barra do chat, da aba Fichas, do compêndio e do painel de cenas tem a cor do tema (polegar mais claro que o trilho), e dá para achá-la.
+7. **Descrição aberta.** Mande uma magia (compêndio, ou conjurar na ficha) e uma característica da ficha ao chat: o cartão chega com a descrição aberta, para você e para os outros. Esconda num navegador: no outro continua aberta.
+

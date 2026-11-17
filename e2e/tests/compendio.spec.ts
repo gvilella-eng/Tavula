@@ -185,11 +185,12 @@ test("o jogador manda a magia para o chat como o personagem dele e o mestre vê 
     await expect(msg.getByTestId("chat-autor")).toHaveText("Aldric");
     await expect(msg.getByTestId("magia-chat-nome")).toHaveText("Bola de Fogo");
     await expect(msg).toContainText("3º nível · Evocação");
-    await expect(msg.getByTestId("magia-chat-descricao")).toHaveCount(0); // recolhida
-    await msg.getByTestId("magia-chat-alternar").click();
+    // Q7: o cartão chega com a descrição aberta; quem lê pode esconder (e mostrar de novo).
     await expect(msg.getByTestId("magia-chat-descricao")).toContainText("8d6 de dano de fogo");
     await msg.getByTestId("magia-chat-alternar").click();
     await expect(msg.getByTestId("magia-chat-descricao")).toHaveCount(0);
+    await msg.getByTestId("magia-chat-alternar").click();
+    await expect(msg.getByTestId("magia-chat-descricao")).toContainText("8d6 de dano de fogo");
   }
   // a escolha de "Como" é a mesma do chat
   await abrirAba(p, "chat");

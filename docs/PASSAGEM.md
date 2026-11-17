@@ -1021,3 +1021,11 @@ Continua em aberto, por ser decisão e não erro de doc: `ficha.verOutras` (seç
 - A configuração do som usa `camadaAlta` (45+): fica acima da faixa (30) e das janelas comuns (25+).
 
 **Suposições**: ver `docs/REDESIGN.md`, "Q6 — como ficou".
+
+## Q7 (2026-11-16): o painel de cenas em grade, barras do tema, descrição aberta
+
+- `FaixaDeCenas.tsx`: a lista virou grade (`.faixa-lista`, `grid-auto-rows: 122px`, `max-height` de 3 linhas). **Frágil: o `122px` e o `calc(122px * 3 + 10px * 2)` do CSS andam juntos** (altura do card e 3 linhas). A busca é `filtroDeCenas.ts` (usa `pontuarBusca` do compêndio). O menu do vazio e o teclado (Shift+F10) estão em `FaixaDeCenas`; o clique fora é um `pointerdown` no documento com a lista `FORA_QUE_NAO_FECHA` (botão `menu-cenas`, menus e diálogos). **Quem criar um diálogo novo aberto a partir do painel precisa de `role="dialog"`/`alertdialog` ou da classe `fundo-modal`, senão clicar nele fecha o painel.**
+- `mapaPixi.ts`: `spritesDoMapa` é chaveado por `hash@x,y` (um sprite por lugar); `limparMapa()` roda em `definirCena` quando a cena muda. O gancho `imagens()` devolve o `hash` de cada sprite como antes.
+- Barras de rolagem: tokens `rolagemPolegar` e `rolagemTrilho` (derivados em `comRolagem`, `temas.ts`); regras globais no começo de `styles.css`. Não ponha `scrollbar-color` fixo em componente novo.
+- `CartaoDaMagia.tsx`: os cartões do chat começam abertos.
+

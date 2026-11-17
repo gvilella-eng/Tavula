@@ -801,6 +801,8 @@ export class MapaPixi {
     const virouCartao = this.cena !== null && this.cena.cartao !== true && cena.cartao === true;
     this.cena = cena;
     if (!this.pronto) return;
+    // Q7: outra cena começa sem nenhum pedaço do mapa da anterior no palco (os da nova entram em `atualizarMapa`).
+    if (outraCena) this.limparMapa();
     this.visaoSuja = true;
     if (outraCena || this.gradeCenaId !== cena.id) this.carregarMemoria();
     this.desenharParedes();
@@ -865,6 +867,13 @@ export class MapaPixi {
       });
   }
 
+  /** Tira do palco todos os pedaços do mapa (a cena mudou). */
+  private limparMapa(): void {
+    for (const sprite of this.spritesDoMapa.values()) sprite.destroy();
+    this.spritesDoMapa.clear();
+    this.sujo = true;
+  }
+
   /** Fundo da cena: o mapa (sprites por tile), na escala px ÷ pxPorQuadrado × quadradoM. */
   private atualizarMapa(): void {
     this.sujo = true;
@@ -878,8 +887,10 @@ export class MapaPixi {
         { hash: meta.hash, x: 0, y: 0, largura: meta.largura, altura: meta.altura },
       ];
       for (const t of tiles) {
-        manter.add(t.hash);
-        let sprite = this.spritesDoMapa.get(t.hash);
+        // Q7: um sprite por LUGAR (não por arquivo): tiles iguais (o chão liso de um mapa) ocupam cada um o seu canto.
+        const chave = `${t.hash}@${t.x},${t.y}`;
+        manter.add(chave);
+        let sprite = this.spritesDoMapa.get(chave);
         if (!sprite) {
           const textura = this.texturas.get(t.hash);
           if (!textura) {
@@ -889,7 +900,7 @@ export class MapaPixi {
             continue;
           }
           sprite = new Sprite(textura);
-          this.spritesDoMapa.set(t.hash, sprite);
+          this.spritesDoMapa.set(chave, sprite);
           this.camadaMapa.addChild(sprite);
         }
         sprite.position.set(t.x * escala, t.y * escala);
@@ -897,10 +908,10 @@ export class MapaPixi {
         sprite.height = t.altura * escala;
       }
     }
-    for (const [hash, sprite] of this.spritesDoMapa) {
-      if (manter.has(hash)) continue;
+    for (const [chave, sprite] of this.spritesDoMapa) {
+      if (manter.has(chave)) continue;
       sprite.destroy();
-      this.spritesDoMapa.delete(hash);
+      this.spritesDoMapa.delete(chave);
     }
   }
 
@@ -3274,6 +3285,12 @@ export class MapaPixi {
     this.bandeira.scale.set(1 / this.vista.zoom);
   }
 
+  /** Q7: o ponteiro apertou a bandeira do ponto de chegada? (Quem fecha o painel de cenas ao clicar fora não conta esse gesto.) */
+  bandeiraSobOPonteiro(e: PointerEvent): boolean {
+    if (!this.pronto) return false;
+    return this.sobreABandeira(this.posicaoNaTela(e));
+  }
+
   private sobreABandeira(p: Ponto): boolean {
     const b = this.posicaoDaBandeira;
     if (!b || !this.opcoes.euMestre || this.opcoes.ferramenta !== "selecionar") return false;
@@ -4976,8 +4993,8 @@ export class MapaPixi {
       },
       /** O que o fundo e os tokens mostram de imagem local (para conferir sem olhar o canvas). */
       imagens: () => ({
-        tiles: [...this.spritesDoMapa].map(([hash, s]) => ({
-          hash,
+        tiles: [...this.spritesDoMapa].map(([chave, s]) => ({
+          hash: chave.split("@")[0] ?? chave,
           x: s.x,
           y: s.y,
           largura: s.width,

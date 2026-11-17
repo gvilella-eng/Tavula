@@ -79,6 +79,9 @@ export const CHAVES_DE_TOKEN = [
   "criticoTexto",
   "falhaCritica",
   "falhaCriticaTexto",
+  // Q7: a barra de rolagem (o polegar e o trilho), derivados de cada tema (ver `comRolagem`).
+  "rolagemPolegar",
+  "rolagemTrilho",
 ] as const;
 
 export type ChaveDeToken = (typeof CHAVES_DE_TOKEN)[number];
@@ -92,7 +95,9 @@ const ROLAGENS_DO_CHAT = {
   falhaCriticaTexto: "#1A0507",
 } as const;
 
-export const TEMAS: Record<IdDoTema, Tema> = {
+type TemaSemRolagem = Omit<Tema, "rolagemPolegar" | "rolagemTrilho">;
+
+const TEMAS_SEM_ROLAGEM: Record<IdDoTema, TemaSemRolagem> = {
   grimorio: {
     fundoMesa: "#080808",
     fundo: "#0C0C0C",
@@ -668,6 +673,33 @@ export const TEMAS: Record<IdDoTema, Tema> = {
     ...ROLAGENS_DO_CHAT,
   },
 };
+
+/** Mistura duas cores `#RRGGBB` (`peso` da primeira, de 0 a 1). */
+function misturar(a: string, b: string, peso: number): string {
+  const canal = (c: string, i: number) => Number.parseInt(c.slice(1 + i * 2, 3 + i * 2), 16);
+  const hex = [0, 1, 2].map((i) =>
+    Math.round(canal(a, i) * peso + canal(b, i) * (1 - peso))
+      .toString(16)
+      .padStart(2, "0"),
+  );
+  return `#${hex.join("").toUpperCase()}`;
+}
+
+/**
+ * Q7: a barra de rolagem de cada tema. O polegar é o texto suave misturado ao painel (aparece em qualquer fundo,
+ * no tom do tema); o trilho é a cor dos campos.
+ */
+function comRolagem(t: TemaSemRolagem): Tema {
+  return {
+    ...t,
+    rolagemPolegar: misturar(t.textoSuave, t.painel, 0.55),
+    rolagemTrilho: t.campo,
+  };
+}
+
+export const TEMAS = Object.fromEntries(
+  Object.entries(TEMAS_SEM_ROLAGEM).map(([id, t]) => [id, comRolagem(t)]),
+) as Record<IdDoTema, Tema>;
 
 /** Nome mostrado de cada tema (o id não muda). */
 export const NOMES_DOS_TEMAS: Record<IdDoTema, string> = {
