@@ -4167,4 +4167,29 @@ Ver `IDEIAS.md`, "Desempenho: auditado e não feito".
 ### Roteiro manual
 Não há função nova. Vale passar pelo uso normal com atenção a: arrastar a vista e dar zoom com paredes e zonas na tela; pincel com vários desenhos; selecionar tokens; visão de jogador com névoa e com visão no escuro; chat longo; busca do compêndio; ficha de conjurador; slider da luz ambiente; baixar um mapa grande com a mesa aberta.
 
-## Próximo: o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b, N4, N5, M1, M2, Q1, Q2, Q3, Q4, Q5, Q6, Q7, Q8, Q9, Q10, Q11, Q12 e das otimizações O1–O4
+## Ajustes Q13 — Segurar a seta anda contínuo e em linha, mesmo numa cena pesada (entregue, aguardando o roteiro manual)
+
+### O que foi entregue
+- **Ritmo contínuo.** O token que anda por passo desliza em linha reta e em velocidade constante (um quadrado a cada 100 ms), sem parar nem frear entre os quadrados; soltar a tecla termina o quadrado e para. O relógio das setas é um `requestAnimationFrame` (não mais `setInterval`) e recupera um quadro atrasado sem saltos.
+- **Menos trabalho por passo.** O estado do React recebe os `token.movido` a cada 300 ms (o mapa os recebe na hora); a visão e a luz da tocha acompanham o token no ritmo que a máquina aguenta; `Teclas`, `Dica`, `ListaDeAtalhos` em `memo`.
+- **Sem o "passa e volta".** Um erro da sala só volta os tokens do pedido recusado (ou todos, no caso de arrasto), para a posição que a sala avisou por último.
+
+### Como rodar
+`pnpm dev` como sempre. **Sem migração, sem mudança de sala, protocolo ou estado.** Testes em outras portas: `E2E_PORTA_SALA=8790 E2E_PORTA_WEB=5176`. Roteiro: "Q13" em `docs/ROTEIRO-DE-TESTES.md`.
+
+### Verificação
+Só tela (`apps/web`) e um spec novo, então sem a bateria inteira. Typecheck e lint (menos os arquivos temporários `.q13-*` da cópia, que foram apagados); unidade web 249 (+4 em `passoDasSetas.test.ts`); E2E 121 + 43 testes nos specs que tocam mapa, token, setas, luz, névoa, memória, paredes, zonas, tochas, seguir, régua, ping, cenas, fluxos e interações, todos passaram; `q13.spec.ts` (4 testes novos) passou em modo de desenvolvimento e no build de produção. Números antes e depois: `REDESIGN.md`, "Q13".
+
+### Decisões
+Ver `REDESIGN.md` ("Q13 — como ficou").
+
+### Desvios
+Nenhum E2E antigo foi alterado.
+
+### Frágil
+Ver `PASSAGEM.md` ("Q13").
+
+### Roteiro manual
+Segurar a seta numa cena pesada (muitas paredes, tocha, névoa) e conferir: anda liso, sem parar entre os quadrados; soltar termina o quadrado; contra a parede o token para sem passar e voltar; o mestre vendo o jogador andar também o vê liso.
+
+## Próximo: o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b, N4, N5, M1, M2, Q1, Q2, Q3, Q4, Q5, Q6, Q7, Q8, Q9, Q10, Q11, Q12, Q13 e das otimizações O1–O4

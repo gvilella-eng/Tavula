@@ -1,6 +1,7 @@
 import {
   Fragment,
   type KeyboardEvent,
+  memo,
   type RefObject,
   useCallback,
   useEffect,
@@ -16,7 +17,8 @@ import { dicasLigadas, useDicasLigadas } from "./dicasLigadas";
 /** A dica é uma só em toda a interface (R6a); desde o V3b, de uma linha, com atraso e só onde falta nome. */
 
 /** As teclas de um atalho, cada uma num `<kbd>`: "Shift + F10 ou Menu". */
-export function Teclas({
+// Q13: `memo`: a mesa se redesenha a cada passo de token, e estas peças (dezenas de botões) não mudam.
+export const Teclas = memo(function Teclas({
   teclas,
   juntas,
 }: {
@@ -39,7 +41,7 @@ export function Teclas({
       ))}
     </span>
   );
-}
+});
 
 const SETAS = new Set(["←", "↑", "↓", "→"]);
 
@@ -157,7 +159,7 @@ type PropsDaDica = {
  * O balão da dica, num portal no `body` com posição fixa (a rolagem de uma janela não o corta). Fica sempre
  * montado, escondido, para `aria-describedby` achar o texto.
  */
-export function Dica({
+export const Dica = memo(function Dica({
   alvo,
   id,
   visivel,
@@ -238,4 +240,4 @@ export function Dica({
     </span>,
     document.body,
   );
-}
+});

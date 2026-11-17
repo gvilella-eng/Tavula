@@ -1,3 +1,4 @@
+import { memo } from "react";
 import {
   ATALHOS,
   atalhosDoGrupo,
@@ -7,7 +8,7 @@ import {
 } from "./atalhos";
 import { Teclas } from "./Dica";
 
-function Grupo({ grupo }: { grupo: GrupoDeAtalhos }) {
+const Grupo = memo(function Grupo({ grupo }: { grupo: GrupoDeAtalhos }) {
   return (
     <dl>
       {atalhosDoGrupo(grupo).map(({ id }) => (
@@ -20,13 +21,13 @@ function Grupo({ grupo }: { grupo: GrupoDeAtalhos }) {
       ))}
     </dl>
   );
-}
+});
 
 /**
  * "Atalhos do teclado" da aba Preferências: a tabela única de `atalhos.ts`. No alto, aberta, "Os mais usados"
  * (ferramentas e mapa); o resto em seções recolhidas, com os mesmos títulos de sempre (V14).
  */
-export function ListaDeAtalhos() {
+export const ListaDeAtalhos = memo(function ListaDeAtalhos() {
   return (
     <section className="lista-de-atalhos" data-testid="atalhos" aria-label="Atalhos do teclado">
       <p className="nota">
@@ -54,4 +55,4 @@ export function ListaDeAtalhos() {
       ))}
     </section>
   );
-}
+});

@@ -2315,3 +2315,47 @@ O Vilella pediu três coisas: tirar o aviso "Uma parede bloqueia o caminho." (e 
 - Agrupar passos de segurar num só pedido (hoje um `token.soltar` por passo, 10 por segundo).
 - Diagonal com duas setas.
 - Seguir um token em outra cena enquanto o mestre olha outra.
+
+## Q13 — como ficou (2026-11-17): segurar a seta anda contínuo e em linha, mesmo numa cena pesada
+
+O Vilella mostrou em vídeo (mesa dele, `pnpm dev`): segurando a seta o token andava ~3,9 quadrados por segundo, em intervalos irregulares (0,17 a 0,43 s), parando entre os quadrados, e no fim passou um quadrado e voltou. É só tela: não há campo, intenção, migração nem mudança de sala ou de protocolo.
+
+**O que o perfil mostrou** (CPU do Chrome via CDP, num teste com a cena pesada: 45×45 células, 172 paredes, escuridão, tocha presa ao token, névoa, memória do mapa, 5 tokens)
+- O teste simples, sem peso e sem limitação de CPU, dá ~9,8 quadrados/s: não reproduz a mesa dele. Com a CPU emulada 4× mais lenta (`Emulation.setCPUThrottlingRate`) ele reproduz o vídeo: ~4 quadrados/s, intervalo médio ~240 ms, pior ~390 ms, 18 tarefas longas de até ~350 ms.
+- O laço de desenho do mapa **não** é o gargalo (parado, ~2% do tempo; o brief trazia a pista errada, desmentida também pela sessão das otimizações). O custo é **por passo**:
+  - ~55% era o React em modo de desenvolvimento: cada `token.movido` de eco atualizava o estado e a `Mesa` inteira se redesenhava (centenas de botões com dica, lista de atalhos, seletor de tema, ícones), e cada passo gerava ~3,3 chamadas da `Mesa` (o `StrictMode` duplica as chamadas em dev).
+  - ~12% era a visão e a luz da tocha (`recalcularVisao`: polígonos contra 172 paredes e as texturas da luz) **a cada quadro** enquanto o token se mexia (60 vezes por segundo), embora a posição só mude 10 vezes por segundo.
+  - O `setInterval` das setas atrasa quando o navegador está ocupado e o token usava a suavização exponencial (45 ms), que freia em cada quadrado: daí os saltos irregulares e o "anda e para".
+  - O rastro do Playwright (`trace: retain-on-failure`) tira um retrato do DOM a cada ação e distorcia a medida; o `q13.spec.ts` o desliga e não faz ação por quadro.
+
+**O que foi feito**
+- **O estado do React não é mais tocado a cada passo.** `useSala.ts` empilha os `token.movido` e só os aplica ao estado a cada 300 ms (`INTERVALO_DO_ESTADO_DOS_PASSOS_MS`); qualquer outro evento descarrega a fila antes, na ordem em que chegou, e o snapshot a zera. O mapa recebe cada `token.movido` **na hora**, pela `ouvir` da `Mesa` (`movidoDaSala` em `mapaPixi.ts`), então os outros veem o passo sem esperar o React. O mapa guarda essas posições (`posicoesAvisadas`) enquanto o estado está atrás delas: `sincronizarTokens` não reposiciona token com estado atrasado, e `posicaoPendente` (de onde parte o próximo passo da seta) as usa. Renders da `Mesa` por passo: de 3,3 para ~1 chamada da função (o StrictMode do dev duplica cada render).
+- **Deslize linear.** O token que anda em passo (passo de seta, eco da sala, volta de recusa, desde que o deslocamento seja de até 2,5 quadrados) desliza em linha reta e em velocidade constante, um quadrado a cada 100 ms (`vel` no visual, `avancarEmLinha` em `passoDasSetas.ts`); se ficou muito para trás acelera, e chegando para seco. Deslocamento maior (arrasto de outro, "Levar o grupo") segue com a suavização de antes. Soltar a tecla: o token termina o quadrado e para, sem frear.
+- **Relógio próprio da tela.** Segurar a seta agora é um `requestAnimationFrame` com o instante do próximo passo (`passosVencidos`): um quadro atrasado recupera até 3 passos de uma vez (o token os anda em linha), atraso maior recomeça o ritmo dali; não há mais `setInterval`. O keyup é tratado antes do quadro seguinte, então os passos que ficavam na fila do temporizador depois de soltar a tecla (o token "passando um quadrado") não existem mais.
+- **Visão e luz no ritmo que a máquina aguenta.** Enquanto o token anda, a visão e a luz são refeitas esperando o dobro do que a última refeita gastou (teto de 120 ms, `esperaDaVisao`); com a máquina folgada continua a cada quadro. Qualquer outra causa (parede, opção, luz) refaz na hora como antes. Ao parar, a última refeita sai no quadro seguinte.
+- **Peças estáticas em `memo`:** `Teclas`, `Dica`, `ListaDeAtalhos`, `Grupo` (cada botão com dica e a lista de atalhos não se refazem a cada render da mesa).
+
+**O "passa e volta"**
+- Não consegui reproduzir uma recusa da sala: com a cena pesada, a parede no fim do corredor e a CPU 4× mais lenta, a sala não mandou nenhum `erro` e o token nunca recuou (a regra da tela e a da sala são a mesma `trajetoBloqueado`, com as mesmas paredes que o jogador recebe).
+- Duas causas prováveis, as duas corrigidas: (1) com o navegador ocupado os ticks do `setInterval` já estavam na fila quando o keyup chegou, e saíam passos depois de a pessoa soltar a tecla; (2) **qualquer** `erro` da sala (de qualquer pedido, mesmo sem relação com o token) mandava todos os tokens de volta para a última posição do **estado**, que no `pnpm dev` fica atrasada em relação ao que a sala já confirmou, e o token voltava uns quadrados e depois avançava de novo quando os ecos chegavam. Agora o erro de um passo de seta volta só os tokens daquele pedido, para a posição que a sala avisou por último (em linha, curto); o erro de um pedido que não é de mover não mexe em token nenhum; o erro de um arrasto (ou de pedido sem tipo) volta todos, como antes, mas para a posição avisada.
+
+**Números** (notebook de teste, Chrome estável, mapa de teste da cena pesada, jogador segurando a seta por 3 s)
+
+| | antes | depois |
+|---|---|---|
+| dev, CPU normal | 9,8 quadrados/s, intervalo médio 102 ms, pior 117–133 ms, 0 tarefas longas | 9,8 quadrados/s, intervalo médio 102 ms, pior 117 ms, 0 tarefas longas |
+| dev, CPU 4× mais lenta (o que o vídeo mostra) | 4,2 quadrados/s, médio 239 ms, pior 392 ms, 18 tarefas longas (pior 345 ms) | 8,0 a 9,0 quadrados/s, médio 111 a 125 ms, pior 158 a 333 ms, 4 a 6 tarefas longas (pior 162 a 315 ms) |
+| mestre olhando o jogador andar (CPU normal) | não medido | 9,7 quadrados/s, médio 103 ms, pior 117 ms |
+| build de produção (`vite build --mode e2e` + `vite preview`), CPU 4× mais lenta | não medido | 9,8 quadrados/s, médio 102 ms, pior 117 a 133 ms, 0 tarefas longas |
+| chamadas da `Mesa` por passo (dev, contando o dobro do StrictMode) | 3,3 | ~1 |
+
+**Decisões (assumido)**
+- O estado do React recebe os passos a cada 300 ms enquanto há passos chegando.
+- O deslize linear vale para deslocamentos de até 2,5 quadrados e usa a mesma velocidade do passo de seta (um quadrado por 100 ms).
+- A visão e a luz acompanham o token no ritmo de 2× o próprio custo (até 120 ms entre refeitas), não a cada quadro, quando a máquina está apertada.
+- Erro de pedido que não é de mover token não devolve token nenhum (antes devolvia todos).
+- O teste usa a CPU 4× mais lenta para reproduzir a mesa do Vilella; a meta de 8 quadrados/s foi atingida nessa condição (8,0 a 9,0), mas o pior intervalo (160 a 330 ms, contra 1,5× a média) e as tarefas longas (de 160 a 315 ms) ainda passam do alvo ali; com a CPU normal e no build de produção a meta é cumprida.
+
+**O que ficou para depois**
+- Com a CPU 4× mais lenta ainda há tarefas longas de ~160 a 300 ms: sobram o próprio desenho da luz (triangulação dos polígonos em `camadaDeLuz.ts`) e os renders da `Mesa` a cada 300 ms. Dá para baixar mais reaproveitando as texturas da luz entre quadrados e dividindo a `Mesa` (hoje um componente só, com 49 estados) para que um passo não a refaça inteira.
+- Produção: medi só depois (ver a tabela em `docs/ESTADO.md`); o "antes" do build de produção não foi medido.
