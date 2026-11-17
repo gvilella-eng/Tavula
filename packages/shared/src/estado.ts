@@ -120,6 +120,14 @@ export const CenaSchema = z.object({
 });
 export type Cena = z.infer<typeof CenaSchema>;
 
+/** Q10: vida de um token (os PV atuais, o máximo e, se houver, os temporários). */
+export const TokenPvSchema = z.object({
+  atual: z.number().int().min(0).max(9999),
+  max: z.number().int().min(0).max(9999),
+  temp: z.number().int().min(1).max(9999).optional(),
+});
+export type TokenPv = z.infer<typeof TokenPvSchema>;
+
 export const TokenSchema = z.object({
   id: z.string().min(1).max(64),
   cenaId: z.string().min(1).max(64),
@@ -156,6 +164,17 @@ export const TokenSchema = z.object({
   rascunho: z.boolean().optional(),
   /** N1: marca "morto" (um X sobre o token, visível a quem vê o token); sem regra automática. Sem o campo, vivo. */
   morto: z.boolean().optional(),
+  /**
+   * Q10: a vida PRÓPRIA do token de NPC ou monstro (horda): cada Goblin com os seus PV. Copiada da ficha ao pôr o
+   * token (a ficha vira o modelo). Sem o campo, o token lê a vida da ficha (campanha antiga, personagem de
+   * jogador, NPC com `vidaPorToken` desligado). Ver `hordas.ts`.
+   */
+  pv: TokenPvSchema.optional(),
+  /**
+   * Q10: o número do selo no canto do token ("Goblin 3" tem 3). A sala o dá ao pôr um NPC onde já há outro do mesmo
+   * personagem; o primeiro fica sem número. Só o selo: o nome é o que vale.
+   */
+  numero: z.number().int().min(2).max(9999).optional(),
 });
 export type Token = z.infer<typeof TokenSchema>;
 
@@ -566,6 +585,11 @@ export const PersonagemSchema = z.object({
    * `ficha.verOutras`: o item chega só com o que o mapa e as listas precisam.
    */
   ficha: FichaSchema.optional(),
+  /**
+   * Q10: só NPC e monstro. `false` desliga a vida própria por token: os tokens dele leem a vida da ficha (o vilão
+   * único). Sem o campo vale ligado: cada token com a sua vida (horda). Personagem de jogador ignora o campo.
+   */
+  vidaPorToken: z.boolean().optional(),
   /** 12-1: quem criou (o jogador que cria a própria ficha a edita e apaga; sem o campo, é do mestre). */
   criadoPor: z.string().min(1).max(64).optional(),
   /** 12-1: rascunho do Claude do mestre: o jogador não o recebe. */

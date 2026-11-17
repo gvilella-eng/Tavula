@@ -172,7 +172,8 @@ test("segurar Alt solta o token sem encaixe; a preferência desliga o encaixe", 
   const mestre = await entrarNoMapa(mesa, "mestre");
   const j2 = await entrarNoMapa(mesa, "jogador-2");
 
-  await arrastar(mestre.pagina, "tok-jogador-2", 4, 2, true);
+  // Q10: com Alt o mestre copia o token; o Alt que solta sem encaixe vale para quem joga (aqui o dono do token)
+  await arrastar(j2.pagina, "tok-jogador-2", 4, 2, true);
   await esperarPosicao(mestre.pagina, "tok-jogador-2", 19.75, 11.75);
   await esperarPosicao(j2.pagina, "tok-jogador-2", 19.75, 11.75);
 

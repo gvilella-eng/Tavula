@@ -499,3 +499,78 @@ describe("as definições que a IA recebe", () => {
     }
   });
 });
+
+describe("hordas (Q10): vários tokens, copiar e a vida do token", () => {
+  async function comGoblin() {
+    const sala = new SalaSimulada(MESTRE);
+    await rodar(sala, "fichas", { fichas: [{ nome: "Goblin", pv: { max: 7 } }] });
+    await rodar(sala, "cenas", { cenas: [{ nome: "Eclusa" }, { nome: "Pátio" }] });
+    return sala;
+  }
+
+  it("`colocar` com quantidade põe a horda de uma vez, numerada, cada um com a sua vida", async () => {
+    const sala = await comGoblin();
+    sala.enviados.length = 0;
+    const r = await rodar(sala, "tokens", {
+      colocar: [{ ficha: "Goblin", cena: "Eclusa", quantidade: 3 }],
+    });
+    expect(r.erro).toBeFalsy();
+    expect(sala.enviados.map((e) => e.tipo)).toEqual(["personagem.colocarVarios"]);
+    const cena = sala.visaoDe(MESTRE).cenas.find((c) => c.nome === "Eclusa");
+    const tokens = sala.visaoDe(MESTRE).tokens.filter((t) => t.cenaId === cena?.id);
+    expect(tokens.map((t) => t.nome)).toEqual(["Goblin", "Goblin 2", "Goblin 3"]);
+    expect(tokens.every((t) => t.pv?.max === 7)).toBe(true);
+  });
+
+  it("`pv` num token da horda muda só aquele token (token.vida), não a ficha", async () => {
+    const sala = await comGoblin();
+    await rodar(sala, "tokens", { colocar: [{ ficha: "Goblin", cena: "Eclusa", quantidade: 2 }] });
+    sala.enviados.length = 0;
+    const r = await rodar(sala, "tokens", {
+      tokens: [{ token: "Goblin 2", cena: "Eclusa", pv: 2 }],
+    });
+    expect(r.erro).toBeFalsy();
+    expect(sala.enviados.map((e) => e.tipo)).toEqual(["token.vida"]);
+    const v = sala.visaoDe(MESTRE);
+    expect(v.tokens.find((t) => t.nome === "Goblin 2")?.pv?.atual).toBe(2);
+    expect(v.tokens.find((t) => t.nome === "Goblin")?.pv?.atual).toBe(7);
+    expect(v.personagens.find((p) => p.nome === "Goblin")?.ficha?.pvAtual).toBe(7);
+  });
+
+  it("`copiar` duplica o token (para outra cena também), numerado e igual ao original", async () => {
+    const sala = await comGoblin();
+    await rodar(sala, "tokens", { colocar: [{ ficha: "Goblin", cena: "Eclusa" }] });
+    await rodar(sala, "tokens", { tokens: [{ token: "Goblin", cena: "Eclusa", pv: 3 }] });
+    sala.enviados.length = 0;
+    const r = await rodar(sala, "tokens", {
+      copiar: [
+        { token: "Goblin", cena: "Eclusa", quantidade: 2 },
+        { token: "Goblin", cena: "Eclusa", paraCena: "Pátio" },
+      ],
+    });
+    expect(r.erro).toBeFalsy();
+    expect(sala.enviados.map((e) => e.tipo)).toEqual(["token.copiar", "token.copiar"]);
+    const v = sala.visaoDe(MESTRE);
+    const eclusa = v.cenas.find((c) => c.nome === "Eclusa");
+    const patio = v.cenas.find((c) => c.nome === "Pátio");
+    expect(v.tokens.filter((t) => t.cenaId === eclusa?.id).map((t) => t.nome)).toEqual([
+      "Goblin",
+      "Goblin 2",
+      "Goblin 3",
+    ]);
+    const naOutra = v.tokens.filter((t) => t.cenaId === patio?.id);
+    expect(naOutra).toHaveLength(1);
+    expect(naOutra[0]?.pv?.atual).toBe(3);
+  });
+
+  it("`fichas` com vidaPorToken false volta o NPC a usar a vida da ficha", async () => {
+    const sala = await comGoblin();
+    await rodar(sala, "fichas", { fichas: [{ nome: "Goblin", vidaPorToken: false }] });
+    await rodar(sala, "tokens", { colocar: [{ ficha: "Goblin", cena: "Eclusa" }] });
+    expect(sala.visaoDe(MESTRE).tokens[0]?.pv).toBeUndefined();
+    await rodar(sala, "tokens", { tokens: [{ token: "Goblin", cena: "Eclusa", pv: 1 }] });
+    expect(sala.visaoDe(MESTRE).personagens.find((p) => p.nome === "Goblin")?.ficha?.pvAtual).toBe(
+      1,
+    );
+  });
+});

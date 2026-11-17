@@ -280,7 +280,9 @@ describe("M2: tokens, mesa, cenas e automações", () => {
     const t = sala.verdade.tokens[0];
     expect(t?.x).toBe(8.25);
     expect(t?.condicoes).toEqual(["amedrontado"]);
-    expect(sala.verdade.personagens[0]?.ficha?.pvAtual).toBe(3);
+    // Q10: o Goblin é NPC com vida própria: o PV muda no token e a ficha (o modelo) fica como estava.
+    expect(t?.pv?.atual).toBe(3);
+    expect(sala.verdade.personagens[0]?.ficha?.pvAtual).not.toBe(3);
     const ap = await rodar(sala, "cenas", {
       cenas: [{ nome: "Taverna", apagarTokens: ["Goblin"] }],
     });

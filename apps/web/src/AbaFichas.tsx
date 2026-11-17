@@ -1,5 +1,6 @@
 import {
   type Estado,
+  ehPersonagemDeJogador,
   type Handout,
   idDaPastaDoJogador,
   jogadoresDaMesa,
@@ -52,6 +53,8 @@ type Props = {
   aoAbrirFicha: (personagemId: string, aba?: AbaDaFicha) => void;
   /** Abre a janela de um handout. */
   aoAbrirHandout: (handoutId: string) => void;
+  /** Q10: "Colocar vários…" no menu do NPC (só o mestre): abre a pergunta da quantidade. */
+  aoColocarVarios?: ((personagemId: string) => void) | undefined;
 };
 
 /** O que o menu de botão direito está mostrando agora: o alvo e o ponto da página. */
@@ -460,6 +463,7 @@ export function AbaFichas({
   versaoDasImagens,
   aoAbrirFicha,
   aoAbrirHandout,
+  aoColocarVarios,
 }: Props) {
   const euMestre = eu.papel === "mestre";
   const jogadores = jogadoresDaMesa(estado);
@@ -680,6 +684,14 @@ export function AbaFichas({
           id: "configurar",
           rotulo: "Configurar…",
           aoClicar: () => aoAbrirFicha(p.id, "configurar"),
+        });
+      }
+      // Q10: a horda: o NPC entra de uma vez, numerado e cada um com a sua vida.
+      if (euMestre && !ehPersonagemDeJogador(p) && aoColocarVarios) {
+        itens.push({
+          id: "colocar-varios",
+          rotulo: "Colocar vários…",
+          aoClicar: () => aoColocarVarios(p.id),
         });
       }
       if (!euMestre && p.criadoPor === eu.id) {

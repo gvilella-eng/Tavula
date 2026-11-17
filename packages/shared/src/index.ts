@@ -24,6 +24,7 @@ export * from "./envios.ts";
 export * from "./enviosUso.ts";
 export * from "./estado.ts";
 export * from "./ficha.ts";
+export * from "./hordas.ts";
 export * from "./iluminacao.ts";
 export * from "./importarFichaPdf.ts";
 export * from "./importarTraducoes.ts";

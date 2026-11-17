@@ -6697,3 +6697,23 @@ button.inicio-botao-largo {
   font-size: 12px;
   color: var(--acento-forte);
 }
+
+/* --- Q10: hordas: o atalho no fim da linha do menu e a pergunta "Colocar vários" ------------------- */
+.item-atalho {
+  margin-left: auto;
+  padding-left: 12px;
+}
+.colocar-varios form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.colocar-varios label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--texto-suave);
+}
+.colocar-varios-nota {
+  margin: 0;
+}

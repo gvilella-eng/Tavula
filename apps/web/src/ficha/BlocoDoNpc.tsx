@@ -179,7 +179,9 @@ function Cabecalho(props: PropsDoNpc) {
         </div>
         <div className="npc-pv">
           <div className="npc-pv-cab">
-            <span className="npc-h2 npc-acento">Pontos de Vida</span>
+            <span className="npc-h2 npc-acento">
+              {props.pvDoModelo ? "Pontos de Vida do modelo" : "Pontos de Vida"}
+            </span>
             <CampoTexto
               testid="npc-pv-formula"
               rotulo="Fórmula dos PV"
@@ -201,7 +203,7 @@ function Cabecalho(props: PropsDoNpc) {
             </span>
             <CampoNumero
               testid={`pv-max-${personagemId}`}
-              rotulo="PV máximos"
+              rotulo={props.pvDoModelo ? "PV máximos do modelo" : "PV máximos"}
               valor={ficha.pvMax}
               desabilitado={!editar}
               className="fl-in fl-fn npc-pv-max"

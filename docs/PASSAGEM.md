@@ -1038,3 +1038,14 @@ Continua em aberto, por ser decisão e não erro de doc: `ficha.verOutras` (seç
 - `BarraLateral` abre os `<details>` em volta da seção pedida antes de rolar (`secaoTestid`).
 
 **Suposições**: ver `docs/REDESIGN.md`, "Q8 — como ficou".
+
+## Q10 (2026-11-17): hordas (vida por token, numeração, pôr vários, copiar e colar)
+
+- Regra pura em `packages/shared/src/hordas.ts`: `vidaDoToken` (a vida que vale: a do `token.pv` ou a da ficha), `usaVidaPorToken`, `pvInicialDoToken`, `nomeNumerado`, `copiaDoToken`, `tokenParaUsuario` (o filtro do segredo). A sala (`nucleo.ts`) cria tokens em `tokenDoPersonagem` (já com `pv`, nome e número); casos novos: `personagem.colocarVarios`, `token.copiar`, `token.vida`. **Frágil: todo caminho novo que cria token de NPC precisa passar por `tokenDoPersonagem`/`pvInicialDoToken` e por `nomeNumerado`; todo caminho que leva token ao jogador (snapshot, `token.criado`, `token.editado`) passa por `tokenParaUsuario`.**
+- **Frágil: qualquer lugar novo que mostre ou grave PV a partir de um token tem de usar `vidaDoToken(token, personagem)`** e, se `propria`, mandar `token.vida` (não `ficha.alterar`). Hoje só `MarcasDoToken`, a faixa da ficha e o MCP (`tokens.ts`) fazem isso.
+- Web: seleção de vários tokens em `Mesa.tsx` (`extrasIds`, `tambemSelecionadosIds`; o principal continua `selecionadoId`); `MapaPixi` recebe `tambemSelecionadosIds` e chama `alternarNaSelecao` (Shift ou Ctrl+clique) e `copiarArrastado` (Alt na hora de pegar o token: gesto `token` com `copia: true`). A área de transferência (`areaDeTokens`) e Ctrl+C, Ctrl+V e Ctrl+D (`aoTeclarCopia`) ficam em `Mesa.tsx`; só valem com o foco no mapa ou em nada. `ponteiroEmMetros()` e `centroDaTelaEmMetros()` dão onde colar.
+- Selo do número: `desenharSelo` em `mapaPixi.ts` (lado direito do token; os cantos de cima são das tochas e o arco de baixo das condições). O gancho de teste devolve `selo`.
+- A faixa "Este token" (`ficha/FaixaDoToken.tsx`) depende de `JanelaDeFicha.tokenId`, que só `abrirOuTrazerFicha(id, aba, tokenId)` põe (menu do token e CA da marca); a lista de Fichas abre sem ele. A ficha em janela própria do navegador não tem a faixa.
+- "Colocar vários…": `ColocarVarios.tsx`, aberto por `Mesa.tsx` (`colocarVariosDe`); botão no cabeçalho da ficha (`aoColocarVarios`) e item no menu do NPC da lista (`AbaFichas`).
+
+**Suposições**: ver `docs/REDESIGN.md`, "Q10 — como ficou".

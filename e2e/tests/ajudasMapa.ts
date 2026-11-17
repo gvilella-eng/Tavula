@@ -19,6 +19,8 @@ export type TokenVisto = {
   emVez: boolean;
   /** O anel de seleção (dourado) está aceso. */
   selecionado: boolean;
+  /** Q10: o número do selo desenhado no canto do token (`null` sem selo). */
+  selo?: number | null;
   /** N1: o X de morto está desenhado. */
   morto: boolean;
   /** Os marcadores de condição desenhados na borda (título de cada um). */

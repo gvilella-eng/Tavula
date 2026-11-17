@@ -108,6 +108,13 @@ export const PARIDADE_COM_O_MCP: Record<TipoIntencao, EntradaDeParidade> = {
   "token.condicoes": via("tokens", "tokens", "condicoes"),
   "token.definirImagem": via("arquivos", "enviar", "uso token"),
   "personagem.colocar": via("tokens", "colocar"),
+  "personagem.colocarVarios": via(
+    "tokens",
+    "colocar",
+    "quantidade: de 1 a 20 tokens de um NPC de uma vez",
+  ),
+  "token.copiar": via("tokens", "copiar"),
+  "token.vida": via("tokens", "tokens", "pv, pvMax, pvTemp: a vida própria do token de NPC"),
 
   // --- fichas, notas e pastas ---
   "personagem.criar": via("fichas", "fichas"),

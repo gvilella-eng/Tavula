@@ -81,6 +81,8 @@ export type PropsDaAba = {
   fecharEditor: () => void;
   /** Um aviso curto no alto da ficha. */
   avisar: (texto: string) => void;
+  /** Q10: a ficha foi aberta por um token de NPC com vida própria: estes PV são os do modelo, não os do token. */
+  pvDoModelo?: boolean | undefined;
   /** A mesa, para acender e apagar objetos de luz na linha do equipamento (V4a2). */
   luz?: LuzDaFicha | undefined;
 };
@@ -627,7 +629,7 @@ function CaIniciativaDeslocamento(props: PropsDaAba) {
 }
 
 /** PV atuais com − e +: o dano consome os temporários primeiro. */
-export function ControlesDePv({ personagemId, ficha, alterar, editar }: PropsDaAba) {
+export function ControlesDePv({ personagemId, ficha, alterar, editar, pvDoModelo }: PropsDaAba) {
   const tirar = () => {
     const novo = receberDano(ficha, 1);
     alterar([
@@ -650,7 +652,7 @@ export function ControlesDePv({ personagemId, ficha, alterar, editar }: PropsDaA
       </BotaoComDica>
       <CampoNumero
         testid={`pv-atual-${personagemId}`}
-        rotulo="PV atuais"
+        rotulo={pvDoModelo ? "PV atuais do modelo" : "PV atuais"}
         valor={ficha.pvAtual}
         max={9999}
         desabilitado={!editar}
@@ -730,14 +732,14 @@ function PontosDeVida(props: PropsDaAba) {
   const { personagemId, ficha, alterar, editar } = props;
   return (
     <Caixa moldura testid="fh-pv" className="fl-bloco" rotulo="Pontos de Vida">
-      <Secao>Pontos de Vida</Secao>
+      <Secao>{props.pvDoModelo ? "Pontos de Vida do modelo" : "Pontos de Vida"}</Secao>
       <ControlesDePv {...props} />
       <BarraDePv ficha={ficha} />
       <div className="fl-pv-baixo">
         <div className="fl-pv-max">
           <CampoNumero
             testid={`pv-max-${personagemId}`}
-            rotulo="PV máximos"
+            rotulo={props.pvDoModelo ? "PV máximos do modelo" : "PV máximos"}
             valor={ficha.pvMax}
             desabilitado={!editar}
             className="fl-in fl-fn fl-pv-max-campo"

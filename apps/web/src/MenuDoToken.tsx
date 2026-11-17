@@ -10,6 +10,8 @@ import {
 import {
   Backpack,
   Check,
+  Copy,
+  CopyPlus,
   FileText,
   Flame,
   FlameKindling,
@@ -22,8 +24,10 @@ import {
 } from "lucide-react";
 import { useRef, useState } from "react";
 import { caixaDaArea, dentroDaArea } from "./area";
+import { ATALHOS } from "./atalhos";
 import { BotaoComDica } from "./BotaoComDica";
 import { ICONE_DA_CONDICAO } from "./condicoesIcones";
+import { Teclas } from "./Dica";
 import { useFecharFora } from "./Popover";
 import { useMenuPorTeclado } from "./useMenuPorTeclado";
 
@@ -39,7 +43,10 @@ type Props = {
   /** Aberto pelo teclado (Shift+F10 ou a tecla de menu): o foco vai para o primeiro item. */
   teclado?: boolean;
   /** Q1: "Abrir ficha": abre a janela da ficha do personagem do token. */
-  aoAbrirFicha: (personagemId: string) => void;
+  aoAbrirFicha: (personagemId: string, aba?: undefined, tokenId?: string) => void;
+  /** Q10: "Duplicar" e "Copiar" (só o mestre): agem na seleção quando este token faz parte dela. */
+  aoDuplicar: () => void;
+  aoCopiar: () => void;
   /** "Editar token…": seleciona o token e abre o painel dele (só o mestre). */
   aoEditar: () => void;
   aoFechar: () => void;
@@ -64,7 +71,7 @@ function alturaDoMenu(mestre: boolean, tochas: number): number {
     44 +
     31 +
     31 +
-    (mestre ? 76 + 28 + 3 * 31 : 0) +
+    (mestre ? 76 + 62 + 28 + 3 * 31 : 0) +
     (tochas > 0 ? 28 + tochas * 76 : 0) +
     28 +
     7 * 31 +
@@ -90,6 +97,8 @@ export function MenuDoToken({
   teclado,
   aoAbrirFicha,
   aoEditar,
+  aoDuplicar,
+  aoCopiar,
   aoFechar,
 }: Props) {
   const ref = useRef<HTMLDivElement>(null);
@@ -147,7 +156,7 @@ export function MenuDoToken({
           onClick={() => {
             const id = token.personagemId;
             aoFechar();
-            if (id !== undefined) aoAbrirFicha(id);
+            if (id !== undefined) aoAbrirFicha(id, undefined, tokenId);
           }}
         >
           <FileText size={16} />
@@ -168,6 +177,40 @@ export function MenuDoToken({
           >
             <Pencil size={16} />
             <span>Editar token…</span>
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className="item-menu"
+            data-testid="menu-token-duplicar"
+            aria-keyshortcuts="Control+D"
+            onClick={() => {
+              aoFechar();
+              aoDuplicar();
+            }}
+          >
+            <CopyPlus size={16} />
+            <span>Duplicar</span>
+            <span className="item-atalho">
+              <Teclas teclas={ATALHOS.duplicarToken.teclas} />
+            </span>
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            className="item-menu"
+            data-testid="menu-token-copiar"
+            aria-keyshortcuts="Control+C"
+            onClick={() => {
+              aoFechar();
+              aoCopiar();
+            }}
+          >
+            <Copy size={16} />
+            <span>Copiar</span>
+            <span className="item-atalho">
+              <Teclas teclas={ATALHOS.copiarToken.teclas} />
+            </span>
           </button>
           {naOrdem ? (
             <button

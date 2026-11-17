@@ -4047,4 +4047,34 @@ Ver `PASSAGEM.md` ("Q8").
 ### Roteiro manual
 `docs/ROTEIRO-DE-TESTES.md`, "Q8".
 
-## Próximo: o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b, N4, N5, M1, M2, Q1, Q2, Q3, Q4, Q5, Q6, Q7, Q8 e Q9
+## Ajustes Q10 — Hordas: vida própria por token de NPC, numeração, pôr vários, duplicar e Ctrl+C / Ctrl+V (entregue, aguardando o roteiro manual)
+
+### O que foi entregue
+- Token de NPC com a **própria vida** (`Token.pv`, copiada da ficha ao pôr); a ficha é o modelo. Escolha "Cada token com a sua vida (horda)" na Configurar do NPC, **ligada por padrão**; desligada, os tokens leem a ficha.
+- **Numeração** automática na sala (Goblin, Goblin 2, Goblin 3...) e um **selo** com o número no canto do token.
+- **Colocar vários…** (1 a 20) no menu do NPC e no cabeçalho da ficha; um pedido só.
+- **Ctrl+D**, **Alt+arrastar**, **Ctrl+C** e **Ctrl+V** nos tokens (mestre), inclusive de uma cena para outra; **Shift ou Ctrl+clique** soma tokens à seleção.
+- A ficha aberta por um token mostra a faixa **"Este token"** (vida dele, editável); os PV da ficha viram "do modelo".
+- A vida do token de NPC só chega ao jogador que receberia a vida da ficha (filtro na sala, com teste dos frames).
+- MCP: `tokens` com `colocar[].quantidade`, `copiar` e `pvTemp`; `fichas` com `vidaPorToken`.
+
+### Como rodar
+`pnpm dev` como sempre. **Sem migração**: os campos novos são opcionais no JSON do token e do personagem (campanha antiga e exportações antigas carregam). Testes em outras portas: `E2E_PORTA_SALA=8790 E2E_PORTA_WEB=5176`. Roteiro: "Q10" em `docs/ROTEIRO-DE-TESTES.md`.
+
+### Verificação
+Ver o relatório do lote.
+
+### Decisões
+Ver `REDESIGN.md` ("Q10 — como ficou").
+
+### Desvios
+- O brief falava em "tokens selecionados", mas só havia seleção de um token: entrou Shift ou Ctrl+clique para somar à seleção (sem laço).
+- "Aplicar dano/cura do chat" não existe no código: nada a auditar ali.
+
+### Frágil
+Ver `PASSAGEM.md` ("Q10").
+
+### Roteiro manual
+`docs/ROTEIRO-DE-TESTES.md`, "Q10".
+
+## Próximo: o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b, N4, N5, M1, M2, Q1, Q2, Q3, Q4, Q5, Q6, Q7, Q8, Q9 e Q10

@@ -14,6 +14,8 @@ export type AbaDaFicha = (typeof ABAS_DA_FICHA)[number][0];
 export type JanelaDeFicha = {
   personagemId: string;
   aba: AbaDaFicha;
+  /** Q10: o token do mapa de onde a ficha foi aberta (o botão direito "Abrir ficha" ou a CA): a faixa "Este token" mostra a vida dele. */
+  tokenId?: string | undefined;
 };
 
 /** Abaixo disso a ficha vira o layout estreito (cabeçalho grudado e acordeão), pela medida da janela. */
@@ -36,15 +38,16 @@ export const idDaJanelaDaFicha = (personagemId: string) => `ficha:${personagemId
 export function useJanelasDeFicha() {
   const [janelas, setJanelas] = useState<JanelaDeFicha[]>([]);
 
-  const abrir = useCallback((personagemId: string, aba?: AbaDaFicha) => {
+  const abrir = useCallback((personagemId: string, aba?: AbaDaFicha, tokenId?: string) => {
     trazerParaFrente(idDaJanelaDaFicha(personagemId));
     setJanelas((atuais) => {
       if (atuais.some((j) => j.personagemId === personagemId)) {
-        return aba
-          ? atuais.map((j) => (j.personagemId === personagemId ? { ...j, aba } : j))
-          : atuais;
+        // Q10: abrir pelo token liga a faixa dele; abrir pela lista (sem token) a tira.
+        return atuais.map((j) =>
+          j.personagemId === personagemId ? { ...j, ...(aba ? { aba } : {}), tokenId } : j,
+        );
       }
-      return [...atuais, { personagemId, aba: aba ?? "principal" }];
+      return [...atuais, { personagemId, aba: aba ?? "principal", tokenId }];
     });
   }, []);
 

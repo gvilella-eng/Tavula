@@ -202,14 +202,15 @@ test("fichas: um clique no item abre a ficha; dois cliques abrem uma só; Enter 
   await expect(janelas).toHaveCount(0);
 
   // arrastar o item (pelo nome) para o mapa cria o token e não abre a ficha
-  const nomeDoOgro = "Ogro";
-  const antesDoToken = (await tokensDe(p)).filter((t) => t.nome === nomeDoOgro).length;
+  // Q10: o NPC solto de novo é numerado ("Ogro 2")
+  const ehOgro = (nome: string) => /^Ogro( \d+)?$/.test(nome);
+  const antesDoToken = (await tokensDe(p)).filter((t) => ehOgro(t.nome)).length;
   const alvo = await pontoNaPagina(p, 18.75, 14.25);
   await p.getByTestId("ficha-abrir-pers-ogro").dragTo(p.getByTestId("mapa"), {
     targetPosition: await noElementoDoMapa(p, alvo),
   });
   await expect
-    .poll(async () => (await tokensDe(p)).filter((t) => t.nome === nomeDoOgro).length)
+    .poll(async () => (await tokensDe(p)).filter((t) => ehOgro(t.nome)).length)
     .toBe(antesDoToken + 1);
   await expect(janelas).toHaveCount(0);
 });

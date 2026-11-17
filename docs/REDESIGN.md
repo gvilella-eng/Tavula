@@ -2204,3 +2204,47 @@ Três pedidos do Vilella num lote só: o jogador põe o token dele em qualquer c
 
 **O que ficou para depois**
 - Escolher onde fica o token do jogador dentro da área da bandeira (hoje a sala arruma).
+
+## Q10 — como ficou (2026-11-17): hordas, com vida própria por token, numeração, pôr vários, duplicar e Ctrl+C / Ctrl+V
+
+O Vilella perguntou se dá para puxar vários tokens do mesmo monstro. Dava, mas todos apontavam para a mesma ficha: a vida era da ficha (dano em um descia a de todos) e todos tinham o mesmo nome. Ele aprovou a proposta (vida própria por token, numeração, pôr vários, duplicar) e pediu Ctrl+C e Ctrl+V nos tokens.
+
+**O que foi feito**
+- **Vida própria por token de NPC.** `Token.pv?: { atual, max, temp? }` (aditivo). O token de NPC (personagem sem editores) nasce com a cópia dos PV da ficha naquele momento; a ficha vira o **modelo**. A ficha ganha `Personagem.vidaPorToken?` (sem o campo = ligado): "Cada token com a sua vida (horda)", na aba Configurar do NPC (só o mestre). Desligado, os tokens leem a vida da ficha, como antes (o vilão único). Personagem de jogador sempre lê a ficha. Regra em `hordas.ts` (`vidaDoToken`, `usaVidaPorToken`). Token de campanha antiga (sem `pv`) lê a ficha; a primeira edição o grava no token. Sem migração.
+- **Intenção `token.vida`** `{ id, atual?, max?, temp? }` (valores absolutos): o mestre ou quem edita o personagem. A marca de vida em cima do token (e a tecla E, com `-7` e `+3`) manda `token.vida` quando a vida é do token e `ficha.alterar` quando é da ficha.
+- **Ficha aberta por um token.** "Abrir ficha" do botão direito e a CA da marca de vida abrem a ficha com o `tokenId` na janela: no alto, a faixa "Este token: Goblin 3 · PV 4/7" (PV, máximo e temporários editáveis); os PV da ficha embaixo se chamam "do modelo". Abrir pela lista de Fichas tira a faixa. As condições da ficha passam a ser as desse token.
+- **Numeração na sala.** Ao pôr um NPC onde já há outro token do mesmo personagem na cena, ele ganha "Nome N" com o menor N livre a partir de 2; o primeiro fica sem número e ninguém é renomeado; é por cena e a sala numera (dois pedidos em seguida não repetem). `Token.numero?` guarda o número do selo, a bolinha escura no canto direito do token (visível a quem vê o token).
+- **Pôr vários** (`personagem.colocarVarios`, 1 a 20): "Colocar vários…" no menu do NPC da lista de Fichas e no cabeçalho da ficha (ícone de pessoas). Pergunta a quantidade (padrão 4) e põe tudo arrumado no grid (`arrumarNoGrid`) no centro da vista, na cena que o mestre vê, num pedido só.
+- **Duplicar, copiar e colar** (`token.copiar`): Ctrl+D duplica a seleção um quadrado ao lado (o grupo inteiro, ao lado do grupo); Alt+arrastar deixa o original e solta uma cópia onde se solta; Ctrl+C copia (na memória da aba) e Ctrl+V cola com o centro do grupo no ponteiro (sem ele, no centro da tela), encaixado, **na cena que o mestre está vendo** (copiar na A e colar na B funciona; a numeração recomeça na cena nova). A cópia é igual ao original (tamanho, camada, oculto, condições, vida de agora, imagem, quem controla). Só o mestre. Fora de campo de texto, chat e ficha (lá Ctrl+C e Ctrl+V são os de texto).
+- **Seleção de vários tokens.** Não existia: Shift ou Ctrl+clique soma (ou tira) um token à seleção (o mestre); o anel dourado vale para todos; Delete tira todos (com Desfazer para todos). O principal segue sendo o do painel, das marcas e das setas.
+- **Segredo.** `tokenParaUsuario` (em `hordas.ts`) tira o `pv` do token para quem não receberia a vida da ficha (não vê o personagem ou não vê a ficha: pasta do mestre ou sem `ficha.verOutras`). Vale no snapshot e nos eventos `token.criado` e `token.editado`; sem o estado de antes e de depois a sala falha fechada. Mudar a pasta ou os editores do NPC manda snapshot novo.
+- **MCP** (paridade): `tokens.colocar[].quantidade` (horda), `tokens.copiar` (com `quantidade` e `paraCena`), `tokens.tokens[].pvTemp`; `pv`/`pvMax` de um token de NPC com vida própria vão para `token.vida`; `fichas` aceita `vidaPorToken`. `token.criar` de NPC (o que o Claude usa em `cenas`) também nasce com a vida do modelo.
+
+**Auditoria de quem lê ou escreve a vida a partir de um token**
+- Marca de vida do token (`MarcasDoToken`): mudou, usa a vida do token. É o único lugar do mapa que mostra PV.
+- Ficha aberta pelo token: mudou (faixa e "do modelo").
+- Aplicar dano ou cura pelo chat: **não existe** no código (o balão de ataque só mostra o dano); nada a mudar. O dado de vida (`ficha.dadoDeVida`) e o descanso mexem na ficha do personagem (o modelo, no NPC); ficou assim (assumido).
+- Ordem de turno: não mostra PV; usa o nome do token (numerado) e a Destreza da ficha. Sem mudança.
+- Automações (`automacoesnucleo.ts`, efeitos temporários): não leem nem escrevem PV. Sem mudança.
+- Marca de morto: o destaque do botão "morto" quando a vida zera usa a vida do token. Não há morte automática.
+- MCP: `tokens` (mudou), `fichas` (`pv` da ficha segue sendo o modelo), `ler` e `panorama` não listam vida de token.
+
+**Decisões (assumido)**
+- "Ligada por padrão" para NPC; sem o campo no personagem vale ligado.
+- Nome do primeiro token sem número; o menor número livre a partir de 2 (o nome sozinho conta como 1); nome que o mestre mudou não conta como ocupado.
+- A cópia de um NPC numera pelo nome-base do original ("Goblin 3" copia como "Goblin N"); token sem personagem e personagem de jogador mantêm o nome. O personagem de jogador segue com um token só por cena (Q8): copiá-lo para uma cena onde ele já está é recusado (revisão do Opus).
+- O número do selo fica mesmo se o mestre renomear; o primeiro token não tem selo.
+- A cópia leva o `pv` do original; a luz presa ao token **não** é copiada.
+- Colar sem nada copiado, ou com os tokens copiados já apagados, não faz nada (avisa no segundo caso). A área de transferência é só da aba.
+- Alt+arrastar com vários selecionados copia todos; o original arrastado volta ao lugar quando se solta (sem fantasma durante o arrasto).
+- Com Alt na hora de pegar um token o mestre copia; o Alt de inverter o encaixe segue valendo no resto do mapa.
+- Duplicar vai um quadrado à direita (grupo: a largura do grupo); sem espaço à direita, vai para a esquerda.
+- Colocar vários: padrão 4; o centro da vista é o centro da tela do mestre, na cena que ele vê.
+- A ficha na janela própria do navegador não tem a faixa nem o "Colocar vários" (falam com o mapa desta aba).
+- `vidaPorToken` só o mestre muda.
+
+**O que ficou para depois**
+- Selecionar vários com o laço (arrastar um retângulo no fundo).
+- Aplicar dano em lote (selecionar a horda e dar o mesmo dano).
+- Mover a seleção inteira de uma vez e as setas com vários.
+- Mostrar uma barrinha de vida no token (hoje só a marca em cima do token selecionado).

@@ -74,6 +74,35 @@ export const ATALHOS = {
     teclas: [["←"], ["↑"], ["↓"], ["→"]],
     juntas: true,
   },
+  selecionarMais: {
+    descricao: "Somar um token à seleção (ou tirá-lo dela) com o clique (mestre)",
+    grupo: "Mapa",
+    teclas: [
+      ["Shift", "clique"],
+      ["Ctrl", "clique"],
+    ],
+  },
+  duplicarToken: {
+    descricao: "Duplicar os tokens selecionados, um quadrado ao lado (mestre)",
+    grupo: "Mapa",
+    teclas: [["Ctrl", "D"]],
+  },
+  copiarToken: {
+    descricao: "Copiar os tokens selecionados (a área de transferência é só desta aba; mestre)",
+    grupo: "Mapa",
+    teclas: [["Ctrl", "C"]],
+  },
+  colarToken: {
+    descricao:
+      "Colar os tokens copiados na cena que você vê, no ponteiro do mouse (ou no centro da tela); vale também em outra cena (mestre)",
+    grupo: "Mapa",
+    teclas: [["Ctrl", "V"]],
+  },
+  copiarArrastando: {
+    descricao: "Arrastar um token com Alt apertado: deixa o original e solta uma cópia (mestre)",
+    grupo: "Mapa",
+    teclas: [["Alt", "arrastar"]],
+  },
   editarVida: {
     descricao:
       "Editar a vida do token selecionado (valor, ou -7 e +3 para tirar e somar); Enter grava, Esc cancela",
@@ -93,7 +122,8 @@ export const ATALHOS = {
     teclas: [["Shift", "P"]],
   },
   encaixe: {
-    descricao: "Segurar ao arrastar ou clicar: inverte o encaixe no grid",
+    descricao:
+      "Segurar ao arrastar ou clicar: inverte o encaixe no grid (ao pegar um token, o mestre faz uma cópia)",
     grupo: "Mapa",
     teclas: [["Alt"]],
   },

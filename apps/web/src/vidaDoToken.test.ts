@@ -1,5 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { operacoesDaVida } from "./vidaDoToken";
+import { mudancasDaVidaDoToken, operacoesDaVida } from "./vidaDoToken";
+
+describe("mudancasDaVidaDoToken (Q10)", () => {
+  const vida = { atual: 12, max: 20, temp: 0 };
+  it("vira valores absolutos para o token.vida", () => {
+    expect(mudancasDaVidaDoToken("-7", vida)).toEqual({ atual: 5 });
+    expect(mudancasDaVidaDoToken("+50", vida)).toEqual({ atual: 20 });
+    expect(mudancasDaVidaDoToken("12", vida)).toEqual({});
+    expect(mudancasDaVidaDoToken("-4", { ...vida, temp: 3 })).toEqual({ atual: 11, temp: null });
+    expect(mudancasDaVidaDoToken("x", vida)).toBeNull();
+  });
+});
 
 const ficha = { pvAtual: 12, pvMax: 20 };
 

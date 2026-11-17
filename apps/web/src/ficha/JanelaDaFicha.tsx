@@ -7,6 +7,7 @@ import {
   descansoCurto,
   descansoLongo,
   type Estado,
+  ehPersonagemDeJogador,
   operacoesDeDiferenca,
   type Personagem,
   pode,
@@ -16,8 +17,18 @@ import {
   type Usuario,
   VANTAGENS,
   type Vantagem,
+  vidaDoToken,
 } from "@tabletop/shared";
-import { AppWindow, BedDouble, BookOpen, Coffee, MapPin, Settings, Undo2 } from "lucide-react";
+import {
+  AppWindow,
+  BedDouble,
+  BookOpen,
+  Coffee,
+  MapPin,
+  Settings,
+  Undo2,
+  Users,
+} from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { Fontes } from "../assets/fontes";
 import type { GerenteDeAssets } from "../assets/gerente";
@@ -54,6 +65,7 @@ import { exportarFicha, lerFichaDoArquivo } from "./arquivo";
 import { BlocoDoNpc, npcMostraConjuracao } from "./BlocoDoNpc";
 import { CampoNumero } from "./campos";
 import type { AlvoDoEditor } from "./EditorDeAtaque";
+import { FaixaDoToken } from "./FaixaDoToken";
 import {
   ABAS_DA_FICHA,
   type AbaDaFicha,
@@ -98,6 +110,8 @@ type Props = {
   aoMudar: (mudancas: Partial<JanelaDeFicha>) => void;
   /** V9: o ícone "Abrir em janela própria" do cabeçalho (só na mesa; a janela própria não o tem). */
   aoAbrirEmJanela?: () => void;
+  /** Q10: "Colocar vários…" no cabeçalho do NPC (só o mestre): abre a pergunta da quantidade. */
+  aoColocarVarios?: (() => void) | undefined;
   /**
    * V9: a ficha na janela própria do navegador. Em vez da `Janela` flutuante, ela ocupa a página inteira, com o
    * cabeçalho e o ícone "Voltar para a mesa".
@@ -161,6 +175,7 @@ export function JanelaDaFicha({
   aoFechar,
   aoMudar,
   aoAbrirEmJanela,
+  aoColocarVarios,
   propria,
 }: Props) {
   const editar = podeEditarPersonagem(p, eu);
@@ -194,6 +209,14 @@ export function JanelaDaFicha({
         ? "magias"
         : "principal"
       : janela.aba;
+  // Q10: a ficha aberta por um token de NPC com vida própria (horda) mostra no alto a vida DESTE token; os PV da ficha
+  // viram os do modelo.
+  const tokenDaFaixa = janela.tokenId
+    ? estado.tokens.find((t) => t.id === janela.tokenId && t.personagemId === p.id)
+    : undefined;
+  const vidaDaFaixa = tokenDaFaixa ? vidaDoToken(tokenDaFaixa, p) : undefined;
+  const faixaDoToken =
+    tokenDaFaixa && vidaDaFaixa?.propria ? { token: tokenDaFaixa, vida: vidaDaFaixa } : null;
   const { ref: raiz, largura } = useLargura<HTMLDivElement>();
   const estreita = largura !== null && largura < LARGURA_DA_FICHA_ESTREITA;
   // Trocar de aba volta ao topo (cada aba é uma página) e fecha o editor da engrenagem.
@@ -262,8 +285,11 @@ export function JanelaDaFicha({
     fecharEditor: () => setEditorAberto(null),
     avisar,
     luz: { estado, eu, personagem: p, tempo },
-    // As condições moram no token: o do personagem na cena ativa (o que quem olha recebe).
-    token: estado.tokens.find((t) => t.personagemId === p.id && t.cenaId === estado.cenaAtivaId),
+    // As condições moram no token: o de onde a ficha foi aberta (Q10) ou o do personagem na cena ativa.
+    token:
+      tokenDaFaixa ??
+      estado.tokens.find((t) => t.personagemId === p.id && t.cenaId === estado.cenaAtivaId),
+    pvDoModelo: faixaDoToken !== null,
   };
 
   function confirmarDescanso() {
@@ -385,6 +411,17 @@ export function JanelaDaFicha({
           <MapPin size={16} />
         </BotaoComDica>
       )}
+      {aoColocarVarios && !ehPersonagemDeJogador(p) && (
+        <BotaoComDica
+          className="botao-icone"
+          testid="ficha-colocar-varios"
+          nome="Colocar vários…"
+          aria-label="Colocar vários no mapa"
+          onClick={aoColocarVarios}
+        >
+          <Users size={16} />
+        </BotaoComDica>
+      )}
       {aoAbrirEmJanela && (
         <BotaoComDica
           className="botao-icone"
@@ -406,6 +443,14 @@ export function JanelaDaFicha({
       data-estreita={estreita}
       data-testid="ficha-raiz"
     >
+      {faixaDoToken && (
+        <FaixaDoToken
+          token={faixaDoToken.token}
+          vida={faixaDoToken.vida}
+          editar={editar}
+          enviar={enviar}
+        />
+      )}
       {temFicha && !npc && !estreita && (
         <header className="fl-cab fl-cab-larga" data-testid="ficha-cabecalho">
           {fitas}
@@ -584,6 +629,32 @@ export function JanelaDaFicha({
                   <span className="fl-dica fl-conf-dica">
                     Só muda como a ficha se mostra: o bloco de monstro ou a ficha de personagem. Os
                     dados são os mesmos.
+                  </span>
+                </div>
+              </Caixa>
+            )}
+            {temFicha && eu.papel === "mestre" && !ehPersonagemDeJogador(p) && (
+              <Caixa moldura className="fl-conf-caixa" testid="ficha-vida-por-token-caixa">
+                <Secao>Vida dos tokens</Secao>
+                <div className="fl-conf-linha">
+                  <label className="fl-conf-marca">
+                    <input
+                      type="checkbox"
+                      data-testid="vida-por-token"
+                      checked={p.vidaPorToken !== false}
+                      onChange={(e) =>
+                        enviar("personagem.editar", {
+                          id: p.id,
+                          mudancas: { vidaPorToken: e.target.checked },
+                        })
+                      }
+                    />{" "}
+                    Cada token com a sua vida (horda)
+                  </label>
+                  <span className="fl-dica fl-conf-dica">
+                    Ligado, cada token que você põe no mapa copia os PV desta ficha e leva a própria
+                    vida: o dano no Goblin 3 não mexe no Goblin 4. Desligado, todos os tokens usam a
+                    vida da ficha, como no vilão único.
                   </span>
                 </div>
               </Caixa>

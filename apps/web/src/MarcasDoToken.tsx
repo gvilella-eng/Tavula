@@ -1,10 +1,15 @@
-import { derivar, type Personagem, type Token } from "@tabletop/shared";
+import {
+  derivar,
+  type Personagem,
+  type Token,
+  vidaDoToken as vidaDoTokenNaMesa,
+} from "@tabletop/shared";
 import { Heart, Shield, Skull } from "lucide-react";
 import { type RefObject, useEffect, useRef, useState } from "react";
 import { BotaoComDica } from "./BotaoComDica";
 import type { MapaPixi } from "./mapa/mapaPixi";
 import { haDialogoAberto } from "./useDialogo";
-import { operacoesDaVida } from "./vidaDoToken";
+import { mudancasDaVidaDoToken, operacoesDaVida } from "./vidaDoToken";
 
 type Props = {
   mapa: RefObject<MapaPixi | null>;
@@ -12,7 +17,7 @@ type Props = {
   personagem: Personagem;
   enviar: (tipo: string, dados: object) => string | null;
   /** Um clique na CA abre a ficha do personagem. */
-  aoAbrirFicha: (personagemId: string) => void;
+  aoAbrirFicha: (personagemId: string, aba?: undefined, tokenId?: string) => void;
 };
 
 /** Folga (px) entre a borda do token e as marcas, para não cobrir as tochas dos cantos de cima. */
@@ -30,6 +35,8 @@ export function MarcasDoToken({ mapa, token, personagem, enviar, aoAbrirFicha }:
   const [editando, setEditando] = useState(false);
   const [texto, setTexto] = useState("");
   const ficha = personagem.ficha;
+  // Q10: a vida que vale para ESTE token (a própria, num NPC de horda; senão a da ficha).
+  const vida = vidaDoTokenNaMesa(token, personagem);
 
   // Segue o token a cada quadro: posição direto no estilo, dentro da área do mapa.
   const tokenId = token.id;
@@ -58,8 +65,8 @@ export function MarcasDoToken({ mapa, token, personagem, enviar, aoAbrirFicha }:
   }, [mapa, tokenId]);
 
   const abrirEdicao = () => {
-    if (!ficha) return;
-    setTexto(String(ficha.pvAtual));
+    if (!ficha || !vida) return;
+    setTexto(String(vida.atual));
     setEditando(true);
   };
   // O campo aberto vem selecionado, pronto para digitar por cima.
@@ -88,20 +95,28 @@ export function MarcasDoToken({ mapa, token, personagem, enviar, aoAbrirFicha }:
     return () => window.removeEventListener("keydown", ouvir);
   }, []);
 
-  if (!ficha) return null;
+  if (!ficha || !vida) return null;
   const d = derivar(ficha);
 
   function gravar() {
-    if (!ficha) return;
+    if (!ficha || !vida) return;
+    if (vida.propria) {
+      // Q10: a vida é do token (horda): o dano num Goblin não toca nos outros nem na ficha.
+      const m = mudancasDaVidaDoToken(texto, vida);
+      if (m === null) return;
+      if (Object.keys(m).length > 0) enviar("token.vida", { id: token.id, ...m });
+      setEditando(false);
+      return;
+    }
     const ops = operacoesDaVida(texto, ficha);
     if (ops === null) return; // texto inválido: o campo continua aberto
     if (ops.length > 0) enviar("ficha.alterar", { personagemId: personagem.id, operacoes: ops });
     setEditando(false);
   }
 
-  const zerou = ficha.pvAtual === 0 && token.morto !== true;
-  const temp = ficha.pvTemp ?? 0;
-  const rotuloDaVida = `Vida ${ficha.pvAtual} de ${ficha.pvMax}${temp > 0 ? `, mais ${temp} temporários` : ""}`;
+  const zerou = vida.atual === 0 && token.morto !== true;
+  const temp = vida.temp;
+  const rotuloDaVida = `Vida ${vida.atual} de ${vida.max}${temp > 0 ? `, mais ${temp} temporários` : ""}`;
 
   return (
     <div
@@ -144,7 +159,7 @@ export function MarcasDoToken({ mapa, token, personagem, enviar, aoAbrirFicha }:
           onClick={abrirEdicao}
         >
           <Heart size={14} aria-hidden />
-          <span data-testid="marca-vida-valor">{ficha.pvAtual}</span>
+          <span data-testid="marca-vida-valor">{vida.atual}</span>
           {temp > 0 && <span className="mvc-temp">+{temp}</span>}
         </BotaoComDica>
       )}
@@ -153,7 +168,7 @@ export function MarcasDoToken({ mapa, token, personagem, enviar, aoAbrirFicha }:
         className="mvc-marca mvc-ca"
         nome={`Classe de armadura ${d.ca}. Abre a ficha`}
         aria-label={`Classe de armadura ${d.ca}. Abre a ficha`}
-        onClick={() => aoAbrirFicha(personagem.id)}
+        onClick={() => aoAbrirFicha(personagem.id, undefined, token.id)}
       >
         <Shield size={14} aria-hidden />
         <span data-testid="marca-ca-valor">{d.ca}</span>

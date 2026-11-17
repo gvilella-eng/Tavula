@@ -656,3 +656,15 @@ Antes de tudo: tenha na pasta `sons/` (ou à mão) uns 6 arquivos de áudio: 2 o
 3. **Levar o grupo.** Com o Aldric tendo token na A e na B, leve o grupo de uma cena para a outra e de volta: o token de cada cena fica na sua cena, sem duplicar.
 4. **Automações.** Como mestre, o botão "Automações" fica na barra de cima, antes de "Ver como". Ele abre e fecha a janela; crie uma reação por ela. O jogador não vê o botão. Na aba Mesa, o cartão Automações tem a frase e o botão que abre a mesma janela.
 5. **Aba Mesa.** Parece da mesma família das Preferências: cartões com ícone e resumo; só "Esta mesa" abre por padrão; cada cartão abre e fecha no título (e lembra depois de recarregar). Confira Regras (rótulos curtos, ajuda embaixo), Luz, Pessoas (papéis, contas, capacidades), Campanha (exportar e importar) e Diagnóstico. "Modelos de tocha…" (Luz) abre o cartão da Luz.
+
+## Q10 — Hordas: vida por token, numeração, pôr vários, duplicar e Ctrl+C / Ctrl+V
+
+1. **Pôr vários.** Como mestre, crie um NPC (ou arraste um monstro do Compêndio). Na aba Fichas, clique com o botão direito no NPC: "Colocar vários…". Digite 5 e Enter: cinco tokens arrumados no centro da tela, "Goblin", "Goblin 2"... "Goblin 5", com o número num selo escuro no canto direito de cada um (o primeiro sem selo). Pelo cabeçalho da ficha o botão de pessoas faz o mesmo.
+2. **Vida própria.** Selecione o Goblin 3, aperte E, digite -3 e Enter: só a vida dele desce (veja no Goblin 2). Na lista de Fichas a ficha continua com os PV de antes.
+3. **Ficha pelo token.** Botão direito no Goblin 3, "Abrir ficha": no alto da ficha, "Este token: Goblin 3 · PV 4/7", editável; os PV de baixo dizem "do modelo". Abrir a mesma ficha pela lista tira a faixa.
+4. **Vilão único.** Na Configurar do NPC, desligue "Cada token com a sua vida (horda)": os tokens passam a usar a vida da ficha (dano em um desce em todos). Ligue de novo.
+5. **Duplicar.** Selecione um token ferido e aperte Ctrl+D: nasce ao lado, igual (mesma vida, tamanho, condições) com o próximo número. Alt e arraste um token: ele fica e uma cópia nasce onde você soltou.
+6. **Copiar e colar.** Shift ou Ctrl+clique soma um segundo token à seleção. Ctrl+C, mexa o mouse para outro lugar do mapa e Ctrl+V: os dois aparecem com o mesmo arranjo, o centro do grupo no mouse. Vá olhar outra cena (botão direito no card, "Ir") e Ctrl+V de novo: colam lá, e a numeração recomeça (Goblin, Goblin 2).
+7. **Texto continua texto.** Digite no chat, selecione, Ctrl+C e Ctrl+V: é o texto de sempre; nenhum token é copiado nem colado.
+8. **Jogador.** Como jogador, Ctrl+D, Ctrl+C e Ctrl+V não fazem nada. Ele vê o nome e o selo dos Goblins, mas não vê a vida deles (nem com a ficha aberta), a não ser que veja a ficha do NPC (pasta visível e "Ver fichas dos outros").
+9. **Claude.** Peça "põe 6 goblins na Eclusa" (`tokens` com `quantidade`) e "duplica o Goblin 2 duas vezes": tudo num passo do Desfazer.

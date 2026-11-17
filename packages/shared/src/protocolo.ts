@@ -78,6 +78,7 @@ import {
   MAXIMO_DE_OPERACOES,
   OperacaoDeFichaSchema,
 } from "./ficha.ts";
+import { MAXIMO_DE_TOKENS_POR_VEZ } from "./hordas.ts";
 import { ImportacaoDeMapaSchema } from "./importarUvtt.ts";
 import { CENA_PADRAO } from "./mapa.ts";
 import {
@@ -477,6 +478,8 @@ const MudancasDoPersonagemSchema = z
     modInteligencia: PersonagemSchema.shape.modInteligencia.unwrap(),
     pvAtual: FichaSchema.shape.pvAtual,
     pvMax: FichaSchema.shape.pvMax,
+    /** Q10: `false` desliga a vida própria por token de um NPC (os tokens leem a ficha). */
+    vidaPorToken: z.boolean(),
   })
   .partial();
 
@@ -649,6 +652,55 @@ export const IntencaoSchema = z.discriminatedUnion("tipo", [
       tokenId: IdSchema,
       x: z.number().optional(),
       y: z.number().optional(),
+    }),
+  ),
+  /**
+   * Q10: põe de 1 a 20 tokens de um NPC de uma vez, arrumados no grid a partir de `x`,`y` (sem eles, a chegada da cena),
+   * numerados pela sala ("Goblin", "Goblin 2"...). Um pedido só: um passo do Desfazer. Só o mestre (`cena.editar`).
+   */
+  intencao(
+    "personagem.colocarVarios",
+    z.object({
+      personagemId: IdSchema,
+      cenaId: IdSchema,
+      tokenIds: z.array(IdSchema).min(1).max(MAXIMO_DE_TOKENS_POR_VEZ),
+      x: z.number().finite().optional(),
+      y: z.number().finite().optional(),
+    }),
+  ),
+  /**
+   * Q10: copia tokens para a cena `cenaId` (a mesma ou outra): duplicar, Alt+arrastar, Ctrl+C e Ctrl+V. Por item, o
+   * token de origem, o id novo e o centro do lugar novo. A sala copia os campos da origem (tamanho, camada, oculto,
+   * condições, vida própria de agora, imagem, quem controla) e numera o NPC. Só o mestre (`cena.editar`).
+   */
+  intencao(
+    "token.copiar",
+    z.object({
+      cenaId: IdSchema,
+      itens: z
+        .array(
+          z.object({
+            origemId: IdSchema,
+            id: IdSchema,
+            x: z.number().finite(),
+            y: z.number().finite(),
+          }),
+        )
+        .min(1)
+        .max(50),
+    }),
+  ),
+  /**
+   * Q10: a vida própria de um token de NPC (valores absolutos; o atual nunca passa do máximo, o temporário `null`
+   * ou 0 tira). O mestre ou quem edita o personagem; recusa se o personagem usa a vida da ficha.
+   */
+  intencao(
+    "token.vida",
+    z.object({
+      id: IdSchema,
+      atual: z.number().int().min(0).max(9999).optional(),
+      max: z.number().int().min(0).max(9999).optional(),
+      temp: z.number().int().min(0).max(9999).nullable().optional(),
     }),
   ),
   /**
@@ -1112,6 +1164,10 @@ export const capacidadeDaIntencao: Record<TipoIntencao, Capacidade | null> = {
   "handout.mostrar": "mesa.configurar",
   "ordemDeTurno.definir": "mesa.configurar",
   "personagem.colocar": "cena.editar",
+  "personagem.colocarVarios": "cena.editar",
+  "token.copiar": "cena.editar",
+  // Q10: o mestre ou quem edita o personagem; `processar` confere.
+  "token.vida": null,
   // Quem edita ou o mestre: a capacidade não diz quem edita; `processar` confere.
   "ficha.alterar": null,
   "ficha.dadoDeVida": null,

@@ -81,6 +81,16 @@ import {
   modelosAumentados,
   novasDoModelo,
 } from "./ficha.ts";
+import {
+  aplicarNaVida,
+  copiaDoToken,
+  nomeBaseDoToken,
+  nomeNumerado,
+  pvInicialDoToken,
+  tokenParaUsuario,
+  usaVidaPorToken,
+  vidaDoToken,
+} from "./hordas.ts";
 import { fatorDeLuzDa, luzAmbienteDa, luzVisivelPara } from "./luz.ts";
 import {
   arrumarNoGrid,
@@ -1023,11 +1033,16 @@ function tokenDoPersonagem(
   cena: Cena,
   tokenId: string,
   base: { x: number; y: number },
+  /** Q10: o nome e o número que a numeração deu (NPC onde já há outro do mesmo personagem). */
+  numeracao?: { nome: string; numero?: number },
 ): Token {
+  const pv = pvInicialDoToken(p);
   return {
     id: tokenId,
     cenaId: cena.id,
-    nome: p.nome,
+    nome: numeracao?.nome ?? p.nome,
+    ...(numeracao?.numero === undefined ? {} : { numero: numeracao.numero }),
+    ...(pv ? { pv } : {}),
     cor: p.tokenPadrao.cor,
     tamanhoQuadrados: p.tokenPadrao.tamanhoQuadrados,
     ...limitarNaCena(base, cena),
@@ -1236,7 +1251,17 @@ function processarIntencao(
       if (novo.assetHash !== undefined && !imagemDeTokenExiste(estado, novo.assetHash)) {
         return recusa("asset_inexistente", "Imagem não encontrada.");
       }
-      const token: Token = { ...novo, ...limitarNaCena(novo, cena), cenaId: cena.id };
+      // Q10: token de NPC nasce com a vida própria (cópia da ficha), se o pedido não trouxe uma.
+      const pvDoModelo =
+        novo.pv === undefined && novo.personagemId !== undefined
+          ? pvInicialDoToken(personagemDe(estado, novo.personagemId))
+          : undefined;
+      const token: Token = {
+        ...novo,
+        ...(pvDoModelo ? { pv: pvDoModelo } : {}),
+        ...limitarNaCena(novo, cena),
+        cenaId: cena.id,
+      };
       emitir({ tipo: "token.criado", dados: { token } });
       return aplicado();
     }
@@ -1528,7 +1553,7 @@ function processarIntencao(
         }
         const propria = atual.criadoPor === usuario.id;
         const livres = propria
-          ? (k: string) => k !== "editores" && k !== "pastaId"
+          ? (k: string) => k !== "editores" && k !== "pastaId" && k !== "vidaPorToken"
           : (k: string) => k === "assetHash" || k === "retratoHash";
         if (Object.keys(semIndefinidos(m)).some((k) => !livres(k))) {
           return recusa("sem_permissao", "Só o mestre muda isso.");
@@ -1582,6 +1607,7 @@ function processarIntencao(
             }
           : {}),
         ...(m.modInteligencia === undefined ? {} : { modInteligencia: m.modInteligencia }),
+        ...(m.vidaPorToken === undefined ? {} : { vidaPorToken: m.vidaPorToken }),
       });
       if (JSON.stringify(personagem) === JSON.stringify(atual)) return aplicado();
       emitir({ tipo: "personagem.alterado", dados: { personagem } });
@@ -1598,7 +1624,11 @@ function processarIntencao(
           }
         }
       }
-      return aplicado();
+      // Q10: a vida própria dos tokens dele só chega a quem vê a ficha: se isso mudou, cada jogador recebe snapshot novo.
+      const temVidaNosTokens = estado.tokens.some(
+        (t) => t.personagemId === personagem.id && t.pv !== undefined,
+      );
+      return aplicado(mudouQuemVe && temVidaNosTokens ? "todos" : []);
     }
 
     case "ficha.alterar": {
@@ -1863,8 +1893,136 @@ function processarIntencao(
               p.tokenPadrao.tamanhoQuadrados,
               cena.grid.quadradoM,
             );
-      const token = tokenDoPersonagem(p, cena, tokenId, base);
+      const numeracao = ehPersonagemDeJogador(p)
+        ? undefined
+        : nomeNumerado(estado.tokens, cena.id, p.id, p.nome);
+      const token = tokenDoPersonagem(p, cena, tokenId, base, numeracao);
       emitir({ tipo: "token.criado", dados: { token } });
+      return aplicado();
+    }
+
+    case "personagem.colocarVarios": {
+      // Q10: de 1 a 20 tokens de um NPC de uma vez, arrumados no grid e numerados na sala (um pedido só).
+      const { personagemId, cenaId, tokenIds, x, y } = intencao.dados;
+      const p = personagemDe(estado, personagemId);
+      if (!p) return recusa("personagem_inexistente", SEM_PERSONAGEM);
+      const cena = estado.cenas.find((c) => c.id === cenaId);
+      if (!cena) return recusa("cena_inexistente", SEM_CENA);
+      if (new Set(tokenIds).size !== tokenIds.length) {
+        return recusa("dados_invalidos", "Ids de token repetidos.");
+      }
+      if (tokenIds.some((id) => estado.tokens.some((t) => t.id === id))) {
+        return recusa("dados_invalidos", "Já existe um token com esse id.");
+      }
+      if ((x === undefined) !== (y === undefined)) {
+        return recusa("dados_invalidos", "Informe o ponto inteiro (x e y) ou nenhum.");
+      }
+      const jogador = ehPersonagemDeJogador(p);
+      // O personagem de jogador tem um token por cena (Q8): em lote só entra um, o que ainda falta.
+      if (
+        jogador &&
+        (tokenIds.length > 1 ||
+          estado.tokens.some((t) => t.cenaId === cena.id && t.personagemId === p.id))
+      ) {
+        return recusa(
+          "dados_invalidos",
+          "Personagem de jogador tem um token só por cena; para vários, use um NPC.",
+        );
+      }
+      const centro = x !== undefined && y !== undefined ? { x, y } : chegadaDaCena(cena);
+      const naCena = estado.tokens.filter((t) => t.cenaId === cena.id && t.camada === "tokens");
+      const lugares = arrumarNoGrid(
+        centro,
+        cena,
+        tokenIds.map(() => p.tokenPadrao.tamanhoQuadrados),
+        naCena,
+      );
+      const criados: Token[] = [];
+      tokenIds.forEach((tokenId, i) => {
+        const numeracao = jogador
+          ? undefined
+          : nomeNumerado([...estado.tokens, ...criados], cena.id, p.id, p.nome);
+        const token = tokenDoPersonagem(
+          p,
+          cena,
+          tokenId,
+          lugares[i] as { x: number; y: number },
+          numeracao,
+        );
+        criados.push(token);
+        emitir({ tipo: "token.criado", dados: { token } });
+      });
+      return aplicado();
+    }
+
+    case "token.copiar": {
+      // Q10: duplicar, Alt+arrastar e colar: a cópia é igual à origem (vida de agora), com o próximo número se é NPC.
+      const { cenaId, itens } = intencao.dados;
+      const cena = estado.cenas.find((c) => c.id === cenaId);
+      if (!cena) return recusa("cena_inexistente", SEM_CENA);
+      const ids = itens.map((i) => i.id);
+      if (new Set(ids).size !== ids.length) return recusa("dados_invalidos", "Ids repetidos.");
+      if (ids.some((id) => estado.tokens.some((t) => t.id === id))) {
+        return recusa("dados_invalidos", "Já existe um token com esse id.");
+      }
+      const origens: Token[] = [];
+      for (const item of itens) {
+        const o = estado.tokens.find((t) => t.id === item.origemId);
+        if (!o) return recusa("token_inexistente", "O token copiado não existe mais.");
+        origens.push(o);
+      }
+      // O personagem de jogador tem um token só por cena (Q8): a cópia dele só entra numa cena onde ele ainda não está.
+      const jogadoresNaCena = new Set(
+        estado.tokens.filter((t) => t.cenaId === cena.id).map((t) => t.personagemId),
+      );
+      for (const o of origens) {
+        const p = o.personagemId === undefined ? undefined : personagemDe(estado, o.personagemId);
+        if (!p || !ehPersonagemDeJogador(p)) continue;
+        if (jogadoresNaCena.has(p.id)) {
+          return recusa(
+            "dados_invalidos",
+            `${p.nome} já tem um token nesta cena (personagem de jogador tem um só por cena).`,
+          );
+        }
+        jogadoresNaCena.add(p.id);
+      }
+      const criados: Token[] = [];
+      itens.forEach((item, i) => {
+        const origem = origens[i] as Token;
+        const p =
+          origem.personagemId === undefined ? undefined : personagemDe(estado, origem.personagemId);
+        const numeracao =
+          p && !ehPersonagemDeJogador(p)
+            ? nomeNumerado([...estado.tokens, ...criados], cena.id, p.id, nomeBaseDoToken(origem))
+            : undefined;
+        const lugar = limitarNaCena({ x: item.x, y: item.y }, cena);
+        const token = copiaDoToken(origem, { id: item.id, cenaId: cena.id, ...lugar }, numeracao);
+        criados.push(token);
+        emitir({ tipo: "token.criado", dados: { token } });
+      });
+      return aplicado();
+    }
+
+    case "token.vida": {
+      // Q10: a vida própria do token de NPC. Quem não vê o token (ou o personagem) recebe "inexistente".
+      const { id, atual, max, temp } = intencao.dados;
+      const token = estado.tokens.find((t) => t.id === id);
+      if (!token || !tokenVisivelPara(token, usuario, estado.cenaAtivaId)) {
+        return recusa("token_inexistente", "Token não encontrado.");
+      }
+      const p =
+        token.personagemId === undefined ? undefined : personagemDe(estado, token.personagemId);
+      if (!p || !podeEditarPersonagem(p, usuario)) {
+        return recusa("sem_permissao", "Você não edita a vida deste token.");
+      }
+      if (!usaVidaPorToken(p)) {
+        return recusa("dados_invalidos", "Este token usa a vida da ficha.");
+      }
+      const vida = vidaDoToken(token, p);
+      if (!vida) return recusa("dados_invalidos", "Este token não tem vida.");
+      const novo = aplicarNaVida(vida, { atual, max, temp });
+      if (JSON.stringify(novo) === JSON.stringify(token.pv)) return aplicado();
+      emitir({ tipo: "token.editado", dados: { token: { ...token, pv: novo } } });
       return aplicado();
     }
 
@@ -1900,7 +2058,10 @@ function processarIntencao(
           jaNaCena.filter((t) => t.camada === "tokens"),
         )[0] as { x: number; y: number };
       }
-      const token = tokenDoPersonagem(p, cena, tokenId, ponto);
+      const numeracao = ehPersonagemDeJogador(p)
+        ? undefined
+        : nomeNumerado(estado.tokens, cena.id, p.id, p.nome);
+      const token = tokenDoPersonagem(p, cena, tokenId, ponto, numeracao);
       emitir({ tipo: "token.criado", dados: { token } });
       return aplicado();
     }
@@ -3217,7 +3378,9 @@ export function visaoPara(estado: Estado, usuario: Visao, agoraMs?: number): Est
       porUsuario: propria ? { [usuario.id]: propria } : {},
     },
     cenas: [cenaParaJogador(cenaAtiva(estado))],
-    tokens: estado.tokens.filter((t) => tokenVisivelPara(t, usuario, estado.cenaAtivaId)),
+    tokens: estado.tokens
+      .filter((t) => tokenVisivelPara(t, usuario, estado.cenaAtivaId))
+      .map((t) => tokenParaUsuario(t, usuario, estado)),
     // V10c: numa cena-cartão as paredes guardadas não chegam ao jogador (não têm efeito).
     paredes: cenaEhCartao(cenaAtiva(estado))
       ? []
@@ -3269,6 +3432,20 @@ export function eventoPara(
   const ativaAntes = (antes ?? depois)?.cenaAtivaId;
   const visivel = (t: Token, ativa: string | undefined) =>
     ativa !== undefined && tokenVisivelPara(t, usuario, ativa);
+  // Q10: a vida própria do token de NPC só chega a quem receberia a vida da ficha (sem o estado, falha fechada).
+  const comVidaFiltrada = (
+    ev: Extract<EventoSala, { tipo: "token.criado" | "token.editado" }>,
+    token: Token,
+  ): EventoSala => {
+    if (token.pv === undefined) return ev;
+    const ref = depois ?? antes;
+    if (!ref) {
+      const { pv: _pv, ...semVida } = token;
+      return { ...ev, dados: { token: semVida } };
+    }
+    const visto = tokenParaUsuario(token, usuario, ref);
+    return visto === token ? ev : { ...ev, dados: { token: visto } };
+  };
   switch (evento.tipo) {
     case "asset.registrado":
     case "cena.criada":
@@ -3471,9 +3648,15 @@ export function eventoPara(
     case "cena.mapaAlterado":
       return mestre || evento.dados.cenaId === ativaDepois ? evento : null;
     case "token.criado":
-      return mestre || visivel(evento.dados.token, ativaDepois) ? evento : null;
+      if (mestre) return evento;
+      return visivel(evento.dados.token, ativaDepois)
+        ? comVidaFiltrada(evento, evento.dados.token)
+        : null;
     case "token.editado": {
-      if (mestre || visivel(evento.dados.token, ativaDepois)) return evento;
+      if (mestre) return evento;
+      if (visivel(evento.dados.token, ativaDepois)) {
+        return comVidaFiltrada(evento, evento.dados.token);
+      }
       const antigo = antes?.tokens.find((t) => t.id === evento.dados.token.id);
       if (antigo && visivel(antigo, ativaAntes)) {
         return { ...evento, tipo: "token.sumiu", dados: { id: antigo.id } };

@@ -242,7 +242,17 @@ interface Token {
   morto?: boolean;                  // N1, 2026-11-13: marca "morto" (X no token, todos veem); sem regra automática
   exaustao?: number;                // lote 11: 1..6
   concentracao?: string;            // lote 11: nome da magia
+  pv?: { atual: number; max: number; temp?: number }; // Q10, 2026-11-17: vida PRÓPRIA do token de NPC (horda); ver abaixo
+  numero?: number;                  // Q10: o número do selo ("Goblin 3" tem 3); só o selo, o nome é o que vale
 }
+// Q10, 2026-11-17: HORDAS. Token de NPC/monstro (personagem sem editores) com `Personagem.vidaPorToken` ligado (o padrão;
+// `false` desliga, para o vilão único) nasce com `pv` = cópia dos PV da ficha naquele momento (a ficha vira o "modelo").
+// A vida de um token é `token.pv` (campo, `hordas.ts`: `vidaDoToken`); sem `pv` (campanha antiga, personagem de jogador,
+// vidaPorToken falso) vale a da ficha, sem migração. Token antigo de NPC sem `pv`: a primeira edição o grava no token.
+// **Segredo:** `pv` só chega ao jogador que receberia a vida da ficha (vê o personagem e a ficha: `tokenParaUsuario`, no
+// snapshot e nos eventos `token.criado`/`token.editado`); mudar quem vê a ficha manda snapshot novo. Numeração: ao pôr um NPC
+// onde já há outro do mesmo personagem na cena, a SALA dá "Nome N" com o menor N livre a partir de 2 (o primeiro fica sem
+// número; ninguém é renomeado; por cena). Cópia (`token.copiar`) é igual à origem (vida de agora, camada, oculto, condições...).
 
 interface Combate {                 // lote 11: Estado.combate (sem o campo = sem combate)
   entradas: { id: string; tokenId?: string; nome: string; iniciativa?: number; destreza?: number;
@@ -375,6 +385,7 @@ quando ele muda de cena.
   chega inteiro. Pedido sobre token invisível responde igual a token inexistente (`token_inexistente`).
 - **Ping no mapa** (V12, 2026-11-13): `mapa.ping { cenaId, x, y, centralizar? }`, capacidade `mapa.pingar` (ligada por padrão). É efêmero como o movimento ao vivo: a sala valida (cena, quem vê, ponto dentro, no máximo 1 ping a cada 0,5 s e 1 centralização a cada 3 s por usuário) e repassa `mapa.pingado` com o autor e a cor dela a quem vê a cena, inclusive a quem pingou. Não é gravado, nem entra no histórico, no chat ou na exportação.
 - **O acesso do Claude** (12-1, 2026-11-13): o cliente do MCP abre o mesmo WebSocket com `Authorization: Bearer <token>` e a sala o trata como o próprio usuário, com a marca `claude` no socket (lista de proibidos, limite de frequência, marca "pelo Claude", rascunho para o mestre, diário do Desfazer). O envelope ganha `loteId` e `lote` (só a conexão do Claude os usa). Ver 4.12, 4.14 e `docs/protocolo.md`, "O acesso do Claude".
+- **Hordas** (Q10, 2026-11-17): `personagem.colocarVarios { personagemId, cenaId, tokenIds (1 a 20), x?, y? }` põe vários tokens de um NPC de uma vez (arrumados no grid, numerados e com a vida de cada um; um pedido só = um passo do Desfazer do Claude); `token.copiar { cenaId, itens: [{ origemId, id, x, y }] }` copia tokens para a mesma cena ou outra (duplicar, Alt+arrastar, Ctrl+C e Ctrl+V; a sala copia os campos da origem e numera); `token.vida { id, atual?, max?, temp? }` muda a vida própria do token (o mestre ou quem edita o personagem). As duas primeiras exigem `cena.editar` (só o mestre); `token.vida` não tem capacidade (a sala confere quem edita o personagem). `personagem.editar` aceita `vidaPorToken`. No MCP: `tokens` ganhou `colocar[].quantidade`, `copiar` e `pvTemp`; `pv` e `pvMax` de um token de NPC com vida própria vão para `token.vida`.
 - O documento `docs/protocolo.md` lista todas as mensagens e é atualizado em todo lote que mexer nelas.
 
 Exemplos de intenções do cliente (V5: `parede.criar` e `parede.editar` aceitam `meio`, o ponto do arco; `cena.editar` aceita `mostrarParedesAosJogadores`): `entrar`, `token.mover`, `token.soltar`, `parede.criar`,

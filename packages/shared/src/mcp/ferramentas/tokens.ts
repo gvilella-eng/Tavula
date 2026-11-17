@@ -1,5 +1,13 @@
 import { z } from "zod";
-import { CONDICOES, type Estado, pode } from "../../index.ts";
+import {
+  arrumarNoGrid,
+  CONDICOES,
+  chegadaDaCena,
+  type Estado,
+  MAXIMO_DE_TOKENS_POR_VEZ,
+  pode,
+  usaVidaPorToken,
+} from "../../index.ts";
 import { ErroDoMcp } from "../erros.ts";
 import { novoId } from "../nomes.ts";
 import type { Lote } from "../tipos.ts";
@@ -41,8 +49,17 @@ const TokenPedidoSchema = z
       .min(0)
       .max(9999)
       .optional()
-      .describe("Pontos de vida atuais da ficha do token."),
+      .describe(
+        "Pontos de vida atuais do token. Token de NPC com vida própria (horda): só a vida dele; os demais: a da ficha.",
+      ),
     pvMax: z.number().int().min(0).max(9999).optional(),
+    pvTemp: z
+      .number()
+      .int()
+      .min(0)
+      .max(9999)
+      .optional()
+      .describe("PV temporários do token (0 tira). Só para token de NPC com vida própria."),
     ca: z
       .number()
       .int()
@@ -58,11 +75,33 @@ const ColocarSchema = z
     ficha: z.string().describe("Nome da ficha."),
     cena: z.string().optional().describe("Padrão: a cena do grupo."),
     em: ParSchema.optional().describe("[coluna, linha] em células (sem isso, a chegada da cena)."),
+    quantidade: z
+      .number()
+      .int()
+      .min(1)
+      .max(MAXIMO_DE_TOKENS_POR_VEZ)
+      .optional()
+      .describe(
+        'Só mestre, só NPC: quantos tokens da ficha pôr de uma vez (horda), arrumados no grid e numerados ("Goblin", "Goblin 2"...), cada um com a sua vida.',
+      ),
+  })
+  .strict();
+
+const CopiarSchema = z
+  .object({
+    token: z.string().describe("Nome do token a copiar."),
+    cena: z.string().optional().describe("Cena do token de origem (padrão: a do grupo)."),
+    paraCena: z.string().optional().describe("Cena onde as cópias nascem (padrão: a da origem)."),
+    quantidade: z.number().int().min(1).max(MAXIMO_DE_TOKENS_POR_VEZ).optional(),
+    em: ParSchema.optional().describe(
+      "[coluna, linha] onde a primeira cópia nasce (sem isso, ao lado do original; em outra cena, na chegada).",
+    ),
   })
   .strict();
 
 type TokenPedido = z.infer<typeof TokenPedidoSchema>;
 type ColocarPedido = z.infer<typeof ColocarSchema>;
+type CopiarPedido = z.infer<typeof CopiarSchema>;
 
 async function editarToken(p: TokenPedido, ctx: Contexto, lote: Lote): Promise<string> {
   const estado0 = ctx.sala.estado();
@@ -98,9 +137,27 @@ async function editarToken(p: TokenPedido, ctx: Contexto, lote: Lote): Promise<s
     feitos.push(Object.keys(cond).join(", "));
   }
 
+  // Q10: token de NPC com vida própria: PV, máximo e temporários são do token, não da ficha.
+  const dono = t.personagemId
+    ? estado0.personagens.find((x) => x.id === t.personagemId)
+    : undefined;
+  const vidaDoToken = usaVidaPorToken(dono);
+  if (vidaDoToken && (p.pv !== undefined || p.pvMax !== undefined || p.pvTemp !== undefined)) {
+    await passo(ctx, lote, "token.vida", {
+      id: t.id,
+      ...(p.pv === undefined ? {} : { atual: p.pv }),
+      ...(p.pvMax === undefined ? {} : { max: p.pvMax }),
+      ...(p.pvTemp === undefined ? {} : { temp: p.pvTemp }),
+    });
+    feitos.push("vida do token");
+  } else if (p.pvTemp !== undefined) {
+    throw new ErroDoMcp(
+      `O token "${t.nome}" usa a vida da ficha: PV temporários só em token de NPC com vida própria.`,
+    );
+  }
   const operacoes: { caminho: string; valor: unknown }[] = [];
-  if (p.pv !== undefined) operacoes.push({ caminho: "pvAtual", valor: p.pv });
-  if (p.pvMax !== undefined) operacoes.push({ caminho: "pvMax", valor: p.pvMax });
+  if (!vidaDoToken && p.pv !== undefined) operacoes.push({ caminho: "pvAtual", valor: p.pv });
+  if (!vidaDoToken && p.pvMax !== undefined) operacoes.push({ caminho: "pvMax", valor: p.pvMax });
   if (p.ca !== undefined) operacoes.push({ caminho: "ca", valor: { valor: p.ca } });
   if (operacoes.length > 0) {
     if (!t.personagemId) {
@@ -122,6 +179,16 @@ async function colocar(p: ColocarPedido, ctx: Contexto, lote: Lote): Promise<str
   const tokenId = novoId("token");
   const pos = p.em ? emMetros(p.em, cena.grid.quadradoM) : undefined;
   const xy = pos ? { x: pos.x, y: pos.y } : {};
+  if (p.quantidade !== undefined && p.quantidade > 1) {
+    if (eu.papel !== "mestre") throw new ErroDoMcp("Só o mestre põe vários tokens de uma vez.");
+    await passo(ctx, lote, "personagem.colocarVarios", {
+      personagemId: ficha.id,
+      cenaId: cena.id,
+      tokenIds: Array.from({ length: p.quantidade }, () => novoId("token")),
+      ...xy,
+    });
+    return `Pôs ${p.quantidade} tokens de "${ficha.nome}" na cena "${cena.nome}" (numerados, cada um com a sua vida).`;
+  }
   if (eu.papel === "mestre") {
     await passo(ctx, lote, "personagem.colocar", {
       personagemId: ficha.id,
@@ -135,11 +202,38 @@ async function colocar(p: ColocarPedido, ctx: Contexto, lote: Lote): Promise<str
   return `Pôs "${ficha.nome}" na cena "${cena.nome}".`;
 }
 
+/** Q10: copia um token (uma ou mais vezes), na mesma cena ou em outra: igual ao original, numerado se é NPC. */
+async function copiar(p: CopiarPedido, ctx: Contexto, lote: Lote): Promise<string> {
+  const estado: Estado = ctx.sala.estado();
+  if (ctx.sala.eu().papel !== "mestre") throw new ErroDoMcp("Só o mestre copia tokens.");
+  const cenaOrigem = cenaPorNome(estado, p.cena);
+  const origem = tokenPorNome(estado, p.token, cenaOrigem.id);
+  const destino = p.paraCena ? cenaPorNome(estado, p.paraCena) : cenaOrigem;
+  const n = p.quantidade ?? 1;
+  const q = destino.grid.quadradoM;
+  const centro = p.em
+    ? emMetros(p.em, q)
+    : destino.id === origem.cenaId
+      ? { x: origem.x + q, y: origem.y }
+      : chegadaDaCena(destino);
+  const lugares = arrumarNoGrid(
+    centro,
+    destino,
+    Array.from({ length: n }, () => origem.tamanhoQuadrados),
+    estado.tokens.filter((t) => t.cenaId === destino.id && t.camada === "tokens"),
+  );
+  await passo(ctx, lote, "token.copiar", {
+    cenaId: destino.id,
+    itens: lugares.map((l) => ({ origemId: origem.id, id: novoId("token"), x: l.x, y: l.y })),
+  });
+  return `Copiou "${origem.nome}" ${n === 1 ? "uma vez" : `${n} vezes`} na cena "${destino.nome}".`;
+}
+
 export const tokens = definir({
   nome: "tokens",
   descricao: [
     "Mexe nos TOKENS do mapa, em lote. `tokens`: para cada um, pelo nome, mover (`mover`: [coluna, linha] em células), renomear, tamanho, camada, oculto, cor, visão, condições (`condicoes`, `exaustao`, `concentracao`, `morto`) e a vida e a CA da ficha do token (`pv`, `pvMax`, `ca`).",
-    "`colocar`: pôr o token de uma ficha no mapa (o jogador, o da ficha dele na área da bandeira). `restaurar`: traz de volta um token apagado há pouco (ids que a resposta de `cenas`, ao tirar o token, mostra).",
+    "`colocar`: pôr o token de uma ficha no mapa (o jogador, o da ficha dele na área da bandeira); com `quantidade` (só mestre, NPC) põe uma horda de uma vez, numerada (Goblin, Goblin 2...) e cada um com a sua vida. `copiar`: duplica um token (`quantidade`, `paraCena` para outra cena), igual ao original e numerado se for NPC. Vida de token de NPC (`pv`, `pvMax`, `pvTemp`) é do token, não da ficha (a ficha é o modelo); `fichas` com `vidaPorToken: false` volta a usar a da ficha. `restaurar`: traz de volta um token apagado há pouco (ids que a resposta de `cenas`, ao tirar o token, mostra).",
     "Criar tokens avulsos e tirá-los da cena é na ferramenta `cenas`; a imagem do token, em `arquivos`; luz do token, em `objetos`. O mestre mexe em qualquer um; o jogador, nos que controla.",
     'Exemplo: {"tokens":[{"token":"Goblin 1","mover":[12.5,8.5],"condicoes":["amedrontado"],"pv":3},{"token":"Goblin 2","morto":true}],"colocar":[{"ficha":"Brisa","em":[2.5,2.5]}]}',
   ].join(" "),
@@ -147,6 +241,7 @@ export const tokens = definir({
     .object({
       tokens: z.array(TokenPedidoSchema).max(40).optional(),
       colocar: z.array(ColocarSchema).max(12).optional(),
+      copiar: z.array(CopiarSchema).max(12).optional(),
       restaurar: z.array(z.string()).max(40).optional(),
     })
     .strict(),
@@ -156,8 +251,12 @@ export const tokens = definir({
     pode(eu, "token.colocarProprio", estado.permissoes),
   async executar(e, ctx) {
     const r = new Relatorio();
-    const total = (e.tokens?.length ?? 0) + (e.colocar?.length ?? 0) + (e.restaurar?.length ?? 0);
-    if (total === 0) return "Nada a fazer: diga `tokens`, `colocar` ou `restaurar`.";
+    const total =
+      (e.tokens?.length ?? 0) +
+      (e.colocar?.length ?? 0) +
+      (e.copiar?.length ?? 0) +
+      (e.restaurar?.length ?? 0);
+    if (total === 0) return "Nada a fazer: diga `tokens`, `colocar`, `copiar` ou `restaurar`.";
     const lote = ctx.novoLote(
       `tokens: ${e.tokens?.length ?? 0} editados, ${e.colocar?.length ?? 0} colocados`,
     );
@@ -171,6 +270,12 @@ export const tokens = definir({
       e.colocar ?? [],
       (c) => `colocar "${c.ficha}"`,
       (c) => colocar(c, ctx, lote),
+      r,
+    );
+    await cadaItem(
+      e.copiar ?? [],
+      (c) => `copiar "${c.token}"`,
+      (c) => copiar(c, ctx, lote),
       r,
     );
     await cadaItem(

@@ -18,6 +18,7 @@ import {
   lerEntradaArrastada,
   limitarAlcance,
   limiteDeVisaoDoToken,
+  MAXIMO_DE_TOKENS_POR_VEZ,
   membrosDaMesa,
   modInteligenciaDe,
   nevoaCobreAlgo,
@@ -74,6 +75,7 @@ import { JanelaDasAutomacoes } from "./automacoes/JanelaDasAutomacoes";
 import { BarraDeFerramentas } from "./BarraDeFerramentas";
 import { BarraLateral, type PedidoDeAba } from "./BarraLateral";
 import { BotaoComDica } from "./BotaoComDica";
+import { ColocarVarios } from "./ColocarVarios";
 import { AvisoDaCaixaDoClaude, copiarParaAPasta, useCaixaDoClaude } from "./caixaDoClaude";
 import { type CamadaDeTrabalho, camadaDoNovoToken } from "./camadas";
 import { RascunhosDoClaude } from "./claude/RascunhosDoClaude";
@@ -246,6 +248,15 @@ export function Mesa({
   const [ferramenta, setFerramenta] = useState<Ferramenta>("selecionar");
   const [camadaTrabalho, setCamadaTrabalho] = useState<CamadaDeTrabalho>("tokens");
   const [selecionadoId, setSelecionadoId] = useState<string | null>(null);
+  // Q10: os tokens somados à seleção (Shift ou Ctrl+clique, só o mestre). O `selecionadoId` segue sendo o principal
+  // (painel, marcas de vida, setas); estes só entram em duplicar, copiar, Alt+arrastar e tirar do mapa.
+  const [extrasIds, setExtrasIds] = useState<string[]>([]);
+  const manterExtras = useRef(false);
+  // Q10: "Colocar vários…" aberto para este NPC.
+  const [colocarVariosDe, setColocarVariosDe] = useState<string | null>(null);
+  // Q10: a área de transferência dos tokens (Ctrl+C), só na memória desta aba: de onde copiou e onde cada um estava
+  // em relação ao centro do grupo.
+  const areaDeTokens = useRef<{ origemId: string; dx: number; dy: number }[]>([]);
   // O jogador fecha a ordem de turno só na tela dele; reaparece quando o mestre a reabre (V2).
   const [ordemFechadaAqui, setOrdemFechadaAqui] = useState(false);
   const ordemAbertaNaSala = estado?.ordemDeTurnoVisivel === true;
@@ -358,6 +369,8 @@ export function Mesa({
   const [cenaVistaId, setCenaVistaId] = useState<string | null>(null);
   const mapa = useRef<MapaPixi | null>(null);
   const colocarTokenAtual = useRef<((x: number, y: number) => void) | null>(null);
+  // Q10: Alt+arrastar soltou uma cópia (a função de cada render, para o retorno do mapa não ficar velho).
+  const copiarArrastadoAtual = useRef<((id: string, x: number, y: number) => void) | null>(null);
   // As fichas abertas em janelas flutuantes (várias ao mesmo tempo).
   const {
     janelas: janelasDeFicha,
@@ -369,9 +382,9 @@ export function Mesa({
   useAcompanharFichasFora(mesa.id);
   const fichasFora = useFichasFora();
   const abrirOuTrazerFicha = useCallback(
-    (personagemId: string, aba?: AbaDaFicha) => {
+    (personagemId: string, aba?: AbaDaFicha, tokenId?: string) => {
       if (fichasFora.has(personagemId) && trazerFichaDeFora(mesa.id, personagemId)) return;
-      abrirFicha(personagemId, aba);
+      abrirFicha(personagemId, aba, tokenId);
     },
     [fichasFora, mesa.id, abrirFicha],
   );
@@ -711,6 +724,29 @@ export function Mesa({
     combateVisto?.entradas.find((e) => e.id === combateVisto.atualId)?.tokenId ?? null;
   const selecionado =
     estado?.tokens.find((t) => t.id === selecionadoId && t.cenaId === cena?.id) ?? null;
+  // Q10: quem mais está na seleção (só os que existem na cena vista) e a seleção toda, o principal primeiro.
+  const tambemSelecionadosIds = useMemo(
+    () =>
+      selecionado === null
+        ? []
+        : extrasIds.filter(
+            (id) =>
+              id !== selecionado.id &&
+              estado?.tokens.some((t) => t.id === id && t.cenaId === selecionado.cenaId),
+          ),
+    [extrasIds, selecionado, estado?.tokens],
+  );
+  const selecaoAtual = useRef({ primario: selecionadoId, extras: extrasIds });
+  selecaoAtual.current = { primario: selecionadoId, extras: tambemSelecionadosIds };
+  // biome-ignore lint/correctness/useExhaustiveDependencies: a troca do token principal é o gatilho
+  useEffect(() => {
+    // Qualquer troca do token principal que não veio do "somar à seleção" começa uma seleção nova.
+    if (manterExtras.current) {
+      manterExtras.current = false;
+      return;
+    }
+    setExtrasIds((atuais) => (atuais.length === 0 ? atuais : []));
+  }, [selecionadoId]);
   // N1: as marcas de vida e CA do token selecionado: o mestre vê em todos; o jogador, só no token que controla.
   const personagemDoSelecionado =
     selecionado?.personagemId !== undefined
@@ -808,14 +844,20 @@ export function Mesa({
         avisar("Você só pode tirar do mapa os tokens que controla.");
         return;
       }
-      const id = selecionado.id;
-      enviar("token.apagar", { id });
+      // Q10: com vários na seleção (só o mestre soma), Delete tira todos de uma vez.
+      const ids = [selecionado.id, ...(quem.papel === "mestre" ? tambemSelecionadosIds : [])];
+      for (const id of ids) enviar("token.apagar", { id });
       setSelecionadoId(null);
       // A sala guarda o token por uns segundos: o "Desfazer" o traz de volta (a ficha nunca foi tocada).
-      avisar("Token removido do mapa.", {
-        rotulo: "Desfazer",
-        aoClicar: () => enviar("token.restaurar", { id }),
-      });
+      avisar(
+        ids.length === 1 ? "Token removido do mapa." : `${ids.length} tokens removidos do mapa.`,
+        {
+          rotulo: "Desfazer",
+          aoClicar: () => {
+            for (const id of ids) enviar("token.restaurar", { id });
+          },
+        },
+      );
       return;
     }
 
@@ -840,6 +882,137 @@ export function Mesa({
   };
   useEffect(() => {
     const ouvir = (e: KeyboardEvent) => aoTeclarNoMapa.current(e);
+    window.addEventListener("keydown", ouvir);
+    return () => window.removeEventListener("keydown", ouvir);
+  }, []);
+  // Q10: duplicar (Ctrl+D), copiar e colar (Ctrl+C e Ctrl+V) e Alt+arrastar os tokens da seleção (só o mestre). Tudo
+  // vira um `token.copiar` só: a sala copia os campos da origem e numera o NPC.
+  const tokensDaSelecao = (): Token[] => {
+    const sala = estadoAtual.current;
+    if (!sala || !selecionado) return [];
+    return [selecionado.id, ...tambemSelecionadosIds]
+      .map((id) => sala.tokens.find((t) => t.id === id))
+      .filter((t): t is Token => t !== undefined);
+  };
+  /** O centro do token no lugar pedido: encaixado no grid quando o encaixe está ligado. */
+  const lugarDaCopia = (p: { x: number; y: number }, tamanho: number) =>
+    encaixe && cena ? encaixarNoGrid(p, tamanho, cena.grid.quadradoM) : p;
+  const enviarCopias = (cenaId: string, itens: { origemId: string; x: number; y: number }[]) => {
+    const novos = itens
+      .slice(0, 50)
+      .map((i) => ({ ...i, id: `tok-${crypto.randomUUID().slice(0, 8)}` }));
+    const primeiro = novos[0];
+    if (!primeiro) return;
+    if (enviar("token.copiar", { cenaId, itens: novos }) === null) return;
+    // A seleção passa para as cópias (os ids são nossos: elas aparecem quando a sala responde).
+    manterExtras.current = true;
+    setSelecionadoId(primeiro.id);
+    setExtrasIds(novos.slice(1).map((i) => i.id));
+  };
+  /** O menu do token age na seleção quando o token clicado faz parte dela; senão, só nele. */
+  const listaDoMenuDoToken = (tokenId: string): Token[] => {
+    const selecao = tokensDaSelecao();
+    if (selecao.some((t) => t.id === tokenId)) return selecao;
+    const t = estadoAtual.current?.tokens.find((x) => x.id === tokenId);
+    return t ? [t] : [];
+  };
+  const duplicarSelecao = (lista: Token[] = tokensDaSelecao()) => {
+    const q = cena?.grid.quadradoM ?? 1.5;
+    if (!cena || lista.length === 0) return;
+    const metade = (t: Token) => (t.tamanhoQuadrados * q) / 2;
+    const esquerda = Math.min(...lista.map((t) => t.x - metade(t)));
+    const direita = Math.max(...lista.map((t) => t.x + metade(t)));
+    // Um quadrado ao lado (o grupo inteiro, se são vários); sem espaço à direita, vai para a esquerda.
+    let dx = Math.max(q, direita - esquerda);
+    if (direita + dx > cena.larguraM) dx = -dx;
+    enviarCopias(
+      cena.id,
+      lista.map((t) => ({
+        origemId: t.id,
+        ...lugarDaCopia({ x: t.x + dx, y: t.y }, t.tamanhoQuadrados),
+      })),
+    );
+  };
+  const copiarSelecao = (lista: Token[] = tokensDaSelecao()) => {
+    if (lista.length === 0) return;
+    const q = cena?.grid.quadradoM ?? 1.5;
+    const metade = (t: Token) => (t.tamanhoQuadrados * q) / 2;
+    const cx =
+      (Math.min(...lista.map((t) => t.x - metade(t))) +
+        Math.max(...lista.map((t) => t.x + metade(t)))) /
+      2;
+    const cy =
+      (Math.min(...lista.map((t) => t.y - metade(t))) +
+        Math.max(...lista.map((t) => t.y + metade(t)))) /
+      2;
+    areaDeTokens.current = lista.map((t) => ({ origemId: t.id, dx: t.x - cx, dy: t.y - cy }));
+    avisar(lista.length === 1 ? "Token copiado." : `${lista.length} tokens copiados.`);
+  };
+  /** Cola na cena que o mestre vê, o centro do grupo no ponteiro (sem ele, no centro da tela). `false` = nada a colar. */
+  const colarTokens = (): boolean => {
+    const sala = estadoAtual.current;
+    if (!sala || !cena || areaDeTokens.current.length === 0) return false;
+    const itens = areaDeTokens.current.flatMap((i) => {
+      const origem = sala.tokens.find((t) => t.id === i.origemId);
+      return origem ? [{ ...i, tamanho: origem.tamanhoQuadrados }] : [];
+    });
+    if (itens.length === 0) {
+      avisar("Os tokens copiados não estão mais na mesa.");
+      return false;
+    }
+    const alvo = mapa.current?.ponteiroEmMetros() ?? mapa.current?.centroDaTelaEmMetros();
+    if (!alvo) return false;
+    enviarCopias(
+      cena.id,
+      itens.map((i) => ({
+        origemId: i.origemId,
+        ...lugarDaCopia({ x: alvo.x + i.dx, y: alvo.y + i.dy }, i.tamanho),
+      })),
+    );
+    return true;
+  };
+  copiarArrastadoAtual.current = (id, x, y) => {
+    const sala = estadoAtual.current;
+    const origem = sala?.tokens.find((t) => t.id === id);
+    if (!sala || !cena || !euMestre || !origem) return;
+    const selecao = tokensDaSelecao();
+    const lista = selecao.some((t) => t.id === id) ? selecao : [origem];
+    const dx = x - origem.x;
+    const dy = y - origem.y;
+    enviarCopias(
+      cena.id,
+      lista.map((t) => ({
+        origemId: t.id,
+        ...lugarDaCopia({ x: t.x + dx, y: t.y + dy }, t.tamanhoQuadrados),
+      })),
+    );
+  };
+  const aoTeclarCopia = useRef<(e: KeyboardEvent) => void>(() => {});
+  aoTeclarCopia.current = (e) => {
+    if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey || e.defaultPrevented) return;
+    const tecla = e.key.toLowerCase();
+    if (tecla !== "c" && tecla !== "v" && tecla !== "d") return;
+    // Só com o foco no mapa (ou em nada): num campo, no chat ou na ficha, Ctrl+C e Ctrl+V são os de texto.
+    const alvo = e.target;
+    const noMapa =
+      alvo === document.body ||
+      (alvo instanceof HTMLElement && alvo.matches("[data-testid='mapa']"));
+    if (!noMapa || haDialogoAberto() || tourAberto || menuDoTokenAberto || menuDaTocha) return;
+    if (!euMestre || ferramenta !== "selecionar" || usuarioVisto !== null) return;
+    if (tecla === "v") {
+      if (colarTokens()) e.preventDefault();
+      return;
+    }
+    if (!selecionado) return;
+    // Texto selecionado na página (num balão do chat, por exemplo): o Ctrl+C é o dele.
+    if (tecla === "c" && (window.getSelection()?.toString() ?? "") !== "") return;
+    e.preventDefault();
+    if (e.repeat) return;
+    if (tecla === "c") copiarSelecao();
+    else duplicarSelecao();
+  };
+  useEffect(() => {
+    const ouvir = (e: KeyboardEvent) => aoTeclarCopia.current(e);
     window.addEventListener("keydown", ouvir);
     return () => window.removeEventListener("keydown", ouvir);
   }, []);
@@ -958,6 +1131,25 @@ export function Mesa({
       soltar: (id, x, y) => enviar("token.soltar", { id, x, y }),
       chegada: (cenaId, x, y) => enviar("cena.editar", { cenaId, chegada: { x, y } }),
       selecionar: setSelecionadoId,
+      alternarNaSelecao: (id) => {
+        const { primario, extras } = selecaoAtual.current;
+        if (primario === null) {
+          setSelecionadoId(id);
+          return;
+        }
+        manterExtras.current = true;
+        if (id === primario) {
+          // Tirar o principal da seleção: o primeiro dos outros assume.
+          const [proximo, ...resto] = extras;
+          setSelecionadoId(proximo ?? null);
+          setExtrasIds(resto);
+          if (proximo === undefined) manterExtras.current = false;
+          return;
+        }
+        manterExtras.current = false;
+        setExtrasIds(extras.includes(id) ? extras.filter((x) => x !== id) : [...extras, id]);
+      },
+      copiarArrastado: (id, x, y) => copiarArrastadoAtual.current?.(id, x, y),
       criarDesenho: (desenho: DesenhoNovo) => enviar("desenho.criar", { desenho }),
       moverDesenho: (id, dx, dy) => enviar("desenho.mover", { id, dx, dy }),
       apagarDesenhos: (ids) => enviar("desenho.apagar", { ids }),
@@ -1144,6 +1336,7 @@ export function Mesa({
       reguaGrudar,
       unidade,
       selecionadoId,
+      tambemSelecionadosIds,
       // O mestre vê o grupo todo; o jogador só conhece os personagens dele (os outros não chegam).
       tokenDaVezId,
       pincel,
@@ -1198,6 +1391,7 @@ export function Mesa({
       reguaGrudar,
       unidade,
       selecionadoId,
+      tambemSelecionadosIds,
       tokenDaVezId,
       pincel,
       podeDesenhar,
@@ -1366,6 +1560,24 @@ export function Mesa({
   }
   colocarTokenAtual.current = colocarToken;
 
+  /**
+   * Q10: "Colocar vários…": de 1 a 20 tokens do NPC de uma vez, arrumados no centro da tela, na cena que o mestre vê.
+   * É um pedido só (`personagem.colocarVarios`): a sala numera e dá a vida de cada um.
+   */
+  function colocarVarios(personagemId: string, quantidade: number) {
+    if (!euMestre || !cena) return;
+    const n = Math.min(MAXIMO_DE_TOKENS_POR_VEZ, Math.max(1, Math.round(quantidade)));
+    const centro = mapa.current?.centroDaTelaEmMetros();
+    const tokenIds = Array.from({ length: n }, () => `tok-${crypto.randomUUID().slice(0, 8)}`);
+    enviar("personagem.colocarVarios", {
+      personagemId,
+      cenaId: cena.id,
+      tokenIds,
+      ...(centro ? { x: centro.x, y: centro.y } : {}),
+    });
+    setColocarVariosDe(null);
+  }
+
   /** Um item das Fichas foi solto no mapa: o token dele nasce na cena que o mestre vê, onde soltou. */
   function soltarItemNoMapa(dados: string, x: number, y: number) {
     const item = lerItemArrastado(dados);
@@ -1530,6 +1742,7 @@ export function Mesa({
                 versaoDasImagens={versaoDosProntos}
                 aoAbrirFicha={abrirOuTrazerFicha}
                 aoAbrirHandout={abrirHandout}
+                aoColocarVarios={euMestre ? setColocarVariosDe : undefined}
               />
             ),
           },
@@ -1919,6 +2132,13 @@ export function Mesa({
                 aoCancelar={() => setFormNovoToken(false)}
               />
             )}
+            {euMestre && colocarVariosDe !== null && (
+              <ColocarVarios
+                nome={personagens?.find((p) => p.id === colocarVariosDe)?.nome ?? "este NPC"}
+                aoConfirmar={(quantidade) => colocarVarios(colocarVariosDe, quantidade)}
+                aoCancelar={() => setColocarVariosDe(null)}
+              />
+            )}
             {semTokenNaCena && (
               <div
                 className="estado-vazio-mapa"
@@ -2072,6 +2292,8 @@ export function Mesa({
                 enviar={enviar}
                 teclado={menuDoToken.teclado === true}
                 aoAbrirFicha={abrirOuTrazerFicha}
+                aoDuplicar={() => duplicarSelecao(listaDoMenuDoToken(menuDoToken.tokenId))}
+                aoCopiar={() => copiarSelecao(listaDoMenuDoToken(menuDoToken.tokenId))}
                 aoEditar={() => {
                   setSelecionadoId(menuDoToken.tokenId);
                   setPainelDoTokenAberto(true);
@@ -2161,6 +2383,7 @@ export function Mesa({
                   aoFechar={() => fecharFicha(j.personagemId)}
                   aoMudar={(mudancas) => atualizarFicha(j.personagemId, mudancas)}
                   aoAbrirEmJanela={() => abrirFichaEmOutraJanela(j.personagemId)}
+                  aoColocarVarios={euMestre ? () => setColocarVariosDe(j.personagemId) : undefined}
                 />
               );
             })}

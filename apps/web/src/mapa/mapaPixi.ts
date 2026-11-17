@@ -204,6 +204,8 @@ export type OpcoesDoMapa = {
   /** V13: a unidade das distâncias mostradas (a régua). */
   unidade: UnidadeDeDistancia;
   selecionadoId: string | null;
+  /** Q10: os tokens somados à seleção (Shift ou Ctrl+clique, só o mestre): ganham o mesmo anel do selecionado. */
+  tambemSelecionadosIds: readonly string[];
   podeMover: (token: Token) => boolean;
   /** O jogador seleciona (só na tela dele) os tokens que controla (V2); o mestre seleciona qualquer um. */
   controla: (token: Token) => boolean;
@@ -308,6 +310,10 @@ export type RetornosDoMapa = {
   /** O mestre arrastou a bandeira do ponto de chegada (da cena que ele está vendo). */
   chegada: (cenaId: string, x: number, y: number) => void;
   selecionar: (id: string | null) => void;
+  /** Q10: Shift ou Ctrl+clique num token (só o mestre): soma o token à seleção ou o tira dela. */
+  alternarNaSelecao: (id: string) => void;
+  /** Q10: soltou a cópia arrastada com Alt: o token de origem e o centro onde soltou (metros). O original fica. */
+  copiarArrastado: (id: string, x: number, y: number) => void;
   zoom: (zoom: number) => void;
   medir: (medicao: MedicaoNaTela | null) => void;
   /** As medidas fixadas (a lista inteira, a cada mudança de medida ou de vista). */
@@ -446,6 +452,8 @@ type Gesto =
   | {
       tipo: "token";
       id: string;
+      /** Q10: arrasto de cópia (Alt): o original não se move; ao soltar nasce uma cópia. */
+      copia: boolean;
       deslocamento: Ponto;
       origem: Ponto;
       moveu: boolean;
@@ -1124,6 +1132,11 @@ export class MapaPixi {
     return { x: r.left + p.x, y: r.top + p.y };
   }
 
+  /** Q10: onde o ponteiro está sobre o mapa, em metros (ou `null` se está fora dele): o ponto onde o Ctrl+V cola. */
+  ponteiroEmMetros(): Ponto | null {
+    return this.ultimaPosicao ? this.paraMundo(this.ultimaPosicao) : null;
+  }
+
   /** Metros do mundo no centro da tela (para criar o token novo à vista). */
   centroDaTelaEmMetros(): Ponto {
     return this.paraMundo({ x: this.largura() / 2, y: this.altura() / 2 });
@@ -1223,7 +1236,7 @@ export class MapaPixi {
   private chaveDe(t: Token): string {
     const imagem = t.assetHash && this.texturas.has(t.assetHash) ? t.assetHash : "";
     const marcas = `${(t.condicoes ?? []).join(",")}|${t.exaustao ?? ""}|${t.concentracao ?? ""}`;
-    return `${t.nome}|${t.cor}|${t.tamanhoQuadrados}|${t.oculto}|${t.camada}|${imagem}|${marcas}|${t.morto === true}`;
+    return `${t.nome}|${t.cor}|${t.tamanhoQuadrados}|${t.oculto}|${t.camada}|${imagem}|${marcas}|${t.morto === true}|${t.numero ?? ""}`;
   }
 
   private criarVisual(token: Token, x: number, y: number): Visual {
@@ -1294,6 +1307,7 @@ export class MapaPixi {
     if (token.morto) container.addChild(this.desenharXDeMorto(raio));
     container.addChild(pilulaDoRotulo, rotulo);
     const marcas = this.desenharMarcas(container, icones, raio);
+    if (token.numero !== undefined) container.addChild(this.desenharSelo(token.numero, raio));
     if (token.oculto) container.addChild(this.desenharOlhoCortado(raio));
     container.position.set(x * PX_POR_M, y * PX_POR_M);
     this.camadaDe(token).addChild(container);
@@ -1497,6 +1511,32 @@ export class MapaPixi {
     return g;
   }
 
+  /**
+   * Q10: o selo com o número da horda ("Goblin 3" tem o 3) no lado direito do token: uma bolinha escura com o
+   * número em branco. Os cantos de cima são das tochas e o arco de baixo é das condições.
+   */
+  private desenharSelo(numero: number, raio: number): Container {
+    const selo = new Container();
+    const r = Math.max(10, raio * 0.32);
+    const fundo = new Graphics()
+      .circle(0, 0, r)
+      .fill({ color: 0x0d1015, alpha: 0.94 })
+      .stroke({ width: 1.5, color: 0xffffff, alpha: 0.9 });
+    const texto = new Text({
+      text: String(numero),
+      style: {
+        fill: 0xffffff,
+        fontSize: Math.max(11, r * 1.05),
+        fontWeight: "700",
+        fontFamily: "system-ui, sans-serif",
+      },
+    });
+    texto.anchor.set(0.5);
+    selo.addChild(fundo, texto);
+    selo.position.set(raio * 0.96, -raio * 0.12);
+    return selo;
+  }
+
   /** Ícone de olho cortado (token oculto, só o mestre vê) no alto do token. */
   private desenharOlhoCortado(raio: number): Graphics {
     const g = new Graphics();
@@ -1593,7 +1633,8 @@ export class MapaPixi {
       // N1: o token morto fica esmaecido.
       if (t.morto) alpha *= 0.6;
       v.container.alpha = alpha;
-      v.anel.visible = this.opcoes.selecionadoId === t.id;
+      v.anel.visible =
+        this.opcoes.selecionadoId === t.id || this.opcoes.tambemSelecionadosIds.includes(t.id);
       v.anelVez.visible = this.opcoes.tokenDaVezId === t.id;
     }
   }
@@ -3670,6 +3711,12 @@ export class MapaPixi {
       }
       return;
     }
+    // Q10: Shift ou Ctrl+clique (mestre) soma o token à seleção ou o tira dela, sem arrastar nem pingar.
+    if (this.opcoes.euMestre && (e.shiftKey || e.ctrlKey || e.metaKey) && !e.altKey) {
+      this.cancelarEsperaDoPing();
+      this.retornos().alternarNaSelecao(v.token.id);
+      return;
+    }
     // V2: o jogador também seleciona, mas só o token que controla; clicar em outro solta a seleção. Fica só na
     // tela dele (nada vai para a sala).
     this.retornos().selecionar(
@@ -3678,9 +3725,13 @@ export class MapaPixi {
     if (!this.opcoes.podeMover(v.token)) return;
     const m = this.paraMundo(p);
     const id = v.token.id;
+    // Q10: Alt ao pegar o token (mestre) arrasta uma CÓPIA: o original fica e a cópia nasce onde soltar.
+    const copia = this.opcoes.euMestre && e.altKey;
+    if (copia) this.cancelarEsperaDoPing();
     this.gesto = {
       tipo: "token",
       id,
+      copia,
       deslocamento: { x: v.x - m.x, y: v.y - m.y },
       origem: { x: v.x, y: v.y },
       moveu: false,
@@ -3966,7 +4017,7 @@ export class MapaPixi {
     if (!v || !this.cena) return;
     const m = this.paraMundo(p);
     let alvo: Ponto = { x: m.x + g.deslocamento.x, y: m.y + g.deslocamento.y };
-    if (this.encaixaAgora(e.altKey)) {
+    if (this.encaixaAgora(g.copia ? false : e.altKey)) {
       alvo = encaixarNoGrid(alvo, v.token.tamanhoQuadrados, this.quadradoM());
     }
     alvo = limitarNaCena(alvo, this.cena);
@@ -3985,7 +4036,10 @@ export class MapaPixi {
     v.alvoX = alvo.x;
     v.alvoY = alvo.y;
     if (alvo.x !== g.origem.x || alvo.y !== g.origem.y) g.moveu = true;
-    if (!g.ultimoEnviado || g.ultimoEnviado.x !== alvo.x || g.ultimoEnviado.y !== alvo.y) {
+    if (
+      !g.copia &&
+      (!g.ultimoEnviado || g.ultimoEnviado.x !== alvo.x || g.ultimoEnviado.y !== alvo.y)
+    ) {
       g.ultimoEnviado = alvo;
       g.limitador.enviar(alvo);
     }
@@ -4088,7 +4142,15 @@ export class MapaPixi {
       // O soltar sai na hora, fora do limitador; o movimento pendente deixa de importar.
       g.limitador.cancelar();
       const v = this.visuais.get(g.id);
-      if (g.moveu && v) this.retornos().soltar(g.id, v.alvoX, v.alvoY);
+      if (g.copia) {
+        // Q10: o original volta ao lugar dele; a cópia nasce onde se soltou.
+        if (g.moveu && v) {
+          const { alvoX, alvoY } = v;
+          v.alvoX = g.origem.x;
+          v.alvoY = g.origem.y;
+          this.retornos().copiarArrastado(g.id, alvoX, alvoY);
+        }
+      } else if (g.moveu && v) this.retornos().soltar(g.id, v.alvoX, v.alvoY);
     }
     this.atualizarCursor();
   };
@@ -4253,7 +4315,7 @@ export class MapaPixi {
         v.alvoX = g.origem.x;
         v.alvoY = g.origem.y;
       }
-      if (g.moveu) this.retornos().soltar(g.id, g.origem.x, g.origem.y);
+      if (g.moveu && !g.copia) this.retornos().soltar(g.id, g.origem.x, g.origem.y);
     } else if (g.tipo === "alca") {
       this.alcaArrastada = null;
       this.chaveDosPontos = "";
@@ -4780,6 +4842,8 @@ export class MapaPixi {
           emVez: v.anelVez.visible,
           /** O anel de seleção (dourado) está aceso. */
           selecionado: v.anel.visible,
+          /** Q10: o número do selo desenhado no canto (ou `null` sem selo). */
+          selo: v.token.numero ?? null,
           /** N1: a marca de morto (o X) está desenhada. */
           morto: v.token.morto === true,
           /** Os marcadores de condição desenhados na borda. */

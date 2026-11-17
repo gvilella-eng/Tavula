@@ -53,6 +53,12 @@ const PedidoDeFichaSchema = FichaPartesSchema.extend({
     .describe("Cor do token, #rrggbb."),
   tamanhoToken: z.number().int().min(1).max(4).optional().describe("Quadrados do token (1 a 4)."),
   visaoNoEscuroM: z.number().min(0).max(1000).optional().describe("Visão no escuro, em metros."),
+  vidaPorToken: z
+    .boolean()
+    .optional()
+    .describe(
+      "Só NPC, só edição, só mestre: false faz todos os tokens dele usarem a vida da ficha (o vilão único); true (padrão) dá a cada token a sua vida (horda).",
+    ),
   monstro: z
     .string()
     .min(1)
@@ -82,6 +88,7 @@ function partesDoPedido(p: PedidoDeFicha) {
     cor: _c,
     tamanhoToken: _tt,
     visaoNoEscuroM: _v,
+    vidaPorToken: _vpt,
     monstro: _m,
     quantidade: _q,
     ...partes
@@ -247,6 +254,9 @@ async function editar(
   }
   if (p.visaoNoEscuroM !== undefined && p.visaoNoEscuroM !== existente.visao.visaoNoEscuroM) {
     mudancas.visaoNoEscuroM = p.visaoNoEscuroM;
+  }
+  if (p.vidaPorToken !== undefined && p.vidaPorToken !== (existente.vidaPorToken !== false)) {
+    mudancas.vidaPorToken = p.vidaPorToken;
   }
   if (p.dono !== undefined)
     mudancas.editores = { tipo: "jogadores", ids: idsDosDonos(estado, p.dono) };

@@ -26,3 +26,21 @@ export function operacoesDaVida(
   if (alvo !== ficha.pvAtual) ops.push({ caminho: "pvAtual", valor: alvo });
   return ops;
 }
+
+/**
+ * Q10: o mesmo texto do campo de vida, para o token de NPC com vida própria (`token.vida`): o que muda em valores
+ * absolutos (`atual` e, se o dano comeu o temporário, `temp`). `null` = texto inválido; objeto vazio = sem mudança.
+ */
+export function mudancasDaVidaDoToken(
+  texto: string,
+  vida: { atual: number; max: number; temp: number },
+): { atual?: number; temp?: number | null } | null {
+  const ops = operacoesDaVida(texto, { pvAtual: vida.atual, pvMax: vida.max, pvTemp: vida.temp });
+  if (ops === null) return null;
+  const m: { atual?: number; temp?: number | null } = {};
+  for (const op of ops) {
+    if (op.caminho === "pvAtual") m.atual = op.valor as number;
+    if (op.caminho === "pvTemp") m.temp = op.valor as number | null;
+  }
+  return m;
+}
