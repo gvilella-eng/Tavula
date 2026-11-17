@@ -2138,6 +2138,48 @@ Dois pedidos do Vilella num lote só. Q2b: a busca do compêndio e o espaço da 
 - Imagens e tokens para cada monstro e item do compêndio (`docs/IDEIAS.md`).
 - A janela própria do som não mostra os efeitos que tocam na aba da mesa.
 
+## Q9 — como ficou (2026-11-16): a Conjuração do NPC com a interface das magias do personagem
+
+O Vilella pediu que a ficha de NPC tenha o menu de conjuração organizado como o do personagem, aproveitando a mesma interface.
+
+**O que foi feito**
+- Novo `apps/web/src/ficha/CirculoDeMagias.tsx`: `CirculoDeMagias` (um círculo com espaços totais e restantes, bolinhas, linhas, campo de nova magia e soltar do compêndio), `LinhaDeMagia`, `TotalDeEspacos`, `Espacos`, `subDaMagia` e `BotaoNovoCirculo`, tirados da `AbaMagias.tsx` sem mudar o que o personagem mostra. A `AbaMagias.tsx` reexporta `Espacos` e `subDaMagia`.
+- Parâmetro `variante: "personagem" | "npc"`. Ela escolhe os `data-testid` (cada ficha guarda os seus: `magia-*` e `npc-conj-*`), esconde o "Prep." no NPC, abre o editor da engrenagem embaixo da linha no NPC (no personagem fica na outra coluna) e mostra o texto simples da magia sem cartão (no personagem são os campos editáveis).
+- `ConjuracaoDoNpc.tsx` perdeu os chips e o corpo próprio: a seção é o cabeçalho (atributo, CD e ataque pelo ND), "Recuperar espaços", os círculos, a conjuração inata (`ParteInata`, igual à do personagem) e o "+ Círculo".
+
+**Decisões (assumido)**
+- "Prep." some no NPC.
+- O título do círculo 0 continua "Truques (à vontade)" no NPC e "Truques" no personagem.
+- Quem só vê o NPC não vê o campo de espaços totais (vê "Restantes" e as bolinhas); o personagem mostra o campo travado, como antes.
+- "+ Círculo" é o botão do personagem (próximo círculo escondido), no lugar do seletor de círculo que existia.
+- O soltar do compêndio passou a ser por círculo (só o círculo da magia acende), como no personagem, em vez de a seção inteira.
+- Cada linha abre e fecha sozinha (antes, uma só aberta por seção).
+- Specs antigos alterados de propósito: `ficha-v4b2` (texto "Truques (à vontade)" sem o dois-pontos; o ícone de chat da linha aberta agora existe; "+ Círculo" é botão, clicado duas vezes para chegar ao 2º; a ordem lê o nome da linha em `npc-conj-nome-`).
+
+**O que ficou para depois**
+- A conjuração inata mantém o visual de chips (é o mesmo componente nas duas fichas).
+
+## Q7 — como ficou (2026-11-16): o painel de cenas em grade, a faixa que sobra, barras do tema e a descrição aberta
+
+**O que foi feito**
+- **Painel de cenas em grade (Q7)**: os cards têm todos o mesmo tamanho (122 px de altura, colunas iguais que preenchem a largura do painel), a miniatura preenche o card com recorte centralizado (`object-fit: cover`), o nome longo corta com reticências e aparece inteiro na dica (`title`). O painel cresce para baixo: até 3 linhas visíveis e, da quarta em diante, rolagem vertical dentro do painel (`.faixa-lista`, `max-height` de 3 linhas). Sem rolagem horizontal. "Nova cena" e "Importar mapa" seguem no fim da grade.
+- **Buscar cena**: campo "Buscar cena…" no alto (`cenas-busca`). Filtra pelo nome com a mesma busca do compêndio (`pontuarBusca`/`prepararConsulta`, sem mexer neles), em `apps/web/src/filtroDeCenas.ts`. O número do card é o da ordem real. Sem resultado: "Nenhuma cena com esse nome". Esc limpa a busca; Esc de novo fecha o painel.
+- **Botão direito no vazio**: abre o menu de contexto do painel com "Nova cena" e "Importar mapa — Dungeondraft / Universal VTT…" (mesmo menu dos cards, `menu-cena`). Pelo teclado: tecla de menu ou Shift+F10 com o foco na grade (no card abre o menu da cena, que antes não tinha caminho pelo teclado).
+- **Fechar ao clicar fora**: um `pointerdown` fora do painel fecha. Não fecha com o botão da barra de cima (que alterna), com menus (`role="menu"`), com diálogos (`role="dialog"`, `alertdialog`, `.fundo-modal`) nem enquanto o diálogo de apagar ou de configurar a cena está aberto.
+- **Barras de rolagem do tema**: dois tokens novos nos 14 temas, `rolagemPolegar` e `rolagemTrilho`, derivados em `temas.ts` (`comRolagem`): polegar = texto suave misturado ao painel (55%), trilho = cor dos campos. `styles.css` aplica `scrollbar-color` e `::-webkit-scrollbar*` em `*`, para todo o app. A regra fixa do `.inicio-painel-corpo` saiu. Teste novo em `temas.test.ts` (polegar contra o trilho 2:1 e contra o painel 1,5:1 em todos os temas).
+- **Descrição aberta no chat**: `CartaoDaMagiaNoChat` e `CartaoDaCaracteristicaNoChat` começam abertos (`useState(true)`); esconder é só do navegador (sem frame). Mensagens antigas também abrem.
+- **A faixa da cena anterior**: ver "Decisões".
+
+**Decisões (assumido)**
+- **A faixa do mapa anterior não foi reproduzida** (duas cenas com mapa de tiles de verdade, Covil sem mapa, trocando pelo card e por "Levar grupo" com o painel aberto, em vários tamanhos e velocidades; nenhum erro no console; o gancho `imagens()` sempre mostrou só os pedaços da cena nova). Corrigi o que o código tinha de errado e podia produzir isso: (1) os sprites do mapa eram guardados por *arquivo* (`hash`), então dois pedaços iguais (chão liso, comum em mapa do Dungeondraft) dividiam um sprite só e um pedaço saía do lugar; agora é um sprite por *lugar* (`hash@x,y`); (2) ao trocar de cena todos os sprites do mapa saem do palco antes de os da nova entrarem (`limparMapa`), sem depender da comparação por `hash`. Se a tira voltar, o próximo passo é pegar um mapa real do dono (o da taverna importada).
+- Esc no campo de busca fecha o painel só quando a busca já está vazia.
+- Arrastar para reordenar não existe no painel (a ordem é a das cenas); nada a preservar.
+- Trocar de cena pelo card não fecha o painel.
+- O polegar da barra é derivado em vez de escrito nos 14 temas (um lugar só; o teste vale para todos).
+
+**O que ficou para depois**
+- Reordenar cenas por arrastar (ideia, não pedida).
+
 ## Q8 — como ficou (2026-11-16): o token do jogador em cada cena, as Automações na barra e a aba Mesa organizada
 
 Três pedidos do Vilella num lote só: o jogador põe o token dele em qualquer cena (sempre na bandeira), as Automações ganham um botão na barra de cima e a aba Mesa fica no desenho da aba Preferências.

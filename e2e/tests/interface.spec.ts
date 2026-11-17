@@ -434,14 +434,23 @@ test("faixa de cenas: cards numerados com prévia, menu de contexto (ir, levar, 
   await expect(j1.pagina.getByTestId("menu-cenas")).toHaveCount(0);
   await expect(j1.pagina.getByTestId("faixa-cenas")).toHaveCount(0);
 
-  // abre logo abaixo do menu superior, ~160 px de altura e toda a largura disponível
+  // abre logo abaixo do menu superior e toda a largura disponível; Q7: a busca em cima e, com poucas cenas, uma
+  // linha só da grade (cards de 122 px)
   await expect(p.getByTestId("faixa-cenas")).toHaveCount(0);
   await p.getByTestId("menu-cenas").click();
   const faixa = await p.getByTestId("faixa-cenas").boundingBox();
   const menu = await p.getByTestId("menu-superior").boundingBox();
   const lateral = await p.getByTestId("barra-lateral").boundingBox();
+  const busca = await p
+    .getByRole("searchbox", { name: "Buscar cena" })
+    .or(p.getByLabel("Buscar cena"))
+    .first()
+    .boundingBox();
+  const umCard = await p.getByTestId("cena-card").first().boundingBox();
   expect(faixa && menu && faixa.y >= menu.y + menu.height).toBe(true);
-  expect(faixa && Math.abs(faixa.height - 164) <= 12).toBe(true);
+  expect(umCard && Math.abs(umCard.height - 122) <= 2).toBe(true);
+  expect(faixa && busca && umCard && faixa.height >= busca.height + umCard.height).toBe(true);
+  expect(faixa && busca && umCard && faixa.height < busca.height + umCard.height * 2).toBe(true);
   expect(faixa && lateral && faixa.x + faixa.width <= lateral.x).toBe(true);
   expect(faixa && lateral && lateral.x - (faixa.x + faixa.width) < 40).toBe(true);
   expect(faixa && faixa.width > 600).toBe(true);
@@ -483,6 +492,10 @@ test("faixa de cenas: cards numerados com prévia, menu de contexto (ir, levar, 
   await expect(menuDaCena2).toBeVisible();
   await p.getByTestId("mapa").click({ position: { x: 300, y: 500 } });
   await expect(menuDaCena2).toHaveCount(0);
+  // Q7: o clique fora fecha também o painel de cenas; reabre pelo botão da barra
+  await expect(p.getByTestId("faixa-cenas")).toHaveCount(0);
+  await p.getByTestId("menu-cenas").click();
+  await expect(p.getByTestId("faixa-cenas")).toBeVisible();
   // a cena do grupo: levar, preparar e apagar ficam desabilitados
   await p.locator('[data-testid="cena-card"][data-cena-id="cena-1"]').click({ button: "right" });
   for (const a of ["levar", "preparar", "apagar"]) {

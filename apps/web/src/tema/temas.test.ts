@@ -125,6 +125,17 @@ describe("temas de cor", () => {
     }
   });
 
+  // Q7: a barra de rolagem se acha em qualquer tema (o polegar contra o trilho e contra o painel).
+  it("o polegar da barra de rolagem se distingue do trilho e do painel em todos os temas", () => {
+    for (const id of IDS_DOS_TEMAS) {
+      const t = TEMAS[id];
+      expect(contraste(t.rolagemPolegar, t.rolagemTrilho), `${id} trilho`).toBeGreaterThanOrEqual(
+        2,
+      );
+      expect(contraste(t.rolagemPolegar, t.painel), `${id} painel`).toBeGreaterThanOrEqual(1.5);
+    }
+  });
+
   for (const id of IDS_DOS_TEMAS) {
     it(`contraste AA (4,5:1) em todos os pares de texto e fundo do tema ${id}`, () => {
       const tema = TEMAS[id];

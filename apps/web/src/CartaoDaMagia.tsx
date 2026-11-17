@@ -85,7 +85,7 @@ export function textoDoEspacoNoCartao(e: EspacoNoChat): string {
 
 /**
  * O cartão de uma magia no chat: nome, nível, escola, marcas e uma linha com tempo, alcance e duração; a
- * descrição fica recolhida até alguém abrir.
+ * descrição vem aberta (Q7); quem lê pode esconder, só no navegador dele.
  */
 export function CartaoDaMagiaNoChat({
   magia,
@@ -95,7 +95,7 @@ export function CartaoDaMagiaNoChat({
   /** O espaço, quando a magia foi conjurada acima do nível dela (V6), como ritual ou por Conjuração inata (N2). */
   espaco?: EspacoNoChat | undefined;
 }) {
-  const [aberta, setAberta] = useState(false);
+  const [aberta, setAberta] = useState(true);
   return (
     <section className="cartao-magia-chat" data-testid="magia-chat" data-aberta={aberta}>
       <header>
@@ -133,13 +133,13 @@ export function CartaoDaMagiaNoChat({
   );
 }
 
-/** O cartão de uma característica da ficha no chat (V4a): título e descrição recolhida até alguém abrir. */
+/** O cartão de uma característica da ficha no chat (V4a): título e descrição aberta (Q7). */
 export function CartaoDaCaracteristicaNoChat({
   caracteristica,
 }: {
   caracteristica: { nome: string; descricao: string; origem?: string | undefined };
 }) {
-  const [aberta, setAberta] = useState(false);
+  const [aberta, setAberta] = useState(true);
   const temTexto = caracteristica.descricao.trim() !== "";
   return (
     <section className="cartao-magia-chat" data-testid="caracteristica-chat" data-aberta={aberta}>

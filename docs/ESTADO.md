@@ -3971,6 +3971,56 @@ Ver `PASSAGEM.md` ("Q6").
 ### Roteiro manual
 `docs/ROTEIRO-DE-TESTES.md`, "Q2b" e "Q4b".
 
+## Ajustes Q9 — A Conjuração do NPC com a interface da aba Magias (entregue, aguardando o roteiro manual)
+
+### O que foi entregue
+- A seção Conjuração do NPC usa o mesmo componente de círculos da aba Magias do personagem (`ficha/CirculoDeMagias.tsx`): espaços totais e restantes, uma linha por magia com Conjurar, chat e engrenagem, "+ Círculo", Recuperar espaços, reordenar e soltar do compêndio por círculo. Fica só do NPC: CD e ataque pelo ND e a conjuração inata. Sem "Prep.".
+
+### Como rodar
+`pnpm dev` como sempre. Sem migração, sem protocolo. Testes em outras portas: `E2E_PORTA_SALA=8794 E2E_PORTA_WEB=5180`.
+
+### Verificação
+Ver o relatório do lote.
+
+### Decisões
+Ver `REDESIGN.md` ("Q9 — como ficou").
+
+### Desvios
+- Nenhum.
+
+### Frágil
+Ver `PASSAGEM.md` (seção Conjuração do NPC).
+
+### Roteiro manual
+`docs/ROTEIRO-DE-TESTES.md`, "Q9".
+
+## Ajustes Q7 — O painel de cenas em grade, a faixa que sobra, barras do tema e a descrição aberta (entregue, aguardando o roteiro manual)
+
+### O que foi entregue
+- Painel de cenas em grade: cards do mesmo tamanho, até 3 linhas e rolagem vertical, busca "Buscar cena…", botão direito (ou Shift+F10) no vazio com "Nova cena" e "Importar mapa", clique fora fecha.
+- Barras de rolagem do app inteiro com as cores do tema (tokens `rolagemPolegar` e `rolagemTrilho`).
+- Os cartões de magia e de característica chegam ao chat com a descrição aberta.
+- Correção defensiva na troca de cena: um sprite do mapa por lugar, e o palco limpo ao mudar de cena (a tira da cena anterior não foi reproduzida; ver "Desvios").
+
+### Como rodar
+`pnpm dev` como sempre. Só tela (`apps/web`): sem migração, sem mudança de protocolo ou de sala. Testes em outras portas: `E2E_PORTA_SALA=8790 E2E_PORTA_WEB=5176`.
+
+### Verificação
+Ver o relatório do lote.
+
+### Decisões
+Ver `REDESIGN.md` ("Q7 — como ficou").
+
+### Desvios
+- A faixa do mapa anterior não deu para reproduzir no E2E; a correção cobre as duas causas encontradas no código e o teste novo confere o palco depois de cada troca (card e "Levar grupo"). Se o dono vir a tira de novo, mandar o mapa.
+- `compendio.spec.ts`: o cartão da magia no chat agora chega aberto (mudança de propósito do Q7).
+
+### Frágil
+Ver `PASSAGEM.md` ("Q7").
+
+### Roteiro manual
+`docs/ROTEIRO-DE-TESTES.md`, "Q7".
+
 ## Ajustes Q8 — O token do jogador em cada cena, as Automações na barra e a aba Mesa organizada (entregue, aguardando o roteiro manual)
 
 ### O que foi entregue
@@ -3997,4 +4047,4 @@ Ver `PASSAGEM.md` ("Q8").
 ### Roteiro manual
 `docs/ROTEIRO-DE-TESTES.md`, "Q8".
 
-## Próximo: o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b, N4, N5, M1, M2, Q1, Q2, Q3, Q4, Q5, Q6 e Q8
+## Próximo: o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b, N4, N5, M1, M2, Q1, Q2, Q3, Q4, Q5, Q6, Q7, Q8 e Q9

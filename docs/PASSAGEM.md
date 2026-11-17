@@ -621,7 +621,7 @@ Continua em aberto, por ser decisão e não erro de doc: `ficha.verOutras` (seç
 
 ## V4a3 (2026-11-12): magias sem classe e bugs da ficha
 
-- Espaços por círculo: `AbaMagias.tsx` (`TotalDeEspacos`, `Nivel`, "+ Círculo" com estado local). O total vem de `espacosDaFicha`; `espacosAutomaticos` dá só a conta das classes (para o "auto"). `CampoNumero` ganhou `aoApagar` (apagar o texto chama o callback em vez de não enviar nada).
+- Espaços por círculo: `ficha/CirculoDeMagias.tsx` (`TotalDeEspacos`, `CirculoDeMagias`, `BotaoNovoCirculo`; o "+ Círculo" guarda o estado local em `AbaMagias.tsx` e em `ConjuracaoDoNpc.tsx`). O total vem de `espacosDaFicha`; `espacosAutomaticos` dá só a conta das classes (para o "auto"). `CampoNumero` ganhou `aoApagar` (apagar o texto chama o callback em vez de não enviar nada).
 - Sem classe: `habilidadeDeConjuracao` + `conjuracaoSemClasse(f)` (testids `conjuracao-habilidade-livre`, `conjuracao-cd-livre`, `conjuracao-ataque-livre`). Com classe conjuradora o campo é ignorado.
 - `espacos-resumo-N` ("3/4") virou `espacos-restantes-N` (só o número). O testid `espaco-total-N` continua, agora à vista.
 - Dados de Vida: bolinhas em `.fl-bolinhas-dv` (quebram de linha); acima de `LIMITE_DE_BOLINHAS_DE_DV` (12) vira contador com `dv-menos-*` e `dv-mais-*`.
@@ -641,7 +641,7 @@ Continua em aberto, por ser decisão e não erro de doc: `ficha.verOutras` (seç
 
 ## V4b2 (2026-11-12): Conjuração do NPC e o nome com a capitular
 
-- Seção Conjuração do NPC: `ficha/ConjuracaoDoNpc.tsx` (`SecaoDeConjuracao` é a página da fita Conjuração do `BlocoDoNpc`, V8). Os dados são os do personagem (`magias`, `espacosTotal`, `espacosGastos`, `habilidadeDeConjuracao`): não crie campo paralelo. Reaproveita `Espacos` e `subDaMagia` (agora exportados de `AbaMagias.tsx`), `conjurar.ts` e `EditorDeAtaque`. O título de seção do bloco (`TituloDoBloco`) mora em `livro.tsx`. Testids: `npc-secao-conjuracao`, `npc-conj-cd`, `npc-conj-ataque`, `npc-conj-habilidade`, `npc-conj-nivel-<n>`, `npc-conj-magia-<i>`, `npc-conj-conjurar-<i>`, `npc-espaco-<n>-<k>`, `npc-espaco-total-<n>`, `npc-nova-conjuracao`.
+- Seção Conjuração do NPC: `ficha/ConjuracaoDoNpc.tsx` (`SecaoDeConjuracao` é a página da fita Conjuração do `BlocoDoNpc`, V8). Os dados são os do personagem (`magias`, `espacosTotal`, `espacosGastos`, `habilidadeDeConjuracao`): não crie campo paralelo. Desde o Q9 os círculos são o `CirculoDeMagias` de `ficha/CirculoDeMagias.tsx` (variante `"npc"`), o mesmo da aba Magias; a variante só troca os testids, esconde o "Prep." e abre o editor da engrenagem embaixo da linha. Mexeu na linha de magia ou no círculo, mexeu nas duas fichas. Reaproveita `Espacos` e `subDaMagia` (reexportados por `AbaMagias.tsx`), `conjurar.ts` e `EditorDeAtaque`. O título de seção do bloco (`TituloDoBloco`) mora em `livro.tsx`. Testids: `npc-secao-conjuracao`, `npc-conj-cd`, `npc-conj-ataque`, `npc-conj-habilidade`, `npc-conj-nivel-<n>`, `npc-conj-item-<i>` (linha), `npc-conj-magia-<i>` (abre/recolhe), `npc-conj-nome-<i>`, `npc-conj-conjurar-<i>`, `npc-conj-chat-<i>`, `npc-conj-mais-circulo`, `npc-recuperar-espacos`, `npc-espaco-<n>-<k>`, `npc-espaco-total-<n>`, `npc-nova-conjuracao`.
 - A magia solta no NPC: `aplicarEntradaNaFicha(..., "npc")` em `compendioParaFicha.ts` (sem classe nem atributo escolhido, grava também `habilidadeDeConjuracao`). `useSoltarDoCompendio.listaDoTipo` aceita uma função da entrada e há a opção `fluxo` (chips lado a lado) em `ordem.tsx`; listas `npc-circulo-<n>`.
 - Frágil: o manipulador de foco de `NomeComCapitular` troca o valor do input direto no DOM (antes do render) para o preenchimento por código (Playwright `fill`) substituir o texto em vez de anexar ao fim. Não passe isso para um `useEffect`.
 - Suposição: a seção existe com magias, atributo ou total de espaços escolhido; sem isso só o "+ Conjuração" de quem edita. Ver `REDESIGN`, "V4b2".
@@ -1021,6 +1021,13 @@ Continua em aberto, por ser decisão e não erro de doc: `ficha.verOutras` (seç
 - A configuração do som usa `camadaAlta` (45+): fica acima da faixa (30) e das janelas comuns (25+).
 
 **Suposições**: ver `docs/REDESIGN.md`, "Q6 — como ficou".
+
+## Q7 (2026-11-16): o painel de cenas em grade, barras do tema, descrição aberta
+
+- `FaixaDeCenas.tsx`: a lista virou grade (`.faixa-lista`, `grid-auto-rows: 122px`, `max-height` de 3 linhas). **Frágil: o `122px` e o `calc(122px * 3 + 10px * 2)` do CSS andam juntos** (altura do card e 3 linhas). A busca é `filtroDeCenas.ts` (usa `pontuarBusca` do compêndio). O menu do vazio e o teclado (Shift+F10) estão em `FaixaDeCenas`; o clique fora é um `pointerdown` no documento com a lista `FORA_QUE_NAO_FECHA` (botão `menu-cenas`, menus e diálogos). **Quem criar um diálogo novo aberto a partir do painel precisa de `role="dialog"`/`alertdialog` ou da classe `fundo-modal`, senão clicar nele fecha o painel.**
+- `mapaPixi.ts`: `spritesDoMapa` é chaveado por `hash@x,y` (um sprite por lugar); `limparMapa()` roda em `definirCena` quando a cena muda. O gancho `imagens()` devolve o `hash` de cada sprite como antes.
+- Barras de rolagem: tokens `rolagemPolegar` e `rolagemTrilho` (derivados em `comRolagem`, `temas.ts`); regras globais no começo de `styles.css`. Não ponha `scrollbar-color` fixo em componente novo.
+- `CartaoDaMagia.tsx`: os cartões do chat começam abertos.
 
 ## Q8 (2026-11-16): o token em cada cena, as Automações na barra, a aba Mesa em cartões
 
