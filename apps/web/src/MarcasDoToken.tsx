@@ -5,7 +5,7 @@ import {
   vidaDoToken as vidaDoTokenNaMesa,
 } from "@tabletop/shared";
 import { Heart, Shield, Skull } from "lucide-react";
-import { type RefObject, useEffect, useRef, useState } from "react";
+import { type RefObject, useEffect, useMemo, useRef, useState } from "react";
 import { BotaoComDica } from "./BotaoComDica";
 import type { MapaPixi } from "./mapa/mapaPixi";
 import { haDialogoAberto } from "./useDialogo";
@@ -44,20 +44,34 @@ export function MarcasDoToken({ mapa, token, personagem, enviar, aoAbrirFicha, i
   const tokenId = token.id;
   useEffect(() => {
     let quadro = 0;
+    // O último valor escrito no estilo: só se escreve quando muda, para o mapa parado não invalidar o layout a cada quadro.
+    let elEscrito: HTMLElement | null = null;
+    let esq = "";
+    let topo = "";
+    let visib = "";
     const seguir = () => {
       const el = raiz.current;
       const pai = el?.offsetParent;
       const onde = mapa.current?.tokenNaTela(tokenId) ?? null;
       if (el && pai instanceof HTMLElement) {
-        if (!onde) el.style.visibility = "hidden";
-        else {
+        if (el !== elEscrito) {
+          elEscrito = el;
+          esq = "";
+          topo = "";
+          visib = "";
+        }
+        if (!onde) {
+          if (visib !== "hidden") el.style.visibility = visib = "hidden";
+        } else {
           const w = el.offsetWidth;
           const h = el.offsetHeight;
           const x = Math.min(Math.max(onde.x, w / 2 + 4), pai.clientWidth - w / 2 - 4);
           const y = Math.max(onde.y - onde.raio - FOLGA, h + 4);
-          el.style.left = `${Math.round(x)}px`;
-          el.style.top = `${Math.round(y)}px`;
-          el.style.visibility = "visible";
+          const novoEsq = `${Math.round(x)}px`;
+          const novoTopo = `${Math.round(y)}px`;
+          if (novoEsq !== esq) el.style.left = esq = novoEsq;
+          if (novoTopo !== topo) el.style.top = topo = novoTopo;
+          if (visib !== "visible") el.style.visibility = visib = "visible";
         }
       }
       quadro = requestAnimationFrame(seguir);
@@ -99,8 +113,10 @@ export function MarcasDoToken({ mapa, token, personagem, enviar, aoAbrirFicha, i
     return () => window.removeEventListener("keydown", ouvir);
   }, []);
 
+  // Só a CA interessa: a derivação completa da ficha roda quando a ficha muda, não a cada render.
+  const ca = useMemo(() => (ficha ? derivar(ficha).ca : undefined), [ficha]);
+
   if (!ficha || !vida) return null;
-  const d = derivar(ficha);
 
   function gravar() {
     if (!ficha || !vida) return;
@@ -193,12 +209,12 @@ export function MarcasDoToken({ mapa, token, personagem, enviar, aoAbrirFicha, i
       <BotaoComDica
         testid="marca-ca"
         className="mvc-marca mvc-ca"
-        nome={`Classe de armadura ${d.ca}. Abre a ficha`}
-        aria-label={`Classe de armadura ${d.ca}. Abre a ficha`}
+        nome={`Classe de armadura ${ca}. Abre a ficha`}
+        aria-label={`Classe de armadura ${ca}. Abre a ficha`}
         onClick={() => aoAbrirFicha(personagem.id, undefined, token.id)}
       >
         <Shield size={14} aria-hidden />
-        <span data-testid="marca-ca-valor">{d.ca}</span>
+        <span data-testid="marca-ca-valor">{ca}</span>
       </BotaoComDica>
       <BotaoComDica
         testid="marca-morto"

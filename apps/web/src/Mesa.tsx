@@ -186,6 +186,7 @@ function textoDoAvisoDeContas(aviso: AvisoDeContas | null): string {
 
 const semAssinatura = () => () => {};
 const versaoZero = () => 0;
+const falso = () => false;
 
 type Props = {
   /** A mesa (id, nome e se é a legada) a que esta tela está ligada. */
@@ -520,10 +521,14 @@ export function Mesa({
       setVistoAteSeq(ultimoSeqDoChat);
     }
   }, [chatDaMesa, ultimoSeqDoChat, abaVisivel, vistoAteSeq]);
-  const naoLidas =
-    vistoAteSeq === null
-      ? 0
-      : (chatDaMesa ?? []).filter((m) => m.seq > vistoAteSeq && m.autorId !== euId).length;
+  // Memoizado: não percorre o chat inteiro a cada evento que não toca nele.
+  const naoLidas = useMemo(
+    () =>
+      vistoAteSeq === null
+        ? 0
+        : (chatDaMesa ?? []).filter((m) => m.seq > vistoAteSeq && m.autorId !== euId).length,
+    [chatDaMesa, vistoAteSeq, euId],
+  );
 
   // Lembra o "Como:" deste usuário neste navegador.
   useEffect(() => {
@@ -587,9 +592,10 @@ export function Mesa({
     gerente?.assinarProntos ?? semAssinatura,
     gerente?.versaoDeProntos ?? versaoZero,
   );
-  const versaoDoGerente = useSyncExternalStore(
+  // Só o booleano "há transferência" vale como snapshot: a Mesa não re-renderiza a cada pedaço de arquivo recebido.
+  const transferindo = useSyncExternalStore(
     gerente?.assinar ?? semAssinatura,
-    gerente?.versaoAtual ?? versaoZero,
+    gerente?.haTransferencia ?? falso,
   );
   // N5: o som da mesa (trilha, efeitos, zonas); o aviso "Clique para ativar" e o cartão das Preferências usam o `bloqueado`.
   const som = useSomDaMesa({
@@ -672,10 +678,6 @@ export function Mesa({
         : null,
     [gerente],
   );
-  const transferindo =
-    gerente !== null &&
-    versaoDoGerente >= 0 &&
-    gerente.listarStatus().some((s) => s.estado === "pedindo" || s.estado === "baixando");
 
   // Movimento ao vivo dos outros e recusas da sala vão direto para o mapa (sem re-renderizar).
   useEffect(
@@ -1099,50 +1101,78 @@ export function Mesa({
   // V10c: a cena-cartão nunca tem névoa nem limite de visão (a configuração de luz fica guardada).
   const cartao = cena ? cenaEhCartao(cena) : false;
   const iluminada = cena ? visaoLimitadaNaCena(cena) : true;
-  const visaoCalculada: ConfigDeVisao = (() => {
+  const usuariosDaMesa = estado?.usuarios;
+  const tokensDaMesa = estado?.tokens;
+  const efeitosDaMesa = estado?.efeitos;
+  const configLuz = estado?.config.iluminacao;
+  const memoriaEsquecida = estado?.memoriaEsquecida;
+  const mesaId = mesa.id;
+  const mesaLegada = mesa.legada;
+  // Só refaz o cálculo quando uma das fatias que ele lê muda (e não a cada evento da sala).
+  const visaoCalculada = useMemo<ConfigDeVisao>(() => {
     const semMemoria = {
       ligada: false,
       tom: "#56627a",
       usuarioId: "",
       esquecimento: 0,
-      mesaId: mesa.id,
-      legada: mesa.legada,
+      mesaId,
+      legada: mesaLegada,
     };
-    if (!estado || !eu || !cena || !iluminada) {
+    if (
+      !usuariosDaMesa ||
+      !tokensDaMesa ||
+      !personagens ||
+      !configLuz ||
+      !eu ||
+      !cena ||
+      !iluminada
+    ) {
       return { modo: "claro", fontes: [], memoria: semMemoria };
     }
-    const configLuz = estado.config.iluminacao;
     const memoria = {
       ligada: configLuz.memoriaLigada,
       tom: configLuz.tomDaMemoria,
       usuarioId: (usuarioVisto ?? eu).id,
-      esquecimento: estado.memoriaEsquecida?.[cena.id] ?? 0,
-      mesaId: mesa.id,
-      legada: mesa.legada,
+      esquecimento: memoriaEsquecida?.[cena.id] ?? 0,
+      mesaId,
+      legada: mesaLegada,
     };
     const donos = modoMestre
-      ? estado.usuarios.filter((u) => u.papel === "jogador")
+      ? usuariosDaMesa.filter((u) => u.papel === "jogador")
       : [usuarioVisto ?? eu];
-    const fontes = estado.tokens
-      .filter(
-        (t) => t.cenaId === cena.id && donos.some((u) => controlaToken(t, u, estado.personagens)),
-      )
+    const fontes = tokensDaMesa
+      .filter((t) => t.cenaId === cena.id && donos.some((u) => controlaToken(t, u, personagens)))
       .map((t) => ({
         tokenId: t.id,
         // 7b-1: o limite de visão de uma automação (efeito com prazo) vale por cima da visão base.
         alcanceM: limitarAlcance(
-          alcanceDeVisao(t, estado.personagens),
-          limiteDeVisaoDoToken(estado.efeitos, t.id),
+          alcanceDeVisao(t, personagens),
+          limiteDeVisaoDoToken(efeitosDaMesa, t.id),
         ),
         visaoNoEscuroM: Math.min(
-          visaoNoEscuroDe(t, estado.personagens),
-          limiteDeVisaoDoToken(estado.efeitos, t.id) ?? Number.POSITIVE_INFINITY,
+          visaoNoEscuroDe(t, personagens),
+          limiteDeVisaoDoToken(efeitosDaMesa, t.id) ?? Number.POSITIVE_INFINITY,
         ),
-        memoriaM: alcanceDaMemoria(configLuz, modInteligenciaDe(t, estado.personagens)),
+        memoriaM: alcanceDaMemoria(configLuz, modInteligenciaDe(t, personagens)),
       }));
     if (!modoMestre) return { modo: "jogador", fontes, memoria };
     return { modo: visaoDoMestre && fontes.length > 0 ? "noturna" : "claro", fontes, memoria };
-  })();
+  }, [
+    usuariosDaMesa,
+    tokensDaMesa,
+    personagens,
+    efeitosDaMesa,
+    configLuz,
+    memoriaEsquecida,
+    mesaId,
+    mesaLegada,
+    eu,
+    cena,
+    iluminada,
+    usuarioVisto,
+    modoMestre,
+    visaoDoMestre,
+  ]);
   const chaveDaVisao = JSON.stringify(visaoCalculada);
   const visao = useMemo(() => JSON.parse(chaveDaVisao) as ConfigDeVisao, [chaveDaVisao]);
 
@@ -1355,10 +1385,11 @@ export function Mesa({
         if (luz.portador.tipo !== "mao") return true; // objeto num ponto: a sala decide
         const personagemId = luz.portador.personagemId;
         const p = personagens?.find((x) => x.id === personagemId);
+        // Os tokens vêm da ref (leitura tardia, a cada quadro do mapa): mover um token não recria `opcoes`.
         return (
           p !== undefined &&
           (podeEditarPersonagem(p, eu) ||
-            (estado?.tokens ?? []).some(
+            (estadoAtual.current?.tokens ?? []).some(
               (t) => t.personagemId === personagemId && t.controladoPor.includes(eu.id),
             ))
         );
@@ -1427,7 +1458,6 @@ export function Mesa({
       pontoSelecionadoId,
       tipoDoNovoPonto,
       estado?.config.alcanceInteracaoM,
-      estado?.tokens,
       tempo.restanteDe,
       estado?.modelos,
       euMestre,
@@ -1520,7 +1550,13 @@ export function Mesa({
   // Pede o que a mesa usa (mapa da cena, imagens dos tokens, retratos e tokens padrão das fichas).
   // O mestre também recolhe o que os jogadores subiram, para guardar cópia em recebidos/<jogador>/.
   const hashDoMapa = cena?.mapa?.assetHash;
-  const tokensDoEstado = estado?.tokens.filter((t) => t.cenaId === cena?.id);
+  const tokensDaMesaTodos = estado?.tokens;
+  const cenaDoPedidoId = cena?.id;
+  // Memoizado: o efeito abaixo (um `garantir` por arquivo) só roda quando os tokens da cena mudam, não a cada render.
+  const tokensDoEstado = useMemo(
+    () => tokensDaMesaTodos?.filter((t) => t.cenaId === cenaDoPedidoId),
+    [tokensDaMesaTodos, cenaDoPedidoId],
+  );
   const assetsDoEstado = estado?.assets;
   // biome-ignore lint/correctness/useExhaustiveDependencies: roda quando mudam o mapa, os tokens, as fichas ou as metas
   useEffect(() => {

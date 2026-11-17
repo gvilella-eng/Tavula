@@ -1,5 +1,5 @@
 import type { Estado, ObjetoDeLuz } from "@tabletop/shared";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 /**
  * O tempo da sala na tela (princípio 6: o tempo é da sala). A sala manda `restanteMs` e `contando`
@@ -53,7 +53,8 @@ export function useTempoDaSala(estado: Estado | null): TempoDaTela {
     return r.ref.acumuladoMs + (performance.now() - r.em);
   }, []);
 
-  return { restanteDe, salaMs };
+  // As duas funções são estáveis: o objeto também, para quem o recebe por prop não mudar a cada render.
+  return useMemo(() => ({ restanteDe, salaMs }), [restanteDe, salaMs]);
 }
 
 /**
