@@ -27,10 +27,11 @@ import {
   xpDoND,
 } from "@tabletop/shared";
 import { ArrowLeft, BookPlus, GripVertical, UserPlus } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { BlocosDoCompendio, NomeOriginal } from "./CompendioBlocos";
 import { comecarArrastoDoCompendio } from "./ficha/ordem";
 import { useAlvoDaFicha } from "./useAlvoDaFicha";
+import { useFuncaoEstavel } from "./useFuncaoEstavel";
 
 type Enviar = (tipo: string, dados: object) => string | null;
 type Aviso = { tipo: "ok" | "erro"; texto: string } | null;
@@ -47,7 +48,7 @@ const xpDoMonstro = (m: MonstroDoCompendio): number | undefined => m.xp ?? xpDoN
  * confirma. Só o mestre cria NPCs.
  */
 function useCriarNpc(
-  estado: Estado,
+  estado: Pick<Estado, "personagens" | "pastas">,
   eu: Usuario,
   enviar: Enviar,
   aoAbrirFicha: ((id: string) => void) | undefined,
@@ -81,7 +82,14 @@ function useCriarNpc(
       texto: `${monstro.nome} entrou na pasta NPCs.${avisos.length > 0 ? " Magias ou perícias que o compêndio ou a ficha não conhecem entraram só com o nome ou nas notas." : ""}`,
     });
   }
-  return { podeCriar: eu.papel === "mestre", criar, aviso, limparAviso: () => setAviso(null) };
+  // Identidade fixa (lê as pastas de agora na hora do clique): as linhas da lista em `memo` não refazem a cada ficha editada.
+  const criarEstavel = useFuncaoEstavel(criar);
+  return {
+    podeCriar: eu.papel === "mestre",
+    criar: criarEstavel,
+    aviso,
+    limparAviso: () => setAviso(null),
+  };
 }
 
 function MensagemDeAviso({ aviso }: { aviso: Aviso }) {
@@ -110,7 +118,7 @@ type PropsDosMonstros = {
   /** As magias do compêndio: o NPC criado leva o texto das que o monstro conhece. */
   magias: readonly MagiaDoCompendio[];
   texto: string;
-  estado: Estado;
+  estado: Pick<Estado, "personagens" | "pastas">;
   eu: Usuario;
   enviar: Enviar;
   aoAbrirFicha?: (id: string) => void;
@@ -125,6 +133,56 @@ function entradaDoMonstro(m: MonstroDoCompendio, magias: readonly MagiaDoCompend
     magias: magiasDoMonstro(m, magias),
   } satisfies EntradaDoCompendio;
 }
+
+/** Uma linha da lista de monstros. `memo`: só refaz quando muda o monstro, o papel ou uma função (todas de identidade fixa). */
+const LinhaDoMonstro = memo(function LinhaDoMonstro({
+  monstro: m,
+  magias,
+  podeCriar,
+  aoAbrir,
+  aoCriar,
+}: {
+  monstro: MonstroDoCompendio;
+  magias: readonly MagiaDoCompendio[];
+  podeCriar: boolean;
+  aoAbrir: (nome: string) => void;
+  aoCriar: (monstro: MonstroDoCompendio) => void;
+}) {
+  return (
+    <li>
+      <div className="entrada-do-compendio">
+        <button
+          type="button"
+          className="entrada-arrastavel"
+          draggable={podeCriar}
+          data-testid="compendio-monstro"
+          data-nome={m.nome}
+          title={podeCriar ? "Abrir (ou arraste para o mapa)" : "Abrir"}
+          onClick={() => aoAbrir(m.nome)}
+          onDragStart={(e) => comecarArrastoDoCompendio(e, entradaDoMonstro(m, magias))}
+        >
+          {podeCriar && <GripVertical size={14} className="alca-da-entrada" aria-hidden />}
+          <span className="textos-da-entrada">
+            <span className="nome-da-magia">
+              {m.nome} <NomeOriginal nome={m.nomeOriginal} />
+            </span>
+            <span className="nivel-e-escola">{metaDoMonstro(m)}</span>
+          </span>
+        </button>
+        {podeCriar && (
+          <button
+            type="button"
+            data-testid="compendio-monstro-criar"
+            aria-label={`Criar NPC de ${m.nome}`}
+            onClick={() => aoCriar(m)}
+          >
+            <UserPlus size={14} /> Criar NPC
+          </button>
+        )}
+      </div>
+    </li>
+  );
+});
 
 /** Os monstros do compêndio: filtros de tipo, tamanho e ND; cada linha abre o cartão, se arrasta para o mapa e cria o NPC. */
 export function ListaDeMonstros({
@@ -157,6 +215,27 @@ export function ListaDeMonstros({
   );
   const temFiltro = tipo !== "" || tamanho !== "" || ndDe !== "" || ndAte !== "" || texto !== "";
   const selecionado = aberto === null ? undefined : monstros.find((m) => m.nome === aberto);
+  // Os grupos e o desenho da linha só mudam com a busca, o filtro e as magias: a lista (`memo`) não refaz a cada ficha editada.
+  const semTexto = texto.trim() === "";
+  const grupos = useMemo(() => agruparMonstrosPorND(achados, semTexto), [achados, semTexto]);
+  const { podeCriar, criar } = npc;
+  const criarNpcDe = useCallback(
+    (m: MonstroDoCompendio) => criar(m, magiasDoMonstro(m, magias)),
+    [criar, magias],
+  );
+  const renderEntrada = useCallback(
+    (m: MonstroDoCompendio) => (
+      <LinhaDoMonstro
+        key={m.nome}
+        monstro={m}
+        magias={magias}
+        podeCriar={podeCriar}
+        aoAbrir={setAberto}
+        aoCriar={criarNpcDe}
+      />
+    ),
+    [magias, podeCriar, criarNpcDe],
+  );
 
   if (selecionado) {
     return (
@@ -264,46 +343,11 @@ export function ListaDeMonstros({
       ) : (
         <BlocosDoCompendio
           escopo="monstros"
-          grupos={agruparMonstrosPorND(achados, texto.trim() === "")}
+          grupos={grupos}
           forcar={temFiltro}
           total={monstros.length}
           testid="compendio-lista-monstros"
-          renderEntrada={(m) => (
-            <li key={m.nome}>
-              <div className="entrada-do-compendio">
-                <button
-                  type="button"
-                  className="entrada-arrastavel"
-                  draggable={npc.podeCriar}
-                  data-testid="compendio-monstro"
-                  data-nome={m.nome}
-                  title={npc.podeCriar ? "Abrir (ou arraste para o mapa)" : "Abrir"}
-                  onClick={() => setAberto(m.nome)}
-                  onDragStart={(e) => comecarArrastoDoCompendio(e, entradaDoMonstro(m, magias))}
-                >
-                  {npc.podeCriar && (
-                    <GripVertical size={14} className="alca-da-entrada" aria-hidden />
-                  )}
-                  <span className="textos-da-entrada">
-                    <span className="nome-da-magia">
-                      {m.nome} <NomeOriginal nome={m.nomeOriginal} />
-                    </span>
-                    <span className="nivel-e-escola">{metaDoMonstro(m)}</span>
-                  </span>
-                </button>
-                {npc.podeCriar && (
-                  <button
-                    type="button"
-                    data-testid="compendio-monstro-criar"
-                    aria-label={`Criar NPC de ${m.nome}`}
-                    onClick={() => npc.criar(m, entradaDoMonstro(m, magias).magias)}
-                  >
-                    <UserPlus size={14} /> Criar NPC
-                  </button>
-                )}
-              </div>
-            </li>
-          )}
+          renderEntrada={renderEntrada}
         />
       )}
       <MensagemDeAviso aviso={npc.aviso} />
@@ -481,6 +525,72 @@ function CartaoDoMonstro({
 // Itens mágicos
 // ---------------------------------------------------------------------------------------------
 
+/** Uma linha da lista de itens mágicos. `memo`: só refaz quando muda o item, se está aberto ou se há ficha para receber. */
+const LinhaDoItemMagico = memo(function LinhaDoItemMagico({
+  item: i,
+  aberto,
+  podeAdicionar,
+  aoAlternar,
+  aoAdicionar,
+}: {
+  item: ItemMagicoDoCompendio;
+  aberto: boolean;
+  podeAdicionar: boolean;
+  aoAlternar: (nome: string) => void;
+  aoAdicionar: (item: ItemMagicoDoCompendio) => void;
+}) {
+  return (
+    <li>
+      <div className="entrada-do-compendio">
+        <button
+          type="button"
+          className="entrada-arrastavel"
+          draggable
+          data-testid="compendio-entrada-itemMagico"
+          data-nome={i.nome}
+          aria-expanded={aberto}
+          title="Mostrar a descrição (ou arraste para a ficha aberta)"
+          onClick={() => aoAlternar(i.nome)}
+          onDragStart={(e) => comecarArrastoDoCompendio(e, { tipo: "itemMagico", itemMagico: i })}
+        >
+          <GripVertical size={14} className="alca-da-entrada" aria-hidden />
+          <span className="textos-da-entrada">
+            <span className="nome-da-magia">
+              {i.nome} <NomeOriginal nome={i.nomeOriginal} />
+            </span>
+            <span className="nivel-e-escola">
+              <span
+                className="raridade-do-item"
+                data-raridade={i.raridade}
+                data-testid="compendio-item-raridade"
+              >
+                {ROTULO_DA_RARIDADE[i.raridade]}
+              </span>
+              {i.tipo}
+              {i.sintonizacao?.necessaria ? " · sintonização" : ""}
+            </span>
+          </span>
+        </button>
+        <button
+          type="button"
+          data-testid="compendio-itemMagico-adicionar"
+          aria-label={`Adicionar ${i.nome} à ficha`}
+          disabled={!podeAdicionar}
+          onClick={() => aoAdicionar(i)}
+        >
+          <BookPlus size={14} /> Adicionar
+        </button>
+      </div>
+      {aberto && (
+        <div className="descricao-do-item" data-testid="compendio-item-descricao">
+          <p className="nota">{resumoDoItemMagico(i)}</p>
+          <p>{i.descricao}</p>
+        </div>
+      )}
+    </li>
+  );
+});
+
 /**
  * Os itens mágicos do compêndio: busca, tipo e raridade. Cada linha abre a descrição, se arrasta para a ficha aberta
  * (equipamento no personagem, traço no NPC) e o botão Adicionar faz o mesmo pelo teclado. A arma mágica com bônus entra
@@ -496,7 +606,7 @@ export function ListaDeItensMagicos({
 }: {
   itens: readonly ItemMagicoDoCompendio[];
   texto: string;
-  estado: Estado;
+  estado: Pick<Estado, "personagens">;
   eu: Usuario;
   enviar: Enviar;
   /** Q2: dentro do "Todas": sem filtros nem contagem. */
@@ -522,14 +632,15 @@ export function ListaDeItensMagicos({
   );
   const temFiltro = tipo !== "" || raridade !== "" || sintonizacao !== "" || texto !== "";
 
-  function alternar(nome: string) {
+  // Identidade fixa: só o setter, que é estável (a linha em `memo` não refaz por causa da função).
+  const alternar = useCallback((nome: string) => {
     setAbertos((a) => {
       const novo = new Set(a);
       if (novo.has(nome)) novo.delete(nome);
       else novo.add(nome);
       return novo;
     });
-  }
+  }, []);
   function adicionar(i: ItemMagicoDoCompendio) {
     if (!alvo) return;
     const r = aplicarEntradaNaFicha(
@@ -545,6 +656,27 @@ export function ListaDeItensMagicos({
         : { tipo: "ok", texto: `${i.nome} entrou na ficha de ${alvo.nome}.` },
     );
   }
+  // O alvo e o aviso de agora, lidos só na hora do clique: a ficha editada não refaz as linhas da lista (`memo`).
+  const adicionarEstavel = useFuncaoEstavel(adicionar);
+  const podeAdicionar = !!alvo;
+  const semTexto = texto.trim() === "";
+  const grupos = useMemo(
+    () => agruparItensMagicosPorRaridade(achados, semTexto),
+    [achados, semTexto],
+  );
+  const renderEntrada = useCallback(
+    (i: ItemMagicoDoCompendio) => (
+      <LinhaDoItemMagico
+        key={i.nome}
+        item={i}
+        aberto={abertos.has(i.nome)}
+        podeAdicionar={podeAdicionar}
+        aoAlternar={alternar}
+        aoAdicionar={adicionarEstavel}
+      />
+    ),
+    [abertos, podeAdicionar, alternar, adicionarEstavel],
+  );
 
   return (
     <div data-testid="compendio-itensMagicos">
@@ -642,65 +774,11 @@ export function ListaDeItensMagicos({
       ) : (
         <BlocosDoCompendio
           escopo="itensMagicos"
-          grupos={agruparItensMagicosPorRaridade(achados, texto.trim() === "")}
+          grupos={grupos}
           forcar={temFiltro}
           total={itens.length}
           testid="compendio-lista-entradas"
-          renderEntrada={(i) => {
-            const aberto = abertos.has(i.nome);
-            return (
-              <li key={i.nome}>
-                <div className="entrada-do-compendio">
-                  <button
-                    type="button"
-                    className="entrada-arrastavel"
-                    draggable
-                    data-testid="compendio-entrada-itemMagico"
-                    data-nome={i.nome}
-                    aria-expanded={aberto}
-                    title="Mostrar a descrição (ou arraste para a ficha aberta)"
-                    onClick={() => alternar(i.nome)}
-                    onDragStart={(e) =>
-                      comecarArrastoDoCompendio(e, { tipo: "itemMagico", itemMagico: i })
-                    }
-                  >
-                    <GripVertical size={14} className="alca-da-entrada" aria-hidden />
-                    <span className="textos-da-entrada">
-                      <span className="nome-da-magia">
-                        {i.nome} <NomeOriginal nome={i.nomeOriginal} />
-                      </span>
-                      <span className="nivel-e-escola">
-                        <span
-                          className="raridade-do-item"
-                          data-raridade={i.raridade}
-                          data-testid="compendio-item-raridade"
-                        >
-                          {ROTULO_DA_RARIDADE[i.raridade]}
-                        </span>
-                        {i.tipo}
-                        {i.sintonizacao?.necessaria ? " · sintonização" : ""}
-                      </span>
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    data-testid="compendio-itemMagico-adicionar"
-                    aria-label={`Adicionar ${i.nome} à ficha`}
-                    disabled={!alvo}
-                    onClick={() => adicionar(i)}
-                  >
-                    <BookPlus size={14} /> Adicionar
-                  </button>
-                </div>
-                {aberto && (
-                  <div className="descricao-do-item" data-testid="compendio-item-descricao">
-                    <p className="nota">{resumoDoItemMagico(i)}</p>
-                    <p>{i.descricao}</p>
-                  </div>
-                )}
-              </li>
-            );
-          }}
+          renderEntrada={renderEntrada}
         />
       )}
       <MensagemDeAviso aviso={aviso} />

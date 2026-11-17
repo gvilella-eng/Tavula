@@ -13,7 +13,7 @@ import {
   type Vantagem,
 } from "@tabletop/shared";
 import { Dices, Send, Trash2 } from "lucide-react";
-import { type KeyboardEvent, useLayoutEffect, useRef, useState } from "react";
+import { type KeyboardEvent, memo, useLayoutEffect, useRef, useState } from "react";
 import { BotaoComDica } from "./BotaoComDica";
 import { MensagemDoChat } from "./MensagemDoChat";
 import type { ImagensDoMapa } from "./mapa/mapaPixi";
@@ -21,8 +21,12 @@ import { continuaORemetente } from "./rolagem/agrupar";
 
 type Enviar = (tipo: string, dados: object) => string | null;
 
+/** As chaves do estado que o chat e os filhos leem: só um evento que toque nelas re-renderiza a aba. */
+export const FATIA_DO_CHAT = ["chat", "usuarios", "membros", "personagens", "permissoes"] as const;
+export type EstadoDoChat = Pick<Estado, (typeof FATIA_DO_CHAT)[number]>;
+
 type Props = {
-  estado: Estado;
+  estado: EstadoDoChat;
   eu: Usuario;
   enviar: Enviar;
   imagens: ImagensDoMapa | null;
@@ -199,7 +203,7 @@ function ModelosDeRolagem({
  * No rodapé, a caixa fixa com o "Como:" (eu mesmo ou um personagem que eu edito; o mestre, qualquer
  * um). Enter envia, Shift+Enter quebra a linha, a seta para cima traz de volta a última mensagem.
  */
-export function AbaChat({
+function AbaChatBase({
   estado,
   eu,
   enviar,
@@ -464,3 +468,6 @@ export function AbaChat({
     </div>
   );
 }
+
+// `memo`: com a fatia e as funções estáveis, evento que não toca no chat não re-renderiza a aba (aberta ou não).
+export const AbaChat = memo(AbaChatBase);

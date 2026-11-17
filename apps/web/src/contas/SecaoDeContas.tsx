@@ -1,6 +1,7 @@
 import type { AvisoDeContas, ContaParaMestre, ListaDeContas } from "@tabletop/shared";
 import { useCallback, useEffect, useState } from "react";
 import { aceitarConta, liberarRedefinicao, listarContas, recusarConta, removerConta } from "../api";
+import { useMinuto } from "../useMinuto";
 import { ProtecaoDoMestre } from "./ProtecaoDoMestre";
 
 const ROTULO_DO_STATUS = { pendente: "Pendente", ativa: "Ativa", recusada: "Recusada" } as const;
@@ -81,6 +82,8 @@ function LinhaDeConta({
 }) {
   const [confirmando, setConfirmando] = useState(false);
   const ehMestre = conta.papel === "mestre";
+  // O "liberada até" some quando a redefinição vence: sem o evento da sala para re-renderizar, confere a cada 30 s.
+  useMinuto(conta.redefinicaoAte !== null);
   return (
     <li className="linha-de-conta" data-testid={`conta-linha-${conta.login}`}>
       <div className="linha-de-conta-quem">

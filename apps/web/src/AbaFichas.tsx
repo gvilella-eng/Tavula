@@ -28,7 +28,7 @@ import {
   User,
   Users,
 } from "lucide-react";
-import { type DragEvent, type KeyboardEvent, useEffect, useRef, useState } from "react";
+import { type DragEvent, type KeyboardEvent, memo, useEffect, useRef, useState } from "react";
 import { Avatar } from "./Avatar";
 import { definirItemEmArrasto, lerItemArrastado, TIPO_DE_ARRASTO_DA_FICHA } from "./arrasto";
 import { BotaoComDica } from "./BotaoComDica";
@@ -43,8 +43,21 @@ import { Popover } from "./Popover";
 
 type Enviar = (tipo: string, dados: object) => string | null;
 
+/** As chaves do estado que as Fichas e os filhos leem (a árvore de pastas, itens e a bandeira do jogador). */
+export const FATIA_DAS_FICHAS = [
+  "usuarios",
+  "membros",
+  "personagens",
+  "pastas",
+  "handouts",
+  "permissoes",
+  "cenaAtivaId",
+  "tokens",
+] as const;
+export type EstadoDasFichas = Pick<Estado, (typeof FATIA_DAS_FICHAS)[number]>;
+
 type Props = {
-  estado: Estado;
+  estado: EstadoDasFichas;
   eu: Usuario;
   enviar: Enviar;
   imagens: ImagensDoMapa | null;
@@ -455,7 +468,7 @@ function SecaoDaPasta({
  * o botão direito (ou Shift+F10) abre o menu do item e da pasta; o mestre arrasta o item para outra pasta e o
  * personagem para o mapa.
  */
-export function AbaFichas({
+function AbaFichasBase({
   estado,
   eu,
   enviar,
@@ -1038,3 +1051,6 @@ export function AbaFichas({
     </div>
   );
 }
+
+// `memo`: re-renderiza só quando muda uma chave da fatia ou uma prop (todas estáveis na Mesa).
+export const AbaFichas = memo(AbaFichasBase);

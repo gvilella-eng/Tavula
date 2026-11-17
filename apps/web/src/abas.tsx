@@ -11,7 +11,7 @@ import {
   User,
   Volume2,
 } from "lucide-react";
-import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import { memo, useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { type ArquivoDaFonte, temSeletorDePasta } from "./assets/fonte";
 import type { Fontes } from "./assets/fontes";
 import type { GerenteDeAssets, StatusDeAsset } from "./assets/gerente";
@@ -28,6 +28,7 @@ import { CartaoDeSom } from "./som/CartaoDeSom";
 import { resumoDoSom, usePrefsDeSom } from "./som/prefsDeSom";
 import { lerTema, NOMES_DOS_TEMAS } from "./tema/temas";
 import { definirUnidade, useUnidade } from "./unidade";
+import { useMinuto } from "./useMinuto";
 
 const ROTULO_DO_ESTADO: Record<StatusDeAsset["estado"], string> = {
   pedindo: "pedindo",
@@ -175,7 +176,7 @@ function zero(): number {
  * Aparência, Som (N5), No mapa, Ajuda e arquivos, Conectar o Claude, Segurança (só com login) e Atalhos do teclado. O que vale para a
  * sala (regras, modelos de luz, papéis) está na aba Mesa, só do mestre.
  */
-export function AbaPreferencias({
+function AbaPreferenciasBase({
   nome,
   papel,
   encaixe,
@@ -206,6 +207,8 @@ export function AbaPreferencias({
     gerente ? gerente.assinar : assinarNada,
     gerente ? gerente.versaoAtual : zero,
   );
+  // "usado há 5 min" (aqui e na seção do Claude) envelhece sozinho: a aba não re-renderiza mais a cada evento da sala.
+  useMinuto(ultimoUsoDoClaude !== null && !claudeConectado);
   const emAndamento = gerente
     ? gerente.listarStatus().filter((s) => s.estado !== "pronto").length
     : 0;
@@ -374,3 +377,6 @@ export function AbaPreferencias({
     </div>
   );
 }
+
+// `memo`: não recebe o estado da sala, só props estáveis na Mesa; evento da sala não a re-renderiza.
+export const AbaPreferencias = memo(AbaPreferenciasBase);

@@ -14,6 +14,7 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "
 import type { Fontes } from "./assets/fontes";
 import type { GerenteDeAssets, StatusDeAsset } from "./assets/gerente";
 import { NOME_DO_EXEMPLO_SRD, TEXTO_DO_EXEMPLO_SRD } from "./exemploSrd";
+import { lerUmaVez } from "./leituraDoCompendio";
 
 const semAssinatura = () => () => {};
 
@@ -101,9 +102,9 @@ export function useCompendio({
     }
     if (lido?.hash === hashDaMesa || !gerente.estaPronto(hashDaMesa)) return;
     let vivo = true;
-    void gerente.textoDe(hashDaMesa).then((texto) => {
-      if (!vivo || texto === null) return;
-      const r = lerCompendio(texto);
+    // Uma leitura por hash para todas as instâncias (a aba e cada ficha aberta): o mesmo `Compendio` volta a todas.
+    void lerUmaVez(hashDaMesa, () => gerente.textoDe(hashDaMesa)).then((r) => {
+      if (!vivo || r === null) return;
       if (r.ok) {
         setErroDaMesa(null);
         setLido({ hash: hashDaMesa, compendio: r.compendio });

@@ -37,7 +37,7 @@ import {
   Search,
   Sparkles,
 } from "lucide-react";
-import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { memo, type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { BotaoDaPasta, TEXTO_DO_CASO, useCasoDaPasta } from "./AvisoDaPasta";
 import type { Fontes } from "./assets/fontes";
 import type { GerenteDeAssets } from "./assets/gerente";
@@ -60,11 +60,20 @@ import { TEXTO_DO_EXEMPLO_SRD } from "./exemploSrd";
 import { comecarArrastoDoCompendio } from "./ficha/ordem";
 import { useAlvoDaFicha } from "./useAlvoDaFicha";
 import { type ResultadoDoExemplo, type ResultadoDosArquivos, useCompendio } from "./useCompendio";
+import { useFuncaoEstavel } from "./useFuncaoEstavel";
 
 type Enviar = (tipo: string, dados: object) => string | null;
 
+/**
+ * As chaves do estado que o Compêndio e os filhos leem: o arquivo (`compendio`) e, para "Ficha de quem" e para esperar a
+ * ficha do NPC recém-criado chegar, os `personagens` e as `pastas`. As linhas das listas ficam em `memo`, então a ficha
+ * editada (que troca `personagens`) refaz o cabeçalho, não as centenas de linhas.
+ */
+export const FATIA_DO_COMPENDIO = ["personagens", "pastas", "compendio"] as const;
+export type EstadoDoCompendio = Pick<Estado, (typeof FATIA_DO_COMPENDIO)[number]>;
+
 type Props = {
-  estado: Estado;
+  estado: EstadoDoCompendio;
   eu: Usuario;
   conectado: boolean;
   gerente: GerenteDeAssets | null;
@@ -287,7 +296,7 @@ function ComoMontar({
 
 type PropsDoCartao = {
   magia: MagiaDoCompendio;
-  estado: Estado;
+  estado: Pick<Estado, "personagens">;
   eu: Usuario;
   enviar: Enviar;
   comoId: string;
@@ -458,6 +467,36 @@ type PropsDaListaDeMagias = {
   aoAbrir: (nome: string) => void;
 };
 
+/** Uma linha da lista de magias. `memo`: só refaz quando muda a magia (as linhas são centenas). */
+const LinhaDaMagia = memo(function LinhaDaMagia({
+  magia: m,
+  aoAbrir,
+}: {
+  magia: MagiaDoCompendio;
+  aoAbrir: (nome: string) => void;
+}) {
+  return (
+    <li>
+      <button
+        type="button"
+        className="item-de-magia"
+        data-testid="compendio-item"
+        data-nome={m.nome}
+        draggable
+        onDragStart={(e) => comecarArrastoDoCompendio(e, { tipo: "magia", magia: m })}
+        onClick={() => aoAbrir(m.nome)}
+      >
+        <span className="nome-da-magia">
+          {m.nome} <NomeOriginal nome={m.nomeOriginal} />
+        </span>
+        <span className="nivel-e-escola">
+          {linhaDeNivelEEscola(m)} <MarcasDaMagia magia={m} />
+        </span>
+      </button>
+    </li>
+  );
+});
+
 /** Q2: as magias em blocos por nível (truques primeiro), alfabético dentro; com os filtros de classe, escola etc. */
 function ListaDeMagias({
   magias,
@@ -479,6 +518,11 @@ function ListaDeMagias({
   );
   const total = magias.length;
   const temFiltro = Object.values(filtro).some((v) => v !== undefined && v !== "");
+  // Identidade fixa enquanto `aoAbrir` for fixo: a lista (`memo`) não refaz a cada evento ou ficha editada.
+  const renderEntrada = useCallback(
+    (m: MagiaDoCompendio) => <LinhaDaMagia key={m.nome} magia={m} aoAbrir={aoAbrir} />,
+    [aoAbrir],
+  );
   return (
     <>
       {!modoTodas && (
@@ -573,26 +617,7 @@ function ListaDeMagias({
           forcar={temFiltro}
           total={total}
           testid="compendio-lista"
-          renderEntrada={(m) => (
-            <li key={m.nome}>
-              <button
-                type="button"
-                className="item-de-magia"
-                data-testid="compendio-item"
-                data-nome={m.nome}
-                draggable
-                onDragStart={(e) => comecarArrastoDoCompendio(e, { tipo: "magia", magia: m })}
-                onClick={() => aoAbrir(m.nome)}
-              >
-                <span className="nome-da-magia">
-                  {m.nome} <NomeOriginal nome={m.nomeOriginal} />
-                </span>
-                <span className="nivel-e-escola">
-                  {linhaDeNivelEEscola(m)} <MarcasDaMagia magia={m} />
-                </span>
-              </button>
-            </li>
-          )}
+          renderEntrada={renderEntrada}
         />
       )}
     </>
@@ -607,7 +632,7 @@ type PropsDaSecaoTodas = {
   armas: readonly ArmaDoCompendio[];
   itens: readonly ItemDoCompendio[];
   filtro: FiltroDeMagias;
-  estado: Estado;
+  estado: EstadoDoCompendio;
   eu: Usuario;
   enviar: Enviar;
   aoAbrirMagia: (nome: string) => void;
@@ -621,6 +646,8 @@ function SecaoTodas(p: PropsDaSecaoTodas) {
   const geral =
     p.magias.length + p.monstros.length + p.itensMagicos.length + p.armas.length + p.itens.length;
   const blocos = useBlocosAbertos(buscando, geral <= LIMITE_PARA_ABRIR_TUDO);
+  // Objeto estável: um `{ texto }` novo a cada render refazia a busca das magias (e a lista) mesmo com o texto igual.
+  const filtroDaBusca = useMemo(() => ({ texto }), [texto]);
   const secoes: { id: SecaoDoCompendio; n: number; corpo: () => ReactNode }[] = [
     {
       id: "magias",
@@ -628,7 +655,7 @@ function SecaoTodas(p: PropsDaSecaoTodas) {
       corpo: () => (
         <ListaDeMagias
           magias={p.magias}
-          filtro={{ texto }}
+          filtro={filtroDaBusca}
           modoTodas
           mudar={() => undefined}
           limpar={() => undefined}
@@ -758,17 +785,38 @@ type LinhaDaEntrada = {
   meta: string;
 };
 
-function LinhaDeEntrada({
+function linhaDaEntrada(
+  tipo: "arma" | "item",
+  e: ArmaDoCompendio | ItemDoCompendio,
+): LinhaDaEntrada {
+  return tipo === "arma"
+    ? {
+        entrada: { tipo: "arma", arma: e as ArmaDoCompendio },
+        nome: e.nome,
+        nomeOriginal: e.nomeOriginal,
+        meta: metaDaArma(e as ArmaDoCompendio),
+      }
+    : {
+        entrada: { tipo: "item", item: e as ItemDoCompendio },
+        nome: e.nome,
+        nomeOriginal: e.nomeOriginal,
+        meta: metaDoItem(e as ItemDoCompendio),
+      };
+}
+
+/** Uma linha de arma ou item. `memo`: só refaz quando muda o item ou se há ficha para receber. */
+const LinhaDeEntrada = memo(function LinhaDeEntrada({
   tipo,
-  linha: l,
+  item,
   podeAdicionar,
   aoAdicionar,
 }: {
   tipo: "arma" | "item";
-  linha: LinhaDaEntrada;
+  item: ArmaDoCompendio | ItemDoCompendio;
   podeAdicionar: boolean;
   aoAdicionar: (entrada: EntradaDoCompendio, nome: string) => void;
 }) {
+  const l = linhaDaEntrada(tipo, item);
   return (
     <li>
       <div className="entrada-do-compendio">
@@ -801,7 +849,7 @@ function LinhaDeEntrada({
       </div>
     </li>
   );
-}
+});
 
 /**
  * As armas ou os itens do compêndio (V4b): cada linha se arrasta para a ficha aberta (as áreas que a aceitam acendem)
@@ -821,7 +869,7 @@ function ListaDeEntradas({
   armas: readonly ArmaDoCompendio[];
   itens: readonly ItemDoCompendio[];
   texto: string;
-  estado: Estado;
+  estado: Pick<Estado, "personagens">;
   eu: Usuario;
   enviar: Enviar;
   /** Q2: dentro do "Todas": sem a escolha da ficha nem a dica. */
@@ -835,20 +883,11 @@ function ListaDeEntradas({
     [tipo, armas, itens, texto],
   );
   const total = tipo === "arma" ? armas.length : itens.length;
-  const linhaDe = (e: ArmaDoCompendio | ItemDoCompendio): LinhaDaEntrada =>
-    tipo === "arma"
-      ? {
-          entrada: { tipo: "arma", arma: e as ArmaDoCompendio },
-          nome: e.nome,
-          nomeOriginal: e.nomeOriginal,
-          meta: metaDaArma(e as ArmaDoCompendio),
-        }
-      : {
-          entrada: { tipo: "item", item: e as ItemDoCompendio },
-          nome: e.nome,
-          nomeOriginal: e.nomeOriginal,
-          meta: metaDoItem(e as ItemDoCompendio),
-        };
+  const semTexto = texto.trim() === "";
+  const gruposDeArmas = useMemo(
+    () => (tipo === "arma" ? agruparArmas(achadas as ArmaDoCompendio[], semTexto) : []),
+    [tipo, achadas, semTexto],
+  );
 
   function adicionar(entrada: EntradaDoCompendio, nome: string) {
     if (!alvo) return;
@@ -865,6 +904,21 @@ function ListaDeEntradas({
         : { tipo: "ok", texto: `${nome} entrou na ficha de ${alvo.nome}.` },
     );
   }
+  // O alvo de agora, lido só na hora do clique: a ficha editada não refaz as linhas da lista (`memo`).
+  const adicionarEstavel = useFuncaoEstavel(adicionar);
+  const podeAdicionar = !!alvo;
+  const renderEntrada = useCallback(
+    (e: ArmaDoCompendio | ItemDoCompendio) => (
+      <LinhaDeEntrada
+        key={e.nome}
+        tipo={tipo}
+        item={e}
+        podeAdicionar={podeAdicionar}
+        aoAdicionar={adicionarEstavel}
+      />
+    ),
+    [tipo, podeAdicionar, adicionarEstavel],
+  );
 
   return (
     <div data-testid={`compendio-${tipo}s`}>
@@ -900,31 +954,15 @@ function ListaDeEntradas({
       ) : tipo === "arma" ? (
         <BlocosDoCompendio
           escopo="armas"
-          grupos={agruparArmas(achadas as ArmaDoCompendio[], texto.trim() === "")}
-          forcar={texto.trim() !== ""}
+          grupos={gruposDeArmas}
+          forcar={!semTexto}
           total={total}
           testid="compendio-lista-entradas"
-          renderEntrada={(a) => (
-            <LinhaDeEntrada
-              key={a.nome}
-              tipo={tipo}
-              linha={linhaDe(a)}
-              podeAdicionar={!!alvo}
-              aoAdicionar={adicionar}
-            />
-          )}
+          renderEntrada={renderEntrada}
         />
       ) : (
         <ul className="lista-de-magias" data-testid="compendio-lista-entradas">
-          {(achadas as ItemDoCompendio[]).map((i) => (
-            <LinhaDeEntrada
-              key={i.nome}
-              tipo={tipo}
-              linha={linhaDe(i)}
-              podeAdicionar={!!alvo}
-              aoAdicionar={adicionar}
-            />
-          ))}
+          {(achadas as ItemDoCompendio[]).map((i) => renderEntrada(i))}
         </ul>
       )}
       {aviso && (
@@ -941,7 +979,7 @@ function ListaDeEntradas({
 }
 
 /** Compêndio de magias (Lote 14): busca, filtros, lista e o cartão. O arquivo vem da pasta do mestre. */
-export function AbaCompendio({
+function AbaCompendioBase({
   estado,
   eu,
   conectado,
@@ -1269,3 +1307,6 @@ export function AbaCompendio({
     </div>
   );
 }
+
+// `memo`: com a fatia e as funções estáveis, evento que não toca no compêndio nem nos personagens não a re-renderiza.
+export const AbaCompendio = memo(AbaCompendioBase);

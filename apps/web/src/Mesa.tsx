@@ -56,10 +56,10 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
-import { AbaChat } from "./AbaChat";
-import { AbaCompendio } from "./AbaCompendio";
-import { AbaFichas } from "./AbaFichas";
-import { AbaMesa, testidDaSecaoDaMesa } from "./AbaMesa";
+import { AbaChat, FATIA_DO_CHAT } from "./AbaChat";
+import { AbaCompendio, FATIA_DO_COMPENDIO } from "./AbaCompendio";
+import { AbaFichas, FATIA_DAS_FICHAS } from "./AbaFichas";
+import { AbaMesa, FATIA_DA_MESA, testidDaSecaoDaMesa } from "./AbaMesa";
 import { AvisoDaImportacao, type EstadoDaImportacao } from "./AvisoDaImportacao";
 import { AvisoDaPasta } from "./AvisoDaPasta";
 import { AvisoPerto } from "./AvisoPerto";
@@ -162,6 +162,7 @@ import { passosDoPapel } from "./tour/passos";
 import { Tour } from "./tour/Tour";
 import { useUnidade } from "./unidade";
 import { haDialogoAberto } from "./useDialogo";
+import { useFatia } from "./useFatia";
 import { useSala } from "./useSala";
 import { ZoomFlutuante } from "./ZoomFlutuante";
 
@@ -549,14 +550,18 @@ export function Mesa({
   useEffect(() => {
     if (euId) setComoId(lerComo(euId));
   }, [euId]);
-  function mudarComo(id: string) {
-    setComoId(id);
-    try {
-      if (euId) localStorage.setItem(CHAVE_COMO + euId, id);
-    } catch {
-      // sem localStorage: vale só nesta sessão
-    }
-  }
+  // Identidade fixa (muda só com a conta): as abas Chat e Compêndio, em `memo`, não refazem por causa dela.
+  const mudarComo = useCallback(
+    (id: string) => {
+      setComoId(id);
+      try {
+        if (euId) localStorage.setItem(CHAVE_COMO + euId, id);
+      } catch {
+        // sem localStorage: vale só nesta sessão
+      }
+    },
+    [euId],
+  );
 
   useEffect(() => {
     void fontes.iniciar();
@@ -1895,10 +1900,11 @@ export function Mesa({
     gravarReguaGrudar(v);
   }
 
-  function mudarEncaixe(v: boolean) {
+  // Identidade fixa (só os setters e a gravação): a aba Preferências, em `memo`, não refaz por causa dela.
+  const mudarEncaixe = useCallback((v: boolean) => {
     setEncaixe(v);
     gravarEncaixePadrao(v);
-  }
+  }, []);
 
   // Título da aba: "Távola · nome da mesa" e, com a mesa aberta, o nome da cena do grupo.
   const nomeDaCenaDoGrupo = cenaDoGrupo?.nome;
@@ -1942,8 +1948,24 @@ export function Mesa({
     };
   })();
 
+  // Painel lateral: cada aba recebe só a fatia do estado que lê (identidade estável enquanto as chaves dela não mudam) e
+  // funções de identidade fixa, para o `memo` dela valer, aberta ou fechada.
+  const fatiaDoChat = useFatia(estado, FATIA_DO_CHAT);
+  const fatiaDasFichas = useFatia(estado, FATIA_DAS_FICHAS);
+  const fatiaDoCompendio = useFatia(estado, FATIA_DO_COMPENDIO);
+  const fatiaDaMesa = useFatia(estado, FATIA_DA_MESA);
+  const pedirAnteriores = useCallback(() => {
+    // O primeiro `seq` de agora, lido na hora do clique (o chat inteiro não vira dependência da aba).
+    const primeiro = estadoAtual.current?.chat?.[0]?.seq;
+    if (primeiro !== undefined) enviar("chat.anteriores", { antesDoSeq: primeiro });
+  }, [enviar]);
+  const aoFazerOTour = useCallback(() => setTourAberto(true), []);
+  const motorDeSom = som.motor;
+  const aoAtivarSom = useCallback(() => motorDeSom.ativar(), [motorDeSom]);
+  const aoAbrirAutomacoes = useCallback(() => setAutomacoesAbertas(true), []);
+
   const abas =
-    estado && eu
+    estado && eu && fatiaDoChat && fatiaDasFichas && fatiaDoCompendio && fatiaDaMesa
       ? [
           {
             id: "chat",
@@ -1953,7 +1975,7 @@ export function Mesa({
             selo: abaVisivel === "chat" ? 0 : naoLidas,
             conteudo: (
               <AbaChat
-                estado={estado}
+                estado={fatiaDoChat}
                 eu={eu}
                 enviar={enviar}
                 imagens={imagens}
@@ -1961,10 +1983,7 @@ export function Mesa({
                 comoId={comoId}
                 aoMudarComo={mudarComo}
                 temMais={chatTemMais}
-                pedirAnteriores={() => {
-                  const primeiro = estado.chat?.[0]?.seq;
-                  if (primeiro !== undefined) enviar("chat.anteriores", { antesDoSeq: primeiro });
-                }}
+                pedirAnteriores={pedirAnteriores}
                 visivel={abaVisivel === "chat"}
               />
             ),
@@ -1975,7 +1994,7 @@ export function Mesa({
             icone: <NotebookText size={20} />,
             conteudo: (
               <AbaFichas
-                estado={estado}
+                estado={fatiaDasFichas}
                 eu={eu}
                 enviar={enviar}
                 imagens={imagens}
@@ -1992,7 +2011,7 @@ export function Mesa({
             icone: <BookOpen size={20} />,
             conteudo: (
               <AbaCompendio
-                estado={estado}
+                estado={fatiaDoCompendio}
                 eu={eu}
                 conectado={status === "conectado"}
                 gerente={gerente}
@@ -2017,14 +2036,14 @@ export function Mesa({
                 aoMudarEncaixe={mudarEncaixe}
                 aoSair={aoSair}
                 aoTrocarDeMesa={aoTrocarDeMesa}
-                aoFazerOTour={() => setTourAberto(true)}
+                aoFazerOTour={aoFazerOTour}
                 mesaId={mesa.id}
                 login={login}
                 fontes={fontes}
                 gerente={gerente}
                 claudeConectado={claudeConectado.includes(eu.id)}
                 somBloqueado={som.bloqueado}
-                aoAtivarSom={() => som.motor.ativar()}
+                aoAtivarSom={aoAtivarSom}
               />
             ),
           },
@@ -2040,11 +2059,11 @@ export function Mesa({
                     <AbaMesa
                       mesa={mesa}
                       aoRenomear={aoRenomear}
-                      estado={estado}
+                      estado={fatiaDaMesa}
                       uso={uso}
                       avisoDeContas={avisoDeContas}
                       enviar={enviar}
-                      aoAbrirAutomacoes={() => setAutomacoesAbertas(true)}
+                      aoAbrirAutomacoes={aoAbrirAutomacoes}
                     />
                   ),
                 },

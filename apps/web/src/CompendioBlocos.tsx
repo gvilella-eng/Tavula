@@ -1,6 +1,6 @@
 import type { GrupoDoCompendio } from "@tabletop/shared";
 import { ChevronDown } from "lucide-react";
-import { type ReactNode, useState } from "react";
+import { memo, type ReactNode, useState } from "react";
 import { gravarBlocoDoCompendio, lerBlocosDoCompendio } from "./preferencias";
 
 /** Seção com poucas entradas (o exemplo do SRD, um arquivo curto) abre tudo; as grandes começam fechadas (assumido). */
@@ -82,7 +82,7 @@ export function useBlocosAbertos(forcar: boolean, abertoPorPadrao: boolean) {
  * Os blocos de uma seção: cada grupo (nível, ND, raridade...) vira um bloco recolhível, com a contagem no título.
  * `renderEntrada` desenha uma linha (só dos blocos abertos).
  */
-export function BlocosDoCompendio<T>({
+function BlocosDoCompendioBase<T>({
   escopo,
   grupos,
   forcar,
@@ -129,6 +129,9 @@ export function BlocosDoCompendio<T>({
     </div>
   );
 }
+
+// `memo`: com `grupos` e `renderEntrada` estáveis, a lista (centenas de linhas) não refaz com o que não é dela (ficha editada, evento da sala).
+export const BlocosDoCompendio = memo(BlocosDoCompendioBase) as typeof BlocosDoCompendioBase;
 
 /** O nome em inglês, pequeno ao lado do nome (Q2), quando o arquivo traz. */
 export function NomeOriginal({ nome }: { nome: string | undefined }) {

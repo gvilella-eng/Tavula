@@ -248,7 +248,13 @@ function LinhaDoModelo({ modelo: m, enviar }: { modelo: ModeloDeObjeto; enviar: 
  * Seção "Objetos de luz" da aba Mesa (só o mestre): os modelos de objeto (nome, luz, duração
  * ou infinita, ocupa mão, tags) que os personagens carregam na mochila e os pontos acendem.
  */
-export function SecaoObjetosDeLuz({ estado, enviar }: { estado: Estado; enviar: Enviar }) {
+export function SecaoObjetosDeLuz({
+  estado,
+  enviar,
+}: {
+  estado: Pick<Estado, "modelos">;
+  enviar: Enviar;
+}) {
   function novoModelo() {
     enviar("modelo.criar", {
       modelo: {

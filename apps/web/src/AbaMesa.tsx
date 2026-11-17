@@ -21,7 +21,7 @@ import {
   Users,
   Workflow,
 } from "lucide-react";
-import { type ChangeEvent, useEffect, useRef, useState } from "react";
+import { type ChangeEvent, memo, useEffect, useRef, useState } from "react";
 import { type DadosDaMesa, renomearMesa } from "./api";
 import { resumoDasAutomacoes } from "./automacoes/resumo";
 import { SecaoDeContas } from "./contas/SecaoDeContas";
@@ -30,10 +30,22 @@ import { SecaoMesa, SecaoObjetosDeLuz } from "./PainelDaMesa";
 import { type ResumoDaCampanha, resumoDaCampanha, textoDoResumo } from "./resumoDaCampanha";
 import { SecaoDePreferencias } from "./SecaoDePreferencias";
 
+/** As chaves do estado que a aba Mesa e os filhos leem (regras, luz, automações, pessoas e permissões). */
+export const FATIA_DA_MESA = [
+  "usuarios",
+  "membros",
+  "personagens",
+  "permissoes",
+  "config",
+  "modelos",
+  "automacoes",
+] as const;
+export type EstadoDaMesa = Pick<Estado, (typeof FATIA_DA_MESA)[number]>;
+
 type Props = {
   mesa: DadosDaMesa;
   aoRenomear: (nome: string) => void;
-  estado: Estado;
+  estado: EstadoDaMesa;
   uso: Uso | null;
   /** C2: o resumo dos pedidos de entrada (chega pelo WebSocket, só ao mestre). */
   avisoDeContas: AvisoDeContas | null;
@@ -124,7 +136,7 @@ function SecaoDaIdentificacao({
  * fecham, cada um com o resumo embaixo do título. Esta mesa (nome e id), Regras, Luz, Automações, Pessoas (papéis,
  * contas e permissões), Campanha (exportar e importar) e, no fim, o Diagnóstico.
  */
-export function AbaMesa({
+function AbaMesaBase({
   mesa,
   aoRenomear,
   estado,
@@ -446,3 +458,6 @@ export function AbaMesa({
     </div>
   );
 }
+
+// `memo`: a aba (fechada ou não) só re-renderiza quando muda uma chave da fatia ou uma prop (todas estáveis na Mesa).
+export const AbaMesa = memo(AbaMesaBase);
