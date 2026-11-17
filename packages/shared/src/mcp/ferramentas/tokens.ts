@@ -1,9 +1,12 @@
 import { z } from "zod";
 import {
   arrumarNoGrid,
+  BordaSchema,
   CONDICOES,
   chegadaDaCena,
   type Estado,
+  encaixarNoGrid,
+  MAXIMO_DE_TOKENS_EM_LOTE,
   MAXIMO_DE_TOKENS_POR_VEZ,
   pode,
   usaVidaPorToken,
@@ -27,6 +30,17 @@ const TokenPedidoSchema = z
     camada: z.enum(["tokens", "mestre"]).optional(),
     oculto: z.boolean().optional(),
     cor: Cor.optional(),
+    borda: BordaSchema.nullable()
+      .optional()
+      .describe(
+        "O anel colorido na borda do token (para separar grupos): vermelho, laranja, amarelo, verde, ciano, azul, rosa ou branco; null tira.",
+      ),
+    barraDeVida: z
+      .boolean()
+      .optional()
+      .describe(
+        "Liga (padrão) ou desliga a barra de vida embaixo do token; só quem controla a vê.",
+      ),
     visaoM: z
       .number()
       .min(0)
@@ -69,6 +83,68 @@ const TokenPedidoSchema = z
       .describe("Classe de armadura da ficha do token."),
   })
   .strict();
+
+/** Q11: o mesmo gesto em vários tokens de uma vez (mover juntos, dano ou cura, borda, barra de vida). */
+const GrupoSchema = z
+  .object({
+    tokens: z
+      .array(z.string())
+      .min(1)
+      .max(MAXIMO_DE_TOKENS_EM_LOTE)
+      .describe("Nomes dos tokens ('Goblin', 'Goblin 2'...)."),
+    cena: z.string().optional().describe("Nome da cena dos tokens (padrão: a do grupo)."),
+    deslocar: ParSchema.optional().describe(
+      "Move todos juntos, mantendo o arranjo: [colunas, linhas] em células (negativo vai para a esquerda e para cima).",
+    ),
+    vida: z
+      .number()
+      .int()
+      .min(-9999)
+      .max(9999)
+      .optional()
+      .describe(
+        "Dano (negativo, ex.: -5) ou cura (positivo) igual para todos. Os temporários absorvem o dano primeiro; vida de ficha conta uma vez por personagem.",
+      ),
+    borda: BordaSchema.nullable()
+      .optional()
+      .describe("A mesma borda colorida para todos; null tira."),
+    barraDeVida: z.boolean().optional().describe("Liga ou desliga a barra de vida de todos."),
+  })
+  .strict();
+type GrupoPedido = z.infer<typeof GrupoSchema>;
+
+async function agirNoGrupo(p: GrupoPedido, ctx: Contexto, lote: Lote): Promise<string> {
+  const estado0 = ctx.sala.estado();
+  const cena = cenaPorNome(estado0, p.cena);
+  const q = cena.grid.quadradoM;
+  const alvos = p.tokens.map((nome) => tokenPorNome(estado0, nome, cena.id));
+  const ids = alvos.map((t) => t.id);
+  const feitos: string[] = [];
+  if (p.deslocar) {
+    const [dc, dl] = p.deslocar;
+    await passo(ctx, lote, "tokens.mover", {
+      itens: alvos.map((t) => ({
+        id: t.id,
+        ...encaixarNoGrid({ x: t.x + dc * q, y: t.y + dl * q }, t.tamanhoQuadrados, q),
+      })),
+    });
+    feitos.push("moveu juntos");
+  }
+  if (p.vida !== undefined && p.vida !== 0) {
+    await passo(ctx, lote, "tokens.vidaDelta", { ids, delta: p.vida });
+    feitos.push(p.vida < 0 ? `dano ${-p.vida}` : `cura ${p.vida}`);
+  }
+  const mud: Record<string, unknown> = {};
+  if (p.borda !== undefined) mud.borda = p.borda;
+  if (p.barraDeVida !== undefined) mud.barraDeVida = p.barraDeVida;
+  if (Object.keys(mud).length > 0) {
+    await passo(ctx, lote, "tokens.editar", { ids, mudancas: mud });
+    feitos.push(Object.keys(mud).join(", "));
+  }
+  return feitos.length > 0
+    ? `${alvos.length} tokens: ${feitos.join("; ")}.`
+    : `${alvos.length} tokens: nada a fazer (diga \`deslocar\`, \`vida\`, \`borda\` ou \`barraDeVida\`).`;
+}
 
 const ColocarSchema = z
   .object({
@@ -121,6 +197,8 @@ async function editarToken(p: TokenPedido, ctx: Contexto, lote: Lote): Promise<s
   if (p.camada !== undefined) mud.camada = p.camada;
   if (p.oculto !== undefined) mud.oculto = p.oculto;
   if (p.cor !== undefined) mud.cor = p.cor;
+  if (p.borda !== undefined) mud.borda = p.borda;
+  if (p.barraDeVida !== undefined) mud.barraDeVida = p.barraDeVida;
   if (p.visaoM !== undefined) mud.alcanceVisaoM = p.visaoM;
   if (p.visaoNoEscuroM !== undefined) mud.visaoNoEscuroM = p.visaoNoEscuroM;
   if (Object.keys(mud).length > 0) {
@@ -233,7 +311,7 @@ export const tokens = definir({
   nome: "tokens",
   descricao: [
     "Mexe nos TOKENS do mapa, em lote. `tokens`: para cada um, pelo nome, mover (`mover`: [coluna, linha] em células), renomear, tamanho, camada, oculto, cor, visão, condições (`condicoes`, `exaustao`, `concentracao`, `morto`) e a vida e a CA da ficha do token (`pv`, `pvMax`, `ca`).",
-    "`colocar`: pôr o token de uma ficha no mapa (o jogador, o da ficha dele na área da bandeira); com `quantidade` (só mestre, NPC) põe uma horda de uma vez, numerada (Goblin, Goblin 2...) e cada um com a sua vida. `copiar`: duplica um token (`quantidade`, `paraCena` para outra cena), igual ao original e numerado se for NPC. Vida de token de NPC (`pv`, `pvMax`, `pvTemp`) é do token, não da ficha (a ficha é o modelo); `fichas` com `vidaPorToken: false` volta a usar a da ficha. `restaurar`: traz de volta um token apagado há pouco (ids que a resposta de `cenas`, ao tirar o token, mostra).",
+    "`colocar`: põe o token de uma ficha no mapa (o jogador, na área da bandeira); `quantidade` (só mestre, NPC) põe uma horda numerada (Goblin, Goblin 2...), cada um com a sua vida (`pv`, `pvMax`, `pvTemp` são do token; `fichas` com `vidaPorToken: false` usa a da ficha). `copiar`: duplica um token (`quantidade`, `paraCena`). `restaurar`: traz de volta um token apagado há pouco. Todo token tem `borda` (anel colorido que separa grupos: vermelho, laranja, amarelo, verde, ciano, azul, rosa, branco; null tira) e `barraDeVida` (ligada por padrão; só quem controla o token a vê). `grupo`: o MESMO gesto em vários tokens num pedido só: `deslocar` ([colunas, linhas]), `vida` (dano negativo ou cura; temporários absorvem primeiro), `borda`, `barraDeVida`.",
     "Criar tokens avulsos e tirá-los da cena é na ferramenta `cenas`; a imagem do token, em `arquivos`; luz do token, em `objetos`. O mestre mexe em qualquer um; o jogador, nos que controla.",
     'Exemplo: {"tokens":[{"token":"Goblin 1","mover":[12.5,8.5],"condicoes":["amedrontado"],"pv":3},{"token":"Goblin 2","morto":true}],"colocar":[{"ficha":"Brisa","em":[2.5,2.5]}]}',
   ].join(" "),
@@ -242,6 +320,7 @@ export const tokens = definir({
       tokens: z.array(TokenPedidoSchema).max(40).optional(),
       colocar: z.array(ColocarSchema).max(12).optional(),
       copiar: z.array(CopiarSchema).max(12).optional(),
+      grupo: z.array(GrupoSchema).max(12).optional(),
       restaurar: z.array(z.string()).max(40).optional(),
     })
     .strict(),
@@ -255,8 +334,11 @@ export const tokens = definir({
       (e.tokens?.length ?? 0) +
       (e.colocar?.length ?? 0) +
       (e.copiar?.length ?? 0) +
+      (e.grupo?.length ?? 0) +
       (e.restaurar?.length ?? 0);
-    if (total === 0) return "Nada a fazer: diga `tokens`, `colocar`, `copiar` ou `restaurar`.";
+    if (total === 0) {
+      return "Nada a fazer: diga `tokens`, `colocar`, `copiar`, `grupo` ou `restaurar`.";
+    }
     const lote = ctx.novoLote(
       `tokens: ${e.tokens?.length ?? 0} editados, ${e.colocar?.length ?? 0} colocados`,
     );
@@ -276,6 +358,12 @@ export const tokens = definir({
       e.copiar ?? [],
       (c) => `copiar "${c.token}"`,
       (c) => copiar(c, ctx, lote),
+      r,
+    );
+    await cadaItem(
+      e.grupo ?? [],
+      (g) => `grupo de ${g.tokens.length}`,
+      (g) => agirNoGrupo(g, ctx, lote),
       r,
     );
     await cadaItem(

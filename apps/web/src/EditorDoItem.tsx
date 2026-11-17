@@ -246,6 +246,15 @@ export function EditorDoItem({
                   </select>
                 </label>
               </div>
+              <label className="linha-opcao">
+                <input
+                  type="checkbox"
+                  data-testid={`personagem-barra-${p.id}`}
+                  checked={p.tokenPadrao.barraDeVida !== false}
+                  onChange={(e) => editar({ barraDeVida: e.target.checked })}
+                />
+                Barra de vida nos tokens novos
+              </label>
               <CampoDeDistancia
                 testid={`personagem-alcance-${p.id}`}
                 rotulo="Alcance da visão"

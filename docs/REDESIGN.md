@@ -2248,3 +2248,35 @@ O Vilella perguntou se dá para puxar vários tokens do mesmo monstro. Dava, mas
 - Aplicar dano em lote (selecionar a horda e dar o mesmo dano).
 - Mover a seleção inteira de uma vez e as setas com vários.
 - Mostrar uma barrinha de vida no token (hoje só a marca em cima do token selecionado).
+
+## Q11 — como ficou (2026-11-17): barra de vida no token, borda colorida, laço de seleção, mover vários e dano em lote
+
+O Vilella pediu o que o Q10 deixou para depois (laço, dano em lote, mover vários juntos, barrinha de vida) e três ajustes: a barra opcional (padrão ligada, também nos tokens do compêndio, só para quem tem o controle), tirar o selo com o número e uma borda colorida de 8 cores para separar grupos.
+
+**O que foi feito**
+- **Barra de vida.** `Token.barraDeVida?: boolean` (sem o campo = ligada, então campanha antiga e tokens do compêndio já a têm) e `Personagem.tokenPadrao.barraDeVida?` (o token novo nasce como o padrão do personagem; `true` não grava o campo). Desenho no mapa (`mapaPixi.ts`, `atualizarBarras`): barra fina logo abaixo do token e acima do nome (o nome desce 11 px quando há barra), proporcional ao atual sobre o máximo, verde (mais de 50%), âmbar (mais de 25%) ou vermelha, temporários como trecho azul-claro depois do atual, fundo escuro translúcido. A espessura acompanha o zoom (nunca menos de 4 px na tela; 6 px a 100%). Só quem controla o token a vê: o mestre vendo como mestre vê todas; o jogador e o "Ver como" só nos tokens que a pessoa controla (a mesma regra da seleção, `controlaToken`); sem vida conhecida (sem ficha ou `pv` filtrado) não há barra. A tela decide (`vidaDaBarra` em `Mesa.tsx`, que lê `vidaDoToken`), o mapa só desenha. Liga e desliga: caixa "Barra de vida" no "Editar token…" (vale para a seleção toda) e "Barra de vida nos tokens novos" em "Token padrão e visão" do personagem.
+- **Sem o selo do número.** A bolinha saiu (`desenharSelo` foi apagada). `Token.numero` continua nos dados (a numeração e `nomeBaseDoToken` usam); o nome "Goblin 3" basta.
+- **Borda colorida.** `Token.borda?`, uma de 8 cores fixas (vermelho, laranja, amarelo, verde, ciano, azul, rosa, branco; `NOMES_DE_BORDA` em `estado.ts`, hexadecimal em `CORES_DA_BORDA`, `bordas.ts`). Sem seletor de cor. Amostras com nome acessível e dica, no menu do token (botão direito) e no "Editar token…" (`SeletorDeBorda.tsx`); com vários selecionados vale para todos num pedido só (`tokens.editar`). Anel de 3 px na beira do token com um contorno escuro por baixo; o anel dourado da seleção fica por fora, com um vão (8 px em vez de 5), então a seleção continua reconhecível numa borda amarela ou laranja. Todos que veem o token veem a borda; quem muda é quem pode `token.editar` (`cena.editar`, o mestre). A cópia leva a borda (`copiaDoToken` já copiava todos os campos).
+- **Laço de seleção** (mestre): com a ferramenta Selecionar, arrastar no fundo vazio desenha um retângulo na cor de acento do tema (`--acento`), translúcido; ao soltar seleciona os tokens com o centro dentro dele e que o clique pegaria naquela vista. Shift ou Ctrl+arrastar soma. O laço só começa depois de o ponteiro andar mais de 5 px (a mesma tolerância do ping): segurar parado continua pingando. Esc cancela; Espaço+arrastar e as outras ferramentas não mudam. Cancelado por `pointercancel` não seleciona.
+- **Mover vários juntos.** Pegar um token que já está numa seleção de vários a mantém; arrastar leva todos com o mesmo deslocamento (o pegado encaixa no grid, os outros seguem; o grupo encosta na borda da cena sem se desmanchar). Soltar manda **um** `tokens.mover { itens }`; as setas também (um quadrado, todos; se algum saísse da cena ninguém anda). Clicar sem arrastar num token da seleção deixa só ele. Alt+arrastar com vários copia todos (Q10); agora funciona pegando qualquer um da seleção.
+- **Dano e cura em lote.** `tokens.vidaDelta { ids, delta }` (negativo é dano, positivo é cura). Por token: vida própria → o `pv` dele; vida da ficha → a ficha, **uma vez por personagem**. Os temporários absorvem o dano primeiro (`aplicarDeltaNaVida`, que usa `receberDano`, a mesma regra de um token só); a cura não passa do máximo nem mexe nos temporários. Na tela: a marca de vida / tecla E com vários selecionados mostra "3 selecionados" e aceita só `-7` ou `+3` (um valor sem sinal seria ambíguo e não vale); no menu do token, "Vida dos N selecionados…" com o mesmo campo.
+- **MCP** (paridade): `tokens` ganhou `borda` e `barraDeVida` por token e a seção `grupo` (`deslocar`, `vida`, `borda`, `barraDeVida`, vários tokens por nome num passo só do Desfazer); `fichas` ganhou `barraDeVida` (token padrão).
+
+**Protocolo**: `tokens.mover { itens: {id,x,y}[] (1 a 100) }` (capacidade `token.moverProprio`; a regra de cada token vale; se um só for recusado nenhum se move), `tokens.vidaDelta { ids (1 a 100), delta (inteiro, não zero) }` (sem capacidade: a sala confere quem edita o personagem de cada token; token sem personagem fica de fora; recusa o pedido inteiro se algum não existe ou não pode), `tokens.editar { ids, mudancas }` (`cena.editar`; as mesmas mudanças do `token.editar`, em lote). `token.editar` e `personagem.editar` aceitam `borda`/`barraDeVida`. Eventos: os de sempre (`token.editado`, `token.movido`, `personagem.alterado`); o segredo do Q10 vale (o `pv` passa por `tokenParaUsuario`).
+
+**Decisões (assumido)**
+- O laço e o mover vários são do mestre (o jogador não soma tokens à seleção).
+- Sem o campo, a barra está ligada; `true` volta ao padrão e apaga o campo.
+- A barra aparece para quem controla (`controlaToken`); no "Ver como" segue o jogador escolhido.
+- No lote, só `-N` e `+N` valem na marca de vida; sem sinal não vale.
+- Só os outros tokens da seleção seguem ao arrastar; eles não aparecem se mexendo ao vivo nas outras telas (só o pegado, quando o arrasto é de um token só); ao soltar, todos vão num pedido só.
+- Pedido em lote recusado por um token recusa todos (nenhum muda), para o grupo não se desmanchar.
+- Dano em lote que não alcança nenhum token com vida (todos sem personagem) não faz nada, sem erro.
+- O principal da seleção feita com o laço é, de preferência, um token com personagem (para as marcas de vida e a tecla E funcionarem).
+- O "Desfazer" do dano em lote é o do Claude (um lote por pedido); na tela não há "Desfazer" do dano (como no dano de um token só).
+- Não há migração: os campos são opcionais; exportar e importar a mesa levam os campos novos e as mesas antigas carregam.
+
+**O que ficou para depois**
+- Mostrar os outros tokens da seleção andando ao vivo nas telas dos jogadores durante o arrasto.
+- "Desfazer" do dano em lote na tela.
+- Uma legenda da cor da borda (um nome por cor, "grupo A") em vez de só a cor.

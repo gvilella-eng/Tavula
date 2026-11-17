@@ -38,6 +38,7 @@ import {
 } from "./desenho.ts";
 import { ConclusaoDoEnvioSchema, EnvioPendenteSchema, FalhaDoEnvioSchema } from "./envios.ts";
 import {
+  BordaSchema,
   CenaSchema,
   CONFIG_PADRAO,
   ConfigDaMesaSchema,
@@ -78,7 +79,7 @@ import {
   MAXIMO_DE_OPERACOES,
   OperacaoDeFichaSchema,
 } from "./ficha.ts";
-import { MAXIMO_DE_TOKENS_POR_VEZ } from "./hordas.ts";
+import { MAXIMO_DE_TOKENS_EM_LOTE, MAXIMO_DE_TOKENS_POR_VEZ } from "./hordas.ts";
 import { ImportacaoDeMapaSchema } from "./importarUvtt.ts";
 import { CENA_PADRAO } from "./mapa.ts";
 import {
@@ -347,6 +348,10 @@ const MudancasDoTokenSchema = TokenSchema.pick({
     alcanceVisaoM: TokenSchema.shape.alcanceVisaoM.unwrap().nullable(),
     /** `null`: volta a 0 (token sem personagem). */
     visaoNoEscuroM: TokenSchema.shape.visaoNoEscuroM.unwrap().nullable(),
+    /** Q11: a barra de vida do token (`true` volta ao padrão: ligada). */
+    barraDeVida: z.boolean(),
+    /** Q11: a cor da borda do token; `null` tira a borda. */
+    borda: BordaSchema.nullable(),
   })
   .partial();
 const PosicaoDoTokenSchema = z.object({ id: IdSchema, x: z.number(), y: z.number() });
@@ -480,6 +485,8 @@ const MudancasDoPersonagemSchema = z
     pvMax: FichaSchema.shape.pvMax,
     /** Q10: `false` desliga a vida própria por token de um NPC (os tokens leem a ficha). */
     vidaPorToken: z.boolean(),
+    /** Q11: os tokens novos deste personagem nascem com a barra de vida (padrão: sim). */
+    barraDeVida: z.boolean(),
   })
   .partial();
 
@@ -701,6 +708,39 @@ export const IntencaoSchema = z.discriminatedUnion("tipo", [
       atual: z.number().int().min(0).max(9999).optional(),
       max: z.number().int().min(0).max(9999).optional(),
       temp: z.number().int().min(0).max(9999).nullable().optional(),
+    }),
+  ),
+  /**
+   * Q11: move vários tokens de uma vez (a seleção arrastada ou as setas): por item, o centro novo. Um pedido só: as
+   * regras de cada token valem como em `token.soltar` (o jogador não atravessa parede; o mestre ignora) e, se um só
+   * item for recusado, nenhum se move.
+   */
+  intencao(
+    "tokens.mover",
+    z.object({ itens: z.array(PosicaoDoTokenSchema).min(1).max(MAXIMO_DE_TOKENS_EM_LOTE) }),
+  ),
+  /**
+   * Q11: o mesmo dano (`delta` negativo) ou cura (positivo) em vários tokens de uma vez. Vida própria: o `pv` de cada
+   * token; vida da ficha: a ficha, uma vez por personagem. O dano consome os temporários primeiro. Um pedido só.
+   */
+  intencao(
+    "tokens.vidaDelta",
+    z.object({
+      ids: z.array(IdSchema).min(1).max(MAXIMO_DE_TOKENS_EM_LOTE),
+      delta: z
+        .number()
+        .int()
+        .min(-9999)
+        .max(9999)
+        .refine((d) => d !== 0, "delta 0 não muda nada"),
+    }),
+  ),
+  /** Q11: as mesmas mudanças em vários tokens de uma vez (a borda, a barra de vida, o tamanho...). Um pedido só. */
+  intencao(
+    "tokens.editar",
+    z.object({
+      ids: z.array(IdSchema).min(1).max(MAXIMO_DE_TOKENS_EM_LOTE),
+      mudancas: MudancasDoTokenSchema,
     }),
   ),
   /**
@@ -1168,6 +1208,10 @@ export const capacidadeDaIntencao: Record<TipoIntencao, Capacidade | null> = {
   "token.copiar": "cena.editar",
   // Q10: o mestre ou quem edita o personagem; `processar` confere.
   "token.vida": null,
+  // Q11: em lote. Mover: a regra de cada token (`processar` confere); a vida: quem edita o personagem de cada token.
+  "tokens.mover": "token.moverProprio",
+  "tokens.vidaDelta": null,
+  "tokens.editar": "cena.editar",
   // Quem edita ou o mestre: a capacidade não diz quem edita; `processar` confere.
   "ficha.alterar": null,
   "ficha.dadoDeVida": null,

@@ -203,7 +203,7 @@ interface Personagem {              // um item das Fichas (por ora só personage
   nome: string;
   ficha?: Ficha;                    // lote 9: esparsa (só pvAtual e pvMax obrigatórios); ausente para
                                     // quem não vê a ficha (ficha.verOutras); a antiga `mochila` vira itens
-  tokenPadrao: { cor: string; tamanhoQuadrados: number; assetHash?: string };
+  tokenPadrao: { cor: string; tamanhoQuadrados: number; assetHash?: string; barraDeVida?: boolean /* Q11: tokens novos com a barra de vida; sem o campo, sim */ };
   // o token colocado guarda a própria cópia de nome, cor, tamanho e imagem do token padrão;
   // Q8: personagem de jogador tem no máximo um token por cena (pode ter um em cada cena)
   visao: { alcanceM: number | null; visaoNoEscuroM: number };
@@ -243,7 +243,9 @@ interface Token {
   exaustao?: number;                // lote 11: 1..6
   concentracao?: string;            // lote 11: nome da magia
   pv?: { atual: number; max: number; temp?: number }; // Q10, 2026-11-17: vida PRÓPRIA do token de NPC (horda); ver abaixo
-  numero?: number;                  // Q10: o número do selo ("Goblin 3" tem 3); só o selo, o nome é o que vale
+  numero?: number;                  // Q10: o número da numeração ("Goblin 3" tem 3); o nome é o que vale (sem selo no mapa desde o Q11)
+  barraDeVida?: boolean;            // Q11, 2026-11-17: a barra de vida embaixo do token (só quem controla o token a vê); sem o campo = ligada
+  borda?: "vermelho" | "laranja" | "amarelo" | "verde" | "ciano" | "azul" | "rosa" | "branco"; // Q11: anel colorido (8 cores fixas, `bordas.ts`); todos que veem o token o veem
 }
 // Q10, 2026-11-17: HORDAS. Token de NPC/monstro (personagem sem editores) com `Personagem.vidaPorToken` ligado (o padrão;
 // `false` desliga, para o vilão único) nasce com `pv` = cópia dos PV da ficha naquele momento (a ficha vira o "modelo").
@@ -386,6 +388,7 @@ quando ele muda de cena.
 - **Ping no mapa** (V12, 2026-11-13): `mapa.ping { cenaId, x, y, centralizar? }`, capacidade `mapa.pingar` (ligada por padrão). É efêmero como o movimento ao vivo: a sala valida (cena, quem vê, ponto dentro, no máximo 1 ping a cada 0,5 s e 1 centralização a cada 3 s por usuário) e repassa `mapa.pingado` com o autor e a cor dela a quem vê a cena, inclusive a quem pingou. Não é gravado, nem entra no histórico, no chat ou na exportação.
 - **O acesso do Claude** (12-1, 2026-11-13): o cliente do MCP abre o mesmo WebSocket com `Authorization: Bearer <token>` e a sala o trata como o próprio usuário, com a marca `claude` no socket (lista de proibidos, limite de frequência, marca "pelo Claude", rascunho para o mestre, diário do Desfazer). O envelope ganha `loteId` e `lote` (só a conexão do Claude os usa). Ver 4.12, 4.14 e `docs/protocolo.md`, "O acesso do Claude".
 - **Hordas** (Q10, 2026-11-17): `personagem.colocarVarios { personagemId, cenaId, tokenIds (1 a 20), x?, y? }` põe vários tokens de um NPC de uma vez (arrumados no grid, numerados e com a vida de cada um; um pedido só = um passo do Desfazer do Claude); `token.copiar { cenaId, itens: [{ origemId, id, x, y }] }` copia tokens para a mesma cena ou outra (duplicar, Alt+arrastar, Ctrl+C e Ctrl+V; a sala copia os campos da origem e numera); `token.vida { id, atual?, max?, temp? }` muda a vida própria do token (o mestre ou quem edita o personagem). As duas primeiras exigem `cena.editar` (só o mestre); `token.vida` não tem capacidade (a sala confere quem edita o personagem). `personagem.editar` aceita `vidaPorToken`. No MCP: `tokens` ganhou `colocar[].quantidade`, `copiar` e `pvTemp`; `pv` e `pvMax` de um token de NPC com vida própria vão para `token.vida`.
+- **Gestos em lote, barra de vida e borda** (Q11, 2026-11-17): `tokens.mover { itens: [{ id, x, y }] (1 a 100) }` (capacidade `token.moverProprio`; a regra de cada token vale e um recusado recusa todos), `tokens.vidaDelta { ids (1 a 100), delta }` (dano negativo, cura positiva; vida própria no `pv` de cada token, vida da ficha uma vez por personagem; os temporários absorvem o dano primeiro; sem capacidade, a sala confere quem edita cada personagem) e `tokens.editar { ids, mudancas }` (`cena.editar`; as mudanças do `token.editar` em vários tokens). `token.editar` aceita `borda` (uma de 8 cores, `null` tira) e `barraDeVida`; `personagem.editar` aceita `barraDeVida` (token padrão). No MCP: `tokens` ganhou `borda`, `barraDeVida` e `grupo` (`deslocar`, `vida`, `borda`, `barraDeVida` em vários tokens num passo só); `fichas` ganhou `barraDeVida`.
 - O documento `docs/protocolo.md` lista todas as mensagens e é atualizado em todo lote que mexer nelas.
 
 Exemplos de intenções do cliente (V5: `parede.criar` e `parede.editar` aceitam `meio`, o ponto do arco; `cena.editar` aceita `mostrarParedesAosJogadores`): `entrar`, `token.mover`, `token.soltar`, `parede.criar`,

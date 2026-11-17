@@ -114,6 +114,9 @@ export const PARIDADE_COM_O_MCP: Record<TipoIntencao, EntradaDeParidade> = {
     "quantidade: de 1 a 20 tokens de um NPC de uma vez",
   ),
   "token.copiar": via("tokens", "copiar"),
+  "tokens.mover": via("tokens", "grupo", "deslocar: vários tokens juntos, num pedido só"),
+  "tokens.vidaDelta": via("tokens", "grupo", "vida: dano (negativo) ou cura igual para todos"),
+  "tokens.editar": via("tokens", "grupo", "borda e barraDeVida em vários tokens"),
   "token.vida": via("tokens", "tokens", "pv, pvMax, pvTemp: a vida própria do token de NPC"),
 
   // --- fichas, notas e pastas ---

@@ -21,6 +21,7 @@ import {
   rodarEvento,
   tratarAutomacao,
 } from "./automacoesnucleo.ts";
+import { barraDeVidaPadrao } from "./bordas.ts";
 import { ehCapacidadeDelegavel, pode } from "./capacidades.ts";
 import { chatParaUsuario, mensagemParaUsuario } from "./chat.ts";
 import { criarMensagem, mensagemDeDadoDeVida } from "./chatnucleo.ts";
@@ -82,6 +83,7 @@ import {
   novasDoModelo,
 } from "./ficha.ts";
 import {
+  aplicarDeltaNaVida,
   aplicarNaVida,
   copiaDoToken,
   nomeBaseDoToken,
@@ -307,6 +309,52 @@ function ligadoComRelogio(s: SomLigado, agora: number): SomLigado {
 function imagemDeTokenExiste(estado: Estado, hash: string): boolean {
   const tipo = metaDoAsset(estado, hash)?.tipo;
   return tipo === "token" || tipo === "retrato";
+}
+
+/**
+ * O token com as mudanças do `token.editar` aplicadas (ou o erro que recusa). Serve ao pedido de um token e ao
+ * `tokens.editar` (vários). `borda: null` tira a borda; `barraDeVida: true` volta ao padrão (sem o campo).
+ */
+function tokenComMudancas(
+  estado: Estado,
+  atual: Token,
+  mudancas: Extract<Intencao, { tipo: "token.editar" }>["dados"]["mudancas"],
+): { token: Token } | { erro: Resultado } {
+  if (mudancas.controladoPor && !usuariosExistem(estado, mudancas.controladoPor)) {
+    return { erro: recusa("usuario_inexistente", "Usuário de controle não encontrado.") };
+  }
+  const { assetHash, alcanceVisaoM, visaoNoEscuroM, borda, barraDeVida, ...demais } = mudancas;
+  const token: Token = { ...atual, ...semIndefinidos(demais) };
+  if (alcanceVisaoM === null) delete token.alcanceVisaoM;
+  else if (alcanceVisaoM !== undefined) token.alcanceVisaoM = alcanceVisaoM;
+  if (visaoNoEscuroM === null) delete token.visaoNoEscuroM;
+  else if (visaoNoEscuroM !== undefined) token.visaoNoEscuroM = visaoNoEscuroM;
+  if (borda === null) delete token.borda;
+  else if (borda !== undefined) token.borda = borda;
+  if (barraDeVida === true) delete token.barraDeVida;
+  else if (barraDeVida === false) token.barraDeVida = false;
+  if (assetHash === null) delete token.assetHash;
+  else if (assetHash !== undefined) {
+    if (!imagemDeTokenExiste(estado, assetHash)) {
+      return { erro: recusa("asset_inexistente", "Imagem não encontrada.") };
+    }
+    token.assetHash = assetHash;
+  }
+  return { token };
+}
+
+/**
+ * Esconder (ou mostrar) um token que carrega luz muda o que os jogadores recebem da luz dele: snapshot novo (o filtro de
+ * evento só cuida de um evento por vez). O mesmo vale para a entrada do token na ordem de turno.
+ */
+function precisaDeSnapshot(estado: Estado, atual: Token, token: Token): boolean {
+  const aparenciaMudou =
+    tokenVisivelPara(atual, JOGADOR_QUALQUER, estado.cenaAtivaId) !==
+    tokenVisivelPara(token, JOGADOR_QUALQUER, estado.cenaAtivaId);
+  return (
+    aparenciaMudou &&
+    (luzesDoToken(estado, token.id).length > 0 || tokenTemEntrada(estado, token.id))
+  );
 }
 
 function ehJogador(estado: Estado, id: string): boolean {
@@ -1043,6 +1091,8 @@ function tokenDoPersonagem(
     nome: numeracao?.nome ?? p.nome,
     ...(numeracao?.numero === undefined ? {} : { numero: numeracao.numero }),
     ...(pv ? { pv } : {}),
+    // Q11: o token nasce com a escolha do token padrão (sem o campo, com a barra de vida).
+    ...(barraDeVidaPadrao(p) ? {} : { barraDeVida: false }),
     cor: p.tokenPadrao.cor,
     tamanhoQuadrados: p.tokenPadrao.tamanhoQuadrados,
     ...limitarNaCena(base, cena),
@@ -1256,9 +1306,15 @@ function processarIntencao(
         novo.pv === undefined && novo.personagemId !== undefined
           ? pvInicialDoToken(personagemDe(estado, novo.personagemId))
           : undefined;
+      // Q11: e com a barra de vida que o token padrão do personagem pede.
+      const semBarra =
+        novo.barraDeVida === undefined &&
+        novo.personagemId !== undefined &&
+        !barraDeVidaPadrao(personagemDe(estado, novo.personagemId));
       const token: Token = {
         ...novo,
         ...(pvDoModelo ? { pv: pvDoModelo } : {}),
+        ...(semBarra ? { barraDeVida: false } : {}),
         ...limitarNaCena(novo, cena),
         cenaId: cena.id,
       };
@@ -1269,35 +1325,32 @@ function processarIntencao(
     case "token.editar": {
       const atual = estado.tokens.find((t) => t.id === intencao.dados.id);
       if (!atual) return recusa("token_inexistente", "Token não encontrado.");
-      const mudancas = intencao.dados.mudancas;
-      if (mudancas.controladoPor && !usuariosExistem(estado, mudancas.controladoPor)) {
-        return recusa("usuario_inexistente", "Usuário de controle não encontrado.");
+      const r = tokenComMudancas(estado, atual, intencao.dados.mudancas);
+      if ("erro" in r) return r.erro;
+      if (JSON.stringify(r.token) === JSON.stringify(atual)) return aplicado();
+      emitir({ tipo: "token.editado", dados: { token: r.token } });
+      return aplicado(precisaDeSnapshot(estado, atual, r.token) ? "todos" : []);
+    }
+
+    case "tokens.editar": {
+      // Q11: as mesmas mudanças em vários tokens (a borda, a barra de vida...): se um só for recusado, nenhum muda.
+      const { ids, mudancas } = intencao.dados;
+      if (new Set(ids).size !== ids.length) return recusa("dados_invalidos", "Ids repetidos.");
+      const novos: { atual: Token; token: Token }[] = [];
+      for (const id of ids) {
+        const atual = estado.tokens.find((t) => t.id === id);
+        if (!atual) return recusa("token_inexistente", "Token não encontrado.");
+        const r = tokenComMudancas(estado, atual, mudancas);
+        if ("erro" in r) return r.erro;
+        novos.push({ atual, token: r.token });
       }
-      const { assetHash, alcanceVisaoM, visaoNoEscuroM, ...demais } = mudancas;
-      const token: Token = { ...atual, ...semIndefinidos(demais) };
-      if (alcanceVisaoM === null) delete token.alcanceVisaoM;
-      else if (alcanceVisaoM !== undefined) token.alcanceVisaoM = alcanceVisaoM;
-      if (visaoNoEscuroM === null) delete token.visaoNoEscuroM;
-      else if (visaoNoEscuroM !== undefined) token.visaoNoEscuroM = visaoNoEscuroM;
-      if (assetHash === null) delete token.assetHash;
-      else if (assetHash !== undefined) {
-        if (!imagemDeTokenExiste(estado, assetHash)) {
-          return recusa("asset_inexistente", "Imagem não encontrada.");
-        }
-        token.assetHash = assetHash;
+      let snapshot = false;
+      for (const { atual, token } of novos) {
+        if (JSON.stringify(token) === JSON.stringify(atual)) continue;
+        emitir({ tipo: "token.editado", dados: { token } });
+        if (precisaDeSnapshot(estado, atual, token)) snapshot = true;
       }
-      if (JSON.stringify(token) === JSON.stringify(atual)) return aplicado();
-      emitir({ tipo: "token.editado", dados: { token } });
-      // Esconder (ou mostrar) um token que carrega luz muda o que os jogadores recebem da luz dele:
-      // snapshot novo (o filtro de evento só cuida de um evento por vez).
-      const aparenciaMudou =
-        tokenVisivelPara(atual, JOGADOR_QUALQUER, estado.cenaAtivaId) !==
-        tokenVisivelPara(token, JOGADOR_QUALQUER, estado.cenaAtivaId);
-      // O mesmo vale para a entrada do token na ordem de turno (o jogador deixa de ver, ou passa a ver).
-      const muda =
-        aparenciaMudou &&
-        (luzesDoToken(estado, token.id).length > 0 || tokenTemEntrada(estado, token.id));
-      return aplicado(muda ? "todos" : []);
+      return aplicado(snapshot ? "todos" : []);
     }
 
     case "token.apagar": {
@@ -1576,9 +1629,12 @@ function processarIntencao(
           return recusa("asset_inexistente", "Imagem não encontrada.");
         }
       }
+      // Q11: `barraDeVida` só fica gravada quando é `false` (sem o campo vale ligada).
+      const barraPadrao = m.barraDeVida ?? barraDeVidaPadrao(atual);
       const tokenPadrao = {
         cor: m.cor ?? atual.tokenPadrao.cor,
         tamanhoQuadrados: m.tamanhoQuadrados ?? atual.tokenPadrao.tamanhoQuadrados,
+        ...(barraPadrao ? {} : { barraDeVida: false }),
       };
       const assetHash = m.assetHash === undefined ? atual.tokenPadrao.assetHash : m.assetHash;
       const retratoHash = m.retratoHash === undefined ? atual.retratoHash : m.retratoHash;
@@ -2023,6 +2079,87 @@ function processarIntencao(
       const novo = aplicarNaVida(vida, { atual, max, temp });
       if (JSON.stringify(novo) === JSON.stringify(token.pv)) return aplicado();
       emitir({ tipo: "token.editado", dados: { token: { ...token, pv: novo } } });
+      return aplicado();
+    }
+
+    case "tokens.mover": {
+      // Q11: vários tokens de uma vez, com a regra de cada um (o jogador não atravessa parede; o mestre ignora).
+      const { itens } = intencao.dados;
+      if (new Set(itens.map((i) => i.id)).size !== itens.length) {
+        return recusa("dados_invalidos", "Ids repetidos.");
+      }
+      const movidos: { id: string; x: number; y: number }[] = [];
+      for (const { id, x, y } of itens) {
+        const token = estado.tokens.find((t) => t.id === id);
+        if (!token || !tokenVisivelPara(token, usuario, estado.cenaAtivaId)) {
+          return recusa("token_inexistente", "Token não encontrado.");
+        }
+        if (!podeMoverToken(token, usuario, estado)) {
+          return recusa("sem_permissao", "Você não controla este token.");
+        }
+        const cena = estado.cenas.find((c) => c.id === token.cenaId) ?? cenaAtiva(estado);
+        const posicao = limitarNaCena({ x, y }, cena);
+        if (
+          usuario.papel !== "mestre" &&
+          !cenaEhCartao(cena) &&
+          trajetoBloqueado(
+            { x: token.x, y: token.y },
+            posicao,
+            estado.paredes.filter((p) => p.cenaId === token.cenaId),
+          )
+        ) {
+          return recusa("trajeto_bloqueado", "Uma parede bloqueia o caminho.");
+        }
+        movidos.push({ id, ...posicao });
+      }
+      for (const m of movidos) emitir({ tipo: "token.movido", dados: m });
+      return aplicado();
+    }
+
+    case "tokens.vidaDelta": {
+      // Q11: o mesmo dano (negativo) ou cura (positivo) em vários tokens. Vida própria: o `pv` de cada token; vida da
+      // ficha: a ficha, UMA vez por personagem (dois tokens da mesma ficha não levam o dano duas vezes).
+      const { ids, delta } = intencao.dados;
+      if (new Set(ids).size !== ids.length) return recusa("dados_invalidos", "Ids repetidos.");
+      const nosTokens: Token[] = [];
+      const nasFichas = new Map<string, Personagem>();
+      for (const id of ids) {
+        const token = estado.tokens.find((t) => t.id === id);
+        if (!token || !tokenVisivelPara(token, usuario, estado.cenaAtivaId)) {
+          return recusa("token_inexistente", "Token não encontrado.");
+        }
+        const p =
+          token.personagemId === undefined ? undefined : personagemDe(estado, token.personagemId);
+        // Token sem personagem não tem vida: fica de fora.
+        if (!p) continue;
+        if (!personagemVisivelPara(p, usuario, estado.pastas)) {
+          return recusa("token_inexistente", "Token não encontrado.");
+        }
+        if (!podeEditarPersonagem(p, usuario)) {
+          return recusa("sem_permissao", "Você não edita a vida deste token.");
+        }
+        const vida = vidaDoToken(token, p);
+        if (!vida) continue;
+        if (usaVidaPorToken(p)) {
+          const pv = aplicarDeltaNaVida(vida, delta);
+          if (JSON.stringify(pv) !== JSON.stringify(token.pv)) nosTokens.push({ ...token, pv });
+        } else if (!nasFichas.has(p.id) && p.ficha) {
+          const novo = aplicarDeltaNaVida(vida, delta);
+          const { pvTemp: _t, ...semTemp } = p.ficha;
+          const ficha = {
+            ...semTemp,
+            pvAtual: novo.atual,
+            ...(novo.temp ? { pvTemp: novo.temp } : {}),
+          };
+          if (JSON.stringify(ficha) !== JSON.stringify(p.ficha)) {
+            nasFichas.set(p.id, { ...p, ficha });
+          }
+        }
+      }
+      for (const token of nosTokens) emitir({ tipo: "token.editado", dados: { token } });
+      for (const personagem of nasFichas.values()) {
+        emitir({ tipo: "personagem.alterado", dados: { personagem } });
+      }
       return aplicado();
     }
 

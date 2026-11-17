@@ -128,6 +128,20 @@ export const TokenPvSchema = z.object({
 });
 export type TokenPv = z.infer<typeof TokenPvSchema>;
 
+/** Q11: as 8 cores da borda de um token (para separar grupos). As cores em hexadecimal estão em `bordas.ts`. */
+export const NOMES_DE_BORDA = [
+  "vermelho",
+  "laranja",
+  "amarelo",
+  "verde",
+  "ciano",
+  "azul",
+  "rosa",
+  "branco",
+] as const;
+export const BordaSchema = z.enum(NOMES_DE_BORDA);
+export type Borda = z.infer<typeof BordaSchema>;
+
 export const TokenSchema = z.object({
   id: z.string().min(1).max(64),
   cenaId: z.string().min(1).max(64),
@@ -175,6 +189,13 @@ export const TokenSchema = z.object({
    * personagem; o primeiro fica sem número. Só o selo: o nome é o que vale.
    */
   numero: z.number().int().min(2).max(9999).optional(),
+  /**
+   * Q11: a barra de vida logo abaixo do token (só quem controla o token a vê). Sem o campo vale LIGADA: todo token,
+   * inclusive os de campanha antiga, já a tem. `false` a desliga.
+   */
+  barraDeVida: z.boolean().optional(),
+  /** Q11: o anel colorido na borda do token (uma de 8 cores fixas), para separar grupos. Todos que veem o token o veem. */
+  borda: BordaSchema.optional(),
 });
 export type Token = z.infer<typeof TokenSchema>;
 
@@ -563,6 +584,8 @@ export const PersonagemSchema = z.object({
     cor: z.string().min(1).max(32),
     tamanhoQuadrados: z.number().int().min(1).max(4),
     assetHash: HashSchema.optional(),
+    /** Q11: os tokens novos deste personagem nascem com a barra de vida? Sem o campo, sim. */
+    barraDeVida: z.boolean().optional(),
   }),
   visao: z.object({
     /** `null` = sem limite (visão normal, só a luz decide). */

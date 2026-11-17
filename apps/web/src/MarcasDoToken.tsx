@@ -9,7 +9,7 @@ import { type RefObject, useEffect, useRef, useState } from "react";
 import { BotaoComDica } from "./BotaoComDica";
 import type { MapaPixi } from "./mapa/mapaPixi";
 import { haDialogoAberto } from "./useDialogo";
-import { mudancasDaVidaDoToken, operacoesDaVida } from "./vidaDoToken";
+import { deltaDaVidaEmLote, mudancasDaVidaDoToken, operacoesDaVida } from "./vidaDoToken";
 
 type Props = {
   mapa: RefObject<MapaPixi | null>;
@@ -18,6 +18,8 @@ type Props = {
   enviar: (tipo: string, dados: object) => string | null;
   /** Um clique na CA abre a ficha do personagem. */
   aoAbrirFicha: (personagemId: string, aba?: undefined, tokenId?: string) => void;
+  /** Q11: os ids da seleção quando há mais de um token selecionado (mestre): a vida vira dano ou cura em lote. */
+  idsEmLote?: string[] | undefined;
 };
 
 /** Folga (px) entre a borda do token e as marcas, para não cobrir as tochas dos cantos de cima. */
@@ -29,7 +31,7 @@ const FOLGA = 10;
  * dar zoom e ao arrastar o mapa (lê a posição a cada quadro, sem re-renderizar). A vida grava na ficha pelo
  * `ficha.alterar` de sempre; o X de "morto" é a `token.condicoes` com `morto`.
  */
-export function MarcasDoToken({ mapa, token, personagem, enviar, aoAbrirFicha }: Props) {
+export function MarcasDoToken({ mapa, token, personagem, enviar, aoAbrirFicha, idsEmLote }: Props) {
   const raiz = useRef<HTMLDivElement>(null);
   const campo = useRef<HTMLInputElement>(null);
   const [editando, setEditando] = useState(false);
@@ -64,9 +66,11 @@ export function MarcasDoToken({ mapa, token, personagem, enviar, aoAbrirFicha }:
     return () => cancelAnimationFrame(quadro);
   }, [mapa, tokenId]);
 
+  const emLote = idsEmLote !== undefined && idsEmLote.length > 1;
   const abrirEdicao = () => {
     if (!ficha || !vida) return;
-    setTexto(String(vida.atual));
+    // Q11: com vários selecionados o campo começa vazio: só vale "-7" ou "+3", igual para todos.
+    setTexto(emLote ? "" : String(vida.atual));
     setEditando(true);
   };
   // O campo aberto vem selecionado, pronto para digitar por cima.
@@ -100,6 +104,14 @@ export function MarcasDoToken({ mapa, token, personagem, enviar, aoAbrirFicha }:
 
   function gravar() {
     if (!ficha || !vida) return;
+    if (emLote && idsEmLote) {
+      // Q11: o mesmo dano ou cura em todos os selecionados, num pedido só (a sala aplica a regra de cada um).
+      const delta = deltaDaVidaEmLote(texto);
+      if (delta === null) return; // texto inválido: o campo continua aberto
+      enviar("tokens.vidaDelta", { ids: idsEmLote, delta });
+      setEditando(false);
+      return;
+    }
     if (vida.propria) {
       // Q10: a vida é do token (horda): o dano num Goblin não toca nos outros nem na ficha.
       const m = mudancasDaVidaDoToken(texto, vida);
@@ -131,7 +143,12 @@ export function MarcasDoToken({ mapa, token, personagem, enviar, aoAbrirFicha }:
           ref={campo}
           className="mvc-campo"
           data-testid="marca-vida-campo"
-          aria-label="Vida: valor, -7 ou +3"
+          aria-label={
+            emLote
+              ? `Vida dos ${idsEmLote?.length} selecionados: -7 ou +3`
+              : "Vida: valor, -7 ou +3"
+          }
+          placeholder={emLote ? "-7 ou +3" : undefined}
           inputMode="text"
           maxLength={5}
           autoComplete="off"
@@ -153,14 +170,24 @@ export function MarcasDoToken({ mapa, token, personagem, enviar, aoAbrirFicha }:
         <BotaoComDica
           testid="marca-vida"
           className="mvc-marca mvc-vida"
-          nome={rotuloDaVida}
+          nome={emLote ? `Vida dos ${idsEmLote?.length} selecionados` : rotuloDaVida}
           atalho="editarVida"
-          aria-label={`${rotuloDaVida}. Clique para editar`}
+          aria-label={
+            emLote
+              ? `Vida dos ${idsEmLote?.length} selecionados. Clique para dar dano ou curar todos`
+              : `${rotuloDaVida}. Clique para editar`
+          }
           onClick={abrirEdicao}
         >
           <Heart size={14} aria-hidden />
-          <span data-testid="marca-vida-valor">{vida.atual}</span>
-          {temp > 0 && <span className="mvc-temp">+{temp}</span>}
+          {emLote ? (
+            <span data-testid="marca-vida-lote">{idsEmLote?.length} selecionados</span>
+          ) : (
+            <>
+              <span data-testid="marca-vida-valor">{vida.atual}</span>
+              {temp > 0 && <span className="mvc-temp">+{temp}</span>}
+            </>
+          )}
         </BotaoComDica>
       )}
       <BotaoComDica

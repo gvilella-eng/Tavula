@@ -1,4 +1,5 @@
 import {
+  type Borda,
   type Camada,
   CONDICOES,
   type Condicao,
@@ -15,6 +16,7 @@ import {
   FileText,
   Flame,
   FlameKindling,
+  Heart,
   Layers,
   ListPlus,
   ListX,
@@ -29,7 +31,9 @@ import { BotaoComDica } from "./BotaoComDica";
 import { ICONE_DA_CONDICAO } from "./condicoesIcones";
 import { Teclas } from "./Dica";
 import { useFecharFora } from "./Popover";
+import { SeletorDeBorda } from "./SeletorDeBorda";
 import { useMenuPorTeclado } from "./useMenuPorTeclado";
+import { deltaDaVidaEmLote } from "./vidaDoToken";
 
 type Props = {
   estado: Estado;
@@ -50,6 +54,16 @@ type Props = {
   /** "Editar token…": seleciona o token e abre o painel dele (só o mestre). */
   aoEditar: () => void;
   aoFechar: () => void;
+  /**
+   * Q11: os tokens em que o menu age quando este faz parte de uma seleção de vários (o mestre): a borda e a vida em
+   * lote valem para todos. Sem seleção de vários, só este token.
+   */
+  idsDoMenu: string[];
+};
+
+/** O campo que acabou de abrir por um clique do mestre já nasce com o foco. */
+const focarAoAbrir = (el: HTMLInputElement | null) => {
+  if (el && document.activeElement !== el) el.focus({ preventScroll: true });
 };
 
 /** O ícone da condição (V11), o mesmo do token no mapa; na cor do texto do tema. */
@@ -66,12 +80,13 @@ const CAMADAS_DO_MENU: readonly (readonly [Camada, string])[] = [
 ];
 
 /** Altura que o menu pede (px), para caber na área do mapa; o que passar disso rola. */
-function alturaDoMenu(mestre: boolean, tochas: number): number {
+function alturaDoMenu(mestre: boolean, tochas: number, emLote: boolean): number {
   return (
     44 +
     31 +
     31 +
-    (mestre ? 76 + 62 + 28 + 3 * 31 : 0) +
+    (mestre ? 76 + 62 + 28 + 3 * 31 + 62 : 0) +
+    (emLote ? 31 + 40 : 0) +
     (tochas > 0 ? 28 + tochas * 76 : 0) +
     28 +
     7 * 31 +
@@ -100,12 +115,16 @@ export function MenuDoToken({
   aoDuplicar,
   aoCopiar,
   aoFechar,
+  idsDoMenu,
 }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   useFecharFora(ref, aoFechar);
   const aoTeclarNoMenu = useMenuPorTeclado(ref, teclado === true);
   const token = estado.tokens.find((t) => t.id === tokenId);
   const [magia, setMagia] = useState(token?.concentracao ?? "");
+  // Q11: o campo da vida em lote (só com vários selecionados): `null` = fechado.
+  const [vidaEmLote, setVidaEmLote] = useState<string | null>(null);
+  const emLote = euMestre && idsDoMenu.length > 1;
   if (!token) return null;
   const naOrdem = estado.combate?.entradas.find((e) => e.tokenId === tokenId);
   const ativas = new Set<Condicao>(token.condicoes ?? []);
@@ -121,7 +140,7 @@ export function MenuDoToken({
   );
   const area = caixaDaArea();
   const alturaMaxima = area.base - area.topo - 16;
-  const altura = Math.min(alturaDoMenu(euMestre, tochas.length), alturaMaxima);
+  const altura = Math.min(alturaDoMenu(euMestre, tochas.length, emLote), alturaMaxima);
   const { left: esquerda, top: topo } = dentroDaArea(x, y, 292, altura);
 
   function alternar(c: Condicao) {
@@ -129,6 +148,24 @@ export function MenuDoToken({
     if (novas.has(c)) novas.delete(c);
     else novas.add(c);
     enviar("token.condicoes", { id: tokenId, condicoes: CONDICOES.filter((k) => novas.has(k)) });
+  }
+
+  /** Q11: a borda vale para todos os tokens do menu (um pedido só se são vários). */
+  function escolherBorda(borda: Borda | null) {
+    aoFechar();
+    if (idsDoMenu.length > 1) {
+      enviar("tokens.editar", { ids: idsDoMenu, mudancas: { borda } });
+    } else if ((token?.borda ?? null) !== borda) {
+      enviar("token.editar", { id: tokenId, mudancas: { borda } });
+    }
+  }
+
+  /** Q11: o mesmo dano (-7) ou cura (+3) em todos os selecionados, num pedido só. */
+  function aplicarVidaEmLote() {
+    const delta = deltaDaVidaEmLote(vidaEmLote ?? "");
+    if (delta === null) return; // texto inválido: o campo continua aberto
+    aoFechar();
+    enviar("tokens.vidaDelta", { ids: idsDoMenu, delta });
   }
 
   function marcarConcentracao() {
@@ -212,6 +249,50 @@ export function MenuDoToken({
               <Teclas teclas={ATALHOS.copiarToken.teclas} />
             </span>
           </button>
+          {emLote && (
+            <>
+              <button
+                type="button"
+                role="menuitem"
+                className="item-menu"
+                data-testid="menu-token-vida-lote"
+                aria-expanded={vidaEmLote !== null}
+                onClick={() => setVidaEmLote(vidaEmLote === null ? "" : null)}
+              >
+                <Heart size={16} />
+                <span>Vida dos {idsDoMenu.length} selecionados…</span>
+              </button>
+              {vidaEmLote !== null && (
+                <div className="mt-linha mt-vida-lote">
+                  <input
+                    type="text"
+                    data-testid="menu-token-vida-lote-campo"
+                    aria-label={`Vida dos ${idsDoMenu.length} selecionados: -7 ou +3`}
+                    placeholder="-7 ou +3"
+                    maxLength={5}
+                    autoComplete="off"
+                    ref={focarAoAbrir}
+                    value={vidaEmLote}
+                    onChange={(e) => setVidaEmLote(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        aplicarVidaEmLote();
+                      }
+                    }}
+                  />
+                  <button
+                    type="button"
+                    data-testid="menu-token-vida-lote-aplicar"
+                    disabled={deltaDaVidaEmLote(vidaEmLote) === null}
+                    onClick={aplicarVidaEmLote}
+                  >
+                    Aplicar
+                  </button>
+                </div>
+              )}
+            </>
+          )}
           {naOrdem ? (
             <button
               type="button"
@@ -259,6 +340,17 @@ export function MenuDoToken({
         <Skull size={16} />
         <span>{token.morto ? "Tirar a marca de morto" : "Marcar como morto"}</span>
       </button>
+      {euMestre && (
+        <fieldset className="mt-grupo" data-testid="menu-token-grupo-borda">
+          <legend className="nota mt-grupo-titulo">Borda</legend>
+          <SeletorDeBorda
+            valor={token.borda}
+            aoEscolher={escolherBorda}
+            prefixo="menu-token-borda"
+            papel="menuitemradio"
+          />
+        </fieldset>
+      )}
       {euMestre && (
         <fieldset className="mt-grupo" data-testid="menu-token-grupo-camada">
           <legend className="nota mt-grupo-titulo">Camada</legend>

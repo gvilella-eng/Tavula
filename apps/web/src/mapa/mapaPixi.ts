@@ -6,6 +6,7 @@ import {
   CacheDeLuz,
   CELULA_DA_MEMORIA_M,
   type Cena,
+  CORES_DA_BORDA,
   calcularModelo,
   chegadaDaCena,
   contarLembradas,
@@ -97,6 +98,13 @@ const DURACAO_DA_CENTRALIZACAO_MS = 400;
 /** Constante de tempo da interpolação dos tokens movidos por outros (os envios chegam a cada 50 ms). */
 const TAU_MS = 70;
 const ACENTO = 0xe0a030;
+/** Q11: a barra de vida do token: o espaço que ela toma abaixo do token (o nome desce isto) e as cores por fração. */
+const ESPACO_DA_BARRA = 11;
+const COR_DA_VIDA_BOA = 0x43a047;
+const COR_DA_VIDA_MEDIA = 0xf9a825;
+const COR_DA_VIDA_BAIXA = 0xe53935;
+/** Os PV temporários: um trecho claro depois do atual. */
+const COR_DO_TEMPORARIO = 0xb3e5fc;
 /** 7b-2: a zona do mestre (violeta): não se confunde com as paredes (claras e âmbar) nem com os desenhos. */
 const COR_DA_ZONA = 0xb07cff;
 /** N4: a cor da prévia do traço da névoa (só do mestre): roxo-azulado para cobrir, verde-água para revelar. */
@@ -203,6 +211,11 @@ export type OpcoesDoMapa = {
   reguaGrudar: boolean;
   /** V13: a unidade das distâncias mostradas (a régua). */
   unidade: UnidadeDeDistancia;
+  /**
+   * Q11: a vida que a barra do token mostra para quem olha, ou `null` sem barra (desligada, sem vida conhecida ou token
+   * que quem olha não controla). A tela decide; o mapa só desenha.
+   */
+  vidaDaBarra: (token: Token) => { atual: number; max: number; temp: number } | null;
   selecionadoId: string | null;
   /** Q10: os tokens somados à seleção (Shift ou Ctrl+clique, só o mestre): ganham o mesmo anel do selecionado. */
   tambemSelecionadosIds: readonly string[];
@@ -314,6 +327,10 @@ export type RetornosDoMapa = {
   alternarNaSelecao: (id: string) => void;
   /** Q10: soltou a cópia arrastada com Alt: o token de origem e o centro onde soltou (metros). O original fica. */
   copiarArrastado: (id: string, x: number, y: number) => void;
+  /** Q11: soltou vários tokens arrastados juntos: o centro novo de cada um (um pedido só). */
+  soltarVarios: (itens: { id: string; x: number; y: number }[]) => void;
+  /** Q11: o laço terminou: os ids dos tokens dentro dele e se soma à seleção (Shift ou Ctrl). */
+  selecionarComLaco: (ids: string[], somar: boolean) => void;
   zoom: (zoom: number) => void;
   medir: (medicao: MedicaoNaTela | null) => void;
   /** As medidas fixadas (a lista inteira, a cada mudança de medida ou de vista). */
@@ -402,6 +419,9 @@ type Visual = {
   anel: Graphics;
   /** Anel da vez (ordem de turno). */
   anelVez: Graphics;
+  /** Q11: a barra de vida logo abaixo do token (só se a tela pode mostrá-la) e o que ela desenhou por último. */
+  barra: Graphics;
+  barraDesenhada: { chave: string; fracao: number; temp: number } | null;
   /** Marcadores de condição desenhados na borda (posição em px do mundo, relativa ao centro). */
   marcas: MarcaVisual[];
   /** A imagem do token já apareceu (senão vale o círculo gerado). */
@@ -458,7 +478,17 @@ type Gesto =
       origem: Ponto;
       moveu: boolean;
       ultimoEnviado: Ponto | null;
+      /** Q11: os outros tokens da seleção que vão junto (mestre): o lugar de onde saíram. */
+      junto: { id: string; origem: Ponto }[];
       limitador: ReturnType<typeof criarLimitador<Ponto>>;
+    }
+  | {
+      /** Q11: o laço de seleção (mestre): arrastar no fundo vazio desenha um retângulo; só começa depois de andar uns pixels. */
+      tipo: "laco";
+      inicio: Ponto;
+      atual: Ponto;
+      ativo: boolean;
+      somar: boolean;
     }
   | { tipo: "bandeira"; deslocamento: Ponto }
   | { tipo: "ponta"; id: string; ponta: "a" | "b" }
@@ -486,6 +516,17 @@ export const ESTILO_DA_PAREDE: Record<TipoDeParede, { cor: number; largura: numb
   secreta: { cor: 0xb388ff, largura: 4 },
   invisivel: { cor: 0x8a94a3, largura: 2 },
 };
+
+/** Q11: a cor de acento do tema de agora (`--acento`, em hexadecimal); sem ela, o dourado de sempre do mapa. */
+function corDoAcento(): number {
+  try {
+    const v = getComputedStyle(document.documentElement).getPropertyValue("--acento").trim();
+    const m = /^#([0-9a-f]{6})$/i.exec(v);
+    return m?.[1] ? Number.parseInt(m[1], 16) : ACENTO;
+  } catch {
+    return ACENTO;
+  }
+}
 
 function distanciaAoSegmento(p: Ponto, a: Ponto, b: Ponto): number {
   const dx = b.x - a.x;
@@ -644,6 +685,8 @@ export class MapaPixi {
   private jaCentralizou = false;
   /** V12: os pings na tela, o que já chegou (gancho de teste), a espera do clique segurado e a câmera animada. */
   private readonly camadaDePings = new Container();
+  /** Q11: o retângulo do laço de seleção (mestre), por cima dos tokens. */
+  private readonly lacoGraf = new Graphics();
   private pings: { g: Graphics; x: number; y: number; cor: string; inicio: number }[] = [];
   private pingsRecebidos: (PingNoMapa & { exibido: boolean })[] = [];
   private esperaDoPing: {
@@ -717,9 +760,11 @@ export class MapaPixi {
       this.desenhoDasFixas,
       this.desenhoDaRegua,
       this.previaDoToken,
+      this.lacoGraf,
       this.camadaDePings,
     );
     this.previaDoToken.visible = false;
+    this.lacoGraf.visible = false;
     this.desenharBandeira();
     this.app.stage.addChild(this.mundo);
     this.ultimoQuadro = performance.now();
@@ -952,6 +997,10 @@ export class MapaPixi {
       this.chaveDaVisao = chave;
       this.visaoSuja = true;
       this.aplicarEsquecimento();
+    }
+    // Q11: quem olha mudou (ver como outro jogador): a barra de vida pode ter aparecido ou sumido (o nome se acerta).
+    if ([...this.visuais.values()].some((v) => v.chave !== this.chaveDe(v.token))) {
+      this.sincronizarTokens();
     }
     this.atualizarEstilos();
     this.atualizarBandeira();
@@ -1236,7 +1285,8 @@ export class MapaPixi {
   private chaveDe(t: Token): string {
     const imagem = t.assetHash && this.texturas.has(t.assetHash) ? t.assetHash : "";
     const marcas = `${(t.condicoes ?? []).join(",")}|${t.exaustao ?? ""}|${t.concentracao ?? ""}`;
-    return `${t.nome}|${t.cor}|${t.tamanhoQuadrados}|${t.oculto}|${t.camada}|${imagem}|${marcas}|${t.morto === true}|${t.numero ?? ""}`;
+    // Q11: a borda e se há barra de vida (ela empurra o nome para baixo) refazem o token; a vida em si não.
+    return `${t.nome}|${t.cor}|${t.tamanhoQuadrados}|${t.oculto}|${t.camada}|${imagem}|${marcas}|${t.morto === true}|${t.borda ?? ""}|${this.opcoes.vidaDaBarra(t) !== null}`;
   }
 
   private criarVisual(token: Token, x: number, y: number): Visual {
@@ -1284,7 +1334,13 @@ export class MapaPixi {
     });
     rotulo.anchor.set(0.5, 0);
     const icones = iconesDoToken(token);
-    rotulo.position.set(0, raio + 4 + (icones.length > 0 ? raio * FRACAO_DA_MARCA : 0));
+    // Q11: com a barra de vida (para quem pode vê-la), o nome desce o espaço dela: barra logo abaixo do token, nome embaixo.
+    const comBarra = this.opcoes.vidaDaBarra(token) !== null;
+    const baseDoRotulo = raio + 4 + (icones.length > 0 ? raio * FRACAO_DA_MARCA : 0);
+    rotulo.position.set(0, baseDoRotulo + (comBarra ? ESPACO_DA_BARRA : 0));
+    const barra = new Graphics();
+    barra.position.set(0, baseDoRotulo - 1);
+    barra.visible = comBarra;
     const pilulaDoRotulo = new Graphics()
       .roundRect(
         -rotulo.width / 2 - 6,
@@ -1294,7 +1350,11 @@ export class MapaPixi {
         (rotulo.height + 4) / 2,
       )
       .fill({ color: 0x0b0d11, alpha: 0.72 });
-    const anel = new Graphics().circle(0, 0, raio + 5).stroke({ width: 3, color: ACENTO });
+    // Q11: num token com borda colorida, o anel dourado da seleção fica por fora, com um vão (a seleção continua
+    // reconhecível mesmo com a borda amarela ou laranja).
+    const anel = new Graphics()
+      .circle(0, 0, raio + (token.borda ? 8 : 5))
+      .stroke({ width: 3, color: ACENTO });
     anel.visible = false;
     const anelVez = new Graphics()
       .circle(0, 0, raio + 12)
@@ -1303,11 +1363,21 @@ export class MapaPixi {
       .stroke({ width: 4, color: COR_DA_VEZ });
     anelVez.visible = false;
     container.addChild(anelVez, anel, corpo, imagem, iniciais);
+    // Q11: a borda colorida: um anel de ~3 px na beira do token, com um contorno escuro por baixo para ler em mapa claro
+    // ou escuro (o branco e o amarelo somem sem ele).
+    if (token.borda) {
+      container.addChild(
+        new Graphics()
+          .circle(0, 0, raio)
+          .stroke({ width: 6, color: 0x0b0d11, alpha: 0.75 })
+          .circle(0, 0, raio)
+          .stroke({ width: 3, color: CORES_DA_BORDA[token.borda] }),
+      );
+    }
     // N1: o X vermelho de "morto" cobre o token inteiro (contorno escuro por baixo, para ler em qualquer mapa).
     if (token.morto) container.addChild(this.desenharXDeMorto(raio));
-    container.addChild(pilulaDoRotulo, rotulo);
+    container.addChild(pilulaDoRotulo, rotulo, barra);
     const marcas = this.desenharMarcas(container, icones, raio);
-    if (token.numero !== undefined) container.addChild(this.desenharSelo(token.numero, raio));
     if (token.oculto) container.addChild(this.desenharOlhoCortado(raio));
     container.position.set(x * PX_POR_M, y * PX_POR_M);
     this.camadaDe(token).addChild(container);
@@ -1317,6 +1387,8 @@ export class MapaPixi {
       container,
       anel,
       anelVez,
+      barra,
+      barraDesenhada: null,
       marcas,
       temImagem: textura !== undefined,
       x,
@@ -1469,6 +1541,7 @@ export class MapaPixi {
   private ajustarMarcasAoZoom(): void {
     if (this.zoomDasMarcas === this.vista.zoom) return;
     this.zoomDasMarcas = this.vista.zoom;
+    this.atualizarBarras();
     this.sujo = true;
     for (const v of this.visuais.values()) {
       if (v.marcas.length === 0) continue;
@@ -1512,29 +1585,52 @@ export class MapaPixi {
   }
 
   /**
-   * Q10: o selo com o número da horda ("Goblin 3" tem o 3) no lado direito do token: uma bolinha escura com o
-   * número em branco. Os cantos de cima são das tochas e o arco de baixo é das condições.
+   * Q11: a barra de vida de cada token (só dos que a tela pode mostrar): fina, logo abaixo do token e acima do nome,
+   * proporcional ao atual sobre o máximo, verde, âmbar ou vermelha pela fração (nunca roxa), com os temporários como
+   * um trecho mais claro depois do atual. Fundo escuro translúcido para ler em mapa claro e escuro. A espessura
+   * acompanha o zoom (nunca menos de ~4 px na tela). Só redesenha quando algo mudou.
    */
-  private desenharSelo(numero: number, raio: number): Container {
-    const selo = new Container();
-    const r = Math.max(10, raio * 0.32);
-    const fundo = new Graphics()
-      .circle(0, 0, r)
-      .fill({ color: 0x0d1015, alpha: 0.94 })
-      .stroke({ width: 1.5, color: 0xffffff, alpha: 0.9 });
-    const texto = new Text({
-      text: String(numero),
-      style: {
-        fill: 0xffffff,
-        fontSize: Math.max(11, r * 1.05),
-        fontWeight: "700",
-        fontFamily: "system-ui, sans-serif",
-      },
-    });
-    texto.anchor.set(0.5);
-    selo.addChild(fundo, texto);
-    selo.position.set(raio * 0.96, -raio * 0.12);
-    return selo;
+  private atualizarBarras(): void {
+    const zoom = this.vista.zoom;
+    const grossura = Math.min(10, Math.max(6, 4 / zoom));
+    for (const v of this.visuais.values()) {
+      const vida = this.opcoes.vidaDaBarra(v.token);
+      if (!vida || vida.max <= 0) {
+        if (v.barra.visible) {
+          v.barra.visible = false;
+          this.sujo = true;
+        }
+        v.barraDesenhada = null;
+        continue;
+      }
+      const chave = `${vida.atual}|${vida.max}|${vida.temp}|${grossura.toFixed(2)}`;
+      if (v.barraDesenhada?.chave === chave && v.barra.visible) continue;
+      const largura = Math.max(24, this.raioDoToken(v.token) * 1.8);
+      const total = Math.max(vida.max, vida.atual + vida.temp);
+      const fracao = Math.min(1, Math.max(0, vida.atual / vida.max));
+      const wAtual = (largura * Math.min(vida.atual, total)) / total;
+      const wTemp = (largura * Math.min(vida.temp, total - vida.atual)) / total;
+      const cor =
+        fracao > 0.5 ? COR_DA_VIDA_BOA : fracao > 0.25 ? COR_DA_VIDA_MEDIA : COR_DA_VIDA_BAIXA;
+      const g = v.barra.clear();
+      g.roundRect(-largura / 2 - 1.5, -1.5, largura + 3, grossura + 3, (grossura + 3) / 2).fill({
+        color: 0x0b0d11,
+        alpha: 0.78,
+      });
+      if (wAtual > 0) {
+        g.roundRect(-largura / 2, 0, Math.max(wAtual, grossura * 0.6), grossura, grossura / 2).fill(
+          cor,
+        );
+      }
+      if (wTemp > 0) {
+        g.roundRect(-largura / 2 + wAtual, 0, wTemp, grossura, grossura / 2).fill(
+          COR_DO_TEMPORARIO,
+        );
+      }
+      v.barra.visible = true;
+      v.barraDesenhada = { chave, fracao, temp: vida.temp };
+      this.sujo = true;
+    }
   }
 
   /** Ícone de olho cortado (token oculto, só o mestre vê) no alto do token. */
@@ -1592,7 +1688,9 @@ export class MapaPixi {
       v.token = t;
       // Só reposiciona quando a posição gravada mudou: não atropela um movimento ao vivo em curso.
       if (mudouNoEstado) {
-        const arrastando = this.gesto?.tipo === "token" && this.gesto.id === t.id;
+        const arrastando =
+          this.gesto?.tipo === "token" &&
+          (this.gesto.id === t.id || this.gesto.junto.some((j) => j.id === t.id));
         if (!arrastando) {
           v.alvoX = t.x;
           v.alvoY = t.y;
@@ -1623,6 +1721,7 @@ export class MapaPixi {
 
   private atualizarEstilos(): void {
     this.sujo = true;
+    this.atualizarBarras();
     for (const v of this.visuais.values()) {
       const t = v.token;
       let alpha = 1;
@@ -1679,10 +1778,11 @@ export class MapaPixi {
   }
 
   private animar(dtMs: number): void {
-    const arrastando = this.gesto?.tipo === "token" ? this.gesto.id : null;
+    const g = this.gesto;
+    const arrastando = g?.tipo === "token" ? new Set([g.id, ...g.junto.map((j) => j.id)]) : null;
     for (const v of this.visuais.values()) {
       if (v.x === v.alvoX && v.y === v.alvoY) continue;
-      if (v.token.id === arrastando) {
+      if (arrastando?.has(v.token.id)) {
         v.x = v.alvoX;
         v.y = v.alvoY;
       } else {
@@ -3704,10 +3804,17 @@ export class MapaPixi {
     // V12: no fundo ou num token (Selecionar), segurar parado faz o ping.
     this.esperarPing(e, p);
     if (!v) {
-      this.retornos().selecionar(null);
+      // Q11: o mestre arrasta no fundo vazio para desenhar o laço de seleção; Shift ou Ctrl soma à seleção de agora (e
+      // um clique parado, sem arrastar, só a mantém). O laço só começa depois de andar uns pixels: o ping continua igual.
+      const somar = this.opcoes.euMestre && (e.shiftKey || e.ctrlKey || e.metaKey);
+      if (!somar) this.retornos().selecionar(null);
       if (this.marcasVisiveis()) {
         this.retornos().selecionarLuz(null);
         this.retornos().selecionarPonto(null);
+      }
+      if (this.opcoes.euMestre && e.button === 0) {
+        this.gesto = { tipo: "laco", inicio: p, atual: p, ativo: false, somar };
+        this.app.canvas.setPointerCapture(e.pointerId);
       }
       return;
     }
@@ -3719,15 +3826,27 @@ export class MapaPixi {
     }
     // V2: o jogador também seleciona, mas só o token que controla; clicar em outro solta a seleção. Fica só na
     // tela dele (nada vai para a sala).
-    this.retornos().selecionar(
-      this.opcoes.euMestre || this.opcoes.controla(v.token) ? v.token.id : null,
-    );
+    // Q11: pegar um token que já está numa seleção de vários (mestre) a mantém: arrastar leva todos. Sem arrastar, soltar
+    // fica só com ele (o que o clique faz em qualquer lista).
+    const selecao = this.idsDaSelecao();
+    const naSelecao = this.opcoes.euMestre && selecao.length > 1 && selecao.includes(v.token.id);
+    if (!naSelecao) {
+      this.retornos().selecionar(
+        this.opcoes.euMestre || this.opcoes.controla(v.token) ? v.token.id : null,
+      );
+    }
     if (!this.opcoes.podeMover(v.token)) return;
     const m = this.paraMundo(p);
     const id = v.token.id;
     // Q10: Alt ao pegar o token (mestre) arrasta uma CÓPIA: o original fica e a cópia nasce onde soltar.
     const copia = this.opcoes.euMestre && e.altKey;
     if (copia) this.cancelarEsperaDoPing();
+    const junto = naSelecao
+      ? selecao.flatMap((outro) => {
+          const o = outro === id ? undefined : this.visuais.get(outro);
+          return o ? [{ id: outro, origem: { x: o.x, y: o.y } }] : [];
+        })
+      : [];
     this.gesto = {
       tipo: "token",
       id,
@@ -3736,6 +3855,7 @@ export class MapaPixi {
       origem: { x: v.x, y: v.y },
       moveu: false,
       ultimoEnviado: null,
+      junto,
       limitador: criarLimitador<Ponto>((pos) => this.retornos().mover(id, pos.x, pos.y), {
         agora: () => performance.now(),
         agendar: (fn, ms) => setTimeout(fn, ms),
@@ -4013,6 +4133,15 @@ export class MapaPixi {
       }
       return;
     }
+    if (g.tipo === "laco") {
+      g.atual = p;
+      if (!g.ativo && Math.hypot(p.x - g.inicio.x, p.y - g.inicio.y) > TOLERANCIA_DO_PING_PX) {
+        g.ativo = true;
+        this.cancelarEsperaDoPing();
+      }
+      if (g.ativo) this.desenharLaco(g);
+      return;
+    }
     const v = this.visuais.get(g.id);
     if (!v || !this.cena) return;
     const m = this.paraMundo(p);
@@ -4033,11 +4162,35 @@ export class MapaPixi {
     ) {
       return;
     }
+    if (g.junto.length > 0) {
+      // Q11: a seleção anda inteira, mantendo o arranjo: os outros seguem com o mesmo deslocamento do pegado, sem sair
+      // da cena (o grupo encosta na borda sem se desmanchar).
+      let dx = alvo.x - g.origem.x;
+      let dy = alvo.y - g.origem.y;
+      const membros = [g.origem, ...g.junto.map((j) => j.origem)];
+      let ax = 0;
+      let ay = 0;
+      for (const o of membros) {
+        const c = limitarNaCena({ x: o.x + dx, y: o.y + dy }, this.cena);
+        if (Math.abs(c.x - (o.x + dx)) > Math.abs(ax)) ax = c.x - (o.x + dx);
+        if (Math.abs(c.y - (o.y + dy)) > Math.abs(ay)) ay = c.y - (o.y + dy);
+      }
+      dx += ax;
+      dy += ay;
+      alvo = { x: g.origem.x + dx, y: g.origem.y + dy };
+      for (const j of g.junto) {
+        const outro = this.visuais.get(j.id);
+        if (!outro) continue;
+        outro.alvoX = j.origem.x + dx;
+        outro.alvoY = j.origem.y + dy;
+      }
+    }
     v.alvoX = alvo.x;
     v.alvoY = alvo.y;
     if (alvo.x !== g.origem.x || alvo.y !== g.origem.y) g.moveu = true;
     if (
       !g.copia &&
+      g.junto.length === 0 &&
       (!g.ultimoEnviado || g.ultimoEnviado.x !== alvo.x || g.ultimoEnviado.y !== alvo.y)
     ) {
       g.ultimoEnviado = alvo;
@@ -4060,6 +4213,15 @@ export class MapaPixi {
     }
     if (g.tipo === "traco" || g.tipo === "desenhoMover" || g.tipo === "borracha") {
       this.soltarComPincel(g);
+      this.atualizarCursor();
+      return;
+    }
+    if (g.tipo === "laco") {
+      this.lacoGraf.clear().visible = false;
+      this.sujo = true;
+      if (g.ativo && e.type !== "pointercancel") {
+        this.retornos().selecionarComLaco(this.idsNoLaco(g), g.somar);
+      }
       this.atualizarCursor();
       return;
     }
@@ -4146,11 +4308,23 @@ export class MapaPixi {
         // Q10: o original volta ao lugar dele; a cópia nasce onde se soltou.
         if (g.moveu && v) {
           const { alvoX, alvoY } = v;
-          v.alvoX = g.origem.x;
-          v.alvoY = g.origem.y;
+          this.voltarAoLugar(g);
           this.retornos().copiarArrastado(g.id, alvoX, alvoY);
         }
-      } else if (g.moveu && v) this.retornos().soltar(g.id, v.alvoX, v.alvoY);
+      } else if (g.moveu && v) {
+        if (g.junto.length > 0) {
+          // Q11: a seleção inteira, num pedido só.
+          const itens = [{ id: g.id, x: v.alvoX, y: v.alvoY }];
+          for (const j of g.junto) {
+            const o = this.visuais.get(j.id);
+            if (o) itens.push({ id: j.id, x: o.alvoX, y: o.alvoY });
+          }
+          this.retornos().soltarVarios(itens);
+        } else this.retornos().soltar(g.id, v.alvoX, v.alvoY);
+      } else if (g.junto.length > 0) {
+        // Q11: clicou num token da seleção sem arrastar: a seleção passa a ser só ele.
+        this.retornos().selecionar(g.id);
+      }
     }
     this.atualizarCursor();
   };
@@ -4304,18 +4478,82 @@ export class MapaPixi {
     }
   };
 
+  /** Q11: o retângulo do laço em metros (canto de cima à esquerda e de baixo à direita). */
+  private retanguloDoLaco(g: Extract<Gesto, { tipo: "laco" }>) {
+    const a = this.paraMundo(g.inicio);
+    const b = this.paraMundo(g.atual);
+    return {
+      x0: Math.min(a.x, b.x),
+      y0: Math.min(a.y, b.y),
+      x1: Math.max(a.x, b.x),
+      y1: Math.max(a.y, b.y),
+    };
+  }
+
+  /** Q11: os tokens com o centro dentro do laço: os que o clique pegaria nesta vista (visíveis e selecionáveis). */
+  private idsNoLaco(g: Extract<Gesto, { tipo: "laco" }>): string[] {
+    const r = this.retanguloDoLaco(g);
+    return [...this.visuais.values()]
+      .filter(
+        (v) =>
+          v.container.visible &&
+          this.selecionavel(v.token) &&
+          v.x >= r.x0 &&
+          v.x <= r.x1 &&
+          v.y >= r.y0 &&
+          v.y <= r.y1,
+      )
+      .map((v) => v.token.id);
+  }
+
+  /** Q11: desenha o retângulo do laço na cor de acento do tema, translúcido. */
+  private desenharLaco(g: Extract<Gesto, { tipo: "laco" }>): void {
+    const r = this.retanguloDoLaco(g);
+    const cor = corDoAcento();
+    this.lacoGraf
+      .clear()
+      .rect(r.x0 * PX_POR_M, r.y0 * PX_POR_M, (r.x1 - r.x0) * PX_POR_M, (r.y1 - r.y0) * PX_POR_M)
+      .fill({ color: cor, alpha: 0.16 })
+      .stroke({ width: 1.5 / this.vista.zoom, color: cor, alpha: 0.95 });
+    this.lacoGraf.visible = true;
+    this.sujo = true;
+  }
+
+  /** Q11: o token arrastado e os que iam com ele voltam ao lugar de onde saíram (só na tela). */
+  private voltarAoLugar(g: Extract<Gesto, { tipo: "token" }>): void {
+    const v = this.visuais.get(g.id);
+    if (v) {
+      v.alvoX = g.origem.x;
+      v.alvoY = g.origem.y;
+    }
+    for (const j of g.junto) {
+      const o = this.visuais.get(j.id);
+      if (o) {
+        o.alvoX = j.origem.x;
+        o.alvoY = j.origem.y;
+      }
+    }
+  }
+
+  /** Q11: os ids da seleção de agora (o principal e os somados). */
+  private idsDaSelecao(): string[] {
+    const { selecionadoId, tambemSelecionadosIds } = this.opcoes;
+    return selecionadoId === null ? [] : [selecionadoId, ...tambemSelecionadosIds];
+  }
+
   /** Esc: o arrasto de um token ou de uma alça em andamento é desfeito (o token volta de onde saiu). */
   private cancelarGestoEmAndamento(): void {
     const g = this.gesto;
     if (!g) return;
     if (g.tipo === "token") {
       g.limitador.cancelar();
-      const v = this.visuais.get(g.id);
-      if (v) {
-        v.alvoX = g.origem.x;
-        v.alvoY = g.origem.y;
+      this.voltarAoLugar(g);
+      if (g.moveu && !g.copia && g.junto.length === 0) {
+        this.retornos().soltar(g.id, g.origem.x, g.origem.y);
       }
-      if (g.moveu && !g.copia) this.retornos().soltar(g.id, g.origem.x, g.origem.y);
+    } else if (g.tipo === "laco") {
+      this.lacoGraf.clear().visible = false;
+      this.sujo = true;
     } else if (g.tipo === "alca") {
       this.alcaArrastada = null;
       this.chaveDosPontos = "";
@@ -4704,7 +4942,7 @@ export class MapaPixi {
     this.esperaDoPing = null;
     // O gesto de arrastar acaba aqui: depois do ping, soltar não faz mais nada (a seleção do token, se houve, fica).
     if (this.gesto?.tipo === "token") this.cancelarGestoEmAndamento();
-    else if (this.gesto?.tipo === "pan") this.gesto = null;
+    else if (this.gesto?.tipo === "pan" || this.gesto?.tipo === "laco") this.gesto = null;
     if (this.app.canvas.hasPointerCapture(pointerId)) {
       this.app.canvas.releasePointerCapture(pointerId);
     }
@@ -4842,8 +5080,13 @@ export class MapaPixi {
           emVez: v.anelVez.visible,
           /** O anel de seleção (dourado) está aceso. */
           selecionado: v.anel.visible,
-          /** Q10: o número do selo desenhado no canto (ou `null` sem selo). */
-          selo: v.token.numero ?? null,
+          /** Q11: a barra de vida desenhada (a fração do atual e os temporários) ou `null` sem barra para quem olha. */
+          barra:
+            v.barra.visible && v.barraDesenhada
+              ? { fracao: v.barraDesenhada.fracao, temp: v.barraDesenhada.temp }
+              : null,
+          /** Q11: a cor da borda desenhada (nome) ou `null` sem borda. */
+          borda: v.token.borda ?? null,
           /** N1: a marca de morto (o X) está desenhada. */
           morto: v.token.morto === true,
           /** Os marcadores de condição desenhados na borda. */

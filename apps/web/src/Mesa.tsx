@@ -2,6 +2,7 @@ import {
   type AvisoDeContas,
   alcanceDaMemoria,
   alcanceDeVisao,
+  barraDeVidaLigada,
   cenaEhCartao,
   controlaToken,
   type DesenhoEmAndamento,
@@ -31,6 +32,7 @@ import {
   resumoDaImportacao,
   type TipoDeParede,
   type Token,
+  vidaDoToken,
   visaoLimitadaNaCena,
   visaoNoEscuroDe,
   visaoPara,
@@ -870,6 +872,25 @@ export function Mesa({
     const q = cena?.grid.quadradoM ?? 1.5;
     const dx = e.key === "ArrowLeft" ? -1 : e.key === "ArrowRight" ? 1 : 0;
     const dy = e.key === "ArrowUp" ? -1 : e.key === "ArrowDown" ? 1 : 0;
+    // Q11: com vários na seleção (só o mestre), as setas andam todos um quadrado, num pedido só; o grupo não se
+    // desmancha: se algum sairia da cena, ninguém anda.
+    if (quem.papel === "mestre" && tambemSelecionadosIds.length > 0 && cena) {
+      const itens = tokensDaSelecao().map((t) => ({
+        id: t.id,
+        ...encaixarNoGrid({ x: t.x + dx * q, y: t.y + dy * q }, t.tamanhoQuadrados, q),
+      }));
+      if (itens.some((i) => i.x < 0 || i.y < 0 || i.x > cena.larguraM || i.y > cena.alturaM))
+        return;
+      if (
+        itens.every((i) => sala.tokens.some((t) => t.id === i.id && t.x === i.x && t.y === i.y))
+      ) {
+        return;
+      }
+      ultimoPassoDeSeta.current = agora;
+      seguirOToken.current = agora;
+      enviar("tokens.mover", { itens });
+      return;
+    }
     const alvoM = encaixarNoGrid(
       { x: selecionado.x + dx * q, y: selecionado.y + dy * q },
       selecionado.tamanhoQuadrados,
@@ -1150,6 +1171,25 @@ export function Mesa({
         setExtrasIds(extras.includes(id) ? extras.filter((x) => x !== id) : [...extras, id]);
       },
       copiarArrastado: (id, x, y) => copiarArrastadoAtual.current?.(id, x, y),
+      // Q11: a seleção arrastada junto (um pedido só) e o laço de seleção.
+      soltarVarios: (itens) => enviar("tokens.mover", { itens: itens.slice(0, 100) }),
+      selecionarComLaco: (ids, somar) => {
+        const { primario, extras } = selecaoAtual.current;
+        const atuais = primario === null ? [] : [primario, ...extras];
+        // O principal é o que leva as marcas de vida: de preferência um token com personagem (ficha).
+        const comPersonagem = (id: string) =>
+          estadoAtual.current?.tokens.some((t) => t.id === id && t.personagemId !== undefined)
+            ? 0
+            : 1;
+        const novos = [...ids].sort((a, b) => comPersonagem(a) - comPersonagem(b));
+        const todos = somar ? [...atuais, ...novos.filter((id) => !atuais.includes(id))] : novos;
+        const [primeiro, ...resto] = todos;
+        if (primeiro === undefined) return;
+        // O principal só troca se for outro; nesse caso a troca não pode limpar os somados.
+        if (primeiro !== primario) manterExtras.current = true;
+        setSelecionadoId(primeiro);
+        setExtrasIds(resto);
+      },
       criarDesenho: (desenho: DesenhoNovo) => enviar("desenho.criar", { desenho }),
       moverDesenho: (id, dx, dy) => enviar("desenho.mover", { id, dx, dy }),
       apagarDesenhos: (ids) => enviar("desenho.apagar", { ids }),
@@ -1283,6 +1323,8 @@ export function Mesa({
       (q) => q.id === itemEmArrasto.id && podeColocarProprioToken(estado, eu, q),
     );
 
+  // Q11: os personagens como quem olha os recebe (a barra de vida só mostra a vida que ele já pode ver).
+  const personagensVistos = estadoVisto?.personagens;
   const opcoes = useMemo(
     () => ({
       ferramenta:
@@ -1337,6 +1379,18 @@ export function Mesa({
       unidade,
       selecionadoId,
       tambemSelecionadosIds,
+      // Q11: a barra de vida: só para quem controla o token (o mestre vendo como mestre, todos); sem vida conhecida, sem barra.
+      vidaDaBarra: (t: Token) => {
+        if (!barraDeVidaLigada(t)) return null;
+        const quem = usuarioVisto ?? eu;
+        const vistos = personagensVistos;
+        if (!quem || !vistos) return null;
+        if (!modoMestre && !controlaToken(t, quem, vistos)) return null;
+        const p =
+          t.personagemId === undefined ? undefined : vistos.find((x) => x.id === t.personagemId);
+        const v = vidaDoToken(t, p);
+        return v ? { atual: v.atual, max: v.max, temp: v.temp } : null;
+      },
       // O mestre vê o grupo todo; o jogador só conhece os personagens dele (os outros não chegam).
       tokenDaVezId,
       pincel,
@@ -1392,6 +1446,7 @@ export function Mesa({
       unidade,
       selecionadoId,
       tambemSelecionadosIds,
+      personagensVistos,
       tokenDaVezId,
       pincel,
       podeDesenhar,
@@ -2055,6 +2110,11 @@ export function Mesa({
                 personagem={personagemDoSelecionado}
                 enviar={enviar}
                 aoAbrirFicha={abrirOuTrazerFicha}
+                idsEmLote={
+                  euMestre && tambemSelecionadosIds.length > 0
+                    ? [selecionado.id, ...tambemSelecionadosIds]
+                    : undefined
+                }
               />
             )}
             {/* V14: cada rótulo da régua fica dentro da área visível do mapa (PertoDoPonto). */}
@@ -2273,6 +2333,7 @@ export function Mesa({
             {modoMestre && ferramenta !== "paredes" && selecionado && painelDoTokenAberto && (
               <PainelDoToken
                 token={selecionado}
+                idsDaSelecao={[selecionado.id, ...tambemSelecionadosIds]}
                 jogadores={jogadoresDaMesa(estado)}
                 enviar={enviar}
                 pedirImagem={pedirImagem}
@@ -2294,8 +2355,12 @@ export function Mesa({
                 aoAbrirFicha={abrirOuTrazerFicha}
                 aoDuplicar={() => duplicarSelecao(listaDoMenuDoToken(menuDoToken.tokenId))}
                 aoCopiar={() => copiarSelecao(listaDoMenuDoToken(menuDoToken.tokenId))}
+                idsDoMenu={listaDoMenuDoToken(menuDoToken.tokenId).map((t) => t.id)}
                 aoEditar={() => {
-                  setSelecionadoId(menuDoToken.tokenId);
+                  // Q11: com o token numa seleção de vários, "Editar token…" mantém a seleção (borda e barra valem para todos).
+                  if (!(euMestre && listaDoMenuDoToken(menuDoToken.tokenId).length > 1)) {
+                    setSelecionadoId(menuDoToken.tokenId);
+                  }
                   setPainelDoTokenAberto(true);
                 }}
                 aoFechar={() => setMenuDoToken(null)}

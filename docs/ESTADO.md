@@ -4077,4 +4077,33 @@ Ver `PASSAGEM.md` ("Q10").
 ### Roteiro manual
 `docs/ROTEIRO-DE-TESTES.md`, "Q10".
 
-## Próximo: o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b, N4, N5, M1, M2, Q1, Q2, Q3, Q4, Q5, Q6, Q7, Q8, Q9 e Q10
+## Ajustes Q11 — Barra de vida, borda colorida, laço, mover vários e dano em lote (entregue, aguardando o roteiro manual)
+
+### O que foi entregue
+- **Barra de vida** embaixo de cada token (verde, âmbar, vermelha; temporários em trecho claro), **opcional** (caixa em "Editar token…" e no token padrão do personagem), **ligada por padrão** (inclusive no compêndio e na campanha antiga) e **só visível a quem controla o token** (o mestre vê todas; "Ver como" segue o jogador).
+- Sem o selo com o número no token (o nome numerado basta; `Token.numero` segue nos dados).
+- **Borda colorida** de 8 cores fixas (menu do botão direito e "Editar token…"), vale para a seleção toda; todos veem; a cópia leva.
+- **Laço de seleção** (arrastar no fundo; Shift/Ctrl soma; Esc cancela; o ping de segurar parado segue igual).
+- **Mover vários juntos** (arrastar um da seleção e as setas), num pedido só.
+- **Dano e cura em lote** (E com vários selecionados mostra "3 selecionados"; "Vida dos N selecionados…" no menu), num pedido só.
+- MCP: `tokens` com `borda`, `barraDeVida` e `grupo`; `fichas` com `barraDeVida`. Intenções novas: `tokens.mover`, `tokens.vidaDelta`, `tokens.editar`.
+
+### Como rodar
+`pnpm dev` como sempre. **Sem migração**: todos os campos são opcionais (campanha antiga e exportação antiga carregam). Testes em outras portas: `E2E_PORTA_SALA=8790 E2E_PORTA_WEB=5176`. Roteiro: "Q11" em `docs/ROTEIRO-DE-TESTES.md`.
+
+### Verificação
+`pnpm verify`: typecheck e lint limpos; unidade 1294 (shared) + 140 (server) + 223 (web) + 19 (mcp); E2E 500 testes, 499 passaram e 1 instável (`estrutura.spec` "quatro regiões": `connect ETIMEDOUT` no `/teste/zerar`, o servidor ainda subindo; passou sozinho depois). Novos: `q11.test.ts` (shared, 25), `mcp/q11.test.ts` (4), `vidaDoToken.test.ts` (+1), `e2e/tests/q11.spec.ts` (4).
+
+### Decisões
+Ver `REDESIGN.md` ("Q11 — como ficou").
+
+### Desvios
+- O E2E do Q10 deixou de conferir o selo (`hordas-q10.spec.ts`, 2 linhas) porque o selo saiu de propósito.
+
+### Frágil
+Ver `PASSAGEM.md` ("Q11").
+
+### Roteiro manual
+`docs/ROTEIRO-DE-TESTES.md`, "Q11".
+
+## Próximo: o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b, N4, N5, M1, M2, Q1, Q2, Q3, Q4, Q5, Q6, Q7, Q8, Q9, Q10 e Q11

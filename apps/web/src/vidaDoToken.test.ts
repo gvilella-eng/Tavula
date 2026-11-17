@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mudancasDaVidaDoToken, operacoesDaVida } from "./vidaDoToken";
+import { deltaDaVidaEmLote, mudancasDaVidaDoToken, operacoesDaVida } from "./vidaDoToken";
 
 describe("mudancasDaVidaDoToken (Q10)", () => {
   const vida = { atual: 12, max: 20, temp: 0 };
@@ -44,5 +44,18 @@ describe("operacoesDaVida (N1)", () => {
     expect(operacoesDaVida("", ficha)).toBeNull();
     expect(operacoesDaVida("abc", ficha)).toBeNull();
     expect(operacoesDaVida("1.5", ficha)).toBeNull();
+  });
+});
+
+describe("deltaDaVidaEmLote (Q11)", () => {
+  it("só -N e +N valem (o mesmo para todos); sem sinal, zero ou lixo não valem", () => {
+    expect(deltaDaVidaEmLote("-5")).toBe(-5);
+    expect(deltaDaVidaEmLote("−5")).toBe(-5);
+    expect(deltaDaVidaEmLote(" +3 ")).toBe(3);
+    expect(deltaDaVidaEmLote("12")).toBeNull();
+    expect(deltaDaVidaEmLote("-0")).toBeNull();
+    expect(deltaDaVidaEmLote("")).toBeNull();
+    expect(deltaDaVidaEmLote("-x")).toBeNull();
+    expect(deltaDaVidaEmLote("-1.5")).toBeNull();
   });
 });

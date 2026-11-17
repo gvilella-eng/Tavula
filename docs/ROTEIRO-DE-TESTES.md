@@ -659,12 +659,24 @@ Antes de tudo: tenha na pasta `sons/` (ou à mão) uns 6 arquivos de áudio: 2 o
 
 ## Q10 — Hordas: vida por token, numeração, pôr vários, duplicar e Ctrl+C / Ctrl+V
 
-1. **Pôr vários.** Como mestre, crie um NPC (ou arraste um monstro do Compêndio). Na aba Fichas, clique com o botão direito no NPC: "Colocar vários…". Digite 5 e Enter: cinco tokens arrumados no centro da tela, "Goblin", "Goblin 2"... "Goblin 5", com o número num selo escuro no canto direito de cada um (o primeiro sem selo). Pelo cabeçalho da ficha o botão de pessoas faz o mesmo.
+1. **Pôr vários.** Como mestre, crie um NPC (ou arraste um monstro do Compêndio). Na aba Fichas, clique com o botão direito no NPC: "Colocar vários…". Digite 5 e Enter: cinco tokens arrumados no centro da tela, "Goblin", "Goblin 2"... "Goblin 5". Pelo cabeçalho da ficha o botão de pessoas faz o mesmo.
 2. **Vida própria.** Selecione o Goblin 3, aperte E, digite -3 e Enter: só a vida dele desce (veja no Goblin 2). Na lista de Fichas a ficha continua com os PV de antes.
 3. **Ficha pelo token.** Botão direito no Goblin 3, "Abrir ficha": no alto da ficha, "Este token: Goblin 3 · PV 4/7", editável; os PV de baixo dizem "do modelo". Abrir a mesma ficha pela lista tira a faixa.
 4. **Vilão único.** Na Configurar do NPC, desligue "Cada token com a sua vida (horda)": os tokens passam a usar a vida da ficha (dano em um desce em todos). Ligue de novo.
 5. **Duplicar.** Selecione um token ferido e aperte Ctrl+D: nasce ao lado, igual (mesma vida, tamanho, condições) com o próximo número. Alt e arraste um token: ele fica e uma cópia nasce onde você soltou.
 6. **Copiar e colar.** Shift ou Ctrl+clique soma um segundo token à seleção. Ctrl+C, mexa o mouse para outro lugar do mapa e Ctrl+V: os dois aparecem com o mesmo arranjo, o centro do grupo no mouse. Vá olhar outra cena (botão direito no card, "Ir") e Ctrl+V de novo: colam lá, e a numeração recomeça (Goblin, Goblin 2).
 7. **Texto continua texto.** Digite no chat, selecione, Ctrl+C e Ctrl+V: é o texto de sempre; nenhum token é copiado nem colado.
-8. **Jogador.** Como jogador, Ctrl+D, Ctrl+C e Ctrl+V não fazem nada. Ele vê o nome e o selo dos Goblins, mas não vê a vida deles (nem com a ficha aberta), a não ser que veja a ficha do NPC (pasta visível e "Ver fichas dos outros").
+8. **Jogador.** Como jogador, Ctrl+D, Ctrl+C e Ctrl+V não fazem nada. Ele vê o nome numerado dos Goblins, mas não vê a vida deles (nem com a ficha aberta), a não ser que veja a ficha do NPC (pasta visível e "Ver fichas dos outros").
 9. **Claude.** Peça "põe 6 goblins na Eclusa" (`tokens` com `quantidade`) e "duplica o Goblin 2 duas vezes": tudo num passo do Desfazer.
+
+## Q11 — Barra de vida, borda colorida, laço, mover vários e dano em lote
+
+1. **Barra de vida.** Como mestre, ponha uns goblins (Colocar vários) e fira um deles (E, -4): uma barra fina aparece embaixo de cada token, acima do nome; verde cheia, âmbar abaixo da metade, vermelha abaixo de um quarto. Dê 5 de temporários a um: um trecho azul-claro aparece depois da vida. Afaste e aproxime o zoom (50% a 200%): a barra continua legível e não cobre o nome. O token do compêndio também já tem barra.
+2. **Só quem controla vê.** Como jogador, só o seu token tem barra (a vida dele cai ao vivo quando o mestre o fere); nos goblins e nos outros jogadores não há. No "Ver como" o mestre vê o que aquele jogador vê.
+3. **Ligar e desligar.** "Editar token…" (dois cliques): desmarque "Barra de vida": a barra daquele token some (nos outros não). Na ficha, em "Token padrão e visão", "Barra de vida nos tokens novos" desligada: o próximo token do personagem nasce sem barra.
+4. **Sem selo.** Os goblins numerados não têm mais a bolinha no canto: o nome ("Goblin 3") basta.
+5. **Borda.** Botão direito num token: "Borda" com 8 cores e "sem borda"; ponha vermelho num grupo e azul no outro. O anel aparece na beira do token, também para o jogador. Selecione um token com borda amarela ou laranja: o anel dourado da seleção continua distinto (fica por fora, com um vão). Passe o mouse numa cor: a dica diz o nome; ela também se alcança pela tecla Tab.
+6. **Laço.** Com a ferramenta Selecionar, arraste no fundo vazio: um retângulo na cor de acento; ao soltar, os tokens com o centro dentro ficam selecionados. Shift ou Ctrl soma. Esc no meio cancela. Segurar o clique parado no fundo continua fazendo o ping. Espaço+arrastar move a vista como sempre.
+7. **Mover juntos.** Com vários selecionados, arraste um deles: todos vão, mantendo o arranjo. As setas também andam todos. Um clique (sem arrastar) num deles deixa só ele selecionado.
+8. **Dano em lote.** Com vários selecionados, aperte E: a marca diz "3 selecionados"; digite -5: todos levam 5 (os temporários absorvem primeiro); +3 cura (nunca passa do máximo). Um valor sem sinal ("12") não vale. No botão direito, "Vida dos N selecionados…" faz o mesmo. Dois tokens da mesma ficha (vilão único) levam o dano uma vez só.
+9. **Claude.** Peça "dá 5 de dano nos três goblins e põe borda vermelha neles" e "anda o grupo dois quadrados para a direita" (`tokens` com `grupo`): cada gesto é um passo do Desfazer.

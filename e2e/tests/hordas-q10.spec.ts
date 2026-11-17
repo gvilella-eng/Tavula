@@ -103,8 +103,6 @@ test("Colocar vários: 4 goblins numerados e arrumados, cada um com a sua vida; 
     expect(Math.hypot(t.x - 10, t.y - 10)).toBeLessThanOrEqual(3 * QUADRADO + 1);
     expect(((t.x / QUADRADO) % 1) - 0.5).toBeCloseTo(0, 5);
   }
-  // o selo com o número aparece em quem tem número; o primeiro fica sem
-  expect(lista.map((t) => t.selo ?? null)).toEqual([null, 2, 3, 4]);
   // um pedido só: um passo para o Desfazer (os quatro tokens vieram de uma intenção)
   const frames = m.enviados.filter((f) => f.includes('"tipo":"personagem.colocarVarios"'));
   expect(frames).toHaveLength(1);
@@ -327,9 +325,8 @@ test("o jogador não cola, não duplica, não copia e não vê a vida do NPC que
   await olharPara(m.pagina, 10, 10);
   await colocarVarios(m.pagina, 3);
   await expect.poll(() => nomesDosGoblins(m.pagina)).toEqual(["Goblin", "Goblin 2", "Goblin 3"]);
-  // o jogador vê os tokens (nome e selo), mas a vida deles não chega: a ficha do NPC não chega a ele
+  // o jogador vê os tokens (com o nome numerado), mas a vida deles não chega: a ficha do NPC não chega a ele
   await expect.poll(() => nomesDosGoblins(j.pagina)).toEqual(["Goblin", "Goblin 2", "Goblin 3"]);
-  expect((await goblins(j.pagina)).map((t) => t.selo ?? null)).toEqual([null, 2, 3]);
   const [primeiro] = (await goblins(m.pagina)) as [TokenVisto];
   await mandar(m.pagina, "token.vida", { id: primeiro.id, atual: 1 });
   await expect

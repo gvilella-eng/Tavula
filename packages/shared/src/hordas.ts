@@ -2,12 +2,16 @@
 // de um token. Tudo puro: a sala (`nucleo.ts`) usa estas funções para decidir, a tela para mostrar.
 
 import type { Estado, Personagem, Token, TokenPv, Usuario } from "./estado.ts";
+import { receberDano } from "./ficha.ts";
 import { ehPersonagemDeJogador, fichaVisivelPara, personagemVisivelPara } from "./mapa.ts";
 
 type Quem = Pick<Usuario, "id" | "papel">;
 
 /** O mais que uma vez pode pôr, colar ou duplicar de uma vez (limite da intenção). */
 export const MAXIMO_DE_TOKENS_POR_VEZ = 20;
+
+/** Q11: o mais que uma intenção em lote (mover, dano, editar) alcança de uma vez. */
+export const MAXIMO_DE_TOKENS_EM_LOTE = 100;
 
 /**
  * Os tokens deste personagem têm cada um a sua vida? Só NPC e monstro (personagem de jogador sempre lê a ficha), com a
@@ -70,6 +74,21 @@ export function aplicarNaVida(
   const atual = Math.min(max, m.atual ?? vida.atual);
   const temp = m.temp === undefined ? vida.temp : (m.temp ?? 0);
   return { atual, max, ...(temp > 0 ? { temp } : {}) };
+}
+
+/**
+ * Q11: dano (`delta` negativo) ou cura (positivo) sobre uma vida. O dano consome os temporários primeiro (a mesma
+ * regra da ficha, `receberDano`); a cura soma ao atual sem passar do máximo e não mexe nos temporários.
+ */
+export function aplicarDeltaNaVida(
+  vida: { atual: number; max: number; temp: number },
+  delta: number,
+): TokenPv {
+  if (delta < 0) {
+    const r = receberDano({ pvAtual: vida.atual, pvTemp: vida.temp }, -delta);
+    return aplicarNaVida(vida, { atual: r.pvAtual, temp: r.pvTemp });
+  }
+  return aplicarNaVida(vida, { atual: Math.min(vida.max, vida.atual + delta) });
 }
 
 /** O nome do token sem o número do selo ("Goblin 3" com número 3 vira "Goblin"). */

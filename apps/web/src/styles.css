@@ -3542,6 +3542,51 @@ kbd {
   justify-content: flex-end;
   padding: 8px 10px 4px;
 }
+.mt-vida-lote {
+  padding: 2px 10px 6px;
+}
+
+/* Q11: as 8 amostras da borda do token e "sem borda" (a cor de cada amostra é conteúdo: vem do token). */
+.seletor-borda {
+  min-width: 0;
+  margin: 0;
+  border: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 2px 10px 6px;
+}
+.campo-borda {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.campo-borda .seletor-borda {
+  padding: 0;
+}
+.borda-amostra {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  min-width: 22px;
+  min-height: 22px;
+  padding: 0;
+  border: 1px solid var(--borda);
+  border-radius: 50%;
+  cursor: pointer;
+}
+.borda-amostra[aria-checked="true"] {
+  box-shadow:
+    0 0 0 2px var(--painel),
+    0 0 0 4px var(--texto);
+}
+.borda-nenhuma {
+  background: var(--campo);
+  color: var(--texto-suave);
+}
 
 /* Dica do marcador de condição no mapa */
 .dica-condicao {

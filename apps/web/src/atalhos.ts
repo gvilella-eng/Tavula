@@ -69,7 +69,8 @@ export const ATALHOS = {
     teclas: [["Delete"], ["Backspace"]],
   },
   andarToken: {
-    descricao: "Andar com o token selecionado: um toque, um quadrado (segurar repete)",
+    descricao:
+      "Andar com o token selecionado: um toque, um quadrado (segurar repete); com vários selecionados, todos andam juntos num pedido só (mestre)",
     grupo: "Mapa",
     teclas: [["←"], ["↑"], ["↓"], ["→"]],
     juntas: true,
@@ -81,6 +82,18 @@ export const ATALHOS = {
       ["Shift", "clique"],
       ["Ctrl", "clique"],
     ],
+  },
+  laco: {
+    descricao:
+      "Laço de seleção: arrastar no fundo vazio do mapa desenha um retângulo e seleciona os tokens com o centro dentro dele; com Shift ou Ctrl soma à seleção; Esc cancela (mestre)",
+    grupo: "Mapa",
+    teclas: [["arrastar"], ["Shift", "arrastar"]],
+  },
+  moverSelecao: {
+    descricao:
+      "Mover a seleção inteira: arrastar um token selecionado leva todos juntos, mantendo o arranjo (mestre)",
+    grupo: "Mapa",
+    teclas: [["arrastar"]],
   },
   duplicarToken: {
     descricao: "Duplicar os tokens selecionados, um quadrado ao lado (mestre)",
@@ -105,7 +118,7 @@ export const ATALHOS = {
   },
   editarVida: {
     descricao:
-      "Editar a vida do token selecionado (valor, ou -7 e +3 para tirar e somar); Enter grava, Esc cancela",
+      "Editar a vida do token selecionado (valor, ou -7 e +3 para tirar e somar); com vários selecionados, só -7 e +3, igual para todos (mestre); Enter grava, Esc cancela",
     grupo: "Mapa",
     teclas: [["E"]],
   },

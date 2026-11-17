@@ -1,4 +1,6 @@
 import {
+  type Borda,
+  barraDeVidaLigada,
   type Camada,
   metrosParaUnidade,
   nomeDaUnidade,
@@ -17,10 +19,13 @@ import {
   RESERVA_DO_ZOOM,
 } from "./janelas/geometria";
 import { Janela } from "./janelas/Janela";
+import { SeletorDeBorda } from "./SeletorDeBorda";
 import { useUnidade } from "./unidade";
 
 type Props = {
   token: Token;
+  /** Q11: os ids da seleção (o token deste painel e os somados): a borda e a barra de vida valem para todos. */
+  idsDaSelecao?: string[] | undefined;
   jogadores: Usuario[];
   enviar: (tipo: string, dados: object) => string | null;
   pedirImagem: PedirImagem;
@@ -31,13 +36,26 @@ type Props = {
  * Painel compacto do mestre para o token selecionado. Fica no canto inferior esquerdo, ao lado da
  * barra de ferramentas: não cobre o centro do mapa nem os tokens vizinhos. Cada mudança vai na hora.
  */
-export function PainelDoToken({ token, jogadores, enviar, pedirImagem, aoFechar }: Props) {
+export function PainelDoToken({
+  token,
+  idsDaSelecao,
+  jogadores,
+  enviar,
+  pedirImagem,
+  aoFechar,
+}: Props) {
   const [nome, setNome] = useState(token.nome);
   // Outro token selecionado, ou o nome mudou por fora: acompanha a sala.
   // biome-ignore lint/correctness/useExhaustiveDependencies: só quando o token ou o nome da sala mudam
   useEffect(() => setNome(token.nome), [token.id, token.nome]);
 
   const editar = (mudancas: object) => enviar("token.editar", { id: token.id, mudancas });
+  // Q11: a borda e a barra de vida valem para a seleção inteira (um pedido só); o resto é só do token do painel.
+  const variosSelecionados = idsDaSelecao !== undefined && idsDaSelecao.length > 1;
+  const editarSelecao = (mudancas: object) =>
+    variosSelecionados
+      ? enviar("tokens.editar", { ids: idsDaSelecao, mudancas })
+      : editar(mudancas);
   // V14: os campos de alcance mostram e aceitam a unidade das Preferências; a sala recebe metros.
   const unidade = useUnidade();
   const nomeDaUn = nomeDaUnidade(unidade);
@@ -119,6 +137,26 @@ export function PainelDoToken({ token, jogadores, enviar, pedirImagem, aoFechar 
           <option value="tokens">tokens</option>
           <option value="mestre">mestre</option>
         </select>
+      </label>
+      <div className="campo-borda">
+        <span className="nota">
+          Borda{variosSelecionados ? ` (vale para os ${idsDaSelecao?.length} selecionados)` : ""}
+        </span>
+        <SeletorDeBorda
+          valor={token.borda}
+          aoEscolher={(b: Borda | null) => editarSelecao({ borda: b })}
+          prefixo="token-borda"
+          papel="radio"
+        />
+      </div>
+      <label className="linha-opcao">
+        <input
+          type="checkbox"
+          data-testid="token-barra-de-vida"
+          checked={barraDeVidaLigada(token)}
+          onChange={(e) => editarSelecao({ barraDeVida: e.target.checked })}
+        />
+        Barra de vida (só quem controla o token a vê)
       </label>
       {token.personagemId === undefined ? (
         <label>

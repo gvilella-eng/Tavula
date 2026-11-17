@@ -59,6 +59,12 @@ const PedidoDeFichaSchema = FichaPartesSchema.extend({
     .describe(
       "Só NPC, só edição, só mestre: false faz todos os tokens dele usarem a vida da ficha (o vilão único); true (padrão) dá a cada token a sua vida (horda).",
     ),
+  barraDeVida: z
+    .boolean()
+    .optional()
+    .describe(
+      "Só edição: os tokens NOVOS desta ficha nascem com a barra de vida (padrão: sim). Os já postos mudam em `tokens`.",
+    ),
   monstro: z
     .string()
     .min(1)
@@ -89,6 +95,7 @@ function partesDoPedido(p: PedidoDeFicha) {
     tamanhoToken: _tt,
     visaoNoEscuroM: _v,
     vidaPorToken: _vpt,
+    barraDeVida: _bv,
     monstro: _m,
     quantidade: _q,
     ...partes
@@ -257,6 +264,12 @@ async function editar(
   }
   if (p.vidaPorToken !== undefined && p.vidaPorToken !== (existente.vidaPorToken !== false)) {
     mudancas.vidaPorToken = p.vidaPorToken;
+  }
+  if (
+    p.barraDeVida !== undefined &&
+    p.barraDeVida !== (existente.tokenPadrao.barraDeVida !== false)
+  ) {
+    mudancas.barraDeVida = p.barraDeVida;
   }
   if (p.dono !== undefined)
     mudancas.editores = { tipo: "jogadores", ids: idsDosDonos(estado, p.dono) };

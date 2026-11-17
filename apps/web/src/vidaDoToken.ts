@@ -28,6 +28,19 @@ export function operacoesDaVida(
 }
 
 /**
+ * Q11: o texto do campo de vida quando há vários tokens selecionados: só "-7" (dano) e "+3" (cura) valem, o mesmo
+ * para todos. Um valor sem sinal ("12") seria ambíguo para vidas diferentes e não vale. Devolve o `delta` (negativo
+ * é dano) ou `null` se o texto não vale (ou é zero).
+ */
+export function deltaDaVidaEmLote(texto: string): number | null {
+  const lido = /^([+\-−])\s*(\d{1,4})$/.exec(texto.trim());
+  if (!lido) return null;
+  const n = Number(lido[2]);
+  if (n === 0) return null;
+  return lido[1] === "+" ? n : -n;
+}
+
+/**
  * Q10: o mesmo texto do campo de vida, para o token de NPC com vida própria (`token.vida`): o que muda em valores
  * absolutos (`atual` e, se o dano comeu o temporário, `temp`). `null` = texto inválido; objeto vazio = sem mudança.
  */
