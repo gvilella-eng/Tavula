@@ -74,3 +74,39 @@ export function teclasDeSetaDepois(
   const sem = seguradas.filter((t) => t !== tecla);
   return acao === "baixo" ? [...sem, tecla] : sem;
 }
+
+/**
+ * Q13: o relógio do passo. Com o relógio de quadros (`agora`) e o instante do próximo passo, diz quantos passos
+ * venceram e quando é o seguinte. Se o navegador atrasou, recupera até `max` passos de uma vez (o token os anda
+ * em linha reta, sem salto); mais atraso que isso não é cobrado: o ritmo recomeça dali.
+ */
+export function passosVencidos(
+  agora: number,
+  proximo: number,
+  intervalo: number,
+  max = 3,
+): { n: number; proximo: number } {
+  if (agora < proximo) return { n: 0, proximo };
+  const atrasados = Math.floor((agora - proximo) / intervalo) + 1;
+  if (atrasados > max) return { n: max, proximo: agora + intervalo };
+  return { n: atrasados, proximo: proximo + atrasados * intervalo };
+}
+
+/**
+ * Q13: um quadro do deslize linear de um token até o alvo: anda `vel` (m/ms) em linha reta, mais depressa só se
+ * ficou muito para trás (a velocidade cresce com a distância além de dois quadrados), e para seco ao chegar.
+ */
+export function avancarEmLinha(
+  de: Ponto,
+  alvo: Ponto,
+  vel: number,
+  dtMs: number,
+  quadradoM: number,
+): { x: number; y: number; chegou: boolean } {
+  const dx = alvo.x - de.x;
+  const dy = alvo.y - de.y;
+  const dist = Math.hypot(dx, dy);
+  const alcance = vel * Math.max(1, dist / (2 * quadradoM)) * dtMs;
+  if (dist <= alcance) return { x: alvo.x, y: alvo.y, chegou: true };
+  return { x: de.x + (dx / dist) * alcance, y: de.y + (dy / dist) * alcance, chegou: false };
+}

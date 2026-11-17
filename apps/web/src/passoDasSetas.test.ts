@@ -1,6 +1,12 @@
 import type { Parede } from "@tabletop/shared";
 import { describe, expect, it } from "vitest";
-import { direcaoDaSeta, proximoPasso, teclasDeSetaDepois } from "./passoDasSetas";
+import {
+  avancarEmLinha,
+  direcaoDaSeta,
+  passosVencidos,
+  proximoPasso,
+  teclasDeSetaDepois,
+} from "./passoDasSetas";
 
 const Q = 1.5;
 const cena = { larguraM: 30, alturaM: 30 };
@@ -99,5 +105,47 @@ describe("as teclas de seta seguradas", () => {
     // a mesma tecla apertada de novo não se repete na lista
     t = teclasDeSetaDepois(["ArrowLeft"], "ArrowLeft", "baixo");
     expect(t).toEqual(["ArrowLeft"]);
+  });
+});
+
+describe("Q13: o relógio do passo e o deslize linear", () => {
+  it("passosVencidos: nada antes da hora, um passo na hora, e o ritmo se mantém", () => {
+    expect(passosVencidos(50, 100, 100)).toEqual({ n: 0, proximo: 100 });
+    expect(passosVencidos(100, 100, 100)).toEqual({ n: 1, proximo: 200 });
+    expect(passosVencidos(116, 100, 100)).toEqual({ n: 1, proximo: 200 });
+  });
+
+  it("passosVencidos: quadro atrasado recupera alguns passos; atraso enorme recomeça o ritmo", () => {
+    expect(passosVencidos(330, 100, 100)).toEqual({ n: 3, proximo: 400 });
+    expect(passosVencidos(1_000, 100, 100)).toEqual({ n: 3, proximo: 1_100 });
+  });
+
+  it("avancarEmLinha: anda em velocidade constante, sem frear, e para seco no alvo", () => {
+    const vel = 1.5 / 100; // um quadrado de 1,5 m a cada 100 ms
+    let p = { x: 0, y: 0 };
+    const alvo = { x: 1.5, y: 0 };
+    const quadros: number[] = [];
+    for (let i = 0; i < 4; i++) {
+      const r = avancarEmLinha(p, alvo, vel, 25, 1.5);
+      quadros.push(r.x - p.x);
+      p = { x: r.x, y: r.y };
+      if (r.chegou) break;
+    }
+    expect(quadros).toHaveLength(4);
+    for (const q of quadros) expect(q).toBeCloseTo(0.375, 6);
+    expect(p).toEqual({ x: 1.5, y: 0 });
+  });
+
+  it("avancarEmLinha: um quadro muito longo não passa do alvo, e quem está muito atrás acelera", () => {
+    const vel = 1.5 / 100;
+    expect(avancarEmLinha({ x: 0, y: 0 }, { x: 1.5, y: 0 }, vel, 500, 1.5)).toEqual({
+      x: 1.5,
+      y: 0,
+      chegou: true,
+    });
+    const perto = avancarEmLinha({ x: 0, y: 0 }, { x: 1.5, y: 0 }, vel, 10, 1.5);
+    const longe = avancarEmLinha({ x: 0, y: 0 }, { x: 9, y: 0 }, vel, 10, 1.5);
+    expect(longe.x).toBeGreaterThan(perto.x);
+    expect(longe.chegou).toBe(false);
   });
 });

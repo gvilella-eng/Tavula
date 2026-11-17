@@ -133,6 +133,7 @@ import { PresencaNoTopo } from "./PresencaNoTopo";
 import {
   direcaoDaSeta,
   INTERVALO_DA_SETA_MS,
+  passosVencidos,
   proximoPasso,
   teclasDeSetaDepois,
 } from "./passoDasSetas";
@@ -702,8 +703,23 @@ export function Mesa({
         else if (o.tipo === "rascunho") mapa.current?.rascunhoRecebido(o.desenho);
         else if (o.tipo === "rascunhoFim") mapa.current?.rascunhoEncerrado(o.id);
         else if (o.tipo === "ping") mapa.current?.pingRecebido(o.ping);
-        else if (o.tipo === "conectado") mapa.current?.limparRascunhos();
-        else if (o.tipo === "erro") mapa.current?.ressincronizar();
+        else if (o.tipo === "conectado") {
+          mapa.current?.limparRascunhos();
+          mapa.current?.limparPosicoesAvisadas();
+        } else if (o.tipo === "evento") {
+          // Q13: o passo de um token vai ao mapa na hora; a mesa só o recebe em estado de tempos em tempos.
+          if (o.evento.tipo === "token.movido") {
+            mapa.current?.movidoDaSala(o.evento.dados.id, o.evento.dados.x, o.evento.dados.y);
+          } else mapa.current?.limparPosicoesAvisadas();
+        } else if (o.tipo === "erro") {
+          // Q13: a recusa de um passo de seta volta só os tokens daquele pedido; a de outro tipo de pedido não mexe
+          // em token nenhum; a de um arrasto (ou de um pedido sem tipo) volta todos, como antes.
+          const doPasso = o.idPedido === null ? undefined : pedidosDeSeta.current.get(o.idPedido);
+          if (doPasso) mapa.current?.ressincronizar(doPasso);
+          else if (o.tipoDoPedido === undefined || o.tipoDoPedido.startsWith("token")) {
+            mapa.current?.ressincronizar();
+          }
+        }
       }),
     [ouvir],
   );
@@ -893,7 +909,18 @@ export function Mesa({
   const seguirOToken = useRef(0);
   // Q12: as setas seguradas (a última vale), o temporizador da repetição e o passo que ele dá (refeito a cada render).
   const setasSeguradas = useRef<string[]>([]);
+  /** Q13: o relógio das setas é um `requestAnimationFrame` (não atrasa em fila com o resto), e os pedidos de passo. */
   const repeticaoDasSetas = useRef<number | undefined>(undefined);
+  const pedidosDeSeta = useRef(new Map<string, string[]>());
+  const guardarPedidoDeSeta = (idPedido: string | null, tokens: string[]) => {
+    if (idPedido === null) return;
+    const guardados = pedidosDeSeta.current;
+    guardados.set(idPedido, tokens);
+    if (guardados.size > 64) {
+      const primeiro = guardados.keys().next();
+      if (!primeiro.done) guardados.delete(primeiro.value);
+    }
+  };
   const darPassoDeSeta = useRef<() => boolean>(() => false);
   aoTeclarNoMapa.current = (e) => {
     const ehSeta = e.key.startsWith("Arrow");
@@ -944,16 +971,21 @@ export function Mesa({
     setasSeguradas.current = teclasDeSetaDepois(setasSeguradas.current, e.key, "baixo");
     // Parede ou borda: o token não anda e não há aviso; segurar continua tentando (a porta pode abrir).
     darPassoDeSeta.current();
-    window.clearInterval(repeticaoDasSetas.current);
-    repeticaoDasSetas.current = window.setInterval(
-      () => darPassoDeSeta.current(),
-      INTERVALO_DA_SETA_MS,
-    );
+    if (repeticaoDasSetas.current !== undefined) cancelAnimationFrame(repeticaoDasSetas.current);
+    let proximo = performance.now() + INTERVALO_DA_SETA_MS;
+    const relogio = (agora: number) => {
+      const vencidos = passosVencidos(agora, proximo, INTERVALO_DA_SETA_MS);
+      proximo = vencidos.proximo;
+      for (let i = 0; i < vencidos.n; i++) darPassoDeSeta.current();
+      repeticaoDasSetas.current =
+        setasSeguradas.current.length > 0 ? requestAnimationFrame(relogio) : undefined;
+    };
+    repeticaoDasSetas.current = requestAnimationFrame(relogio);
   };
   /** Q12: para a repetição (soltou a tecla, perdeu o foco ou o gesto deixou de valer). */
   const pararAsSetas = useCallback(() => {
     setasSeguradas.current = [];
-    window.clearInterval(repeticaoDasSetas.current);
+    if (repeticaoDasSetas.current !== undefined) cancelAnimationFrame(repeticaoDasSetas.current);
     repeticaoDasSetas.current = undefined;
   }, []);
   /** Q12: um passo na direção da última seta segurada. `true` se o token andou na tela. */
@@ -1017,7 +1049,10 @@ export function Mesa({
       }
       seguirOToken.current = performance.now();
       for (const i of itens) m.moverOtimista(i.id, i.x, i.y);
-      enviar("tokens.mover", { itens });
+      guardarPedidoDeSeta(
+        enviar("tokens.mover", { itens }),
+        itens.map((i) => i.id),
+      );
       return true;
     }
     const alvoM = proximoPasso({
@@ -1034,7 +1069,9 @@ export function Mesa({
     seguirOToken.current = performance.now();
     m.moverOtimista(principal.id, alvoM.x, alvoM.y);
     m.manterVisivel(alvoM.x, alvoM.y);
-    enviar("token.soltar", { id: principal.id, x: alvoM.x, y: alvoM.y });
+    guardarPedidoDeSeta(enviar("token.soltar", { id: principal.id, x: alvoM.x, y: alvoM.y }), [
+      principal.id,
+    ]);
     return true;
   };
   useEffect(() => {

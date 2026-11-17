@@ -70,6 +70,7 @@ import { Application, Container, Graphics, Rectangle, Sprite, Text, Texture } fr
 import type { CamadaDeTrabalho } from "../camadas";
 import { svgDoIcone } from "../condicoesIcones";
 import { corDoTextoSobre, haloDoTexto } from "../contrasteDeCor";
+import { avancarEmLinha, INTERVALO_DA_SETA_MS } from "../passoDasSetas";
 import type { ConfigDoPincel } from "../pincel";
 import { CamadaDeDesenho, type DesenhoNaTela } from "./camadaDeDesenho";
 import { CamadaDeLuz } from "./camadaDeLuz";
@@ -97,6 +98,12 @@ const RAIO_MIN_DO_PING_PX = 56;
 const DURACAO_DA_CENTRALIZACAO_MS = 400;
 /** Constante de tempo da interpolação dos tokens movidos por outros (os envios chegam a cada 50 ms). */
 const TAU_MS = 45;
+/** Q13: o token que anda em passos (setas) desliza em velocidade constante: um quadrado a cada tanto. */
+const PASSO_DO_TOKEN_MS = INTERVALO_DA_SETA_MS;
+/** Q13: um deslocamento de até tantos quadrados (por eco da sala ou passo) é "passo": anda em linha, sem frear. */
+const MAX_QUADRADOS_DE_PASSO = 2.5;
+/** Q13: teto da espera entre duas refeitas da visão e da luz por causa de movimento (ver `passo`). */
+const MAX_ESPERA_DA_VISAO_MS = 120;
 /** Q12: o passo de uma seta que ainda espera a sala dura no máximo isto; depois a tela volta ao que a sala tem. */
 const PENDENTE_VALE_MS = 2_500;
 /** Q12: ao ligar o "seguir", a vista desliza até o token (constante de tempo, ms) e depois o acompanha sem folga. */
@@ -485,6 +492,8 @@ type Visual = {
   y: number;
   alvoX: number;
   alvoY: number;
+  /** Q13: velocidade (m/ms) do deslize linear até o alvo; sem ela o token se aproxima suavizando (`suavizar`). */
+  vel?: number | undefined;
 };
 
 /**
@@ -721,6 +730,15 @@ export class MapaPixi {
   private readonly carregando = new Set<string>();
   private imagens: ImagensDoMapa | null = null;
   private readonly ultimasPosicoes = new Map<string, Ponto>();
+  /**
+   * Q13: as posições que a sala acabou de avisar (`token.movido`), antes de o estado do React as alcançar (a mesa
+   * junta esses avisos e atualiza o estado de tempos em tempos). Valem enquanto o estado está atrás delas.
+   */
+  private readonly posicoesAvisadas = new Map<string, Ponto>();
+  /** Q13: quando a visão e a luz foram refeitas por último, quanto esperar até a próxima e se há movimento a seguir. */
+  private ultimaVisaoPorMovimento = 0;
+  private esperaDaVisao = 0;
+  private visaoPorMovimento = false;
   private cena: Cena | null = null;
   private tokens: Token[] = [];
   private opcoes: OpcoesDoMapa;
@@ -1131,7 +1149,46 @@ export class MapaPixi {
   /** Q12: onde o token vai parar com os passos já mostrados (a posição pendente), ou `null` sem passo à espera. */
   posicaoPendente(id: string): Ponto | null {
     const p = this.passosPendentes.get(id);
-    return p ? { x: p.x, y: p.y } : null;
+    if (p) return { x: p.x, y: p.y };
+    // Q13: sem passo à espera, vale o que a sala avisou por último (o estado do React pode estar um pouco atrás).
+    return this.posicoesAvisadas.get(id) ?? null;
+  }
+
+  /** Q13: o deslocamento é um passo (ou pouco mais): anda em linha reta, em velocidade constante. */
+  private velocidadeDoPasso(v: Visual, x: number, y: number): number | undefined {
+    const q = this.cena?.grid.quadradoM ?? 1.5;
+    if (Math.hypot(x - v.x, y - v.y) > q * MAX_QUADRADOS_DE_PASSO) return undefined;
+    return q / PASSO_DO_TOKEN_MS;
+  }
+
+  /**
+   * Q13: `token.movido` da sala, na hora (sem esperar o React). Quem não é passo meu à espera anda até lá em
+   * linha reta se o deslocamento é curto. O estado do React alcança depois (ver `sincronizarTokens`).
+   */
+  movidoDaSala(id: string, x: number, y: number): void {
+    const v = this.visuais.get(id);
+    this.posicoesAvisadas.set(id, { x, y });
+    if (!v) return;
+    this.ultimasPosicoes.set(id, { x, y });
+    const pendente = this.passosPendentes.get(id);
+    if (pendente) {
+      if (Math.abs(pendente.x - x) < 1e-6 && Math.abs(pendente.y - y) < 1e-6) {
+        this.passosPendentes.delete(id);
+      }
+      return;
+    }
+    const arrastando =
+      this.gesto?.tipo === "token" &&
+      (this.gesto.id === id || this.gesto.junto.some((j) => j.id === id));
+    if (arrastando) return;
+    v.vel = this.velocidadeDoPasso(v, x, y);
+    v.alvoX = x;
+    v.alvoY = y;
+  }
+
+  /** Q13: outro evento da sala (não é `token.movido`) ou um snapshot: o estado do React está em dia. */
+  limparPosicoesAvisadas(): void {
+    this.posicoesAvisadas.clear();
   }
 
   /** Q12: mostra o passo na hora (o token anda já, a sala confirma depois; se ela recusar, `ressincronizar` o devolve). */
@@ -1139,16 +1196,21 @@ export class MapaPixi {
     const v = this.visuais.get(id);
     if (!v) return;
     this.passosPendentes.set(id, { x, y, t: performance.now() });
+    v.vel = this.velocidadeDoPasso(v, x, y);
     v.alvoX = x;
     v.alvoY = y;
   }
 
   /** A sala recusou algo: volta cada token para a posição que ela tem. */
-  ressincronizar(): void {
-    this.passosPendentes.clear();
-    for (const [id, v] of this.visuais) {
-      const p = this.ultimasPosicoes.get(id);
-      if (p) {
+  ressincronizar(ids?: readonly string[]): void {
+    // Q13: só os tokens do pedido recusado (se se sabe quais): os outros seguem andando.
+    const quais = ids ? ids.filter((id) => this.visuais.has(id)) : [...this.visuais.keys()];
+    for (const id of quais) {
+      this.passosPendentes.delete(id);
+      const v = this.visuais.get(id);
+      const p = this.posicoesAvisadas.get(id) ?? this.ultimasPosicoes.get(id);
+      if (v && p) {
+        v.vel = this.velocidadeDoPasso(v, p.x, p.y);
         v.alvoX = p.x;
         v.alvoY = p.y;
       }
@@ -1814,8 +1876,15 @@ export class MapaPixi {
         this.carregarEDepois(t.assetHash, () => this.sincronizarTokens());
       }
       const antes = this.ultimasPosicoes.get(t.id);
-      const mudouNoEstado = !antes || antes.x !== t.x || antes.y !== t.y;
-      this.ultimasPosicoes.set(t.id, { x: t.x, y: t.y });
+      const avisada = this.posicoesAvisadas.get(t.id);
+      // Q13: o estado do React alcançou o que a sala avisou: o aviso direto cumpriu o papel. Se ainda está atrás
+      // (veio aviso mais novo), a posição avisada manda e o estado não reposiciona nada.
+      const estadoAtrasado =
+        avisada !== undefined &&
+        (Math.abs(avisada.x - t.x) > 1e-6 || Math.abs(avisada.y - t.y) > 1e-6);
+      if (avisada !== undefined && !estadoAtrasado) this.posicoesAvisadas.delete(t.id);
+      const mudouNoEstado = !estadoAtrasado && (!antes || antes.x !== t.x || antes.y !== t.y);
+      if (!estadoAtrasado) this.ultimasPosicoes.set(t.id, { x: t.x, y: t.y });
       let v = this.visuais.get(t.id);
       if (v && v.chave !== this.chaveDe(t)) {
         // Mudou nome, cor, tamanho, camada ou visibilidade: refaz a aparência na posição atual.
@@ -1910,8 +1979,18 @@ export class MapaPixi {
     this.passoDaContagem();
     this.ajustarMarcasAoZoom();
     this.desenharAlcas();
-    if (this.visaoSuja) this.recalcularVisao();
-    else if (this.visibilidadeSuja) this.atualizarVisibilidadeDosTokens();
+    if (this.visaoPorMovimento && agora - this.ultimaVisaoPorMovimento >= this.esperaDaVisao) {
+      this.visaoPorMovimento = false;
+      this.visaoSuja = true;
+    }
+    if (this.visaoSuja) {
+      const t0 = performance.now();
+      this.recalcularVisao();
+      this.ultimaVisaoPorMovimento = agora;
+      // Gastou pouco: segue o token a cada quadro. Gastou muito: espera o dobro do que gastou (até um teto),
+      // para a visão não comer o tempo dos quadros e dos passos.
+      this.esperaDaVisao = Math.min(MAX_ESPERA_DA_VISAO_MS, (performance.now() - t0) * 2);
+    } else if (this.visibilidadeSuja) this.atualizarVisibilidadeDosTokens();
     if (this.memoriaPendente && agora - this.ultimaMarcacao >= INTERVALO_DA_MEMORIA_MS) {
       this.processarMemoria(agora);
     }
@@ -1936,8 +2015,9 @@ export class MapaPixi {
       if (agora - p.t < PENDENTE_VALE_MS) continue;
       this.passosPendentes.delete(id);
       const v = this.visuais.get(id);
-      const sala = this.ultimasPosicoes.get(id);
+      const sala = this.posicoesAvisadas.get(id) ?? this.ultimasPosicoes.get(id);
       if (v && sala) {
+        v.vel = this.velocidadeDoPasso(v, sala.x, sala.y);
         v.alvoX = sala.x;
         v.alvoY = sala.y;
       }
@@ -1952,6 +2032,18 @@ export class MapaPixi {
       if (arrastando?.has(v.token.id)) {
         v.x = v.alvoX;
         v.y = v.alvoY;
+      } else if (v.vel !== undefined) {
+        // Q13: em linha reta e em velocidade constante (mais rápido só se ficou muito para trás); chegou, para seco.
+        const r = avancarEmLinha(
+          { x: v.x, y: v.y },
+          { x: v.alvoX, y: v.alvoY },
+          v.vel,
+          dtMs,
+          this.cena?.grid.quadradoM ?? 1.5,
+        );
+        v.x = r.x;
+        v.y = r.y;
+        if (r.chegou) v.vel = undefined;
       } else {
         v.x = suavizar(v.x, v.alvoX, dtMs, TAU_MS);
         v.y = suavizar(v.y, v.alvoY, dtMs, TAU_MS);
@@ -1969,7 +2061,8 @@ export class MapaPixi {
               l.portador.personagemId === v.token.personagemId),
         )
       ) {
-        this.visaoSuja = true;
+        // Q13: a visão e a luz acompanham o token no ritmo que a máquina aguenta (ver `passo`), não a cada quadro.
+        this.visaoPorMovimento = true;
         if (this.marcasVisiveis()) this.desenharMarcasDeLuz();
       } else this.visibilidadeSuja = true;
     }

@@ -49,7 +49,14 @@ export type Ocorrencia =
   | { tipo: "asset"; mensagem: MensagemDaSala }
   /** Frame binário (pedaço de arquivo repassado pela sala). */
   | { tipo: "binario"; dados: ArrayBuffer }
-  | { tipo: "erro"; idPedido: string | null; codigo: CodigoDeErro; mensagem: string };
+  /** `tipoDoPedido`: o tipo da intenção recusada, se a tela ainda o guarda (só os pedidos de mover token). */
+  | {
+      tipo: "erro";
+      idPedido: string | null;
+      codigo: CodigoDeErro;
+      mensagem: string;
+      tipoDoPedido?: string | undefined;
+    };
 
 /** De onde veio o aviso: o ponto da página onde a pessoa agiu (`null`: não há, a sala é quem avisa). */
 export type OrigemDoAviso = { x: number; y: number };
@@ -92,6 +99,12 @@ export function recusaSilenciosa(tipoDoPedido: string | undefined, codigo: Codig
     RECUSAS_QUE_SE_VEEM.has(codigo)
   );
 }
+
+/**
+ * Q13: de quanto em quanto tempo o estado do React recebe os `token.movido` que chegaram (cada passo de seta de
+ * alguém). O mapa mostra cada passo na hora; a mesa inteira não precisa se redesenhar a cada um (assumido: 300 ms).
+ */
+export const INTERVALO_DO_ESTADO_DOS_PASSOS_MS = 300;
 
 /** Quanto tempo um aviso com este texto fica na tela. */
 export function duracaoDoAviso(texto: string): number {
@@ -189,18 +202,41 @@ export function useSala(opcoes: Opcoes) {
       for (const ouvinte of ouvintes.current) ouvinte(o);
     };
 
+    // Q13: o aviso de que um token andou (cada passo de quem segura a seta) vai para o mapa na hora (ele anima por
+    // conta própria), mas o estado do React, que redesenha a mesa inteira, só é atualizado a cada
+    // `INTERVALO_DO_ESTADO_DOS_PASSOS_MS`. Qualquer outro evento descarrega a fila antes, na ordem em que chegou.
+    let fila: EventoSala[] = [];
+    let esperaDaFila: ReturnType<typeof setTimeout> | undefined;
+    function descarregarFila() {
+      clearTimeout(esperaDaFila);
+      esperaDaFila = undefined;
+      if (fila.length === 0) return;
+      const itens = fila;
+      fila = [];
+      setEstado((e) => (e ? itens.reduce(reduzir, e) : e));
+    }
+
     function tratar(texto: string) {
       const lida = lerMensagemDaSala(texto);
       if (!lida.ok) return;
       const m = lida.valor;
       switch (m.tipo) {
         case "snapshot":
+          fila = [];
+          clearTimeout(esperaDaFila);
+          esperaDaFila = undefined;
           setUsuarioId(m.dados.usuarioId);
           setEstado(m.dados.estado);
           setChatTemMais((m.dados.estado.chat?.length ?? 0) >= LIMITES_DO_CHAT.noSnapshot);
           break;
         case "evento":
-          setEstado((e) => (e ? reduzir(e, m.dados) : e));
+          if (m.dados.tipo === "token.movido") {
+            fila.push(m.dados);
+            esperaDaFila ??= setTimeout(descarregarFila, INTERVALO_DO_ESTADO_DOS_PASSOS_MS);
+          } else {
+            descarregarFila();
+            setEstado((e) => (e ? reduzir(e, m.dados) : e));
+          }
           if (m.dados.tipo === "chat.limpo") setChatTemMais(false);
           emitir({ tipo: "evento", evento: m.dados });
           break;
@@ -275,17 +311,15 @@ export function useSala(opcoes: Opcoes) {
         case "exportacao":
           opcoesAtuais.current.aoExportar(m.dados.exportacao);
           break;
-        case "erro":
-          if (
-            !recusaSilenciosa(
-              m.dados.idPedido === null ? undefined : tiposDosPedidos.current.get(m.dados.idPedido),
-              m.dados.codigo,
-            )
-          ) {
+        case "erro": {
+          const tipoDoPedido =
+            m.dados.idPedido === null ? undefined : tiposDosPedidos.current.get(m.dados.idPedido);
+          if (!recusaSilenciosa(tipoDoPedido, m.dados.codigo)) {
             avisar(m.dados.mensagem, m.dados.codigo, m.dados.idPedido);
           }
-          emitir({ tipo: "erro", ...m.dados });
+          emitir({ tipo: "erro", ...m.dados, tipoDoPedido });
           break;
+        }
       }
     }
 
@@ -328,6 +362,7 @@ export function useSala(opcoes: Opcoes) {
       window.removeEventListener("pointermove", lembrar, true);
       window.removeEventListener("pointerup", lembrar, true);
       clearTimeout(temporizador);
+      clearTimeout(esperaDaFila);
       const ws = socket.current;
       socket.current = null;
       ws?.close();

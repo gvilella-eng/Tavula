@@ -689,3 +689,11 @@ Antes de tudo: tenha na pasta `sons/` (ou à mão) uns 6 arquivos de áudio: 2 o
 4. **Seguir meu token.** No canto do zoom, o botão da mira ("Seguir meu token", atalho F). Ligue: a vista desliza até o seu token e ele fica no centro enquanto você anda (setas, arrasto, o mestre movendo, "Levar o grupo"). Use a roda ou o + e −: o zoom muda e o token continua no centro. Arraste a vista (Espaço+arrastar ou a Mão): o botão desliga. "Centralizar o mapa" também desliga.
 5. **Mais de um token.** Se você controla dois tokens na cena, ligar abre uma lista (nome e cor): escolha um. A setinha ao lado do botão reabre a lista. Recarregue a página: continua ligado no que você escolheu. O mestre liga com um token selecionado e segue esse; sem seleção, a lista mostra os tokens da cena.
 6. **Troca de cena.** Com o seguir ligado, o mestre leva o grupo a outra cena: a vista vai para o token do mesmo personagem, se ele estiver lá; senão fica parada até ele aparecer. Apague o token que você segue: o botão desliga sozinho.
+
+## Q13 — Segurar a seta, contínuo e em linha, numa cena pesada
+
+1. **Cena pesada.** Numa cena com muitas paredes, escuridão, a tocha presa ao token, névoa e memória do mapa, selecione o token e segure uma seta por uns 3 s: ele anda liso, em ritmo parelho, sem parar entre os quadrados nem frear em cada um. Solte: ele termina o quadrado em que está e para.
+2. **Um toque.** Um toque continua sendo um quadrado rápido.
+3. **Parede.** Segure a seta contra a parede (no fim de um corredor): o token para no último quadrado, sem passar um quadrado a mais e voltar.
+4. **Quem olha.** Com a tela do mestre aberta, o token do jogador andando também parece liso, sem saltos.
+5. **A luz e a memória.** Depois de andar, a luz da tocha está no token e o caminho por onde passou fica lembrado; a visão não treme.
