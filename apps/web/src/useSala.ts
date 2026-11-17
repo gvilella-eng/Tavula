@@ -74,6 +74,25 @@ const AVISO_MAXIMO_MS = 12_000;
 /** O ponteiro ainda conta como "onde a pessoa agiu" por este tempo depois do último movimento. */
 const ORIGEM_VALE_MS = 1_500;
 
+/**
+ * Q12: a recusa de um gesto de mover token cujo resultado já se vê (o token não sai do lugar ou volta a ele) não
+ * ganha aviso: parede no caminho, token que a pessoa não controla ou que sumiu. A sala continua recusando; só a tela
+ * deixa de avisar. Qualquer outro erro (e qualquer outro pedido) avisa como sempre.
+ */
+const PEDIDOS_DE_MOVER = new Set(["token.mover", "token.soltar", "tokens.mover"]);
+const RECUSAS_QUE_SE_VEEM = new Set<CodigoDeErro>([
+  "trajeto_bloqueado",
+  "sem_permissao",
+  "token_inexistente",
+]);
+export function recusaSilenciosa(tipoDoPedido: string | undefined, codigo: CodigoDeErro): boolean {
+  return (
+    tipoDoPedido !== undefined &&
+    PEDIDOS_DE_MOVER.has(tipoDoPedido) &&
+    RECUSAS_QUE_SE_VEEM.has(codigo)
+  );
+}
+
 /** Quanto tempo um aviso com este texto fica na tela. */
 export function duracaoDoAviso(texto: string): number {
   const base = 3_500 + texto.length * AVISO_POR_LETRA_MS;
@@ -142,6 +161,8 @@ export function useSala(opcoes: Opcoes) {
   // Onde a pessoa agiu por último e de onde saiu cada pedido: o aviso de erro aparece perto disso.
   const ponteiro = useRef<Ponteiro | null>(null);
   const origens = useRef(new Map<string, OrigemDoAviso | null>());
+  /** Q12: o tipo de cada pedido enviado (os últimos), para saber que recusa merece aviso. */
+  const tiposDosPedidos = useRef(new Map<string, string>());
 
   useEffect(() => {
     let encerrado = false;
@@ -255,7 +276,14 @@ export function useSala(opcoes: Opcoes) {
           opcoesAtuais.current.aoExportar(m.dados.exportacao);
           break;
         case "erro":
-          avisar(m.dados.mensagem, m.dados.codigo, m.dados.idPedido);
+          if (
+            !recusaSilenciosa(
+              m.dados.idPedido === null ? undefined : tiposDosPedidos.current.get(m.dados.idPedido),
+              m.dados.codigo,
+            )
+          ) {
+            avisar(m.dados.mensagem, m.dados.codigo, m.dados.idPedido);
+          }
           emitir({ tipo: "erro", ...m.dados });
           break;
       }
@@ -341,6 +369,14 @@ export function useSala(opcoes: Opcoes) {
     if (guardadas.size > 64) {
       const primeira = guardadas.keys().next();
       if (!primeira.done) guardadas.delete(primeira.value);
+    }
+    if (PEDIDOS_DE_MOVER.has(tipo)) {
+      const tipos = tiposDosPedidos.current;
+      tipos.set(id, tipo);
+      if (tipos.size > 128) {
+        const primeiro = tipos.keys().next();
+        if (!primeiro.done) tipos.delete(primeiro.value);
+      }
     }
     return id;
   }, []);

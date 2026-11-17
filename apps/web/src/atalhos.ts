@@ -48,6 +48,12 @@ export const ATALHOS = {
     grupo: "Ferramentas",
     teclas: [["A"]],
   },
+  seguirToken: {
+    descricao:
+      "Seguir meu token: a vista mantém o token no centro da tela enquanto ele anda (de novo, desliga; arrastar a vista também desliga)",
+    grupo: "Mapa",
+    teclas: [["F"]],
+  },
   arrastarVista: {
     descricao: "Segurar e arrastar o mapa, com qualquer ferramenta",
     grupo: "Mapa",

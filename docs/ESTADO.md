@@ -4106,4 +4106,29 @@ Ver `PASSAGEM.md` ("Q11").
 ### Roteiro manual
 `docs/ROTEIRO-DE-TESTES.md`, "Q11".
 
-## Próximo: o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b, N4, N5, M1, M2, Q1, Q2, Q3, Q4, Q5, Q6, Q7, Q8, Q9, Q10 e Q11
+## Ajustes Q12 — Sem aviso de parede, setas rápidas e a câmera que segue o meu token (entregue, aguardando o roteiro manual)
+
+### O que foi entregue
+- **Sem o aviso "Uma parede bloqueia o caminho."** (e os parecidos: token que a pessoa não controla, token que sumiu): a sala recusa como antes, a tela não avisa. O cliente nem tenta o passo da seta que bate na parede (`trajetoBloqueado` do `shared`).
+- **Setas rápidas:** o passo aparece na hora (otimista, a partir da posição pendente); segurar repete a 10 quadrados por segundo por um temporizador da tela; a sala confirma e, se recusar, o token volta sem aviso. Um toque: primeiro movimento em 5 a 7 ms (antes 26 a 71) e chegada em ~155 ms (antes ~260).
+- **Seguir meu token:** botão ao lado de "Centralizar o mapa" (e a tecla F); o token escolhido fica no centro da tela; arrastar a vista ou centralizar desliga; lista de escolha com mais de um token; preferência por mesa neste navegador.
+
+### Como rodar
+`pnpm dev` como sempre. **Sem migração, sem mudança de sala, protocolo ou estado.** Testes em outras portas: `E2E_PORTA_SALA=8790 E2E_PORTA_WEB=5176`. Roteiro: "Q12" em `docs/ROTEIRO-DE-TESTES.md`.
+
+### Verificação
+Só tela (`apps/web`), então sem a bateria inteira (decisão de 2026-11-13). Typecheck e lint limpos; unidade 1294 (shared) + 140 (server) + 19 (mcp) + 245 (web, 22 novos: `passoDasSetas.test.ts`, `seguirToken.test.ts`, `useSala.test.ts`); E2E dos specs que tocam mapa, token, setas, avisos e câmera, 140 testes, todos passaram, nenhum instável: `q12` (4 novos), `v10`, `q11`, `paredes`, `paredes-v5`, `mapa`, `token-v11`, `v12`, `v13`, `v10c`, `teclado`, `interacoes`, `sala`, `luz`, `nevoa`, `q8`, `hordas-q10`, `tour`, `interface`, `v14`. Prints: `e2e/prints/q12.spec.ts`.
+
+### Decisões
+Ver `REDESIGN.md` ("Q12 — como ficou").
+
+### Desvios
+- `v10.spec.ts` ("as setas movem o token selecionado…"): esperava o aviso "parede" ao andar contra a parede; agora confere que nenhum aviso aparece.
+
+### Frágil
+Ver `PASSAGEM.md` ("Q12").
+
+### Roteiro manual
+`docs/ROTEIRO-DE-TESTES.md`, "Q12".
+
+## Próximo: o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b, N4, N5, M1, M2, Q1, Q2, Q3, Q4, Q5, Q6, Q7, Q8, Q9, Q10, Q11 e Q12

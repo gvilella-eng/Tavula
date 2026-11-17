@@ -130,6 +130,12 @@ import { PainelDoToken } from "./PainelDoToken";
 import { PertoDoPonto } from "./PertoDoPonto";
 import { useFecharFora } from "./Popover";
 import { PresencaNoTopo } from "./PresencaNoTopo";
+import {
+  direcaoDaSeta,
+  INTERVALO_DA_SETA_MS,
+  proximoPasso,
+  teclasDeSetaDepois,
+} from "./passoDasSetas";
 import { type ConfigDoPincel, PINCEL_PADRAO } from "./pincel";
 import {
   gravarEncaixePadrao,
@@ -139,6 +145,15 @@ import {
 } from "./preferencias";
 import { tituloDaMesa } from "./rotas";
 import { SeletorDeImagem } from "./SeletorDeImagem";
+import {
+  aoLigarOSeguir,
+  candidatosParaSeguir,
+  escolherSeguido,
+  gravarSeguir,
+  lerSeguir,
+  type PrefDoSeguir,
+  prefParaSeguir,
+} from "./seguirToken";
 import { AvisoDoSom } from "./som/AvisoDoSom";
 import { useSomDaMesa } from "./som/useSomDaMesa";
 import { Topo } from "./Topo";
@@ -740,6 +755,59 @@ export function Mesa({
   );
   const selecaoAtual = useRef({ primario: selecionadoId, extras: extrasIds });
   selecaoAtual.current = { primario: selecionadoId, extras: tambemSelecionadosIds };
+  // Q12: "Seguir meu token": a vista mantém um token no centro da tela. Ligado e a escolha ficam por mesa neste
+  // navegador. Troca de cena: segue o token do mesmo personagem na cena nova, ou espera até ele aparecer.
+  const [seguir, setSeguir] = useState<PrefDoSeguir>(() => lerSeguir(mesa.id));
+  const [listaDoSeguirAberta, setListaDoSeguirAberta] = useState(false);
+  const [mapaVersao, setMapaVersao] = useState(0);
+  const tokensVistos = estadoVisto?.tokens;
+  const candidatosDoSeguir = useMemo(
+    () => candidatosParaSeguir(tokensVistos ?? [], cena?.id, eu, estado?.personagens ?? []),
+    [tokensVistos, cena?.id, eu, estado?.personagens],
+  );
+  const seguido = seguir.ligado ? escolherSeguido(candidatosDoSeguir, seguir) : null;
+  const seguidoId = seguido?.id ?? null;
+  const mudarSeguir = (pref: PrefDoSeguir) => {
+    setSeguir(pref);
+    gravarSeguir(mesa.id, pref);
+  };
+  const alternarSeguirAtual = useRef<() => void>(() => {});
+  const desligarSeguirAtual = useRef<() => void>(() => {});
+  desligarSeguirAtual.current = () => {
+    if (seguir.ligado) mudarSeguir({ ...seguir, ligado: false });
+  };
+  alternarSeguirAtual.current = () => {
+    if (seguir.ligado) {
+      mudarSeguir({ ...seguir, ligado: false });
+      setListaDoSeguirAberta(false);
+      return;
+    }
+    if (listaDoSeguirAberta) {
+      setListaDoSeguirAberta(false);
+      return;
+    }
+    const r = aoLigarOSeguir(candidatosDoSeguir, seguir, selecionadoId, euMestre);
+    mudarSeguir(r.pref);
+    setListaDoSeguirAberta(r.abrirLista);
+  };
+  const viuOSeguido = useRef<{ cenaId: string; id: string } | null>(null);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: o gatilho é só ligar, o token seguido e a cena
+  useEffect(() => {
+    mapa.current?.seguir(seguidoId);
+    if (!seguir.ligado || !cena) {
+      viuOSeguido.current = null;
+      return;
+    }
+    if (seguidoId !== null) {
+      viuOSeguido.current = { cenaId: cena.id, id: seguidoId };
+      return;
+    }
+    // O token que eu seguia sumiu desta cena (apagado, ficou invisível para mim): desliga, sem aviso. Se foi a cena
+    // que mudou, o seguir espera o token do mesmo personagem aparecer.
+    const antes = viuOSeguido.current;
+    viuOSeguido.current = null;
+    if (antes && antes.cenaId === cena.id) mudarSeguir({ ...seguir, ligado: false });
+  }, [seguidoId, seguir.ligado, cena?.id, mapaVersao]);
   // biome-ignore lint/correctness/useExhaustiveDependencies: a troca do token principal é o gatilho
   useEffect(() => {
     // Qualquer troca do token principal que não veio do "somar à seleção" começa uma seleção nova.
@@ -820,8 +888,11 @@ export function Mesa({
   // V10: com um token selecionado e o foco no mapa (ou em nada), Delete tira o token do mapa e as setas o andam
   // um quadrado. Tudo pelas intenções de sempre (`token.apagar`, `token.soltar`): a sala confere permissão e parede.
   const aoTeclarNoMapa = useRef<(e: KeyboardEvent) => void>(() => {});
-  const ultimoPassoDeSeta = useRef(0);
   const seguirOToken = useRef(0);
+  // Q12: as setas seguradas (a última vale), o temporizador da repetição e o passo que ele dá (refeito a cada render).
+  const setasSeguradas = useRef<string[]>([]);
+  const repeticaoDasSetas = useRef<number | undefined>(undefined);
+  const darPassoDeSeta = useRef<() => boolean>(() => false);
   aoTeclarNoMapa.current = (e) => {
     const ehSeta = e.key.startsWith("Arrow");
     const ehApagar = e.key === "Delete" || e.key === "Backspace";
@@ -863,49 +934,125 @@ export function Mesa({
       return;
     }
 
-    // As setas: um toque, um quadrado. Segurar repete, no máximo ~8 passos por segundo.
+    // As setas (Q12): um toque, um quadrado, na hora. Segurar repete num ritmo firme (um temporizador nosso, não a
+    // repetição de tecla do sistema); soltar a tecla para. O passo aparece na tela antes da sala responder.
     e.preventDefault();
     e.stopPropagation();
-    const agora = performance.now();
-    if (e.repeat && agora - ultimoPassoDeSeta.current < 125) return;
-    if (!podeMoverToken(selecionado, quem, sala)) return;
-    const q = cena?.grid.quadradoM ?? 1.5;
-    const dx = e.key === "ArrowLeft" ? -1 : e.key === "ArrowRight" ? 1 : 0;
-    const dy = e.key === "ArrowUp" ? -1 : e.key === "ArrowDown" ? 1 : 0;
+    if (e.repeat || direcaoDaSeta(e.key) === null) return;
+    setasSeguradas.current = teclasDeSetaDepois(setasSeguradas.current, e.key, "baixo");
+    // Parede ou borda: o token não anda e não há aviso; segurar continua tentando (a porta pode abrir).
+    darPassoDeSeta.current();
+    window.clearInterval(repeticaoDasSetas.current);
+    repeticaoDasSetas.current = window.setInterval(
+      () => darPassoDeSeta.current(),
+      INTERVALO_DA_SETA_MS,
+    );
+  };
+  /** Q12: para a repetição (soltou a tecla, perdeu o foco ou o gesto deixou de valer). */
+  const pararAsSetas = useCallback(() => {
+    setasSeguradas.current = [];
+    window.clearInterval(repeticaoDasSetas.current);
+    repeticaoDasSetas.current = undefined;
+  }, []);
+  /** Q12: um passo na direção da última seta segurada. `true` se o token andou na tela. */
+  darPassoDeSeta.current = () => {
+    const tecla = setasSeguradas.current[setasSeguradas.current.length - 1];
+    const dir = tecla === undefined ? null : direcaoDaSeta(tecla);
+    const sala = estadoAtual.current;
+    const quem = euAtual.current;
+    const m = mapa.current;
+    const alvoDoFoco = document.activeElement;
+    const noMapa =
+      alvoDoFoco === document.body ||
+      (alvoDoFoco instanceof HTMLElement && alvoDoFoco.matches("[data-testid='mapa']"));
+    if (
+      !dir ||
+      !sala ||
+      !quem ||
+      !m ||
+      !cena ||
+      !selecionado ||
+      !noMapa ||
+      haDialogoAberto() ||
+      tourAberto ||
+      menuDoTokenAberto ||
+      menuDaTocha ||
+      ferramenta !== "selecionar" ||
+      usuarioVisto !== null
+    ) {
+      pararAsSetas();
+      return false;
+    }
+    const naSala = (id: string) => sala.tokens.find((t) => t.id === id);
+    const principal = naSala(selecionado.id);
+    if (!principal || !podeMoverToken(principal, quem, sala)) return false;
+    const q = cena.grid.quadradoM;
+    const ondeEsta = (t: Token): { x: number; y: number } =>
+      m.posicaoPendente(t.id) ?? { x: t.x, y: t.y };
     // Q11: com vários na seleção (só o mestre), as setas andam todos um quadrado, num pedido só; o grupo não se
     // desmancha: se algum sairia da cena, ninguém anda.
-    if (quem.papel === "mestre" && tambemSelecionadosIds.length > 0 && cena) {
+    if (quem.papel === "mestre" && tambemSelecionadosIds.length > 0) {
       const itens = tokensDaSelecao().map((t) => ({
         id: t.id,
-        ...encaixarNoGrid({ x: t.x + dx * q, y: t.y + dy * q }, t.tamanhoQuadrados, q),
+        ...encaixarNoGrid(
+          { x: ondeEsta(t).x + dir.dx * q, y: ondeEsta(t).y + dir.dy * q },
+          t.tamanhoQuadrados,
+          q,
+        ),
       }));
-      if (itens.some((i) => i.x < 0 || i.y < 0 || i.x > cena.larguraM || i.y > cena.alturaM))
-        return;
-      if (
-        itens.every((i) => sala.tokens.some((t) => t.id === i.id && t.x === i.x && t.y === i.y))
-      ) {
-        return;
+      if (itens.some((i) => i.x < 0 || i.y < 0 || i.x > cena.larguraM || i.y > cena.alturaM)) {
+        return false;
       }
-      ultimoPassoDeSeta.current = agora;
-      seguirOToken.current = agora;
+      if (
+        itens.every(
+          (i) =>
+            naSala(i.id) &&
+            ondeEsta(naSala(i.id) as Token).x === i.x &&
+            ondeEsta(naSala(i.id) as Token).y === i.y,
+        )
+      ) {
+        return false;
+      }
+      seguirOToken.current = performance.now();
+      for (const i of itens) m.moverOtimista(i.id, i.x, i.y);
       enviar("tokens.mover", { itens });
-      return;
+      return true;
     }
-    const alvoM = encaixarNoGrid(
-      { x: selecionado.x + dx * q, y: selecionado.y + dy * q },
-      selecionado.tamanhoQuadrados,
-      q,
-    );
-    if (alvoM.x === selecionado.x && alvoM.y === selecionado.y) return;
-    ultimoPassoDeSeta.current = agora;
-    seguirOToken.current = agora;
-    enviar("token.soltar", { id: selecionado.id, x: alvoM.x, y: alvoM.y });
+    const alvoM = proximoPasso({
+      de: ondeEsta(principal),
+      dx: dir.dx,
+      dy: dir.dy,
+      tamanhoQuadrados: principal.tamanhoQuadrados,
+      quadradoM: q,
+      cena,
+      paredes: sala.paredes.filter((p) => p.cenaId === principal.cenaId),
+      ehMestre: quem.papel === "mestre",
+    });
+    if (!alvoM) return false;
+    seguirOToken.current = performance.now();
+    m.moverOtimista(principal.id, alvoM.x, alvoM.y);
+    m.manterVisivel(alvoM.x, alvoM.y);
+    enviar("token.soltar", { id: principal.id, x: alvoM.x, y: alvoM.y });
+    return true;
   };
   useEffect(() => {
     const ouvir = (e: KeyboardEvent) => aoTeclarNoMapa.current(e);
+    const aoSoltar = (e: KeyboardEvent) => {
+      if (direcaoDaSeta(e.key) === null) return;
+      setasSeguradas.current = teclasDeSetaDepois(setasSeguradas.current, e.key, "cima");
+      if (setasSeguradas.current.length === 0) pararAsSetas();
+    };
+    const aoPerderOFoco = () => pararAsSetas();
     window.addEventListener("keydown", ouvir);
-    return () => window.removeEventListener("keydown", ouvir);
-  }, []);
+    window.addEventListener("keyup", aoSoltar);
+    window.addEventListener("blur", aoPerderOFoco);
+    return () => {
+      window.removeEventListener("keydown", ouvir);
+      window.removeEventListener("keyup", aoSoltar);
+      window.removeEventListener("blur", aoPerderOFoco);
+      pararAsSetas();
+    };
+  }, [pararAsSetas]);
   // Q10: duplicar (Ctrl+D), copiar e colar (Ctrl+C e Ctrl+V) e Alt+arrastar os tokens da seleção (só o mestre). Tudo
   // vira um `token.copiar` só: a sala copia os campos da origem e numera o NPC.
   const tokensDaSelecao = (): Token[] => {
@@ -1152,6 +1299,8 @@ export function Mesa({
       soltar: (id, x, y) => enviar("token.soltar", { id, x, y }),
       chegada: (cenaId, x, y) => enviar("cena.editar", { cenaId, chegada: { x, y } }),
       selecionar: setSelecionadoId,
+      parouDeSeguir: () => desligarSeguirAtual.current(),
+      alternarSeguir: () => alternarSeguirAtual.current(),
       alternarNaSelecao: (id) => {
         const { primario, extras } = selecaoAtual.current;
         if (primario === null) {
@@ -2021,6 +2170,7 @@ export function Mesa({
               aoSoltarDoCompendio={euMestre ? soltarDoCompendioNoMapa : undefined}
               aoCriar={(m) => {
                 mapa.current = m;
+                if (m) setMapaVersao((v) => v + 1);
               }}
             />
             {/* A etiqueta sobre o mapa saiu: quem sou eu e onde estamos ficam só para leitores de tela. */}
@@ -2099,7 +2249,28 @@ export function Mesa({
               zoom={zoom}
               aoDefinir={(z) => mapa.current?.definirZoom(z)}
               aoPasso={(f) => mapa.current?.zoomPorPassos(f)}
-              aoCentralizar={() => mapa.current?.centralizar()}
+              aoCentralizar={() => {
+                desligarSeguirAtual.current();
+                mapa.current?.centralizar();
+              }}
+              seguindo={seguido !== null}
+              aoAlternarSeguir={() => alternarSeguirAtual.current()}
+              opcoesDeSeguir={candidatosDoSeguir.map((t) => ({
+                id: t.id,
+                nome: t.nome,
+                cor: t.cor,
+                assetHash: t.assetHash,
+              }))}
+              seguidoId={seguidoId}
+              listaAberta={listaDoSeguirAberta}
+              aoMudarLista={setListaDoSeguirAberta}
+              aoEscolherSeguido={(id) => {
+                const t = candidatosDoSeguir.find((x) => x.id === id);
+                if (t) mudarSeguir(prefParaSeguir(t));
+                setListaDoSeguirAberta(false);
+              }}
+              imagens={imagens}
+              versaoDasImagens={versaoDosProntos}
             />
             {/* N1: vida e CA em cima do token selecionado (o mestre, e quem controla o token). */}
             {selecionado && personagemDoSelecionado?.ficha && marcasDoTokenVisiveis && (

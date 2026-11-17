@@ -680,3 +680,12 @@ Antes de tudo: tenha na pasta `sons/` (ou à mão) uns 6 arquivos de áudio: 2 o
 7. **Mover juntos.** Com vários selecionados, arraste um deles: todos vão, mantendo o arranjo. As setas também andam todos. Um clique (sem arrastar) num deles deixa só ele selecionado.
 8. **Dano em lote.** Com vários selecionados, aperte E: a marca diz "3 selecionados"; digite -5: todos levam 5 (os temporários absorvem primeiro); +3 cura (nunca passa do máximo). Um valor sem sinal ("12") não vale. No botão direito, "Vida dos N selecionados…" faz o mesmo. Dois tokens da mesma ficha (vilão único) levam o dano uma vez só.
 9. **Claude.** Peça "dá 5 de dano nos três goblins e põe borda vermelha neles" e "anda o grupo dois quadrados para a direita" (`tokens` com `grupo`): cada gesto é um passo do Desfazer.
+
+## Q12 — Sem aviso de parede, setas rápidas e seguir meu token
+
+1. **Sem aviso.** Como jogador, ponha uma parede no caminho do seu token (o mestre desenha) e ande contra ela com as setas e arrastando: o token não passa e nenhum aviso aparece embaixo. O aviso de porta trancada e o de "fora de alcance" (clique numa porta) continuam.
+2. **Setas na hora.** Selecione o token e aperte uma seta: ele anda no mesmo instante, sem esperar. Segure: ele anda uns 10 quadrados por segundo, direto, e para assim que você solta. Tente com a luz e a névoa ligadas, como mestre e como jogador. Arrastar e soltar também fica ligeiro.
+3. **A sala ainda manda.** O jogador não atravessa parede, porta fechada nem janela com as setas. Se o mestre fechar uma porta no meio do caminho, o token do jogador pode aparecer andando um quadrado e voltar, sem aviso.
+4. **Seguir meu token.** No canto do zoom, o botão da mira ("Seguir meu token", atalho F). Ligue: a vista desliza até o seu token e ele fica no centro enquanto você anda (setas, arrasto, o mestre movendo, "Levar o grupo"). Use a roda ou o + e −: o zoom muda e o token continua no centro. Arraste a vista (Espaço+arrastar ou a Mão): o botão desliga. "Centralizar o mapa" também desliga.
+5. **Mais de um token.** Se você controla dois tokens na cena, ligar abre uma lista (nome e cor): escolha um. A setinha ao lado do botão reabre a lista. Recarregue a página: continua ligado no que você escolheu. O mestre liga com um token selecionado e segue esse; sem seleção, a lista mostra os tokens da cena.
+6. **Troca de cena.** Com o seguir ligado, o mestre leva o grupo a outra cena: a vista vai para o token do mesmo personagem, se ele estiver lá; senão fica parada até ele aparecer. Apague o token que você segue: o botão desliga sozinho.

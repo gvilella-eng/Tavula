@@ -2280,3 +2280,38 @@ O Vilella pediu o que o Q10 deixou para depois (laço, dano em lote, mover vári
 - Mostrar os outros tokens da seleção andando ao vivo nas telas dos jogadores durante o arrasto.
 - "Desfazer" do dano em lote na tela.
 - Uma legenda da cor da borda (um nome por cor, "grupo A") em vez de só a cor.
+
+## Q12 — como ficou (2026-11-17): sem aviso de parede, setas rápidas e a câmera que segue o meu token
+
+O Vilella pediu três coisas: tirar o aviso "Uma parede bloqueia o caminho." (e os parecidos), deixar as setas rápidas (clicar ou segurar demorava para fazer efeito) e um botão ao lado do zoom que mantenha o token do jogador sempre no centro da tela. É só tela: não há campo, intenção, migração nem mudança de sala ou de protocolo.
+
+**O que foi feito**
+- **Sem o aviso da parede.** A sala continua recusando (`trajeto_bloqueado`); a tela deixa de avisar. `useSala.ts` guarda o tipo de cada pedido de mover (`token.mover`, `token.soltar`, `tokens.mover`) e `recusaSilenciosa(tipo, codigo)` cala as recusas cujo resultado já se vê: `trajeto_bloqueado`, `sem_permissao` (token que a pessoa não controla) e `token_inexistente` (token que sumiu). O frame de erro segue para o mapa (`ressincronizar`). Ficaram de propósito, porque a pessoa não vê a razão: `fora_de_alcance` e `porta_trancada` (clique numa porta), `dados_invalidos` e qualquer erro de conexão, importar, salvar, permissão numa janela e Desfazer; "Você só pode tirar do mapa os tokens que controla." (Delete) também fica.
+- **O próprio cliente não tenta o passo que bate na parede.** `passoDasSetas.ts` (`proximoPasso`) faz a conta da sala: encaixa no grid e, para o jogador, confere parede, porta fechada e janela com a mesma `trajetoBloqueado` do `shared`. O passo que bate na parede nem sai da tela (nenhum pedido). Passo que sairia da cena também não anda (a sala o limitaria à borda e o token pararia fora do centro do quadrado). O mestre atravessa tudo, como na sala. O arrasto já parava o token antes da parede desde o Lote 5 (`aoMover` do mapa).
+- **Setas rápidas.** O passo aparece na hora (`moverOtimista` no mapa): o token anda no keydown, a partir da posição **pendente** (a que a tela já mostra), não da confirmada. A sala confirma depois; quando o eco chega na posição pendente ela some; se a sala recusa (`erro` → `ressincronizar`) o token volta para a posição confirmada, sem aviso; um passo que a sala nunca confirma nem recusa expira em 2,5 s. Segurar: o primeiro passo na hora e um temporizador nosso repete a 10 passos por segundo (`INTERVALO_DA_SETA_MS` = 100 ms, assumido), sem depender da repetição de tecla do sistema nem do eco; soltar a tecla (ou perder o foco, abrir um diálogo, trocar a seleção) para na hora. Vale a última seta segurada. Um pedido por passo (`token.soltar`), cada um conferido pela sala; com vários selecionados (mestre) é um `tokens.mover` por passo, como no Q11. A suavização do token no mapa caiu de 70 ms para 45 ms (`TAU_MS`), o que acelera também o arrasto e o movimento dos outros.
+- **Seguir meu token.** Botão novo (mira, `Crosshair`) no controle de zoom, ao lado do de centralizar, com dica "Seguir meu token · F" e `aria-pressed` (acento quando ligado). Ligado, a vista mantém o token escolhido no centro da tela a cada quadro, acompanhando a animação do token (setas, arrasto, a sala, o mestre movendo, "Levar o grupo"); ao ligar ela desliza até o token em ~0,3 s e depois o acompanha sem folga. O zoom continua livre. Arrastar a vista à mão (Espaço+arrastar, Mão, botão do meio) desliga (`parouDeSeguir`); Centralizar o mapa também. Qual token: um só na cena, ele; vários que o jogador controla, a primeira vez abre uma lista (avatar e nome) e liga ao escolher; uma setinha ao lado do botão reabre a lista e troca. O mestre segue o token selecionado na hora de ligar; sem seleção, a lista com os tokens da camada dos tokens da cena. Troca de cena: continua ligado e segue o token do mesmo personagem (`personagemId`) na cena nova; sem ele espera, sem mexer na vista. O token sumiu da cena (apagado, ficou invisível): desliga sem aviso. Ligado e escolha ficam por mesa neste navegador (`tabletop:pref:seguir:<mesa>`, nunca vão à sala). Atalho F (no mapa, sem modificador), em `atalhos.ts` como `seguirToken`.
+- A câmera que já mantinha o token à vista ao andar com as setas (V10, `manterVisivel`) agora é chamada no passo pendente, sem esperar o eco.
+
+**Tempos das setas** (tecla até o token aparecer no lugar novo; Playwright, notebook, mapa de teste, 1600×900, com a luz e a névoa da semente; mestre e jogador com o Aldric, que tem visão no escuro)
+
+| | antes | depois |
+|---|---|---|
+| um toque, primeiro movimento visível | mestre 71 ms, jogador 26 ms | 5 a 7 ms |
+| um toque, o token chega ao quadrado (a menos de 5 cm do destino) | 261 e 258 ms | 154 e 156 ms |
+| segurando 2 s (repetição do sistema a ~30/s) | 10,4 quadrados (mestre); 8,5 (jogador, na parede) | 21 quadrados (mestre, 4 direções); 21 a 22 (jogador, onde não há parede) |
+
+**Decisões (assumido)**
+- Segurar repete a 10 quadrados por segundo.
+- Com duas setas seguradas vale a última; não há diagonal (como antes).
+- Passo que sairia da cena não anda, em vez de o token parar na borda.
+- A suavização do token caiu para 45 ms para todos (setas, arrasto e os outros vendo andar), não só para o passo pendente.
+- Arrastar a vista à mão e Centralizar desligam o seguir; o "ping com centralizar" de outro usuário não o desliga (o seguir recentra no quadro seguinte).
+- A escolha do token guarda o personagem e o id; a lista do mestre só tem tokens da camada dos tokens (não objetos nem o que fica sob o mapa).
+- Ligar com vários tokens e uma escolha guardada liga nela, sem lista; a setinha troca.
+- `fora_de_alcance`, `porta_trancada` e o aviso do Delete ficam (a pessoa não vê a razão).
+- Sem intenção nova: nada a pôr em `paridade.ts`.
+
+**O que ficou para depois**
+- Agrupar passos de segurar num só pedido (hoje um `token.soltar` por passo, 10 por segundo).
+- Diagonal com duas setas.
+- Seguir um token em outra cena enquanto o mestre olha outra.

@@ -96,7 +96,11 @@ const RAIO_DO_PING_QUADRADOS = 2.5;
 const RAIO_MIN_DO_PING_PX = 56;
 const DURACAO_DA_CENTRALIZACAO_MS = 400;
 /** Constante de tempo da interpolação dos tokens movidos por outros (os envios chegam a cada 50 ms). */
-const TAU_MS = 70;
+const TAU_MS = 45;
+/** Q12: o passo de uma seta que ainda espera a sala dura no máximo isto; depois a tela volta ao que a sala tem. */
+const PENDENTE_VALE_MS = 2_500;
+/** Q12: ao ligar o "seguir", a vista desliza até o token (constante de tempo, ms) e depois o acompanha sem folga. */
+const TAU_DO_SEGUIR_MS = 90;
 const ACENTO = 0xe0a030;
 /** Q11: a barra de vida do token: o espaço que ela toma abaixo do token (o nome desce isto) e as cores por fração. */
 const ESPACO_DA_BARRA = 11;
@@ -332,6 +336,10 @@ export type RetornosDoMapa = {
   /** Q11: o laço terminou: os ids dos tokens dentro dele e se soma à seleção (Shift ou Ctrl). */
   selecionarComLaco: (ids: string[], somar: boolean) => void;
   zoom: (zoom: number) => void;
+  /** Q12: a pessoa arrastou a vista à mão: o "seguir meu token" desliga. */
+  parouDeSeguir: () => void;
+  /** Q12: a tecla F liga ou desliga o "seguir meu token". */
+  alternarSeguir: () => void;
   medir: (medicao: MedicaoNaTela | null) => void;
   /** As medidas fixadas (a lista inteira, a cada mudança de medida ou de vista). */
   reguasFixas: (medidas: MedicaoFixa[]) => void;
@@ -699,6 +707,11 @@ export class MapaPixi {
   private ultimaPosicao: Ponto | null = null;
   private panAnimado: { de: Ponto; para: Ponto; inicio: number } | null = null;
   private centralizarPendente: Ponto | null = null;
+  /** Q12: os passos já mostrados na tela que a sala ainda não confirmou (a posição para onde o token foi). */
+  private readonly passosPendentes = new Map<string, { x: number; y: number; t: number }>();
+  /** Q12: o token que a vista segue (centro da tela) e se ela ainda está deslizando até ele. */
+  private seguidoId: string | null = null;
+  private seguindoDesliza = false;
   /** O tamanho da área do mapa na última vez que a vista foi acertada (para manter o centro ao redimensionar). */
   private telaAntes = { largura: 0, altura: 0 };
   private sujo = true;
@@ -1045,8 +1058,24 @@ export class MapaPixi {
     this.desenharZonas();
   }
 
+  /** Q12: onde o token vai parar com os passos já mostrados (a posição pendente), ou `null` sem passo à espera. */
+  posicaoPendente(id: string): Ponto | null {
+    const p = this.passosPendentes.get(id);
+    return p ? { x: p.x, y: p.y } : null;
+  }
+
+  /** Q12: mostra o passo na hora (o token anda já, a sala confirma depois; se ela recusar, `ressincronizar` o devolve). */
+  moverOtimista(id: string, x: number, y: number): void {
+    const v = this.visuais.get(id);
+    if (!v) return;
+    this.passosPendentes.set(id, { x, y, t: performance.now() });
+    v.alvoX = x;
+    v.alvoY = y;
+  }
+
   /** A sala recusou algo: volta cada token para a posição que ela tem. */
   ressincronizar(): void {
+    this.passosPendentes.clear();
     for (const [id, v] of this.visuais) {
       const p = this.ultimasPosicoes.get(id);
       if (p) {
@@ -1146,6 +1175,39 @@ export class MapaPixi {
     if (dx === 0 && dy === 0) return;
     this.vista.x += dx;
     this.vista.y += dy;
+    this.aplicarVista();
+  }
+
+  /** Q12: a vista passa a manter o token no centro da tela (`null` solta). O zoom continua livre. */
+  seguir(id: string | null): void {
+    if (this.seguidoId === id) return;
+    this.seguidoId = id;
+    this.seguindoDesliza = id !== null;
+    this.panAnimado = null;
+    this.centralizarPendente = null;
+  }
+
+  /** Q12: um quadro do "seguir": o centro da tela vai para o token que a tela mostra (com a animação dele). */
+  private seguirOToken(dtMs: number): void {
+    const v = this.seguidoId ? this.visuais.get(this.seguidoId) : undefined;
+    if (!v || this.gesto?.tipo === "pan") return;
+    const z = this.vista.zoom;
+    const alvoX = this.largura() / 2 - v.x * PX_POR_M * z;
+    const alvoY = this.altura() / 2 - v.y * PX_POR_M * z;
+    let x = alvoX;
+    let y = alvoY;
+    if (this.seguindoDesliza && !this.reduzirMovimento()) {
+      x = suavizar(this.vista.x, alvoX, dtMs, TAU_DO_SEGUIR_MS);
+      y = suavizar(this.vista.y, alvoY, dtMs, TAU_DO_SEGUIR_MS);
+      if (Math.hypot(alvoX - x, alvoY - y) < 1.5) {
+        x = alvoX;
+        y = alvoY;
+        this.seguindoDesliza = false;
+      }
+    } else this.seguindoDesliza = false;
+    if (Math.abs(x - this.vista.x) < 0.01 && Math.abs(y - this.vista.y) < 0.01) return;
+    this.vista.x = x;
+    this.vista.y = y;
     this.aplicarVista();
   }
 
@@ -1686,12 +1748,18 @@ export class MapaPixi {
         this.visaoSuja = true;
       }
       v.token = t;
-      // Só reposiciona quando a posição gravada mudou: não atropela um movimento ao vivo em curso.
+      // Q12: a sala confirmou o último passo mostrado na tela: o pendente acabou.
+      const pendente = this.passosPendentes.get(t.id);
+      if (pendente && Math.abs(pendente.x - t.x) < 1e-6 && Math.abs(pendente.y - t.y) < 1e-6) {
+        this.passosPendentes.delete(t.id);
+      }
+      // Só reposiciona quando a posição gravada mudou: não atropela um movimento ao vivo em curso, nem um passo
+      // que a tela já mostrou e a sala ainda não confirmou (Q12).
       if (mudouNoEstado) {
         const arrastando =
           this.gesto?.tipo === "token" &&
           (this.gesto.id === t.id || this.gesto.junto.some((j) => j.id === t.id));
-        if (!arrastando) {
+        if (!arrastando && !this.passosPendentes.has(t.id)) {
           v.alvoX = t.x;
           v.alvoY = t.y;
         }
@@ -1753,8 +1821,10 @@ export class MapaPixi {
 
   private passo(agora: number, dt: number): void {
     this.animar(dt);
+    this.expirarPendentes(agora);
     this.animarPings(agora);
     this.animarCentralizacao(agora);
+    if (this.seguidoId) this.seguirOToken(dt);
     this.passoDaContagem();
     this.ajustarMarcasAoZoom();
     this.desenharAlcas();
@@ -1774,6 +1844,21 @@ export class MapaPixi {
     if (this.sujo) {
       this.sujo = false;
       this.app.render();
+    }
+  }
+
+  /** Q12: um passo que a sala nunca confirmou nem recusou não prende o token longe de onde ela o tem. */
+  private expirarPendentes(agora: number): void {
+    if (this.passosPendentes.size === 0) return;
+    for (const [id, p] of this.passosPendentes) {
+      if (agora - p.t < PENDENTE_VALE_MS) continue;
+      this.passosPendentes.delete(id);
+      const v = this.visuais.get(id);
+      const sala = this.ultimasPosicoes.get(id);
+      if (v && sala) {
+        v.alvoX = sala.x;
+        v.alvoY = sala.y;
+      }
     }
   }
 
@@ -3620,6 +3705,8 @@ export class MapaPixi {
       e.preventDefault();
       this.panAnimado = null;
       this.centralizarPendente = null;
+      // Q12: arrastar a vista à mão solta o "seguir".
+      if (this.seguidoId) this.retornos().parouDeSeguir();
       // V12: com a Mão, segurar parado faz o ping (arrastar continua sendo o pan); com o Espaço ou o botão do meio, não.
       if (e.button === 0 && !this.espaco) this.esperarPing(e, p);
       this.gesto = { tipo: "pan", inicio: p, vistaInicial: { x: this.vista.x, y: this.vista.y } };
@@ -4388,6 +4475,20 @@ export class MapaPixi {
         this.ultimaPosicao ?? { x: this.largura() / 2, y: this.altura() / 2 },
         e.shiftKey,
       );
+      return;
+    }
+    if (
+      (e.key === "f" || e.key === "F") &&
+      !e.ctrlKey &&
+      !e.metaKey &&
+      !e.altKey &&
+      !e.shiftKey &&
+      !e.repeat &&
+      !e.defaultPrevented &&
+      this.focoNoMapa(e.target)
+    ) {
+      e.preventDefault();
+      this.retornos().alternarSeguir();
       return;
     }
     if (e.code === "Space" && !this.espacoEDeUmControle()) {

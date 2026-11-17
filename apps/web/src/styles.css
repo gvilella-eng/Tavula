@@ -544,6 +544,22 @@ textarea {
   width: 110px;
   accent-color: var(--acento-forte);
 }
+.zoom-seguir {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+.zoom-seguir-seta {
+  margin-left: -2px;
+}
+.zoom-seguir .zoom-seguir-lista {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 10px);
+  min-width: 190px;
+  max-height: 260px;
+  overflow-y: auto;
+}
 .zoom-nivel {
   min-width: 40px;
   text-align: center;
@@ -1895,6 +1911,11 @@ button[aria-disabled="true"]:hover {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+.zoom-seguir .zoom-seguir-lista .avatar-item {
+  width: 24px;
+  height: 24px;
+  font-size: 11px;
 }
 .avatar-item.pequeno {
   width: 30px;

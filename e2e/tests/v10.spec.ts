@@ -28,6 +28,9 @@ const bandeiraDe = (p: Page) =>
 
 const existe = async (p: Page, id: string) => (await tokensDe(p)).some((t) => t.id === id);
 
+const paredesDe = (p: Page) =>
+  p.evaluate(() => (window as unknown as { __tabletop: GanchoDoMapa }).__tabletop.paredes());
+
 const focoDentroDe = (p: Page, testid: string) =>
   p.evaluate((id) => document.activeElement?.closest(`[data-testid='${id}']`) !== null, testid);
 
@@ -217,8 +220,13 @@ test("as setas movem o token selecionado um quadrado; a sala barra parede e perm
       },
     ],
   });
+  // Q12: a tela nem tenta o passo que bate na parede e não avisa; o token fica parado
+  await expect
+    .poll(async () => (await paredesDe(j1.pagina)).some((p) => p.id === "par-v10"))
+    .toBe(true);
   await j1.pagina.keyboard.press("ArrowRight");
-  await expect(j1.pagina.getByTestId("aviso")).toContainText("parede");
+  await j1.pagina.waitForTimeout(300);
+  await expect(j1.pagina.getByTestId("aviso")).toHaveCount(0);
   await expect
     .poll(() => tokenDe(m.pagina, "tok-jogador-1").then((t) => [t.x, t.y]))
     .toEqual([base.x, base.y]);
