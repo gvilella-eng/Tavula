@@ -133,29 +133,41 @@ describe("token.colocarMeu", () => {
     expect(codigo(e, "j1", meu({ personagemId: "p1", tokenId: "t1" }))).toBe("dados_invalidos");
   });
 
-  it("um ponto fora da área é recusado; dentro é aceito e encaixado no grid", () => {
+  it("Q8: o jogador vai sempre para a bandeira, onde quer que tenha soltado (arrumado no grid)", () => {
     const e = criarEstado();
     const { x, y, raioM } = areaDaBandeira(e.cenas[0] as never);
     expect(raioM).toBeCloseTo(4.5);
-    expect(codigo(e, "j1", meu({ personagemId: "p1", tokenId: "t1", x: x + raioM + 0.5, y }))).toBe(
-      "dados_invalidos",
-    );
-    expect(codigo(e, "j1", meu({ personagemId: "p1", tokenId: "t1", x: 2, y: 2 }))).toBe(
-      "dados_invalidos",
-    );
-    const r = aplicar(e, "j1", meu({ personagemId: "p1", tokenId: "t1", x: x + 3.1, y: y + 0.2 }));
-    const t = dessePersonagem(r.estado, "p1")[0] as Token;
-    // encaixado no centro do quadrado de 1,5 m
-    expect(t.x).toBeCloseTo((Math.floor((x + 3.1) / 1.5) + 0.5) * 1.5);
-    expect(t.y).toBeCloseTo((Math.floor((y + 0.2) / 1.5) + 0.5) * 1.5);
+    for (const ponto of [
+      { x: 2, y: 2 },
+      { x: x + raioM + 0.5, y },
+      { x: x + 3.1, y: y + 0.2 },
+    ]) {
+      const r = aplicar(e, "j1", meu({ personagemId: "p1", tokenId: "t1", ...ponto }));
+      const t = dessePersonagem(r.estado, "p1")[0] as Token;
+      expect(dentroDaAreaDaBandeira(e.cenas[0] as never, t)).toBe(true);
+      // o mesmo lugar de quando ele não diz o ponto
+      const sem = aplicar(e, "j1", meu({ personagemId: "p1", tokenId: "t1" }));
+      expect(t).toMatchObject({
+        x: dessePersonagem(sem.estado, "p1")[0]?.x,
+        y: dessePersonagem(sem.estado, "p1")[0]?.y,
+      });
+    }
   });
 
-  it("a área segue a chegada definida pelo mestre", () => {
+  it("Q8: o mestre põe onde quiser (o jogador não)", () => {
+    const e = criarEstado();
+    const r = aplicar(e, "m", meu({ personagemId: "p1", tokenId: "t1", x: 2, y: 2 }));
+    expect(dessePersonagem(r.estado, "p1")[0]).toMatchObject({ x: 2, y: 2 });
+  });
+
+  it("Q8: a bandeira é a da cena do grupo; o segundo token fica ao lado, não em cima", () => {
     const e = { ...criarEstado(), cenaAtivaId: "c2" };
-    expect(codigo(e, "j1", meu({ personagemId: "p1", tokenId: "t1", x: 11, y: 11 }))).toBeNull();
-    expect(codigo(e, "j1", meu({ personagemId: "p1", tokenId: "t2", x: 30, y: 22 }))).toBe(
-      "dados_invalidos",
-    );
+    const r1 = aplicar(e, "j1", meu({ personagemId: "p1", tokenId: "t1", x: 30, y: 22 }));
+    const r2 = aplicar(r1.estado, "j2", meu({ personagemId: "p2", tokenId: "t2", x: 30, y: 22 }));
+    const [a, b] = [r2.estado.tokens[0] as Token, r2.estado.tokens[1] as Token];
+    expect(Math.hypot(a.x - 10, a.y - 10)).toBeLessThan(4.5);
+    expect(Math.hypot(b.x - 10, b.y - 10)).toBeLessThan(4.5);
+    expect(a.x === b.x && a.y === b.y).toBe(false);
   });
 
   it("x sem y é recusado", () => {

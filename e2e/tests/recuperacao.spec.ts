@@ -130,7 +130,6 @@ test("criar mesa com pasta: o arquivo da chave aparece, o código é mostrado um
 
   // nem a chave privada nem o código voltam a aparecer: não estão na tela da mesa nem foram pedidos de novo
   await abrirAba(p, "mesa");
-  await p.getByTestId("mesa-ir-contas").click();
   await expect(p.getByTestId("protecao-chave-estado")).toHaveText("Pasta com chave: protegida");
   await expect(p.getByTestId("protecao-codigo-estado")).toHaveText("Código de recuperação: gerado");
   await expect(p.locator("body")).not.toContainText(codigo);
@@ -260,7 +259,6 @@ test("mesa sem chave: 'Proteger com a pasta da mesa' grava o arquivo e 'Gerar no
   await expect(p.getByTestId("inicio-criada-pasta")).toContainText("ficou sem a chave da pasta");
   await anotarEAbrir(p, id);
   await abrirAba(p, "mesa");
-  await p.getByTestId("mesa-ir-contas").click();
   await expect(p.getByTestId("protecao-chave-estado")).toHaveText(
     "Pasta com chave: ainda sem chave",
   );

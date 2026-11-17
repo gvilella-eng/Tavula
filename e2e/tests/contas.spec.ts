@@ -97,7 +97,6 @@ async function abrirEntrada(mesa: Mesa, id: string) {
 /** O mestre abre a seção Contas da aba Mesa. */
 async function abrirContas(p: Page) {
   await abrirAba(p, "mesa");
-  await p.getByTestId("mesa-ir-contas").click();
   await expect(p.getByTestId("contas")).toBeVisible();
 }
 

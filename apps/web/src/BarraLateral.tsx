@@ -83,9 +83,11 @@ export function BarraLateral({
   useEffect(() => {
     if (!secaoPendente || !aberta || ativaValida !== secaoPendente.abaId) return;
     if (secaoPendente.secaoTestid) {
-      document
-        .querySelector(`[data-testid="${secaoPendente.secaoTestid}"]`)
-        ?.scrollIntoView({ block: "start" });
+      const alvo = document.querySelector(`[data-testid="${secaoPendente.secaoTestid}"]`);
+      // Q8: a parte pedida pode estar num cartão fechado (aba Mesa): abre os cartões em volta antes de rolar.
+      for (let d = alvo?.closest("details"); d; d = d.parentElement?.closest("details"))
+        d.open = true;
+      alvo?.scrollIntoView({ block: "start" });
     }
     setSecaoPendente(null);
   }, [secaoPendente, aberta, ativaValida]);

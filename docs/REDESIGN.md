@@ -1352,7 +1352,7 @@ O jogador põe o próprio token no mapa, só na área da bandeira. Ninguém para
 - **Intenção `token.colocarMeu { personagemId, tokenId, x?, y? }`** e capacidade `token.colocarProprio` (delegável, ligada por padrão, em Permissões: "Pôr o próprio token no mapa (na bandeira)"). A sala decide a cena (a do grupo), confere o controle do personagem, que o personagem não tem token nessa cena e que o ponto cai na área da bandeira. Os campos do token vêm da ficha, na sala.
 - **A área da bandeira** é um círculo de 3 quadrados de raio em volta do ponto de chegada (centro da cena sem chegada). Constantes e contas em `mapa.ts` (`RAIO_DA_BANDEIRA_QUADRADOS`, `areaDaBandeira`, `dentroDaAreaDaBandeira`).
 - **Botão "Colocar no mapa"** (ícone `MapPin`): no item da lista de Fichas e no cabeçalho da ficha, para quem controla o personagem e ainda não tem token dele na cena. Põe o token no arranjo da chegada, ao lado dos outros e sem sobreposição (`arrumarNoGrid` agora conta os tokens que já estão na cena).
-- **Arrastar a ficha para o mapa**: o jogador arrasta o item que pode pôr; durante o arrasto a área se acende num círculo suave na cor do acento. Soltar dentro cria o token ali, encaixado no grid; fora mostra "Ponha o token perto da bandeira (o ponto de chegada)." e não cria nada. O mestre segue soltando em qualquer lugar.
+- **Arrastar a ficha para o mapa**: o jogador arrasta o item que pode pôr; durante o arrasto a área se acende num círculo suave na cor do acento. Soltar dentro cria o token ali, encaixado no grid; fora mostrava "Ponha o token perto da bandeira (o ponto de chegada)." e não criava nada (desde o Q8, solte onde soltar, o token vai para a bandeira). O mestre segue soltando em qualquer lugar.
 - **A bandeira para o jogador**: aparece quando ele controla algum personagem, tem a capacidade e não tem token dele na cena. A dica é "Ponto de chegada: Arraste a sua ficha para cá ou use "Colocar no mapa"." O jogador não a arrasta. Para o mestre nada mudou.
 - O caminho do V10 fecha: o jogador tira o token com Delete e, passado o prazo do Desfazer (ou sem ele), põe de novo na bandeira.
 
@@ -2137,3 +2137,28 @@ Dois pedidos do Vilella num lote só. Q2b: a busca do compêndio e o espaço da 
 **O que ficou para depois**
 - Imagens e tokens para cada monstro e item do compêndio (`docs/IDEIAS.md`).
 - A janela própria do som não mostra os efeitos que tocam na aba da mesa.
+
+## Q8 — como ficou (2026-11-16): o token do jogador em cada cena, as Automações na barra e a aba Mesa organizada
+
+Três pedidos do Vilella num lote só: o jogador põe o token dele em qualquer cena (sempre na bandeira), as Automações ganham um botão na barra de cima e a aba Mesa fica no desenho da aba Preferências.
+
+**O que foi feito**
+- **Um token do personagem por cena.** `personagem.colocar` (mestre) só recusa o personagem de jogador que já tem token **na cena pedida**; ter token em outra cena não importa. `token.colocarMeu` já contava só a cena (V10b). Cada cena pode ter um token do personagem para o jogador; o mestre segue sem limite em `token.colocarMeu`.
+- **O jogador vai sempre para a bandeira.** Em `token.colocarMeu` o ponto que o jogador manda (soltar a ficha no mapa) é ignorado: a sala arruma o token no grid ao lado dos que já estão na bandeira (`arrumarNoGrid`). Sumiu o erro "Ponha o token perto da bandeira". Só o mestre escolhe o ponto (x e y).
+- **Levar o grupo** (`grupo.moverPara`): o personagem que já tem token na cena de destino fica com o de lá, intocado; o da origem fica na origem e não vai junto. Nunca dois tokens do mesmo personagem de jogador na mesma cena por esse caminho.
+- **Auditoria das buscas "o token do personagem"** (lista no relatório do lote): `cenaDoObjeto` (luz na mão) e `posicaoDoObjeto` (zonas) achavam o primeiro token do personagem em qualquer cena; agora preferem o da cena ativa (`tokenDoPersonagemPreferindo`, em `luz.ts`). O resto já olhava a cena (a visão, a névoa, o ping, a ordem de turno e as auras trabalham com os tokens da cena; o mapa só desenha os tokens da cena vista).
+- **Automações na barra de cima.** Botão "Automações" (ícone `Workflow`), grupo próprio entre Combate e Ver como, só no menu do mestre. Alterna a janela flutuante que já existia (`JanelaDasAutomacoes`, R3: ordem das janelas e posição lembrada). Na aba Mesa a seção virou um cartão curto: o resumo, a frase "As automações ficam no botão Automações da barra de cima." e o botão "Abrir as automações".
+- **Aba Mesa no desenho das Preferências.** Os mesmos cartões recolhíveis com resumo (`SecaoDePreferencias`, agora com `prefixo` e `abertaPorPadrao`), na ordem: Esta mesa (nome, id, link; abre por padrão), Regras, Luz, Automações, Pessoas (papéis, contas e capacidades, cada um com subtítulo), Campanha (exportar e importar) e Diagnóstico. Saíram a fileira de chips e os títulos grandes soltos. Rótulo curto e ajuda embaixo (`Campo` e `CampoDeDistancia` ganharam `ajuda`): "Alcance de interação (m)" com "Até onde dá para entregar uma tocha ou usar um ponto."; "Tempo para os jogadores". O que se abriu ou fechou fica lembrado neste navegador (`tabletop:pref:secoes`, com a chave `mesa-<id>`). "Modelos de tocha…" e o aviso de pedidos de conta abrem o cartão certo antes de rolar (`BarraLateral`).
+- Sem migração e sem campo novo no estado nem no protocolo.
+
+**Decisões (assumido)**
+- Um token do personagem por cena para o jogador (o mestre pode mais de um). Sem limite por cena para o NPC (como era).
+- O personagem que já tem token no destino não leva o da origem junto; o da origem fica onde estava.
+- O brilho da área da bandeira durante o arrasto continua (agora é só uma dica de "vai para a bandeira").
+- O mestre que usa `token.colocarMeu` com ponto põe onde quiser; sem ponto, cai na bandeira.
+- A seção Automações da aba Mesa não sumiu: virou um cartão com a frase e o botão (assim a navegação fica igual à dos outros).
+- Sem atalho de teclado para o botão Automações (não há tecla livre que combine em `atalhos.ts`).
+- Só "Esta mesa" abre por padrão (como só a Conta abre em Preferências).
+
+**O que ficou para depois**
+- Escolher onde fica o token do jogador dentro da área da bandeira (hoje a sala arruma).

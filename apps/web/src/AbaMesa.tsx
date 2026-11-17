@@ -10,7 +10,17 @@ import {
   TAMANHO_MAXIMO_DO_NOME_DA_MESA,
   type Uso,
 } from "@tabletop/shared";
-import { Download, Upload, Workflow } from "lucide-react";
+import {
+  Activity,
+  Archive,
+  Download,
+  Flame,
+  House,
+  Scale,
+  Upload,
+  Users,
+  Workflow,
+} from "lucide-react";
 import { type ChangeEvent, useEffect, useRef, useState } from "react";
 import { type DadosDaMesa, renomearMesa } from "./api";
 import { resumoDasAutomacoes } from "./automacoes/resumo";
@@ -18,6 +28,7 @@ import { SecaoDeContas } from "./contas/SecaoDeContas";
 import { IdDaMesa } from "./IdDaMesa";
 import { SecaoMesa, SecaoObjetosDeLuz } from "./PainelDaMesa";
 import { type ResumoDaCampanha, resumoDaCampanha, textoDoResumo } from "./resumoDaCampanha";
+import { SecaoDePreferencias } from "./SecaoDePreferencias";
 
 type Props = {
   mesa: DadosDaMesa;
@@ -31,25 +42,11 @@ type Props = {
   aoAbrirAutomacoes: () => void;
 };
 
-/** As seções da aba, na ordem em que aparecem; o índice do alto leva a cada uma (`data-testid` da seção). */
-export const SECOES_DA_MESA = [
-  { id: "regras", rotulo: "Regras" },
-  { id: "luz", rotulo: "Luz" },
-  { id: "automacoes", rotulo: "Automações" },
-  { id: "papeis", rotulo: "Papéis" },
-  { id: "contas", rotulo: "Contas" },
-  { id: "permissoes", rotulo: "Permissões" },
-  { id: "campanha", rotulo: "Campanha" },
-  { id: "diagnostico", rotulo: "Diagnóstico" },
-] as const;
-
+/**
+ * Q8: o `data-testid` de uma parte da aba. Os cartões da aba (esta-mesa, regras, luz, automacoes, pessoas, campanha,
+ * diagnostico) e as partes de dentro de "Pessoas" (papeis, contas, permissoes) usam o mesmo padrão.
+ */
 export const testidDaSecaoDaMesa = (id: string) => `mesa-secao-${id}`;
-
-function irParaSecao(id: string) {
-  document
-    .querySelector(`[data-testid="${testidDaSecaoDaMesa(id)}"]`)
-    ?.scrollIntoView({ block: "start", behavior: "smooth" });
-}
 
 function formatarPercentual(valor: number): string {
   return `${valor.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 3 })}%`;
@@ -91,8 +88,7 @@ function SecaoDaIdentificacao({
   }
 
   return (
-    <section className="secao-da-mesa secao-da-identificacao" data-testid="mesa-identificacao">
-      <h3>Esta mesa</h3>
+    <div className="secao-da-identificacao" data-testid="mesa-identificacao">
       <form
         className="linha-botoes"
         onSubmit={(e) => {
@@ -119,13 +115,14 @@ function SecaoDaIdentificacao({
       )}
       <p className="nota">Quem tem este id ou o link entra na mesa.</p>
       <IdDaMesa id={mesa.id} prefixo="mesa" />
-    </section>
+    </div>
   );
 }
 
 /**
- * Aba Mesa (só o mestre): tudo o que vale para a sala. Regras, modelos de luz, papéis dos usuários,
- * capacidades dos jogadores, campanha (exportar e importar) e, recolhido no fim, o diagnóstico.
+ * Aba Mesa (só o mestre): tudo o que vale para a sala, no mesmo desenho da aba Preferências (Q8): cartões que abrem e
+ * fecham, cada um com o resumo embaixo do título. Esta mesa (nome e id), Regras, Luz, Automações, Pessoas (papéis,
+ * contas e permissões), Campanha (exportar e importar) e, no fim, o Diagnóstico.
  */
 export function AbaMesa({
   mesa,
@@ -184,38 +181,55 @@ export function AbaMesa({
   }
 
   const excecoes = estado.permissoes.porUsuario[alvoValido] ?? {};
+  const membros = membrosDaMesa(estado);
+  const maos = estado.config.maosPorPersonagem;
+  const modelos = estado.modelos.length;
+  const pedidosDeConta = (avisoDeContas?.pendentes ?? 0) + (avisoDeContas?.redefinicoes ?? 0);
 
   return (
-    <div className="painel-mestre aba-mesa" data-testid="painel-mestre">
-      <SecaoDaIdentificacao mesa={mesa} aoRenomear={aoRenomear} />
+    <div className="painel-mestre aba-mesa pref-lista" data-testid="painel-mestre">
+      <SecaoDePreferencias
+        prefixo="mesa"
+        id="esta-mesa"
+        titulo="Esta mesa"
+        icone={<House size={16} />}
+        resumo={mesa.nome}
+        abertaPorPadrao
+      >
+        <SecaoDaIdentificacao mesa={mesa} aoRenomear={aoRenomear} />
+      </SecaoDePreferencias>
 
-      <nav className="indice-da-mesa" aria-label="Seções da mesa" data-testid="mesa-indice">
-        {SECOES_DA_MESA.map((s) => (
-          <button
-            key={s.id}
-            type="button"
-            className="chip"
-            data-testid={`mesa-ir-${s.id}`}
-            onClick={() => irParaSecao(s.id)}
-          >
-            {s.rotulo}
-          </button>
-        ))}
-      </nav>
-
-      <div data-testid={testidDaSecaoDaMesa("regras")} className="secao-da-mesa">
+      <SecaoDePreferencias
+        prefixo="mesa"
+        id="regras"
+        titulo="Regras"
+        icone={<Scale size={16} />}
+        resumo={`${maos} ${maos === 1 ? "mão" : "mãos"} por personagem`}
+      >
         <SecaoMesa config={estado.config} enviar={enviar} />
-      </div>
+      </SecaoDePreferencias>
 
-      <div data-testid={testidDaSecaoDaMesa("luz")} className="secao-da-mesa">
+      <SecaoDePreferencias
+        prefixo="mesa"
+        id="luz"
+        titulo="Luz"
+        icone={<Flame size={16} />}
+        resumo={`${modelos} ${modelos === 1 ? "modelo" : "modelos"} de tocha e objetos`}
+      >
         <SecaoObjetosDeLuz estado={estado} enviar={enviar} />
-      </div>
+      </SecaoDePreferencias>
 
-      <section data-testid={testidDaSecaoDaMesa("automacoes")} className="secao-da-mesa">
-        <h3>Automações</h3>
+      <SecaoDePreferencias
+        prefixo="mesa"
+        id="automacoes"
+        titulo="Automações"
+        icone={<Workflow size={16} />}
+        resumo={resumoDasAutomacoes(estado)}
+      >
         <p className="nota" data-testid="automacoes-resumo">
           {resumoDasAutomacoes(estado)}
         </p>
+        <p>As automações ficam no botão Automações da barra de cima.</p>
         <button
           type="button"
           className="botao-do-bloco"
@@ -224,108 +238,126 @@ export function AbaMesa({
         >
           <Workflow size={16} /> Abrir as automações
         </button>
-      </section>
+      </SecaoDePreferencias>
 
-      <section data-testid={testidDaSecaoDaMesa("papeis")} className="secao-da-mesa">
-        <h3>Papéis dos usuários</h3>
-        <ul className="lista-simples" data-testid="papeis">
-          {membrosDaMesa(estado).map((u) => (
-            <li key={u.id} className="linha-jogador" data-testid={`papel-linha-${u.id}`}>
-              <span className="bolinha" style={{ background: u.cor }} />
-              <span className="nome-jogador">{u.nome}</span>
+      <SecaoDePreferencias
+        prefixo="mesa"
+        id="pessoas"
+        titulo="Pessoas"
+        icone={<Users size={16} />}
+        resumo={
+          pedidosDeConta > 0
+            ? `${pedidosDeConta} ${pedidosDeConta === 1 ? "pedido espera" : "pedidos esperam"} o mestre`
+            : `${membros.length} ${membros.length === 1 ? "usuário" : "usuários"} · ${jogadores.length} ${jogadores.length === 1 ? "jogador" : "jogadores"}`
+        }
+        destaque={pedidosDeConta > 0}
+      >
+        <div data-testid={testidDaSecaoDaMesa("papeis")}>
+          <h4 className="pref-sub-titulo">Papéis dos usuários</h4>
+          <ul className="lista-simples" data-testid="papeis">
+            {membros.map((u) => (
+              <li key={u.id} className="linha-jogador" data-testid={`papel-linha-${u.id}`}>
+                <span className="bolinha" style={{ background: u.cor }} />
+                <span className="nome-jogador">{u.nome}</span>
+                <select
+                  aria-label={`Papel de ${u.nome}`}
+                  data-testid={`papel-${u.id}`}
+                  value={u.papel === "mestre" ? "mestre" : "jogador"}
+                  onChange={(e) => mudarPapel(u.id, e.target.value as Papel)}
+                >
+                  <option value="mestre">mestre</option>
+                  <option value="jogador">jogador</option>
+                </select>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div className="pref-sub" data-testid={testidDaSecaoDaMesa("contas")}>
+          <SecaoDeContas
+            mesaId={mesa.id}
+            mesaNome={mesa.nome}
+            aviso={avisoDeContas}
+            fichas={fichasSemMembro(estado).map((p) => ({ id: p.id, nome: p.nome }))}
+          />
+        </div>
+
+        <div className="pref-sub" data-testid={testidDaSecaoDaMesa("permissoes")}>
+          <h4 className="pref-sub-titulo">Capacidades dos jogadores</h4>
+          {jogadores.length === 0 ? (
+            <p className="nota" data-testid="excecao-sem-jogadores">
+              Nenhum jogador na mesa ainda. As exceções aparecem quando alguém entrar.
+            </p>
+          ) : (
+            <label className="campo-coluna">
+              Exceções para
               <select
-                aria-label={`Papel de ${u.nome}`}
-                data-testid={`papel-${u.id}`}
-                value={u.papel === "mestre" ? "mestre" : "jogador"}
-                onChange={(e) => mudarPapel(u.id, e.target.value as Papel)}
+                data-testid="excecao-usuario"
+                value={alvoValido}
+                onChange={(e) => setAlvo(e.target.value)}
               >
-                <option value="mestre">mestre</option>
-                <option value="jogador">jogador</option>
+                {jogadores.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.nome}
+                  </option>
+                ))}
               </select>
-            </li>
-          ))}
-        </ul>
-      </section>
+            </label>
+          )}
+          <table>
+            <thead>
+              <tr>
+                <th>Capacidade</th>
+                <th>Padrão</th>
+                <th>Exceção</th>
+              </tr>
+            </thead>
+            <tbody>
+              {CAPACIDADES_NA_TELA.map((c) => {
+                const excecao = excecoes[c];
+                const valor: Excecao = excecao === undefined ? "herdar" : excecao ? "sim" : "nao";
+                return (
+                  <tr key={c}>
+                    <td>{ROTULO_DA_CAPACIDADE[c]}</td>
+                    <td>
+                      <input
+                        type="checkbox"
+                        aria-label={`${ROTULO_DA_CAPACIDADE[c]}: padrão da mesa`}
+                        data-testid={`perm-padrao-${c}`}
+                        checked={estado.permissoes.jogadores[c] === true}
+                        onChange={(e) => mudarPadrao(c, e.target.checked)}
+                      />
+                    </td>
+                    <td>
+                      <select
+                        aria-label={`${ROTULO_DA_CAPACIDADE[c]}: exceção`}
+                        data-testid={`perm-excecao-${c}`}
+                        value={valor}
+                        disabled={!alvoValido}
+                        onChange={(e) => mudarExcecao(c, e.target.value as Excecao)}
+                      >
+                        <option value="herdar">herdar</option>
+                        <option value="sim">sim</option>
+                        <option value="nao">não</option>
+                      </select>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </SecaoDePreferencias>
 
-      <div data-testid={testidDaSecaoDaMesa("contas")} className="secao-da-mesa">
-        <SecaoDeContas
-          mesaId={mesa.id}
-          mesaNome={mesa.nome}
-          aviso={avisoDeContas}
-          fichas={fichasSemMembro(estado).map((p) => ({ id: p.id, nome: p.nome }))}
-        />
-      </div>
-
-      <section data-testid={testidDaSecaoDaMesa("permissoes")} className="secao-da-mesa">
-        <h3>Capacidades dos jogadores</h3>
-        {jogadores.length === 0 ? (
-          <p className="nota" data-testid="excecao-sem-jogadores">
-            Nenhum jogador na mesa ainda. As exceções aparecem quando alguém entrar.
-          </p>
-        ) : (
-          <label>
-            Exceções para:{" "}
-            <select
-              data-testid="excecao-usuario"
-              value={alvoValido}
-              onChange={(e) => setAlvo(e.target.value)}
-            >
-              {jogadores.map((u) => (
-                <option key={u.id} value={u.id}>
-                  {u.nome}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
-        <table>
-          <thead>
-            <tr>
-              <th>Capacidade</th>
-              <th>Padrão da mesa</th>
-              <th>Exceção</th>
-            </tr>
-          </thead>
-          <tbody>
-            {CAPACIDADES_NA_TELA.map((c) => {
-              const excecao = excecoes[c];
-              const valor: Excecao = excecao === undefined ? "herdar" : excecao ? "sim" : "nao";
-              return (
-                <tr key={c}>
-                  <td>{ROTULO_DA_CAPACIDADE[c]}</td>
-                  <td>
-                    <input
-                      type="checkbox"
-                      aria-label={`${ROTULO_DA_CAPACIDADE[c]}: padrão da mesa`}
-                      data-testid={`perm-padrao-${c}`}
-                      checked={estado.permissoes.jogadores[c] === true}
-                      onChange={(e) => mudarPadrao(c, e.target.checked)}
-                    />
-                  </td>
-                  <td>
-                    <select
-                      aria-label={`${ROTULO_DA_CAPACIDADE[c]}: exceção`}
-                      data-testid={`perm-excecao-${c}`}
-                      value={valor}
-                      disabled={!alvoValido}
-                      onChange={(e) => mudarExcecao(c, e.target.value as Excecao)}
-                    >
-                      <option value="herdar">herdar</option>
-                      <option value="sim">sim</option>
-                      <option value="nao">não</option>
-                    </select>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </section>
-
-      <section data-testid={testidDaSecaoDaMesa("campanha")} className="secao-da-mesa">
-        <h3>Campanha</h3>
-        <div className="bloco-da-campanha" data-testid="campanha-exportar-bloco">
-          <h4>Exportar</h4>
+      <SecaoDePreferencias
+        prefixo="mesa"
+        id="campanha"
+        titulo="Campanha"
+        icone={<Archive size={16} />}
+        resumo="Exportar e importar a mesa inteira"
+      >
+        <div data-testid="campanha-exportar-bloco">
+          <h4 className="pref-sub-titulo">Exportar</h4>
           <p>Baixa um arquivo com a mesa inteira para guardar ou levar para outro computador.</p>
           <p className="nota">
             Vão: cenas, tokens, fichas, handouts, luzes, paredes, desenhos, regras e quem é mestre
@@ -341,8 +373,8 @@ export function AbaMesa({
             <Download size={16} /> Exportar campanha
           </button>
         </div>
-        <div className="bloco-da-campanha" data-testid="campanha-importar-bloco">
-          <h4>Importar</h4>
+        <div className="pref-sub" data-testid="campanha-importar-bloco">
+          <h4 className="pref-sub-titulo">Importar</h4>
           <p>Troca a mesa atual pelo conteúdo de um arquivo exportado.</p>
           <input
             ref={campoDoArquivo}
@@ -395,20 +427,22 @@ export function AbaMesa({
             </div>
           )}
         </div>
-      </section>
+      </SecaoDePreferencias>
 
-      <details
-        className="secao-da-mesa diagnostico"
-        data-testid={testidDaSecaoDaMesa("diagnostico")}
+      <SecaoDePreferencias
+        prefixo="mesa"
+        id="diagnostico"
+        titulo="Diagnóstico"
+        icone={<Activity size={16} />}
+        resumo={uso ? `Uso de hoje: ${formatarPercentual(uso.percentual)}` : "Uso de hoje: —"}
       >
-        <summary data-testid="mesa-diagnostico-resumo">Diagnóstico</summary>
         <p className="nota">Para quem está de olho no consumo da sala. Não muda nada no jogo.</p>
         <p>
           <span data-testid="uso-hoje">
             uso de hoje: {uso ? formatarPercentual(uso.percentual) : "—"}
           </span>
         </p>
-      </details>
+      </SecaoDePreferencias>
     </div>
   );
 }

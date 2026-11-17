@@ -6,7 +6,6 @@ import {
   controlaToken,
   type DesenhoEmAndamento,
   type DesenhoNovo,
-  dentroDaAreaDaBandeira,
   type Exportacao,
   ehArquivoUniversalVtt,
   ehPersonagemDeJogador,
@@ -78,7 +77,7 @@ import { BotaoComDica } from "./BotaoComDica";
 import { AvisoDaCaixaDoClaude, copiarParaAPasta, useCaixaDoClaude } from "./caixaDoClaude";
 import { type CamadaDeTrabalho, camadaDoNovoToken } from "./camadas";
 import { RascunhosDoClaude } from "./claude/RascunhosDoClaude";
-import { pedirTokenNoMapa, TEXTO_FORA_DA_BANDEIRA } from "./colocarNoMapa";
+import { pedirTokenNoMapa } from "./colocarNoMapa";
 import { ATRASO_DA_DICA } from "./Dica";
 import { EstadoDaMesa } from "./EstadoDaMesa";
 import { FaixaDeCenas, type PedirImagem } from "./FaixaDeCenas";
@@ -1376,11 +1375,8 @@ export function Mesa({
     if (!euMestre) {
       // V10b: o jogador só solta o token dele na área da bandeira; a sala confere de novo.
       if (!estado || !eu || !podeColocarProprioToken(estado, eu, p)) return;
-      if (!dentroDaAreaDaBandeira(cena, { x, y })) {
-        avisar(TEXTO_FORA_DA_BANDEIRA);
-        return;
-      }
-      pedirTokenNoMapa(enviar, p.id, { x, y });
+      // Q8: onde quer que ele solte, o token vai para a bandeira (a sala arruma no grid).
+      pedirTokenNoMapa(enviar, p.id);
       return;
     }
     const ponto = encaixarNoGrid({ x, y }, p.tokenPadrao.tamanhoQuadrados, cena.grid.quadradoM);
@@ -1657,6 +1653,8 @@ export function Mesa({
                   aoAlternarFontes={alternarFontes}
                   configAberta={configAberta}
                   aoAlternarConfig={() => setConfigAberta(!configAberta)}
+                  automacoesAbertas={automacoesAbertas}
+                  aoAlternarAutomacoes={() => setAutomacoesAbertas((a) => !a)}
                   aoAbrirModelosDeTocha={() =>
                     setPedidoDeAba((antes) => ({
                       n: (antes?.n ?? 0) + 1,

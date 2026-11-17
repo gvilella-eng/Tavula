@@ -374,7 +374,6 @@ test("o código de recuperação cabe numa linha só em 1280×720 e a mesa legad
     );
     expect(arquivos).toContain("tavola-mestre.json");
     await abrirAba(p, "mesa");
-    await p.getByTestId("mesa-ir-contas").click();
     await expect(p.getByTestId("protecao-chave-estado")).toHaveText("Pasta com chave: protegida");
   } finally {
     await m.fechar();

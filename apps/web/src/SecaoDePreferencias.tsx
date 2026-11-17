@@ -25,6 +25,10 @@ type Props = {
   resumo: string;
   /** Realça o resumo (por exemplo, uma transferência em andamento). */
   destaque?: boolean;
+  /** Q8: a aba Mesa usa o mesmo cartão com o prefixo "mesa" (testids `mesa-secao-<id>`) e a própria memória. */
+  prefixo?: string;
+  /** Q8: abre por padrão (na aba Preferências só a Conta abre). */
+  abertaPorPadrao?: boolean;
   children: ReactNode;
 };
 
@@ -32,28 +36,38 @@ type Props = {
  * P1: um cartão recolhível da aba Preferências (o Modelo B, "sanfona com resumo"). `<details>` nativo: Enter e Espaço
  * abrem e fecham no título; o `aria-expanded` acompanha. O que a pessoa abriu ou fechou fica lembrado neste navegador.
  */
-export function SecaoDePreferencias({ id, titulo, icone, resumo, destaque, children }: Props) {
+export function SecaoDePreferencias({
+  id,
+  titulo,
+  icone,
+  resumo,
+  destaque,
+  prefixo = "pref",
+  abertaPorPadrao,
+  children,
+}: Props) {
+  const chave = prefixo === "pref" ? id : `${prefixo}-${id}`;
   const [aberta, setAberta] = useState(() => {
-    const lembrada = lerSecoesDePreferencias()[id];
-    return lembrada ?? id === SECAO_ABERTA_POR_PADRAO;
+    const lembrada = lerSecoesDePreferencias()[chave];
+    return lembrada ?? abertaPorPadrao ?? id === SECAO_ABERTA_POR_PADRAO;
   });
   return (
     <details
       className="pref-secao"
       open={aberta}
-      data-testid={`pref-secao-${id}`}
+      data-testid={`${prefixo}-secao-${id}`}
       onToggle={(e) => {
         const agora = e.currentTarget.open;
         if (agora === aberta) return;
         setAberta(agora);
-        gravarSecaoDePreferencias(id, agora);
+        gravarSecaoDePreferencias(chave, agora);
       }}
     >
       {/* biome-ignore lint/a11y/useAriaPropsSupportedByRole: o <summary> é um botão que abre e fecha (aria-expanded vale) */}
       <summary
         className="pref-secao-cabeca"
         aria-expanded={aberta}
-        data-testid={`pref-secao-${id}-titulo`}
+        data-testid={`${prefixo}-secao-${id}-titulo`}
       >
         <span className="pref-secao-icone" aria-hidden="true">
           {icone}
@@ -62,7 +76,7 @@ export function SecaoDePreferencias({ id, titulo, icone, resumo, destaque, child
           <b>{titulo}</b>
           <span
             className="pref-secao-resumo"
-            data-testid={`pref-resumo-${id}`}
+            data-testid={`${prefixo}-resumo-${id}`}
             data-destaque={destaque ? "true" : undefined}
             title={resumo}
           >

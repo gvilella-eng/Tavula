@@ -87,7 +87,6 @@ import {
   CENA_PADRAO,
   chegadaDaCena,
   controlaToken,
-  dentroDaAreaDaBandeira,
   ehPersonagemDeJogador,
   encaixarNoGrid,
   handoutVisivelPara,
@@ -1849,11 +1848,12 @@ function processarIntencao(
       if (estado.tokens.some((t) => t.id === tokenId)) {
         return recusa("dados_invalidos", "Já existe um token com esse id.");
       }
-      if (ehPersonagemDeJogador(p) && estado.tokens.some((t) => t.personagemId === p.id)) {
-        return recusa(
-          "dados_invalidos",
-          "Este personagem já tem um token (o grupo leva o token junto).",
-        );
+      // Q8: cada cena tem o seu token do personagem de jogador; ter token em outra cena não importa.
+      if (
+        ehPersonagemDeJogador(p) &&
+        estado.tokens.some((t) => t.cenaId === cena.id && t.personagemId === p.id)
+      ) {
+        return recusa("dados_invalidos", "Este personagem já tem um token nesta cena.");
       }
       const base =
         x !== undefined && y !== undefined
@@ -1889,13 +1889,9 @@ function processarIntencao(
         return recusa("dados_invalidos", "Informe o ponto inteiro (x e y) ou nenhum.");
       }
       let ponto: { x: number; y: number };
-      if (x !== undefined && y !== undefined) {
-        if (!doMestre && !dentroDaAreaDaBandeira(cena, { x, y })) {
-          return recusa("dados_invalidos", "Ponha o token perto da bandeira (o ponto de chegada).");
-        }
-        ponto = doMestre
-          ? { x, y }
-          : encaixarNoGrid({ x, y }, p.tokenPadrao.tamanhoQuadrados, cena.grid.quadradoM);
+      // Q8: o jogador vai sempre para a bandeira, onde quer que tenha soltado; só o mestre escolhe o ponto.
+      if (doMestre && x !== undefined && y !== undefined) {
+        ponto = { x, y };
       } else {
         ponto = arrumarNoGrid(
           chegadaDaCena(cena),
@@ -2195,8 +2191,12 @@ function processarIntencao(
       }
       if (destino.id === estado.cenaAtivaId) return aplicado();
       // O grupo: tokens de personagens de jogador que estão na cena ativa. Os de NPC ficam.
+      // Q8: quem já tem token na cena de destino fica com o de lá (o da origem não vai junto).
       const grupo = estado.tokens.filter(
-        (t) => t.cenaId === estado.cenaAtivaId && ehDoGrupo(estado, t),
+        (t) =>
+          t.cenaId === estado.cenaAtivaId &&
+          ehDoGrupo(estado, t) &&
+          !estado.tokens.some((o) => o.cenaId === destino.id && o.personagemId === t.personagemId),
       );
       const posicoes = arrumarNoGrid(
         limitarNaCena(chegadaDaCena(destino), destino),

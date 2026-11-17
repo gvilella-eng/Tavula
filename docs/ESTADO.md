@@ -3971,4 +3971,30 @@ Ver `PASSAGEM.md` ("Q6").
 ### Roteiro manual
 `docs/ROTEIRO-DE-TESTES.md`, "Q2b" e "Q4b".
 
-## Próximo: o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b, N4, N5, M1, M2, Q1, Q2, Q3, Q4, Q5 e Q6
+## Ajustes Q8 — O token do jogador em cada cena, as Automações na barra e a aba Mesa organizada (entregue, aguardando o roteiro manual)
+
+### O que foi entregue
+- O jogador põe o token do personagem dele em qualquer cena (um por cena), mesmo com token em outra; ele vai **sempre para a bandeira** (o mestre põe onde quiser).
+- Levar o grupo não duplica: quem já tem token no destino fica com o de lá.
+- Botão **Automações** na barra de cima (janela flutuante); a aba Mesa só tem a frase e o botão.
+- A aba Mesa usa os cartões da aba Preferências (Esta mesa, Regras, Luz, Automações, Pessoas, Campanha, Diagnóstico), com rótulo curto e ajuda embaixo.
+
+### Como rodar
+`pnpm dev` como sempre. Sem migração e sem campo novo no estado. Testes em outras portas: `E2E_PORTA_SALA=8792 E2E_PORTA_WEB=5178`. Roteiro: "Q8" em `docs/ROTEIRO-DE-TESTES.md`.
+
+### Verificação
+Ver o relatório do lote.
+
+### Decisões
+Ver `REDESIGN.md` ("Q8 — como ficou").
+
+### Desvios
+Nenhum.
+
+### Frágil
+Ver `PASSAGEM.md` ("Q8").
+
+### Roteiro manual
+`docs/ROTEIRO-DE-TESTES.md`, "Q8".
+
+## Próximo: o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b, N4, N5, M1, M2, Q1, Q2, Q3, Q4, Q5, Q6 e Q8

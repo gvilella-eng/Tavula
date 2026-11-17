@@ -341,8 +341,10 @@ test("barra da direita: Chat, Fichas, Compêndio, Preferências e Mesa (largura 
   // Mesa (só do mestre): papéis, capacidades (sem ficha.verOutras), uso (no diagnóstico recolhido), exportar e importar
   await abrirAba(p, "mesa");
   await expect(p.getByTestId("papel-jogador-1")).toBeVisible();
+  await expect(p.getByTestId("uso-hoje")).toBeVisible();
+  await p.getByTestId("mesa-secao-diagnostico-titulo").click();
   await expect(p.getByTestId("uso-hoje")).toBeHidden();
-  await p.getByTestId("mesa-diagnostico-resumo").click();
+  await p.getByTestId("mesa-secao-diagnostico-titulo").click();
   await expect(p.getByTestId("uso-hoje")).toBeVisible();
   await expect(p.getByTestId("exportar")).toBeVisible();
   await expect(p.getByTestId("importar-arquivo")).toBeAttached();

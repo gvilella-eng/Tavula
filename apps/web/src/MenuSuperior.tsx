@@ -18,6 +18,7 @@ import {
   Sun,
   User,
   Users,
+  Workflow,
 } from "lucide-react";
 import { type ReactNode, useRef, useState } from "react";
 import { BotaoComDica } from "./BotaoComDica";
@@ -47,6 +48,9 @@ type Props = {
   aoAlternarFontes: () => void;
   configAberta: boolean;
   aoAlternarConfig: () => void;
+  /** Q8: a janela das automações está aberta? */
+  automacoesAbertas: boolean;
+  aoAlternarAutomacoes: () => void;
   /** Abre a aba Mesa, já na seção dos modelos de tocha e objetos de luz. */
   aoAbrirModelosDeTocha: () => void;
   /** Jogadores para o "ver como" e quem o mestre está vendo (`null` = ele mesmo). */
@@ -306,6 +310,17 @@ export function MenuSuperior(p: Props) {
             aoClicar={p.aoAlternarOrdem}
           >
             <ListOrdered size={20} />
+          </Botao>
+        </Grupo>
+        <Grupo id="automacoes" nome="Automações">
+          <Botao
+            testid="menu-automacoes"
+            grupo="Automações"
+            nome="Automações"
+            ativo={p.automacoesAbertas}
+            aoClicar={p.aoAlternarAutomacoes}
+          >
+            <Workflow size={20} />
           </Botao>
         </Grupo>
         <Grupo id="ver-como" nome="Ver como">

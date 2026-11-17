@@ -73,13 +73,25 @@ export function tokenDoPersonagem<T extends Pick<Token, "personagemId" | "cenaId
   );
 }
 
+/** Q8: o token do personagem na cena dada ou, sem ele ali, qualquer um dele (para saber "onde ele está"). */
+export function tokenDoPersonagemPreferindo<T extends Pick<Token, "personagemId" | "cenaId">>(
+  tokens: readonly T[],
+  personagemId: string,
+  cenaId?: string,
+): T | undefined {
+  return (
+    (cenaId === undefined ? undefined : tokenDoPersonagem(tokens, personagemId, cenaId)) ??
+    tokenDoPersonagem(tokens, personagemId)
+  );
+}
+
 /**
  * A cena onde a luz está: a da própria luz (fixa ou presa a token), a do ponto, a do token de quem a
  * segura. Na mochila (ou sem token do dono) não está em cena nenhuma.
  */
 export function cenaDoObjeto(
   luz: Pick<FonteDeLuz, "cenaId" | "portador">,
-  ctx: Pick<ContextoDeLuz, "tokens" | "pontos">,
+  ctx: Pick<ContextoDeLuz, "tokens" | "pontos"> & { cenaAtivaId?: string },
 ): string | undefined {
   const p = luz.portador;
   switch (p.tipo) {
@@ -89,7 +101,7 @@ export function cenaDoObjeto(
     case "ponto":
       return ctx.pontos.find((x) => x.id === p.pontoId)?.cenaId;
     case "mao":
-      return tokenDoPersonagem(ctx.tokens, p.personagemId)?.cenaId;
+      return tokenDoPersonagemPreferindo(ctx.tokens, p.personagemId, ctx.cenaAtivaId)?.cenaId;
     case "mochila":
       return undefined;
   }

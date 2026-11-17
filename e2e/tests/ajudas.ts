@@ -63,6 +63,41 @@ export async function tornarMembros(request: APIRequestContext, ...usuarios: str
 export async function abrirAba(pagina: Page, id: string): Promise<void> {
   await pagina.getByTestId(`aba-${id}`).click();
   await expect(pagina.getByTestId(`aba-painel-${id}`)).toBeVisible();
+  // Q8: a aba Mesa tem cartões que abrem e fecham (como Preferências); quem só quer a aba vê tudo aberto.
+  if (id === "mesa") await abrirTodasAsSecoesDaMesa(pagina);
+}
+
+/** Q8: as seções da aba Mesa, na ordem em que aparecem. */
+export type SecaoDaMesa =
+  | "esta-mesa"
+  | "regras"
+  | "luz"
+  | "automacoes"
+  | "pessoas"
+  | "campanha"
+  | "diagnostico";
+
+/** Q8: abre a seção pedida da aba Mesa (se já estiver aberta, não mexe). A aba precisa estar aberta. */
+export async function abrirSecaoDaMesa(pagina: Page, secao: SecaoDaMesa): Promise<void> {
+  const titulo = pagina.getByTestId(`mesa-secao-${secao}-titulo`);
+  await expect(titulo).toBeVisible();
+  if ((await titulo.getAttribute("aria-expanded")) !== "true") await titulo.click();
+  await expect(titulo).toHaveAttribute("aria-expanded", "true");
+}
+
+/** Q8: abre todas as seções da aba Mesa. */
+export async function abrirTodasAsSecoesDaMesa(pagina: Page): Promise<void> {
+  for (const s of [
+    "esta-mesa",
+    "regras",
+    "luz",
+    "automacoes",
+    "pessoas",
+    "campanha",
+    "diagnostico",
+  ] as const) {
+    await abrirSecaoDaMesa(pagina, s);
+  }
 }
 
 /** P1: as seções da aba Preferências, na ordem em que aparecem. */

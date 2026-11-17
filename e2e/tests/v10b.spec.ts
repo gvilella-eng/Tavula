@@ -84,7 +84,7 @@ test("sem token na cena o jogador vê a bandeira; Colocar no mapa põe o token a
   await expect(j1.pagina.getByTestId("ficha-colocar-pers-aldric")).toHaveCount(0);
 });
 
-test("arrastar a ficha: longe da bandeira mostra o aviso e não cria; perto cria, encaixado no grid", async ({
+test("arrastar a ficha: onde quer que solte, o token vai para a bandeira (Q8)", async ({
   mesa,
   request,
 }) => {
@@ -109,7 +109,7 @@ test("arrastar a ficha: longe da bandeira mostra o aviso e não cria; perto cria
   await item.dispatchEvent("dragend", { dataTransfer: dt });
   await expect.poll(acesa).toBe(false);
 
-  // longe da bandeira: aviso e nada criado (a vista no centro da cena, onde fica a bandeira)
+  // longe da bandeira: o token vai para a bandeira, não para onde soltou (a vista no centro da cena, onde ela fica)
   await j1.pagina.evaluate(
     ([x, y]) => (window as unknown as { __tabletop: GanchoDoMapa }).__tabletop.centrarEm(x, y),
     [CHEGADA.x, CHEGADA.y] as [number, number],
@@ -118,28 +118,31 @@ test("arrastar a ficha: longe da bandeira mostra o aviso e não cria; perto cria
   await item.dragTo(j1.pagina.getByTestId("mapa"), {
     targetPosition: await noElementoDoMapa(j1.pagina, longe),
   });
-  await expect(j1.pagina.getByTestId("aviso")).toContainText(
-    "Ponha o token perto da bandeira (o ponto de chegada).",
-  );
-  await j1.pagina.waitForTimeout(400);
-  expect(await aldric(j1.pagina)).toHaveLength(0);
-  expect(await aldric(m.pagina)).toHaveLength(0);
+  await expect.poll(async () => (await aldric(j1.pagina)).length).toBe(1);
+  const primeiro = (await aldric(j1.pagina))[0] as {
+    id: string;
+    x: number;
+    y: number;
+    camada: string;
+  };
+  expect(perto(primeiro)).toBe(true);
+  expect(primeiro.camada).toBe("tokens");
+  await expect.poll(async () => (await aldric(m.pagina)).length).toBe(1);
 
-  // perto: o token nasce onde soltou, encaixado no quadrado de 1,5 m
+  // perto: vai para o mesmo lugar (a bandeira, arrumado no grid), não para onde soltou
+  await tirarOToken(j1.pagina, primeiro.id);
   const alvo = await pontoNaPagina(j1.pagina, 32.2, 21.4);
   await item.dragTo(j1.pagina.getByTestId("mapa"), {
     targetPosition: await noElementoDoMapa(j1.pagina, alvo),
   });
-  const encaixe = (v: number) => (Math.floor(v / 1.5) + 0.5) * 1.5;
   await expect
     .poll(async () => (await aldric(j1.pagina))[0])
-    .toMatchObject({ x: encaixe(32.2), y: encaixe(21.4), camada: "tokens" });
-  await expect.poll(async () => (await aldric(m.pagina)).length).toBe(1);
+    .toMatchObject({ x: primeiro.x, y: primeiro.y });
   // depois de criado, o personagem não é mais arrastável (um token por personagem por cena)
   await expect(item).not.toHaveAttribute("draggable", "true");
 });
 
-test("a sala confere: quem não controla, fora da área, segundo token e capacidade desligada são recusados", async ({
+test("a sala confere: quem não controla, segundo token na cena e capacidade desligada são recusados", async ({
   mesa,
   request,
 }) => {
@@ -156,10 +159,19 @@ test("a sala confere: quem não controla, fora da área, segundo token e capacid
   expect(await codigo(j2.pagina, { personagemId: "pers-aldric", tokenId: "tok-x1" })).toBe(
     "sem_permissao",
   );
-  // fora da área
-  expect(
-    await codigo(j1.pagina, { personagemId: "pers-aldric", tokenId: "tok-x2", x: 5, y: 5 }),
-  ).toBe("dados_invalidos");
+  // Q8: o ponto longe da bandeira não é recusado: o token vai para a bandeira
+  const longe = await enviarCru(
+    j1.pagina,
+    intencaoCrua("token.colocarMeu", {
+      personagemId: "pers-aldric",
+      tokenId: "tok-x2",
+      x: 5,
+      y: 5,
+    }),
+  );
+  expect(longe?.tipo).toBe("evento");
+  await expect.poll(async () => (await aldric(m.pagina)).filter(perto).length).toBe(1);
+  await tirarOToken(j1.pagina, "tok-x2");
   // um segundo token na mesma cena (o primeiro entra pela bandeira; o campo extra do cliente é ignorado)
   const ok = await enviarCru(
     j1.pagina,

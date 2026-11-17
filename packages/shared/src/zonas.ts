@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { Estado, ObjetoDeLuz, Ponto, Token } from "./estado.ts";
+import { tokenDoPersonagemPreferindo } from "./luz.ts";
 import { SomDaZonaSchema } from "./som.ts";
 
 // ---------------------------------------------------------------------------------------------
@@ -111,7 +112,7 @@ export function tokenNaZona(token: Pick<Token, "cenaId" | "x" | "y">, zona: Zona
  */
 export function posicaoDoObjeto(
   o: Pick<ObjetoDeLuz, "cenaId" | "portador">,
-  e: Pick<Estado, "tokens" | "pontos">,
+  e: Pick<Estado, "tokens" | "pontos"> & { cenaAtivaId?: string },
 ): { cenaId: string; x: number; y: number } | undefined {
   const p = o.portador;
   switch (p.tipo) {
@@ -122,7 +123,8 @@ export function posicaoDoObjeto(
       return t ? { cenaId: t.cenaId, x: t.x, y: t.y } : undefined;
     }
     case "mao": {
-      const t = e.tokens.find((x) => x.personagemId === p.personagemId);
+      const t = tokenDoPersonagemPreferindo(e.tokens, p.personagemId, e.cenaAtivaId);
+
       return t ? { cenaId: t.cenaId, x: t.x, y: t.y } : undefined;
     }
     case "ponto": {

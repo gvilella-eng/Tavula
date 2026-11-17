@@ -73,7 +73,7 @@ Tudo em `apps/web/src/`.
     (**árvore** de pastas, personagens, NPCs e handouts, V3; "+ Novo" único; menu de botão direito em `MenuDeContexto.tsx`) e compêndio de magias.
   - Handouts (V3): `JanelaDoHandout.tsx` (a janela, o campo de texto com rascunho e a miniatura da lista), `handouts.ts` (as 5 fontes e o `useJanelasDeHandout`), "Mostrar agora" em `Mesa.tsx` (escuta `handout.mostrado`). Estado: `Estado.handouts`, regras em `packages/shared/src/nucleo.ts`, migração das notas em `pastas.ts` (`migrarNotasParaHandouts`) e na migração SQL 9 de `armazenamento.ts`.
   - `ficha/BotaoImportarPdf.tsx`: o botão "Importar PDF" (seletor de arquivo + revisão), na aba Configurar da ficha; o V4 o reaproveita.
-  - `AbaMesa.tsx` (a aba Mesa, só do mestre e, desde o V1, a última aba, depois de Preferências: índice, papéis, capacidades, campanha, diagnóstico), `PainelDaMesa.tsx` (as seções de regras da mesa e de modelos de luz que ela usa) e `PainelDeIluminacao.tsx` (a janela de iluminação).
+  - `AbaMesa.tsx` (a aba Mesa, só do mestre e, desde o V1, a última aba, depois de Preferências; desde o Q8 em cartões como as Preferências: Esta mesa, Regras, Luz, Automações, Pessoas, Campanha, Diagnóstico), `PainelDaMesa.tsx` (as seções de regras da mesa e de modelos de luz que ela usa) e `PainelDeIluminacao.tsx` (a janela de iluminação).
   - `PainelDoToken.tsx`: painel compacto do mestre para o token selecionado (canto inferior esquerdo da área do mapa). Desde o R5a só abre por "Editar token…" ou por dois cliques no token; selecionar só seleciona.
   - `NovoToken.tsx`: a janela "Novo token" (nome, cor, tamanho) e, depois dela, o modo de pôr o token com a prévia (a prévia e o clique estão em `mapa/mapaPixi.ts`; o selo e a ligação em `Mesa.tsx`).
   - `AvisoPerto.tsx`: o aviso de erro dentro da área do mapa, perto de onde a pessoa agiu (a origem é guardada em `useSala.ts`).
@@ -1021,3 +1021,13 @@ Continua em aberto, por ser decisão e não erro de doc: `ficha.verOutras` (seç
 - A configuração do som usa `camadaAlta` (45+): fica acima da faixa (30) e das janelas comuns (25+).
 
 **Suposições**: ver `docs/REDESIGN.md`, "Q6 — como ficou".
+
+## Q8 (2026-11-16): o token em cada cena, as Automações na barra, a aba Mesa em cartões
+
+- Regra do token: `personagem.colocar` e `token.colocarMeu` (`nucleo.ts`) olham só a cena. `token.colocarMeu` do jogador **ignora o x e o y**: sempre `arrumarNoGrid` na bandeira. `grupo.moverPara` deixa de fora quem já tem token no destino.
+- **Frágil: ainda há personagem com mais de um token no estado** (um por cena). Qualquer busca nova do "token do personagem" tem de dizer a cena (`tokenDoPersonagem(tokens, id, cenaId)` ou `tokenDoPersonagemPreferindo`, em `luz.ts`). `controlaPersonagem` e `podeColocarProprioToken` já valem para qualquer token do personagem.
+- Botão Automações: `MenuSuperior.tsx` (`menu-automacoes`, `automacoesAbertas` vem de `Mesa.tsx`). A janela é a mesma de antes.
+- Aba Mesa: `AbaMesa.tsx` usa `SecaoDePreferencias` com `prefixo="mesa"` (testids `mesa-secao-<id>`, `mesa-secao-<id>-titulo`, `mesa-resumo-<id>`). Os ids dos cartões: esta-mesa, regras, luz, automacoes, pessoas, campanha, diagnostico. Dentro de Pessoas ficam `mesa-secao-papeis`, `mesa-secao-contas` e `mesa-secao-permissoes`. **Frágil: os E2E que usam um campo da aba Mesa abrem a aba por `abrirAba(p, "mesa")`, que (só nesse caso) abre todos os cartões** (`abrirTodasAsSecoesDaMesa`, em `e2e/tests/ajudas.ts`); `abrirSecaoDaMesa` abre um só.
+- `BarraLateral` abre os `<details>` em volta da seção pedida antes de rolar (`secaoTestid`).
+
+**Suposições**: ver `docs/REDESIGN.md`, "Q8 — como ficou".

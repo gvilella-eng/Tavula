@@ -15,7 +15,7 @@ async function caixa(l: Locator): Promise<Caixa> {
   return c;
 }
 
-const GRUPOS = ["cena", "mapa", "luz", "combate", "ver-como"] as const;
+const GRUPOS = ["cena", "mapa", "luz", "combate", "automacoes", "ver-como"] as const;
 
 const BOTOES: { testid: string; nome: string; grupo: (typeof GRUPOS)[number] }[] = [
   { testid: "menu-cenas", nome: "Cenas", grupo: "cena" },
@@ -24,6 +24,7 @@ const BOTOES: { testid: string; nome: string; grupo: (typeof GRUPOS)[number] }[]
   { testid: "menu-visao-noturna", nome: "Visão do mestre", grupo: "luz" },
   { testid: "menu-iluminacao", nome: "Iluminação", grupo: "luz" },
   { testid: "menu-ordem-turno", nome: "Ordem de turno", grupo: "combate" },
+  { testid: "menu-automacoes", nome: "Automações", grupo: "automacoes" },
   { testid: "menu-ver-como", nome: "Ver como", grupo: "ver-como" },
 ];
 
@@ -32,7 +33,7 @@ test("o topo do mestre tem grupos (sem rótulo na barra) e cada botão tem nome 
 }) => {
   const p = (await entrarNoMapa(mesa, "mestre")).pagina;
 
-  // os cinco grupos, na ordem, cada um com o nome só para leitor de tela (V3: não há rótulo desenhado na barra)
+  // os seis grupos (Q8: Automações entrou antes de Ver como), na ordem, cada um com o nome só para leitor de tela (V3: não há rótulo desenhado na barra)
   const nomes = await p.locator('[data-testid^="menu-grupo-"]').evaluateAll((els) =>
     els.map((e) => ({
       id: e.getAttribute("data-testid"),
@@ -45,6 +46,7 @@ test("o topo do mestre tem grupos (sem rótulo na barra) e cada botão tem nome 
     { id: "menu-grupo-mapa", nome: "Mapa", rotulo: false },
     { id: "menu-grupo-luz", nome: "Luz", rotulo: false },
     { id: "menu-grupo-combate", nome: "Combate", rotulo: false },
+    { id: "menu-grupo-automacoes", nome: "Automações", rotulo: false },
     { id: "menu-grupo-ver-como", nome: "Ver como", rotulo: false },
   ]);
   for (const b of BOTOES) {
@@ -76,7 +78,7 @@ test("o topo do mestre tem grupos (sem rótulo na barra) e cada botão tem nome 
   );
   await p.keyboard.press("Tab");
   await expect(p.getByTestId("dica-menu-ordem-turno")).toBeHidden();
-  await expect(p.getByTestId("dica-menu-ver-como")).toBeVisible();
+  await expect(p.getByTestId("dica-menu-automacoes")).toBeVisible();
 
   // cabe no topo de 48 px, em uma linha, sem cobrir a presença nem a pausa
   const topo = await caixa(p.getByTestId("topo"));
@@ -280,22 +282,36 @@ test("Preferências (todos) e Mesa (só mestre) separam o pessoal do que vale pa
   }
   await expect(m.getByTestId("pref-encaixe")).toHaveCount(0);
   await expect(m.getByTestId("seletor-de-tema")).toHaveCount(0);
-  // o "uso de hoje" fica recolhido no diagnóstico
+  // o "uso de hoje" fica no cartão do diagnóstico, que abre e fecha
+  await expect(m.getByTestId("uso-hoje")).toContainText("uso de hoje");
+  await m.getByTestId("mesa-secao-diagnostico-titulo").click();
   await expect(m.getByTestId("uso-hoje")).toBeHidden();
-  await m.getByTestId("mesa-diagnostico-resumo").click();
+  await m.getByTestId("mesa-secao-diagnostico-titulo").click();
   await expect(m.getByTestId("uso-hoje")).toContainText("uso de hoje");
   // o grid não está mais na Mesa
   await expect(m.getByTestId("grid-quadrado")).toHaveCount(0);
   await expect(m.getByTestId("grid-visivel")).toHaveCount(0);
 
-  // o índice do alto leva a cada seção
-  for (const id of ["regras", "luz", "papeis", "permissoes", "campanha", "diagnostico"]) {
-    await expect(m.getByTestId(`mesa-ir-${id}`)).toBeVisible();
+  // Q8: a aba tem os mesmos cartões da aba Preferências, e cada um abre e fecha no título
+  for (const id of [
+    "esta-mesa",
+    "regras",
+    "luz",
+    "automacoes",
+    "pessoas",
+    "campanha",
+    "diagnostico",
+  ]) {
+    await expect(m.getByTestId(`mesa-secao-${id}-titulo`)).toBeVisible();
   }
-  await m.getByTestId("mesa-ir-campanha").click();
-  await expect(m.getByTestId("mesa-secao-campanha")).toBeInViewport();
-  await m.getByTestId("mesa-ir-regras").click();
-  await expect(m.getByTestId("mesa-secao-regras")).toBeInViewport();
+  await m.getByTestId("mesa-secao-campanha-titulo").click();
+  await expect(m.getByTestId("mesa-secao-campanha-titulo")).toHaveAttribute(
+    "aria-expanded",
+    "false",
+  );
+  await expect(m.getByTestId("exportar")).toBeHidden();
+  await m.getByTestId("mesa-secao-campanha-titulo").click();
+  await expect(m.getByTestId("exportar")).toBeVisible();
   await expect(mestre.pagina.getByTestId("barra-lateral")).toBeVisible();
 });
 

@@ -18,10 +18,13 @@ export function Campo({
   max,
   placeholder,
   desabilitado,
+  ajuda,
   aoConfirmar,
 }: {
   testid: string;
   rotulo: string;
+  /** Q8: o texto de ajuda embaixo do campo (o rótulo fica curto). */
+  ajuda?: string;
   /** O valor da sala, em texto (vazio = sem valor). */
   valor: string;
   tipo?: "text" | "number";
@@ -54,6 +57,7 @@ export function Campo({
         onBlur={confirmar}
         onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
       />
+      {ajuda && <span className="nota campo-ajuda">{ajuda}</span>}
     </label>
   );
 }
@@ -76,9 +80,12 @@ export function CampoDeDistancia({
   minM,
   maxM,
   desabilitado,
+  ajuda,
   aoConfirmar,
 }: {
   testid: string;
+  /** Q8: o texto de ajuda embaixo do campo. */
+  ajuda?: string;
   /** O nome do campo, sem a unidade: ela entra sozinha, "Luz plena (m)" ou "Luz plena (pés)". */
   rotulo: string;
   /** Complemento do parêntese, depois da unidade: "vazio = sem limite". */
@@ -101,6 +108,7 @@ export function CampoDeDistancia({
         maxM === undefined ? undefined : Math.floor(metrosParaUnidade(maxM, unidade) * 100) / 100
       }
       desabilitado={desabilitado}
+      {...(ajuda ? { ajuda } : {})}
       valor={valorM === null || valorM === undefined ? "" : textoDaDistancia(valorM, unidade)}
       aoConfirmar={(t) => {
         if (t === "") return aoConfirmar(null);

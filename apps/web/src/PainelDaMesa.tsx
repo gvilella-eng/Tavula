@@ -45,7 +45,6 @@ export function SecaoMesa({ config, enviar }: { config: ConfigDaMesa; enviar: En
   };
   return (
     <section className="secao-mesa" data-testid="config-mesa" aria-label="Regras da mesa">
-      <h3>Regras da mesa</h3>
       <div className="linha-par">
         <Campo
           testid="cfg-maos"
@@ -69,7 +68,7 @@ export function SecaoMesa({ config, enviar }: { config: ConfigDaMesa; enviar: En
       <CampoDeDistancia
         testid="cfg-alcance"
         rotulo="Alcance de interação"
-        nota="entregar tocha, usar ponto"
+        ajuda="Até onde dá para entregar uma tocha ou usar um ponto."
         minM={0}
         maxM={30}
         valorM={config.alcanceInteracaoM}
@@ -78,7 +77,7 @@ export function SecaoMesa({ config, enviar }: { config: ConfigDaMesa; enviar: En
         }}
       />
       <label className="campo-coluna">
-        O que os jogadores veem do tempo
+        Tempo para os jogadores
         <select
           data-testid="cfg-tempo"
           value={config.tempoParaJogadores}
@@ -90,6 +89,7 @@ export function SecaoMesa({ config, enviar }: { config: ConfigDaMesa; enviar: En
             </option>
           ))}
         </select>
+        <span className="nota campo-ajuda">O que os jogadores veem do tempo que resta.</span>
       </label>
       <div className="linha-par">
         <Campo
@@ -263,9 +263,8 @@ export function SecaoObjetosDeLuz({ estado, enviar }: { estado: Estado; enviar: 
   }
   return (
     <section className="secao-objetos" data-testid="config-objetos" aria-label="Objetos de luz">
-      <h3>Modelos de tocha e objetos de luz</h3>
       <p className="nota">
-        Modelos de tocha, lanterna, fogueira... Os personagens carregam na mochila (quantidade) e os
+        Modelos de tocha, lanterna, fogueira… Os personagens carregam na mochila (quantidade) e os
         pontos do mapa acendem. Mudar o modelo não muda os objetos que já existem.
       </p>
       {estado.modelos.map((m) => (

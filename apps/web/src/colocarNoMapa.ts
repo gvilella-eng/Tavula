@@ -1,5 +1,4 @@
-/** V10b: o pedido "põe o meu token no mapa" (botão "Colocar no mapa" e soltar a ficha na área da bandeira). */
-export const TEXTO_FORA_DA_BANDEIRA = "Ponha o token perto da bandeira (o ponto de chegada).";
+/** V10b/Q8: o pedido "põe o meu token no mapa" (botão "Colocar no mapa" e soltar a ficha no mapa): o jogador vai sempre para a bandeira. */
 
 export function pedirTokenNoMapa(
   enviar: (tipo: string, dados: object) => string | null,

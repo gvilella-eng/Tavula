@@ -194,8 +194,7 @@ as mãos. Cada item diz **o que fazer** e, depois de "→", **o que deve acontec
    ao lado da bandeira. O ícone e a bandeira somem. O mestre vê o token.
 4. Tire o token de novo, abra a **ficha** e use o pino do cabeçalho ("Colocar no mapa"). Mesmo resultado.
 5. Tire de novo e **arraste a ficha** da lista para o mapa. Durante o arrasto a **área em volta da bandeira se acende**.
-   Solte longe: aparece "Ponha o token perto da bandeira (o ponto de chegada)." e nada é criado. Solte dentro da
-   área: o token nasce ali, encaixado no grid.
+   Solte longe ou dentro da área: desde o Q8 o token vai sempre para a bandeira, arrumado no grid.
 6. O mestre arrasta a ficha de qualquer personagem para qualquer ponto, como antes.
 7. Aba **Mesa**, em Permissões: "Pôr o próprio token no mapa (na bandeira)" vem ligada. Desligue: o jogador perde a
    bandeira e o pino. Há também a exceção por jogador.
@@ -628,3 +627,11 @@ Antes de tudo: tenha na pasta `sons/` (ou à mão) uns 6 arquivos de áudio: 2 o
 6. **Mesa vazia.** Numa mesa sem sons, a janela e a faixa dizem "Nenhum som na mesa de som ainda" e o botão "Configurar" abre a configuração; "Tocar" fica desabilitado.
 7. **Sons que a mesa já tem.** Na configuração, um lugar mostra "Sons que a mesa já tem" (os que você subiu antes, mesmo fora de um lugar) para pôr com um clique.
 8. **Claude.** Peça ao Claude para marcar ambientes e tocar (`transporte: "tocar"`).
+
+## Q8 — O token em cada cena, as Automações na barra e a aba Mesa
+
+1. **Token em cada cena.** Como mestre, crie uma cena B e leve o grupo para ela. Ponha outro token do Aldric na cena A (arraste a ficha). Como o jogador do Aldric, na B tire o token dele (Delete) e use "Colocar no mapa": ele nasce na bandeira da B, mesmo tendo token na A.
+2. **Sempre na bandeira.** Tire o token e arraste a ficha para um canto longe da bandeira: o token vai para a bandeira (arrumado ao lado dos que já estão lá), sem aviso de erro. O mestre arrasta a ficha para onde quiser e ela fica onde ele soltou.
+3. **Levar o grupo.** Com o Aldric tendo token na A e na B, leve o grupo de uma cena para a outra e de volta: o token de cada cena fica na sua cena, sem duplicar.
+4. **Automações.** Como mestre, o botão "Automações" fica na barra de cima, antes de "Ver como". Ele abre e fecha a janela; crie uma reação por ela. O jogador não vê o botão. Na aba Mesa, o cartão Automações tem a frase e o botão que abre a mesma janela.
+5. **Aba Mesa.** Parece da mesma família das Preferências: cartões com ícone e resumo; só "Esta mesa" abre por padrão; cada cartão abre e fecha no título (e lembra depois de recarregar). Confira Regras (rótulos curtos, ajuda embaixo), Luz, Pessoas (papéis, contas, capacidades), Campanha (exportar e importar) e Diagnóstico. "Modelos de tocha…" (Luz) abre o cartão da Luz.

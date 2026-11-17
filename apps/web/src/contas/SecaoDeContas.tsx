@@ -183,7 +183,7 @@ export function SecaoDeContas({
 
   return (
     <section className="secao-de-contas" data-testid="contas">
-      <h3>Contas</h3>
+      <h4 className="pref-sub-titulo">Contas</h4>
       {erro && (
         <p className="nota erro" role="alert" data-testid="contas-erro">
           {erro}

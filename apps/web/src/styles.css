@@ -871,6 +871,19 @@ textarea {
   padding: 4px 6px;
   text-align: left;
 }
+/* Q8: dentro do cartão a tabela das capacidades cabe nos 300 px do painel (nome quebra, colunas curtas). */
+.aba-mesa table {
+  table-layout: fixed;
+}
+.aba-mesa td {
+  overflow-wrap: anywhere;
+}
+.aba-mesa th:nth-child(2) {
+  width: 66px;
+}
+.aba-mesa th:nth-child(3) {
+  width: 84px;
+}
 
 /* --- biblioteca (arquivos locais) ----------------------------------------------------------- */
 .botao-icone {
@@ -3963,58 +3976,12 @@ kbd {
 .menu-grupo .menu-lista {
   top: calc(100% + 8px);
 }
-.indice-da-mesa {
-  position: sticky;
-  top: -12px;
-  z-index: 3;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin: 0 -14px 8px;
-  padding: 8px 14px;
-  background: var(--barra);
-  border-bottom: 1px solid var(--borda-barra);
-}
-.secao-da-mesa {
-  display: block;
-  margin-bottom: 18px;
-  scroll-margin-top: 84px;
-}
-.aba-mesa .secao-da-mesa > h3,
-.aba-mesa .secao-da-mesa > section > h3 {
-  margin-top: 0;
-  padding-bottom: 4px;
-  border-bottom: 1px solid var(--borda);
-}
-.secao-da-mesa.diagnostico > summary {
-  cursor: pointer;
-  font-weight: 600;
-  color: var(--texto-suave);
-}
-.aba-mesa .secao-da-mesa > .secao-mesa > h3,
-.aba-mesa .secao-da-mesa > .secao-objetos > h3 {
-  margin: 0;
-  padding-bottom: 4px;
-  border-bottom: 1px solid var(--borda);
-}
 .area-mapa .selo-modo button {
   padding: 2px 8px;
   font-size: 12px;
 }
-/* V14: Exportar e Importar, dois blocos iguais um embaixo do outro. */
-.bloco-da-campanha {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 6px;
-  margin-top: 10px;
-  padding: 10px 12px;
-  background: var(--cabecalho);
-  border: 1px solid var(--borda);
-  border-radius: 8px;
-}
-.bloco-da-campanha > h4,
-.bloco-da-campanha > p {
+/* Q8: o texto de ajuda embaixo de um campo (a aba Mesa usa os cartões da aba Preferências). */
+.campo-ajuda {
   margin: 0;
 }
 .botao-do-bloco {
@@ -5617,6 +5584,7 @@ button.inicio-botao-largo {
 /* --- Preferências em sanfona com resumo (P1) ----------------------------------------------------------- */
 .pref-lista {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 6px;
   padding-top: 4px;
 }
