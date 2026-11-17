@@ -2138,6 +2138,27 @@ Dois pedidos do Vilella num lote só. Q2b: a busca do compêndio e o espaço da 
 - Imagens e tokens para cada monstro e item do compêndio (`docs/IDEIAS.md`).
 - A janela própria do som não mostra os efeitos que tocam na aba da mesa.
 
+## Q9 — como ficou (2026-11-16): a Conjuração do NPC com a interface das magias do personagem
+
+O Vilella pediu que a ficha de NPC tenha o menu de conjuração organizado como o do personagem, aproveitando a mesma interface.
+
+**O que foi feito**
+- Novo `apps/web/src/ficha/CirculoDeMagias.tsx`: `CirculoDeMagias` (um círculo com espaços totais e restantes, bolinhas, linhas, campo de nova magia e soltar do compêndio), `LinhaDeMagia`, `TotalDeEspacos`, `Espacos`, `subDaMagia` e `BotaoNovoCirculo`, tirados da `AbaMagias.tsx` sem mudar o que o personagem mostra. A `AbaMagias.tsx` reexporta `Espacos` e `subDaMagia`.
+- Parâmetro `variante: "personagem" | "npc"`. Ela escolhe os `data-testid` (cada ficha guarda os seus: `magia-*` e `npc-conj-*`), esconde o "Prep." no NPC, abre o editor da engrenagem embaixo da linha no NPC (no personagem fica na outra coluna) e mostra o texto simples da magia sem cartão (no personagem são os campos editáveis).
+- `ConjuracaoDoNpc.tsx` perdeu os chips e o corpo próprio: a seção é o cabeçalho (atributo, CD e ataque pelo ND), "Recuperar espaços", os círculos, a conjuração inata (`ParteInata`, igual à do personagem) e o "+ Círculo".
+
+**Decisões (assumido)**
+- "Prep." some no NPC.
+- O título do círculo 0 continua "Truques (à vontade)" no NPC e "Truques" no personagem.
+- Quem só vê o NPC não vê o campo de espaços totais (vê "Restantes" e as bolinhas); o personagem mostra o campo travado, como antes.
+- "+ Círculo" é o botão do personagem (próximo círculo escondido), no lugar do seletor de círculo que existia.
+- O soltar do compêndio passou a ser por círculo (só o círculo da magia acende), como no personagem, em vez de a seção inteira.
+- Cada linha abre e fecha sozinha (antes, uma só aberta por seção).
+- Specs antigos alterados de propósito: `ficha-v4b2` (texto "Truques (à vontade)" sem o dois-pontos; o ícone de chat da linha aberta agora existe; "+ Círculo" é botão, clicado duas vezes para chegar ao 2º; a ordem lê o nome da linha em `npc-conj-nome-`).
+
+**O que ficou para depois**
+- A conjuração inata mantém o visual de chips (é o mesmo componente nas duas fichas).
+
 ## Q7 — como ficou (2026-11-16): o painel de cenas em grade, a faixa que sobra, barras do tema e a descrição aberta
 
 **O que foi feito**

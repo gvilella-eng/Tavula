@@ -86,8 +86,8 @@ test("a seção Conjuração: CD e ataque pelo ND, bolinhas, conjurar gasta o es
   await expect(janela.getByTestId("npc-conj-cd")).toHaveText("15");
   await expect(janela.getByTestId("npc-conj-ataque")).toHaveText("+7");
   // uma linha por círculo, só dos que têm magia ou espaço, com o mesmo nome de nível da aba Magias do personagem
-  await expect(janela.getByTestId("npc-conj-nivel-0")).toContainText("Truques (à vontade):");
-  await expect(janela.getByTestId("npc-conj-nivel-1")).toContainText("1º nível:");
+  await expect(janela.getByTestId("npc-conj-nivel-0")).toContainText("Truques (à vontade)");
+  await expect(janela.getByTestId("npc-conj-nivel-1")).toContainText("1º nível");
   await expect(janela.getByTestId("npc-conj-nivel-1")).toContainText("Mísseis Mágicos");
   await expect(janela.getByTestId("npc-conj-nivel-2")).toHaveCount(0);
   await expect(janela.getByTestId("npc-conj-nivel-3")).toContainText("Bola de Fogo");
@@ -107,9 +107,9 @@ test("a seção Conjuração: CD e ataque pelo ND, bolinhas, conjurar gasta o es
   // clicar na magia abre a descrição na própria seção
   await janela.getByTestId("npc-conj-magia-3").click();
   await expect(janela.getByTestId("npc-conj-texto-3")).toHaveText("Explosão de chamas.");
-  // V8: um só ícone de chat ao lado do Conjurar (o do V6); o antigo saiu
+  // Q9: o ícone do V6 (cartão sem gastar) e o "mandar ao chat" da linha aberta, como na aba Magias do personagem
   await expect(janela.getByTestId("npc-conj-pingar-3")).toBeVisible();
-  await expect(janela.getByTestId("npc-conj-chat-3")).toHaveCount(0);
+  await expect(janela.getByTestId("npc-conj-chat-3")).toBeVisible();
   // conjurar a de salvaguarda: gasta o espaço de 3º nível e rola o dano com a CD
   await janela.getByTestId("npc-conj-conjurar-3").click();
   // V6: o menu de espaço aparece igual na Conjuração do NPC, e o ícone ao lado manda o cartão sem gastar
@@ -167,7 +167,8 @@ test("sem magias a seção não existe; o + Conjuração a cria e dá onde pôr 
   await expect(janela.getByTestId("npc-conj-nivel-0")).toContainText("Luz");
 
   // "+ Círculo" mostra o 2º nível; o total de espaços vira bolinhas
-  await janela.getByTestId("npc-conj-mais-circulo").selectOption("2");
+  await janela.getByTestId("npc-conj-mais-circulo").click();
+  await janela.getByTestId("npc-conj-mais-circulo").click();
   await expect(janela.getByTestId("npc-conj-nivel-2")).toBeVisible();
   await janela.getByTestId("npc-espaco-total-2").fill("3");
   await expect(janela.getByTestId("npc-espaco-2-3")).toBeVisible();
@@ -199,7 +200,7 @@ test("reordenar as magias de um círculo com Alt+seta", async ({ mesa }) => {
   await abrirConjuracao(janela);
   const truques = () =>
     janela
-      .locator('[data-testid="npc-conj-nivel-0"] [data-testid^="npc-conj-magia-"]')
+      .locator('[data-testid="npc-conj-nivel-0"] [data-testid^="npc-conj-nome-"]')
       .evaluateAll((els) => els.map((e) => (e.textContent ?? "").trim()));
   expect(await truques()).toEqual(["Raio de Fogo", "Luz"]);
   await janela.getByTestId("npc-conj-magia-0").focus();
