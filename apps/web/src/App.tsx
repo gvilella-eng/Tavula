@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useState } from "react";
 import {
   comRetentativa,
   consultarMesa,
@@ -9,21 +9,71 @@ import {
 } from "./api";
 import { Logo } from "./Logo";
 import { lembrarMesa } from "./mesasLocais";
-import { irPara, tituloDaMesa, useRota } from "./rotas";
+import { irPara, lerRota, type Rota, tituloDaMesa, useRota } from "./rotas";
 import { tourAbreSozinho } from "./tour/abreSozinho";
 
-// Cada rota vira um pedaço próprio: a tela inicial não baixa o pixi.js nem a Mesa inteira.
-const EntradaDaMesa = lazy(() =>
-  import("./contas/EntradaDaMesa").then((m) => ({ default: m.EntradaDaMesa })),
-);
-const FichaEmJanelaPropria = lazy(() =>
-  import("./ficha/FichaEmJanelaPropria").then((m) => ({ default: m.FichaEmJanelaPropria })),
-);
-const Mesa = lazy(() => import("./Mesa").then((m) => ({ default: m.Mesa })));
-const SomEmJanelaPropria = lazy(() =>
-  import("./som/SomEmJanelaPropria").then((m) => ({ default: m.SomEmJanelaPropria })),
-);
-const TelaInicial = lazy(() => import("./TelaInicial").then((m) => ({ default: m.TelaInicial })));
+/**
+ * Um pedaço do app baixado à parte (cada rota é um: a tela inicial não baixa o pixi.js nem a Mesa inteira).
+ * Sem `lazy` + `Suspense` de propósito: o React segura por uns décimos de segundo a troca do conteúdo suspenso, e
+ * com dois pedaços por entrada a mesa abria ~0,8 s mais tarde. Aqui o módulo pronto entra já no primeiro render.
+ */
+type Pedaco<M> = { baixar: () => Promise<M>; pronto: () => M | null };
+
+function pedaco<M>(importar: () => Promise<M>): Pedaco<M> {
+  let modulo: M | null = null;
+  let pedido: Promise<M> | null = null;
+  const baixar = () => {
+    pedido ??= importar().then((m) => {
+      modulo = m;
+      return m;
+    });
+    return pedido;
+  };
+  return { baixar, pronto: () => modulo };
+}
+
+/** O módulo de um pedaço: já no primeiro render se ele chegou antes; senão `null` até chegar. */
+function useModulo<M>(p: Pedaco<M>): M | null {
+  const [m, setM] = useState<M | null>(p.pronto);
+  useEffect(() => {
+    if (m) return;
+    let vivo = true;
+    void p.baixar().then((x) => {
+      if (vivo) setM(x);
+    });
+    return () => {
+      vivo = false;
+    };
+  }, [m, p]);
+  return m;
+}
+
+const pedacoDaEntrada = pedaco(() => import("./contas/EntradaDaMesa"));
+const pedacoDaFicha = pedaco(() => import("./ficha/FichaEmJanelaPropria"));
+const pedacoDaMesa = pedaco(() => import("./Mesa"));
+const pedacoDoSom = pedaco(() => import("./som/SomEmJanelaPropria"));
+const pedacoDoInicio = pedaco(() => import("./TelaInicial"));
+
+/** Mostra o que depende de um pedaço quando ele chega (até lá, nada). Cada uso leva uma `key` própria. */
+function ComPedaco<M>({ de, children }: { de: Pedaco<M>; children: (modulo: M) => ReactNode }) {
+  const modulo = useModulo(de);
+  return modulo ? children(modulo) : null;
+}
+
+/** Começa a baixar o pedaço de uma rota (pedir de novo reaproveita o mesmo pedido). */
+function adiantarRota(rota: Rota): void {
+  if (rota.tipo === "inicio") {
+    void pedacoDoInicio.baixar();
+    return;
+  }
+  if (!rota.id) return;
+  void pedacoDaEntrada.baixar();
+  void (rota.painel === "som" ? pedacoDoSom : rota.fichaId ? pedacoDaFicha : pedacoDaMesa).baixar();
+}
+
+// Já na avaliação do módulo, sem esperar o primeiro render (o `main.tsx` o segura até as fontes chegarem): o pedaço
+// da rota baixa junto com as fontes, como quando tudo vinha num arquivo só.
+adiantarRota(lerRota(location.pathname));
 
 const voltarAoInicio = () => irPara("/");
 
@@ -65,43 +115,49 @@ function MesaEncontrada({
   if (usuario === undefined) return <p>Conectando à sala…</p>;
   if (usuario === null) {
     return (
-      <Suspense fallback={null}>
-        <EntradaDaMesa mesa={mesa} aoEntrar={setUsuario} />
-      </Suspense>
+      <ComPedaco key="entrada" de={pedacoDaEntrada}>
+        {(m) => <m.EntradaDaMesa mesa={mesa} aoEntrar={setUsuario} />}
+      </ComPedaco>
     );
   }
   if (painel === "som") {
     return (
-      <Suspense fallback={null}>
-        <SomEmJanelaPropria key={usuario.id} mesa={mesa} aoPerderSessao={aoPerderSessao} />
-      </Suspense>
+      <ComPedaco key="som" de={pedacoDoSom}>
+        {(m) => (
+          <m.SomEmJanelaPropria key={usuario.id} mesa={mesa} aoPerderSessao={aoPerderSessao} />
+        )}
+      </ComPedaco>
     );
   }
   if (fichaId) {
     return (
-      <Suspense fallback={null}>
-        <FichaEmJanelaPropria
-          key={usuario.id}
-          mesa={mesa}
-          fichaId={fichaId}
-          aoPerderSessao={aoPerderSessao}
-        />
-      </Suspense>
+      <ComPedaco key="ficha" de={pedacoDaFicha}>
+        {(m) => (
+          <m.FichaEmJanelaPropria
+            key={usuario.id}
+            mesa={mesa}
+            fichaId={fichaId}
+            aoPerderSessao={aoPerderSessao}
+          />
+        )}
+      </ComPedaco>
     );
   }
   return (
-    <Suspense fallback={null}>
-      <Mesa
-        key={usuario.id}
-        mesa={mesa}
-        login={usuario.login}
-        tourAutomatico={tourAbreSozinho(usuario)}
-        aoSair={aoSair}
-        aoPerderSessao={aoPerderSessao}
-        aoTrocarDeMesa={voltarAoInicio}
-        aoRenomear={aoRenomear}
-      />
-    </Suspense>
+    <ComPedaco key="mesa" de={pedacoDaMesa}>
+      {(m) => (
+        <m.Mesa
+          key={usuario.id}
+          mesa={mesa}
+          login={usuario.login}
+          tourAutomatico={tourAbreSozinho(usuario)}
+          aoSair={aoSair}
+          aoPerderSessao={aoPerderSessao}
+          aoTrocarDeMesa={voltarAoInicio}
+          aoRenomear={aoRenomear}
+        />
+      )}
+    </ComPedaco>
   );
 }
 
@@ -204,11 +260,13 @@ function RotaDaMesa({
 
 export function App() {
   const rota = useRota();
+  // Trocar de rota sem recarregar (da tela inicial para uma mesa): o pedaço dela baixa junto com a consulta à sala.
+  useEffect(() => adiantarRota(rota));
   if (rota.tipo === "inicio") {
     return (
-      <Suspense fallback={null}>
-        <TelaInicial />
-      </Suspense>
+      <ComPedaco key="inicio" de={pedacoDoInicio}>
+        {(m) => <m.TelaInicial />}
+      </ComPedaco>
     );
   }
   return (
