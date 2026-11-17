@@ -191,12 +191,22 @@ export function semAcento(texto: string): string {
     .trim();
 }
 
+let CLASSES_POR_CHAVE: Map<string, ClasseSrd> | null = null;
+
 /** A classe do SRD pelo nome (pt-BR ou inglês, sem acento nem maiúsculas); `undefined` se não houver. */
 export function classeSrd(nome: string): ClasseSrd | undefined {
-  const n = semAcento(nome);
-  return CLASSES.find(
-    (c) => semAcento(c.nome) === n || c.id === n || c.apelidos.some((a) => semAcento(a) === n),
-  );
+  // Um Map das chaves (nome sem acento, id, apelidos sem acento) montado uma vez: a `derivar` da ficha chama isto várias
+  // vezes e antes normalizava todas as classes a cada chamada. Primeira classe que tem a chave vence, como no `find`.
+  if (CLASSES_POR_CHAVE === null) {
+    const mapa = new Map<string, ClasseSrd>();
+    for (const c of CLASSES) {
+      for (const chave of [semAcento(c.nome), c.id, ...c.apelidos.map(semAcento)]) {
+        if (!mapa.has(chave)) mapa.set(chave, c);
+      }
+    }
+    CLASSES_POR_CHAVE = mapa;
+  }
+  return CLASSES_POR_CHAVE.get(semAcento(nome));
 }
 
 /** Espaços de magia de um conjurador de nível 1 a 20 (tabela de multiclasse do PHB 2014): [1º ... 9º]. */

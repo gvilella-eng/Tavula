@@ -20,6 +20,7 @@ import {
   tirarUltimoTraco,
   visaoPara,
 } from "./index.ts";
+import { tracoContem, tracoContemSemAtalho } from "./nevoa.ts";
 
 const AGORA = "2026-01-01T00:00:00.000Z";
 const J1 = { id: "j1", papel: "jogador" as const };
@@ -344,5 +345,62 @@ describe("N4: o limite de crescimento", () => {
     expect(cobertos).toBeGreaterThanOrEqual(0);
     // 400 consultas (um mapa cheio de tokens) em bem menos de um quadro
     expect(ms).toBeLessThan(250);
+  });
+});
+
+describe("caixa envolvente do traço (equivalência com o teste completo)", () => {
+  it("dá o mesmo resultado que o teste sem atalho, inclusive na borda", () => {
+    let semente = 12345;
+    const alea = () => {
+      semente = (semente * 1664525 + 1013904223) % 4294967296;
+      return semente / 4294967296;
+    };
+    const pt = () => ({ x: Math.round(alea() * 40) / 2, y: Math.round(alea() * 40) / 2 });
+    const tracos: TracoDaNevoa[] = [
+      tudo("cobrir"),
+      retangulo("cobrir", 3, 4, 12, 9),
+      retangulo("revelar", 12, 9, 3, 4),
+      { forma: "poligono", modo: "cobrir", pontos: [pt(), pt(), pt(), pt(), pt()] },
+      {
+        forma: "poligono",
+        modo: "cobrir",
+        pontos: [
+          { x: 2, y: 2 },
+          { x: 10, y: 2 },
+          { x: 6, y: 9 },
+        ],
+      },
+      { forma: "pincel", modo: "cobrir", pontos: [{ x: 5, y: 5 }], raio: 2 },
+      { forma: "pincel", modo: "cobrir", pontos: [pt(), pt(), pt(), pt()], raio: 1.5 },
+      {
+        forma: "pincel",
+        modo: "revelar",
+        pontos: [
+          { x: 1, y: 1 },
+          { x: 9, y: 1 },
+        ],
+        raio: 0.25,
+      },
+    ];
+    // exatamente na borda (cantos, arestas, o raio) e um fio além dela
+    const candidatos = [
+      { x: 3, y: 4 },
+      { x: 12, y: 9 },
+      { x: 2, y: 5 },
+      { x: 7, y: 2 },
+      { x: 5, y: 7 },
+      { x: 5, y: 3 },
+      { x: 3 - 1e-12, y: 4 },
+      { x: 12 + 1e-7, y: 9 },
+      { x: 5, y: 5 + 2 },
+      { x: 5, y: 5 + 2 + 1e-9 },
+      { x: 1, y: 1.25 },
+      { x: 9.25, y: 1 },
+    ];
+    for (let k = 0; k < 3000; k++)
+      candidatos.push({ x: alea() * 30 - 5, y: alea() * 30 - 5 }, pt());
+    for (const t of tracos) {
+      for (const c of candidatos) expect(tracoContem(t, c)).toBe(tracoContemSemAtalho(t, c));
+    }
   });
 });

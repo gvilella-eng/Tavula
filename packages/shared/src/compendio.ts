@@ -455,11 +455,27 @@ export function lerCompendio(texto: string): LeituraDoCompendio {
 // ---------------------------------------------------------------------------------------------
 
 /** A ordem alfabética sem acento nem caixa (o desempate da busca e a ordem sem busca). */
-function compararPorNome(a: { nome: string }, b: { nome: string }): number {
+export function compararPorNome(a: { nome: string }, b: { nome: string }): number {
   return (
-    normalizarBusca(a.nome).localeCompare(normalizarBusca(b.nome), "pt-BR") ||
-    a.nome.localeCompare(b.nome, "pt-BR")
+    COLACAO_PT_BR.compare(nomeNormalizado(a.nome), nomeNormalizado(b.nome)) ||
+    COLACAO_PT_BR.compare(a.nome, b.nome)
   );
+}
+
+// Um Collator de módulo: `localeCompare(x, "pt-BR")` cria a colação de novo a cada comparação (mesmas opções padrão).
+const COLACAO_PT_BR = new Intl.Collator("pt-BR");
+
+// O nome normalizado de cada nome já visto: a ordenação compara os mesmos nomes milhares de vezes (limpa se crescer demais).
+const nomesNormalizados = new Map<string, string>();
+
+function nomeNormalizado(nome: string): string {
+  let n = nomesNormalizados.get(nome);
+  if (n === undefined) {
+    if (nomesNormalizados.size > 20_000) nomesNormalizados.clear();
+    n = normalizarBusca(nome);
+    nomesNormalizados.set(nome, n);
+  }
+  return n;
 }
 
 /** Sem acento e sem caixa (a mesma normalização do chat). */
