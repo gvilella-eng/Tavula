@@ -105,6 +105,10 @@ export function Tour({ passos, abrirAba, aoFechar }: Props) {
     const procurar = () => {
       if (desistiu) return;
       const el = achar(alvoId);
+      // Q8: o alvo pode morar num cartão fechado (aba Mesa, "Pessoas" > Contas): abre os cartões em volta antes de medir.
+      for (let d = el?.closest("details"); d; d = d.parentElement?.closest("details")) {
+        if (!d.open) d.open = true;
+      }
       if (el && medir(el)) {
         // Alvo cortado pela janela ou pelo painel que rola (uma seção lá embaixo na aba Mesa): sobe até o começo dele.
         const antes = el.getBoundingClientRect();

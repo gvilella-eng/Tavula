@@ -29,6 +29,8 @@ const BOTOES = [
   { testid: "menu-visao-noturna", grupo: "luz", dica: "Luz · Visão do mestre" },
   { testid: "menu-iluminacao", grupo: "luz", dica: "Luz · Iluminação" },
   { testid: "menu-ordem-turno", grupo: "combate", dica: "Combate · Ordem de turno" },
+  // Q8: o grupo das Automações, entre Combate e Ver como
+  { testid: "menu-automacoes", grupo: "automacoes", dica: "Automações" },
   { testid: "menu-ver-como", grupo: "ver-como", dica: "Ver como" },
 ] as const;
 
@@ -55,7 +57,7 @@ test("topo do mestre: todos os botões com o mesmo tamanho e o mesmo espaço, o 
     else entreGrupos.push(espaco);
   }
   expect(dentroDoGrupo).toHaveLength(2);
-  expect(entreGrupos).toHaveLength(4);
+  expect(entreGrupos).toHaveLength(5);
   expect(iguais(dentroDoGrupo), `dentro dos grupos: ${dentroDoGrupo}`).toBe(true);
   expect(iguais(entreGrupos), `entre os grupos: ${entreGrupos}`).toBe(true);
   expect(Math.min(...entreGrupos)).toBeGreaterThan(Math.max(...dentroDoGrupo) + 4);

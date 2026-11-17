@@ -203,11 +203,12 @@ test("com a preferência em pés, os campos de raio mostram pés e gravam metros
   await abrirAba(p, "mesa");
   const campo = p.getByTestId("cfg-alcance");
   await expect(campo).toHaveValue("1.5");
-  await expect(p.getByText("Alcance de interação (m;")).toBeVisible();
+  // Q8: o rótulo ficou curto ("(m)"), com a ajuda embaixo
+  await expect(p.getByText("Alcance de interação (m)")).toBeVisible();
 
   await emPes(p);
   await abrirAba(p, "mesa");
-  await expect(p.getByText("Alcance de interação (pés;")).toBeVisible();
+  await expect(p.getByText("Alcance de interação (pés)")).toBeVisible();
   await expect(campo).toHaveValue("5");
   // focar e sair sem mexer: nada vai para a sala
   await campo.focus();
