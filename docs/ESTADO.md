@@ -4192,7 +4192,7 @@ Ver `PASSAGEM.md` ("Q13").
 ### Roteiro manual
 Segurar a seta numa cena pesada (muitas paredes, tocha, névoa) e conferir: anda liso, sem parar entre os quadrados; soltar termina o quadrado; contra a parede o token para sem passar e voltar; o mestre vendo o jogador andar também o vê liso.
 
-## Otimizações O5 — Abas em `memo` com fatias do estado, compêndio lido uma vez, uma validação por tecla (branch `otimizacoes-2`, bateria incompleta)
+## Otimizações O5 — Abas em `memo` com fatias do estado, compêndio lido uma vez, uma validação por tecla (branch `otimizacoes-2`, aguardando teste manual)
 
 Feito em 2026-11-17 no worktree `.claude/worktrees/otimizacoes-2` (branch `otimizacoes-2`, a partir da `main` em `a60708a`; o Q13 `55c988e` foi juntado depois, sem conflito). **Nenhuma função nova, nenhuma mudança de protocolo, nenhuma migração.** Fora do lote, de propósito: mapa, movimento de token, visão, luz, névoa, régua, zoom e dica do mapa.
 
@@ -4221,7 +4221,7 @@ Feito em 2026-11-17 no worktree `.claude/worktrees/otimizacoes-2` (branch `otimi
 - Os dois "antes" finais rodaram com o Q13 subindo servidores no meio; os "depois" e a segunda passada de produção ficaram limpos. Os JSON e os perfis de CPU não estão no repositório.
 
 ### Verificação
-Typecheck e lint limpos; unidade 273 (web, +50: `useFatia`, `leituraDoCompendio`, `useFicha` e os do Q13) + 1297 (shared) + 140 (server) + 19 (mcp). **E2E incompleto:** a bateria única (`pnpm verify`, já com o Q13 junto) passou os 397 primeiros testes de 508, sem falha nem instável, e foi encerrada pelo Claude Code por falta de memória no notebook. Não rodaram: o resto do `sala.spec` (a partir de "reiniciar a sala"), `q13`, `som-n5`, `som-q4`, `som-q4b`, `teclado`, `tema`, `tochas`, `token-v11`, `topo-e-abas`, `tour`, `v10`, `v10b`, `v10c`, `v12`, `v13`, `v14` e `zonas`.
+Typecheck e lint limpos; unidade 273 (web, +50: `useFatia`, `leituraDoCompendio`, `useFicha` e os do Q13) + 1297 (shared) + 140 (server) + 19 (mcp). **E2E: os 508 testes passaram, em duas partes, sem falha nem instável** (já com o Q13 junto). A bateria única (`pnpm verify`) passou os 397 primeiros e foi encerrada pelo Claude Code por falta de memória no notebook; os 18 specs que faltavam (`sala` inteiro de novo, `q13`, `som-n5`, `som-q4`, `som-q4b`, `teclado`, `tema`, `tochas`, `token-v11`, `topo-e-abas`, `tour`, `v10`, `v10b`, `v10c`, `v12`, `v13`, `v14` e `zonas`) rodaram depois, à parte: 115 de 115.
 
 ### Frágil
 - **Fatias:** uma aba só re-renderiza quando muda uma chave da `FATIA_*` dela. Quem passar a ler outra chave do estado numa aba precisa acrescentá-la à constante (o compilador acusa). O que depende de relógio (`Date.now()` no render) ou de store sem assinatura não se atualiza mais "de carona" a cada evento: precisa de `useMinuto`, `useTic` ou assinatura própria.
