@@ -4272,4 +4272,40 @@ Ver `PASSAGEM.md`, "Q14".
 ### Roteiro manual
 Ver `docs/ROTEIRO-DE-TESTES.md`, "Q14".
 
-## Próximo: o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b, N4, N5, M1, M2, Q1, Q2, Q3, Q4, Q5, Q6, Q7, Q8, Q9, Q10, Q11, Q12, Q13, Q14 e das otimizações O1–O4
+## Ajustes Q15 — Magias e NPC por seções; arrastar o token seguido desliga o seguir (entregue, aguardando o roteiro manual)
+
+### O que foi entregue
+- **Aba Magias por seções** (`secao()` do Q14): caixas de conjuração (atributo, CD, ataque), outras conjuradoras, barra "Classe de conjurador / Recuperar espaços", espaços de pacto, cada círculo, cada linha de magia e a Conjuração inata. Escrever na descrição de uma magia redesenha só a linha dela; o círculo só redesenha quando muda quem está nele (posição e nome), os espaços do nível dele para cima ou o que a conjuração calcula.
+- **Ficha do NPC por seções**: cabeçalho, atributos, salvaguardas/perícias, resistências, sentidos, idiomas, desafio, traços, cada categoria de ações, "+ Reação/Lendária", cabeçalho da conjuração e "Recuperar espaços". Escrever num traço ou em Sentidos redesenha só aquela seção; Força redesenha Atributos, Salvaguardas/Perícias e as Ações (acerto e dano).
+- **Arrastar o token seguido desliga o seguir** no primeiro passo do arrasto (token seguido ou seleção que o inclua, mestre ou jogador); clicar sem arrastar mantém; setas seguem; arrastar a cópia (Alt) ou um token que não é o seguido não desliga.
+- Mecanismo novo em `secoes.tsx`: caminho `npc.<campo>` nas chaves, `props` aninhado comparado por dentro e a fatia livre `mudou(a, b)`. `PropsDaAba.fichaAtual()` (estável) e o contexto `PropsAoVivo`.
+
+### Medição (antes × depois)
+Mesma cena e script do Q14 (`MEDIDA_SO=D`, mediana de 3); "seções" = quantas seções diferentes redesenharam. Ficha do conjurador (30 magias) e Ogro da semente (com um traço, 12 magias e espaços).
+
+| Cenário | `pnpm dev` (script ms) | Produção (script ms) | Seções (antes → depois) |
+|---|---|---|---|
+| D1 40 teclas na descrição de uma magia | 1.282 → 689 | 178 → 110 | todas as da aba → 1 (LinhaDeMagia) |
+| D2 40 teclas em Classe de conjurador | 1.250 → 529 | 172 → 94 | todas → 1 (BarraDoConjurador) |
+| D3 10 mudanças do atributo de conjuração | 657 → 645 | 51 → 61 | todas → 6 (as que dependem) |
+| D4 10 gestos (preparada + espaço) | 624 → 251 | 58 → 40 | todas → 2 (Círculo, Linhas) |
+| D5 40 teclas num traço do NPC | 771 → 451 | 91 → 75 | todo o bloco → 1 (NpcTracos) |
+| D6 40 teclas em Sentidos do NPC | 685 → 408 | 87 → 73 | todo o bloco → 1 (NpcSentidos) |
+| D7 10 mudanças de Força do NPC | 245 → 175 | 31 → 29 | todo o bloco → 3 |
+| D8 conjuração do NPC (atributo + espaço) | 510 → 499 | 50 → 55 | todo → 4 |
+
+(Antes, os contadores das seções novas não existiam: toda a aba/bloco redesenhava a cada gesto; as colunas "seções" do antes valem como "tudo".) D3, D7 e D8 não melhoram em tempo porque mudar um atributo legitimamente atualiza CD, chips e ataques de todas as linhas; a variação entre repetições foi de 5 a 50% (`var%`), então diferenças pequenas valem como ordem de grandeza.
+
+### Verificação
+`pnpm typecheck`, `pnpm lint`, `pnpm --filter @tabletop/web test` (279 testes, incluindo `secoes.test.ts`) e 114 testes E2E (ficha, NPC, magias, conjurar, compêndio, dicas, q12, q13, q14, janela própria, sala e o novo `q15.spec.ts`), tudo verde, sem repetição. Não mexe em `packages/shared` nem em `apps/server`: sem `pnpm verify` completo.
+
+### Decisões
+Ver `REDESIGN.md`, "Q15 — como ficou". Desvios: nenhum E2E antigo alterado.
+
+### Frágil
+Ver `PASSAGEM.md`, "Q15".
+
+### Roteiro manual
+Ver `docs/ROTEIRO-DE-TESTES.md` (não alterado neste lote): digitar numa magia e num traço do NPC; mudar um atributo; arrastar o token seguido.
+
+## Próximo: o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b, N4, N5, M1, M2, Q1, Q2, Q3, Q4, Q5, Q6, Q7, Q8, Q9, Q10, Q11, Q12, Q13, Q14, Q15 e das otimizações O1–O4

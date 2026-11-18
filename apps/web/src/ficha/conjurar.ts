@@ -112,7 +112,8 @@ export function conjurar(props: PropsDaAba, m: Magia, opcao?: OpcaoDeConjuracao)
     } else {
       const circulo = d.espacos.find((e) => e.nivel === opcao.nivel);
       if (!circulo || circulo.restantes <= 0) return;
-      const { [String(opcao.nivel) as "1"]: _antigo, ...resto } = ficha.espacosGastos ?? {};
+      const { [String(opcao.nivel) as "1"]: _antigo, ...resto } =
+        props.fichaAtual().espacosGastos ?? {};
       alterar(um("espacosGastos", { ...resto, [String(opcao.nivel)]: circulo.gastos + 1 }));
     }
     if (opcao.nivel > m.nivel) {

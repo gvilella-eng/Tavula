@@ -14,6 +14,7 @@ import { CampoTexto } from "./campos";
 import { EditorDeAtaque } from "./EditorDeAtaque";
 import { Caixa, Secao } from "./livro";
 import { useEntradaEmArrasto } from "./ordem";
+import { secao } from "./secoes";
 
 // Q9: o círculo de magias e a linha da magia moravam aqui; agora vêm de `CirculoDeMagias`, o mesmo componente que a
 // seção Conjuração do NPC usa. Quem importava `Espacos` e `subDaMagia` daqui continua achando.
@@ -22,7 +23,7 @@ export { Espacos, subDaMagia } from "./CirculoDeMagias";
 const TODOS_OS_NIVEIS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9] as const;
 
 /** Atributo de conjuração, CD e ataque da classe: as três caixas do alto da aba. */
-function Conjuracao({ ficha, d, alterar, editar, rolador }: PropsDaAba) {
+function ConjuracaoBruta({ ficha, d, alterar, editar, rolador }: PropsDaAba) {
   const c = d.conjuradoras[0];
   const seletor = (classe: string, valor: string) => (
     <select
@@ -134,7 +135,7 @@ function Conjuracao({ ficha, d, alterar, editar, rolador }: PropsDaAba) {
 }
 
 /** As outras classes que conjuram: uma linha para cada, com os mesmos números. */
-function OutrasConjuradoras({ ficha, d, alterar, editar, rolador }: PropsDaAba) {
+function OutrasConjuradorasBruta({ ficha, d, alterar, editar, rolador }: PropsDaAba) {
   const outras = d.conjuradoras.slice(1);
   if (outras.length === 0) return null;
   return (
@@ -180,9 +181,75 @@ function OutrasConjuradoras({ ficha, d, alterar, editar, rolador }: PropsDaAba) 
   );
 }
 
+/** O campo "Classe de conjurador" e o "Recuperar espaços", logo abaixo das caixas do alto. */
+function BarraDoConjuradorBruta({ ficha, d, alterar, editar }: PropsDaAba) {
+  return (
+    <div className="fl-mag-barra">
+      <CampoTexto
+        testid="ficha-classe-conjurador"
+        rotulo="Classe de conjurador"
+        placeholder="Classe de conjurador"
+        valor={ficha.classeConjurador ?? d.conjuradoras[0]?.classe ?? ""}
+        maxLength={48}
+        desabilitado={!editar}
+        className="fl-in fl-ln fl-classe-conj"
+        aoMudar={(t) => alterar(um("classeConjurador", t === "" ? null : t))}
+      />
+      {editar && (
+        <button
+          type="button"
+          className="fl-sec2"
+          data-testid="recuperar-espacos"
+          onClick={() => alterar(um("espacosGastos", null))}
+        >
+          <RotateCcw size={15} aria-hidden /> Recuperar espaços
+        </button>
+      )}
+    </div>
+  );
+}
+
+/** Os espaços de pacto do Bruxo. */
+function EspacosDoPactoBruta({ d, alterar, editar }: PropsDaAba) {
+  if (!d.pacto) return null;
+  return (
+    <Caixa testid="espacos-pacto" className="fl-nivel">
+      <div className="fl-nivel-cab">
+        <Secao className="fl-nivel-titulo">Pacto ({d.pacto.nivel}º nível)</Secao>
+        <Espacos
+          prefixo="pacto"
+          total={d.pacto.quantidade}
+          gastos={d.pacto.gastos}
+          editar={editar}
+          rotuloDoNivel="pacto"
+          aoMudar={(g) => alterar(um("pactoGasto", g === 0 ? null : g))}
+        />
+        <span className="fl-fa fl-nivel-resumo" data-testid="espacos-resumo-pacto">
+          {d.pacto.restantes}/{d.pacto.quantidade}
+        </span>
+      </div>
+    </Caixa>
+  );
+}
+
+// Q15: cada bloco da aba é uma seção em `memo` (ver `secoes.tsx`); os círculos e as linhas de magia, em `CirculoDeMagias`.
+const Conjuracao = secao("Conjuracao", ConjuracaoBruta, {
+  ficha: ["conjuracao", "habilidadeDeConjuracao"],
+  d: ["conjuradoras", "conjuracaoSemClasse"],
+});
+const OutrasConjuradoras = secao("OutrasConjuradoras", OutrasConjuradorasBruta, {
+  ficha: ["conjuracao"],
+  d: ["conjuradoras"],
+});
+const BarraDoConjurador = secao("BarraDoConjurador", BarraDoConjuradorBruta, {
+  ficha: ["classeConjurador"],
+  d: ["conjuradoras"],
+});
+const EspacosDoPacto = secao("EspacosDoPacto", EspacosDoPactoBruta, { ficha: [], d: ["pacto"] });
+
 /** Aba Magias: atributo, CD e ataque, os espaços por nível e as magias de cada nível. */
 export function AbaMagias(props: PropsDaAba) {
-  const { ficha, d, alterar, editar, editorAberto, fecharEditor, estreita } = props;
+  const { ficha, d, editar, editorAberto, fecharEditor, estreita } = props;
   const temMagiaNoNivel = (n: number) =>
     (ficha.magias ?? []).some((m) => m.nivel === n && !m.inata);
   // Arrastando uma magia do compêndio, o círculo dela aparece mesmo vazio, para ela ter onde cair.
@@ -202,7 +269,6 @@ export function AbaMagias(props: PropsDaAba) {
   const metade = Math.ceil(visiveis.length / 2);
   const esquerda = estreita ? visiveis : visiveis.slice(0, metade);
   const direita = estreita ? [] : visiveis.slice(metade);
-  const recuperar = () => alterar(um("espacosGastos", null));
   if (editorAberto && estreita) {
     return (
       <div className="fl-magias" data-testid="fh-aba-magias">
@@ -220,46 +286,8 @@ export function AbaMagias(props: PropsDaAba) {
             Sem classe: escolha o atributo de conjuração.
           </p>
         )}
-        <div className="fl-mag-barra">
-          <CampoTexto
-            testid="ficha-classe-conjurador"
-            rotulo="Classe de conjurador"
-            placeholder="Classe de conjurador"
-            valor={ficha.classeConjurador ?? d.conjuradoras[0]?.classe ?? ""}
-            maxLength={48}
-            desabilitado={!editar}
-            className="fl-in fl-ln fl-classe-conj"
-            aoMudar={(t) => alterar(um("classeConjurador", t === "" ? null : t))}
-          />
-          {editar && (
-            <button
-              type="button"
-              className="fl-sec2"
-              data-testid="recuperar-espacos"
-              onClick={recuperar}
-            >
-              <RotateCcw size={15} aria-hidden /> Recuperar espaços
-            </button>
-          )}
-        </div>
-        {d.pacto && (
-          <Caixa testid="espacos-pacto" className="fl-nivel">
-            <div className="fl-nivel-cab">
-              <Secao className="fl-nivel-titulo">Pacto ({d.pacto.nivel}º nível)</Secao>
-              <Espacos
-                prefixo="pacto"
-                total={d.pacto.quantidade}
-                gastos={d.pacto.gastos}
-                editar={editar}
-                rotuloDoNivel="pacto"
-                aoMudar={(g) => alterar(um("pactoGasto", g === 0 ? null : g))}
-              />
-              <span className="fl-fa fl-nivel-resumo" data-testid="espacos-resumo-pacto">
-                {d.pacto.restantes}/{d.pacto.quantidade}
-              </span>
-            </div>
-          </Caixa>
-        )}
+        <BarraDoConjurador {...props} />
+        <EspacosDoPacto {...props} />
         {esquerda.map((n) => (
           <CirculoDeMagias
             key={n}

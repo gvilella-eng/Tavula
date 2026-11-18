@@ -1052,6 +1052,137 @@ base(
         },
       );
 
+      // ---- Q15: a aba Magias e a ficha do NPC (sem compêndio) -----------------------------------
+      if (pede(/^D/)) {
+        await fecharAsFichas(p);
+        // o Ogro da semente ganha o que a medida precisa: um traço, magias, atributo e espaços de conjuração
+        await mandar(p, "ficha.alterar", {
+          personagemId: "pers-ogro",
+          operacoes: [
+            { caminho: "caracteristicas", valor: [{ nome: "Traço de medida", descricao: "" }] },
+            { caminho: "habilidadeDeConjuracao", valor: "int" },
+            { caminho: "espacosTotal", valor: { "1": 4, "2": 3 } },
+            { caminho: "magias", valor: magiasDaFicha().slice(0, 12) },
+          ],
+        });
+        // ---- a aba Magias do personagem (D1 a D4)
+        const magias = await abrirFicha(p, CONJURADOR, "magias");
+        const textoDaMagia = () => magias.getByTestId("magia-descricao-0");
+        await m.cenario(
+          "D1-digitar-magia",
+          "40 teclas na descrição da primeira magia (truque) na aba Magias do conjurador (30 magias)",
+          digitar,
+          {
+            preparar: async () => {
+              const alternar = magias.getByTestId("magia-alternar-0");
+              if ((await alternar.getAttribute("aria-expanded")) !== "true") await alternar.click();
+              await textoDaMagia().fill("");
+              await textoDaMagia().focus();
+            },
+            depois: () => textoDaMagia().blur(),
+            comTeclas: true,
+          },
+        );
+        const classeDeConjurador = () => magias.getByTestId("ficha-classe-conjurador");
+        await m.cenario(
+          "D2-digitar-classe-de-conjurador",
+          "40 teclas no campo livre Classe de conjurador da aba Magias",
+          digitar,
+          {
+            preparar: async () => {
+              await classeDeConjurador().fill("");
+              await classeDeConjurador().focus();
+            },
+            depois: () => classeDeConjurador().blur(),
+            comTeclas: true,
+          },
+        );
+        await m.cenario(
+          "D3-mudar-atributo-de-conjuracao",
+          "10 mudanças do atributo de conjuração (Inteligência, Sabedoria, alternando) e o que CD e ataque redesenham",
+          async () => {
+            const seletor = magias.locator('[data-testid^="conjuracao-habilidade-"]').first();
+            for (let i = 0; i < 10; i++) {
+              await seletor.selectOption(i % 2 === 0 ? "int" : "sab");
+              await p.waitForTimeout(150);
+            }
+          },
+        );
+        await m.cenario(
+          "D4-preparar-e-gastar-espaco",
+          "10 gestos: marcar/desmarcar a magia preparada (1º nível) e gastar/recuperar um espaço de 1º nível",
+          async () => {
+            for (let i = 0; i < 5; i++) {
+              await magias.getByTestId("magia-preparada-1").click();
+              await magias.getByTestId("espaco-1-1").click();
+              await p.waitForTimeout(100);
+            }
+          },
+        );
+        await fecharAsFichas(p);
+        // ---- a ficha do NPC (D5 a D8)
+        await abrirAba(p, "fichas");
+        await p.getByTestId("ficha-abrir-pers-ogro").dblclick();
+        const npc = p.locator('[data-testid="janela-ficha"][data-personagem-id="pers-ogro"]');
+        await expect(npc.getByTestId("npc-bloco")).toBeVisible();
+        const textoDoTraco = () => npc.getByTestId("traco-descricao-0");
+        await m.cenario(
+          "D5-digitar-traco-do-npc",
+          "40 teclas na descrição do traço do NPC (Ogro)",
+          digitar,
+          {
+            preparar: async () => {
+              const alternar = npc.getByTestId("traco-alternar-0");
+              if ((await alternar.getAttribute("aria-expanded")) !== "true") await alternar.click();
+              await textoDoTraco().fill("");
+              await textoDoTraco().focus();
+            },
+            depois: () => textoDoTraco().blur(),
+            comTeclas: true,
+          },
+        );
+        const sentidos = () => npc.getByTestId("npc-sentidos-campo");
+        await m.cenario(
+          "D6-digitar-sentidos-do-npc",
+          "40 teclas no campo Sentidos do NPC (Ogro)",
+          digitar,
+          {
+            preparar: async () => {
+              await sentidos().fill("");
+              await sentidos().focus();
+            },
+            depois: () => sentidos().blur(),
+            comTeclas: true,
+          },
+        );
+        await m.cenario(
+          "D7-mudar-atributo-do-npc",
+          "10 mudanças do valor de Força do NPC (uma a cada 150 ms)",
+          async () => {
+            for (let i = 0; i < 10; i++) {
+              await npc.getByTestId("atributo-valor-for").fill(String(10 + i));
+              await p.waitForTimeout(150);
+            }
+          },
+        );
+        await npc.getByTestId("npc-fita-conjuracao").click();
+        await expect(npc.getByTestId("npc-secao-conjuracao")).toBeVisible();
+        await m.cenario(
+          "D8-conjuracao-do-npc",
+          "10 mudanças do atributo de conjuração do NPC e 10 gastos/recuperações de um espaço de 1º nível",
+          async () => {
+            for (let i = 0; i < 10; i++) {
+              await npc
+                .getByTestId("npc-conj-habilidade")
+                .selectOption(i % 2 === 0 ? "sab" : "int");
+              await npc.getByTestId("npc-espaco-1-1").click();
+              await p.waitForTimeout(100);
+            }
+          },
+        );
+        await fecharAsFichas(p);
+      }
+
       // ---- o compêndio grande entra na mesa ---------------------------------------------------
       if (pede(/^(B2|A-|C)/)) {
         const texto = compendioSintetico();

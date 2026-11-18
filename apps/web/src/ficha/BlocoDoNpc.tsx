@@ -20,9 +20,22 @@ import {
   xpDoND,
 } from "@tabletop/shared";
 import { ChevronRight, Dices, GripVertical, MessageSquare, Plus, Settings, X } from "lucide-react";
-import { type HTMLAttributes, type KeyboardEvent, type ReactNode, useState } from "react";
+import {
+  type HTMLAttributes,
+  type KeyboardEvent,
+  type ReactNode,
+  useCallback,
+  useState,
+} from "react";
 import { BotaoComDica } from "../BotaoComDica";
-import { BarraDePv, CampoDeCa, ControlesDePv, type PropsDaAba, um } from "./AbaPrincipal";
+import {
+  BarraDePv,
+  CampoDeCa,
+  ControlesDePv,
+  FORA_DA_CONJURACAO,
+  type PropsDaAba,
+  um,
+} from "./AbaPrincipal";
 import { SecaoDeConjuracao } from "./ConjuracaoDoNpc";
 import { CampoDecimal, CampoNumero, CampoTexto } from "./campos";
 import { EditorDeAtaque } from "./EditorDeAtaque";
@@ -30,6 +43,7 @@ import { ListaDeCaracteristicas } from "./ListaDeTitulos";
 import { TituloDoBloco as Titulo } from "./livro";
 import { NomeComCapitular } from "./NomeComCapitular";
 import { indicadorDoVao, useOrdemDaLista, useSoltarDoCompendio } from "./ordem";
+import { secao } from "./secoes";
 import { soltarNaFicha } from "./soltar";
 
 // ---------------------------------------------------------------------------------------------
@@ -96,7 +110,7 @@ function Linha({
 // Cabeçalho: nome, CA, PV e deslocamento
 // ---------------------------------------------------------------------------------------------
 
-function Cabecalho(props: PropsDoNpc) {
+function CabecalhoBruto(props: PropsDaAba & { aoMudarNome: (nome: string) => void }) {
   const { ficha, alterar, editar, personagemId, nomeDoPersonagem, aoMudarNome } = props;
   const npc = ficha.npc ?? {};
   const texto = (campo: keyof NonNullable<typeof ficha.npc>) => (t: string) =>
@@ -233,7 +247,7 @@ function Cabecalho(props: PropsDoNpc) {
 // Atributos
 // ---------------------------------------------------------------------------------------------
 
-function Atributos({ ficha, d, alterar, editar, rolador }: PropsDaAba) {
+function AtributosBruto({ ficha, d, alterar, editar, rolador }: PropsDaAba) {
   return (
     <section className="npc-atributos" aria-label="Atributos" data-testid="npc-atributos">
       {ATRIBUTOS.map((a) => (
@@ -295,7 +309,13 @@ function Atributos({ ficha, d, alterar, editar, rolador }: PropsDaAba) {
 // ---------------------------------------------------------------------------------------------
 
 /** Os testes em que o monstro é proficiente (salvaguardas ou perícias): botões que rolam, e o "+" de quem edita. */
-function Proficiencias({ props, tipo }: { props: PropsDaAba; tipo: "salvaguardas" | "pericias" }) {
+function ProficienciasBruta({
+  props,
+  tipo,
+}: {
+  props: PropsDaAba;
+  tipo: "salvaguardas" | "pericias";
+}) {
   const { ficha, d, alterar, editar, rolador } = props;
   const salvas = tipo === "salvaguardas";
   const itens = salvas
@@ -372,8 +392,8 @@ function Proficiencias({ props, tipo }: { props: PropsDaAba; tipo: "salvaguardas
   );
 }
 
-function LinhasDoBloco(props: PropsDaAba) {
-  const { ficha, d, alterar, editar, rolador } = props;
+/** Vulnerabilidades, resistências e imunidades: só aparecem escritas (ou para quem edita). */
+function ResistenciasBruta({ ficha, alterar, editar }: PropsDaAba) {
   const npc = ficha.npc ?? {};
   const textoDe = (campo: string, rotulo: string, testid: string) => {
     const valor = (npc as Record<string, string | undefined>)[campo] ?? "";
@@ -397,88 +417,158 @@ function LinhasDoBloco(props: PropsDaAba) {
       </Linha>
     );
   };
-  const xp = xpDoND(npc.nd);
-  const percepcao = d.pericias.find((p) => p.id === "percepcao");
   return (
-    <div className="npc-linhas" data-testid="npc-linhas">
-      <Proficiencias props={props} tipo="salvaguardas" />
-      <Proficiencias props={props} tipo="pericias" />
+    <>
       {textoDe("vulnerabilidades", "Vulnerab.", "npc-vulnerabilidades")}
       {textoDe("resistencias", "Resistências", "npc-resistencias")}
       {textoDe("imunidades", "Imunidades", "npc-imunidades")}
       {textoDe("imunidadesCondicoes", "Imun. cond.", "npc-imunidades-condicoes")}
-      <Linha rotulo="Sentidos" testid="npc-sentidos">
-        <CampoTexto
-          testid="npc-sentidos-campo"
-          rotulo="Sentidos"
-          placeholder="visão no escuro 18 m"
-          valor={npc.sentidos ?? ""}
-          maxLength={200}
-          crescente
-          umaLinha
-          desabilitado={!editar}
-          className="npc-inp npc-sentidos-campo"
-          aoMudar={(t) => {
-            alterar(um("npc.sentidos", t === "" ? null : t));
-            return true;
-          }}
-        />
-        <button
-          type="button"
-          className="npc-botao-linha"
-          data-testid="percepcao-passiva"
-          disabled={!rolador.podeRolar}
-          aria-label={`Rolar Percepção, ${formatarBonus(percepcao?.total ?? 0)}. Percepção passiva ${d.percepcaoPassiva}`}
-          onClick={() => rolador.teste("Percepção", percepcao?.total ?? 0)}
-        >
-          <span className="npc-losango" aria-hidden />
-          Percepção passiva {d.percepcaoPassiva}
-        </button>
-      </Linha>
-      <Linha rotulo="Idiomas" testid="npc-idiomas">
-        <CampoTexto
-          testid="npc-idiomas-campo"
-          rotulo="Idiomas"
-          placeholder="Comum, Gigante"
-          valor={(ficha.idiomas ?? []).join(", ")}
-          maxLength={400}
-          crescente
-          umaLinha
-          desabilitado={!editar}
-          className="npc-inp"
-          aoMudar={(t) => {
-            const lista = t
-              .split(",")
-              .map((x) => x.trim().slice(0, 40))
-              .filter(Boolean);
-            alterar(um("idiomas", lista.length === 0 ? null : lista.slice(0, 30)));
-            return true;
-          }}
-        />
-      </Linha>
-      <Linha rotulo="Desafio" testid="npc-desafio">
-        <select
-          className="npc-sel"
-          data-testid="npc-nd"
-          aria-label="Nível de desafio"
-          value={npc.nd ?? ""}
-          disabled={!editar}
-          onChange={(e) => alterar(um("npc.nd", e.target.value === "" ? null : e.target.value))}
-        >
-          <option value="">—</option>
-          {NIVEIS_DE_DESAFIO.map((nd) => (
-            <option key={nd} value={nd}>
-              {nd}
-            </option>
-          ))}
-        </select>
-        {xp !== undefined && (
-          <span data-testid="npc-xp">
-            ({xp.toLocaleString("pt-BR")} XP) · Proficiência{" "}
-            {formatarBonus(bonusDeProficiencia(ficha))}
-          </span>
-        )}
-      </Linha>
+    </>
+  );
+}
+
+/** Sentidos e a Percepção passiva. */
+function SentidosBruto({ ficha, d, alterar, editar, rolador }: PropsDaAba) {
+  const npc = ficha.npc ?? {};
+  const percepcao = d.pericias.find((p) => p.id === "percepcao");
+  return (
+    <Linha rotulo="Sentidos" testid="npc-sentidos">
+      <CampoTexto
+        testid="npc-sentidos-campo"
+        rotulo="Sentidos"
+        placeholder="visão no escuro 18 m"
+        valor={npc.sentidos ?? ""}
+        maxLength={200}
+        crescente
+        umaLinha
+        desabilitado={!editar}
+        className="npc-inp npc-sentidos-campo"
+        aoMudar={(t) => {
+          alterar(um("npc.sentidos", t === "" ? null : t));
+          return true;
+        }}
+      />
+      <button
+        type="button"
+        className="npc-botao-linha"
+        data-testid="percepcao-passiva"
+        disabled={!rolador.podeRolar}
+        aria-label={`Rolar Percepção, ${formatarBonus(percepcao?.total ?? 0)}. Percepção passiva ${d.percepcaoPassiva}`}
+        onClick={() => rolador.teste("Percepção", percepcao?.total ?? 0)}
+      >
+        <span className="npc-losango" aria-hidden />
+        Percepção passiva {d.percepcaoPassiva}
+      </button>
+    </Linha>
+  );
+}
+
+/** Idiomas. */
+function IdiomasBruto({ ficha, alterar, editar }: PropsDaAba) {
+  return (
+    <Linha rotulo="Idiomas" testid="npc-idiomas">
+      <CampoTexto
+        testid="npc-idiomas-campo"
+        rotulo="Idiomas"
+        placeholder="Comum, Gigante"
+        valor={(ficha.idiomas ?? []).join(", ")}
+        maxLength={400}
+        crescente
+        umaLinha
+        desabilitado={!editar}
+        className="npc-inp"
+        aoMudar={(t) => {
+          const lista = t
+            .split(",")
+            .map((x) => x.trim().slice(0, 40))
+            .filter(Boolean);
+          alterar(um("idiomas", lista.length === 0 ? null : lista.slice(0, 30)));
+          return true;
+        }}
+      />
+    </Linha>
+  );
+}
+
+/** Nível de desafio, XP e proficiência. */
+function DesafioBruto({ ficha, alterar, editar }: PropsDaAba) {
+  const npc = ficha.npc ?? {};
+  const xp = xpDoND(npc.nd);
+  return (
+    <Linha rotulo="Desafio" testid="npc-desafio">
+      <select
+        className="npc-sel"
+        data-testid="npc-nd"
+        aria-label="Nível de desafio"
+        value={npc.nd ?? ""}
+        disabled={!editar}
+        onChange={(e) => alterar(um("npc.nd", e.target.value === "" ? null : e.target.value))}
+      >
+        <option value="">—</option>
+        {NIVEIS_DE_DESAFIO.map((nd) => (
+          <option key={nd} value={nd}>
+            {nd}
+          </option>
+        ))}
+      </select>
+      {xp !== undefined && (
+        <span data-testid="npc-xp">
+          ({xp.toLocaleString("pt-BR")} XP) · Proficiência{" "}
+          {formatarBonus(bonusDeProficiencia(ficha))}
+        </span>
+      )}
+    </Linha>
+  );
+}
+
+// Q15: cada bloco do Bestiário é uma seção em `memo` com os campos do NPC que lê (`npc.<campo>`): escrever em
+// Sentidos não redesenha o cabeçalho nem as resistências.
+const Cabecalho = secao("NpcCabecalho", CabecalhoBruto, {
+  ficha: [
+    "npc.tamanho",
+    "npc.tipo",
+    "npc.pvFormula",
+    "alinhamento",
+    "ca",
+    "pvAtual",
+    "pvMax",
+    "pvTemp",
+  ],
+  d: ["deslocamentoM", "ca"],
+});
+const AtributosDoNpc = secao("NpcAtributos", AtributosBruto, {
+  ficha: ["atributos"],
+  d: ["atributos", "salvaguardas"],
+});
+const ProficienciasDoNpc = secao("NpcSalvaguardas", ProficienciasBruta, {
+  ficha: ["salvaguardas", "pericias"],
+  d: ["salvaguardas", "pericias"],
+});
+const Resistencias = secao("NpcResistencias", ResistenciasBruta, {
+  ficha: ["npc.vulnerabilidades", "npc.resistencias", "npc.imunidades", "npc.imunidadesCondicoes"],
+});
+const Sentidos = secao("NpcSentidos", SentidosBruto, {
+  ficha: ["npc.sentidos"],
+  d: ["percepcaoPassiva"],
+  mudou: (a, b) =>
+    a.d.pericias.find((p) => p.id === "percepcao") !==
+    b.d.pericias.find((p) => p.id === "percepcao"),
+});
+const Idiomas = secao("NpcIdiomas", IdiomasBruto, { ficha: ["idiomas"] });
+const Desafio = secao("NpcDesafio", DesafioBruto, {
+  ficha: ["npc.nd", "classes"],
+  d: ["proficiencia"],
+});
+
+function LinhasDoBloco(props: PropsDaAba) {
+  return (
+    <div className="npc-linhas" data-testid="npc-linhas">
+      <ProficienciasDoNpc props={props} tipo="salvaguardas" />
+      <ProficienciasDoNpc props={props} tipo="pericias" />
+      <Resistencias {...props} />
+      <Sentidos {...props} />
+      <Idiomas {...props} />
+      <Desafio {...props} />
     </div>
   );
 }
@@ -814,7 +904,7 @@ function LinhaDeAcao({
   );
 }
 
-function SecaoDeAcoes({
+function SecaoDeAcoesBruta({
   cat,
   props,
   versao,
@@ -825,7 +915,7 @@ function SecaoDeAcoes({
   versao: number;
   aoReordenar: () => void;
 }) {
-  const { ficha, alterar, editar, abrirEditor, fecharEditor } = props;
+  const { ficha, alterar, editar, abrirEditor, fecharEditor, fichaAtual } = props;
   const todos = ficha.ataques ?? [];
   const daSecao = todos.map((a, gi) => ({ a, gi })).filter((x) => categoriaDe(x.a) === cat);
   const ordem = useOrdemDaLista({
@@ -833,13 +923,14 @@ function SecaoDeAcoes({
     habilitado: editar,
     aoMover: (de, para) => {
       fecharEditor();
+      const agora = fichaAtual().ataques ?? [];
       aoReordenar();
       alterar(
         um(
           "ataques",
           moverNoGrupo(
-            todos,
-            posicoesDoGrupo(todos, (a) => categoriaDe(a) === cat),
+            agora,
+            posicoesDoGrupo(agora, (a) => categoriaDe(a) === cat),
             de,
             para,
           ),
@@ -851,14 +942,18 @@ function SecaoDeAcoes({
     aceita: ["arma"],
     habilitado: editar && cat === "acao",
     listaDoTipo: { arma: "acao" },
-    aoSoltar: (entrada, posicao) => soltarNaFicha(props, "npc", entrada, { posicao }),
+    aoSoltar: (entrada, posicao) =>
+      soltarNaFicha({ ficha: fichaAtual(), alterar, avisar: props.avisar }, "npc", entrada, {
+        posicao,
+      }),
   });
   if (cat !== "acao" && daSecao.length === 0) return null;
   function nova() {
-    const posicao = todos.length;
+    const agora = fichaAtual().ataques ?? [];
+    const posicao = agora.length;
     const ok = alterar(
       um("ataques", [
-        ...todos,
+        ...agora,
         {
           nome: `Nova ${ROTULO_DA_CATEGORIA[cat].toLowerCase()}`,
           tipoDeAcao: "esp",
@@ -911,8 +1006,8 @@ function SecaoDeAcoes({
 }
 
 /** "+ Reação" e "+ Lendária": discretos, só para quem edita e só enquanto a seção não existe. */
-function BotoesDeNovaCategoria({ props }: { props: PropsDaAba }) {
-  const { ficha, alterar, editar, abrirEditor } = props;
+function BotoesDeNovaCategoriaBruto({ props }: { props: PropsDaAba }) {
+  const { ficha, alterar, editar, abrirEditor, fichaAtual } = props;
   const todos = ficha.ataques ?? [];
   if (!editar) return null;
   const falta = (["reacao", "lendaria"] as const).filter(
@@ -928,9 +1023,10 @@ function BotoesDeNovaCategoria({ props }: { props: PropsDaAba }) {
           className="npc-novo"
           data-testid={`npc-nova-${c}`}
           onClick={() => {
+            const agora = fichaAtual().ataques ?? [];
             const ok = alterar(
               um("ataques", [
-                ...todos,
+                ...agora,
                 {
                   nome: `Nova ${ROTULO_DA_CATEGORIA[c].toLowerCase()}`,
                   tipoDeAcao: "esp",
@@ -938,7 +1034,7 @@ function BotoesDeNovaCategoria({ props }: { props: PropsDaAba }) {
                 },
               ]),
             );
-            if (ok) abrirEditor({ tipo: "ataque", i: todos.length });
+            if (ok) abrirEditor({ tipo: "ataque", i: agora.length });
           }}
         >
           <Plus size={13} aria-hidden /> {c === "reacao" ? "Reação" : "Lendária"}
@@ -947,6 +1043,63 @@ function BotoesDeNovaCategoria({ props }: { props: PropsDaAba }) {
     </div>
   );
 }
+
+/** As ações de uma categoria, com a posição de cada uma na lista de `ataques` (a fatia que a seção lê, Q15). */
+function acoesDaCategoria(ficha: PropsDaAba["ficha"], cat: CategoriaDeAcao) {
+  return (ficha.ataques ?? []).map((a, gi) => ({ a, gi })).filter((x) => categoriaDe(x.a) === cat);
+}
+
+/**
+ * Uma categoria de ações em `memo` (Q15): escrever numa ação redesenha só a categoria dela; mexer em Força redesenha
+ * (os acertos e danos saem dela); as outras categorias ficam como estão.
+ */
+const SecaoDeAcoes = secao("NpcAcoes", SecaoDeAcoesBruta, {
+  // `npc` fica de fora: as ações só leem o ND dele (abaixo); escrever em Sentidos não as toca
+  fichaExceto: [...FORA_DA_CONJURACAO, "ataques", "npc"],
+  d: "todo",
+  mudou: (a, b) => {
+    const x = acoesDaCategoria(a.props.ficha, a.cat);
+    const y = acoesDaCategoria(b.props.ficha, b.cat);
+    return (
+      a.props.ficha.npc?.nd !== b.props.ficha.npc?.nd ||
+      x.length !== y.length ||
+      x.some((v, k) => v.gi !== y[k]?.gi || v.a !== y[k]?.a)
+    );
+  },
+});
+
+const faltamCategorias = (ficha: PropsDaAba["ficha"]) =>
+  (["reacao", "lendaria"] as const)
+    .filter((c) => !(ficha.ataques ?? []).some((a) => categoriaDe(a) === c))
+    .join();
+
+const BotoesDeNovaCategoria = secao("NpcNovasCategorias", BotoesDeNovaCategoriaBruto, {
+  ficha: [],
+  mudou: (a, b) => faltamCategorias(a.props.ficha) !== faltamCategorias(b.props.ficha),
+});
+
+/** Os traços do NPC (a lista de características, a mesma da ficha de personagem). */
+const TracosDoNpc = secao(
+  "NpcTracos",
+  ({
+    ficha,
+    alterar,
+    editar,
+    enviar,
+    personagemId,
+  }: Pick<PropsDaAba, "ficha" | "alterar" | "editar" | "enviar" | "personagemId">) => (
+    <ListaDeCaracteristicas
+      campo="caracteristicas"
+      testidBase="traco"
+      ficha={ficha}
+      alterar={alterar}
+      editar={editar}
+      enviar={enviar}
+      personagemId={personagemId}
+    />
+  ),
+  { ficha: ["caracteristicas"] },
+);
 
 // ---------------------------------------------------------------------------------------------
 // O bloco inteiro
@@ -974,9 +1127,10 @@ const FITAS_DO_NPC: readonly { id: PaginaDoNpc; titulo: string }[] = [
 ];
 
 export function BlocoDoNpc(props: PropsDoNpc) {
-  const { modos, pagina, aoMudarPagina } = props;
+  const { modos, pagina, aoMudarPagina, aoMudarNome, ...base } = props;
   // Mexer na ordem recria as linhas (a seta de "expandida" volta ao fechado: elas se identificam pela posição).
   const [versao, setVersao] = useState(0);
+  const recriarLinhas = useCallback(() => setVersao((v) => v + 1), []);
   const tracos = useSoltarDoCompendio({
     aceita: ["item", "itemMagico"],
     habilitado: props.editar,
@@ -1066,13 +1220,13 @@ export function BlocoDoNpc(props: PropsDoNpc) {
         data-testid={`npc-painel-${pagina}`}
       >
         {pagina === "conjuracao" ? (
-          <SecaoDeConjuracao props={props} />
+          <SecaoDeConjuracao props={base} />
         ) : (
           <>
             <div className="npc-col npc-col-esq">
-              <Cabecalho {...props} />
-              <Atributos {...props} />
-              <LinhasDoBloco {...props} />
+              <Cabecalho {...base} aoMudarNome={aoMudarNome} />
+              <AtributosDoNpc {...base} />
+              <LinhasDoBloco {...base} />
             </div>
             <div className="npc-col npc-col-dir">
               <div
@@ -1082,9 +1236,7 @@ export function BlocoDoNpc(props: PropsDoNpc) {
               >
                 <Titulo testid="npc-titulo-tracos">Traços</Titulo>
                 <div className="npc-tracos">
-                  <ListaDeCaracteristicas
-                    campo="caracteristicas"
-                    testidBase="traco"
+                  <TracosDoNpc
                     ficha={props.ficha}
                     alterar={props.alterar}
                     editar={props.editar}
@@ -1103,12 +1255,12 @@ export function BlocoDoNpc(props: PropsDoNpc) {
                 <SecaoDeAcoes
                   key={c}
                   cat={c}
-                  props={props}
+                  props={base}
                   versao={versao}
-                  aoReordenar={() => setVersao((v) => v + 1)}
+                  aoReordenar={recriarLinhas}
                 />
               ))}
-              <BotoesDeNovaCategoria props={props} />
+              <BotoesDeNovaCategoria props={base} />
               <p className="npc-dica" role="note">
                 Segure uma ação por meio segundo para arrastá-la, ou use Alt + seta no título.
               </p>

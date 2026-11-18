@@ -4484,7 +4484,21 @@ export class MapaPixi {
     }
     v.alvoX = alvo.x;
     v.alvoY = alvo.y;
-    if (alvo.x !== g.origem.x || alvo.y !== g.origem.y) g.moveu = true;
+    if (alvo.x !== g.origem.x || alvo.y !== g.origem.y) {
+      // Q15: o token seguido (ou uma seleção que o inclua) preso ao ponteiro desliga o "seguir" no primeiro passo do
+      // arrasto; só clicar nele não. A cópia (Alt) não move o original, então o seguir fica.
+      if (
+        !g.moveu &&
+        !g.copia &&
+        this.seguidoId &&
+        (g.id === this.seguidoId || g.junto.some((j) => j.id === this.seguidoId))
+      ) {
+        // solta já, sem esperar o React devolver o estado (a vista não pode dar mais um passo atrás do token)
+        this.seguir(null);
+        this.retornos().parouDeSeguir();
+      }
+      g.moveu = true;
+    }
     if (
       !g.copia &&
       g.junto.length === 0 &&

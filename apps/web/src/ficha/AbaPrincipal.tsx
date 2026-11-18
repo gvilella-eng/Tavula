@@ -27,7 +27,7 @@ import {
   type Token,
 } from "@tabletop/shared";
 import { Dices, GripVertical, Minus, Plus, Settings, Trash2 } from "lucide-react";
-import type { HTMLAttributes } from "react";
+import { createContext, type HTMLAttributes } from "react";
 import { BotaoComDica } from "../BotaoComDica";
 import type { PedirImagem } from "../FaixaDeCenas";
 import type { ImagensDoMapa } from "../mapa/mapaPixi";
@@ -56,6 +56,8 @@ export type PropsDaAba = {
   /** O nome do personagem (a janela mostra e edita no cabeçalho). */
   nomeDoPersonagem: string;
   ficha: Ficha;
+  /** Q15: a ficha de agora (identidade estável). Manipuladores de seção em `memo` leem dela, não da ficha do render. */
+  fichaAtual: () => Ficha;
   d: FichaDerivada;
   alterar: (operacoes: OperacaoDeFicha[]) => boolean;
   editar: boolean;
@@ -88,6 +90,62 @@ export type PropsDaAba = {
   /** A mesa, para acender e apagar objetos de luz na linha do equipamento (V4a2). */
   luz?: LuzDaFicha | undefined;
 };
+
+/**
+ * Q15: os props da aba de agora (a janela provê a cada render). Uma seção em `memo` dentro de outra (a linha de magia
+ * dentro do círculo) os lê daqui, para a de fora não ter de redesenhar só para repassá-los.
+ */
+export const PropsAoVivo = createContext<PropsDaAba | null>(null);
+
+/**
+ * Q15: o que a conjuração e as ações NÃO leem da ficha (contas de acerto, CD, espaços): as seções da aba Magias e do NPC
+ * declaram "tudo menos isto"; chave nova da ficha cai sozinha entre as que fazem redesenhar.
+ */
+export const FORA_DA_CONJURACAO: (keyof Ficha)[] = [
+  "caracteristicas",
+  "outrasCaracteristicas",
+  "personalidade",
+  "ideais",
+  "ligacoes",
+  "defeitos",
+  "notas",
+  "historia",
+  "tesouro",
+  "aliados",
+  "aparencia",
+  "aparenciaHash",
+  "simboloNome",
+  "simboloHash",
+  "idade",
+  "altura",
+  "peso",
+  "olhos",
+  "pele",
+  "cabelos",
+  "raca",
+  "antecedente",
+  "alinhamento",
+  "salvaguardas",
+  "pericias",
+  "ca",
+  "deslocamentoFt",
+  "iniciativaBonus",
+  "pvAtual",
+  "pvMax",
+  "pvTemp",
+  "dadosDeVidaUsados",
+  "mortes",
+  "itens",
+  "recursos",
+  "idiomas",
+  "xp",
+  "inspiracao",
+  "outrasProficiencias",
+  "moedas",
+  "ataquesTexto",
+  "apresentacao",
+  "classeConjurador",
+];
 
 /** As chaves da ficha que são só texto livre: ataques e equipamento não as leem (Q14). */
 const TEXTOS_LIVRES: (keyof Ficha)[] = [

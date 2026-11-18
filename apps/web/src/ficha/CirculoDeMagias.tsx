@@ -9,10 +9,10 @@ import {
   previaDoAtaque,
 } from "@tabletop/shared";
 import { ChevronRight, Plus, Settings, Trash2 } from "lucide-react";
-import { type HTMLAttributes, useState } from "react";
+import { type ComponentProps, type HTMLAttributes, useContext, useState } from "react";
 import { BotaoComDica } from "../BotaoComDica";
 import { CamposDaMagia, linhaDeNivelEEscola, MarcasDaMagia, TextoDaMagia } from "../CartaoDaMagia";
-import { type PropsDaAba, um } from "./AbaPrincipal";
+import { FORA_DA_CONJURACAO, PropsAoVivo, type PropsDaAba, um } from "./AbaPrincipal";
 import { CampoDeNovo, CampoNumero, CampoTexto } from "./campos";
 import { magiaDoCompendio } from "./conjurar";
 import { EditorDeAtaque } from "./EditorDeAtaque";
@@ -20,6 +20,7 @@ import { BotaoMandarAoChat } from "./ListaDeTitulos";
 import { Bolinha, Caixa, Secao } from "./livro";
 import { BotaoPingarMagia, useConjurar } from "./menuDeEspaco";
 import { indicadorDoVao, useOrdemDaLista, useSoltarDoCompendio } from "./ordem";
+import { secao } from "./secoes";
 import { soltarNaFicha } from "./soltar";
 
 // ---------------------------------------------------------------------------------------------
@@ -138,15 +139,15 @@ export function subDaMagia(props: PropsDaAba, m: Magia): string {
   return [m.escola, chip].filter(Boolean).join(" · ");
 }
 
-function LinhaDeMagia({
-  m,
+function LinhaDeMagiaBruta({
   i,
   props,
   ordem,
   variante,
 }: {
-  m: Magia;
   i: number;
+  /** Quantas linhas o círculo tem (a seção em `memo` precisa saber quando muda: a ordem pelo teclado usa). */
+  total: number;
   props: PropsDaAba;
   ordem: HTMLAttributes<HTMLDivElement>;
   variante: VarianteDoCirculo;
@@ -164,6 +165,8 @@ function LinhaDeMagia({
     editorAberto,
     rolador,
   } = props;
+  // Q15: a linha lê a própria magia da ficha (e não de uma prop), para o círculo não redesenhar a cada tecla dela
+  const m = props.ficha.magias?.[i] as Magia;
   const [aberta, setAberta] = useState(false);
   const doCompendio = magiaDoCompendio(compendio, m.nome);
   const sub = subDaMagia(props, m);
@@ -404,7 +407,7 @@ export function BotaoNovoCirculo({
 }
 
 /** Um círculo (ou os truques): espaços totais e restantes, as bolinhas, as magias em linha e o campo de nova. */
-export function CirculoDeMagias({
+function CirculoDeMagiaBruto({
   n,
   props,
   variante,
@@ -417,7 +420,7 @@ export function CirculoDeMagias({
 }) {
   const t = IDS[variante];
   const npc = variante === "npc";
-  const { ficha, d, alterar, editar, fecharEditor } = props;
+  const { ficha, d, alterar, editar, fecharEditor, fichaAtual } = props;
   const magias = ficha.magias ?? [];
   const doNivel = magias.map((m, i) => ({ m, i })).filter((x) => x.m.nivel === n && !x.m.inata);
   const ordem = useOrdemDaLista({
@@ -425,12 +428,14 @@ export function CirculoDeMagias({
     habilitado: editar,
     aoMover: (de, para) => {
       fecharEditor();
+      // Q15: a lista de agora (esta seção não redesenha quando só o texto de outra magia muda)
+      const agora = fichaAtual().magias ?? [];
       alterar(
         um(
           "magias",
           moverNoGrupo(
-            magias,
-            posicoesDoGrupo(magias, (x) => x.nivel === n && !x.inata),
+            agora,
+            posicoesDoGrupo(agora, (x) => x.nivel === n && !x.inata),
             de,
             para,
           ),
@@ -444,7 +449,10 @@ export function CirculoDeMagias({
     filtro: (e) => e.tipo === "magia" && e.magia.nivel === n,
     habilitado: editar,
     listaDoTipo: { magia: t.lista(n) },
-    aoSoltar: (entrada, posicao) => soltarNaFicha(props, variante, entrada, { posicao }),
+    aoSoltar: (entrada, posicao) =>
+      soltarNaFicha({ ficha: fichaAtual(), alterar, avisar: props.avisar }, variante, entrada, {
+        posicao,
+      }),
   });
   const espaco = d.espacos.find((e) => e.nivel === n);
   return (
@@ -472,7 +480,7 @@ export function CirculoDeMagias({
           rotuloDoNivel={`${n}º nível`}
           aoMudar={(g) => {
             // O objeto inteiro (chave numérica não cria o caminho: "1" seria posição de lista).
-            const { [String(n) as "1"]: _antigo, ...resto } = ficha.espacosGastos ?? {};
+            const { [String(n) as "1"]: _antigo, ...resto } = fichaAtual().espacosGastos ?? {};
             alterar(um("espacosGastos", g === 0 ? resto : { ...resto, [String(n)]: g }));
           }}
         />
@@ -484,10 +492,10 @@ export function CirculoDeMagias({
         </span>
       )}
       {doNivel.map(({ m, i }, k) => (
-        <LinhaDeMagia
+        <LinhaLigada
           key={`m-${i}-${m.nome}`}
-          m={m}
           i={i}
+          total={doNivel.length}
           props={props}
           variante={variante}
           ordem={{
@@ -511,10 +519,78 @@ export function CirculoDeMagias({
           placeholder={n === 0 ? "Novo truque" : "Nova magia"}
           className="fl-in fl-magia-nova"
           aoCriar={(nome) =>
-            alterar(um("magias", [...magias, { nome, nivel: n, preparada: true, descricao: "" }]))
+            alterar(
+              um("magias", [
+                ...(fichaAtual().magias ?? []),
+                { nome, nivel: n, preparada: true, descricao: "" },
+              ]),
+            )
           }
         />
       )}
     </Caixa>
   );
 }
+
+/** Q15: o que muda numa linha pela ordem: os atributos de dados (levantada, indicador); as funções ficam de fora. */
+function mesmaOrdem(a: unknown, b: unknown) {
+  const x = (a ?? {}) as Record<string, unknown>;
+  const y = (b ?? {}) as Record<string, unknown>;
+  for (const k of new Set([...Object.keys(x), ...Object.keys(y)])) {
+    if (typeof x[k] === "function" || typeof y[k] === "function") continue;
+    if (!Object.is(x[k], y[k])) return false;
+  }
+  return true;
+}
+
+/** Uma linha de magia em `memo`: só redesenha quando a própria magia, o lugar dela ou o que ela calcula mudam. */
+const LinhaDeMagia = secao("LinhaDeMagia", LinhaDeMagiaBruta, {
+  // os espaços entram por `d` (`mudouEspacos`); `conjurar` lê os gastos de agora em `fichaAtual()`
+  fichaExceto: [...FORA_DA_CONJURACAO, "magias", "espacosGastos", "espacosTotal"],
+  d: ["pacto"],
+  comparar: { ordem: mesmaOrdem },
+  mudou: (a, b) =>
+    a.props.ficha.magias?.[a.i] !== b.props.ficha.magias?.[b.i] ||
+    mudouEspacos(a.props, b.props, a.props.ficha.magias?.[a.i]?.nivel ?? 0),
+});
+
+/** A linha com os props de agora (do contexto da janela): o círculo em `memo` não precisa redesenhar para repassá-los. */
+function LinhaLigada(p: ComponentProps<typeof LinhaDeMagia>) {
+  const viva = useContext(PropsAoVivo);
+  return <LinhaDeMagia {...p} props={viva ?? p.props} />;
+}
+
+/** Os espaços que importam a um círculo ou linha de nível `n`: do nível dele para cima (o menu Conjurar lista esses). */
+function mudouEspacos(a: PropsDaAba, b: PropsDaAba, n: number) {
+  const x = a.d.espacos.filter((e) => e.nivel >= Math.max(n, 1));
+  const y = b.d.espacos.filter((e) => e.nivel >= Math.max(n, 1));
+  return x.length !== y.length || x.some((e, k) => e !== y[k]);
+}
+
+type PropsDoCirculo = Parameters<typeof CirculoDeMagiaBruto>[0];
+
+/** As magias do círculo, com a posição de cada uma: a fatia da lista que o círculo lê (Q15). */
+function magiasDoCirculo(p: PropsDoCirculo) {
+  return (p.props.ficha.magias ?? [])
+    .map((m, i) => ({ m, i }))
+    .filter((x) => x.m.nivel === p.n && !x.m.inata);
+}
+
+/**
+ * Um círculo em `memo` (Q15): escrever na descrição de uma magia redesenha só a linha dela; o círculo só redesenha
+ * quando muda uma magia dele (ou a posição delas na lista), os espaços ou o que a conjuração calcula.
+ */
+export const CirculoDeMagias = secao("CirculoDeMagias", CirculoDeMagiaBruto, {
+  fichaExceto: [...FORA_DA_CONJURACAO, "magias", "espacosGastos"],
+  d: ["pacto"],
+  mudou: (a, b) => {
+    const x = magiasDoCirculo(a);
+    const y = magiasDoCirculo(b);
+    // quais magias estão no círculo (posição e nome); o texto de cada uma é com a linha
+    return (
+      x.length !== y.length ||
+      x.some((v, k) => v.i !== y[k]?.i || v.m.nome !== y[k]?.m.nome) ||
+      mudouEspacos(a.props, b.props, a.n)
+    );
+  },
+});

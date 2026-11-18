@@ -2382,3 +2382,22 @@ O Vilella perguntou se a ficha podia ser dividida em seções que se atualizam: 
 - A aba Magias e o bloco do NPC (`BlocoDoNpc`, `ConjuracaoDoNpc`) ainda redesenham inteiros a cada tecla (só uma delas está à vista por vez). O mesmo `secao` serve.
 - O cabeçalho da `JanelaDaFicha` (abas, nome, vantagem) e a própria janela ainda redesenham a cada tecla (80 renders em 40 teclas), são o que sobra do script.
 - O restante da `Mesa` a cada eco (ver `IDEIAS.md`).
+
+## Q15 — como ficou (2026-11-18): Magias e NPC por seções; arrastar o token seguido desliga o seguir
+
+**O que foi feito**
+- A aba Magias e o bloco do NPC (Bestiário e Conjuração) usam `secao()`. Números: `docs/ESTADO.md`, "Ajustes Q15".
+- `secao` ganhou: caminho `npc.<campo>` em `ficha`, comparação por dentro da prop `props` (as seções que recebem o conjunto todo) e `mudou(a, b)` (fatia livre, ex.: "as magias deste círculo").
+- `PropsDaAba.fichaAtual()` (identidade estável): os manipuladores que montam uma lista inteira (nova magia, reordenar, soltar do compêndio, nova ação) leem a ficha de agora, porque a seção pode estar com a de um render antigo. `PropsAoVivo` (contexto da janela): a linha de magia, dentro do círculo em `memo`, lê os props de agora por ele.
+- `conjurar` lê `espacosGastos` de `fichaAtual()`.
+- Arrastar o token seguido (ou a seleção que o inclui) chama `seguir(null)` e `parouDeSeguir` no primeiro passo do arrasto, em `mapaPixi.ts`.
+
+**Decisões (assumido)**
+- (assumido) Arrastar um token que não é o seguido, ou a cópia (Alt), não desliga o seguir.
+- (assumido) O "passo" que desliga é o primeiro em que o token sai do lugar (já encaixado no grid), não um limiar em pixels.
+- (assumido) Gastar um espaço redesenha os círculos e as linhas do nível dele para baixo (o menu Conjurar lista os espaços).
+- (assumido) Mudar o atributo de conjuração redesenha todos os círculos e linhas (CD e ataque aparecem nos chips).
+
+**O que ficou para depois**
+- O cabeçalho da `JanelaDaFicha` (abas, nome, vantagem, botões) continua redesenhando a cada tecla (JSX solto na janela, depende de muitos estados da janela); sem risco só com uma refatoração maior.
+- As seções de conjuração do NPC ainda redesenham todas as linhas ao gastar um espaço.

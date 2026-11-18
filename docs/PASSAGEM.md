@@ -1089,3 +1089,14 @@ Continua em aberto, por ser decisão e não erro de doc: `ficha.verOutras` (seç
 - O balão da dica (`Dica`) só existe no DOM enquanto está visível, no `BotaoComDica`: teste novo que procura `dica-<testid>` tem de esperar a dica aparecer (mouse ou foco); sem o balão, o nome vem do `aria-label` e o motivo do desabilitado do `aria-description`.
 
 **Suposições**: ver `docs/REDESIGN.md`, "Q14 — como ficou".
+
+## Q15 (2026-11-18): Magias e NPC por seções; seguir × arrastar
+
+- Onde: seções em `AbaMagias.tsx`, `CirculoDeMagias.tsx` (`CirculoDeMagias`, `LinhaDeMagia`, `LinhaLigada`), `ConjuracaoInata.tsx` (`ParteInata`), `ConjuracaoDoNpc.tsx` e `BlocoDoNpc.tsx` (`Npc*`); regra em `secoes.tsx` (+ `secoes.test.ts`). O arrasto: `mapaPixi.ts`, no movimento do gesto `token` (`seguir(null)` + `parouDeSeguir`).
+- **Frágil: manipulador que monta uma lista inteira numa seção em `memo` tem de ler `props.fichaAtual()`**, nunca a `ficha` do render (a seção pode não ter redesenhado quando só outra parte da lista mudou; escrever com a lista velha apagaria o texto). Os existentes: nova magia, reordenar, soltar, "Recuperar" da inata, nova ação/categoria.
+- **Frágil: a `LinhaDeMagia` lê a magia de `props.ficha.magias[i]`** (não de uma prop) e recebe os props de `PropsAoVivo` (contexto provido por `JanelaDaFicha`) porque o círculo em `memo` não redesenha a cada tecla. Quem criar outra seção em `memo` dentro de uma seção em `memo` precisa do mesmo cuidado.
+- **Frágil: `FORA_DA_CONJURACAO`** (`AbaPrincipal.tsx`) lista as chaves da ficha que círculos, linhas, ações e inata NÃO leem; chave nova da ficha cai fora da lista (redesenha, seguro). Se alguma dessas seções passar a ler uma chave da lista, tire-a de lá.
+- `BlocoDoNpc` passa às seções um objeto `base` sem `modos`, `pagina`, `aoMudarPagina` e `aoMudarNome` (JSX/funções novas a cada render derrubariam o `memo`); `aoMudarNome` da janela é `useFuncaoEstavel`.
+- O cabeçalho da `JanelaDaFicha` ainda redesenha a cada tecla.
+
+**Suposições**: ver `docs/REDESIGN.md`, "Q15 — como ficou".

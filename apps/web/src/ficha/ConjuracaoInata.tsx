@@ -15,12 +15,13 @@ import { Plus, RotateCcw, Settings, Sparkles } from "lucide-react";
 import { type DragEvent, type ReactNode, useState } from "react";
 import { BotaoComDica } from "../BotaoComDica";
 import { CamposDaMagia, linhaDeNivelEEscola, MarcasDaMagia, TextoDaMagia } from "../CartaoDaMagia";
-import { type PropsDaAba, um } from "./AbaPrincipal";
+import { FORA_DA_CONJURACAO, type PropsDaAba, um } from "./AbaPrincipal";
 import { CampoDeNovo, CampoNumero } from "./campos";
 import { conjurarInata, magiaDoCompendio } from "./conjurar";
 import { EditorDeAtaque } from "./EditorDeAtaque";
 import { Bolinha, TituloDoBloco as Titulo } from "./livro";
 import { BotaoPingarMagia } from "./menuDeEspaco";
+import { secao } from "./secoes";
 import { soltarNaFicha } from "./soltar";
 
 // ---------------------------------------------------------------------------------------------
@@ -342,7 +343,7 @@ function LinhaDaInata({
  * A parte "Conjuração inata", logo depois dos círculos. Quem edita vê um "+ Conjuração inata" discreto enquanto não
  * existe; recebe a magia arrastada do compêndio (entra como "1/dia cada", e a frequência se troca na magia).
  */
-export function ParteInata({
+function ParteInataBruta({
   props,
   editorEmLinha = true,
 }: {
@@ -350,7 +351,7 @@ export function ParteInata({
   /** `false` na página Magias do personagem: lá a engrenagem abre o editor na coluna ao lado. */
   editorEmLinha?: boolean;
 }) {
-  const { ficha, alterar, editar, avisar } = props;
+  const { ficha, alterar, editar, avisar, fichaAtual } = props;
   const [aberta, setAberta] = useState<string | null>(null);
   const [forcada, setForcada] = useState(false);
   const magias = ficha.magias ?? [];
@@ -382,7 +383,10 @@ export function ParteInata({
     const ops: { caminho: string; valor: unknown }[] = [
       {
         caminho: "magias",
-        valor: [...magias, { nome, nivel: 1, preparada: true, descricao: "", inata }],
+        valor: [
+          ...(fichaAtual().magias ?? []),
+          { nome, nivel: 1, preparada: true, descricao: "", inata },
+        ],
       },
     ];
     if (inata.frequencia === "grupo" && !grupo) {
@@ -400,10 +404,15 @@ export function ParteInata({
     }
     const entrada = lerEntradaArrastada(e.dataTransfer.getData(TIPO_DO_ARRASTO_DO_COMPENDIO));
     if (entrada?.tipo !== "magia") return;
-    soltarNaFicha({ ficha, alterar, avisar }, ficha.npc ? "npc" : "personagem", entrada, {
-      posicao: null,
-      inata: { frequencia: "cada", max: 1 },
-    });
+    soltarNaFicha(
+      { ficha: fichaAtual(), alterar, avisar },
+      ficha.npc ? "npc" : "personagem",
+      entrada,
+      {
+        posicao: null,
+        inata: { frequencia: "cada", max: 1 },
+      },
+    );
   };
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: só recebe o arrasto do compêndio; o teclado usa os campos
@@ -498,7 +507,7 @@ export function ParteInata({
           data-testid="npc-inata-recuperar"
           onClick={() => {
             // O mesmo que o descanso longo faz com a inata (o NPC não tem botão de descanso na janela).
-            const { magias: novas, inata } = recarregarInata(ficha);
+            const { magias: novas, inata } = recarregarInata(fichaAtual());
             const ops = [
               ...(novas ? [{ caminho: "magias", valor: novas }] : []),
               ...(inata ? [{ caminho: "inata", valor: inata }] : []),
@@ -537,3 +546,23 @@ export function ParteInata({
     </div>
   );
 }
+
+/** As magias inatas (com a posição) como uma chave comparável; a lista guarda o resultado por referência. */
+const CHAVE_DAS_INATAS = new WeakMap<object, string>();
+function magiasInatas(ficha: PropsDaAba["ficha"]): string {
+  const lista = ficha.magias ?? [];
+  const guardado = CHAVE_DAS_INATAS.get(lista);
+  if (guardado !== undefined) return guardado;
+  const chave = JSON.stringify(lista.map((m, i) => (m.inata ? [i, m] : null)).filter(Boolean));
+  CHAVE_DAS_INATAS.set(lista, chave);
+  return chave;
+}
+
+/**
+ * A Conjuração inata em `memo` (Q15): escrever na descrição de uma magia comum não a redesenha; só mudam as magias
+ * inatas, o atributo/CD (a ficha menos o que não conta) ou os cálculos.
+ */
+export const ParteInata = secao("ParteInata", ParteInataBruta, {
+  fichaExceto: [...FORA_DA_CONJURACAO, "magias", "espacosGastos", "espacosTotal"],
+  mudou: (a, b) => magiasInatas(a.props.ficha) !== magiasInatas(b.props.ficha),
+});

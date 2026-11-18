@@ -6,6 +6,7 @@ import { BotaoNovoCirculo, CirculoDeMagias } from "./CirculoDeMagias";
 import { ParteInata } from "./ConjuracaoInata";
 import { TituloDoBloco as Titulo } from "./livro";
 import { useEntradaEmArrasto } from "./ordem";
+import { secao } from "./secoes";
 
 // ---------------------------------------------------------------------------------------------
 // A seção Conjuração do bloco de monstro (V4b2). Os dados são os da ficha de personagem (`magias`, os espaços por
@@ -20,7 +21,7 @@ const NIVEIS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9] as const;
 const nomeDoNivel = (n: number) => (n === 0 ? "Truques (à vontade)" : `${n}º nível`);
 
 /** O cabeçalho da seção: o atributo de conjuração, a CD e o ataque de magia (com o bônus de proficiência do ND). */
-function CabecalhoDaConjuracao({ props }: { props: PropsDaAba }) {
+function CabecalhoDaConjuracaoBruto({ props }: { props: PropsDaAba }) {
   const { ficha, d, alterar, editar, rolador } = props;
   const c = d.conjuradoras[0];
   const livre = d.conjuracaoSemClasse;
@@ -88,6 +89,31 @@ function CabecalhoDaConjuracao({ props }: { props: PropsDaAba }) {
   );
 }
 
+// Q15: o cabeçalho em `memo`: atributo, CD e ataque. Escrever numa magia não o toca; mudar um atributo, sim.
+const CabecalhoDaConjuracao = secao("CabecalhoDaConjuracao", CabecalhoDaConjuracaoBruto, {
+  ficha: ["conjuracao", "habilidadeDeConjuracao"],
+  d: ["conjuradoras", "conjuracaoSemClasse"],
+});
+
+/** O "Recuperar espaços" do NPC. */
+const RecuperarEspacos = secao(
+  "RecuperarEspacosDoNpc",
+  ({ alterar, editar }: PropsDaAba) =>
+    editar ? (
+      <div className="fl-mag-barra">
+        <button
+          type="button"
+          className="fl-sec2"
+          data-testid="npc-recuperar-espacos"
+          onClick={() => alterar(um("espacosGastos", null))}
+        >
+          <RotateCcw size={15} aria-hidden /> Recuperar espaços
+        </button>
+      </div>
+    ) : null,
+  { ficha: [] },
+);
+
 /**
  * A seção Conjuração entre Traços e Ações. Existe enquanto a ficha tem magias (ou atributo ou espaços escolhidos);
  * quem edita vê um "+ Conjuração" discreto para criá-la. Cada círculo recebe a magia arrastada do compêndio.
@@ -137,18 +163,7 @@ export function SecaoDeConjuracao({ props }: { props: PropsDaAba }) {
     <div className="npc-secao" data-testid="npc-secao-conjuracao">
       <Titulo testid="npc-titulo-conjuracao">Conjuração</Titulo>
       <CabecalhoDaConjuracao props={props} />
-      {editar && (
-        <div className="fl-mag-barra">
-          <button
-            type="button"
-            className="fl-sec2"
-            data-testid="npc-recuperar-espacos"
-            onClick={() => alterar(um("espacosGastos", null))}
-          >
-            <RotateCcw size={15} aria-hidden /> Recuperar espaços
-          </button>
-        </div>
-      )}
+      <RecuperarEspacos {...props} />
       <div className="npc-conj-circulos">
         {niveis.map((n) => (
           <CirculoDeMagias key={n} n={n} props={props} variante="npc" titulo={nomeDoNivel(n)} />

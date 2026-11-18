@@ -55,6 +55,7 @@ import {
   ClasseENivel,
   ControlesDePv,
   ControlesDePvTemporario,
+  PropsAoVivo,
   type PropsDaAba,
 } from "./AbaPrincipal";
 import {
@@ -294,7 +295,15 @@ export function JanelaDaFicha({
     // `estado` e `p` mudam a cada evento: o equipamento compara por dentro (`mesmaLuz`), não pela identidade
     [estado, eu, p, tempo],
   );
+  const mudarNomeDoNpc = useFuncaoEstavel((nome: string) =>
+    enviar("personagem.editar", { id: p.id, mudancas: { nome } }),
+  );
+  // Q15: a ficha de agora, para os manipuladores das seções em `memo` (que podem estar com a ficha de um render antigo)
+  const fichaRef = useRef(ficha);
+  fichaRef.current = ficha;
+  const fichaAtual = useCallback(() => fichaRef.current, []);
   const propsDaAba: PropsDaAba = {
+    fichaAtual,
     nomeDoPersonagem: p.nome,
     enviar: enviarComFila,
     compendio,
@@ -466,256 +475,259 @@ export function JanelaDaFicha({
     </>
   );
   const conteudo = (
-    <div
-      className="fl-raiz"
-      ref={raiz}
-      data-pele={aparencia}
-      data-estreita={estreita}
-      data-testid="ficha-raiz"
-    >
-      {faixaDoToken && (
-        <FaixaDoToken
-          token={faixaDoToken.token}
-          vida={faixaDoToken.vida}
-          editar={editar}
-          enviar={enviar}
-        />
-      )}
-      {temFicha && !npc && !estreita && (
-        <header className="fl-cab fl-cab-larga" data-testid="ficha-cabecalho">
-          {fitas}
-          <div className="fl-cab-nome">{nomeEditavel(false)}</div>
-          <span className="fl-sr" data-testid="janela-ficha-resumo">
-            {resumoDaFicha(p)}
-          </span>
-          {modos}
-        </header>
-      )}
-      {temFicha && !npc && estreita && (
-        <header className="fl-cab fl-cab-estreito" data-testid="ficha-cabecalho">
-          <div className="fl-cab-estreito-topo">
-            <span className="fl-resumo-id" data-testid="janela-ficha-resumo">
-              {resumoDaFicha(p)}
-            </span>
-            {fitas}
-          </div>
-          <div className="fl-cab-estreito-linha">
-            <div className="fl-cab-estreito-nome">{nomeEditavel(true)}</div>
-            <div className="fl-cx fl-mini-caixa">
-              <span className="fl-lbl">CA</span>
-              <CampoDeCa {...propsDaAba} className="fl-ca-mini" />
-            </div>
-            <div className="fl-cx fl-mini-caixa">
-              <span className="fl-lbl">Inic.</span>
-              <BotaoDeIniciativa d={d} rolador={rolador} ordem={propsDaAba.ordem} />
-            </div>
-            <div className="fl-cx fl-mini-caixa">
-              <span className="fl-lbl">Desloc.</span>
-              <CampoDeDeslocamento {...propsDaAba} className="fl-desloc-mini" />
-            </div>
-          </div>
-          {modos}
-          <div className="fl-pv-estreito">
-            <ControlesDePv {...propsDaAba} />
-            <span className="fl-barra-barra">/</span>
-            <CampoNumero
-              testid={`pv-max-${p.id}`}
-              rotulo="PV máximos"
-              valor={ficha.pvMax}
-              desabilitado={!propsDaAba.editar}
-              className="fl-in fl-fn fl-pv-max-mini"
-              aoMudar={(n) => alterar([{ caminho: "pvMax", valor: n }])}
-            />
-            <BarraDePv ficha={ficha} />
-            <ControlesDePvTemporario {...propsDaAba} />
-          </div>
-        </header>
-      )}
-      {!temFicha && (
-        <div className="fl-cab fl-cab-sem-ficha">
-          <div className="fl-cab-nome">{nomeEditavel(false)}</div>
-          {fitas}
-        </div>
-      )}
-
-      {descanso && (
-        <div className="fh-confirmar" role="alertdialog" data-testid="descanso-confirmar">
-          <p>
-            {descanso === "curto" ? (
-              <>
-                <strong>Descanso curto:</strong> os recursos de recarga curta voltam ao máximo e os
-                espaços de pacto são recuperados.
-              </>
-            ) : (
-              <>
-                <strong>Descanso longo:</strong> PV ao máximo, metade dos dados de vida, todos os
-                espaços de magia e os recursos de recarga curta ou longa; zera os testes contra a
-                morte e os PV temporários.
-              </>
-            )}
-          </p>
-          <button type="button" data-testid="descanso-confirmar-sim" onClick={confirmarDescanso}>
-            Confirmar
-          </button>
-          <button
-            type="button"
-            data-testid="descanso-confirmar-nao"
-            onClick={() => setDescanso(null)}
-          >
-            Cancelar
-          </button>
-        </div>
-      )}
-      {avisoDaOrdem && (
-        <p className="nota fh-aviso" role="status" data-testid="ficha-aviso-ordem">
-          {avisoDaOrdem}
-        </p>
-      )}
-
-      <div className="fl-corpo" ref={corpo} data-testid={`ficha-painel-${aba}`}>
-        {npc && (aba === "principal" || aba === "magias") && (
-          <BlocoDoNpc
-            {...propsDaAba}
-            pagina={aba === "magias" ? "conjuracao" : "bestiario"}
-            aoMudarPagina={(pagina) =>
-              aoMudar({ aba: pagina === "conjuracao" ? "magias" : "principal" })
-            }
-            aoMudarNome={(nome) => enviar("personagem.editar", { id: p.id, mudancas: { nome } })}
-            modos={modos}
+    <PropsAoVivo.Provider value={propsDaAba}>
+      <div
+        className="fl-raiz"
+        ref={raiz}
+        data-pele={aparencia}
+        data-estreita={estreita}
+        data-testid="ficha-raiz"
+      >
+        {faixaDoToken && (
+          <FaixaDoToken
+            token={faixaDoToken.token}
+            vida={faixaDoToken.vida}
+            editar={editar}
+            enviar={enviar}
           />
         )}
         {temFicha && !npc && !estreita && (
-          <div className="fl-cab-campos" data-testid="ficha-identidade">
-            <div className="fl-campo-id fl-campo-classe">
-              <ClasseENivel {...propsDaAba} />
-              <span className="fl-lbl">Classe e nível</span>
+          <header className="fl-cab fl-cab-larga" data-testid="ficha-cabecalho">
+            {fitas}
+            <div className="fl-cab-nome">{nomeEditavel(false)}</div>
+            <span className="fl-sr" data-testid="janela-ficha-resumo">
+              {resumoDaFicha(p)}
+            </span>
+            {modos}
+          </header>
+        )}
+        {temFicha && !npc && estreita && (
+          <header className="fl-cab fl-cab-estreito" data-testid="ficha-cabecalho">
+            <div className="fl-cab-estreito-topo">
+              <span className="fl-resumo-id" data-testid="janela-ficha-resumo">
+                {resumoDaFicha(p)}
+              </span>
+              {fitas}
             </div>
-            <CamposDeIdentidade {...propsDaAba} />
-          </div>
+            <div className="fl-cab-estreito-linha">
+              <div className="fl-cab-estreito-nome">{nomeEditavel(true)}</div>
+              <div className="fl-cx fl-mini-caixa">
+                <span className="fl-lbl">CA</span>
+                <CampoDeCa {...propsDaAba} className="fl-ca-mini" />
+              </div>
+              <div className="fl-cx fl-mini-caixa">
+                <span className="fl-lbl">Inic.</span>
+                <BotaoDeIniciativa d={d} rolador={rolador} ordem={propsDaAba.ordem} />
+              </div>
+              <div className="fl-cx fl-mini-caixa">
+                <span className="fl-lbl">Desloc.</span>
+                <CampoDeDeslocamento {...propsDaAba} className="fl-desloc-mini" />
+              </div>
+            </div>
+            {modos}
+            <div className="fl-pv-estreito">
+              <ControlesDePv {...propsDaAba} />
+              <span className="fl-barra-barra">/</span>
+              <CampoNumero
+                testid={`pv-max-${p.id}`}
+                rotulo="PV máximos"
+                valor={ficha.pvMax}
+                desabilitado={!propsDaAba.editar}
+                className="fl-in fl-fn fl-pv-max-mini"
+                aoMudar={(n) => alterar([{ caminho: "pvMax", valor: n }])}
+              />
+              <BarraDePv ficha={ficha} />
+              <ControlesDePvTemporario {...propsDaAba} />
+            </div>
+          </header>
         )}
         {!temFicha && (
-          <p className="nota fh-oculta" data-testid="ficha-oculta">
-            Você não vê a ficha deste personagem (o mestre pode liberar em "Ver fichas dos outros").
+          <div className="fl-cab fl-cab-sem-ficha">
+            <div className="fl-cab-nome">{nomeEditavel(false)}</div>
+            {fitas}
+          </div>
+        )}
+
+        {descanso && (
+          <div className="fh-confirmar" role="alertdialog" data-testid="descanso-confirmar">
+            <p>
+              {descanso === "curto" ? (
+                <>
+                  <strong>Descanso curto:</strong> os recursos de recarga curta voltam ao máximo e
+                  os espaços de pacto são recuperados.
+                </>
+              ) : (
+                <>
+                  <strong>Descanso longo:</strong> PV ao máximo, metade dos dados de vida, todos os
+                  espaços de magia e os recursos de recarga curta ou longa; zera os testes contra a
+                  morte e os PV temporários.
+                </>
+              )}
+            </p>
+            <button type="button" data-testid="descanso-confirmar-sim" onClick={confirmarDescanso}>
+              Confirmar
+            </button>
+            <button
+              type="button"
+              data-testid="descanso-confirmar-nao"
+              onClick={() => setDescanso(null)}
+            >
+              Cancelar
+            </button>
+          </div>
+        )}
+        {avisoDaOrdem && (
+          <p className="nota fh-aviso" role="status" data-testid="ficha-aviso-ordem">
+            {avisoDaOrdem}
           </p>
         )}
-        {aba === "principal" && !npc && (
-          <>
-            <AbaPrincipal {...propsDaAba} />
-            {temFicha && <PainelExtra {...propsDaAba} />}
-          </>
-        )}
-        {aba === "magias" && !npc && <AbaMagias {...propsDaAba} />}
-        {aba === "historia" && <AbaHistoria {...propsDaAba} />}
-        {aba === "configurar" && (
-          <div className="fl-configurar">
-            <EditorDoItem
-              personagem={p}
-              estado={estado}
-              eu={eu}
-              enviar={enviar}
-              imagens={imagens}
-              versaoDasImagens={versaoDasImagens}
-              pedirImagem={pedirImagem}
-              cenaVista={cenaVista}
-              aoFechar={aoFechar}
-              exportar={() => {
-                enviarAgora();
-                return exportarFicha(p, fontes);
-              }}
-              importar={async (arquivo) => {
-                const lida = await lerFichaDoArquivo(arquivo);
-                if (!lida.ok) return lida.motivo;
-                // o arquivo de uma ficha de antes do V4b não diz como se mostra: fica como estava
-                const escolha = lida.ficha.apresentacao ?? ficha.apresentacao;
-                alterar([
-                  {
-                    caminho: "",
-                    valor: escolha ? { ...lida.ficha, apresentacao: escolha } : lida.ficha,
-                  },
-                ]);
-                enviarAgora();
-                return null;
-              }}
+
+        <div className="fl-corpo" ref={corpo} data-testid={`ficha-painel-${aba}`}>
+          {npc && (aba === "principal" || aba === "magias") && (
+            <BlocoDoNpc
+              {...propsDaAba}
+              pagina={aba === "magias" ? "conjuracao" : "bestiario"}
+              aoMudarPagina={(pagina) =>
+                aoMudar({ aba: pagina === "conjuracao" ? "magias" : "principal" })
+              }
+              aoMudarNome={mudarNomeDoNpc}
+              modos={modos}
             />
-            {temFicha && (
-              <Caixa moldura className="fl-conf-caixa" testid="ficha-apresentacao-escolha">
-                <Secao>Ficha de</Secao>
+          )}
+          {temFicha && !npc && !estreita && (
+            <div className="fl-cab-campos" data-testid="ficha-identidade">
+              <div className="fl-campo-id fl-campo-classe">
+                <ClasseENivel {...propsDaAba} />
+                <span className="fl-lbl">Classe e nível</span>
+              </div>
+              <CamposDeIdentidade {...propsDaAba} />
+            </div>
+          )}
+          {!temFicha && (
+            <p className="nota fh-oculta" data-testid="ficha-oculta">
+              Você não vê a ficha deste personagem (o mestre pode liberar em "Ver fichas dos
+              outros").
+            </p>
+          )}
+          {aba === "principal" && !npc && (
+            <>
+              <AbaPrincipal {...propsDaAba} />
+              {temFicha && <PainelExtra {...propsDaAba} />}
+            </>
+          )}
+          {aba === "magias" && !npc && <AbaMagias {...propsDaAba} />}
+          {aba === "historia" && <AbaHistoria {...propsDaAba} />}
+          {aba === "configurar" && (
+            <div className="fl-configurar">
+              <EditorDoItem
+                personagem={p}
+                estado={estado}
+                eu={eu}
+                enviar={enviar}
+                imagens={imagens}
+                versaoDasImagens={versaoDasImagens}
+                pedirImagem={pedirImagem}
+                cenaVista={cenaVista}
+                aoFechar={aoFechar}
+                exportar={() => {
+                  enviarAgora();
+                  return exportarFicha(p, fontes);
+                }}
+                importar={async (arquivo) => {
+                  const lida = await lerFichaDoArquivo(arquivo);
+                  if (!lida.ok) return lida.motivo;
+                  // o arquivo de uma ficha de antes do V4b não diz como se mostra: fica como estava
+                  const escolha = lida.ficha.apresentacao ?? ficha.apresentacao;
+                  alterar([
+                    {
+                      caminho: "",
+                      valor: escolha ? { ...lida.ficha, apresentacao: escolha } : lida.ficha,
+                    },
+                  ]);
+                  enviarAgora();
+                  return null;
+                }}
+              />
+              {temFicha && (
+                <Caixa moldura className="fl-conf-caixa" testid="ficha-apresentacao-escolha">
+                  <Secao>Ficha de</Secao>
+                  <div className="fl-conf-linha">
+                    <fieldset className="fl-modos" aria-label="Ficha de">
+                      {APRESENTACOES.map((a: Apresentacao) => (
+                        <button
+                          key={a}
+                          type="button"
+                          className="fl-seg fl-seg-grande"
+                          data-testid={`apresentacao-${a}`}
+                          aria-pressed={(npc ? "npc" : "personagem") === a}
+                          disabled={!editar}
+                          onClick={() => alterar([{ caminho: "apresentacao", valor: a }])}
+                        >
+                          {a === "npc" ? "NPC" : "Personagem"}
+                        </button>
+                      ))}
+                    </fieldset>
+                    <span className="fl-dica fl-conf-dica">
+                      Só muda como a ficha se mostra: o bloco de monstro ou a ficha de personagem.
+                      Os dados são os mesmos.
+                    </span>
+                  </div>
+                </Caixa>
+              )}
+              {temFicha && eu.papel === "mestre" && !ehPersonagemDeJogador(p) && (
+                <Caixa moldura className="fl-conf-caixa" testid="ficha-vida-por-token-caixa">
+                  <Secao>Vida dos tokens</Secao>
+                  <div className="fl-conf-linha">
+                    <label className="fl-conf-marca">
+                      <input
+                        type="checkbox"
+                        data-testid="vida-por-token"
+                        checked={p.vidaPorToken !== false}
+                        onChange={(e) =>
+                          enviar("personagem.editar", {
+                            id: p.id,
+                            mudancas: { vidaPorToken: e.target.checked },
+                          })
+                        }
+                      />{" "}
+                      Cada token com a sua vida (horda)
+                    </label>
+                    <span className="fl-dica fl-conf-dica">
+                      Ligado, cada token que você põe no mapa copia os PV desta ficha e leva a
+                      própria vida: o dano no Goblin 3 não mexe no Goblin 4. Desligado, todos os
+                      tokens usam a vida da ficha, como no vilão único.
+                    </span>
+                  </div>
+                </Caixa>
+              )}
+              <Caixa moldura className="fl-conf-caixa" testid="ficha-aparencia-escolha">
+                <Secao>Aparência da ficha</Secao>
                 <div className="fl-conf-linha">
-                  <fieldset className="fl-modos" aria-label="Ficha de">
-                    {APRESENTACOES.map((a: Apresentacao) => (
+                  <fieldset className="fl-modos" aria-label="Aparência da ficha">
+                    {APARENCIAS.map((a: AparenciaDaFicha) => (
                       <button
                         key={a}
                         type="button"
                         className="fl-seg fl-seg-grande"
-                        data-testid={`apresentacao-${a}`}
-                        aria-pressed={(npc ? "npc" : "personagem") === a}
-                        disabled={!editar}
-                        onClick={() => alterar([{ caminho: "apresentacao", valor: a }])}
+                        data-testid={`aparencia-${a}`}
+                        aria-pressed={aparencia === a}
+                        onClick={() => gravarAparencia(a)}
                       >
-                        {a === "npc" ? "NPC" : "Personagem"}
+                        {ROTULO_DA_APARENCIA[a]}
                       </button>
                     ))}
                   </fieldset>
                   <span className="fl-dica fl-conf-dica">
-                    Só muda como a ficha se mostra: o bloco de monstro ou a ficha de personagem. Os
-                    dados são os mesmos.
+                    Livro é o padrão. Clássica é a ficha tradicional. O arranjo é o mesmo. Vale só
+                    neste navegador.
                   </span>
                 </div>
               </Caixa>
-            )}
-            {temFicha && eu.papel === "mestre" && !ehPersonagemDeJogador(p) && (
-              <Caixa moldura className="fl-conf-caixa" testid="ficha-vida-por-token-caixa">
-                <Secao>Vida dos tokens</Secao>
-                <div className="fl-conf-linha">
-                  <label className="fl-conf-marca">
-                    <input
-                      type="checkbox"
-                      data-testid="vida-por-token"
-                      checked={p.vidaPorToken !== false}
-                      onChange={(e) =>
-                        enviar("personagem.editar", {
-                          id: p.id,
-                          mudancas: { vidaPorToken: e.target.checked },
-                        })
-                      }
-                    />{" "}
-                    Cada token com a sua vida (horda)
-                  </label>
-                  <span className="fl-dica fl-conf-dica">
-                    Ligado, cada token que você põe no mapa copia os PV desta ficha e leva a própria
-                    vida: o dano no Goblin 3 não mexe no Goblin 4. Desligado, todos os tokens usam a
-                    vida da ficha, como no vilão único.
-                  </span>
-                </div>
-              </Caixa>
-            )}
-            <Caixa moldura className="fl-conf-caixa" testid="ficha-aparencia-escolha">
-              <Secao>Aparência da ficha</Secao>
-              <div className="fl-conf-linha">
-                <fieldset className="fl-modos" aria-label="Aparência da ficha">
-                  {APARENCIAS.map((a: AparenciaDaFicha) => (
-                    <button
-                      key={a}
-                      type="button"
-                      className="fl-seg fl-seg-grande"
-                      data-testid={`aparencia-${a}`}
-                      aria-pressed={aparencia === a}
-                      onClick={() => gravarAparencia(a)}
-                    >
-                      {ROTULO_DA_APARENCIA[a]}
-                    </button>
-                  ))}
-                </fieldset>
-                <span className="fl-dica fl-conf-dica">
-                  Livro é o padrão. Clássica é a ficha tradicional. O arranjo é o mesmo. Vale só
-                  neste navegador.
-                </span>
-              </div>
-            </Caixa>
-          </div>
-        )}
+            </div>
+          )}
+        </div>
       </div>
-    </div>
+    </PropsAoVivo.Provider>
   );
   const classeDaFicha = npc ? "janela-ficha janela-npc" : "janela-ficha";
   const dados = { "data-personagem-id": p.id, "data-aba": aba };
