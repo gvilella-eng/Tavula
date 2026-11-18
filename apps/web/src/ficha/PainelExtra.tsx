@@ -2,9 +2,10 @@ import { Minus, Plus, Trash2 } from "lucide-react";
 import { BotaoComDica } from "../BotaoComDica";
 import { type PropsDaAba, um } from "./AbaPrincipal";
 import { CampoNumero, CampoTexto } from "./campos";
+import { secao } from "./secoes";
 
 /** Embaixo das três colunas da aba Personagem: os recursos (flechas, usos de classe...). As condições ficam no token e as luzes na linha do equipamento (V4a2). */
-export function PainelExtra(props: PropsDaAba) {
+function PainelExtraBruto(props: PropsDaAba) {
   const { ficha, alterar, editar } = props;
   const recursos = ficha.recursos ?? [];
   return (
@@ -110,3 +111,6 @@ export function PainelExtra(props: PropsDaAba) {
     </div>
   );
 }
+
+// Q14: só os recursos importam a esta seção.
+export const PainelExtra = secao("PainelExtra", PainelExtraBruto, { ficha: ["recursos"] });

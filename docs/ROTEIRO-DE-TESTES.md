@@ -697,3 +697,12 @@ Antes de tudo: tenha na pasta `sons/` (ou à mão) uns 6 arquivos de áudio: 2 o
 3. **Parede.** Segure a seta contra a parede (no fim de um corredor): o token para no último quadrado, sem passar um quadrado a mais e voltar.
 4. **Quem olha.** Com a tela do mestre aberta, o token do jogador andando também parece liso, sem saltos.
 5. **A luz e a memória.** Depois de andar, a luz da tocha está no token e o caminho por onde passou fica lembrado; a visão não treme.
+
+## Q14 — A ficha por seções
+
+1. **Escrever num talento.** Abra a ficha de um personagem com talentos, abra um deles e escreva um texto longo. Digitar é fluido, o cursor não pula do lugar (nem quando a sala devolve a ficha, uns 0,4 s depois de parar) e o resto da ficha não pisca.
+2. **Atributo.** Mude a Força: o modificador, as salvaguardas, as perícias e os ataques que dependem dela mudam na hora; PV, moedas e talentos ficam como estavam.
+3. **Nível e proficiência.** Mude o nível de uma classe e marque uma proficiência numa perícia: os totais acompanham.
+4. **Números e caixas.** Digite no XP, nas moedas e nas caixas da aba História (aparência, aliados, história, tesouro, notas): cada uma guarda o que foi escrito.
+5. **Dicas.** Passe o mouse (parado ~0,7 s) em um botão só de ícone da ficha: a dica aparece e some ao sair; com Tab ela aparece no foco e Esc a fecha. O leitor de tela continua lendo o nome do botão e o motivo do que está desabilitado.
+6. **Duas pessoas.** Com a mesma ficha aberta no mestre e no jogador, escrever em caixas diferentes não apaga o que o outro escreveu.

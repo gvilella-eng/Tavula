@@ -6,6 +6,7 @@ import {
   type Compendio,
   cargaDaFicha,
   cdDaRolagem,
+  compartilharEstrutura,
   expressaoDeDano,
   type Ficha,
   type FichaDerivada,
@@ -45,6 +46,7 @@ import { BotaoPingarMagia, useConjurar } from "./menuDeEspaco";
 import { PopoverDoModificador, useModificadorExtra } from "./modificadorExtra";
 import { indicadorDoVao, useOrdemDaLista, useSoltarDoCompendio } from "./ordem";
 import type { Rolador } from "./rolador";
+import { secao } from "./secoes";
 import { soltarNaFicha } from "./soltar";
 
 type Enviar = (tipo: string, dados: object) => string | null;
@@ -86,6 +88,66 @@ export type PropsDaAba = {
   /** A mesa, para acender e apagar objetos de luz na linha do equipamento (V4a2). */
   luz?: LuzDaFicha | undefined;
 };
+
+/** As chaves da ficha que são só texto livre: ataques e equipamento não as leem (Q14). */
+const TEXTOS_LIVRES: (keyof Ficha)[] = [
+  "caracteristicas",
+  "outrasCaracteristicas",
+  "personalidade",
+  "ideais",
+  "ligacoes",
+  "defeitos",
+  "notas",
+  "historia",
+  "tesouro",
+  "aliados",
+  "aparencia",
+  "aparenciaHash",
+  "simboloNome",
+  "simboloHash",
+  "idade",
+  "altura",
+  "peso",
+  "olhos",
+  "pele",
+  "cabelos",
+  "outrasProficiencias",
+  "idiomas",
+  "raca",
+  "antecedente",
+  "alinhamento",
+  "xp",
+  "inspiracao",
+  "moedas",
+  "mortes",
+  "pvAtual",
+  "pvMax",
+  "pvTemp",
+  "dadosDeVidaUsados",
+  "recursos",
+  "deslocamentoFt",
+];
+
+/** A `luz` da ficha carrega a mesa inteira: só importa o que o equipamento lê dela. */
+function mesmaLuz(a: unknown, b: unknown): boolean {
+  const x = a as LuzDaFicha | undefined;
+  const y = b as LuzDaFicha | undefined;
+  if (x === y) return true;
+  if (!x || !y) return false;
+  return (
+    x.estado.modelos === y.estado.modelos &&
+    x.estado.luzes === y.estado.luzes &&
+    x.estado.tokens === y.estado.tokens &&
+    x.estado.cenaAtivaId === y.estado.cenaAtivaId &&
+    x.estado.config === y.estado.config &&
+    x.eu === y.eu &&
+    x.personagem.id === y.personagem.id &&
+    // a ficha da sala volta do eco como objeto novo: vale o conteúdo dos itens, não a referência
+    compartilharEstrutura(x.personagem.ficha?.itens, y.personagem.ficha?.itens) ===
+      x.personagem.ficha?.itens &&
+    x.tempo === y.tempo
+  );
+}
 
 /** Uma operação só: `caminho` recebe `valor` (`null` remove). */
 export const um = (caminho: string, valor: unknown): OperacaoDeFicha[] => [{ caminho, valor }];
@@ -193,7 +255,7 @@ function NumeroRolavel({
 // Identidade (cabeçalho da janela larga; seção "Identidade" da estreita)
 // ---------------------------------------------------------------------------------------------
 
-export function ClasseENivel({ ficha, alterar, editar }: PropsDaAba) {
+function ClasseENivelBruta({ ficha, alterar, editar }: PropsDaAba) {
   const classes = ficha.classes ?? [];
   return (
     <div className="fl-classes" data-testid="fh-classes">
@@ -266,7 +328,7 @@ export function ClasseENivel({ ficha, alterar, editar }: PropsDaAba) {
 }
 
 /** Os campos de texto do cabeçalho (antecedente, raça, alinhamento) e o XP. */
-export function CamposDeIdentidade(props: PropsDaAba) {
+function CamposDeIdentidadeBruta(props: PropsDaAba) {
   const { ficha, alterar, editar } = props;
   const texto = (campo: "antecedente" | "raca" | "alinhamento", rotulo: string) => (
     <div className="fl-campo-id">
@@ -307,7 +369,7 @@ export function CamposDeIdentidade(props: PropsDaAba) {
 // Coluna da esquerda: atributos, inspiração, proficiência, salvaguardas e perícias
 // ---------------------------------------------------------------------------------------------
 
-export function Atributos({ ficha, d, alterar, editar, rolador }: PropsDaAba) {
+function AtributosBruta({ ficha, d, alterar, editar, rolador }: PropsDaAba) {
   return (
     <section className="fl-atributos" data-testid="fh-atributos" aria-label="Atributos">
       {ATRIBUTOS.map((a) => (
@@ -336,7 +398,7 @@ export function Atributos({ ficha, d, alterar, editar, rolador }: PropsDaAba) {
   );
 }
 
-export function Passiva({ d }: PropsDaAba) {
+function PassivaBruta({ d }: PropsDaAba) {
   return (
     <div className="fl-cx fl-passiva" data-testid="fh-passiva">
       <strong className="fl-fa fl-passiva-valor" data-testid="percepcao-passiva">
@@ -347,7 +409,7 @@ export function Passiva({ d }: PropsDaAba) {
   );
 }
 
-export function InspiracaoEProficiencia({ ficha, d, alterar, editar }: PropsDaAba) {
+function InspiracaoEProficienciaBruta({ ficha, d, alterar, editar }: PropsDaAba) {
   const tem = ficha.inspiracao === true;
   return (
     <>
@@ -386,7 +448,7 @@ function MarcaDeBonus({ valor }: { valor: number }) {
   );
 }
 
-export function Salvaguardas({ ficha, d, alterar, editar, rolador }: PropsDaAba) {
+function SalvaguardasBruta({ ficha, d, alterar, editar, rolador }: PropsDaAba) {
   const mod = useModificadorExtra(editar);
   const aberta = ATRIBUTOS.find((a) => mod.aberto?.id === `salva-${a}`);
   return (
@@ -450,7 +512,7 @@ export function Salvaguardas({ ficha, d, alterar, editar, rolador }: PropsDaAba)
   );
 }
 
-export function Pericias({ ficha, d, alterar, editar, rolador }: PropsDaAba) {
+function PericiasBruta({ ficha, d, alterar, editar, rolador }: PropsDaAba) {
   const mod = useModificadorExtra(editar);
   const aberta = PERICIAS_NA_ORDEM_DO_PDF.find((def) => mod.aberto?.id === `pericia-${def.id}`);
   return (
@@ -523,7 +585,7 @@ export function Pericias({ ficha, d, alterar, editar, rolador }: PropsDaAba) {
 // Coluna do meio: CA, iniciativa, deslocamento, vida, dados de vida, morte, moedas, ataques, equipamento
 // ---------------------------------------------------------------------------------------------
 
-export function BotaoDeIniciativa({
+function BotaoDeIniciativaBruta({
   d,
   rolador,
   ordem,
@@ -556,7 +618,7 @@ export function BotaoDeIniciativa({
   );
 }
 
-export function CampoDeCa({
+function CampoDeCaBruta({
   personagemId,
   d,
   alterar,
@@ -576,7 +638,7 @@ export function CampoDeCa({
   );
 }
 
-export function CampoDeDeslocamento({
+function CampoDeDeslocamentoBruta({
   d,
   alterar,
   editar,
@@ -595,7 +657,7 @@ export function CampoDeDeslocamento({
   );
 }
 
-function CaIniciativaDeslocamento(props: PropsDaAba) {
+function CaIniciativaDeslocamentoBruta(props: PropsDaAba) {
   const { d, rolador, ordem } = props;
   return (
     <div className="fl-resumo">
@@ -629,7 +691,7 @@ function CaIniciativaDeslocamento(props: PropsDaAba) {
 }
 
 /** PV atuais com − e +: o dano consome os temporários primeiro. */
-export function ControlesDePv({ personagemId, ficha, alterar, editar, pvDoModelo }: PropsDaAba) {
+function ControlesDePvBruta({ personagemId, ficha, alterar, editar, pvDoModelo }: PropsDaAba) {
   const tirar = () => {
     const novo = receberDano(ficha, 1);
     alterar([
@@ -673,7 +735,7 @@ export function ControlesDePv({ personagemId, ficha, alterar, editar, pvDoModelo
   );
 }
 
-export function BarraDePv({ ficha }: Pick<PropsDaAba, "ficha">) {
+function BarraDePvBruta({ ficha }: Pick<PropsDaAba, "ficha">) {
   const pct = Math.max(
     0,
     Math.min(100, Math.round((ficha.pvAtual / Math.max(1, ficha.pvMax)) * 100)),
@@ -691,7 +753,7 @@ export function BarraDePv({ ficha }: Pick<PropsDaAba, "ficha">) {
   );
 }
 
-export function ControlesDePvTemporario({ personagemId, ficha, alterar, editar }: PropsDaAba) {
+function ControlesDePvTemporarioBruta({ personagemId, ficha, alterar, editar }: PropsDaAba) {
   const temp = ficha.pvTemp ?? 0;
   const ajustar = (n: number) => alterar(um("pvTemp", n <= 0 ? null : n));
   return (
@@ -728,7 +790,7 @@ export function ControlesDePvTemporario({ personagemId, ficha, alterar, editar }
   );
 }
 
-function PontosDeVida(props: PropsDaAba) {
+function PontosDeVidaBruta(props: PropsDaAba) {
   const { personagemId, ficha, alterar, editar } = props;
   return (
     <Caixa moldura testid="fh-pv" className="fl-bloco" rotulo="Pontos de Vida">
@@ -759,7 +821,7 @@ function PontosDeVida(props: PropsDaAba) {
 /** Acima disto, os dados de vida de um tipo viram o contador compacto (V4a3). */
 const LIMITE_DE_BOLINHAS_DE_DV = 12;
 
-export function DadosDeVida({ d, alterar, editar, rolador, enviar, personagemId }: PropsDaAba) {
+function DadosDeVidaBruta({ d, alterar, editar, rolador, enviar, personagemId }: PropsDaAba) {
   return (
     <Caixa testid="fh-dados-de-vida" className="fl-bloco" rotulo="Dados de Vida">
       <Secao>Dados de Vida</Secao>
@@ -849,7 +911,7 @@ export function DadosDeVida({ d, alterar, editar, rolador, enviar, personagemId 
   );
 }
 
-export function ContraAMorte({ ficha, alterar, editar, rolador }: PropsDaAba) {
+function ContraAMorteBruta({ ficha, alterar, editar, rolador }: PropsDaAba) {
   const mortes = ficha.mortes ?? { sucessos: 0, falhas: 0 };
   const marcas = (campo: "sucessos" | "falhas") =>
     [1, 2, 3].map((n) => (
@@ -895,7 +957,7 @@ export function ContraAMorte({ ficha, alterar, editar, rolador }: PropsDaAba) {
   );
 }
 
-export function Moedas({ ficha, alterar, editar }: PropsDaAba) {
+function MoedasBruta({ ficha, alterar, editar }: PropsDaAba) {
   return (
     <Caixa testid="fh-moedas" className="fl-bloco" rotulo="Moedas">
       <Secao>Moedas</Secao>
@@ -1068,7 +1130,7 @@ function LinhaDoAtaque({
   );
 }
 
-export function Ataques(props: PropsDaAba) {
+function AtaquesBruta(props: PropsDaAba) {
   const { ficha, alterar, editar, abrirEditor, fecharEditor } = props;
   const linhas = linhasDeAtaque(ficha);
   const doTipo = (tipo: "ataque" | "magia") => linhas.filter((x) => x.tipo === tipo);
@@ -1207,7 +1269,7 @@ export function Ataques(props: PropsDaAba) {
   );
 }
 
-export function Equipamento(props: PropsDaAba) {
+function EquipamentoBruta(props: PropsDaAba) {
   const { ficha, alterar, editar, luz, enviar } = props;
   const itens = ficha.itens ?? [];
   const ordem = useOrdemDaLista({
@@ -1376,7 +1438,7 @@ export function Equipamento(props: PropsDaAba) {
 // Coluna da direita: personalidade e características
 // ---------------------------------------------------------------------------------------------
 
-export function Personalidade({ ficha, alterar, editar }: PropsDaAba) {
+function PersonalidadeBruta({ ficha, alterar, editar }: PropsDaAba) {
   const campos = [
     ["personalidade", "Traços de personalidade", "fl-t-150"],
     ["ideais", "Ideais", "fl-t-80"],
@@ -1405,7 +1467,7 @@ export function Personalidade({ ficha, alterar, editar }: PropsDaAba) {
   );
 }
 
-export function Caracteristicas(props: PropsDaAba) {
+function CaracteristicasBruta(props: PropsDaAba) {
   return (
     <div className="fl-caracteristicas" data-testid="fh-caracteristicas">
       <Secao>Características e Talentos</Secao>
@@ -1571,3 +1633,66 @@ function PrincipalEstreita(props: PropsDaAba) {
 export function AbaPrincipal(props: PropsDaAba) {
   return props.estreita ? <PrincipalEstreita {...props} /> : <PrincipalLarga {...props} />;
 }
+
+// Q14: as seções em `memo`, cada uma com as fatias da ficha e de `d` que lê (ver `secoes.tsx`).
+export const ClasseENivel = secao("ClasseENivel", ClasseENivelBruta, { ficha: ["classes"] });
+export const CamposDeIdentidade = secao("CamposDeIdentidade", CamposDeIdentidadeBruta, {
+  ficha: ["antecedente", "raca", "alinhamento", "xp"],
+});
+export const Atributos = secao("Atributos", AtributosBruta, {
+  ficha: ["atributos"],
+  d: ["atributos"],
+});
+export const Passiva = secao("Passiva", PassivaBruta, { ficha: [], d: ["percepcaoPassiva"] });
+export const InspiracaoEProficiencia = secao(
+  "InspiracaoEProficiencia",
+  InspiracaoEProficienciaBruta,
+  { ficha: ["inspiracao"], d: ["proficiencia"] },
+);
+export const Salvaguardas = secao("Salvaguardas", SalvaguardasBruta, {
+  ficha: ["salvaguardas"],
+  d: ["salvaguardas"],
+});
+export const Pericias = secao("Pericias", PericiasBruta, { ficha: ["pericias"], d: ["pericias"] });
+export const BotaoDeIniciativa = secao("BotaoDeIniciativa", BotaoDeIniciativaBruta, {
+  ficha: [],
+  d: ["iniciativa"],
+});
+export const CampoDeCa = secao("CampoDeCa", CampoDeCaBruta, { ficha: [], d: ["ca"] });
+export const CampoDeDeslocamento = secao("CampoDeDeslocamento", CampoDeDeslocamentoBruta, {
+  ficha: [],
+  d: ["deslocamentoFt"],
+});
+const CaIniciativaDeslocamento = secao("CaIniciativaDeslocamento", CaIniciativaDeslocamentoBruta, {
+  ficha: [],
+  d: ["ca", "iniciativa", "deslocamentoFt", "deslocamentoM"],
+});
+export const ControlesDePv = secao("ControlesDePv", ControlesDePvBruta, {
+  ficha: ["pvAtual", "pvMax", "pvTemp"],
+});
+export const BarraDePv = secao("BarraDePv", BarraDePvBruta, { ficha: ["pvAtual", "pvMax"] });
+export const ControlesDePvTemporario = secao(
+  "ControlesDePvTemporario",
+  ControlesDePvTemporarioBruta,
+  { ficha: ["pvTemp"] },
+);
+const PontosDeVida = secao("PontosDeVida", PontosDeVidaBruta, {
+  ficha: ["pvAtual", "pvMax", "pvTemp"],
+});
+export const DadosDeVida = secao("DadosDeVida", DadosDeVidaBruta, {
+  ficha: [],
+  d: ["dadosDeVida"],
+});
+export const ContraAMorte = secao("ContraAMorte", ContraAMorteBruta, { ficha: ["mortes"] });
+export const Moedas = secao("Moedas", MoedasBruta, { ficha: ["moedas"] });
+export const Ataques = secao("Ataques", AtaquesBruta, { fichaExceto: TEXTOS_LIVRES, d: "todo" });
+export const Equipamento = secao("Equipamento", EquipamentoBruta, {
+  ficha: ["itens", "ataques"],
+  comparar: { luz: mesmaLuz },
+});
+export const Personalidade = secao("Personalidade", PersonalidadeBruta, {
+  ficha: ["personalidade", "ideais", "ligacoes", "defeitos"],
+});
+export const Caracteristicas = secao("Caracteristicas", CaracteristicasBruta, {
+  ficha: ["caracteristicas"],
+});

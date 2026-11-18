@@ -75,16 +75,25 @@ export function BotaoComDica({
   }, [desabilitado]);
 
   const podeMostrar = () => temDica && (!dicaSe || !botao.current || dicaSe(botao.current));
+  // Q14: o balão (um portal no body) só existe enquanto está à vista; escondido não custa nada a cada render.
+  const balaoVisivel = (d.visivel && !semDica && temDica) || (aviso && desabilitado);
 
   return (
     <>
       <button
+        // Sem o balão no DOM o `aria-describedby` não leria nada: o nome do controle fica no `aria-label` (quando o
+        // botão não traz o seu) e o balão, quando aparece, volta a ser a descrição.
+        aria-label={temDica && !nomeVisivel ? rotulo : undefined}
         {...resto}
         ref={botao}
         type={resto.type ?? "button"}
         data-testid={testid}
         aria-disabled={desabilitado || ariaDesabilitado || undefined}
-        aria-describedby={temDica ? d.id : undefined}
+        aria-describedby={temDica && balaoVisivel ? d.id : undefined}
+        // O motivo do botão desabilitado continua sendo lido sem o balão: "Nome — motivo"
+        aria-description={
+          temDica && desabilitado && !balaoVisivel ? `${rotulo} — ${motivo}` : undefined
+        }
         aria-keyshortcuts={atalho ? teclasParaAria(ATALHOS[atalho].teclas) : undefined}
         onClick={(e) => {
           d.esconder();
@@ -123,17 +132,19 @@ export function BotaoComDica({
       >
         {children}
       </button>
-      <Dica
-        alvo={botao}
-        id={d.id}
-        visivel={(d.visivel && !semDica && temDica) || (aviso && desabilitado)}
-        testid={`dica-${testid}`}
-        nome={rotulo}
-        motivo={desabilitado ? motivo : undefined}
-        atalho={atalho}
-        aviso={aviso}
-        lado={lado}
-      />
+      {balaoVisivel && (
+        <Dica
+          alvo={botao}
+          id={d.id}
+          visivel
+          testid={`dica-${testid}`}
+          nome={rotulo}
+          motivo={desabilitado ? motivo : undefined}
+          atalho={atalho}
+          aviso={aviso}
+          lado={lado}
+        />
+      )}
     </>
   );
 }

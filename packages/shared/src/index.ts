@@ -24,6 +24,7 @@ export * from "./desfazer.ts";
 export * from "./envios.ts";
 export * from "./enviosUso.ts";
 export * from "./estado.ts";
+export * from "./estruturaCompartilhada.ts";
 export * from "./ficha.ts";
 export * from "./hordas.ts";
 export * from "./iluminacao.ts";

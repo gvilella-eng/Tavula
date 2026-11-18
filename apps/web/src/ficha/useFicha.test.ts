@@ -146,3 +146,25 @@ describe("proporOperacoes", () => {
     expect(aplicarOperacoes(base, [...vivas, ...r.fila])).toEqual({ ok: true, ficha: r.ficha });
   });
 });
+
+describe("proporOperacoes compartilha estrutura (Q14)", () => {
+  it("digitar num texto mantém a referência de atributos e itens da ficha base", () => {
+    const r0 = aplicarOperacoes(fichaNova(10), [
+      op("atributos", { for: 12 }),
+      op("itens", [{ nome: "Corda", quantidade: 1 }]),
+      op("caracteristicas", [{ nome: "Surto", descricao: "" }]),
+    ]);
+    if (!r0.ok) throw new Error(r0.motivo);
+    const base = r0.ficha;
+    let fila: OperacaoDeFicha[] = [];
+    for (const t of ["a", "ab", "abc"]) {
+      const r = proporOperacoes(base, [], fila, [op("caracteristicas.0.descricao", t)]);
+      if (!r.ok) throw new Error("recusou");
+      fila = r.fila;
+      expect(r.ficha.atributos).toBe(base.atributos);
+      expect(r.ficha.itens).toBe(base.itens);
+      expect(r.ficha.caracteristicas).not.toBe(base.caracteristicas);
+      expect(r.ficha.caracteristicas?.[0]?.descricao).toBe(t);
+    }
+  });
+});

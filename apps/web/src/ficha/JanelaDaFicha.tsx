@@ -3,11 +3,13 @@ import {
   type Apresentacao,
   aplicarOperacoes,
   apresentacaoDoPersonagem,
+  compartilharEstrutura,
   derivar,
   descansoCurto,
   descansoLongo,
   type Estado,
   ehPersonagemDeJogador,
+  type FichaDerivada,
   operacoesDeDiferenca,
   type Personagem,
   pode,
@@ -40,6 +42,7 @@ import { Janela } from "../janelas/Janela";
 import type { ImagensDoMapa } from "../mapa/mapaPixi";
 import type { TempoDaTela } from "../tempo";
 import { useCompendio } from "../useCompendio";
+import { useFuncaoEstavel } from "../useFuncaoEstavel";
 import { AbaHistoria } from "./AbaHistoria";
 import { AbaMagias } from "./AbaMagias";
 import {
@@ -82,6 +85,7 @@ import { Caixa, Secao } from "./livro";
 import { NomeComCapitular } from "./NomeComCapitular";
 import { PainelExtra } from "./PainelExtra";
 import { criarRolador } from "./rolador";
+import { contarRender } from "./secoes";
 import { useFichaEditavel } from "./useFicha";
 
 type Enviar = (tipo: string, dados: object) => string | null;
@@ -178,6 +182,7 @@ export function JanelaDaFicha({
   aoColocarVarios,
   propria,
 }: Props) {
+  contarRender("JanelaDaFicha");
   const editar = podeEditarPersonagem(p, eu);
   const temFicha = p.ficha !== undefined;
   const { ficha, alterar, enviarAgora } = useFichaEditavel(p, enviar, editar && temFicha);
@@ -190,7 +195,14 @@ export function JanelaDaFicha({
     },
     [enviar, enviarAgora],
   );
-  const d = useMemo(() => derivar(ficha), [ficha]);
+  // Q14: as derivadas também compartilham estrutura com as da tecla anterior: `d.pericias` só troca se uma perícia mudou.
+  const dAnterior = useRef<FichaDerivada | null>(null);
+  const d = useMemo(() => {
+    const nova = derivar(ficha);
+    const r = dAnterior.current ? compartilharEstrutura(dAnterior.current, nova) : nova;
+    dAnterior.current = r;
+    return r;
+  }, [ficha]);
   const aparencia = useAparencia();
   const [vantagem, setVantagem] = useState<Vantagem>("normal");
   const [descanso, setDescanso] = useState<"curto" | "longo" | null>(null);
@@ -232,14 +244,14 @@ export function JanelaDaFicha({
     return () => clearTimeout(t);
   }, [avisoDaOrdem]);
 
-  const rolador = criarRolador({
-    personagemId: p.id,
-    podeRolar: editar && temFicha,
-    enviar: enviarComFila,
-    vantagem,
-  });
+  const podeRolar = editar && temFicha;
+  // Q14: identidade estável (só muda com o personagem, a permissão ou a vantagem) para as seções em `memo` valerem.
+  const rolador = useMemo(
+    () => criarRolador({ personagemId: p.id, podeRolar, enviar: enviarComFila, vantagem }),
+    [p.id, podeRolar, enviarComFila, vantagem],
+  );
   // Iniciativa na ficha (V2): com a ordem aberta, rola na sala e põe o token na lista.
-  function entrarNaOrdem() {
+  const entrarNaOrdem = useFuncaoEstavel(() => {
     if (!editar || !temFicha) return;
     if (!estado.ordemDeTurnoVisivel) return rolador.teste("Iniciativa", d.iniciativa);
     const doPersonagem = estado.tokens.filter(
@@ -254,7 +266,7 @@ export function JanelaDaFicha({
     }
     setAvisoDaOrdem(null);
     enviar("combate.entrar", { tokenId: alvo.id });
-  }
+  });
   const compendio = useCompendio({
     referencia: estado.compendio,
     euMestre: false,
@@ -263,6 +275,25 @@ export function JanelaDaFicha({
     fontes,
     enviar,
   }).compendio;
+  const podeTrocarImagem =
+    editar && (eu.papel === "mestre" || pode(eu, "asset.subir", estado.permissoes));
+  // Q14: tudo o que vai às seções em `memo` tem identidade estável: só muda quando o seu conteúdo muda.
+  const ordemDeTurno = useMemo(
+    () => ({ aberta: estado.ordemDeTurnoVisivel, entrar: entrarNaOrdem }),
+    [estado.ordemDeTurnoVisivel, entrarNaOrdem],
+  );
+  const abaRef = useRef(aba);
+  abaRef.current = aba;
+  const abrirEditor = useCallback(
+    (alvo: AlvoDoEditor) => setEditorAberto({ ...alvo, aba: abaRef.current }),
+    [],
+  );
+  const fecharEditor = useCallback(() => setEditorAberto(null), []);
+  const luz = useMemo(
+    () => ({ estado, eu, personagem: p, tempo }),
+    // `estado` e `p` mudam a cada evento: o equipamento compara por dentro (`mesmaLuz`), não pela identidade
+    [estado, eu, p, tempo],
+  );
   const propsDaAba: PropsDaAba = {
     nomeDoPersonagem: p.nome,
     enviar: enviarComFila,
@@ -270,9 +301,8 @@ export function JanelaDaFicha({
     imagens,
     versaoDasImagens,
     pedirImagem,
-    podeTrocarImagem:
-      editar && (eu.papel === "mestre" || pode(eu, "asset.subir", estado.permissoes)),
-    ordem: { aberta: estado.ordemDeTurnoVisivel, entrar: entrarNaOrdem },
+    podeTrocarImagem,
+    ordem: ordemDeTurno,
     personagemId: p.id,
     ficha,
     d,
@@ -281,10 +311,10 @@ export function JanelaDaFicha({
     rolador,
     estreita,
     editorAberto: editorAberto && editorAberto.aba === aba ? editorAberto : null,
-    abrirEditor: (alvo) => setEditorAberto({ ...alvo, aba }),
-    fecharEditor: () => setEditorAberto(null),
+    abrirEditor,
+    fecharEditor,
     avisar,
-    luz: { estado, eu, personagem: p, tempo },
+    luz,
     // As condições moram no token: o de onde a ficha foi aberta (Q10) ou o do personagem na cena ativa.
     token:
       tokenDaFaixa ??

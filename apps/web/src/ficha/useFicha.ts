@@ -1,5 +1,6 @@
 import {
   aplicarOperacoes,
+  compartilharEstrutura,
   type Ficha,
   fichaNova,
   MAXIMO_DE_OPERACOES,
@@ -106,15 +107,23 @@ export function useFichaEditavel(
     enviadas.current = [];
   }
 
+  // Q14: a ficha que a tela mostra compartilha estrutura com a anterior, inclusive quando o eco da sala chega (objeto
+  // novo, mesmo conteúdo): `ficha.itens`, `ficha.atributos`... só trocam de referência quando mudam de verdade.
+  const mostrada = useRef<Ficha | null>(null);
   const calculada = useMemo(() => {
-    // Prévia de `alterar` para esta base e esta versão: já é o resultado de `vivas + fila`, sem validar de novo.
-    const p = previa.current;
-    if (p && p.base === base && p.versao === versao) return p.ficha;
-    const vivas = vivasDe(enviadas.current, Date.now());
-    const todas = [...vivas, ...fila.current];
-    if (todas.length === 0) return base;
-    const r = aplicarOperacoes(base, todas);
-    return r.ok ? r.ficha : base;
+    const bruta = (() => {
+      // Prévia de `alterar` para esta base e esta versão: já é o resultado de `vivas + fila`, sem validar de novo.
+      const p = previa.current;
+      if (p && p.base === base && p.versao === versao) return p.ficha;
+      const vivas = vivasDe(enviadas.current, Date.now());
+      const todas = [...vivas, ...fila.current];
+      if (todas.length === 0) return base;
+      const r = aplicarOperacoes(base, todas);
+      return r.ok ? r.ficha : base;
+    })();
+    const r = mostrada.current ? compartilharEstrutura(mostrada.current, bruta) : bruta;
+    mostrada.current = r;
+    return r;
     // `versao` muda a cada mudança local: a fila e as enviadas vivem em refs
   }, [base, versao]);
   const enviarAgora = useCallback(() => {

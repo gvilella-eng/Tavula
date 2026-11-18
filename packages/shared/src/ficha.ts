@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { Personagem } from "./estado.ts";
+import { compartilharEstrutura } from "./estruturaCompartilhada.ts";
 import {
   ATRIBUTOS,
   type Atributo,
@@ -937,7 +938,8 @@ export type ResultadoDeOperacoes = { ok: true; ficha: Ficha } | { ok: false; mot
 
 /**
  * Aplica as operações numa cópia da ficha e valida o resultado inteiro (zod e 256 KB). Falhou uma,
- * nada vale. Os PV atuais nunca passam do máximo.
+ * nada vale. Os PV atuais nunca passam do máximo. A ficha devolvida compartilha estrutura com a de entrada: o que não
+ * mudou (atributos, itens, textos...) mantém a mesma referência (Q14).
  */
 export function aplicarOperacoes(
   ficha: Ficha | undefined,
@@ -961,7 +963,9 @@ export function aplicarOperacoes(
   if (bytesDoJson(nova) > TAMANHO_MAXIMO_DA_FICHA) {
     return { ok: false, motivo: "A ficha passa de 256 KB." };
   }
-  return { ok: true, ficha: nova.pvAtual > nova.pvMax ? { ...nova, pvAtual: nova.pvMax } : nova };
+  const pronta = nova.pvAtual > nova.pvMax ? { ...nova, pvAtual: nova.pvMax } : nova;
+  // Q14: só o caminho que mudou é objeto novo; o resto mantém a referência da ficha de entrada.
+  return { ok: true, ficha: ficha === undefined ? pronta : compartilharEstrutura(ficha, pronta) };
 }
 
 /** As operações que levam `antes` a `depois`, uma por campo de primeiro nível que mudou. */

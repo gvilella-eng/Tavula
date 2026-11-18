@@ -2359,3 +2359,26 @@ O Vilella mostrou em vídeo (mesa dele, `pnpm dev`): segurando a seta o token an
 **O que ficou para depois**
 - Com a CPU 4× mais lenta ainda há tarefas longas de ~160 a 300 ms: sobram o próprio desenho da luz (triangulação dos polígonos em `camadaDeLuz.ts`) e os renders da `Mesa` a cada 300 ms. Dá para baixar mais reaproveitando as texturas da luz entre quadrados e dividindo a `Mesa` (hoje um componente só, com 49 estados) para que um passo não a refaça inteira.
 - Produção: medi só depois (ver a tabela em `docs/ESTADO.md`); o "antes" do build de produção não foi medido.
+
+## Q14 — como ficou (2026-11-18): a ficha por seções
+
+O Vilella perguntou se a ficha podia ser dividida em seções que se atualizam: mexer nos atributos atualiza as seções que têm valores derivados, mas escrever em talentos atualiza só ela. Números antes e depois: `docs/ESTADO.md`, "Ajustes Q14".
+
+**O que foi feito**
+- `compartilharEstrutura` (shared) e o uso em `aplicarOperacoes`, `useFichaEditavel` e na derivada da `JanelaDaFicha`: o que não muda mantém a referência.
+- `secao` (`apps/web/src/ficha/secoes.tsx`): `memo` com comparador por fatia. As seções da aba Personagem e as caixas da aba História usam.
+- Props estáveis na `JanelaDaFicha` e `pedirImagem` da `Mesa` em `useCallback`.
+- `BotaoComDica` monta o balão só enquanto aparece.
+- Testes: unidade do compartilhamento e das derivadas (`estruturaCompartilhada.test.ts`, `useFicha.test.ts`) e `e2e/tests/q14.spec.ts` (só seções que dependem redesenham; Força atualiza perícia, salvaguarda e ataque; o cursor não pula com o eco; a dica aparece e some).
+
+**Decisões (assumido)**
+- (assumido) O compartilhamento é por igualdade profunda de JSON contra a versão anterior, não por caminho da operação: vale também quando o eco da sala traz objetos novos de mesmo conteúdo, e custa uma passada pela ficha (menos que uma validação do zod, que já roda por tecla).
+- (assumido) Ataques e Equipamento declaram o que leem: Ataques lê tudo da ficha menos os textos livres e números soltos (PV, XP, moedas...); Equipamento lê só `itens` e `ataques`, mais a luz da mesa comparada por dentro (`mesmaLuz`).
+- (assumido) A prop `luz` (a mesa inteira) é ignorada por todas as seções, menos o Equipamento.
+- (assumido) Sem balão montado, o nome do botão de ícone vai no `aria-label` e o motivo do desabilitado no `aria-description`; nenhum teste antigo foi afrouxado.
+- (assumido) O balão montado só quando visível vale só para `BotaoComDica`; os outros usos de `Dica` (alça do painel, estado da mesa, cabeçalho da janela, tipos de parede) seguem sempre montados.
+
+**O que ficou para depois**
+- A aba Magias e o bloco do NPC (`BlocoDoNpc`, `ConjuracaoDoNpc`) ainda redesenham inteiros a cada tecla (só uma delas está à vista por vez). O mesmo `secao` serve.
+- O cabeçalho da `JanelaDaFicha` (abas, nome, vantagem) e a própria janela ainda redesenham a cada tecla (80 renders em 40 teclas), são o que sobra do script.
+- O restante da `Mesa` a cada eco (ver `IDEIAS.md`).

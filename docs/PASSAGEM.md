@@ -1078,3 +1078,14 @@ Continua em aberto, por ser decisão e não erro de doc: `ficha.verOutras` (seç
 - Para medir: `e2e/tests/q13.spec.ts` (cena pesada gerada na hora; `Q13_PERFIL=<arquivo>` grava o perfil de CPU do teste com a CPU 4× mais lenta; `trace: "off"` porque o rastro do Playwright tira retrato do DOM a cada ação e distorce a medida).
 
 **Suposições**: ver `docs/REDESIGN.md`, "Q13 — como ficou".
+
+## Q14 (2026-11-18): a ficha por seções
+
+- Onde: `packages/shared/src/estruturaCompartilhada.ts` (`compartilharEstrutura`), `aplicarOperacoes` (`ficha.ts`), `useFicha.ts` (a ficha mostrada compartilha com a anterior), `JanelaDaFicha.tsx` (a derivada `d` também; props estáveis) e `apps/web/src/ficha/secoes.tsx` (`secao`: `memo` com fatias). As seções estão em `AbaPrincipal.tsx` (`const X = secao("X", XBruta, {...})` no fim do arquivo), `AbaHistoria.tsx` e `PainelExtra.tsx`.
+- **Frágil: o `memo` de cada seção vale pelas chaves declaradas.** Quem passar a ler outra chave da ficha ou de `d` numa seção tem de acrescentá-la à declaração dela (`ficha`, `fichaExceto`, `d`), senão a seção fica velha ao mudar só essa chave. Chave nova na ficha (`FichaSchema`) cai sozinha em `Ataques` (que declara o que NÃO lê: `TEXTOS_LIVRES`), mas não nas seções com lista fechada.
+- **Frágil: toda prop nova de `PropsDaAba` precisa de identidade estável** na `JanelaDaFicha` (`useCallback`, `useMemo`, `useFuncaoEstavel`); uma função criada a cada render desliga o `memo` de todas as seções sem erro algum. Para achar a culpada: `window.__motivosDaFicha` (modo de teste) diz qual prop ou fatia fez cada seção redesenhar; `e2e/tests/q14.spec.ts` falha mostrando esse mapa.
+- A `luz` da ficha (a mesa inteira) é ignorada pelas seções, menos o Equipamento (`mesmaLuz`, em `AbaPrincipal.tsx`): se outra seção passar a ler `luz`, declare `comparar: { luz: ... }`.
+- `compartilharEstrutura` só vale para dados de JSON (a ficha e `d`); o resultado e a entrada nunca podem ser mutados no lugar (as seções e os caches por referência contam com isso).
+- O balão da dica (`Dica`) só existe no DOM enquanto está visível, no `BotaoComDica`: teste novo que procura `dica-<testid>` tem de esperar a dica aparecer (mouse ou foco); sem o balão, o nome vem do `aria-label` e o motivo do desabilitado do `aria-description`.
+
+**Suposições**: ver `docs/REDESIGN.md`, "Q14 — como ficou".

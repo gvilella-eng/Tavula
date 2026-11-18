@@ -4232,4 +4232,44 @@ Typecheck e lint limpos; unidade 273 (web, +50: `useFatia`, `leituraDoCompendio`
 ### O que ficou de fora
 Ver `IDEIAS.md`, "Desempenho: auditado e não feito": o redesenho da ficha a cada tecla e os botões com dica passaram a ser o maior custo medido da digitação.
 
-## Próximo: o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b, N4, N5, M1, M2, Q1, Q2, Q3, Q4, Q5, Q6, Q7, Q8, Q9, Q10, Q11, Q12, Q13 e das otimizações O1–O4
+## Ajustes Q14 — A ficha por seções: escrever numa caixa redesenha só ela (entregue, aguardando o roteiro manual)
+
+### O que foi entregue
+- **A ficha compartilha estrutura.** `compartilharEstrutura(antes, depois)` (`packages/shared/src/estruturaCompartilhada.ts`) devolve o que não mudou com a mesma referência. `aplicarOperacoes` a usa contra a ficha de entrada; `useFichaEditavel` e `derivar` (na `JanelaDaFicha`) a usam contra o resultado da tecla anterior, inclusive quando o eco da sala chega (objeto novo, mesmo conteúdo). Mudar o texto de um talento não troca `atributos`, `pericias`, `itens`...; mudar um atributo troca só `atributos` (e as derivadas que dependem dele).
+- **Seções em `memo`** (`apps/web/src/ficha/secoes.tsx`, função `secao`): cada seção declara as chaves da ficha e de `d` que lê. Aba Personagem: classe e nível, identidade, atributos, passiva, inspiração e proficiência, salvaguardas, perícias, CA/iniciativa/deslocamento, PV (e os controles dele), dados de vida, contra a morte, moedas, ataques, equipamento, personalidade, características e o painel de recursos. Aba História: cada caixa de texto, a aparência, aliados e símbolo, outras características, idiomas e notas. As props que descem às seções ganharam identidade estável (`rolador`, `ordem`, `abrirEditor`, `fecharEditor`, `luz`, `pedirImagem` da `Mesa`).
+- **Balão da dica só quando aparece.** `BotaoComDica` monta o `Dica` (portal no `body`) só enquanto está visível. O nome fica no `aria-label` (quando o botão não traz o seu), o `aria-describedby` existe enquanto o balão existe e o botão desabilitado leva `aria-description` "Nome — motivo".
+- **Contadores só no modo de teste:** `window.__rendersDaFicha` (renders por seção) e `window.__motivosDaFicha` (qual prop ou fatia fez a seção redesenhar), em `contarRender` e `anotarMotivo`.
+
+### Como o texto livre vai à sala
+Não mudou: cada tecla grava na hora na ficha da tela (`alterar`) e a `ficha.alterar` sai depois de 400 ms sem teclas (`ATRASO_DA_GRAVACAO_MS`), num lote só, com a operação do mesmo caminho substituindo a anterior. O eco da sala agora não redesenha as outras seções nem tira o cursor do lugar (teste no `q14.spec.ts`).
+
+### Medição (antes × depois)
+`pnpm --filter @tabletop/e2e medidas` (`MEDIDA_SO=B`), mesma cena pesada, 40 teclas (B1 a B4) ou 10 mudanças (B5 e B6); tempo de script em ms, mediana de 3 repetições; "seções" = quantas seções diferentes redesenharam. Antes: 22 seções redesenhavam a cada gesto (84 renders da janela em 40 teclas, 1.848 renders de seção).
+
+| Cenário | `pnpm dev` | Produção | Seções que renderizam (antes → depois) |
+|---|---|---|---|
+| B1 40 teclas em Antecedente | 1.181 → 292 (−75%) | 129 → 53 (−59%) | 22 → 1 (Identidade) |
+| B3 40 teclas num talento | 1.146 → 404 (−65%) | 127 → 62 (−51%) | 22 → 1 (Características) |
+| B4 40 teclas no campo XP (número) | 1.073 → 266 (−75%) | 122 → 54 (−56%) | 22 → 1 (Identidade) |
+| B5 10 mudanças de Força | 395 → 166 (−58%) | 37 → 24 (−35%) | 22 → 4 (Atributos, Salvaguardas, Perícias, Ataques) |
+| B6 10 cliques de proficiência | 288 → 134 (−53%) | 38 → 25 (−34%) | 22 → 3 (Perícias, Salvaguardas, Ataques) |
+| B2 40 teclas, com o compêndio | 973 → 282 (−71%) | 115 → 48 (−58%) | 22 → 1 |
+
+Antes e depois rodaram na mesma máquina, em sequência, sem outro servidor de teste ao lado; a variação entre as 3 repetições foi de 1 a 19% (`var%` no JSON), então diferenças pequenas (B5 e B6 em produção) valem como ordem de grandeza. O que sobra no script de 40 teclas é a própria `JanelaDaFicha` (cabeçalho, abas, janela) e o React de desenvolvimento.
+
+### Verificação
+Ver `REDESIGN.md`, "Q14 — como ficou".
+
+### Decisões
+Ver `REDESIGN.md`, "Q14 — como ficou".
+
+### Desvios
+Nenhum E2E antigo foi alterado.
+
+### Frágil
+Ver `PASSAGEM.md`, "Q14".
+
+### Roteiro manual
+Ver `docs/ROTEIRO-DE-TESTES.md`, "Q14".
+
+## Próximo: o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b, N4, N5, M1, M2, Q1, Q2, Q3, Q4, Q5, Q6, Q7, Q8, Q9, Q10, Q11, Q12, Q13, Q14 e das otimizações O1–O4

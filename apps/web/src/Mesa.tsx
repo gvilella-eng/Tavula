@@ -1929,8 +1929,11 @@ export function Mesa({
     }
   }
 
-  const pedirImagem: PedirImagem = (titulo, tipo, aoUsar) =>
-    setPedidoDeImagem({ titulo, tipo, aoUsar });
+  // Q14: identidade fixa (só o setter muda o estado), para as seções da ficha em `memo` não refazerem por causa dela.
+  const pedirImagem: PedirImagem = useCallback(
+    (titulo, tipo, aoUsar) => setPedidoDeImagem({ titulo, tipo, aoUsar }),
+    [],
+  );
 
   function mudarReguaGrudar(v: boolean) {
     setReguaGrudar(v);

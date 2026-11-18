@@ -449,9 +449,9 @@ const variacao = (valores: number[]) => {
 };
 
 function registrar(nome: string, descricao: string, medidas: Medida[]) {
-  const chaves = Object.keys(medidas[0] ?? {});
+  const chaves = [...new Set(medidas.flatMap((x) => Object.keys(x)))];
   const med: Medida = {};
-  for (const k of chaves) med[k] = arredonda(mediana(medidas.map((m) => m[k] as number)));
+  for (const k of chaves) med[k] = arredonda(mediana(medidas.map((m) => m[k] ?? 0)));
   resultado.cenarios[nome] = {
     descricao,
     medidas,
@@ -684,7 +684,10 @@ class Medidor {
    */
   async uma(acao: () => Promise<void>, comTeclas = false, comTraco = false): Promise<Medida> {
     await assentar(this.p);
-    await this.p.evaluate(() => (window as unknown as { __med: Sondas }).__med.zerar());
+    await this.p.evaluate(() => {
+      (window as unknown as { __med: Sondas }).__med.zerar();
+      (window as unknown as { __rendersDaFicha?: Record<string, number> }).__rendersDaFicha = {};
+    });
     if (comTraco) {
       await this.browser.startTracing(this.p, {
         categories: ["devtools.timeline", "disabled-by-default-devtools.timeline"],
@@ -702,7 +705,9 @@ class Medidor {
       : await lerMetricas(this.cdp);
     const lidas = await this.p.evaluate(() => {
       const m = (window as unknown as { __med: Sondas }).__med;
-      return { longas: m.longas, eventos: m.eventos, teclas: m.teclas };
+      const renders = (window as unknown as { __rendersDaFicha?: Record<string, number> })
+        .__rendersDaFicha;
+      return { longas: m.longas, eventos: m.eventos, teclas: m.teclas, renders: renders ?? {} };
     });
     const delta = (a: number, b: number) => (b - a) * 1000;
     const medida: Medida = {
@@ -716,6 +721,15 @@ class Medidor {
       // fração da janela em que a thread principal esteve ocupada
       ocupacaoPct: arredonda((delta(antes.tarefa, depois.tarefa) / duracaoMs) * 100),
     };
+    // Q14: quantas vezes cada seção da ficha redesenhou (contador só do modo de teste); "secoes" = quantas seções
+    // diferentes redesenharam ao menos uma vez, "renders" = a soma de todos os redesenhos.
+    const nomes = Object.keys(lidas.renders).filter((k) => k !== "JanelaDaFicha");
+    if (Object.keys(lidas.renders).length > 0) {
+      medida.secoesQueRenderizam = nomes.length;
+      medida.rendersDeSecoes = nomes.reduce((t, k) => t + (lidas.renders[k] ?? 0), 0);
+      medida.rendersDaJanela = lidas.renders.JanelaDaFicha ?? 0;
+      for (const k of nomes) medida[`r:${k}`] = lidas.renders[k] ?? 0;
+    }
     if (comTeclas) {
       const tecla = resumo(lidas.teclas);
       const evento = resumo(lidas.eventos.map((e) => e.dur));
@@ -983,6 +997,61 @@ base(
         depois: soltarOCampo,
       });
 
+      // ---- Q14: o que a ficha redesenha em cada gesto (sem compêndio) ---------------------------
+      const abrirTalento = async () => {
+        const alternar = janela.getByTestId("caracteristica-alternar-0");
+        if ((await alternar.getAttribute("aria-expanded")) !== "true") await alternar.click();
+      };
+      const textoDoTalento = () => janela.getByTestId("caracteristica-descricao-0");
+      await m.cenario(
+        "B3-digitar-talentos",
+        "40 teclas na descrição do primeiro talento (Características e Talentos) da ficha do conjurador",
+        digitar,
+        {
+          preparar: async () => {
+            await abrirTalento();
+            await textoDoTalento().fill("");
+            await textoDoTalento().focus();
+          },
+          depois: () => textoDoTalento().blur(),
+          comTeclas: true,
+        },
+      );
+      const xp = () => janela.getByTestId("ficha-xp");
+      await m.cenario(
+        "B4-digitar-numero",
+        "40 teclas no campo XP (número): 20 vezes um dígito e Backspace",
+        async () => {
+          for (let i = 0; i < 20; i++) {
+            await p.keyboard.press("7", { delay: 10 });
+            await p.keyboard.press("Backspace", { delay: 10 });
+            await p.waitForTimeout(40);
+          }
+        },
+        { preparar: () => xp().focus(), depois: () => xp().blur(), comTeclas: true },
+      );
+      await m.cenario(
+        "B5-mudar-atributo",
+        "10 mudanças do valor de Força (uma a cada 150 ms) e o que as derivadas redesenham",
+        async () => {
+          for (let i = 0; i < 10; i++) {
+            await janela.getByTestId("atributo-valor-for").fill(String(10 + i));
+            await p.waitForTimeout(150);
+          }
+        },
+      );
+      await m.cenario(
+        "B6-marcar-proficiencia",
+        "10 cliques na bolinha de proficiência da perícia Furtividade e da salvaguarda de Destreza",
+        async () => {
+          for (let i = 0; i < 5; i++) {
+            await janela.getByTestId("prof-pericia-furtividade").click();
+            await janela.getByTestId("prof-salva-des").click();
+            await p.waitForTimeout(100);
+          }
+        },
+      );
+
       // ---- o compêndio grande entra na mesa ---------------------------------------------------
       if (pede(/^(B2|A-|C)/)) {
         const texto = compendioSintetico();
@@ -1162,6 +1231,18 @@ base(
         const x = c.mediana;
         console.log(
           `${nome.padEnd(36)}${String(x.scriptMs).padStart(10)}${String(x.tarefaMs).padStart(10)}${String(x.layoutMs).padStart(9)}${String(x.estiloMs).padStart(9)}${String(x.longasQtd).padStart(8)}${String(x.longasMs).padStart(11)}${`${c.variacaoPct.script}/${c.variacaoPct.tarefa}`.padStart(12)}`,
+        );
+      }
+      for (const [nome, c] of Object.entries(resultado.cenarios)) {
+        const x = c.mediana;
+        if (x.secoesQueRenderizam === undefined) continue;
+        console.log(
+          `${nome}: ${x.secoesQueRenderizam} seções renderizam (${x.rendersDeSecoes} renders de seção, ${x.rendersDaJanela} da janela); por seção: ${Object.entries(
+            x,
+          )
+            .filter(([k]) => k.startsWith("r:"))
+            .map(([k, v]) => `${k.slice(2)} ${v}`)
+            .join(", ")}`,
         );
       }
       for (const nome of ["B1-digitar-ficha-sem-compendio", "B2-digitar-ficha-com-compendio"]) {

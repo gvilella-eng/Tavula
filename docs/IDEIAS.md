@@ -121,11 +121,10 @@ medidas` (antes e depois, com `MEDIDA_PERFIL=1` para o perfil por componente).
 
 - **Interface** (o lote O5 fez as abas em `memo` com fatias, o compêndio lido uma vez por hash e a validação única
   por tecla; ver `ESTADO.md`. O que segue foi medido com `e2e/prints/desempenho.spec.ts`)
-  - **Digitar na ficha:** é o maior custo que sobrou. Cada tecla redesenha a ficha inteira (`AbaPrincipal`:
-    equipamento, ataques, perícias, ~290 ms em 40 teclas no `pnpm dev`) e os botões com dica (`BotaoComDica` e
-    `Dica`, ~130 ms: cada botão monta um portal com o balão, mesmo escondido). Caminho: seções da ficha em `memo`
-    com a ficha compartilhando estrutura entre teclas (hoje `aplicarOperacoes` devolve um objeto todo novo), e o
-    balão da dica montado só quando aparece (os testes procuram `dica-<testid>` no DOM mesmo oculta).
+  - **Escrever na ficha:** feito no Q14 (ver `ESTADO.md`): a ficha compartilha estrutura, as seções das abas
+    Personagem e História estão em `memo` com fatias e o balão da dica só monta quando aparece. Sobra: a aba Magias e
+    o bloco do NPC ainda redesenham inteiros a cada tecla (o `secao` de `ficha/secoes.tsx` serve) e o cabeçalho da
+    `JanelaDaFicha` (abas, nome, vantagem).
   - **O resto da Mesa a cada evento:** fora as abas, a `Mesa` (um componente com dezenas de estados) ainda
     re-renderiza topo, barras e janelas a cada evento da sala. O mesmo desenho das fatias serve para a janela da
     ficha, a ordem de turno, a faixa de cenas e os painéis de luz e som.
