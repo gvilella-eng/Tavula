@@ -121,9 +121,9 @@ chamada só. Se um nome for repetido ou não existir, a resposta diz o que corri
 | `mesa` | mestre | M2. Configuração da mesa, iluminação e memória do mapa, pastas (criar, renomear, visibilidade, apagar, mover itens), relógio (pausar, retomar, zerar), tirar o compêndio. |
 | `som` | mestre | M2, refeita no Q4. A mesa de som: configura os 16 lugares (arquivo, nome, ícone, cor, volume), toca efeito pelo nome ou pelo lugar, marca ambientes com volume e toca ou para o transporte (`transporte`: tocar ou parar; Q4b), volume geral, parar tudo, apagar um som da mesa, ambientes da cena e som de zona, pelo nome do arquivo. |
 | `chat` | todos | M2. Narrar, falar como uma ficha, sussurrar, emote, mostrar handout, cartão de característica ou magia, limpar o histórico. Sai "pelo Claude". |
-| `rolar` | todos | Rola dados (expressão, teste ou ataque da ficha); o chat marca "pelo Claude". |
+| `rolar` | todos | Rola dados (expressão, teste ou ataque da ficha) e conjura (`conjurar`: gasta o espaço, o pacto ou o uso da inata e rola a magia); o chat marca "pelo Claude". |
 | `rascunhos` | mestre | Lista, publica e descarta o que o Claude criou. |
-| `arquivos` | todos (jogador: só o que é dele) | Sobe um arquivo do computador para a mesa (mapa da cena, mapa do Dungeondraft / Universal VTT, token, retrato, imagem de handout, som, compêndio) e usa um arquivo que já está na mesa (M1). |
+| `arquivos` | todos (jogador: só o que é dele) | Sobe um arquivo do computador para a mesa (mapa da cena, mapa do Dungeondraft / Universal VTT, token, retrato, aparência e símbolo da ficha, imagem de handout, som, compêndio) e usa um arquivo que já está na mesa (M1). |
 | `desfazer` | todos | Lista o que o Claude fez e desfaz um lote inteiro. |
 
 `cenas` (M2) também duplica uma cena (`duplicarDe`) e leva o grupo (`levarGrupo`); `fichas` apaga, gasta dado de vida e ajusta a mochila; `objetos` acende, passa e guarda tochas e ajusta tempo e raio dos objetos de luz.
@@ -131,6 +131,21 @@ chamada só. Se um nome for repetido ou não existir, a resposta diz o que corri
 ### A tabela de paridade (M2)
 
 Cada intenção do protocolo tem entrada em `packages/shared/src/mcp/paridade.ts`: a ferramenta e o campo que a alcançam, ou o motivo de ficar de fora (`proibida`, `transporte` ou `gesto ao vivo`). O teste `paridade.test.ts` falha se aparecer uma intenção nova sem entrada, ou se a tabela apontar uma ferramenta ou campo que não existe. **Regra: intenção nova precisa de entrada na tabela.** Hoje são 125 intenções: 107 com ferramenta e 18 de fora (4 proibidas, 9 de transporte, 5 gestos ao vivo).
+
+### A paridade campo a campo (Q16)
+
+A tabela acima é por intenção; um campo novo **dentro** de uma intenção (um efeito de zona, um campo do token, da cena, da ficha...) podia ficar de fora sem ninguém ver. Desde o Q16, `packages/shared/src/mcp/paridadeCampos.ts` diz, para cada campo de cada intenção com ferramenta (e para os objetos de dentro: `zona.efeitos.som.volume`, `mudancas.borda`, `reacao.fazer[].raioX`...), por onde o Claude o põe (`"ferramenta:caminho na entrada"`) ou por que não precisa (`fora(...)`: id que o Claude troca por nome, valor que a sala preenche, campo antigo). O teste `paridadeCampos.test.ts` compara a tabela com o `shape` do zod de cada intenção e com a entrada de cada ferramenta.
+
+**Regra: campo novo numa intenção precisa de caminho no MCP.** Se o teste reprovar: (1) ponha o campo na ferramenta que alcança a intenção (nomes no lugar de ids, descrição curta) e (2) registre-o em `paridadeCampos.ts`. A ficha tem uma saída geral: `fichas[].campos` grava qualquer campo pelo caminho que a tela grava (`{"caminho":"xp","valor":300}`), com a mesma validação; um campo novo da ficha pode apontar para `campos` enquanto não ganha campo próprio.
+
+O que o Q16 fechou (auditoria de 2026-11-18, 107 intenções com ferramenta):
+- **Conjurar.** `rolar` ganhou `conjurar` ({ficha, magia, nivel, pacto, ritual, vantagem}): gasta o espaço do círculo (ou o de pacto do Bruxo), ou o uso da magia inata (de cada magia ou do grupo "N/dia"), rola acerto, dano e salvaguarda, soma o dado a mais por nível acima e manda o cartão. Truque, ritual e inata não gastam espaço. Sem espaço sobrando, recusa e diz as opções. O `ataque` também passou a levar a CD, o tipo e a salvaguarda ao chat, como a tela.
+- **Ficha.** `fichas[].campos` (qualquer campo: xp, inspiração, PV temporários, testes de morte, bônus de iniciativa, espaços gastos, físico, aliados, tesouro, CA com nota, símbolo...), `visaoM` (alcance de visão do token) e `vidaPorToken` e `barraDeVida` já na criação.
+- **Imagens da ficha.** `arquivos` ganhou os usos `aparencia` (a imagem da aba História) e `simbolo`.
+- **Token.** `tokens[].controladoPor` (quem move o token; só o mestre).
+- **Som por nome.** Na zona (`efeitos.som.hash`) e na reação (`som.tocar.hash`) o arquivo agora vai pelo nome (`"vento.mp3"`) ou pelo começo do hash, como no `som`; antes pedia o hash inteiro.
+
+O que continua de fora, de propósito: papéis, permissões, exportar e importar a campanha (`proibida`); o envio de arquivo em pedaços, a caixa de entrada e o histórico paginado (`transporte`); o ping, o traço do pincel em andamento, o arrasto do token e segurar a tocha (`gesto ao vivo`). O que o Claude não faz por não ser um campo de intenção: `ordem` das pastas (a sala numera) e o campo antigo `modInteligencia` (a ficha o substituiu).
 
 Não se desfazem: mensagens de chat e rolagens, combate, som (ambientes e efeitos), relógio, configuração da mesa e arquivos. O resto (cenas, tokens, paredes, desenhos e textos, névoa, fichas, notas, pastas, luz, automações) volta com o `desfazer`. O texto no mapa é feito de traços (a mesa não tem uma forma "texto"), sem acento.
 

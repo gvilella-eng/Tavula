@@ -103,7 +103,6 @@ A conjuração inata, os truques por nível, o ritual e os dardos, raios e alvos
 
 - **Um acerto por raio** (Raio Ardente, Rajada Mística): hoje o acerto é um só e o dano sai por raio.
 - **Vários grupos "N/dia"** no mesmo bloco e **ler o texto do monstro** ("À vontade: luz, mãos mágicas") para preencher a inata sozinha.
-- **Gastar o uso da inata pelo MCP** (`rolar` só rola).
 
 ### Compêndio e mesa de som (Vilella, 2026-11-16)
 

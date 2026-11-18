@@ -10,13 +10,57 @@ import {
   FaseSchema,
   type Fica,
   NomeDeEventoSchema,
+  ParaQuemOSomSchema,
   pode,
+  VolumeSchema,
 } from "../../index.ts";
 import { ErroDoMcp } from "../erros.ts";
 import { achar, acharExato, novoId } from "../nomes.ts";
 import type { Lote } from "../tipos.ts";
+import { somPorNome } from "./achados.ts";
 import { type Contexto, cadaItem, definir, passo, Relatorio } from "./base.ts";
 import { emMetros, ParSchema } from "./cenasUtil.ts";
+
+// Q16: o som de uma zona ou de uma reação, pelo NOME do arquivo (ou o começo do hash), como o resto do MCP.
+const SomPorNomeSchema = z
+  .object({
+    hash: z
+      .string()
+      .min(1)
+      .max(200)
+      .describe(
+        'O arquivo de som: o nome ("vento.mp3") ou o começo do hash (veja `arquivos` listar).',
+      ),
+    nome: z
+      .string()
+      .trim()
+      .min(1)
+      .max(200)
+      .optional()
+      .describe("Rótulo; padrão: o nome do arquivo."),
+    volume: VolumeSchema.default(0.8),
+    laco: z.boolean().default(true),
+  })
+  .strict();
+
+const EfeitosDoMcpSchema = EfeitosDaZonaSchema.extend({ som: SomPorNomeSchema.optional() });
+
+const SomTocarDoMcpSchema = z.object({
+  acao: z.literal("som.tocar"),
+  hash: SomPorNomeSchema.shape.hash,
+  nome: SomPorNomeSchema.shape.nome,
+  volume: VolumeSchema.default(0.8),
+  para: ParaQuemOSomSchema.default("todos"),
+});
+
+/** As ações das reações, com o som por nome no lugar do hash. */
+const AcaoDoMcpSchema = z.discriminatedUnion(
+  "acao",
+  AcaoSchema.options.map((o) =>
+    o.shape.acao.value === "som.tocar" ? SomTocarDoMcpSchema : o,
+  ) as unknown as [typeof SomTocarDoMcpSchema, ...(typeof AcaoSchema.options)[number][]],
+);
+type AcaoPedida = z.infer<typeof AcaoDoMcpSchema>;
 
 const CicloPedidoSchema = z
   .object({
@@ -76,12 +120,12 @@ const ReacaoPedidoSchema = z
         'Condições. Nomes no lugar de ids: {"condicao":"cena","cenas":["Eclusa"]}, {"condicao":"dentroDaZona","zona":"Poça"}.',
       ),
     fazer: z
-      .array(AcaoSchema)
+      .array(AcaoDoMcpSchema)
       .min(1)
       .max(20)
       .optional()
       .describe(
-        "Ações. Nomes no lugar de ids: alvo.modeloId = nome do modelo; zona = nome da zona; alvo.ids = nomes de tokens.",
+        "Ações. Nomes no lugar de ids: alvo.modeloId = nome do modelo; zona = nome da zona; alvo.ids = nomes de tokens; som.tocar: hash = nome do arquivo de som.",
       ),
     apagar: z.boolean().optional(),
   })
@@ -102,8 +146,8 @@ const ZonaPedidaSchema = z
       .optional()
       .describe("O polígono em células: [[2,2],[6,2],[6,5]]."),
     ativa: z.boolean().optional(),
-    efeitos: EfeitosDaZonaSchema.optional().describe(
-      "luzRaioX, luzSomaM, visaoMaxM: valem enquanto algo está dentro.",
+    efeitos: EfeitosDoMcpSchema.optional().describe(
+      "Valem enquanto algo está dentro: luzRaioX, luzSomaM, visaoMaxM e som ({hash: nome do arquivo, volume, laco}). Em edição, os efeitos mandados trocam os anteriores: mande todos.",
     ),
     apagar: z.boolean().optional(),
   })
@@ -137,8 +181,13 @@ const modeloDe = (estado: Estado, nome: string) =>
   });
 
 /** Troca nomes por ids dentro de uma ação (modelo, zona e tokens). */
-export function traduzirAcao(a: Acao, estado: Estado): Acao {
+export function traduzirAcao(a: AcaoPedida, estado: Estado): Acao {
   const copia = JSON.parse(JSON.stringify(a)) as Record<string, unknown>;
+  if (a.acao === "som.tocar") {
+    const s = somPorNome(estado, a.hash);
+    copia.hash = s.hash;
+    copia.nome = a.nome ?? s.nomeOriginal;
+  }
   const alvo = copia.alvo as Record<string, unknown> | undefined;
   if (alvo && typeof alvo.modeloId === "string") alvo.modeloId = modeloDe(estado, alvo.modeloId).id;
   if (alvo && Array.isArray(alvo.ids)) {
@@ -248,6 +297,18 @@ async function reacao(p: ReacaoPedido, ctx: Contexto, lote: Lote): Promise<strin
   return `Editou a reação "${p.nome}" (${Object.keys(mudancas).join(", ")}).`;
 }
 
+/** Os efeitos da zona com o som resolvido: o nome do arquivo vira o hash. */
+function efeitosDaZona(e: ZonaPedida["efeitos"], estado: Estado): Record<string, unknown> {
+  if (!e) return {};
+  const { som, ...resto } = e;
+  if (!som) return resto;
+  const s = somPorNome(estado, som.hash);
+  return {
+    ...resto,
+    som: { hash: s.hash, nome: som.nome ?? s.nomeOriginal, volume: som.volume, laco: som.laco },
+  };
+}
+
 async function zona(p: ZonaPedida, ctx: Contexto, lote: Lote): Promise<string> {
   const estado = ctx.sala.estado();
   const cena = cenaDe(estado, p.cena);
@@ -271,7 +332,7 @@ async function zona(p: ZonaPedida, ctx: Contexto, lote: Lote): Promise<string> {
       nome: p.nome,
       pontos,
       ativa: p.ativa ?? true,
-      efeitos: p.efeitos ?? {},
+      efeitos: efeitosDaZona(p.efeitos, estado),
     };
     await passo(ctx, lote, "zona.criar", { zona: nova });
     return `Criou a zona "${p.nome}" em "${cena.nome}" (rascunho).`;
@@ -279,7 +340,7 @@ async function zona(p: ZonaPedida, ctx: Contexto, lote: Lote): Promise<string> {
   const mudancas: Record<string, unknown> = {};
   if (pontos) mudancas.pontos = pontos;
   if (p.ativa !== undefined) mudancas.ativa = p.ativa;
-  if (p.efeitos) mudancas.efeitos = p.efeitos;
+  if (p.efeitos) mudancas.efeitos = efeitosDaZona(p.efeitos, estado);
   if (Object.keys(mudancas).length === 0) return `A zona "${existente.nome}" não mudou.`;
   await passo(ctx, lote, "zona.editar", { id: existente.id, mudancas });
   return `Editou a zona "${existente.nome}" (${Object.keys(mudancas).join(", ")}).`;

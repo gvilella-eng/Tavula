@@ -1089,3 +1089,19 @@ Continua em aberto, por ser decisão e não erro de doc: `ficha.verOutras` (seç
 - O balão da dica (`Dica`) só existe no DOM enquanto está visível, no `BotaoComDica`: teste novo que procura `dica-<testid>` tem de esperar a dica aparecer (mouse ou foco); sem o balão, o nome vem do `aria-label` e o motivo do desabilitado do `aria-description`.
 
 **Suposições**: ver `docs/REDESIGN.md`, "Q14 — como ficou".
+
+## Q16 (2026-11-18): o MCP faz tudo o que a tela faz, campo por campo
+
+**Regra: campo novo numa intenção precisa de caminho no MCP.** `mcp/paridadeCampos.ts` lista, por intenção com ferramenta, o caminho de cada campo na entrada da ferramenta (`"ferramenta:caminho"`) ou o motivo de ficar de fora; `mcp/paridadeCampos.test.ts` compara com o `shape` do zod (`mcp/camposDoEsquema.ts` lê os objetos de dentro). Se reprovar depois de mexer num esquema de intenção: ponha o campo na ferramenta e registre a linha. Na ficha, apontar para `fichas[].campos` basta enquanto não há campo próprio.
+
+**Onde mexer**
+- Conjurar: `mcp/ferramentas/conjurar.ts` (a mesma conta da `apps/web/src/ficha/conjurar.ts`: se a tela mudar a regra de espaço, pacto ou inata, mude aqui também) e `rolar.ts`.
+- `fichas.campos`, `visaoM`: `mcp/ferramentas/fichas.ts` (`comCampos`). `tokens.controladoPor`: `tokens.ts`.
+- Usos de arquivo `aparencia` e `simbolo`: `envios.ts` (`usoDoArquivo`, vira `ficha.alterar`), `mcp/ferramentas/arquivos.ts` e `apps/web/src/caixaDoClaude.tsx`.
+- Som por nome em zona e reação: `mcp/ferramentas/automacoes.ts` (`SomPorNomeSchema`, `AcaoDoMcpSchema`, `efeitosDaZona`).
+
+**Frágil**
+- `conjurar.ts` do MCP e `conjurar.ts` da ficha duplicam a regra; nenhum teste compara os dois.
+- `AcaoDoMcpSchema` troca só a opção `som.tocar` da união `AcaoSchema`; uma ação nova com id ou hash no esquema precisa ganhar o mesmo tratamento por nome.
+
+**Suposições**: ver `docs/REDESIGN.md`, "Q16 — como ficou".

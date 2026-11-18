@@ -859,7 +859,13 @@ criar cenas, notas do mestre, modelos de objeto, pontos, zonas, ciclos, reaçõe
   (`packages/shared/src/mcp/paridade.ts`): a ferramenta MCP e o campo que a alcançam, ou o motivo de ficar de fora,
   numa categoria fechada (`proibida`: segurança; `transporte`: coisa da conexão; `gesto ao vivo`: gesto da tela).
   Um teste de unidade falha se surgir intenção sem entrada ou entrada apontando para algo que não existe: **intenção
-  nova precisa de entrada na tabela**. Ferramentas novas: `mapa`, `tokens`, `mesa`, `som`, `combate` e `chat`;
+  nova precisa de entrada na tabela**. **Campo a campo (Q16, 2026-11-18):** a tabela `mcp/paridadeCampos.ts`
+  declara, para cada campo (e objeto de dentro) de cada intenção com ferramenta, o caminho dele na entrada da
+  ferramenta ou o motivo de ficar de fora (id que vira nome, valor que a sala preenche, campo antigo); um teste
+  compara a tabela com o `shape` do zod: **campo novo numa intenção precisa de caminho no MCP**. A ficha tem a saída
+  geral `fichas[].campos` (caminho e valor, como a tela grava). O Q16 fechou: `rolar.conjurar` (gasta espaço, pacto ou
+  uso da inata e rola), `fichas.campos`/`visaoM`, os usos de arquivo `aparencia` e `simbolo`, `tokens.controladoPor` e o
+  som por nome em zona e reação. Ferramentas novas: `mapa`, `tokens`, `mesa`, `som`, `combate` e `chat`;
   ampliadas: `cenas`, `automacoes`, `objetos` e `fichas`. Tudo passa pela `tratarIntencao` com as permissões da
   pessoa e entra no lote do Claude; o Desfazer agora cobre também os desenhos. Texto no mapa é feito de traços
   (a mesa não tem forma "texto"; assumido). Não se desfazem: chat, rolagens, combate, som, relógio, configuração

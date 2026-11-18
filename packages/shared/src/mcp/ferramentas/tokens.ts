@@ -12,7 +12,7 @@ import {
   usaVidaPorToken,
 } from "../../index.ts";
 import { ErroDoMcp } from "../erros.ts";
-import { novoId } from "../nomes.ts";
+import { achar, novoId } from "../nomes.ts";
 import type { Lote } from "../tipos.ts";
 import { cenaPorNome, fichaPorNome, tokenPorNome } from "./achados.ts";
 import { type Contexto, cadaItem, definir, passo, Relatorio } from "./base.ts";
@@ -30,6 +30,13 @@ const TokenPedidoSchema = z
     camada: z.enum(["tokens", "mestre"]).optional(),
     oculto: z.boolean().optional(),
     cor: Cor.optional(),
+    controladoPor: z
+      .array(z.string())
+      .max(12)
+      .optional()
+      .describe(
+        'Só mestre: nomes dos jogadores que movem este token (a lista inteira; [] deixa só o mestre). Ex.: ["Ana","Bia"].',
+      ),
     borda: BordaSchema.nullable()
       .optional()
       .describe(
@@ -197,6 +204,13 @@ async function editarToken(p: TokenPedido, ctx: Contexto, lote: Lote): Promise<s
   if (p.camada !== undefined) mud.camada = p.camada;
   if (p.oculto !== undefined) mud.oculto = p.oculto;
   if (p.cor !== undefined) mud.cor = p.cor;
+  if (p.controladoPor !== undefined) {
+    mud.controladoPor = p.controladoPor.map(
+      (n) =>
+        achar(estado0.usuarios, n, { rotulo: "pessoa", nomeDe: (u) => u.nome, idDe: (u) => u.id })
+          .id,
+    );
+  }
   if (p.borda !== undefined) mud.borda = p.borda;
   if (p.barraDeVida !== undefined) mud.barraDeVida = p.barraDeVida;
   if (p.visaoM !== undefined) mud.alcanceVisaoM = p.visaoM;
