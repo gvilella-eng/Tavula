@@ -2401,3 +2401,24 @@ O Vilella perguntou se a ficha podia ser dividida em seções que se atualizam: 
 **O que ficou para depois**
 - O cabeçalho da `JanelaDaFicha` (abas, nome, vantagem, botões) continua redesenhando a cada tecla (JSX solto na janela, depende de muitos estados da janela); sem risco só com uma refatoração maior.
 - As seções de conjuração do NPC ainda redesenham todas as linhas ao gastar um espaço.
+
+## Q16 — como ficou (2026-11-18): o MCP faz tudo o que a tela faz, campo por campo
+
+O Vilella perguntou se o MCP sobe áudio, seta zonas e põe características nelas, e pediu que ele faça tudo. A paridade do M2 era por intenção; o Q16 a fez por campo.
+
+**O que foi feito**
+- Auditoria de 107 intenções com ferramenta (de 125; 18 ficam de fora: 4 proibidas, 9 de transporte, 5 gestos ao vivo): cada campo do zod, com os objetos de dentro, contra a entrada da ferramenta. Tabela em `packages/shared/src/mcp/paridadeCampos.ts`; leitura dos esquemas em `mcp/camposDoEsquema.ts`.
+- Trava: `mcp/paridadeCampos.test.ts` reprova campo novo sem caminho no MCP, caminho que a ferramenta não tem e linha de campo que não existe mais; a mensagem diz o que fazer.
+- Lacunas fechadas: `rolar.conjurar` (espaço, pacto, ritual, uso da inata, dado a mais por nível; a salvaguarda e a CD agora vão ao chat também no `ataque`); `fichas.campos` (qualquer campo da ficha), `visaoM`, `vidaPorToken` e `barraDeVida` na criação; usos de arquivo `aparencia` e `simbolo`; `tokens.controladoPor`; som por nome nas zonas (`efeitos.som.hash`) e nas reações (`som.tocar.hash`).
+- Teste de ponta a ponta na sala simulada (`mcp/q16.test.ts`): som, cena, zona com todos os efeitos e som, reação "ao entrar na zona", tokens com borda e barra de vida, luz, handout, ambientes da cena e publicação, com o estado final conferido campo a campo.
+
+**Decisões (assumido)**
+- (assumido) `fichas.campos` é a saída geral da ficha (caminho e valor, como a tela grava), em vez de um campo do MCP para cada um dos ~30 campos soltos; o teste aceita apontar para `campos`, mas exige a linha.
+- (assumido) Id que o Claude troca por nome, valor que a sala preenche (`rascunho`, `criadoPor`, `numero`, `ordem`) e o campo antigo `modInteligencia` entram na tabela como `fora("interno", ...)`, uma categoria só dos campos (as três categorias das intenções ficam como estavam).
+- (assumido) Edição de zona continua trocando a lista de efeitos pela mandada (não junta); a descrição diz "mande todos".
+- (assumido) `conjurar` sem `nivel` gasta o menor círculo com espaço sobrando a partir do nível da magia; ritual exige a magia marcada como ritual na ficha.
+
+**O que ficou para depois**
+- `ordem` das pastas e o reordenar (a sala numera).
+- A cena não tem trilha própria além dos ambientes da cena (`som.ambientesDaCena`).
+- Gastar o uso da inata pelo MCP, que estava em `IDEIAS.md`, foi feito.

@@ -1,19 +1,14 @@
 import { z } from "zod";
 import {
-  bonusDeAcerto,
-  cdDaRolagem,
   dadosPorNivelDaMagia,
-  expressaoDeDano,
   extraDoTruque,
   type Magia,
   type Mensagem,
   magiaInataParaRolar,
-  margemDeCritico,
   nivelParaTruque,
   normalizarBusca,
   podeEditarPersonagem,
   somarExpressoes,
-  tipoDeDano,
   VANTAGENS,
 } from "../../index.ts";
 import { ErroDoMcp } from "../erros.ts";
@@ -21,6 +16,7 @@ import { lerAtributo, lerPericia } from "../fichaPorPartes.ts";
 import { bonusDoTeste, textoDaRolagem } from "../formato.ts";
 import { achar } from "../nomes.ts";
 import { definir, passo } from "./base.ts";
+import { ConjurarSchema, conjurar, rolarDaFicha } from "./conjurar.ts";
 
 const TesteSchema = z
   .object({
@@ -56,13 +52,16 @@ function mensagemDoEvento(evento: unknown): Mensagem | null {
 export const rolar = definir({
   nome: "rolar",
   descricao:
-    'Rola dados NA MESA: a sala rola e o chat marca "pelo Claude". Três jeitos: `expressao` ("4d6kh3", "1d20+5"; `vezes` repete, ótimo para os 6 atributos), `teste` (perícia, atributo, salvaguarda ou iniciativa de uma ficha) ou `ataque` (um ataque da ficha). Exemplo: {"expressao":"4d6kh3","vezes":6}.',
+    'Rola dados NA MESA: a sala rola e o chat marca "pelo Claude". Quatro jeitos: `expressao` ("4d6kh3", "1d20+5"; `vezes` repete, ótimo para os 6 atributos), `teste` (perícia, atributo, salvaguarda ou iniciativa de uma ficha) `ataque` (um ataque da ficha) ou `conjurar` (uma magia da ficha, gastando o espaço ou o uso da inata). Exemplo: {"expressao":"4d6kh3","vezes":6}.',
   entrada: z
     .object({
       expressao: z.string().min(1).max(100).optional(),
       vezes: z.number().int().min(1).max(12).optional().describe("Só com `expressao`. Padrão 1."),
       teste: TesteSchema.optional(),
       ataque: AtaqueSchema.optional(),
+      conjurar: ConjurarSchema.optional().describe(
+        'Conjura uma magia da ficha como o botão Conjurar: gasta o espaço (`nivel`, `pacto`), o ritual ou o uso da magia inata, rola o que ela tiver e manda o cartão. Ex.: {"ficha":"Brisa","magia":"Bola de Fogo","nivel":4}.',
+      ),
       oculta: z
         .boolean()
         .optional()
@@ -70,9 +69,13 @@ export const rolar = definir({
       como: z.string().optional().describe("Só com `expressao`: fala como esta ficha."),
     })
     .strict()
-    .refine((e) => [e.expressao, e.teste, e.ataque].filter((x) => x !== undefined).length === 1, {
-      message: "Diga só um: `expressao`, `teste` ou `ataque`.",
-    }),
+    .refine(
+      (e) =>
+        [e.expressao, e.teste, e.ataque, e.conjurar].filter((x) => x !== undefined).length === 1,
+      {
+        message: "Diga só um: `expressao`, `teste`, `ataque` ou `conjurar`.",
+      },
+    ),
   visivel: () => true,
   async executar(e, ctx) {
     const estado = ctx.sala.estado();
@@ -141,6 +144,11 @@ export const rolar = definir({
       return m ? textoDaRolagem(m) : "A mesa não devolveu o resultado.";
     }
 
+    if (e.conjurar) {
+      const { p, ficha } = fichaDe(e.conjurar.ficha);
+      return conjurar(e.conjurar, ctx, lote, p, ficha);
+    }
+
     const a = e.ataque as z.infer<typeof AtaqueSchema>;
     const { p, ficha } = fichaDe(a.ficha);
     const alvo = normalizarBusca(a.nome);
@@ -153,39 +161,19 @@ export const rolar = definir({
     }
     // N2: a magia inata rola com o atributo e a CD da conjuração inata; o truque soma os dados do nível do personagem.
     let ataque = achado;
+    let nivelDoTruque: number | undefined;
     if ("preparada" in ataque) {
       let magia: Magia = ataque;
       if (magia.inata) magia = magiaInataParaRolar(ficha, magia);
       const extra = extraDoTruque(dadosPorNivelDaMagia(magia), nivelParaTruque(ficha));
       const somado = extra ? somarExpressoes(magia.dano ?? "", extra.expressao) : null;
       ataque = somado ? { ...magia, dano: somado } : magia;
+      if (somado) nivelDoTruque = nivelParaTruque(ficha);
     }
-    const bonus = bonusDeAcerto(ficha, ataque);
-    const dano = expressaoDeDano(ficha, ataque);
-    if (bonus === undefined) {
-      if (!dano) throw new ErroDoMcp(`O ataque "${a.nome}" não tem acerto nem dano para rolar.`);
-      const r = await passo(ctx, lote, "dado.rolar", {
-        expressao: dano,
-        ...(e.oculta ? { oculta: true } : {}),
-        como: p.id,
-      });
-      const m = mensagemDoEvento(r.evento);
-      return m ? `${a.nome} (dano): ${textoDaRolagem(m)}` : "A mesa não devolveu o resultado.";
-    }
-    const cd = cdDaRolagem(ficha, ataque);
-    const r = await passo(ctx, lote, "chat.modelo", {
-      modelo: "ataque",
-      nome: `${ataque.nome} (${p.nome})`,
-      bonus,
-      dano: dano ?? "0",
-      ...(tipoDeDano(ataque) ? { danoTipo: tipoDeDano(ataque) } : {}),
-      margemCritico: margemDeCritico(ataque),
-      ...(ataque.danoCritico ? { danoCritico: ataque.danoCritico } : {}),
+    return rolarDaFicha(ctx, lote, p, ficha, ataque, {
       ...(a.vantagem ? { vantagem: a.vantagem } : {}),
       ...(e.oculta ? { oculta: true } : {}),
-      como: p.id,
+      ...(nivelDoTruque ? { nivelDoTruque } : {}),
     });
-    const m = mensagemDoEvento(r.evento);
-    return `${m ? textoDaRolagem(m) : "A mesa não devolveu o resultado."}${cd !== undefined ? ` (CD ${cd})` : ""}`;
   },
 });

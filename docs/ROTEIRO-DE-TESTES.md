@@ -706,3 +706,12 @@ Antes de tudo: tenha na pasta `sons/` (ou à mão) uns 6 arquivos de áudio: 2 o
 4. **Números e caixas.** Digite no XP, nas moedas e nas caixas da aba História (aparência, aliados, história, tesouro, notas): cada uma guarda o que foi escrito.
 5. **Dicas.** Passe o mouse (parado ~0,7 s) em um botão só de ícone da ficha: a dica aparece e some ao sair; com Tab ela aparece no foco e Esc a fecha. O leitor de tela continua lendo o nome do botão e o motivo do que está desabilitado.
 6. **Duas pessoas.** Com a mesma ficha aberta no mestre e no jogador, escrever em caixas diferentes não apaga o que o outro escreveu.
+
+## Q16 — o MCP faz tudo o que a tela faz
+
+Com o Claude conectado a uma mesa de teste (não a da campanha):
+1. **Som e zona.** Peça: "suba este mp3, crie na cena uma zona com luz menor, visão de 3 m e este som em laço, e uma reação que avise no chat quando alguém entrar". Confira no painel de automações: a zona com os efeitos e o som, a reação ao evento "entrou na zona".
+2. **Conjurar.** Com uma ficha de mago, peça "a Brisa conjura Bola de Fogo com espaço de 4º". O chat mostra o cartão com o dado a mais e a ficha marca um espaço de 4º gasto. Peça de novo até acabar: o Claude deve avisar que não há espaço.
+3. **Inata.** Num NPC com uma magia "1/dia cada", peça para conjurar duas vezes: a segunda é recusada.
+4. **Ficha.** Peça "ponha 300 de XP, inspiração e PV temporários 5 na Thara"; confira na ficha.
+5. **Token.** Peça "o token da Brisa é controlado pela Ana, com borda azul e barra de vida"; a Ana move o token.

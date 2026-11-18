@@ -20,6 +20,8 @@ const SUBPASTA_DO_USO: Record<UsoDeEnvio, string | null> = {
   "mapa-uvtt": "mapas",
   token: "tokens",
   retrato: "retratos",
+  aparencia: "retratos",
+  simbolo: "retratos",
   handout: "handouts",
   som: "sons",
   // Fora da pasta: o compêndio da pasta vale por cima do que a mesa guarda, e não se sobrescreve o arquivo do mestre.
@@ -64,6 +66,8 @@ async function processar(
       return { hash: await gerente.usarArquivo(arquivo, "token") };
     // O retrato da ficha e a imagem do handout usam o mesmo processamento (512 px) do botão de cada um.
     case "retrato":
+    case "aparencia":
+    case "simbolo":
     case "handout":
       return { hash: await gerente.usarArquivo(arquivo, "retrato") };
     case "som":

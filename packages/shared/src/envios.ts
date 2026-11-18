@@ -19,6 +19,8 @@ export const USOS_DE_ENVIO = [
   "mapa",
   "token",
   "retrato",
+  "aparencia",
+  "simbolo",
   "handout",
   "som",
   "compendio",
@@ -32,6 +34,8 @@ export const ROTULO_DO_USO: Record<UsoDeEnvio, string> = {
   mapa: "mapa da cena",
   token: "token",
   retrato: "retrato da ficha",
+  aparencia: "imagem de aparência da ficha",
+  simbolo: "símbolo da ficha",
   handout: "imagem do handout",
   som: "som",
   compendio: "compêndio",
@@ -44,6 +48,8 @@ export const FAMILIA_DO_USO: Record<UsoDeEnvio, FamiliaDeFormato> = {
   mapa: "imagem",
   token: "imagem",
   retrato: "imagem",
+  aparencia: "imagem",
+  simbolo: "imagem",
   handout: "imagem",
   som: "som",
   compendio: "json",
@@ -327,6 +333,28 @@ export function usoDoArquivo(
         dados: { id: alvo.fichaId, mudancas: { retratoHash: hash } },
         frase: "o retrato entrou na ficha",
       };
+    case "aparencia":
+    case "simbolo": {
+      // Q16: a imagem de aparência e o símbolo moram dentro da ficha (`aparenciaHash`, `simboloHash`), como na aba História.
+      const rotulo = uso === "aparencia" ? "a imagem de aparência" : "o símbolo";
+      if (!alvo.fichaId) {
+        return {
+          ok: false,
+          motivo: `Diga de qual ficha é ${uso === "aparencia" ? "a aparência" : "o símbolo"}.`,
+        };
+      }
+      return {
+        ok: true,
+        tipo: "ficha.alterar",
+        dados: {
+          personagemId: alvo.fichaId,
+          operacoes: [
+            { caminho: uso === "aparencia" ? "aparenciaHash" : "simboloHash", valor: hash },
+          ],
+        },
+        frase: `${rotulo} entrou na ficha`,
+      };
+    }
     case "handout":
       if (!alvo.handoutId) return { ok: false, motivo: "Diga de qual handout é a imagem." };
       return {

@@ -1,10 +1,12 @@
 import { z } from "zod";
 import {
+  aplicarOperacoes,
   DADOS_DE_VIDA,
   type Estado,
   ehNpc,
   type Ficha,
   idDaPastaDoJogador,
+  OperacaoDeFichaSchema,
   operacoesDeDiferenca,
   PASTA_NPCS_ID,
   PASTA_PERSONAGENS_ID,
@@ -53,17 +55,31 @@ const PedidoDeFichaSchema = FichaPartesSchema.extend({
     .describe("Cor do token, #rrggbb."),
   tamanhoToken: z.number().int().min(1).max(4).optional().describe("Quadrados do token (1 a 4)."),
   visaoNoEscuroM: z.number().min(0).max(1000).optional().describe("Visão no escuro, em metros."),
+  visaoM: z
+    .number()
+    .min(0)
+    .max(1000)
+    .nullable()
+    .optional()
+    .describe("Alcance de visão do token em metros; null = sem limite."),
+  campos: z
+    .array(OperacaoDeFichaSchema)
+    .max(60)
+    .optional()
+    .describe(
+      'Qualquer outro campo da ficha, pelo caminho que a tela grava: {"caminho":"xp","valor":300}. Os mais usados: xp, inspiracao, pvTemp, mortes (valor {"sucessos":1,"falhas":0}), iniciativaBonus, espacosGastos (valor {"1":2}; null devolve todos), pactoGasto, espacosTotal, classeConjurador, habilidadeDeConjuracao, outrasProficiencias, ataquesTexto, aliados, tesouro, idade, altura, peso, olhos, pele, cabelos, simboloNome, outrasCaracteristicas, ca (valor {"valor":15,"nota":"cota de malha"}), magias.0.inata (valor {"frequencia":"cada","max":1,"gastos":0}), inata.grupo (valor {"max":3,"gastos":1}). Vale o mesmo teto e a mesma validação da tela.',
+    ),
   vidaPorToken: z
     .boolean()
     .optional()
     .describe(
-      "Só NPC, só edição, só mestre: false faz todos os tokens dele usarem a vida da ficha (o vilão único); true (padrão) dá a cada token a sua vida (horda).",
+      "Só NPC, só mestre: false faz todos os tokens dele usarem a vida da ficha (o vilão único); true (padrão) dá a cada token a sua vida (horda).",
     ),
   barraDeVida: z
     .boolean()
     .optional()
     .describe(
-      "Só edição: os tokens NOVOS desta ficha nascem com a barra de vida (padrão: sim). Os já postos mudam em `tokens`.",
+      "Os tokens NOVOS desta ficha nascem com a barra de vida (padrão: sim). Os já postos mudam em `tokens`.",
     ),
   monstro: z
     .string()
@@ -94,6 +110,8 @@ function partesDoPedido(p: PedidoDeFicha) {
     cor: _c,
     tamanhoToken: _tt,
     visaoNoEscuroM: _v,
+    visaoM: _vm,
+    campos: _campos,
     vidaPorToken: _vpt,
     barraDeVida: _bv,
     monstro: _m,
@@ -117,6 +135,14 @@ function idsDosDonos(estado: Estado, nomes: readonly string[]): string[] {
     }
     return u.id;
   });
+}
+
+/** Q16: aplica os `campos` (caminho e valor, como a tela grava) numa ficha montada, com a mesma validação da sala. */
+function comCampos(ficha: Ficha, campos: PedidoDeFicha["campos"]): Ficha {
+  if (!campos || campos.length === 0) return ficha;
+  const r = aplicarOperacoes(ficha, campos);
+  if (!r.ok) throw new ErroDoMcp(`\`campos\`: ${r.motivo}`);
+  return r.ficha;
 }
 
 function pastaPara(estado: Estado, id: string, rotulo: string): string {
@@ -154,12 +180,14 @@ async function criar(
   const npc = mestre ? (p.tipo ?? (donos.length > 0 ? "personagem" : "npc")) === "npc" : false;
   if (npc && donos.length > 0)
     throw new ErroDoMcp("NPC não tem dono: tire `dono` ou use tipo personagem.");
-  const { ficha, avisos } = montarFicha(undefined, partesDoPedido(p), {
+  const montada = montarFicha(undefined, partesDoPedido(p), {
     npc,
     criando: true,
     compendio: ctx.compendio,
     modelos: estado.modelos,
   });
+  const { avisos } = montada;
+  const ficha = comCampos(montada.ficha, p.campos);
   const personagem: Personagem = {
     id: novoId("ficha"),
     // O jogador não vê as pastas do mestre: a sala põe a ficha na pasta própria dele, seja qual for o id mandado aqui.
@@ -170,8 +198,13 @@ async function criar(
         : pastaPara(estado, PASTA_PERSONAGENS_ID, "personagens"),
     editores: mestre ? { tipo: "jogadores", ids: donos } : { tipo: "jogadores", ids: [eu.id] },
     nome: p.nome,
-    tokenPadrao: { cor: p.cor ?? corDoNome(p.nome), tamanhoQuadrados: p.tamanhoToken ?? 1 },
-    visao: { alcanceM: null, visaoNoEscuroM: p.visaoNoEscuroM ?? 0 },
+    tokenPadrao: {
+      cor: p.cor ?? corDoNome(p.nome),
+      tamanhoQuadrados: p.tamanhoToken ?? 1,
+      ...(p.barraDeVida !== undefined ? { barraDeVida: p.barraDeVida } : {}),
+    },
+    visao: { alcanceM: p.visaoM ?? null, visaoNoEscuroM: p.visaoNoEscuroM ?? 0 },
+    ...(p.vidaPorToken !== undefined ? { vidaPorToken: p.vidaPorToken } : {}),
     ficha,
   };
   await passo(ctx, lote, "personagem.criar", { personagem });
@@ -207,6 +240,7 @@ async function criarDeMonstro(
     ficha = m.ficha;
     avisosExtras.push(...m.avisos);
   }
+  ficha = comCampos(ficha, p.campos);
   const personagem: Personagem = {
     ...base,
     nome: p.nome,
@@ -214,8 +248,14 @@ async function criarDeMonstro(
       ...base.tokenPadrao,
       ...(p.cor ? { cor: p.cor } : {}),
       ...(p.tamanhoToken ? { tamanhoQuadrados: p.tamanhoToken } : {}),
+      ...(p.barraDeVida !== undefined ? { barraDeVida: p.barraDeVida } : {}),
     },
-    visao: { ...base.visao, visaoNoEscuroM: p.visaoNoEscuroM ?? base.visao.visaoNoEscuroM },
+    visao: {
+      ...base.visao,
+      visaoNoEscuroM: p.visaoNoEscuroM ?? base.visao.visaoNoEscuroM,
+      ...(p.visaoM !== undefined ? { alcanceM: p.visaoM } : {}),
+    },
+    ...(p.vidaPorToken !== undefined ? { vidaPorToken: p.vidaPorToken } : {}),
     ficha,
   };
   await passo(ctx, lote, "personagem.criar", { personagem });
@@ -241,12 +281,14 @@ async function editar(
     throw new ErroDoMcp(`A mesa não mostra a ficha de "${existente.nome}" para você.`);
   }
   const npc = antes.apresentacao === "npc" || ehNpc(existente);
-  const { ficha, avisos } = montarFicha(antes, partesDoPedido(p), {
+  const montada = montarFicha(antes, partesDoPedido(p), {
     npc,
     criando: false,
     compendio: ctx.compendio,
     modelos: estado.modelos,
   });
+  const { avisos } = montada;
+  const ficha = comCampos(montada.ficha, p.campos);
   const operacoes = operacoesDeDiferenca(antes, ficha);
   const feitos: string[] = [];
   if (operacoes.length > 0) {
@@ -261,6 +303,9 @@ async function editar(
   }
   if (p.visaoNoEscuroM !== undefined && p.visaoNoEscuroM !== existente.visao.visaoNoEscuroM) {
     mudancas.visaoNoEscuroM = p.visaoNoEscuroM;
+  }
+  if (p.visaoM !== undefined && p.visaoM !== existente.visao.alcanceM) {
+    mudancas.alcanceM = p.visaoM;
   }
   if (p.vidaPorToken !== undefined && p.vidaPorToken !== (existente.vidaPorToken !== false)) {
     mudancas.vidaPorToken = p.vidaPorToken;

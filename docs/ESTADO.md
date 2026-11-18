@@ -4308,4 +4308,27 @@ Ver `PASSAGEM.md`, "Q15".
 ### Roteiro manual
 Ver `docs/ROTEIRO-DE-TESTES.md` (não alterado neste lote): digitar numa magia e num traço do NPC; mudar um atributo; arrastar o token seguido.
 
-## Próximo: o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b, N4, N5, M1, M2, Q1, Q2, Q3, Q4, Q5, Q6, Q7, Q8, Q9, Q10, Q11, Q12, Q13, Q14, Q15 e das otimizações O1–O4
+## Ajustes Q16 — O MCP faz tudo o que a tela faz, campo por campo (entregue, aguardando o roteiro manual)
+
+### O que foi entregue
+Auditoria campo a campo das intenções com ferramenta, a trava de teste e as lacunas fechadas: `rolar.conjurar`, `fichas.campos`, usos `aparencia` e `simbolo` do `arquivos`, `tokens.controladoPor`, som por nome nas zonas e reações. Detalhes em `REDESIGN.md`, "Q16 — como ficou", e em `docs/MCP.md`, "A paridade campo a campo".
+
+### Como rodar
+`pnpm --filter @tabletop/shared test` (a trava campo a campo está em `mcp/paridadeCampos.test.ts`; a preparação completa em `mcp/q16.test.ts`).
+
+### Verificação
+Ver `REDESIGN.md`, "Q16 — como ficou". Os resultados do lote estão no relatório de entrega.
+
+### Decisões
+Ver `REDESIGN.md`, "Q16 — como ficou".
+
+### Desvios
+Nenhum E2E antigo foi alterado.
+
+### Frágil
+Ver `PASSAGEM.md`, "Q16".
+
+### Roteiro manual
+Ver `docs/ROTEIRO-DE-TESTES.md`, "Q16".
+
+## Próximo: o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b, N4, N5, M1, M2, Q1 a Q16 e das otimizações O1–O4
