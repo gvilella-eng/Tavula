@@ -4192,4 +4192,44 @@ Ver `PASSAGEM.md` ("Q13").
 ### Roteiro manual
 Segurar a seta numa cena pesada (muitas paredes, tocha, névoa) e conferir: anda liso, sem parar entre os quadrados; soltar termina o quadrado; contra a parede o token para sem passar e voltar; o mestre vendo o jogador andar também o vê liso.
 
+## Otimizações O5 — Abas em `memo` com fatias do estado, compêndio lido uma vez, uma validação por tecla (branch `otimizacoes-2`, bateria incompleta)
+
+Feito em 2026-11-17 no worktree `.claude/worktrees/otimizacoes-2` (branch `otimizacoes-2`, a partir da `main` em `a60708a`; o Q13 `55c988e` foi juntado depois, sem conflito). **Nenhuma função nova, nenhuma mudança de protocolo, nenhuma migração.** Fora do lote, de propósito: mapa, movimento de token, visão, luz, névoa, régua, zoom e dica do mapa.
+
+### O que foi entregue
+- **Abas com fatias (`f048939`)**: cada aba do painel declara as chaves do estado que lê (`FATIA_DO_CHAT`, `FATIA_DAS_FICHAS`, `FATIA_DO_COMPENDIO`, `FATIA_DA_MESA`), recebe só essa fatia com identidade estável (`useFatia`) e é exportada em `memo`. Evento que não toca na fatia não a re-renderiza, aberta ou fechada. A prop continua se chamando `estado`, mas o tipo é um `Pick`: o compilador acusa leitura fora da fatia. Na `Mesa.tsx` só mudou a fronteira com o painel (as fatias e as funções de identidade fixa entregues às abas).
+- **Lista do compêndio**: `BlocosDoCompendio` e as linhas (magia, arma, item, monstro, item mágico) em `memo`, grupos em `useMemo`, `renderEntrada` estável. Editar uma ficha refaz o cabeçalho ("Ficha de"), não as centenas de linhas; o alvo do "Adicionar" e do "Criar NPC" é lido na hora do clique (`useFuncaoEstavel`).
+- **Chat (`98c7ff8`)**: os elementos das mensagens ficam em `useMemo`; digitar na caixa ou editar uma ficha não recria as ~200 linhas.
+- **Rótulos de tempo**: "usado há 5 min" (Conectar o Claude) e "redefinição liberada até" (Contas) dependiam de a aba re-renderizar a cada evento; agora envelhecem sozinhos (`useMinuto`, a cada 30 s).
+- **Compêndio lido uma vez por arquivo**: `leituraDoCompendio.lerUmaVez` guarda por hash o resultado de `lerCompendio`; a aba e cada ficha aberta recebem o mesmo objeto, sem ler nem validar de novo (ficam os 3 hashes mais recentes).
+- **Ficha**: `alterar` valida a fila nova uma vez e o render reaproveita o resultado; antes eram duas validações completas por tecla.
+
+### Medição (antes × depois)
+`e2e/prints/desempenho.spec.ts` (`pnpm --filter @tabletop/e2e medidas`), mestre na cena pesada: 45×45, 172 paredes, 5 tokens, 200 mensagens no chat, compêndio de 1.800 entradas. Métricas do Performance do Chrome pelo DevTools; tempo de script, mediana de 3 repetições. "Antes" é `de415ef`, "depois" é `98c7ff8`.
+
+| Cenário | `pnpm dev` (ms) | Build de produção (ms) |
+|---|---|---|
+| 40 mensagens de chat, aba Chat à vista | 1.686 → 998 (−41%) | 282 → 117 (−58%) |
+| 40 mensagens de chat, painel recolhido | 1.866 → 804 (−57%) | 228 → 90 (−60%) |
+| 40 edições de ficha, painel recolhido | 1.945 → 1.064 (−45%) | 321 → 137 (−57%) |
+| 40 edições de ficha, aba Compêndio à vista | 1.881 → 1.386 (−26%) | 288 → 129 (−55%) |
+| Abrir 3 fichas com o compêndio | 1.192 → 804 (−33%) | 75 → 58 (−23%) |
+| Digitar 40 teclas na ficha | 2.069 → 1.736 (−16%) | 204 → 205 (+1%) |
+
+- As rajadas de eventos melhoraram nas quatro medições feitas (duas em cada modo), entre −26% e −63% conforme o estado do painel; no `pnpm dev` as tarefas longas (~200 ms por rajada) foram a zero em quase todos os estados. No perfil, a lista do compêndio (~500 ms por rajada, escondida) sumiu.
+- **Digitar na ficha: ganho não demonstrado.** As cinco comparações deram 0%, −16%, +3%, +1% e −21%; o −16% da tabela saiu de uma rodada em que o Q13 subiu servidores durante o "antes". A validação cortada pesava ~55 ms em 40 teclas; o custo da tecla está no redesenho da ficha (`AbaPrincipal`: equipamento, ataques, perícias) e nos botões com dica (`BotaoComDica`/`Dica`), fora deste lote. Com o compêndio carregado há um ganho modesto (−8% a −37%), porque a lista do compêndio deixou de ser refeita a cada eco da ficha.
+- Os dois "antes" finais rodaram com o Q13 subindo servidores no meio; os "depois" e a segunda passada de produção ficaram limpos. Os JSON e os perfis de CPU não estão no repositório.
+
+### Verificação
+Typecheck e lint limpos; unidade 273 (web, +50: `useFatia`, `leituraDoCompendio`, `useFicha` e os do Q13) + 1297 (shared) + 140 (server) + 19 (mcp). **E2E incompleto:** a bateria única (`pnpm verify`, já com o Q13 junto) passou os 397 primeiros testes de 508, sem falha nem instável, e foi encerrada pelo Claude Code por falta de memória no notebook. Não rodaram: o resto do `sala.spec` (a partir de "reiniciar a sala"), `q13`, `som-n5`, `som-q4`, `som-q4b`, `teclado`, `tema`, `tochas`, `token-v11`, `topo-e-abas`, `tour`, `v10`, `v10b`, `v10c`, `v12`, `v13`, `v14` e `zonas`.
+
+### Frágil
+- **Fatias:** uma aba só re-renderiza quando muda uma chave da `FATIA_*` dela. Quem passar a ler outra chave do estado numa aba precisa acrescentá-la à constante (o compilador acusa). O que depende de relógio (`Date.now()` no render) ou de store sem assinatura não se atualiza mais "de carona" a cada evento: precisa de `useMinuto`, `useTic` ou assinatura própria.
+- **Props das abas:** toda prop nova entregue a uma aba pela `Mesa.tsx` precisa de identidade estável (`useCallback`, `useMemo`, `useFuncaoEstavel`), senão o `memo` da aba deixa de valer sem nenhum erro.
+- A aba Fichas ainda re-renderiza a cada mudança de `tokens` (o botão "colocar no mapa" do jogador depende deles) e todas as abas, a cada ficha editada (leem `personagens`); as listas grandes estão em `memo`.
+- `lerUmaVez` guarda também a leitura inválida de um hash (é determinística) e devolve o mesmo objeto `Compendio` a todos: ninguém pode mutá-lo.
+
+### O que ficou de fora
+Ver `IDEIAS.md`, "Desempenho: auditado e não feito": o redesenho da ficha a cada tecla e os botões com dica passaram a ser o maior custo medido da digitação.
+
 ## Próximo: o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b, N4, N5, M1, M2, Q1, Q2, Q3, Q4, Q5, Q6, Q7, Q8, Q9, Q10, Q11, Q12, Q13 e das otimizações O1–O4

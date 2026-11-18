@@ -115,15 +115,23 @@ A conjuração inata, os truques por nível, o ritual e os dardos, raios e alvos
 ### Desempenho: auditado e não feito (2026-11-17, branch `otimizacoes`)
 
 A auditoria dos lotes O1–O4 (ver `ESTADO.md`) achou mais do que entrou. Ficou de fora o que tinha risco de mudar
-comportamento, pedia mudança de protocolo ou migração, ou só compensa depois de medir. Nada aqui foi medido: são
-estimativas por leitura do código. Antes de fazer qualquer item, medir com o Performance do Chrome e o Profiler do React.
+comportamento, pedia mudança de protocolo ou migração, ou só compensa depois de medir. Fora o que está marcado como
+medido, são estimativas por leitura do código. Antes de fazer qualquer item, medir com `pnpm --filter @tabletop/e2e
+medidas` (antes e depois, com `MEDIDA_PERFIL=1` para o perfil por componente).
 
-- **Interface**
-  - `React.memo` + fatias do estado nas abas e painéis (hoje toda aba recebe `estado` inteiro e re-renderiza a cada
-    evento, mesmo fechada). É a mudança estrutural que mais renderia; mexe na assinatura de quase todos os painéis.
-  - Compêndio lido uma vez por hash (hoje cada ficha aberta e a aba fazem o próprio `JSON.parse` + zod de um arquivo
-    de MB) e, depois, num Worker.
-  - Ficha: `aplicarOperacoes` valida a ficha inteira duas vezes por tecla (`useFicha.ts`).
+- **Interface** (o lote O5 fez as abas em `memo` com fatias, o compêndio lido uma vez por hash e a validação única
+  por tecla; ver `ESTADO.md`. O que segue foi medido com `e2e/prints/desempenho.spec.ts`)
+  - **Digitar na ficha:** é o maior custo que sobrou. Cada tecla redesenha a ficha inteira (`AbaPrincipal`:
+    equipamento, ataques, perícias, ~290 ms em 40 teclas no `pnpm dev`) e os botões com dica (`BotaoComDica` e
+    `Dica`, ~130 ms: cada botão monta um portal com o balão, mesmo escondido). Caminho: seções da ficha em `memo`
+    com a ficha compartilhando estrutura entre teclas (hoje `aplicarOperacoes` devolve um objeto todo novo), e o
+    balão da dica montado só quando aparece (os testes procuram `dica-<testid>` no DOM mesmo oculta).
+  - **O resto da Mesa a cada evento:** fora as abas, a `Mesa` (um componente com dezenas de estados) ainda
+    re-renderiza topo, barras e janelas a cada evento da sala. O mesmo desenho das fatias serve para a janela da
+    ficha, a ordem de turno, a faixa de cenas e os painéis de luz e som.
+  - A aba Fichas ainda re-renderiza a cada mudança de `tokens` (botão "colocar no mapa" do jogador); todas as abas, a
+    cada ficha editada (leem `personagens`).
+  - Compêndio lido num Worker (a leitura única por hash ainda roda na thread principal).
   - Régua, zoom e dica do mapa fazem `setState` na Mesa a cada movimento do mouse; levar para um componente folha.
     `PertoDoPonto` mede o layout a cada render.
   - `lazy` dentro da Mesa (Tour, editor de automações, revisão do PDF) e `manualChunks`.
