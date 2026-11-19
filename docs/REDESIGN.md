@@ -2448,3 +2448,19 @@ O Vilella perguntou se o MCP sobe áudio, seta zonas e põe características nel
 - Transcrição com Whisper, playlist da trilha e compartilhar tela (`IDEIAS.md`).
 - O anel de quem fala na presença só vale no mesmo navegador (`BroadcastChannel`); em outro computador a mesa não o mostra.
 - O desfoque depende de timers da janela: com a janela da chamada totalmente escondida o navegador os desacelera (mesma limitação de qualquer chamada em segundo plano).
+
+## A1 — como ficou (2026-11-19): campos lado a lado sempre alinhados
+
+**O que foi feito**
+- `.linha-par` (e `.linha-da-fase` do ciclo e `.inicio-grade-de-campos` da tela inicial) agora são grades em que cada campo é um subgrid de 3 trilhas (rótulo, caixa, ajuda). O rótulo mais alto define a linha dos rótulos, as caixas ficam na mesma altura e as ajudas começam na mesma linha. Rótulos não foram encurtados.
+- A regra vale para `label.campo-coluna` e para `label` sem classe dentro do par (PainelDoToken); `.linha-opcao` dentro do par fica na linha da caixa, centrada.
+- Dentro do par a caixa ocupa a largura da coluna (`min-width: 0`): nada transborda em painel estreito.
+- Teste novo `e2e/tests/a1.spec.ts`; prints `e2e/prints/a1.spec.ts`.
+
+**Decisões (assumido)**
+- Só CSS: nenhum componente mudou.
+- A ficha (`fl-*`) fica de fora: suas linhas são faixas de controles diferentes, não pares rótulo/caixa/ajuda.
+- Botão de tirar a fase (ciclo) fica na linha das caixas.
+
+**O que ficou para depois**
+- Nenhum.

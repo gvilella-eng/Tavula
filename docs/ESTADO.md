@@ -4354,4 +4354,28 @@ Ver `PASSAGEM.md`, "CH1".
 ### Roteiro manual
 Ver `docs/ROTEIRO-DE-TESTES.md`, "CH1".
 
-## Próximo: o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b, N4, N5, M1, M2, Q1 a Q16, CH1 e das otimizações O1–O4
+
+## Ajustes A1 — campos lado a lado sempre alinhados (entregue, aguardando o roteiro manual)
+
+### O que foi entregue
+Em `.linha-par` (painéis Mesa, Luz, Iluminação, Token, item, reação), `.linha-da-fase` e na grade da tela inicial, rótulo, caixa e ajuda de campos vizinhos ficam em linhas comuns (subgrid). "Morrendo abaixo de (%)" quebrando em duas linhas não derruba mais a caixa da direita.
+
+### Como rodar
+`pnpm dev`; aba Mesa, seção Regras, e estreite o painel. E2E: `pnpm --filter @tabletop/e2e test tests/a1.spec.ts`.
+
+### Verificação
+Typecheck, lint, e os specs a1, organizacao, q5, teclado, tema, sala, inicio, luz, tochas e automacoes-editor. Prints em `scratchpad\prints-a1` (antes e depois).
+
+### Decisões
+Ver `REDESIGN.md`, "A1 — como ficou".
+
+### Desvios
+Nenhum E2E antigo alterado.
+
+### Frágil
+Ver `PASSAGEM.md`, "A1".
+
+### Roteiro manual
+Abrir Mesa → Regras e Luz, e as janelas de luz, token e reação, em larguras estreitas: as caixas do par têm o mesmo topo.
+
+## Próximo: o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b, N4, N5, M1, M2, Q1 a Q16, CH1, A1 e das otimizações O1–O4
