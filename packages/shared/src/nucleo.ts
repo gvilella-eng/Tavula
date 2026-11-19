@@ -1256,6 +1256,15 @@ function processarIntencao(
         : { ...aplicado(), ping: saida.ping };
     }
 
+    // CH1: a chamada depende do socket da janela dela; a sala a trata antes de chegar aqui (a rota HTTP do MCP, sem socket,
+    // e qualquer outro caminho caem nesta recusa).
+    case "chamada.entrar":
+    case "chamada.estado":
+    case "chamada.sair":
+    case "chamada.sinal":
+    case "chamada.chamar":
+      return recusa("sem_permissao", "A chamada só vale pela janela da chamada da mesa.");
+
     case "papel.alterar": {
       const { usuarioId: alvoId, papel } = intencao.dados;
       const alvo = estado.usuarios.find((u) => u.id === alvoId);

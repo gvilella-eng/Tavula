@@ -19,6 +19,12 @@ import {
   TODAS_AS_CAPACIDADES,
 } from "./capacidades.ts";
 import {
+  DadosDeEntrarNaChamadaSchema,
+  DadosDeSinalSchema,
+  EstadoNaChamadaSchema,
+  ParticipanteDaChamadaSchema,
+} from "./chamada.ts";
+import {
   CaracteristicaNoChatSchema,
   LIMITES_DO_CHAT,
   MensagemSchema,
@@ -586,6 +592,16 @@ export const IntencaoSchema = z.discriminatedUnion("tipo", [
       centralizar: z.boolean().optional(),
     }),
   ),
+  /**
+   * CH1: a chamada da mesa (voz e vídeo entre os navegadores). Só a janela da chamada manda estas; a sala sinaliza e
+   * esquece (nada grava, nada vai ao desfazer, à exportação ou ao snapshot guardado). Entrar, mudar o estado, sair, repassar
+   * o aperto de mão (`sinal`, com o `de` carimbado pela sala) e chamar quem está fora.
+   */
+  intencao("chamada.entrar", DadosDeEntrarNaChamadaSchema),
+  intencao("chamada.estado", EstadoNaChamadaSchema),
+  intencao("chamada.sair", SemDados),
+  intencao("chamada.sinal", DadosDeSinalSchema),
+  intencao("chamada.chamar", z.object({ para: z.string().min(1).max(64) })),
   intencao(
     "cena.configurarGrid",
     z.object({
@@ -1178,6 +1194,12 @@ export const capacidadeDaIntencao: Record<TipoIntencao, Capacidade | null> = {
   "token.colocarMeu": "token.colocarProprio",
   // V12: ping e centralizar numa só capacidade; `processar` confere a cena e o ponto.
   "mapa.ping": "mapa.pingar",
+  // CH1: quem é da mesa liga e desliga a própria chamada; a sala confere (membro, na chamada, limites).
+  "chamada.entrar": null,
+  "chamada.estado": null,
+  "chamada.sair": null,
+  "chamada.sinal": null,
+  "chamada.chamar": null,
   "cena.configurarGrid": "cena.editar",
   "token.mover": "token.moverProprio",
   "token.soltar": "token.moverProprio",
@@ -1567,6 +1589,8 @@ export const CODIGOS_DE_ERRO = [
   "zona_inexistente",
   "limite_de_criacao",
   "lote_inexistente",
+  "chamada_cheia",
+  "fora_da_chamada",
 ] as const;
 export const CodigoDeErroSchema = z.enum(CODIGOS_DE_ERRO);
 export type CodigoDeErro = z.infer<typeof CodigoDeErroSchema>;
@@ -1653,6 +1677,27 @@ export const MensagemDaSalaSchema = z.discriminatedUnion("tipo", [
    * leva o som, nunca a zona (forma, nome, regras). A lista vazia manda parar.
    */
   mensagemDaSala("som.zona", z.object({ sons: z.array(SomTocandoSchema).max(50) })),
+  /**
+   * CH1: quem está na chamada (transitório: sem `seq`, nunca gravado). A sala manda a todo membro ao conectar e a cada
+   * mudança, na ordem de entrada.
+   */
+  mensagemDaSala(
+    "chamada.quem",
+    z.object({ participantes: z.array(ParticipanteDaChamadaSchema).max(8) }),
+  ),
+  /** CH1: um sinal do aperto de mão, só para a janela da chamada de `para`; `de` é carimbado pela sala. */
+  mensagemDaSala(
+    "chamada.sinal",
+    z.object({
+      de: z.string().min(1).max(64),
+      descricao: DadosDeSinalSchema.shape.descricao,
+      candidato: DadosDeSinalSchema.shape.candidato,
+    }),
+  ),
+  /** CH1: alguém da chamada chamou esta pessoa (só às conexões dela fora da chamada). */
+  mensagemDaSala("chamada.chamando", z.object({ de: z.string().min(1).max(64) })),
+  /** CH1: esta janela saiu da chamada porque a mesma pessoa entrou por outra janela. */
+  mensagemDaSala("chamada.substituida", z.object({})),
   mensagemDaSala(
     "mapa.pingado",
     z.object({

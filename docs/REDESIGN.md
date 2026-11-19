@@ -2422,3 +2422,29 @@ O Vilella perguntou se o MCP sobe áudio, seta zonas e põe características nel
 - `ordem` das pastas e o reordenar (a sala numera).
 - A cena não tem trilha própria além dos ambientes da cena (`som.ambientesDaCena`).
 - Gastar o uso da inata pelo MCP, que estava em `IDEIAS.md`, foi feito.
+
+## CH1 — como ficou (2026-11-19): a chamada da mesa (voz e vídeo, com fundo desfocado)
+
+**O que foi feito**
+- A janela própria `/m/<id>/chamada` (aberta pelo botão "Chamada" no topo da mesa): antes de entrar, a janela larga (só a Grade, lista lateral, barra de baixo, atalhos M/V/B) e a estreita (linhas com miniatura, abaixo de ~560 px), seguindo as três telas do desenho, com os tokens do tema (vale nos 14 temas). "Flutuar por cima" por Document Picture-in-Picture onde há suporte.
+- A sala só sinaliza: `chamada.entrar`, `chamada.estado`, `chamada.sair`, `chamada.sinal` e `chamada.chamar` (transitórias, como o ping do V12), e as mensagens `chamada.quem`, `chamada.sinal`, `chamada.chamando` e `chamada.substituida`. Quem está na chamada mora no `serializeAttachment` do socket da janela. Regras puras em `packages/shared/src/chamada.ts`, testadas na unidade.
+- A malha WebRTC (uma conexão por par, "perfect negotiation", `replaceTrack` para câmera, aparelho e desfoque), o áudio no WebAudio (volume 0–200% por pessoa, quem fala com histerese, sons de entrar e sair gerados), o fundo desfocado com MediaPipe (modelo empacotado) e o controlador da janela: `apps/web/src/chamada/`.
+- Na mesa: o botão "Chamada" com a contagem, o ícone verde na presença de quem está na chamada (com o anel de quem fala, vindo da janela da chamada pelo `BroadcastChannel`) e o aviso "está chamando".
+- Paridade com o Claude: as intenções `chamada.*` entram como `gesto ao vivo` (e `chamada.sinal` como `transporte`).
+
+**Decisões (assumido)**
+- Limite de 8 pessoas (malha ponto a ponto); a 9ª vê "A chamada está cheia (8)".
+- A mesma pessoa entrando por outra janela substitui a antiga (que mostra o aviso e "Entrar de novo").
+- Sons de entrar e sair gerados no WebAudio, com opção de desligar.
+- "Chamar" é um aviso transitório na mesa da pessoa, com "Entrar".
+- Entrar só ouvindo trava microfone, câmera e fundo até sair e entrar de novo.
+- Quem oferece no começo de cada par é a ponta de id maior (a de id menor cede): as duas ofertas simultâneas deixavam um par sem ICE no Chrome; a "perfect negotiation" continua valendo para renegociações.
+- Um sinal que chega antes de a lista da sala me mostrar quem chegou é guardado por 10 s e entregue quando a conexão com a pessoa existe (sem isso as duas pontas esperavam uma pela outra).
+- O desfoque se desliga sozinho se passar 5 s abaixo de 12 quadros por segundo, ou se o modelo não carregar (o botão fica desabilitado com o motivo).
+- A saída de som vem do `setSinkId` do contexto de áudio; sem suporte a opção some, com a dica do porquê.
+- `iceServers` vazio por padrão; STUN/TURN pela variável do Vite `VITE_CHAMADA_ICE_SERVERS`, para a internet.
+
+**O que ficou para depois**
+- Transcrição com Whisper, playlist da trilha e compartilhar tela (`IDEIAS.md`).
+- O anel de quem fala na presença só vale no mesmo navegador (`BroadcastChannel`); em outro computador a mesa não o mostra.
+- O desfoque depende de timers da janela: com a janela da chamada totalmente escondida o navegador os desacelera (mesma limitação de qualquer chamada em segundo plano).

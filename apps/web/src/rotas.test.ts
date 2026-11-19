@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { caminhoDaFicha, lerRota } from "./rotas";
+import { caminhoDaChamada, caminhoDaFicha, lerRota } from "./rotas";
 
 describe("lerRota: a mesa de som na janela própria (Q4b)", () => {
   it("/m/<id>/som é a mesa de som sozinha", () => {
@@ -12,6 +12,20 @@ describe("lerRota: a mesa de som na janela própria (Q4b)", () => {
     expect(lerRota("/m/k7m2-qx9p-4tdn/som/")).toMatchObject({ painel: "som" });
     expect(lerRota("/m/k7m2-qx9p-4tdn/outra")).toEqual({ tipo: "inicio" });
     expect(lerRota("/m/k7m2-qx9p-4tdn")).not.toHaveProperty("painel");
+  });
+});
+
+describe("lerRota: a chamada da mesa na janela própria (CH1)", () => {
+  it("/m/<id>/chamada é a chamada sozinha", () => {
+    expect(lerRota("/m/k7m2-qx9p-4tdn/chamada")).toEqual({
+      tipo: "mesa",
+      id: "k7m2-qx9p-4tdn",
+      bruto: "k7m2-qx9p-4tdn",
+      painel: "chamada",
+    });
+    expect(lerRota("/m/k7m2-qx9p-4tdn/chamada/")).toMatchObject({ painel: "chamada" });
+    expect(lerRota("/m/k7m2-qx9p-4tdn/chamadas")).toEqual({ tipo: "inicio" });
+    expect(caminhoDaChamada("k7m2-qx9p-4tdn")).toBe("/m/k7m2-qx9p-4tdn/chamada");
   });
 });
 

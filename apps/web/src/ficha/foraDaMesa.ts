@@ -1,5 +1,5 @@
 import { useEffect, useSyncExternalStore } from "react";
-import { caminhoDaFicha, caminhoDoSom } from "../rotas";
+import { caminhoDaChamada, caminhoDaFicha, caminhoDoSom } from "../rotas";
 
 /**
  * A ficha numa janela própria do navegador (V9). A mesa (janela principal) e as janelas das fichas se falam só por
@@ -204,6 +204,40 @@ export const ID_DA_MESA_DE_SOM = "mesa-de-som";
 
 export function abrirSomEmJanela(mesaId: string, medidaPadrao: MedidaDaJanela): boolean {
   return abrirFichaEmJanela(mesaId, ID_DA_MESA_DE_SOM, medidaPadrao, caminhoDoSom(mesaId));
+}
+
+/**
+ * CH1: a chamada da mesa também vive numa janela própria. O nome da janela e a medida lembrada seguem o padrão da ficha
+ * (id `chamada`), mas aqui abrir de novo NÃO recarrega a janela: recarregar derrubaria a chamada. Se ela já existe, só
+ * vem para a frente; se não, nasce já no endereço da chamada. `false`: o navegador bloqueou o pop-up.
+ */
+export const ID_DA_CHAMADA = "chamada";
+
+export function abrirChamadaEmJanela(mesaId: string, medidaPadrao: MedidaDaJanela): boolean {
+  const medida = lerMedidaGuardada(mesaId, ID_DA_CHAMADA) ?? medidaPadrao;
+  const partes = [
+    "popup=yes",
+    `width=${Math.max(360, Math.round(medida.largura))}`,
+    `height=${Math.max(300, Math.round(medida.altura))}`,
+  ];
+  if (medida.x !== undefined && medida.y !== undefined) {
+    partes.push(`left=${medida.x}`, `top=${medida.y}`);
+  }
+  const janela = window.open("", nomeDaJanela(mesaId, ID_DA_CHAMADA), partes.join(","));
+  if (!janela) return false;
+  let nova = false;
+  try {
+    nova = janela.location.href === "about:blank";
+  } catch {
+    // outra origem: a janela existe e já tem conteúdo
+  }
+  if (nova) janela.location.href = caminhoDaChamada(mesaId);
+  try {
+    janela.focus();
+  } catch {
+    // o navegador pode negar o foco
+  }
+  return true;
 }
 
 /**

@@ -130,7 +130,7 @@ chamada só. Se um nome for repetido ou não existir, a resposta diz o que corri
 
 ### A tabela de paridade (M2)
 
-Cada intenção do protocolo tem entrada em `packages/shared/src/mcp/paridade.ts`: a ferramenta e o campo que a alcançam, ou o motivo de ficar de fora (`proibida`, `transporte` ou `gesto ao vivo`). O teste `paridade.test.ts` falha se aparecer uma intenção nova sem entrada, ou se a tabela apontar uma ferramenta ou campo que não existe. **Regra: intenção nova precisa de entrada na tabela.** Hoje são 125 intenções: 107 com ferramenta e 18 de fora (4 proibidas, 9 de transporte, 5 gestos ao vivo).
+Cada intenção do protocolo tem entrada em `packages/shared/src/mcp/paridade.ts`: a ferramenta e o campo que a alcançam, ou o motivo de ficar de fora (`proibida`, `transporte` ou `gesto ao vivo`). O teste `paridade.test.ts` falha se aparecer uma intenção nova sem entrada, ou se a tabela apontar uma ferramenta ou campo que não existe. **Regra: intenção nova precisa de entrada na tabela.** Hoje são 130 intenções: 107 com ferramenta e 23 de fora (4 proibidas, 10 de transporte, 9 gestos ao vivo).
 
 ### A paridade campo a campo (Q16)
 
@@ -145,7 +145,7 @@ O que o Q16 fechou (auditoria de 2026-11-18, 107 intenções com ferramenta):
 - **Token.** `tokens[].controladoPor` (quem move o token; só o mestre).
 - **Som por nome.** Na zona (`efeitos.som.hash`) e na reação (`som.tocar.hash`) o arquivo agora vai pelo nome (`"vento.mp3"`) ou pelo começo do hash, como no `som`; antes pedia o hash inteiro.
 
-O que continua de fora, de propósito: papéis, permissões, exportar e importar a campanha (`proibida`); o envio de arquivo em pedaços, a caixa de entrada e o histórico paginado (`transporte`); o ping, o traço do pincel em andamento, o arrasto do token e segurar a tocha (`gesto ao vivo`). O que o Claude não faz por não ser um campo de intenção: `ordem` das pastas (a sala numera) e o campo antigo `modInteligencia` (a ficha o substituiu).
+O que continua de fora, de propósito: papéis, permissões, exportar e importar a campanha (`proibida`); o envio de arquivo em pedaços, a caixa de entrada e o histórico paginado (`transporte`); o ping, o traço do pincel em andamento, o arrasto do token, segurar a tocha e a chamada de voz e vídeo (CH1: `chamada.entrar`, `chamada.estado`, `chamada.sair` e `chamada.chamar`, que precisam da câmera e do microfone de uma pessoa, na janela dela; `chamada.sinal`, o aperto de mão entre dois navegadores, é `transporte`). A sala recusa `chamada.*` ao Claude. O que o Claude não faz por não ser um campo de intenção: `ordem` das pastas (a sala numera) e o campo antigo `modInteligencia` (a ficha o substituiu).
 
 Não se desfazem: mensagens de chat e rolagens, combate, som (ambientes e efeitos), relógio, configuração da mesa e arquivos. O resto (cenas, tokens, paredes, desenhos e textos, névoa, fichas, notas, pastas, luz, automações) volta com o `desfazer`. O texto no mapa é feito de traços (a mesa não tem uma forma "texto"), sem acento.
 

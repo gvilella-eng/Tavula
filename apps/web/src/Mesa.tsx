@@ -80,12 +80,15 @@ import { BotaoComDica } from "./BotaoComDica";
 import { ColocarVarios } from "./ColocarVarios";
 import { AvisoDaCaixaDoClaude, copiarParaAPasta, useCaixaDoClaude } from "./caixaDoClaude";
 import { type CamadaDeTrabalho, camadaDoNovoToken } from "./camadas";
+import { BotaoDaChamada } from "./chamada/BotaoDaChamada";
+import { useFalandoNaChamada } from "./chamada/canalDaChamada";
 import { RascunhosDoClaude } from "./claude/RascunhosDoClaude";
 import { pedirTokenNoMapa } from "./colocarNoMapa";
 import { ATRASO_DA_DICA } from "./Dica";
 import { EstadoDaMesa } from "./EstadoDaMesa";
 import { FaixaDeCenas, type PedirImagem } from "./FaixaDeCenas";
 import {
+  abrirChamadaEmJanela,
   abrirFichaEmJanela,
   abrirSomEmJanela,
   ID_DA_MESA_DE_SOM,
@@ -244,6 +247,7 @@ export function Mesa({
     estado,
     eu,
     presenca,
+    participantesDaChamada,
     uso,
     aviso,
     avisar,
@@ -434,6 +438,14 @@ export function Mesa({
     // O tamanho da primeira vez (depois a janela lembra o dela): estreita e alta, como o painel do som.
     if (!abrirSomEmJanela(mesa.id, { largura: 460, altura: 720 })) avisar(TEXTO_DO_POPUP_BLOQUEADO);
   }, [mesa.id, avisar]);
+
+  // CH1: a chamada da mesa mora numa janela própria; aqui só se abre (ou traz para a frente) e se vê quem está nela.
+  const abrirChamada = useCallback(() => {
+    if (!abrirChamadaEmJanela(mesa.id, { largura: 1100, altura: 720 })) {
+      avisar(TEXTO_DO_POPUP_BLOQUEADO);
+    }
+  }, [mesa.id, avisar]);
+  const falandoNaChamada = useFalandoNaChamada(mesa.id);
 
   // Os handouts abertos em janelas (V3): os que a pessoa abre e os que o mestre manda abrir ("Mostrar agora").
   const {
@@ -708,7 +720,14 @@ export function Mesa({
         else if (o.tipo === "rascunho") mapa.current?.rascunhoRecebido(o.desenho);
         else if (o.tipo === "rascunhoFim") mapa.current?.rascunhoEncerrado(o.id);
         else if (o.tipo === "ping") mapa.current?.pingRecebido(o.ping);
-        else if (o.tipo === "conectado") {
+        else if (o.tipo === "chamadaChamando") {
+          // CH1: alguém da chamada chamou esta pessoa (transitório, só um aviso com o atalho para entrar).
+          const quem = estadoAtual.current?.usuarios.find((u) => u.id === o.de)?.nome ?? "Alguém";
+          avisar(`${quem} está chamando para a chamada.`, {
+            rotulo: "Entrar",
+            aoClicar: abrirChamada,
+          });
+        } else if (o.tipo === "conectado") {
           mapa.current?.limparRascunhos();
           mapa.current?.limparPosicoesAvisadas();
         } else if (o.tipo === "evento") {
@@ -726,7 +745,7 @@ export function Mesa({
           }
         }
       }),
-    [ouvir],
+    [ouvir, avisar, abrirChamada],
   );
 
   // "Mostrar agora" (V3): a sala só manda este evento a quem vê o handout; quem o mandou já está com ele aberto.
@@ -2207,11 +2226,18 @@ export function Mesa({
               </button>
             )}
             {euMestre && <RascunhosDoClaude estado={estado} enviar={enviar} />}
+            <BotaoDaChamada
+              pessoas={participantesDaChamada.length}
+              euEstou={participantesDaChamada.some((p) => p.usuarioId === eu.id)}
+              aoClicar={abrirChamada}
+            />
             <PresencaNoTopo
               usuarios={membrosDaMesa(estado)}
               presenca={presenca}
               euId={eu.id}
               claude={claudeConectado}
+              naChamada={participantesDaChamada.map((p) => p.usuarioId)}
+              falandoNaChamada={falandoNaChamada}
             />
             <EstadoDaMesa
               pausada={estado.relogio.pausada}

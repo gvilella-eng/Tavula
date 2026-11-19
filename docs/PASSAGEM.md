@@ -1116,3 +1116,22 @@ Continua em aberto, por ser decisão e não erro de doc: `ficha.verOutras` (seç
 - `AcaoDoMcpSchema` troca só a opção `som.tocar` da união `AcaoSchema`; uma ação nova com id ou hash no esquema precisa ganhar o mesmo tratamento por nome.
 
 **Suposições**: ver `docs/REDESIGN.md`, "Q16 — como ficou".
+
+## CH1 (2026-11-19): a chamada da mesa
+
+**Onde mexer**
+- Regra da sinalização (quem entra, limite de 8, quem manda sinal a quem, tamanhos, frequência): `packages/shared/src/chamada.ts` (teste em `chamada.test.ts`). A sala só a chama: `apps/server/src/sala.ts`, `tratarChamada` (a participação mora no `Identidade.chamada` do socket; `difundirChamada` manda `chamada.quem`).
+- A janela: `apps/web/src/chamada/`. `controlador.ts` é o dono de tudo o que não é desenho (mídia local, fundo, áudio, malha, conversa com a sala); `malha.ts` são as `RTCPeerConnection`; `audio.ts` o WebAudio; `fundo.ts` o desfoque; `puras.ts` as regras testáveis; `TelaDaChamada.tsx` e `Quadros.tsx` o desenho.
+- A rota e a janela: `rotas.ts` (`/m/<id>/chamada`), `App.tsx`, `ficha/foraDaMesa.ts` (`abrirChamadaEmJanela`: abrir de novo NÃO recarrega a janela).
+- Na mesa: `chamada/BotaoDaChamada.tsx`, `PresencaNoTopo.tsx` (ícone e anel), `useSala.ts` (`participantesDaChamada` e as ocorrências `chamadaSinal`, `chamadaChamando`, `chamadaSubstituida`), `Mesa.tsx` (o aviso "está chamando").
+- O modelo do desfoque: `apps/web/src/chamada/modelos/selfie_segmenter.tflite` (Apache-2.0, do MediaPipe; baixado uma vez de `storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter/float16/latest/`). O wasm vem do pacote `@mediapipe/tasks-vision` (importado com `?url`).
+
+**Frágil**
+- A negociação: quem oferece é a ponta de id maior; a de id menor recebe os transceptores com a oferta (`pegarTransceptores`). Duas ofertas simultâneas no começo deixavam um par sem ICE no Chrome. Mexer nisso exige rodar `chamada.spec.ts` com três pessoas.
+- Sinais que chegam antes de a conexão existir ficam guardados 10 s (`adiantados` em `malha.ts`).
+- A máscara do segmentador pode vir "ao contrário" conforme o modelo: `mascaraEstaInvertida` confere pelo meio e pela borda do quadro a cada 60 quadros (a câmera falsa do Chrome não tem pessoa para conferir).
+- O desfoque usa `setTimeout`: janela totalmente escondida desacelera.
+- O volume 0–200% passa pelo WebAudio: um `<audio>` mudo preso ao mesmo fluxo é preciso para o Chrome entregar o som remoto (`audio.ts`).
+- A sala guarda a participação no attachment do socket; se um dia o `Identidade` mudar de forma, a chamada precisa continuar sobrevivendo à hibernação.
+
+**Suposições**: ver `docs/REDESIGN.md`, "CH1 — como ficou".

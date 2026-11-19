@@ -4331,4 +4331,27 @@ Ver `PASSAGEM.md`, "Q16".
 ### Roteiro manual
 Ver `docs/ROTEIRO-DE-TESTES.md`, "Q16".
 
-## Próximo: o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b, N4, N5, M1, M2, Q1 a Q16 e das otimizações O1–O4
+## Ajustes CH1 — a chamada da mesa, voz e vídeo com fundo desfocado (entregue, aguardando o roteiro manual)
+
+### O que foi entregue
+A janela própria `/m/<id>/chamada` (botão "Chamada" no topo da mesa): antes de entrar, a janela larga (só a Grade, sem Palco por pedido do Vilella) e a estreita (linhas com miniatura). Segue o tema da mesa, ao vivo. Sinalização transitória pela sala (`chamada.*`), malha WebRTC ponto a ponto (limite de 8), áudio com volume por pessoa e quem fala, fundo desfocado com MediaPipe (modelo empacotado), "Trilha da mesa", "Chamar", contagem e ícone na mesa. Nada é gravado.
+
+### Como rodar
+`pnpm dev` e, na mesa, o botão de vídeo no topo. Para duas pessoas na mesma máquina, uma janela anônima como jogador. Internet: `VITE_CHAMADA_ICE_SERVERS` (JSON STUN/TURN) e HTTPS. E2E: `pnpm --filter @tabletop/e2e test tests/chamada.spec.ts` (Chromium com câmera e microfone falsos só neste arquivo).
+
+### Verificação
+`pnpm typecheck`, `pnpm lint`, `pnpm test` (shared 1347, server 140, web 295, mcp 19) e 520 testes E2E em duas metades (272 + 248), sem instáveis. Prints em Grimório 1600×900 e 1280×720 e Pergaminho 1600×900.
+
+### Decisões
+Ver `REDESIGN.md`, "CH1 — como ficou".
+
+### Desvios
+Nenhum E2E antigo alterado. Sem Palco e sem seletor de tema, por pedido do Vilella.
+
+### Frágil
+Ver `PASSAGEM.md`, "CH1".
+
+### Roteiro manual
+Ver `docs/ROTEIRO-DE-TESTES.md`, "CH1".
+
+## Próximo: o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b, N4, N5, M1, M2, Q1 a Q16, CH1 e das otimizações O1–O4

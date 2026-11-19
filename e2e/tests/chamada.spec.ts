@@ -1,0 +1,273 @@
+import type { Page } from "@playwright/test";
+import {
+  abrirPreferencia,
+  CAMINHO_DA_MESA,
+  expect,
+  ID_DA_MESA,
+  type Mesa,
+  type Sessao,
+  test,
+} from "./ajudas";
+import { entrarNoMapa } from "./ajudasMapa";
+
+// CH1: a chamada da mesa. Três pessoas em contextos separados abrem a janela da chamada, entram, se veem e se ouvem (o
+// vídeo recebido toca), e cada gesto (microfone, câmera, desfoque, sair) aparece nos outros. As câmeras e o microfone
+// são os falsos do Chromium (só neste arquivo).
+
+test.use({
+  launchOptions: {
+    args: ["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream"],
+  },
+});
+test.describe.configure({ timeout: 180_000 });
+
+type Diagnostico = {
+  fase: string;
+  fundo: string;
+  fundoAtivo: boolean;
+  enviaTrilhaDoCanvas: boolean;
+  enviaCameraCrua: boolean;
+  pares: string[];
+  conexoes: Record<string, string>;
+  bitrate: number | null;
+};
+
+const diagnostico = (p: Page) =>
+  p.evaluate(() =>
+    (
+      window as unknown as { __tabletopChamada: { diagnostico: () => Diagnostico } }
+    ).__tabletopChamada.diagnostico(),
+  );
+
+type Participante = { id: string; mesa: Sessao; janela: Page };
+
+/** A pessoa entra na mesa, abre a janela da chamada pelo botão do topo e escolhe "Entrar na chamada". */
+async function entrarNaChamada(
+  mesa: Mesa,
+  usuario: string,
+  soOuvindo = false,
+): Promise<Participante> {
+  const s = await entrarNoMapa(mesa, usuario);
+  const [janela] = await Promise.all([
+    s.contexto.waitForEvent("page"),
+    s.pagina.getByTestId("topo-chamada").click(),
+  ]);
+  janela.on("pageerror", (e) => console.log("[erro na janela da chamada]", e.message));
+  await expect(janela.getByTestId("chamada-antes")).toBeVisible();
+  await expect(janela).toHaveURL(new RegExp(`${CAMINHO_DA_MESA}/chamada$`));
+  // a prévia mostra a própria câmera (o fluxo falso do navegador) antes de entrar
+  if (!soOuvindo) {
+    await expect
+      .poll(() =>
+        janela.evaluate(
+          () =>
+            document.querySelector<HTMLVideoElement>('[data-testid="chamada-previa-video"]')
+              ?.videoWidth ?? 0,
+        ),
+      )
+      .toBeGreaterThan(0);
+  }
+  await janela.getByTestId(soOuvindo ? "chamada-so-ouvindo" : "chamada-entrar").click();
+  await expect(janela.getByTestId("chamada-janela")).toBeVisible();
+  return { id: usuario, mesa: s, janela };
+}
+
+const quadro = (j: Page, id: string) => j.getByTestId(`chamada-quadro-${id}`);
+
+/** O vídeo recebido de `id` toca nesta janela (largura do vídeo maior que zero). */
+const videoTocando = (j: Page, id: string) =>
+  j.evaluate(
+    (alvo) =>
+      document.querySelector<HTMLVideoElement>(`[data-testid="chamada-video-${alvo}"]`)
+        ?.videoWidth ?? 0,
+    id,
+  );
+
+async function tresNaChamada(mesa: Mesa) {
+  const m = await entrarNaChamada(mesa, "mestre");
+  const a = await entrarNaChamada(mesa, "jogador-1");
+  const b = await entrarNaChamada(mesa, "jogador-2");
+  for (const p of [m, a, b]) {
+    for (const id of ["mestre", "jogador-1", "jogador-2"]) {
+      await expect(quadro(p.janela, id)).toBeVisible();
+    }
+  }
+  return { m, a, b };
+}
+
+test("três pessoas entram, cada uma vê os três quadros e o vídeo recebido toca; a mesa mostra a contagem e o ícone", async ({
+  mesa,
+}) => {
+  const { m, a, b } = await tresNaChamada(mesa);
+  for (const p of [m, a, b]) {
+    for (const outro of [m, a, b].filter((x) => x !== p)) {
+      await expect
+        .poll(() => videoTocando(p.janela, outro.id), { timeout: 30_000 })
+        .toBeGreaterThan(0);
+    }
+    await expect(p.janela.getByTestId("chamada-resumo")).toContainText("3 pessoas");
+  }
+  // a Trilha da mesa e a lista de pessoas estão lá
+  await expect(m.janela.getByTestId("chamada-trilha")).toBeVisible();
+  await expect(m.janela.getByTestId("chamada-lista")).toContainText("Na chamada — 3");
+  // a mesa (janela principal) mostra quantos estão na chamada e o ícone na presença
+  await expect(m.mesa.pagina.getByTestId("topo-chamada-contagem")).toHaveText("3");
+  await expect(m.mesa.pagina.getByTestId("presenca-chamada-jogador-1")).toBeVisible();
+  await expect(m.mesa.pagina.getByTestId("presenca-chamada-jogador-2")).toBeVisible();
+  // quem fala aparece como o fluxo falso do microfone (um tom): o anel verde acende em alguém
+  await expect
+    .poll(() => m.janela.locator('[data-testid^="chamada-quadro-"][data-falando="sim"]').count(), {
+      timeout: 30_000,
+    })
+    .toBeGreaterThan(0);
+  // a conexão ponto a ponto está de pé
+  await expect
+    .poll(async () => Object.values((await diagnostico(m.janela)).conexoes))
+    .toEqual(["connected", "connected"]);
+});
+
+test("microfone, câmera e desfoque aparecem nos outros; sair e fechar a janela tiram o quadro", async ({
+  mesa,
+}) => {
+  const { m, a, b } = await tresNaChamada(mesa);
+  await expect
+    .poll(() => videoTocando(m.janela, "jogador-1"), { timeout: 30_000 })
+    .toBeGreaterThan(0);
+
+  // microfone desligado: o selo aparece nos outros e a mesa de quem desligou mostra o botão apertado
+  await a.janela.getByTestId("chamada-microfone").click();
+  await expect(quadro(m.janela, "jogador-1")).toHaveAttribute("data-microfone", "desligado");
+  await expect(quadro(b.janela, "jogador-1")).toHaveAttribute("data-microfone", "desligado");
+  await expect(
+    quadro(m.janela, "jogador-1").getByRole("img", { name: "Microfone desligado" }),
+  ).toBeVisible();
+  await a.janela.keyboard.press("m");
+  await expect(quadro(m.janela, "jogador-1")).toHaveAttribute("data-microfone", "ligado");
+
+  // câmera desligada: vira a inicial na cor da pessoa; ligada de novo, o vídeo volta a tocar
+  await a.janela.getByTestId("chamada-camera").click();
+  await expect(quadro(m.janela, "jogador-1")).toHaveAttribute("data-camera", "desligada");
+  await expect(m.janela.getByTestId("chamada-inicial-jogador-1")).toBeVisible();
+  await a.janela.getByTestId("chamada-camera").click();
+  await expect(quadro(m.janela, "jogador-1")).toHaveAttribute("data-camera", "ligada");
+  await expect
+    .poll(() => videoTocando(m.janela, "jogador-1"), { timeout: 30_000 })
+    .toBeGreaterThan(0);
+
+  // desfoque: a faixa enviada passa a ser a do canvas, o selo aparece nos outros e o vídeo segue tocando
+  expect((await diagnostico(a.janela)).enviaCameraCrua).toBe(true);
+  await a.janela.getByTestId("chamada-fundo").click();
+  await expect
+    .poll(async () => (await diagnostico(a.janela)).enviaTrilhaDoCanvas, { timeout: 60_000 })
+    .toBe(true);
+  await expect(quadro(m.janela, "jogador-1")).toHaveAttribute("data-fundo", "desfocar");
+  await expect(m.janela.getByTestId("chamada-selo-fundo-jogador-1")).toBeVisible();
+  await expect(a.janela.getByTestId("chamada-fundo")).toHaveAttribute("aria-pressed", "true");
+  await expect
+    .poll(() => videoTocando(m.janela, "jogador-1"), { timeout: 30_000 })
+    .toBeGreaterThan(0);
+  // desligar o desfoque volta à câmera crua
+  await a.janela.keyboard.press("b");
+  await expect
+    .poll(async () => (await diagnostico(a.janela)).enviaCameraCrua, { timeout: 15_000 })
+    .toBe(true);
+  await expect(quadro(m.janela, "jogador-1")).toHaveAttribute("data-fundo", "nenhum");
+
+  // sair: o quadro some nos outros e a mesa de quem saiu volta a "antes de entrar"
+  await a.janela.getByTestId("chamada-sair").click();
+  await expect(a.janela.getByTestId("chamada-antes")).toBeVisible();
+  await expect(quadro(m.janela, "jogador-1")).toHaveCount(0);
+  await expect(quadro(b.janela, "jogador-1")).toHaveCount(0);
+  await expect(m.mesa.pagina.getByTestId("topo-chamada-contagem")).toHaveText("2");
+  await expect(m.mesa.pagina.getByTestId("presenca-chamada-jogador-1")).toHaveCount(0);
+
+  // fechar a janela também é sair
+  await b.janela.close();
+  await expect(quadro(m.janela, "jogador-2")).toHaveCount(0);
+  await expect(m.mesa.pagina.getByTestId("topo-chamada-contagem")).toHaveText("1");
+});
+
+test("a janela estreita vira linhas com miniatura; entrar de outra janela substitui a antiga", async ({
+  mesa,
+}) => {
+  const { m, a } = await tresNaChamada(mesa);
+  // a janela estreita entra sozinha abaixo de ~560 px
+  await a.janela.setViewportSize({ width: 420, height: 640 });
+  await expect(a.janela.getByTestId("chamada-janela")).toHaveAttribute("data-estreita", "true");
+  await expect(a.janela.getByTestId("chamada-linhas")).toBeVisible();
+  await expect(a.janela.getByTestId("chamada-abrir-grande")).toBeVisible();
+  await a.janela.setViewportSize({ width: 1100, height: 720 });
+  await expect(a.janela.getByTestId("chamada-janela")).toHaveAttribute("data-estreita", "false");
+
+  // a janela da chamada segue o tema da mesa, ao vivo (sem seletor de tema dentro dela)
+  await abrirPreferencia(m.mesa.pagina, "aparencia");
+  await m.mesa.pagina.getByTestId("tema-claro").click();
+  await expect(m.janela.locator("html")).toHaveAttribute("data-tema", "claro");
+  await expect(m.janela.getByTestId("chamada-grade")).toHaveCount(0);
+  await expect(m.janela.getByTestId("chamada-palco")).toHaveCount(0);
+
+  // a mesma pessoa entra por outra janela (outro contexto com a mesma conta): a antiga sai e avisa
+  const outra = await mesa.abrir();
+  await outra.pagina.goto(`${CAMINHO_DA_MESA}/chamada`);
+  await outra.pagina.getByTestId("entrar-jogador-1").click();
+  await expect(outra.pagina.getByTestId("chamada-antes")).toBeVisible();
+  await outra.pagina.getByTestId("chamada-entrar").click();
+  await expect(a.janela.getByTestId("chamada-substituida")).toContainText("outra janela");
+  await expect(m.janela.getByTestId("chamada-resumo")).toContainText("3 pessoas");
+});
+
+test("quem não é da mesa não recebe nada, e o aperto de mão só vai a quem está na chamada", async ({
+  mesa,
+}) => {
+  const { m } = await tresNaChamada(mesa);
+  // um membro que não entrou na chamada vê só a lista de quem está (nunca o aperto de mão)
+  const fora = await entrarNoMapa(mesa, "jogador-3");
+  await expect(fora.pagina.getByTestId("topo-chamada-contagem")).toHaveText("3");
+  await expect(fora.pagina.getByTestId("presenca-chamada-mestre")).toBeVisible();
+  expect(fora.frames.some((f) => f.includes('"tipo":"chamada.sinal"'))).toBe(false);
+  expect(fora.frames.some((f) => f.includes('"tipo":"chamada.quem"'))).toBe(true);
+
+  // quem manda sinal sem estar na chamada é barrado
+  const cru = await fora.pagina.evaluate(
+    ({ mesaId, alvo }) =>
+      new Promise<string>((resolver) => {
+        const ws = new WebSocket(`${location.origin.replace("http", "ws")}/api/m/${mesaId}/ws`);
+        const tempo = setTimeout(() => resolver("sem resposta"), 4000);
+        ws.addEventListener("open", () =>
+          ws.send(
+            JSON.stringify({
+              v: 1,
+              id: "x1",
+              tipo: "chamada.sinal",
+              dados: { para: alvo, descricao: { tipo: "offer", sdp: "v=0" } },
+            }),
+          ),
+        );
+        ws.addEventListener("message", (e) => {
+          if (typeof e.data === "string" && e.data.includes('"tipo":"erro"')) {
+            clearTimeout(tempo);
+            resolver(e.data);
+            ws.close();
+          }
+        });
+      }),
+    { mesaId: ID_DA_MESA, alvo: "mestre" },
+  );
+  expect(cru).toContain("fora_da_chamada");
+
+  // sem sessão nenhuma (nem cookie), a sala nem abre o socket
+  const anonimo = await mesa.abrir();
+  await anonimo.pagina.goto(CAMINHO_DA_MESA);
+  const abriu = await anonimo.pagina.evaluate(
+    (mesaId) =>
+      new Promise<string>((resolver) => {
+        const ws = new WebSocket(`${location.origin.replace("http", "ws")}/api/m/${mesaId}/ws`);
+        ws.addEventListener("open", () => resolver("abriu"));
+        ws.addEventListener("error", () => resolver("recusou"));
+        ws.addEventListener("close", () => resolver("recusou"));
+      }),
+    ID_DA_MESA,
+  );
+  expect(abriu).toBe("recusou");
+  await expect(m.janela.getByTestId("chamada-resumo")).toContainText("3 pessoas");
+});

@@ -49,6 +49,7 @@ function useModulo<M>(p: Pedaco<M>): M | null {
 }
 
 const pedacoDaEntrada = pedaco(() => import("./contas/EntradaDaMesa"));
+const pedacoDaChamada = pedaco(() => import("./chamada/ChamadaEmJanelaPropria"));
 const pedacoDaFicha = pedaco(() => import("./ficha/FichaEmJanelaPropria"));
 const pedacoDaMesa = pedaco(() => import("./Mesa"));
 const pedacoDoSom = pedaco(() => import("./som/SomEmJanelaPropria"));
@@ -68,7 +69,15 @@ function adiantarRota(rota: Rota): void {
   }
   if (!rota.id) return;
   void pedacoDaEntrada.baixar();
-  void (rota.painel === "som" ? pedacoDoSom : rota.fichaId ? pedacoDaFicha : pedacoDaMesa).baixar();
+  void (
+    rota.painel === "som"
+      ? pedacoDoSom
+      : rota.painel === "chamada"
+        ? pedacoDaChamada
+        : rota.fichaId
+          ? pedacoDaFicha
+          : pedacoDaMesa
+  ).baixar();
 }
 
 // Já na avaliação do módulo, sem esperar o primeiro render (o `main.tsx` o segura até as fontes chegarem): o pedaço
@@ -89,7 +98,7 @@ function MesaEncontrada({
 }: {
   mesa: DadosDaMesa;
   fichaId?: string | undefined;
-  painel?: "som" | undefined;
+  painel?: "som" | "chamada" | undefined;
   aoRenomear: (n: string) => void;
 }) {
   // `undefined` = ainda perguntando à sala; `null` = ninguém entrou nesta mesa.
@@ -117,6 +126,15 @@ function MesaEncontrada({
     return (
       <ComPedaco key="entrada" de={pedacoDaEntrada}>
         {(m) => <m.EntradaDaMesa mesa={mesa} aoEntrar={setUsuario} />}
+      </ComPedaco>
+    );
+  }
+  if (painel === "chamada") {
+    return (
+      <ComPedaco key="chamada" de={pedacoDaChamada}>
+        {(m) => (
+          <m.ChamadaEmJanelaPropria key={usuario.id} mesa={mesa} aoPerderSessao={aoPerderSessao} />
+        )}
       </ComPedaco>
     );
   }
@@ -193,7 +211,7 @@ function RotaDaMesa({
   id: string | null;
   bruto: string;
   fichaId?: string | undefined;
-  painel?: "som" | undefined;
+  painel?: "som" | "chamada" | undefined;
 }) {
   // `undefined`: consultando; `null`: não existe.
   const [mesa, setMesa] = useState<DadosDaMesa | null | undefined>(undefined);

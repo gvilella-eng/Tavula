@@ -5,6 +5,7 @@ export * from "./automacoesnucleo.ts";
 export * from "./bordas.ts";
 export * from "./buscaDoCompendio.ts";
 export * from "./capacidades.ts";
+export * from "./chamada.ts";
 export * from "./chat.ts";
 export * from "./cifra.ts";
 export * from "./claude.ts";

@@ -10,6 +10,7 @@ import {
   LIMITES_DO_CHAT,
   lerMensagemDaSala,
   type MensagemDaSala,
+  type ParticipanteDaChamada,
   type PingRepassado,
   type Presenca,
   reduzir,
@@ -45,6 +46,21 @@ export type Ocorrencia =
   /** N5: os sons de zona que este jogador ouve agora (a lista vazia manda parar); só o jogador os recebe. */
   | { tipo: "somDaZona"; sons: SomTocando[] }
   | { tipo: "conectado" }
+  /** CH1: um sinal do aperto de mão da chamada, alguém me chamou e esta janela foi substituída por outra. */
+  | {
+      tipo: "chamadaSinal";
+      de: string;
+      descricao?: { tipo: "offer" | "answer"; sdp: string } | undefined;
+      candidato?:
+        | {
+            candidate: string;
+            sdpMid?: string | null | undefined;
+            sdpMLineIndex?: number | null | undefined;
+          }
+        | undefined;
+    }
+  | { tipo: "chamadaChamando"; de: string }
+  | { tipo: "chamadaSubstituida" }
   /** Vaivém de arquivos: `asset.meta`, `asset.enviar`, `asset.indisponivel` e o pré-envio (`preparo.*`). */
   | { tipo: "asset"; mensagem: MensagemDaSala }
   /** Frame binário (pedaço de arquivo repassado pela sala). */
@@ -92,7 +108,10 @@ const RECUSAS_QUE_SE_VEEM = new Set<CodigoDeErro>([
   "sem_permissao",
   "token_inexistente",
 ]);
+/** CH1: o aperto de mão com quem acabou de sair da chamada falha em silêncio (a janela já mostra que a pessoa saiu). */
+const PEDIDOS_DA_CHAMADA_EM_SILENCIO = new Set(["chamada.sinal", "chamada.estado"]);
 export function recusaSilenciosa(tipoDoPedido: string | undefined, codigo: CodigoDeErro): boolean {
+  if (tipoDoPedido !== undefined && PEDIDOS_DA_CHAMADA_EM_SILENCIO.has(tipoDoPedido)) return true;
   return (
     tipoDoPedido !== undefined &&
     PEDIDOS_DE_MOVER.has(tipoDoPedido) &&
@@ -154,6 +173,8 @@ export function useSala(opcoes: Opcoes) {
   const [usuarioId, setUsuarioId] = useState<string | null>(null);
   const [presenca, setPresenca] = useState<Record<string, Presenca>>({});
   // 12-1: quem tem o Claude conectado (uma marca na bolinha) e os lotes do Claude deste usuário.
+  // CH1: quem está na chamada da mesa (a sala manda a todos; transitório, nunca vai ao estado guardado).
+  const [participantesDaChamada, setParticipantesDaChamada] = useState<ParticipanteDaChamada[]>([]);
   const [claudeConectado, setClaudeConectado] = useState<string[]>([]);
   const [lotesDoClaude, setLotesDoClaude] = useState<LoteDoClaude[]>([]);
   const [uso, setUso] = useState<Uso | null>(null);
@@ -255,6 +276,23 @@ export function useSala(opcoes: Opcoes) {
           break;
         case "mapa.pingado":
           emitir({ tipo: "ping", ping: m.dados });
+          break;
+        case "chamada.quem":
+          setParticipantesDaChamada(m.dados.participantes);
+          break;
+        case "chamada.sinal":
+          emitir({
+            tipo: "chamadaSinal",
+            de: m.dados.de,
+            descricao: m.dados.descricao,
+            candidato: m.dados.candidato,
+          });
+          break;
+        case "chamada.chamando":
+          emitir({ tipo: "chamadaChamando", de: m.dados.de });
+          break;
+        case "chamada.substituida":
+          emitir({ tipo: "chamadaSubstituida" });
           break;
         case "presenca":
           setPresenca(m.dados.usuarios);
@@ -405,7 +443,7 @@ export function useSala(opcoes: Opcoes) {
       const primeira = guardadas.keys().next();
       if (!primeira.done) guardadas.delete(primeira.value);
     }
-    if (PEDIDOS_DE_MOVER.has(tipo)) {
+    if (PEDIDOS_DE_MOVER.has(tipo) || PEDIDOS_DA_CHAMADA_EM_SILENCIO.has(tipo)) {
       const tipos = tiposDosPedidos.current;
       tipos.set(id, tipo);
       if (tipos.size > 128) {
@@ -440,6 +478,7 @@ export function useSala(opcoes: Opcoes) {
     estado,
     eu,
     presenca,
+    participantesDaChamada,
     uso,
     aviso,
     avisar,

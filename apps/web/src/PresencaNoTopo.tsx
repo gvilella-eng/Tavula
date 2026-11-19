@@ -1,5 +1,5 @@
 import type { Presenca, Usuario } from "@tabletop/shared";
-import { Bot } from "lucide-react";
+import { Bot, Video } from "lucide-react";
 import { useId, useRef, useState } from "react";
 import { iniciais } from "./Avatar";
 import { BotaoComDica } from "./BotaoComDica";
@@ -12,6 +12,9 @@ type Props = {
   euId: string;
   /** 12-1: quem tem o Claude conectado (uma marca pequena na bolinha; o Claude nunca vira outra pessoa aqui). */
   claude?: readonly string[];
+  /** CH1: quem está na chamada da mesa (um ícone pequeno no avatar) e quem fala agora (o anel verde, vindo da janela da chamada). */
+  naChamada?: readonly string[];
+  falandoNaChamada?: ReadonlySet<string>;
 };
 
 const ROTULO: Record<Presenca, string> = {
@@ -29,12 +32,16 @@ function Item({
   euId,
   naLista,
   comClaude,
+  naChamada,
+  falando,
 }: {
   u: Usuario;
   estado: Presenca;
   euId: string;
   naLista?: boolean;
   comClaude?: boolean;
+  naChamada?: boolean;
+  falando?: boolean;
 }) {
   const dica = `${u.nome} (${u.papel})${u.id === euId ? " — você" : ""}: ${ROTULO[estado]}${comClaude ? " · Claude conectado" : ""}`;
   return (
@@ -43,12 +50,24 @@ function Item({
       data-testid={`presenca-${u.id}`}
       data-estado={estado}
       data-claude={comClaude ? "sim" : undefined}
+      data-na-chamada={naChamada ? "sim" : undefined}
+      data-falando={falando ? "sim" : undefined}
       // Na lista o nome está à vista; só os avatares de iniciais precisam do nome e do estado.
       title={naLista ? undefined : dica}
     >
       <span className="avatar" style={{ background: u.cor, color: corDoTextoSobre(u.cor) }}>
         {iniciais(u.nome)}
         <span className="ponto-estado" aria-hidden="true" />
+        {naChamada && (
+          <span
+            className="marca-chamada"
+            data-testid={`presenca-chamada-${u.id}`}
+            title="Na chamada"
+          >
+            <Video size={9} aria-hidden="true" />
+            <span className="so-leitor">Na chamada</span>
+          </span>
+        )}
         {comClaude && (
           <span
             className="marca-claude"
@@ -81,7 +100,14 @@ function Item({
  * Quem está na mesa, como avatares no topo (nome e estado na dica; offline esmaecido). Com mais de
  * {VISIVEIS} pessoas, aparecem os que estão online primeiro e um "+N" abre a lista dos outros.
  */
-export function PresencaNoTopo({ usuarios, presenca, euId, claude = [] }: Props) {
+export function PresencaNoTopo({
+  usuarios,
+  presenca,
+  euId,
+  claude = [],
+  naChamada = [],
+  falandoNaChamada,
+}: Props) {
   const [aberta, setAberta] = useState(false);
   const idDaLista = useId();
   const ref = useRef<HTMLDivElement>(null);
@@ -113,6 +139,8 @@ export function PresencaNoTopo({ usuarios, presenca, euId, claude = [] }: Props)
             estado={estadoDe(u)}
             euId={euId}
             comClaude={claude.includes(u.id)}
+            naChamada={naChamada.includes(u.id)}
+            falando={falandoNaChamada?.has(u.id) === true}
           />
         ))}
       </ul>
@@ -146,6 +174,8 @@ export function PresencaNoTopo({ usuarios, presenca, euId, claude = [] }: Props)
                 euId={euId}
                 naLista
                 comClaude={claude.includes(u.id)}
+                naChamada={naChamada.includes(u.id)}
+                falando={falandoNaChamada?.has(u.id) === true}
               />
             ))}
           </ul>

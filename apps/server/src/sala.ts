@@ -1,6 +1,7 @@
 import { DurableObject } from "cloudflare:workers";
 import {
   assetVisivelPara,
+  type BaldeDeSinais,
   type BaldeDoClaude,
   botaoDentroDoLimite,
   type CodigoDeErro,
@@ -19,21 +20,26 @@ import {
   CorpoTrocarSenhaSchema,
   calcularUso,
   caminhoDoLinkDeEnvio,
+  chamadoDentroDoLimite,
   derivarMembros,
   desenhoVisivelPara,
   desfazerPassos,
+  destinoDoSinal,
   detectarFormato,
   diaUtc,
   diffDoEstado,
+  type EntradaNaChamada,
   type EnvioPendente,
   type Estado,
   type EventoSala,
+  entrarNaChamada,
   estadoInicial,
   eventoPara,
   FORMATO_DO_SEGREDO_DE_ENVIO,
   type FonteDeAleatoriedade,
   fonteComSemente,
   gastarFicha,
+  gastarSinal,
   INTERVALO_MINIMO_DO_BOTAO_MS,
   type Intencao,
   idDoPedido,
@@ -49,6 +55,7 @@ import {
   mensagemDeErroDeConta,
   mensagemParaUsuario,
   motivoDoFormato,
+  mudarEstadoNaChamada,
   nomeDeExibicaoValido,
   novoSegredoDeEnvio,
   type Pacote,
@@ -59,6 +66,7 @@ import {
   pausarSeSemMestre,
   pingVisivelPara,
   planejarAceite,
+  podeChamar,
   processar,
   processarSistema,
   proximoIdDeJogador,
@@ -77,6 +85,7 @@ import {
   type Usuario,
   usoDoArquivo,
   VERSAO_PROTOCOLO,
+  visaoDaChamada,
   visaoPara,
 } from "@tabletop/shared";
 import {
@@ -163,6 +172,13 @@ type Identidade = {
   claude?: true;
   /** 12-1: o token do Claude que abriu a conexão (revogá-lo derruba o socket). */
   tokenId?: string;
+  /** CH1: esta conexão (a janela da chamada) está na chamada: o estado dela e quando entrou. Sobrevive à hibernação. */
+  chamada?: EstadoGuardadoDaChamada;
+};
+
+/** CH1: o que o socket da janela da chamada guarda (o `usuarioId` e a `conexaoId` já estão na identidade). */
+type EstadoGuardadoDaChamada = Omit<EntradaNaChamada, "conexaoId" | "usuarioId"> & {
+  desdeMs: number;
 };
 
 /** Cache de UMA rodada síncrona de snapshots (nada é gravado no meio): nunca sobrevive à rodada. */
@@ -289,6 +305,9 @@ export class Sala extends DurableObject<Env> {
   private readonly rascunhos = new Map<WebSocket, Map<string, string>>();
   /** V12: o último ping e a última centralização de cada usuário (só memória; o limite de frequência). */
   private readonly ultimoPing = new Map<string, UltimoPing>();
+  /** CH1: o limite de frequência da sinalização, por socket, e o último chamado de cada par (só memória). */
+  private readonly baldeDaChamada = new WeakMap<WebSocket, BaldeDeSinais>();
+  private readonly ultimoChamado = new Map<string, number>();
   /** 7b-3: quando cada jogador usou um botão liberado pela última vez (só memória; o limite de frequência). */
   private readonly ultimoBotao = new Map<string, number>();
   /** 12-1: o balde de fichas de cada token do Claude (o limite de frequência; só memória). */
@@ -1121,6 +1140,7 @@ export class Sala extends DurableObject<Env> {
     // Com MODO=teste, entrar pelo cookie solto (sem passar por /api/entrar) também torna a vaga membro.
     if (!quem.conta && this.marcarPresenteDeTeste(usuario.id)) this.difundirSnapshots();
     this.enviarSnapshot(servidor, usuario);
+    this.enviar(servidor, this.textoDaChamada());
     this.avisarPreparoA(servidor, usuario);
     if (usuario.papel === "mestre") {
       this.enviarProgresso();
@@ -1963,6 +1983,11 @@ export class Sala extends DurableObject<Env> {
       }
     }
 
+    // CH1: a chamada da mesa: depende do socket da janela dela; nada passa por `processar` nem grava.
+    if (intencao.tipo.startsWith("chamada.")) {
+      return this.tratarChamada(rem, intencao);
+    }
+
     // 12-1: desfazer um lote do Claude do próprio usuário (a sala guarda o diário; nada passa por `processar`).
     if (intencao.tipo === "claude.desfazer") {
       return this.desfazerLote(usuario, intencao.id, intencao.dados.loteId);
@@ -2145,6 +2170,8 @@ export class Sala extends DurableObject<Env> {
     const identidade = this.identidadeDe(ws);
     if (!identidade) return;
     this.baldes.delete(identidade.tokenId ?? "");
+    // CH1: fechou o socket da janela da chamada = saiu da chamada (os outros ficam sabendo).
+    if (identidade.chamada) this.difundirChamada(ws);
     // A conexão do Claude não conta como presença: só some a marca "Claude conectado".
     if (identidade.claude) {
       this.difundirPresenca(ws);
@@ -2816,6 +2843,177 @@ export class Sala extends DurableObject<Env> {
       if (usuario && desenhoVisivelPara(cenaId, usuario, this.estado.cenaAtivaId)) {
         this.enviar(ws, texto);
       }
+    }
+  }
+
+  // --- A chamada da mesa (CH1) ----------------------------------------------------------------
+
+  /**
+   * Quem está na chamada agora, na ordem de entrada. O estado mora no `serializeAttachment` do socket da janela da
+   * chamada (sobrevive à hibernação); socket fechado = saiu. Nada disto vai ao estado, ao banco ou à exportação.
+   */
+  private entradasDaChamada(
+    ignorar?: WebSocket,
+  ): Array<EntradaNaChamada & { ws: WebSocket; desdeMs: number }> {
+    const lista: Array<EntradaNaChamada & { ws: WebSocket; desdeMs: number }> = [];
+    for (const ws of this.ctx.getWebSockets()) {
+      if (ws === ignorar) continue;
+      const id = this.identidadeDe(ws);
+      if (!id?.chamada || id.claude) continue;
+      lista.push({ ...id.chamada, usuarioId: id.usuarioId, conexaoId: id.conexaoId, ws });
+    }
+    return lista.sort((a, b) => a.desdeMs - b.desdeMs);
+  }
+
+  private textoDaChamada(ignorar?: WebSocket): string {
+    return mensagem({
+      tipo: "chamada.quem",
+      dados: { participantes: visaoDaChamada(this.entradasDaChamada(ignorar)) },
+    });
+  }
+
+  /** Quem está na chamada, a todo navegador conectado (a mesa mostra quem está; o Claude não recebe). */
+  private difundirChamada(ignorar?: WebSocket): void {
+    const texto = this.textoDaChamada(ignorar);
+    for (const ws of this.ctx.getWebSockets()) {
+      if (ws === ignorar || this.identidadeDe(ws)?.claude) continue;
+      this.enviar(ws, texto);
+    }
+  }
+
+  /** Grava (ou tira) a participação no socket, no cache e no attachment. */
+  private guardarChamada(ws: WebSocket, estado: EstadoGuardadoDaChamada | null): void {
+    const atual = this.identidadeDe(ws);
+    if (!atual) return;
+    const { chamada: _antes, ...resto } = atual;
+    const nova: Identidade = estado ? { ...resto, chamada: estado } : resto;
+    try {
+      ws.serializeAttachment(nova);
+    } catch {
+      // socket já fechando: o webSocketClose cuida
+    }
+    this.identidades.set(ws, nova);
+  }
+
+  /**
+   * `chamada.*`: entrar, mudar o estado, sair, repassar o aperto de mão e chamar. A sala carimba o `de` (nunca confia no
+   * cliente), só repassa entre membros que estão na chamada, limita a frequência e responde erro curto.
+   */
+  private tratarChamada(rem: Remetente, intencao: Intencao): Tratada {
+    const { ws, usuario } = rem;
+    const recusa = (codigo: CodigoDeErro, texto: string): Tratada => ({
+      ok: false,
+      codigo,
+      mensagem: texto,
+    });
+    const identidade = ws ? this.identidadeDe(ws) : null;
+    if (!ws || !identidade || rem.claude) {
+      return recusa("sem_permissao", "A chamada só vale pela janela da chamada da mesa.");
+    }
+    const agora = Date.now();
+    const gasto = gastarSinal(this.baldeDaChamada.get(ws), agora);
+    this.baldeDaChamada.set(ws, gasto.balde);
+    if (!gasto.ok) return recusa("muitas_mensagens", "Devagar: muitos sinais da chamada.");
+
+    const entradas = this.entradasDaChamada();
+    switch (intencao.tipo) {
+      case "chamada.entrar": {
+        const membro = this.membrosIds().includes(usuario.id);
+        const r = entrarNaChamada(
+          entradas,
+          { usuarioId: usuario.id, conexaoId: identidade.conexaoId, membro },
+          intencao.dados,
+        );
+        if (r.erro) return recusa(r.erro.codigo, r.erro.mensagem);
+        const minha = r.entradas.find((e) => e.conexaoId === identidade.conexaoId);
+        if (!minha) return recusa("dados_invalidos", "Não foi possível entrar na chamada.");
+        const desdeMs =
+          entradas.find((e) => e.conexaoId === identidade.conexaoId)?.desdeMs ?? agora;
+        // A janela antiga da mesma pessoa sai e é avisada.
+        for (const antiga of entradas.filter((e) => r.substituidas.includes(e.conexaoId))) {
+          this.guardarChamada(antiga.ws, null);
+          this.enviar(antiga.ws, mensagem({ tipo: "chamada.substituida", dados: {} }));
+        }
+        this.guardarChamada(ws, {
+          microfone: minha.microfone,
+          camera: minha.camera,
+          fundo: minha.fundo,
+          surdo: minha.surdo,
+          soOuvindo: minha.soOuvindo,
+          desdeMs,
+        });
+        this.difundirChamada();
+        return { ok: true };
+      }
+      case "chamada.estado": {
+        const r = mudarEstadoNaChamada(entradas, identidade.conexaoId, intencao.dados);
+        if (r.erro) return recusa(r.erro.codigo, r.erro.mensagem);
+        const minha = r.entradas.find((e) => e.conexaoId === identidade.conexaoId);
+        const antes = identidade.chamada;
+        if (!minha || !antes) return recusa("fora_da_chamada", "Você não está na chamada.");
+        this.guardarChamada(ws, {
+          microfone: minha.microfone,
+          camera: minha.camera,
+          fundo: minha.fundo,
+          surdo: minha.surdo,
+          soOuvindo: minha.soOuvindo,
+          desdeMs: antes.desdeMs,
+        });
+        this.difundirChamada();
+        return { ok: true };
+      }
+      case "chamada.sair": {
+        if (!identidade.chamada) return { ok: true };
+        this.guardarChamada(ws, null);
+        this.difundirChamada();
+        return { ok: true };
+      }
+      case "chamada.sinal": {
+        const r = destinoDoSinal(
+          entradas,
+          { conexaoId: identidade.conexaoId },
+          intencao.dados.para,
+        );
+        if (r.erro) return recusa(r.erro.codigo, r.erro.mensagem);
+        const alvo = entradas.find((e) => e.conexaoId === r.destino.conexaoId);
+        if (!alvo) return recusa("fora_da_chamada", "Essa pessoa não está na chamada.");
+        this.enviar(
+          alvo.ws,
+          mensagem({
+            tipo: "chamada.sinal",
+            dados: {
+              de: r.origem.usuarioId,
+              ...(intencao.dados.descricao ? { descricao: intencao.dados.descricao } : {}),
+              ...(intencao.dados.candidato ? { candidato: intencao.dados.candidato } : {}),
+            },
+          }),
+        );
+        return { ok: true };
+      }
+      case "chamada.chamar": {
+        const alvoId = intencao.dados.para;
+        const membro = this.membrosIds().includes(alvoId);
+        const r = podeChamar(
+          entradas,
+          { conexaoId: identidade.conexaoId },
+          { usuarioId: alvoId, membro },
+        );
+        if (r.erro) return recusa(r.erro.codigo, r.erro.mensagem);
+        const chave = `${usuario.id}>${alvoId}`;
+        if (!chamadoDentroDoLimite(this.ultimoChamado.get(chave), agora)) {
+          return recusa("muitas_mensagens", "Você acabou de chamar essa pessoa. Espere um pouco.");
+        }
+        if (this.ultimoChamado.size > 200) this.ultimoChamado.clear();
+        this.ultimoChamado.set(chave, agora);
+        const texto = mensagem({ tipo: "chamada.chamando", dados: { de: usuario.id } });
+        for (const outro of this.ctx.getWebSockets()) {
+          const id = this.identidadeDe(outro);
+          if (id && !id.claude && !id.chamada && id.usuarioId === alvoId) this.enviar(outro, texto);
+        }
+        return { ok: true };
+      }
+      default:
+        return recusa("mensagem_invalida", "Intenção da chamada desconhecida.");
     }
   }
 

@@ -170,3 +170,12 @@ dados mudam de forma).
 
 As notas ficam só no computador do mestre, em `privado/notas/campanha.md` (a pasta `privado/` não entra no
 git).
+
+## Depois da chamada da mesa (CH1, 2026-11-19)
+
+- **Transcrição da chamada com Whisper** (lote seguinte, já pedido): rodar no computador de cada pessoa (nada sai dele), com consentimento claro na entrada; o texto vira notas da sessão. **Neste lote nada é gravado**, nem áudio nem texto.
+- **Trilha da mesa com playlist**: o quadro "Trilha da mesa" hoje só mostra o que toca; pausar, próxima faixa e playlist ficam para o lote da trilha (o desenho já prevê os botões).
+- **Compartilhar tela** na chamada fica de fora por ora (o mapa já é compartilhado pela própria mesa).
+- **Mais de 8 pessoas** pediria um servidor de mídia (SFU) em vez da malha ponto a ponto; só vale a pena se a mesa crescer.
+- **Servidor TURN próprio** para jogar pela internet atrás de roteadores difíceis (STUN/TURN já são configuráveis por `VITE_CHAMADA_ICE_SERVERS`).
+- **Desfoque com imagem de fundo** (trocar o fundo por uma imagem da cena) usa a mesma segmentação.

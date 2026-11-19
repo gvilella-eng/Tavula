@@ -715,3 +715,20 @@ Com o Claude conectado a uma mesa de teste (não a da campanha):
 3. **Inata.** Num NPC com uma magia "1/dia cada", peça para conjurar duas vezes: a segunda é recusada.
 4. **Ficha.** Peça "ponha 300 de XP, inspiração e PV temporários 5 na Thara"; confira na ficha.
 5. **Token.** Peça "o token da Brisa é controlado pela Ana, com borda azul e barra de vida"; a Ana move o token.
+
+## CH1 — a chamada da mesa (voz e vídeo, com fundo desfocado)
+
+Precisa de câmera e microfone (ou os falsos do Chrome) e de duas pessoas de verdade, ou de uma janela anônima como jogador. Tudo em `localhost` (a câmera só funciona fora dele com HTTPS).
+1. **Abrir.** Na mesa, o botão de vídeo no topo ("Chamada") abre uma janela só da chamada, do tamanho de 1100×720 (a próxima vez ela lembra o seu tamanho e posição). O pop-up bloqueado mostra o aviso para liberar as janelas.
+2. **Antes de entrar.** A câmera aparece grande; ligue e desligue o microfone e a câmera (sem a câmera aparece a sua inicial); o nível do microfone se mexe quando você fala; escolha "Desfocar" e "Desfocar forte" e veja o fundo borrar com você nítido; troque câmera, microfone e saída de som; marque "Entrar com o microfone desligado". Quem já está na chamada aparece embaixo.
+3. **Dois lados.** Numa janela anônima do mesmo navegador (ou em outro computador na mesma rede), entre como jogador na mesma mesa e abra a chamada. Entre nas duas. Cada uma vê os dois quadros e **ouve a outra** (fale e confira o anel verde em quem fala). Um som curto avisa quando alguém entra e quando sai (dá para desligar em "Câmera, microfone e som").
+4. **Microfone, câmera e fundo.** Desligue o microfone numa janela: a outra mostra o ícone riscado no quadro e na lista. Desligue a câmera: vira a inicial na cor da pessoa. Ligue o desfoque: a outra vê o selo "Fundo desfocado" e o fundo borrado de verdade. As teclas **M**, **V** e **B** fazem o mesmo (só dentro da janela da chamada; nada acontece se estiver digitando).
+5. **Tema.** Troque o tema na mesa (Preferências, Aparência): a janela da chamada o acompanha ao vivo. Ela não tem seletor de tema. Clicar num quadro não faz nada; a lista de pessoas esconde e mostra pelo botão do topo.
+6. **Volume por pessoa.** Na lista, clique numa pessoa: o volume vai de 0 a 200% e "Silenciar só para mim" a cala só para você. Feche e abra a janela: o volume e o silêncio continuam (lembrados por mesa e pessoa neste navegador).
+7. **Parar de ouvir.** O botão do fone silencia todos para você e o seu microfone para os outros; o ícone aparece no seu quadro.
+8. **Janela estreita.** Encolha a janela para menos de ~560 px de largura: vira linhas com miniatura, nome, personagem, "falando" e a trilha numa linha, com os mesmos botões em ícones. "Abrir em tamanho grande" a alarga. No Chrome ou no Edge, "Flutuar por cima" leva a chamada para uma janela que fica sobre todas as outras (o botão some onde não há suporte).
+9. **Trilha da mesa.** O mestre liga um ambiente na mesa de som: o quadro "Trilha da mesa" mostra o nome e o equalizador para todos; o mestre tem "Abrir a mesa de som".
+10. **Chamar.** Com você na chamada e outra pessoa na mesa, fora dela, a lista mostra "Chamar"; a pessoa recebe na mesa o aviso "… está chamando para a chamada" com "Entrar".
+11. **Substituir.** Entre pela mesma conta numa segunda janela: a primeira mostra "Você entrou na chamada por outra janela" e "Entrar de novo".
+12. **Sair.** "Sair" volta para "antes de entrar" ("Entrar de novo"). Fechar a janela também sai: o quadro some nos outros e a contagem do botão do topo cai. Na mesa, o botão do topo mostra quantos estão na chamada e a presença ganha um ícone verde em quem está.
+13. **Cheia.** Com 8 pessoas na chamada, a 9ª vê "A chamada está cheia (8)" (só dá para testar com 8 janelas; está coberto por teste de unidade).

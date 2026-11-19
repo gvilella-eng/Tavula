@@ -31,6 +31,8 @@ const via = (ferramenta: string, acao: string, detalhe?: string): Alvo => ({
 });
 const fora = (categoria: CategoriaFora, motivo: string): Fora => ({ fora: categoria, motivo });
 
+const POR_PESSOA_NA_CHAMADA =
+  "A chamada de voz e vídeo precisa da câmera e do microfone de uma pessoa, na janela dela.";
 const POR_ARQUIVOS = "O arquivo entra pela ferramenta `arquivos` (a caixa de entrada da mesa).";
 
 export const PARIDADE_COM_O_MCP: Record<TipoIntencao, EntradaDeParidade> = {
@@ -56,6 +58,14 @@ export const PARIDADE_COM_O_MCP: Record<TipoIntencao, EntradaDeParidade> = {
 
   // --- gestos ao vivo ---
   "mapa.ping": fora("gesto ao vivo", "Um ping é um gesto da tela, efêmero."),
+  "chamada.entrar": fora("gesto ao vivo", POR_PESSOA_NA_CHAMADA),
+  "chamada.estado": fora("gesto ao vivo", POR_PESSOA_NA_CHAMADA),
+  "chamada.sair": fora("gesto ao vivo", POR_PESSOA_NA_CHAMADA),
+  "chamada.chamar": fora("gesto ao vivo", POR_PESSOA_NA_CHAMADA),
+  "chamada.sinal": fora(
+    "transporte",
+    "O aperto de mão do WebRTC entre dois navegadores; a sala só repassa e esquece.",
+  ),
   "desenho.rascunho": fora(
     "gesto ao vivo",
     "O traço em andamento do pincel; o Claude desenha o desenho pronto.",
