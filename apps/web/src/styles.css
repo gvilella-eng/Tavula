@@ -1090,10 +1090,42 @@ button[aria-disabled="true"]:hover {
 .campo-coluna select {
   color: var(--texto);
 }
-.linha-par {
+/* A1: campos lado a lado alinham rótulo, caixa e ajuda. A linha do par tem 3 trilhas (rótulo, caixa, ajuda);
+   cada campo vira um subgrid que ocupa as 3, então o rótulo mais alto define a linha dos rótulos e as caixas
+   ficam na mesma altura, mesmo quando um rótulo quebra em duas linhas. */
+.linha-par,
+.linha-da-fase,
+.inicio-grade-de-campos {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 8px;
+  column-gap: 8px;
+  row-gap: 0;
+}
+.linha-par > .campo-coluna,
+.linha-par > label:not(.linha-opcao),
+.linha-da-fase > .campo-coluna {
+  display: grid;
+  grid-row: span 3;
+  grid-template-rows: subgrid;
+  row-gap: 2px;
+  align-content: start;
+  min-width: 0;
+}
+.linha-par > .campo-coluna > :where(input, select, textarea):not([type="checkbox"], [type="color"]),
+.linha-par
+  > label:not(.linha-opcao)
+  > :where(input, select, textarea):not([type="checkbox"], [type="color"]),
+.linha-da-fase > .campo-coluna > :where(input, select, textarea) {
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+.linha-par > .linha-opcao {
+  grid-row: 2;
+  align-self: center;
+}
+.linha-da-fase > button.botao-icone {
+  grid-row: 2;
 }
 .valor-leitura {
   color: var(--texto);
@@ -2382,8 +2414,7 @@ button[aria-disabled="true"]:hover {
   flex-direction: column;
   gap: 8px;
 }
-.secao-mesa label.campo-coluna,
-.secao-objetos label.campo-coluna {
+:where(.secao-mesa, .secao-objetos) label.campo-coluna {
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -4657,6 +4688,14 @@ kbd {
   flex-direction: column;
   gap: 3px;
 }
+/* A1: na grade de 2 colunas, rótulo e caixa de cada conta ficam em linhas comuns (subgrid) */
+.inicio-grade-de-campos > .campo-de-conta {
+  display: grid;
+  grid-row: span 2;
+  grid-template-rows: subgrid;
+  row-gap: 3px;
+  align-content: start;
+}
 .campo-de-conta label {
   font-size: 12px;
   color: var(--texto-suave);
@@ -5145,9 +5184,9 @@ button.inicio-botao-largo {
   border-color: var(--acento);
 }
 .inicio-grade-de-campos {
-  display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px 12px;
+  column-gap: 12px;
+  row-gap: 10px;
 }
 .inicio-grade-de-campos .inteira {
   grid-column: 1 / -1;
@@ -5438,9 +5477,8 @@ button.inicio-botao-largo {
   margin: 4px 0;
 }
 .linha-da-fase {
-  display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) minmax(0, 1fr) auto;
-  gap: 6px;
+  column-gap: 6px;
   align-items: start;
 }
 .linha-da-peca {

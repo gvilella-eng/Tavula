@@ -1153,3 +1153,8 @@ Continua em aberto, por ser decisão e não erro de doc: `ficha.verOutras` (seç
 - `ALTURA_NATURAL_DO_CORPO` (modoDoSom.ts) ainda vale 190 px: a seção Música cabe nela (conferido em `som-q4b.spec.ts`).
 
 **Suposições**: ver `docs/REDESIGN.md`, "MU1 — como ficou".
+
+## A1 (2026-11-19): campos lado a lado alinhados
+- Regra de interface: campos lado a lado alinham rótulo, caixa e ajuda. Está em `styles.css`, junto de `.linha-par` (subgrid de 3 trilhas). Campo novo em par: use `Campo`/`CampoDeDistancia`/`CampoDecimal` (`label.campo-coluna`) dentro de `.linha-par`.
+- Frágil: quem puser `display: flex` num `.campo-coluna` dentro de `.linha-par` desfaz o subgrid (o `.secao-mesa label.campo-coluna` foi rebaixado com `:where` por isso). O subgrid precisa de Chrome/Edge atuais.
+- Teste: `e2e/tests/a1.spec.ts`.

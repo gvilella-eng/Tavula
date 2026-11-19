@@ -939,6 +939,7 @@ cores ou nomes de terceiros.
 - **Barra de ferramentas vertical à esquerda**, com ícones e dica ao passar o mouse (V3b, 2026-11-11: dica só onde falta nome, de uma linha, 700 ms de atraso, e opção para desligar em Preferências): selecionar/mover,
   mão (arrastar o mapa), régua; depois desenhar paredes (lote 5), luzes e pontos (lotes 6–7). No
   rodapé, o seletor de camada (tokens / mestre). Ferramenta só do mestre só aparece para o mestre.
+- **Campos lado a lado** (A1, 2026-11-19): rótulo, caixa e ajuda alinham em linhas comuns (grade com subgrid); o rótulo mais alto define a linha dos rótulos e as caixas ficam na mesma altura, sem encurtar rótulo.
 - **Controle de zoom flutuante** na borda direita do mapa: +/−, trilho, nível atual, centralizar.
 - **Aba Preferências** (P1, 2026-11-13): sanfona com resumo, sete cartões recolhíveis na ordem **Conta** (você é X, Sair ou Trocar usuário, Trocar de mesa), **Aparência** (tema), **No mapa** (unidade de distância, encaixe no grid, dicas), **Ajuda e arquivos** (tour, pasta local de imagens, transferências), **Conectar o Claude**, **Segurança** (trocar a senha; só com login) e **Atalhos do teclado**. Cada cartão mostra ícone, título e, fechado, o resumo do estado numa linha ("Metros · encaixe ligado · dicas ligadas", "2 tokens · conectado"). Só a Conta abre por padrão; o que a pessoa abre ou fecha fica no navegador (`tabletop:pref:secoes`). Aparência, No mapa e a pasta local levam a marca "só neste navegador".
 - **Barra lateral direita recolhível** com abas por ícone: Chat (lote 8), Jogadores (presença e
