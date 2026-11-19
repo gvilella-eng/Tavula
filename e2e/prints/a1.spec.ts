@@ -1,8 +1,13 @@
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import type { Page } from "@playwright/test";
-import { test as base, expect } from "../tests/ajudas";
-import { abrirAba, abrirPreferencia, abrirSecaoDaMesa } from "../tests/ajudas";
+import {
+  abrirAba,
+  abrirPreferencia,
+  abrirSecaoDaMesa,
+  test as base,
+  expect,
+} from "../tests/ajudas";
 import { entrarNoMapa } from "../tests/ajudasMapa";
 
 // Prints do lote A1 (campos lado a lado alinhados). Fora do `pnpm verify`:
