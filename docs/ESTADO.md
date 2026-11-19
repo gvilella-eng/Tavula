@@ -4354,4 +4354,27 @@ Ver `PASSAGEM.md`, "CH1".
 ### Roteiro manual
 Ver `docs/ROTEIRO-DE-TESTES.md`, "CH1".
 
-## Próximo: o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b, N4, N5, M1, M2, Q1 a Q16, CH1 e das otimizações O1–O4
+## Ajustes MU1 — a música da mesa (entregue, aguardando o roteiro manual)
+
+### O que foi entregue
+Biblioteca de música com etiquetas e energia (1 a 5), botões que guardam um filtro (etiquetas, faixa de energia, ordem aleatória sem repetir ou crescente), música que toca por cima dos ambientes, igual para todos (fila e semente na sala; cada navegador acha a música e o ponto pela soma das durações), pausar, próxima, anterior, "Voltar a <botão>" e volume. A mesa de som ganhou a seção Música com o divisor arrastável e o minimizar de cada lado (lembrados por navegador; horizontal nos modos verticais) e a aba Música na configuração ("Adicionar mp3", "Adicionar pasta" com subpastas viram etiquetas). O quadro "Trilha da mesa" da chamada mostra a música, com Pausar e Próxima para o mestre. Ferramenta `musica` no MCP. Limpeza do CH1 (preferência `disposicao`, props `noPalco` e `aoEscolher`). Ver `PROJETO.md` 4.16.
+
+### Como rodar
+`pnpm dev`; mesa de som, engrenagem, aba Música. E2E: `pnpm --filter @tabletop/e2e test tests/musica.spec.ts`.
+
+### Verificação
+`pnpm typecheck`, `pnpm lint`, `pnpm test` (shared 1371, server 140, web 298, mcp 19), E2E em duas metades uma depois da outra (260 + 261 passando; na metade 1 só os 3 testes que contavam 18 ferramentas falharam e foram corrigidos e rodados de novo), e prints em Grimório 1600×900 e 1280×720 e Pergaminho 1600×900.
+
+### Decisões
+Ver `REDESIGN.md`, "MU1 — como ficou". Mudança no protocolo (intenções `musica.*`, eventos `musica.bibliotecaAlterada` e `musica.tocandoAlterado`) sem migração de banco (duas chaves novas em `meta`).
+
+### Desvios
+E2E antigos alterados: `claude-12-2.spec.ts` e `claude-12-3.spec.ts` (a lista de ferramentas do mestre ganhou `musica`; 19 em vez de 18).
+
+### Frágil
+Ver `PASSAGEM.md`, "MU1".
+
+### Roteiro manual
+Ver `docs/ROTEIRO-DE-TESTES.md`, "MU1".
+
+## Próximo: o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b, N4, N5, M1, M2, Q1 a Q16, CH1, MU1 e das otimizações O1–O4

@@ -67,9 +67,9 @@ describe("o JSON-RPC do MCP por HTTP", () => {
     expect(p).toEqual({ jsonrpc: "2.0", id: 1, result: {} });
   });
 
-  it("tools/list segue o papel: o mestre vê 18, o jogador 10", async () => {
+  it("tools/list segue o papel: o mestre vê 19, o jogador 10", async () => {
     const m = (await uma(req("tools/list"), "m")) as { result: { tools: { name: string }[] } };
-    expect(m.result.tools).toHaveLength(18);
+    expect(m.result.tools).toHaveLength(19);
     const j = (await uma(req("tools/list"), "j1")) as { result: { tools: { name: string }[] } };
     expect(j.result.tools.map((t) => t.name)).toEqual([
       "panorama",

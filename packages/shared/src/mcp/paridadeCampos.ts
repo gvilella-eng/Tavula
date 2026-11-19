@@ -573,6 +573,36 @@ export const CAMPOS_DA_PARIDADE: Partial<Record<TipoIntencao, Tabela>> = {
   "som.volumeGeral": { volume: "som:volumeGeral" },
   "som.transporte": { tocando: "som:transporte" },
   "som.apagar": { hash: "som:apagar" },
+  "musica.editarFaixas": {
+    "hashes[]": "musica:faixas[].musica",
+    nome: "musica:faixas[].nome",
+    descricao: "musica:faixas[].descricao",
+    energia: "musica:faixas[].energia",
+    "etiquetas[]": "musica:faixas[].etiquetas",
+    "maisEtiquetas[]": "musica:faixas[].maisEtiquetas",
+    "menosEtiquetas[]": "musica:faixas[].menosEtiquetas",
+  },
+  "musica.tirarFaixas": { "hashes[]": "musica:faixas[].tirar" },
+  "musica.botao": {
+    "botao.id": ID,
+    "botao.nome": "musica:botoes[].nome",
+    "botao.icone": "musica:botoes[].icone",
+    "botao.cor": "musica:botoes[].cor",
+    "botao.etiquetas[]": "musica:botoes[].etiquetas",
+    "botao.energiaMin": "musica:botoes[].energiaMin",
+    "botao.energiaMax": "musica:botoes[].energiaMax",
+    "botao.ordem": "musica:botoes[].ordem",
+  },
+  "musica.botaoApagar": { id: "musica:botoes[].apagar" },
+  "musica.tocar": {
+    botaoId: "musica:tocar.botao",
+    "filtro.etiquetas[]": "musica:tocar.etiquetas",
+    "filtro.energiaMin": "musica:tocar.energiaMin",
+    "filtro.energiaMax": "musica:tocar.energiaMax",
+    "filtro.ordem": "musica:tocar.ordem",
+  },
+  "musica.controle": { acao: "musica:controle" },
+  "musica.volume": { volume: "musica:volume" },
 
   // --- automações ---
   "ciclo.criar": {

@@ -11,6 +11,7 @@ import { fichas } from "./fichas.ts";
 import { ler } from "./ler.ts";
 import { mapa } from "./mapa.ts";
 import { mesa } from "./mesa.ts";
+import { musica } from "./musica.ts";
 import { notas } from "./notas.ts";
 import { objetos } from "./objetos.ts";
 import { panorama } from "./panorama.ts";
@@ -34,6 +35,7 @@ export const TODAS_AS_FERRAMENTAS: readonly QualquerFerramenta[] = [
   combate,
   mesa,
   som,
+  musica,
   chat,
   rolar,
   rascunhos,

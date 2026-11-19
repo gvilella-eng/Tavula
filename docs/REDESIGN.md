@@ -2448,3 +2448,30 @@ O Vilella perguntou se o MCP sobe áudio, seta zonas e põe características nel
 - Transcrição com Whisper, playlist da trilha e compartilhar tela (`IDEIAS.md`).
 - O anel de quem fala na presença só vale no mesmo navegador (`BroadcastChannel`); em outro computador a mesa não o mostra.
 - O desfoque depende de timers da janela: com a janela da chamada totalmente escondida o navegador os desacelera (mesma limitação de qualquer chamada em segundo plano).
+
+## MU1 — como ficou (2026-11-19): a música da mesa
+
+**O que foi feito**
+- A biblioteca de música (`Estado.musica`): músicas com duração, energia de 1 a 5, etiquetas e descrição; botões que guardam um filtro (etiquetas, faixa de energia e ordem). A música que toca (`Estado.musicaTocando`) leva a fila, a semente e o instante de início: cada navegador acha a música e o ponto pela soma das durações, sem evento no fim de cada música. Pausar, próxima, anterior, "Voltar a <botão>" e o volume da música.
+- A seção **Música** na mesa de som, com o divisor arrastável (mínimo de 18% por lado, duplo clique volta ao meio, teclado) e o minimizar de cada lado; a divisão e o lado minimizado ficam lembrados por navegador. Nos modos verticais (janela flutuante e janela própria) o divisor é horizontal. A configuração ganhou a aba **Música** (filtro por etiquetas e energia, lote, "Adicionar mp3" e "Adicionar pasta" com as subpastas virando etiquetas, "Salvar este filtro como botão", "Tocar para todos").
+- Motor de som: uma camada de música por cima dos ambientes, com transição suave de 3 s, alarme na emenda das músicas e download antecipado da seguinte.
+- O quadro "Trilha da mesa" da chamada mostra a música e o botão, e dá Pausar e Próxima ao mestre.
+- A ferramenta `musica` do MCP (nomes, não ids) e as intenções `musica.*` com a paridade campo a campo; `docs/MCP.md`.
+- Limpeza do CH1: saiu a preferência `disposicao` da chamada e as props `noPalco` e `aoEscolher` do `QuadroDaPessoa`, com o CSS que sobrou.
+
+**Decisões (assumido)**
+- A identidade de uma música é o hash do arquivo (o mesmo arquivo entra uma vez só e, se entra de novo, só ganha as etiquetas).
+- A semente do sorteio vem do relógio da sala no instante de tocar; as passadas depois da primeira saem de um sorteador determinístico (mulberry32), por isso a sala guarda só a primeira passada e o ciclo.
+- Crescente: dentro de cada energia o sorteio é por semente; no topo, `ciclo` = as músicas de energia mais alta do filtro. Se só há uma energia, a passada inicial já é o topo.
+- Apertar o botão que já toca pausa e retoma (não recomeça); apertar outro troca e guarda o anterior. Tocar o mesmo botão de novo (pela biblioteca) sorteia outra fila sem trocar o "Voltar".
+- "Parar tudo" da mesa de som pausa a música junto; o volume da música usa o mesmo botão "trilha" das preferências de cada pessoa e o volume geral da mesa de som.
+- Volume padrão da música: 0,7. "Anterior": depois de 3 s recomeça a música, antes volta para a anterior.
+- Energia só filtra: as chips da energia esticam e encolhem uma faixa contínua (1 a 5).
+- A pasta escolhida em "Adicionar pasta" não vira etiqueta; só as subpastas dentro dela.
+- O jogador recebe a fila do filtro que toca (hash, nome e duração de cada música dela), então vê o nome das próximas desse filtro; a biblioteca inteira, os botões, as etiquetas e a energia nunca chegam a ele.
+- O MCP não adiciona músicas (a duração só o navegador lê); a ferramenta é separada (`musica`), porque a descrição da `som` passaria do limite de tamanho das descrições.
+- O play da linha da biblioteca usa o motor de efeitos do próprio navegador do mestre (nada vai à sala).
+- Sem migração de banco: duas chaves novas na tabela `meta`, lidas com tolerância (valor ilegível = sem música).
+
+**O que ficou para depois**
+- Ver `docs/IDEIAS.md`, "Depois da música da mesa": barra de progresso arrastável, música por cena ou zona, adicionar música pelo Claude, pasta grande em segundo plano, playlist fixa.

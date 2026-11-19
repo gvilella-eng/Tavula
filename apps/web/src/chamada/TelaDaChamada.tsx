@@ -25,6 +25,7 @@ import {
 import { createPortal } from "react-dom";
 import { BotaoComDica } from "../BotaoComDica";
 import { abrirSomEmJanela, TEXTO_DO_POPUP_BLOQUEADO } from "../ficha/foraDaMesa";
+import { useMusicaAgora } from "../som/useMusicaAgora";
 import type { ControleDaChamada } from "./controlador";
 import {
   ehEstreita,
@@ -687,7 +688,8 @@ function DentroDaChamada(p: Dentro) {
   const agora = useAgora(true);
   const [aparelhosAbertos, setAparelhosAbertos] = useState(false);
   const [chamados, setChamados] = useState<ReadonlySet<string>>(new Set());
-  const trilha = trilhaDaMesa(estadoSala);
+  const musicaAgora = useMusicaAgora(estadoSala.musicaTocando);
+  const trilha = trilhaDaMesa(estadoSala, musicaAgora?.peca.nome);
   const euMestre = eu.papel === "mestre";
   const emCima = new Set(e.participantes.map((x) => x.usuarioId));
   emCima.add(eu.id);
@@ -743,9 +745,12 @@ function DentroDaChamada(p: Dentro) {
     <QuadroDaTrilha
       tocando={trilha.tocando}
       titulo={trilha.titulo}
+      subtitulo={trilha.subtitulo}
+      musica={trilha.musica}
       pequeno={pequeno}
       euMestre={euMestre}
       aoAbrirSom={abrirSom}
+      aoMusica={(acao) => p.enviar("musica.controle", { acao })}
     />
   );
 

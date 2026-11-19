@@ -381,7 +381,10 @@ function metaDe(estado: Pick<Estado, "assets">, hash: string): AssetMeta | undef
 export function hashesUsados(
   estado: Pick<Estado, "assets" | "cenas" | "tokens" | "personagens"> &
     Partial<
-      Pick<Estado, "compendio" | "handouts" | "trilha" | "zonas" | "automacoes" | "mesaDeSom">
+      Pick<
+        Estado,
+        "compendio" | "handouts" | "trilha" | "zonas" | "automacoes" | "mesaDeSom" | "musica"
+      >
     >,
 ): Set<string> {
   const usados = new Set<string>();
@@ -410,6 +413,8 @@ export function hashesUsados(
   for (const l of [...(estado.mesaDeSom?.efeitos ?? []), ...(estado.mesaDeSom?.ambientes ?? [])]) {
     usar(l?.hash);
   }
+  // MU1: os arquivos da biblioteca de música.
+  for (const f of estado.musica?.faixas ?? []) usar(f.hash);
   for (const z of estado.zonas ?? []) usar(z.efeitos.som?.hash);
   for (const r of estado.automacoes?.reacoes ?? []) {
     for (const a of r.fazer) if (a.acao === "som.tocar") usar(a.hash);

@@ -203,6 +203,17 @@ export const PARIDADE_COM_O_MCP: Record<TipoIntencao, EntradaDeParidade> = {
   "som.transporte": via("som", "transporte"),
   "som.pararTudo": via("som", "pararTudo"),
   "som.apagar": via("som", "apagar"),
+  "musica.adicionar": fora(
+    "transporte",
+    "A duração de cada música só o navegador do mestre sabe ler, ao importar o mp3 ou a pasta; o Claude etiqueta e toca o que o mestre importou.",
+  ),
+  "musica.editarFaixas": via("musica", "faixas"),
+  "musica.tirarFaixas": via("musica", "faixas", "tirar"),
+  "musica.botao": via("musica", "botoes"),
+  "musica.botaoApagar": via("musica", "botoes", "apagar"),
+  "musica.tocar": via("musica", "tocar"),
+  "musica.controle": via("musica", "controle"),
+  "musica.volume": via("musica", "volume"),
 
   // --- automações ---
   "ciclo.criar": via("automacoes", "ciclos"),

@@ -6535,6 +6535,643 @@ button.inicio-botao-largo {
   width: 96px;
 }
 
+/* MU1: a música ao lado dos efeitos e ambientes, com o divisor arrastável e o "minimizar" de cada lado. */
+.som-faixa-topo .som-resumo + .som-resumo {
+  margin-left: -6px;
+}
+.som-secao-info {
+  margin-left: auto;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.som-secao-com-botao {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.som-lado .som-secao {
+  gap: 6px;
+  margin: 0;
+}
+.som-minimizar {
+  margin: -6px 0;
+}
+.som-dividido {
+  --som-divisor: 14px;
+  --som-vao: 6px;
+  display: flex;
+  gap: var(--som-vao);
+  min-width: 0;
+  min-height: 0;
+}
+.som-dividido[data-disposicao="lado"] {
+  flex-direction: row;
+  align-items: stretch;
+}
+.som-dividido[data-disposicao="pilha"] {
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 300px;
+}
+.som-lado {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+}
+.som-lado-efeitos[data-sozinho="nao"] {
+  flex: 0 0 calc((100% - var(--som-divisor) - 2 * var(--som-vao)) * var(--som-divisao));
+}
+.som-lado-musica,
+.som-lado[data-sozinho="sim"] {
+  flex: 1 1 0;
+}
+.som-faixa-colunas {
+  display: flex;
+  gap: 16px;
+}
+.som-faixa-colunas > .som-faixa-efeitos {
+  flex: 0 1 36%;
+}
+.som-faixa-colunas > .som-faixa-ambientes {
+  flex: 1;
+}
+.som-trilho {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  background: var(--campo);
+  border: 0;
+  border-radius: 10px;
+  color: var(--texto);
+  font-size: 12px;
+  font-weight: 600;
+}
+.som-trilho:hover {
+  background: var(--painel);
+}
+.som-trilho[data-orientacao="vertical"] {
+  flex-direction: column;
+  width: 44px;
+}
+.som-trilho[data-orientacao="vertical"] .som-trilho-nome {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+.som-trilho[data-orientacao="horizontal"] {
+  flex-direction: row;
+  justify-content: flex-start;
+  padding: 8px 12px;
+}
+.som-divisor {
+  position: relative;
+  display: flex;
+  flex: 0 0 var(--som-divisor);
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  touch-action: none;
+}
+.som-divisor[data-orientacao="vertical"] {
+  cursor: col-resize;
+}
+.som-divisor[data-orientacao="horizontal"] {
+  cursor: row-resize;
+}
+.som-divisor-linha {
+  background: var(--borda);
+  border-radius: 1px;
+}
+.som-divisor[data-orientacao="vertical"] .som-divisor-linha {
+  width: 2px;
+  height: 100%;
+}
+.som-divisor[data-orientacao="horizontal"] .som-divisor-linha {
+  width: 100%;
+  height: 2px;
+}
+.som-divisor:hover .som-divisor-linha,
+.som-divisor[data-ativo="sim"] .som-divisor-linha {
+  background: var(--acento-forte);
+}
+.som-divisor-pega {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  background: var(--cabecalho);
+  border: 1px solid var(--borda);
+  border-radius: 5px;
+  transform: translate(-50%, -50%);
+}
+.som-divisor[data-orientacao="vertical"] .som-divisor-pega {
+  flex-direction: column;
+  width: 10px;
+  height: 34px;
+}
+.som-divisor[data-orientacao="horizontal"] .som-divisor-pega {
+  flex-direction: row;
+  width: 34px;
+  height: 10px;
+}
+.som-divisor-pega i {
+  width: 2px;
+  height: 2px;
+  background: var(--texto-suave);
+  border-radius: 1px;
+}
+.som-divisor-rotulo {
+  position: absolute;
+  top: 6px;
+  left: 50%;
+  z-index: 2;
+  padding: 3px 8px;
+  background: var(--acento);
+  border-radius: 6px;
+  color: var(--acento-texto);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+.som-dividido[data-disposicao="pilha"] .som-divisor-rotulo {
+  top: auto;
+  left: 8px;
+  transform: none;
+}
+
+/* A seção Música da mesa de som. */
+.musica-corpo {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.musica-vazia {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  color: var(--texto-suave);
+}
+.musica-vazia p {
+  margin: 0;
+}
+.musica-botoes {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(124px, 1fr));
+  gap: 6px;
+}
+.musica-botao {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  height: 44px;
+  padding: 0 10px;
+  background: var(--painel);
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+}
+.musica-botao svg {
+  flex: none;
+  color: var(--cor-do-som, var(--texto-suave));
+}
+.musica-botao[data-ativo="tocando"] {
+  background: var(--acento-suave);
+  border-color: var(--acento-forte);
+}
+.musica-botao[data-ativo="pausado"] {
+  border-color: var(--acento-forte);
+  border-style: dashed;
+}
+.musica-botao-nome {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.musica-botao-qtd {
+  font-size: 11px;
+  color: var(--texto-suave);
+}
+.musica-player {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  padding: 8px 10px;
+  background: var(--campo);
+  border: 1px solid var(--borda);
+  border-radius: 10px;
+}
+.musica-ctl {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border-radius: 50%;
+}
+.musica-ctl-forte {
+  background: var(--acento);
+  border-color: var(--acento-forte);
+  color: var(--acento-texto);
+}
+.musica-atual {
+  display: flex;
+  flex: 1 1 140px;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 120px;
+}
+.musica-atual-linha {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+.musica-atual-nome {
+  overflow: hidden;
+  font-family: var(--fonte-titulo);
+  font-size: 13px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.musica-atual-tempo {
+  flex: none;
+  font-size: 12px;
+  color: var(--texto-suave);
+}
+.musica-progresso {
+  height: 4px;
+  background: var(--borda);
+  border-radius: 2px;
+}
+.musica-progresso-cheio {
+  height: 4px;
+  background: var(--acento-forte);
+  border-radius: 2px;
+}
+.musica-voltar {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.musica-volume {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--texto-suave);
+}
+.musica-volume-desliz {
+  width: 110px;
+}
+.musica-dica {
+  margin: 0;
+}
+
+/* A aba Música da configuração: filtros e botões à esquerda, a lista de músicas à direita. */
+.som-config [hidden] {
+  display: none;
+}
+.som-config-abas {
+  display: flex;
+  gap: 4px;
+  padding: 8px 12px 0;
+  border-bottom: 1px solid var(--borda);
+}
+.som-config-aba {
+  padding: 6px 14px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-bottom: 0;
+  border-radius: 8px 8px 0 0;
+  color: var(--texto-suave);
+  font-weight: 500;
+}
+.som-config-aba[aria-selected="true"] {
+  background: var(--painel);
+  border-color: var(--borda);
+  color: var(--texto);
+}
+.musica-biblioteca {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+.musica-lateral {
+  display: flex;
+  flex: 0 0 300px;
+  flex-direction: column;
+  gap: 14px;
+  padding: 12px;
+  overflow-y: auto;
+  border-right: 1px solid var(--borda);
+}
+.musica-bloco {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.musica-bloco .nota,
+.musica-lateral .nota,
+.musica-principal .nota {
+  margin: 0;
+}
+.musica-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.musica-chip {
+  padding: 4px 10px;
+  background: var(--campo);
+  border-radius: 999px;
+  font-size: 12px;
+}
+.musica-chip-qtd {
+  color: var(--texto-suave);
+}
+.musica-chip[aria-pressed="true"] {
+  background: var(--acento-suave);
+  border-color: var(--acento-forte);
+  color: var(--acento-forte);
+}
+.musica-chip-energia {
+  min-width: 34px;
+  padding: 4px 0;
+  text-align: center;
+}
+.musica-chip-icone {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 7px;
+  border-radius: 8px;
+}
+.musica-cor {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  background: var(--cor-do-som);
+  border-radius: 50%;
+}
+.musica-cor[aria-pressed="true"] {
+  outline: 2px solid var(--texto);
+  outline-offset: 2px;
+}
+.musica-ordem {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 10px;
+  border: 1px solid var(--borda);
+  border-radius: 10px;
+}
+.musica-ordem legend {
+  padding: 0 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--texto-suave);
+}
+.musica-ordem label {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 13px;
+  line-height: 1.35;
+}
+.musica-ordem input {
+  margin: 2px 0 0;
+}
+.musica-salvar-filtro {
+  justify-content: center;
+  font-weight: 600;
+}
+.musica-form-botao {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--borda);
+  border-radius: 10px;
+}
+.musica-form-botao label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--texto-suave);
+}
+.musica-botoes-salvos {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.musica-botao-salvo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  background: var(--painel);
+  border: 1px solid var(--borda);
+  border-radius: 8px;
+  font-size: 13px;
+}
+.musica-ponto {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  background: var(--cor-do-som);
+  border-radius: 50%;
+}
+.musica-botao-salvo-nome {
+  font-weight: 500;
+}
+.musica-botao-salvo-resumo {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 12px;
+  color: var(--texto-suave);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.musica-icone-botao {
+  display: inline-flex;
+  padding: 4px;
+  background: transparent;
+  border-color: transparent;
+}
+.musica-principal {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px 16px;
+}
+.musica-barra {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.musica-busca {
+  display: flex;
+  flex: 1 1 200px;
+}
+.musica-busca input {
+  flex: 1;
+}
+.musica-aviso {
+  color: var(--acento-forte);
+}
+.musica-titulo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.musica-titulo-nome {
+  font-family: var(--fonte-titulo);
+  font-size: 15px;
+  font-weight: 600;
+}
+.musica-marcar-todas {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--texto-suave);
+}
+.musica-lote,
+.musica-painel-lote {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+}
+.musica-lote {
+  background: var(--acento-suave);
+  border: 1px solid var(--acento-forte);
+}
+.musica-painel-lote {
+  background: var(--campo);
+  border: 1px solid var(--borda);
+}
+.musica-lote-conta {
+  margin-right: 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.musica-lote button[aria-pressed="true"] {
+  border-color: var(--acento-forte);
+}
+.musica-lista {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+}
+.musica-linha {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  background: var(--painel);
+  border: 1px solid var(--borda);
+  border-radius: 10px;
+}
+.musica-linha[data-marcada="sim"] {
+  background: var(--acento-suave);
+  border-color: var(--acento-forte);
+}
+.musica-ouvir {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border-radius: 50%;
+}
+.musica-linha-nome {
+  display: flex;
+  flex: 0 0 190px;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.musica-linha-titulo {
+  overflow: hidden;
+  font-family: var(--fonte-titulo);
+  font-size: 14px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.musica-linha-descricao {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--texto-suave);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.musica-linha-etiquetas {
+  display: flex;
+  flex: 0 1 180px;
+  flex-wrap: wrap;
+  gap: 5px;
+  justify-content: flex-end;
+}
+.musica-etq {
+  padding: 2px 8px;
+  background: var(--campo);
+  border: 1px solid var(--borda);
+  border-radius: 999px;
+  font-size: 11px;
+  color: var(--texto-suave);
+}
+.musica-lista-vazia {
+  padding: 16px 4px;
+}
+
 /* A configuração. */
 .som-config-conta {
   margin-right: 6px;
@@ -6979,20 +7616,13 @@ button.inicio-botao-largo {
   background: var(--veu);
   border-radius: 7px;
 }
-.chamada-quadro-botao {
-  position: absolute;
-  inset: 0;
-  padding: 0;
-  background: transparent;
-  border: 0;
-  border-radius: 12px;
-  cursor: pointer;
-}
-.chamada-quadro-botao:hover {
-  background: color-mix(in srgb, var(--texto) 5%, transparent);
-}
 
 /* --- a trilha da mesa ------------------------------------------------------------------------ */
+.chamada-trilha-musica {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
 .chamada-trilha {
   display: flex;
   flex-direction: column;

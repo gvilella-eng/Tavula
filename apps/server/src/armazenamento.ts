@@ -3,6 +3,8 @@ import {
   type Automacoes,
   AutomacoesSchema,
   absorverMochila,
+  type BibliotecaDeMusica,
+  BibliotecaDeMusicaSchema,
   CENA_PADRAO,
   type Cena,
   type Combate,
@@ -24,6 +26,8 @@ import {
   type MesaDeSom,
   MesaDeSomSchema,
   type ModeloDeObjeto,
+  type MusicaTocando,
+  MusicaTocandoSchema,
   migrarNotasParaHandouts,
   migrarSomDoN5,
   modelosPadrao,
@@ -604,7 +608,13 @@ export class Armazenamento {
    * lugares, Q4), `som_ligado` (os ambientes que tocam e o volume geral, Q4) e `trilha` (a trilha única do N5, só para
    * ler: `converterSomDoN5` a troca por um ambiente ligado). Valor ilegível vira "sem".
    */
-  private carregarSom(): { mesaDeSom?: MesaDeSom; somLigado?: SomLigado; trilha?: Trilha } {
+  private carregarSom(): {
+    mesaDeSom?: MesaDeSom;
+    somLigado?: SomLigado;
+    trilha?: Trilha;
+    musica?: BibliotecaDeMusica;
+    musicaTocando?: MusicaTocando;
+  } {
     const ler = <T>(
       chave: string,
       schema: { safeParse(v: unknown): { success: boolean; data?: T } },
@@ -621,20 +631,29 @@ export class Armazenamento {
     const mesaDeSom = ler<MesaDeSom>("mesa_de_som", MesaDeSomSchema);
     const somLigado = ler<SomLigado>("som_ligado", SomLigadoSchema);
     const trilha = ler<Trilha>("trilha", TrilhaSchema);
+    // MU1: a biblioteca de música e o que toca (valor ilegível vira "sem música").
+    const musica = ler<BibliotecaDeMusica>("musica", BibliotecaDeMusicaSchema);
+    const musicaTocando = ler<MusicaTocando>("musica_tocando", MusicaTocandoSchema);
     return {
+      ...(musica ? { musica } : {}),
+      ...(musicaTocando ? { musicaTocando } : {}),
       ...(mesaDeSom ? { mesaDeSom } : {}),
       ...(somLigado ? { somLigado } : {}),
       ...(trilha ? { trilha } : {}),
     };
   }
 
-  private gravarSom(estado: Pick<Estado, "mesaDeSom" | "somLigado">): void {
+  private gravarSom(
+    estado: Pick<Estado, "mesaDeSom" | "somLigado" | "musica" | "musicaTocando">,
+  ): void {
     const grava = (chave: string, valor: unknown) => {
       if (valor === undefined) this.sql.exec("DELETE FROM meta WHERE chave = ?", chave);
       else this.gravarMeta(chave, JSON.stringify(valor));
     };
     grava("mesa_de_som", estado.mesaDeSom);
     grava("som_ligado", estado.somLigado);
+    grava("musica", estado.musica);
+    grava("musica_tocando", estado.musicaTocando);
   }
 
   private gravarCompendio(compendio: CompendioDaMesa | undefined): void {
@@ -870,6 +889,8 @@ export class Armazenamento {
           break;
         case "som.ligadoAlterado":
         case "som.lugarAlterado":
+        case "musica.bibliotecaAlterada":
+        case "musica.tocandoAlterado":
           this.gravarSom(estado);
           break;
         case "asset.removido":

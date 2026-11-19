@@ -39,6 +39,7 @@ export * from "./membros.ts";
 export * from "./memoria.ts";
 export * from "./mesadesom.ts";
 export * from "./mesas.ts";
+export * from "./musica.ts";
 export * from "./nevoa.ts";
 export * from "./nucleo.ts";
 export * from "./objetos.ts";

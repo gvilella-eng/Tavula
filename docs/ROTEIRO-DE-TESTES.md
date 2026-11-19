@@ -716,6 +716,24 @@ Com o Claude conectado a uma mesa de teste (não a da campanha):
 4. **Ficha.** Peça "ponha 300 de XP, inspiração e PV temporários 5 na Thara"; confira na ficha.
 5. **Token.** Peça "o token da Brisa é controlado pela Ana, com borda azul e barra de vida"; a Ana move o token.
 
+## MU1 — a música da mesa
+
+Use uma pasta de teste com subpastas e uns mp3 (de 2 a 5 minutos, para dar tempo de ouvir a troca): por exemplo `Musicas\Combate\` (3 ou 4 músicas), `Musicas\Combate\Chefe\` (1), `Musicas\Taverna\` (2) e `Musicas\Exploracao\` (2). Mesa de teste, não a da campanha.
+1. **Adicionar uma pasta.** Mesa de som, engrenagem, aba **Música**, "Adicionar pasta", escolha `Musicas`. Cada música entra com o nome do arquivo e a **duração certa** (confira com o player do computador); as **subpastas viram etiquetas**: tudo de `Combate\` com "Combate", a do `Chefe\` com "Combate" e "Chefe". Arquivo solto na raiz entra sem etiqueta. "Adicionar mp3" põe arquivos soltos. Adicionar a mesma pasta de novo não duplica nada.
+2. **Etiquetas em lote.** Marque várias músicas: aparece a barra "N selecionadas". "+ Etiqueta" (escreva "Noite") põe nas marcadas; "− Etiqueta" tira uma que elas têm; "Energia" dá de 1 a 5 (ou "Sem nota", que vale 3). Marque uma só: "Nome e descrição" deixa escrever uma linha de descrição. "Tirar da lista" pede confirmação e não apaga o arquivo do computador.
+3. **Filtro.** Aperte "Combate" e depois "Chefe": só as músicas que têm **as duas**. Aperte os números da Energia (1 a 5): a lista só mostra a faixa. A busca acha pelo nome ou pela descrição. O play de cada linha toca **só para você** (confira no jogador: ele não ouve nada).
+4. **Botão aleatório.** Filtre "Taverna", deixe "Aleatória, sem repetir", "Salvar este filtro como botão", nome "Taverna", ícone e cor. O botão aparece na seção Música da mesa de som com quantas músicas tem. O lápis recarrega o filtro para editar; a lixeira apaga.
+5. **Botão crescente.** Filtre "Combate", escolha "Crescente", salve como "Combate". Dê energias diferentes às músicas (1, 2, 3, 5...). Aperte o botão: começa na de **menor energia** e sobe; no fim da subida fica tocando **só as de energia mais alta**, uma depois da outra, sem repetir em seguida e sem parar. (Para conferir sem esperar, use "Próxima".)
+6. **Aleatória sem repetir.** Aperte "Taverna" e use "Próxima" várias vezes: nenhuma música repete até todas tocarem, e a última nunca volta logo em seguida.
+7. **Todos ouvem a mesma coisa.** Com um jogador na mesa (outra janela ou computador), aperte um botão: o jogador ouve a **mesma música, no mesmo ponto** (a música baixa no jogador no primeiro toque). Entre na mesa depois de a música começar: ela entra no ponto certo. A música toca **por cima dos ambientes** (ligue um ambiente junto). A troca entre músicas e entre botões tem uma transição suave de uns 3 segundos.
+8. **Pausar, próxima, anterior.** Pausar cala para todos; tocar continua do mesmo ponto. "Anterior" depois de 3 s recomeça a música; antes disso volta para a anterior. O volume da música (na linha do player) vale para todos junto com o volume geral; "Parar tudo" pausa a música também.
+9. **Voltar.** Toque "Combate", espere uns 40 s, aperte "Taverna": aparece **"Voltar a Combate"**. Aperte: o "Combate" volta **do ponto onde parou** e agora o botão diz "Voltar a Taverna".
+10. **Divisor.** Na faixa do pé da tela, arraste o divisor entre "Efeitos e ambientes" e "Música": aparece o rótulo (por exemplo "60% · 40%"); nunca passa de 18% para um dos lados. Duplo clique volta ao meio. Com o divisor focado (Tab), as setas movem de 5 em 5 e Home e End vão aos limites. Recarregue a página: a divisão continua. Na **janela flutuante** e na **janela própria** o divisor é horizontal (efeitos e ambientes em cima, Música embaixo).
+11. **Minimizar.** O botão de seta no título de cada lado o minimiza numa **tira fina com o nome na vertical** (a da Música mostra o botão tocando; nos modos verticais a tira é horizontal); clicar na tira traz de volta. Recarregue: o lado minimizado continua minimizado.
+12. **Chamada.** Com a chamada aberta, o quadro "Trilha da mesa" mostra o **nome da música** e o do botão para todos; o mestre tem **Pausar** e **Próxima** ali. Pausada, o quadro volta a mostrar os ambientes.
+13. **O jogador não vê a biblioteca.** O jogador não tem a mesa de som nem a lista de músicas; só vê o nome do que toca.
+14. **Claude.** Com o Claude conectado: "etiquete as músicas de combate com 'Luta' e dê energia 4 à 'Lâminas no Vau'", "crie um botão 'Chefe' crescente com as de energia 4 e 5 e toque", "pause e volte ao que tocava antes".
+
 ## CH1 — a chamada da mesa (voz e vídeo, com fundo desfocado)
 
 Precisa de câmera e microfone (ou os falsos do Chrome) e de duas pessoas de verdade, ou de uma janela anônima como jogador. Tudo em `localhost` (a câmera só funciona fora dele com HTTPS).

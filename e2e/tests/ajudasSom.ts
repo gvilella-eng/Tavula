@@ -36,6 +36,8 @@ export type EstadoDoSom = {
   efeitos: { hash: string; volume: number; lugar: number | null }[];
   /** Os efeitos que ainda estão tocando agora. */
   efeitosTocando: { hash: string; lugar: number | null }[];
+  /** MU1: a música que toca (o volume já com o geral da mesa e as preferências), ou `null`. */
+  musica: { hash: string; nome: string; volume: number } | null;
   bloqueado: boolean;
 };
 

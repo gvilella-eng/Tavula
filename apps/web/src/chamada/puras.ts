@@ -126,7 +126,7 @@ export function gravarPreferenciaDePessoa(
   }
 }
 
-// --- preferências da chamada (aparelhos, ruído, sons, disposição) ---------------------------------------------
+// --- preferências da chamada (aparelhos, ruído, sons, fundo, lista) ---------------------------------------------
 
 export type PreferenciasDaChamada = {
   cameraId: string;
@@ -136,7 +136,6 @@ export type PreferenciasDaChamada = {
   entrarMudo: boolean;
   sons: boolean;
   fundo: "nenhum" | "desfocar" | "forte";
-  disposicao: "grade" | "palco";
   lista: boolean;
 };
 
@@ -148,7 +147,6 @@ export const PREFERENCIAS_PADRAO: PreferenciasDaChamada = {
   entrarMudo: false,
   sons: true,
   fundo: "nenhum",
-  disposicao: "grade",
   lista: true,
 };
 
@@ -169,7 +167,6 @@ export function lerPreferenciasDaChamada(): PreferenciasDaChamada {
       entrarMudo: bool(v.entrarMudo, PREFERENCIAS_PADRAO.entrarMudo),
       sons: bool(v.sons, PREFERENCIAS_PADRAO.sons),
       fundo: v.fundo === "desfocar" || v.fundo === "forte" ? v.fundo : "nenhum",
-      disposicao: v.disposicao === "palco" ? "palco" : "grade",
       lista: bool(v.lista, PREFERENCIAS_PADRAO.lista),
     };
   } catch {

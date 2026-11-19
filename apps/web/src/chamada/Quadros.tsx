@@ -1,5 +1,14 @@
 import type { ParticipanteDaChamada, Usuario } from "@tabletop/shared";
-import { ExternalLink, HeadphoneOff, MicOff, Music, UserRound } from "lucide-react";
+import {
+  ExternalLink,
+  HeadphoneOff,
+  MicOff,
+  Music,
+  Pause,
+  Play,
+  SkipForward,
+  UserRound,
+} from "lucide-react";
 import { type CSSProperties, useEffect, useRef } from "react";
 import { inicialDe } from "./puras";
 
@@ -51,16 +60,12 @@ export type DadosDoQuadro = {
 export function QuadroDaPessoa({
   d,
   pequeno,
-  noPalco,
   semRotulo,
-  aoEscolher,
 }: {
   d: DadosDoQuadro;
   pequeno?: boolean;
-  noPalco?: boolean;
   /** A miniatura da janela estreita: o nome está na linha ao lado, então o quadro não repete. */
   semRotulo?: boolean;
-  aoEscolher?: () => void;
 }) {
   const { usuario: u, participante: p } = d;
   const comVideo = p.camera && d.fluxo !== null;
@@ -75,7 +80,6 @@ export function QuadroDaPessoa({
       data-camera={comVideo ? "ligada" : "desligada"}
       data-microfone={p.microfone ? "ligado" : "desligado"}
       data-fundo={p.fundo}
-      data-no-palco={noPalco ? "sim" : undefined}
     >
       {comVideo ? (
         <VideoDoFluxo fluxo={d.fluxo} espelhar={d.euSou} testid={`chamada-video-${u.id}`} />
@@ -113,14 +117,6 @@ export function QuadroDaPessoa({
           Conectando…
         </div>
       )}
-      {aoEscolher && (
-        <button
-          type="button"
-          className="chamada-quadro-botao"
-          aria-label={`Pôr ${u.nome} no palco`}
-          onClick={aoEscolher}
-        />
-      )}
     </div>
   );
 }
@@ -129,30 +125,70 @@ export function QuadroDaPessoa({
 export function QuadroDaTrilha({
   tocando,
   titulo,
+  subtitulo,
+  musica,
   pequeno,
   euMestre,
   aoAbrirSom,
+  aoMusica,
 }: {
   tocando: boolean;
   titulo: string;
+  /** O botão da música que toca (ou "Música pausada · botão"). */
+  subtitulo?: string | undefined;
+  musica: "tocando" | "pausada" | null;
   pequeno?: boolean;
   euMestre: boolean;
   aoAbrirSom: () => void;
+  /** O mestre pausa, retoma e pula a música daqui. */
+  aoMusica: (acao: "pausar" | "retomar" | "proxima") => void;
 }) {
   return (
     <div
       className="chamada-quadro chamada-trilha"
       data-testid="chamada-trilha"
       data-tocando={tocando ? "sim" : "nao"}
+      data-musica={musica ?? "nenhuma"}
     >
       <div className="chamada-trilha-cab">
         <Music size={pequeno ? 13 : 15} aria-hidden="true" />
         {pequeno ? "Trilha" : "Trilha da mesa"}
       </div>
-      <div className="chamada-trilha-titulo">{titulo}</div>
+      <div className="chamada-trilha-titulo" data-testid="chamada-trilha-titulo">
+        {titulo}
+      </div>
       {!pequeno && (
-        <div className="chamada-trilha-sub">
-          {tocando ? "Da mesa de som · toca para todos" : "A mesa de som está parada"}
+        <div className="chamada-trilha-sub" data-testid="chamada-trilha-sub">
+          {subtitulo ??
+            (tocando ? "Da mesa de som · toca para todos" : "A mesa de som está parada")}
+        </div>
+      )}
+      {euMestre && musica !== null && (
+        <div className="chamada-trilha-musica">
+          <button
+            type="button"
+            className="chamada-botao-texto"
+            data-testid="chamada-musica-pausar"
+            aria-label={musica === "tocando" ? "Pausar a música" : "Tocar a música"}
+            onClick={() => aoMusica(musica === "tocando" ? "pausar" : "retomar")}
+          >
+            {musica === "tocando" ? (
+              <Pause size={14} aria-hidden="true" />
+            ) : (
+              <Play size={14} aria-hidden="true" />
+            )}
+            {pequeno ? null : musica === "tocando" ? "Pausar" : "Tocar"}
+          </button>
+          <button
+            type="button"
+            className="chamada-botao-texto"
+            data-testid="chamada-musica-proxima"
+            aria-label="Próxima música"
+            onClick={() => aoMusica("proxima")}
+          >
+            <SkipForward size={14} aria-hidden="true" />
+            {pequeno ? null : "Próxima"}
+          </button>
         </div>
       )}
       <div className="chamada-trilha-fim">

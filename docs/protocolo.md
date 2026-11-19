@@ -939,6 +939,29 @@ Saíram `som.trilha` e `som.parar`.
 
 **Conversão do N5.** Ao ler (banco e arquivos exportados), `migrarSomDoN5`: a `Estado.trilha` que tocava vira um ambiente ligado (mesmo `inicioMs`) e a `Cena.trilha` vira um ambiente da cena; cada arquivo ganha um lugar de ambiente (ícone musica, cor ambar, nome do arquivo cortado em 12 letras). Sem lugar livre a trilha antiga é descartada. Sem migração de banco: o som mora nas chaves `mesa_de_som` e `som_ligado` da tabela `meta`; a chave `trilha` some na primeira leitura.
 
+### Música da mesa (MU1)
+
+Todas as intenções abaixo exigem a capacidade `som.controlar` (só do mestre; não delegável). Jogador: `sem_permissao`.
+
+| Intenção | Dados | O que faz |
+|---|---|---|
+| `musica.adicionar` | `{ faixas: [{ hash, nome, duracaoMs, energia?, etiquetas, descricao? }] }` (1 a 200) | Põe músicas na biblioteca. `asset_inexistente` se o arquivo não é um asset `som`. O mesmo arquivo (hash) entra uma vez só: se já estava, só ganha as etiquetas. `dados_invalidos` com a biblioteca cheia (500). A duração (1 s a 6 h) vem do navegador do mestre |
+| `musica.editarFaixas` | `{ hashes, nome?, descricao? (null tira), energia? (1 a 5; null tira), etiquetas?, maisEtiquetas?, menosEtiquetas? }` | Muda várias músicas de uma vez: `etiquetas` troca a lista, `maisEtiquetas` acrescenta e `menosEtiquetas` tira (sem diferenciar maiúscula; no máximo 12 por música). `dados_invalidos` se nenhuma música existe |
+| `musica.tirarFaixas` | `{ hashes }` | Tira da lista (o arquivo continua na mesa e no computador). Sem música e sem botão, `Estado.musica` some |
+| `musica.botao` | `{ botao: { id, nome (16), icone, cor, etiquetas, energiaMin, energiaMax, ordem } }` | Cria (id novo) ou troca (id que existe) um botão. `dados_invalidos` com nome repetido, energia mínima maior que a máxima (o esquema recusa) ou mais de 24 botões |
+| `musica.botaoApagar` | `{ id }` | Apaga o botão |
+| `musica.tocar` | `{ botaoId }` ou `{ filtro: { etiquetas, energiaMin, energiaMax, ordem } }` | Toca para todos: monta a fila (aleatória sem repetir ou crescente), começa agora e guarda o que tocava em `anterior`. `dados_invalidos` se o botão não existe ou o filtro não tem música |
+| `musica.controle` | `{ acao: pausar \| retomar \| proxima \| anterior \| voltar }` | Pausa (guarda a posição), retoma, vai para a próxima, recomeça a música (depois de 3 s) ou volta para a anterior, ou retoma o botão que tocava antes (`voltar`; `dados_invalidos` sem anterior). `dados_invalidos` se nada toca |
+| `musica.volume` | `{ volume }` | O volume da música (0 a 1); sem música tocando, não faz nada |
+
+`som.pararTudo` também pausa a música, e `som.apagar` tira o som da biblioteca e para a música que o usa.
+
+**Estado.** `Estado.musica { faixas, botoes }` (opcional; só o mestre recebe; entra na exportação). `Estado.musicaTocando { botaoId?, botaoNome, ordem, inicial, ciclo, semente, volume, tocando, inicioMs, pausadoEm?, servidorMs?, anterior? }` (opcional; todos recebem, **sem o `anterior`**; não entra na exportação). `inicial` e `ciclo` são listas de `{ hash, nome, duracaoMs }`: a primeira passada e o que se repete depois. A música e o ponto de agora saem da soma das durações a partir de `inicioMs` (relógio da sala; com `tocando: false`, de `pausadoEm`); as passadas depois da primeira são embaralhadas pela `semente` (mulberry32; a primeira música de uma passada nunca é a última da anterior). `servidorMs` é refeito em cada snapshot e evento, como nos ambientes. Fica na tabela `meta` (`musica` e `musica_tocando`), sem migração.
+
+**Eventos.** `musica.bibliotecaAlterada { musica | null }` (**só o mestre**) e `musica.tocandoAlterado { musicaTocando | null }` (todos; o jogador a recebe sem o `anterior`).
+
+**Sigilo (nota de segurança).** O jogador nunca recebe a biblioteca, os botões, as etiquetas nem a energia. A fila que toca traz só as músicas do filtro que está tocando (hash, nome e duração). Conferido em `musica.test.ts` (visão e eventos) e em `musica.spec.ts` (frames do jogador).
+
 ### Botões das automações (Lote 7b-3)
 
 O mestre pode **fixar** um ciclo ou um botão de evento na barra de cima e **liberar** um deles aos jogadores. Nenhum campo novo da definição chega ao jogador.

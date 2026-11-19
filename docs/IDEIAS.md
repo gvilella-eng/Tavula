@@ -171,10 +171,21 @@ dados mudam de forma).
 As notas ficam só no computador do mestre, em `privado/notas/campanha.md` (a pasta `privado/` não entra no
 git).
 
+## Depois da música da mesa (MU1, 2026-11-19)
+
+- **Arrastar a barra de progresso** para mudar o ponto da música: hoje só mostra; "próxima" e "anterior" movem de música em música.
+- **Música por cena ou por zona**: ligar um botão de música ao levar o grupo para uma cena (como os ambientes da cena) ou ao entrar numa zona.
+- **Adicionar música pelo Claude**: o MCP etiqueta e toca, mas não adiciona, porque a duração só o navegador do mestre lê ao importar. Dá para resolver lendo o cabeçalho do mp3 na sala (sem decodificar), se o Vilella quiser.
+- **Importar uma pasta grande em segundo plano**: hoje a pasta entra arquivo por arquivo com um aviso de andamento; uma pasta de centenas de músicas pede paciência (cada arquivo é lido e registrado).
+- **Descrição, energia e etiquetas na própria linha** (editar sem a barra de lote), e etiquetas sugeridas pelo nome da pasta de cima da pasta.
+- **Playlist fixa** (uma ordem escolhida à mão, sem sorteio) e **repetir uma música**: o desenho só pediu aleatória sem repetir e crescente.
+- **Prévia só para o mestre sem cortar os efeitos**: o play de conferência de cada linha usa o motor de efeitos; ligar outra conferência corta a anterior.
+- **Energia como curva da sessão**: um botão que sobe e desce a energia em ondas, em vez de só subir.
+
 ## Depois da chamada da mesa (CH1, 2026-11-19)
 
 - **Transcrição da chamada com Whisper** (lote seguinte, já pedido): rodar no computador de cada pessoa (nada sai dele), com consentimento claro na entrada; o texto vira notas da sessão. **Neste lote nada é gravado**, nem áudio nem texto.
-- **Trilha da mesa com playlist**: o quadro "Trilha da mesa" hoje só mostra o que toca; pausar, próxima faixa e playlist ficam para o lote da trilha (o desenho já prevê os botões).
+- ~~**Trilha da mesa com playlist**~~: feito no MU1 (4.16 do `PROJETO.md`): a música da mesa tem biblioteca, botões, ordem aleatória ou crescente, e o quadro "Trilha da mesa" mostra a música e dá Pausar e Próxima ao mestre.
 - **Compartilhar tela** na chamada fica de fora por ora (o mapa já é compartilhado pela própria mesa).
 - **Mais de 8 pessoas** pediria um servidor de mídia (SFU) em vez da malha ponto a ponto; só vale a pena se a mesa crescer.
 - **Servidor TURN próprio** para jogar pela internet atrás de roteadores difíceis (STUN/TURN já são configuráveis por `VITE_CHAMADA_ICE_SERVERS`).

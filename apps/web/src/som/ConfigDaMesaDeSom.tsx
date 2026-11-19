@@ -17,6 +17,7 @@ import { type CSSProperties, useEffect, useRef, useState } from "react";
 import { BotaoComDica } from "../BotaoComDica";
 import { noTopoAoCentro } from "../janelas/geometria";
 import { Janela } from "../janelas/Janela";
+import { BibliotecaDeMusica } from "./BibliotecaDeMusica";
 import { Deslizante } from "./Deslizante";
 import { EscolherSom, type SomEscolhido } from "./EscolherSom";
 import { CORES, ICONES, IconeDoLugar } from "./iconesDoSom";
@@ -27,6 +28,8 @@ type Props = {
   estado: Estado;
   /** O lugar que abre escolhido. */
   inicial: { grupo: GrupoDeSom; indice: number };
+  /** A aba que abre (MU1): os lugares ou a biblioteca de música. */
+  aba?: "lugares" | "musica" | undefined;
   fontes: Parameters<typeof EscolherSom>[0]["fontes"];
   registrar: (arquivo: File) => Promise<SomEscolhido>;
   enviar: (tipo: string, dados: object) => string | null;
@@ -52,6 +55,7 @@ const tamanhoLegivel = (bytes: number) =>
  */
 export function ConfigDaMesaDeSom(p: Props) {
   const [sel, setSel] = useState(p.inicial);
+  const [aba, setAba] = useState<"lugares" | "musica">(p.aba ?? "lugares");
   const [confirmandoApagar, setConfirmandoApagar] = useState(false);
   const adiar = useEnvioAdiado(300);
   const prefs = usePrefsDeSom();
@@ -171,14 +175,16 @@ export function ConfigDaMesaDeSom(p: Props) {
       // Q4b: por cima de tudo (da faixa no pé da tela e da janela do som), sempre inteira na tela.
       camadaAlta
       padrao={noTopoAoCentro(32)}
-      largura={(area) => Math.min(760, area.largura - 24)}
+      largura={(area) => Math.min(960, area.largura - 24)}
       altura={(area) => Math.min(720, area.altura - 24)}
       minLargura={560}
       minAltura={420}
       acoes={
         <>
           <span className="som-config-conta" data-testid="som-config-conta">
-            {usados} de {LUGARES_POR_GRUPO * 2} lugares usados
+            {aba === "musica"
+              ? `${p.estado.musica?.faixas.length ?? 0} músicas`
+              : `${usados} de ${LUGARES_POR_GRUPO * 2} lugares usados`}
           </span>
           <button
             type="button"
@@ -195,7 +201,35 @@ export function ConfigDaMesaDeSom(p: Props) {
       testidDoFechar="som-config-fechar"
     >
       <div className="som-config">
-        <div className="som-config-corpo">
+        <div className="som-config-abas" role="tablist" aria-label="Partes da configuração">
+          {(
+            [
+              ["lugares", "Efeitos e ambientes"],
+              ["musica", "Música"],
+            ] as const
+          ).map(([id, nome]) => (
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              className="som-config-aba"
+              data-testid={`som-config-aba-${id}`}
+              aria-selected={aba === id}
+              onClick={() => setAba(id)}
+            >
+              {nome}
+            </button>
+          ))}
+        </div>
+        {aba === "musica" && (
+          <BibliotecaDeMusica
+            estado={p.estado}
+            registrar={p.registrar}
+            enviar={p.enviar}
+            ouvir={p.ouvir}
+          />
+        )}
+        <div className="som-config-corpo" hidden={aba !== "lugares"}>
           <nav className="som-config-esquerda" aria-label="Os 16 lugares da mesa de som">
             <h3 className="som-secao">
               <span>Efeitos</span>
@@ -388,7 +422,7 @@ export function ConfigDaMesaDeSom(p: Props) {
           </div>
         </div>
 
-        <div className="som-config-apagar">
+        <div className="som-config-apagar" hidden={aba !== "lugares"}>
           <div className="som-config-apagar-botao">
             <button
               type="button"

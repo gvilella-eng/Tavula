@@ -1,8 +1,11 @@
 import {
   type AmbienteLigado,
   desvioDoRelogio,
+  FADE_DA_MUSICA_MS,
   FADE_DA_ZONA_MS,
   FADE_DO_AMBIENTE_MS,
+  type MusicaTocando,
+  musicaAgora,
   pontoDaTrilha,
   type SomLigado,
   type SomTocando,
@@ -25,7 +28,7 @@ export type FonteDeAudio = {
   garantir(hash: string): void;
 };
 
-type Categoria = "ambiente" | "zona" | "efeito";
+type Categoria = "ambiente" | "zona" | "efeito" | "musica";
 
 type Canal = {
   hash: string;
@@ -49,6 +52,8 @@ export type EstadoDoSom = {
   efeitos: { hash: string; volume: number; lugar: number | null }[];
   /** Os efeitos que ainda estão tocando agora. */
   efeitosTocando: { hash: string; lugar: number | null }[];
+  /** A música que toca agora (o volume já com o geral da mesa e as preferências), ou `null`. */
+  musica: { hash: string; nome: string; volume: number } | null;
   bloqueado: boolean;
 };
 
@@ -71,6 +76,10 @@ export class MotorDeSom {
   private ambientesDesejados: AmbienteDesejado[] = [];
   private volumeGeral = VOLUME_GERAL_PADRAO;
   private zonasDesejadas: SomTocando[] = [];
+  /** MU1: a música que a sala quer tocando (a fila e o relógio) e o canal da música desta vez. */
+  private musicaDesejada: { musica: MusicaTocando; desvio: number } | null = null;
+  private canalMusica: { canal: Canal; chave: string; nome: string } | null = null;
+  private relogioDaMusica: ReturnType<typeof setTimeout> | undefined;
   private readonly ambientes = new Map<number, Canal>();
   private readonly zonas = new Map<string, Canal>();
   /** Sons de zona sem laço que já tocaram desde que o jogador entrou (tocam uma vez por entrada). */
@@ -142,8 +151,24 @@ export class MotorDeSom {
         hash: e.info.hash,
         lugar: e.info.lugar,
       })),
+      musica: this.canalMusica
+        ? {
+            hash: this.canalMusica.canal.hash,
+            nome: this.canalMusica.nome,
+            volume: this.volumeDe(this.canalMusica.canal, p),
+          }
+        : null,
       bloqueado: this.bloqueado,
     };
+  }
+
+  /**
+   * MU1: a música da mesa (`null`: nada). Quem toca e em que ponto sai da fila e do relógio da sala (a mesma conta em todo
+   * navegador); a troca de música é no fim de cada uma (um alarme), com a transição suave.
+   */
+  definirMusica(musica: MusicaTocando | null): void {
+    this.musicaDesejada = musica ? { musica, desvio: desvioDoRelogio(musica, Date.now()) } : null;
+    this.reconciliar();
   }
 
   // --- o que deve tocar -----------------------------------------------------------------------
@@ -253,6 +278,10 @@ export class MotorDeSom {
   encerrar(): void {
     this.encerrado = true;
     this.desinscrever();
+    if (this.relogioDaMusica) clearTimeout(this.relogioDaMusica);
+    this.relogioDaMusica = undefined;
+    if (this.canalMusica) this.soltar(this.canalMusica.canal);
+    this.canalMusica = null;
     for (const c of [
       ...this.ambientes.values(),
       ...this.zonas.values(),
@@ -271,8 +300,10 @@ export class MotorDeSom {
 
   private volumeDe(c: Canal, p: PrefsDeSom): number {
     // As preferências guardam o volume dos ambientes na chave `trilha` (nome do N5, para não perder o que a pessoa ajustou).
-    const cat = c.categoria === "ambiente" ? p.trilha : p.efeitos;
-    const base = c.categoria === "ambiente" ? c.volume * this.volumeGeral : c.volume;
+    // A música usa o mesmo botão de volume dos ambientes (a trilha) e também vale o volume geral da mesa de som.
+    const daTrilha = c.categoria === "ambiente" || c.categoria === "musica";
+    const cat = daTrilha ? p.trilha : p.efeitos;
+    const base = daTrilha ? c.volume * this.volumeGeral : c.volume;
     return volumeFinal(base, p.geral, cat, p.silenciado);
   }
 
@@ -351,10 +382,14 @@ export class MotorDeSom {
       const c = this.ambientes.get(d.ligado.indice);
       if (c && c.hash === d.ligado.hash) c.volume = d.ligado.volume;
     }
+    if (this.canalMusica && this.musicaDesejada) {
+      this.canalMusica.canal.volume = this.musicaDesejada.musica.volume;
+    }
     const todos = [
       ...this.ambientes.values(),
       ...this.zonas.values(),
       ...[...this.efeitosAtivos.values()].map((e) => e.canal),
+      ...(this.canalMusica ? [this.canalMusica.canal] : []),
     ];
     for (const c of todos) this.ajustar(c, this.volumeDe(c, p), AJUSTE_DE_VOLUME_MS);
     this.mudou();
@@ -370,7 +405,76 @@ export class MotorDeSom {
   private async reconciliarAgora(depoisDoGesto: boolean): Promise<void> {
     if (this.encerrado) return;
     await this.reconciliarAmbientes(depoisDoGesto);
+    await this.reconciliarMusica(depoisDoGesto);
     await this.reconciliarZonas(depoisDoGesto);
+  }
+
+  /** A música tocando agora (música e ponto), ou `null` se nada deve tocar. */
+  private musicaDeAgora(): ReturnType<typeof musicaAgora> {
+    const d = this.musicaDesejada;
+    if (!d?.musica.tocando) return null;
+    return musicaAgora(d.musica, Date.now() + d.desvio);
+  }
+
+  private async reconciliarMusica(depoisDoGesto: boolean): Promise<void> {
+    if (this.relogioDaMusica) clearTimeout(this.relogioDaMusica);
+    this.relogioDaMusica = undefined;
+    const p = prefsDeSom();
+    const d = this.musicaDesejada;
+    const agora = this.musicaDeAgora();
+    const atual = this.canalMusica;
+    if (!d || !agora) {
+      // Pausada ou parada: some com fade (a retomada recomeça do ponto da fila).
+      if (atual) {
+        this.canalMusica = null;
+        this.ajustar(atual.canal, 0, FADE_DA_MUSICA_MS, () => this.soltar(atual.canal));
+      }
+      return;
+    }
+    const chave = `${d.musica.semente}|${agora.passoInicioMs}|${agora.peca.hash}`;
+    // A próxima música já vai baixando, e a troca acontece no fim desta.
+    this.fonte.garantir(agora.seguinte.hash);
+    this.relogioDaMusica = setTimeout(
+      () => {
+        if (!this.encerrado) this.reconciliar();
+      },
+      Math.max(50, agora.peca.duracaoMs - agora.pontoMs),
+    );
+    if (atual && atual.chave === chave) {
+      atual.canal.volume = d.musica.volume;
+      this.ajustar(atual.canal, this.volumeDe(atual.canal, p), AJUSTE_DE_VOLUME_MS);
+      const duracao = atual.canal.el.duration;
+      if (
+        Number.isFinite(duracao) &&
+        !atual.canal.el.ended &&
+        Math.abs(atual.canal.el.currentTime - agora.pontoMs / 1000) > DESVIO_ACEITO_S
+      ) {
+        atual.canal.el.currentTime = agora.pontoMs / 1000;
+      }
+      if (depoisDoGesto && atual.canal.el.paused) await this.comecar(atual.canal);
+      return;
+    }
+    // Outra música (o botão mudou, a anterior acabou ou alguém pulou): a antiga some com fade e a nova entra.
+    if (atual) {
+      this.canalMusica = null;
+      this.ajustar(atual.canal, 0, FADE_DA_MUSICA_MS, () => this.soltar(atual.canal));
+    }
+    this.fonte.garantir(agora.peca.hash);
+    const url = await this.urlDoArquivo(agora.peca.hash);
+    const novo = this.musicaDeAgora();
+    const ainda =
+      novo && novo.peca.hash === agora.peca.hash && novo.passoInicioMs === agora.passoInicioMs;
+    if (url === null || this.encerrado || !ainda || !novo || this.canalMusica) return;
+    const canal = this.novoCanal(agora.peca.hash, "musica", d.musica.volume, url, false);
+    this.canalMusica = { canal, chave, nome: agora.peca.nome };
+    const posicionar = () => {
+      const n = this.musicaDeAgora();
+      if (n && n.passoInicioMs === agora.passoInicioMs) canal.el.currentTime = n.pontoMs / 1000;
+    };
+    if (Number.isFinite(canal.el.duration) && canal.el.duration > 0) posicionar();
+    else canal.el.addEventListener("loadedmetadata", posicionar, { once: true });
+    this.ajustar(canal, this.volumeDe(canal, p), FADE_DA_MUSICA_MS);
+    await this.comecar(canal);
   }
 
   private async reconciliarAmbientes(depoisDoGesto: boolean): Promise<void> {

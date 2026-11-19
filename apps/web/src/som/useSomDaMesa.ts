@@ -59,6 +59,16 @@ export function useSomDaMesa(p: Props) {
     motor.definirAmbientes(somLigado);
   }, [motor, ligadoChave]);
 
+  // MU1: a música (por cima dos ambientes): a fila e o relógio da sala; cada navegador acha a música e o ponto sozinho.
+  const musica = p.estado?.musicaTocando ?? null;
+  const musicaChave = musica
+    ? `${musica.semente}|${musica.inicioMs}|${musica.pausadoEm ?? ""}|${musica.tocando}|${musica.volume}|${musica.ordem}`
+    : "";
+  // biome-ignore lint/correctness/useExhaustiveDependencies: refaz quando a música muda de verdade (a cópia traz um `servidorMs` novo a cada snapshot)
+  useEffect(() => {
+    motor.definirMusica(musica);
+  }, [motor, musicaChave]);
+
   // Baixar antes (só o mestre sabe quais são): os ambientes dos lugares chegam ao cache sem esperar ligar.
   const dosLugares = (p.estado?.mesaDeSom?.ambientes ?? [])
     .flatMap((l) => (l ? [l.hash] : []))

@@ -15,6 +15,7 @@ import { CondicaoSchema } from "./condicoes.ts";
 import { DesenhoSchema } from "./desenho.ts";
 import { FichaSchema } from "./ficha.ts";
 import { IndiceDoLugarSchema, MesaDeSomSchema, SomLigadoSchema } from "./mesadesom.ts";
+import { BibliotecaDeMusicaSchema, MusicaTocandoSchema } from "./musica.ts";
 import { TracosDaNevoaSchema } from "./nevoa.ts";
 import { TrilhaDaCenaSchema, TrilhaSchema } from "./som.ts";
 import { MAXIMO_DE_ZONAS, ZonaSchema } from "./zonas.ts";
@@ -717,6 +718,16 @@ export const EstadoSchema = z.object({
    * entra na exportação (o relógio dos ambientes seria de outra sessão). Sem o campo não há ambiente tocando.
    */
   somLigado: SomLigadoSchema.optional(),
+  /**
+   * MU1: a biblioteca de músicas (arquivo, duração, energia e etiquetas) e os botões (filtros salvos). SÓ o mestre recebe;
+   * entra na exportação. Sem o campo não há música na mesa.
+   */
+  musica: BibliotecaDeMusicaSchema.optional(),
+  /**
+   * MU1: a música que toca agora (a fila, o instante de início e o volume). Todos recebem, sem a biblioteca e sem o
+   * "anterior"; não entra na exportação. Sem o campo não há música tocando.
+   */
+  musicaTocando: MusicaTocandoSchema.optional(),
   /** Metadados dos assets registrados. Só existe na sala e na visão do mestre (nunca do jogador). */
   assets: z.array(AssetMetaSchema).optional(),
   /**

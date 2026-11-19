@@ -10,7 +10,10 @@ import {
 import {
   AppWindow,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   ChevronUp,
+  Music,
   PanelBottom,
   Play,
   Plus,
@@ -20,7 +23,7 @@ import {
   Volume2,
   X,
 } from "lucide-react";
-import type { CSSProperties, PointerEvent, KeyboardEvent as TecladoReact } from "react";
+import type { CSSProperties, PointerEvent, ReactNode, KeyboardEvent as TecladoReact } from "react";
 import { useRef, useState } from "react";
 import type { Fontes } from "./assets/fontes";
 import { BotaoComDica } from "./BotaoComDica";
@@ -28,8 +31,11 @@ import { noCanto } from "./janelas/geometria";
 import { Janela } from "./janelas/Janela";
 import { ConfigDaMesaDeSom } from "./som/ConfigDaMesaDeSom";
 import { Deslizante } from "./som/Deslizante";
+import { DivisorDoSom } from "./som/DivisorDoSom";
+import { type LadoDoSom, useDivisaoDoSom } from "./som/divisaoDoSom";
 import type { SomEscolhido } from "./som/EscolherSom";
 import { CORES, IconeDoLugar } from "./som/iconesDoSom";
+import { MusicaDoSom } from "./som/MusicaDoSom";
 import {
   ALTURA_CHEIA_DA_FAIXA,
   ALTURA_MINIMA_DA_FAIXA,
@@ -74,7 +80,9 @@ export function PainelDoSom(p: Props) {
   const [configurando, setConfigurando] = useState<{
     grupo: "efeito" | "ambiente";
     indice: number;
+    aba?: "lugares" | "musica";
   } | null>(null);
+  const { divisao, mudarDivisao, minimizado, minimizar } = useDivisaoDoSom();
   const [alturaDaFaixa, setAlturaDaFaixa] = useState<number | null>(lerAlturaDaFaixa);
   const [dicaDoTransporte, setDicaDoTransporte] = useState(false);
   const adiar = useEnvioAdiado();
@@ -304,6 +312,7 @@ export function PainelDoSom(p: Props) {
     <ConfigDaMesaDeSom
       estado={p.estado}
       inicial={configurando}
+      aba={configurando.aba}
       fontes={p.fontes}
       registrar={p.registrar}
       enviar={p.enviar}
@@ -339,15 +348,149 @@ export function PainelDoSom(p: Props) {
     .map((i) => lugares.ambientes[i]?.nome)
     .filter((n): n is string => n !== undefined);
 
+  // --- MU1: a música ao lado (ou embaixo) dos efeitos e ambientes, com o divisor e o "minimizar" ----
+
+  const musicaTocando = p.estado.musicaTocando;
+  const resumoDaMusica = musicaTocando
+    ? `${musicaTocando.botaoNome}${musicaTocando.tocando ? "" : " (pausada)"}`
+    : "nada tocando";
+  const botoesDeMusica = p.estado.musica?.botoes.length ?? 0;
+
+  const botaoMinimizar = (lado: LadoDoSom, nome: string, seta: ReactNode) => (
+    <BotaoComDica
+      testid={`som-minimizar-${lado}`}
+      nome={`Minimizar ${nome}`}
+      className="botao-icone pequeno som-minimizar"
+      onClick={() => minimizar(lado)}
+    >
+      {seta}
+    </BotaoComDica>
+  );
+
+  /** Efeitos e ambientes de um lado, Música do outro: `lado` (um ao lado do outro) ou `pilha` (um em cima do outro). */
+  function dividido(disposicao: "lado" | "pilha", efeitosEAmbientes: ReactNode) {
+    const lado = disposicao === "lado";
+    const trilho = (qual: LadoDoSom, nome: string, extra?: string) => (
+      <button
+        type="button"
+        className="som-trilho"
+        data-testid={`som-trilho-${qual}`}
+        data-orientacao={lado ? "vertical" : "horizontal"}
+        aria-label={`Abrir ${nome}`}
+        onClick={() => minimizar(null)}
+      >
+        {lado ? (
+          qual === "efeitos" ? (
+            <ChevronRight size={16} aria-hidden="true" />
+          ) : (
+            <ChevronLeft size={16} aria-hidden="true" />
+          )
+        ) : qual === "efeitos" ? (
+          <ChevronDown size={16} aria-hidden="true" />
+        ) : (
+          <ChevronUp size={16} aria-hidden="true" />
+        )}
+        <span className="som-trilho-nome" data-testid={`som-trilho-${qual}-nome`}>
+          {extra ? `${nome} · ${extra}` : nome}
+        </span>
+      </button>
+    );
+    return (
+      <div
+        className="som-dividido"
+        data-testid="som-dividido"
+        data-disposicao={disposicao}
+        style={{ "--som-divisao": divisao } as CSSProperties}
+      >
+        {minimizado === "efeitos" ? (
+          trilho("efeitos", "Efeitos e ambientes")
+        ) : (
+          <div
+            className="som-lado som-lado-efeitos"
+            data-testid="som-lado-efeitos"
+            data-sozinho={minimizado === "musica" ? "sim" : "nao"}
+          >
+            {efeitosEAmbientes}
+          </div>
+        )}
+        {minimizado === null && (
+          <DivisorDoSom
+            orientacao={lado ? "vertical" : "horizontal"}
+            divisao={divisao}
+            aoMudar={mudarDivisao}
+          />
+        )}
+        {minimizado === "musica" ? (
+          trilho("musica", "Música", musicaTocando ? musicaTocando.botaoNome : undefined)
+        ) : (
+          <section
+            className="som-lado som-lado-musica"
+            data-testid="som-lado-musica"
+            data-sozinho={minimizado === "efeitos" ? "sim" : "nao"}
+            aria-label="Música"
+          >
+            <h3 className="som-secao">
+              <Music size={13} aria-hidden="true" />
+              <span>Música · por cima dos ambientes</span>
+              <span className="som-secao-info" data-testid="som-musica-resumo">
+                {botoesDeMusica > 0 ? resumoDaMusica : ""}
+              </span>
+              {botaoMinimizar(
+                "musica",
+                "a música",
+                lado ? (
+                  <ChevronRight size={15} aria-hidden="true" />
+                ) : (
+                  <ChevronDown size={15} aria-hidden="true" />
+                ),
+              )}
+            </h3>
+            <MusicaDoSom
+              estado={p.estado}
+              enviar={p.enviar}
+              aoConfigurar={() => setConfigurando({ grupo: "efeito", indice: 0, aba: "musica" })}
+            />
+          </section>
+        )}
+      </div>
+    );
+  }
+  const minimizarEfeitos = (lado: boolean) =>
+    botaoMinimizar(
+      "efeitos",
+      "efeitos e ambientes",
+      lado ? (
+        <ChevronLeft size={15} aria-hidden="true" />
+      ) : (
+        <ChevronUp size={15} aria-hidden="true" />
+      ),
+    );
+
+  /** A mesa de som vazia ainda tem o título do lado, para poder minimizá-lo. */
+  const vazioComTitulo = (lado: boolean) => (
+    <>
+      <h3 className="som-secao">
+        <span className="som-secao-com-botao">
+          {minimizarEfeitos(lado)}
+          Efeitos e ambientes
+        </span>
+      </h3>
+      {vazioGeral}
+    </>
+  );
+
   /** O corpo vertical: o da janela flutuante e o da janela própria do navegador. */
-  const corpoVertical = (
+  const efeitosEAmbientesVerticais = (
     <>
       {mesaVazia ? (
-        vazioGeral
+        vazioComTitulo(false)
       ) : (
         <>
           <h3 className="som-secao">
-            <span>Efeitos</span>
+            <span className="som-secao-com-botao">
+              {minimizarEfeitos(false)}
+              Efeitos
+            </span>
             <span>
               {lugares.efeitos.filter(Boolean).length}/{LUGARES_POR_GRUPO}
               {nEfeitos > 0 ? ` · ${nEfeitos} tocando` : ""}
@@ -395,6 +538,11 @@ export function PainelDoSom(p: Props) {
           </div>
         </>
       )}
+    </>
+  );
+  const corpoVertical = (
+    <>
+      {dividido("pilha", efeitosEAmbientesVerticais)}
       {pe}
       <p className="nota som-pe-nota" data-testid="som-resumo">
         {resumo} · {usados}/16 lugares · só o mestre controla; os jogadores só ouvem.
@@ -453,6 +601,9 @@ export function PainelDoSom(p: Props) {
             <span className="som-resumo" data-testid="som-resumo">
               {resumo}
             </span>
+            <span className="som-resumo" data-testid="som-resumo-musica">
+              · música: {resumoDaMusica}
+            </span>
             <span className="som-faixa-espaco" />
             {pe}
             {botaoConfig}
@@ -493,30 +644,36 @@ export function PainelDoSom(p: Props) {
                 data-testid="som-faixa-escala"
                 style={escala < 1 ? ({ zoom: escala } as CSSProperties) : undefined}
               >
-                {mesaVazia ? (
-                  vazioGeral
-                ) : (
-                  <>
-                    <div className="som-faixa-coluna som-faixa-efeitos">
-                      <h3 className="som-secao">
-                        <span>Efeitos</span>
-                        <span>
-                          {lugares.efeitos.filter(Boolean).length}/{LUGARES_POR_GRUPO}
-                        </span>
-                      </h3>
-                      {efeitos}
+                {dividido(
+                  "lado",
+                  mesaVazia ? (
+                    vazioComTitulo(true)
+                  ) : (
+                    <div className="som-faixa-colunas">
+                      <div className="som-faixa-coluna som-faixa-efeitos">
+                        <h3 className="som-secao">
+                          <span className="som-secao-com-botao">
+                            {minimizarEfeitos(true)}
+                            Efeitos
+                          </span>
+                          <span>
+                            {lugares.efeitos.filter(Boolean).length}/{LUGARES_POR_GRUPO}
+                          </span>
+                        </h3>
+                        {efeitos}
+                      </div>
+                      <div className="som-faixa-coluna som-faixa-ambientes">
+                        <h3 className="som-secao">
+                          <span>Ambientes · em laço</span>
+                          <span>
+                            {lugares.ambientes.filter(Boolean).length}/{LUGARES_POR_GRUPO} ·{" "}
+                            {rotuloDosAmbientes}
+                          </span>
+                        </h3>
+                        {ambientes}
+                      </div>
                     </div>
-                    <div className="som-faixa-coluna som-faixa-ambientes">
-                      <h3 className="som-secao">
-                        <span>Ambientes · em laço</span>
-                        <span>
-                          {lugares.ambientes.filter(Boolean).length}/{LUGARES_POR_GRUPO} ·{" "}
-                          {rotuloDosAmbientes}
-                        </span>
-                      </h3>
-                      {ambientes}
-                    </div>
-                  </>
+                  ),
                 )}
               </div>
             </div>
@@ -537,6 +694,7 @@ export function PainelDoSom(p: Props) {
         classeDoCorpo="painel-som"
         padrao={noCanto("topo-esquerda", 72, 64)}
         largura={420}
+        altura={(area) => Math.min(680, area.altura - 24)}
         acoes={
           <>
             {botaoConfig}

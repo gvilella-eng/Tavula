@@ -94,6 +94,17 @@ import {
   LugarDeSomSchema,
   SomLigadoSchema,
 } from "./mesadesom.ts";
+import {
+  BibliotecaDeMusicaSchema,
+  BotaoDeMusicaSchema,
+  EnergiaSchema,
+  EtiquetaSchema,
+  FaixaDeMusicaSchema,
+  FiltroDeMusicaSchema,
+  MAXIMO_DE_ETIQUETAS,
+  MAXIMO_DE_FAIXAS,
+  MusicaTocandoSchema,
+} from "./musica.ts";
 import { TracoDaNevoaSchema } from "./nevoa.ts";
 import { modelosPadrao } from "./objetos.ts";
 import {
@@ -1098,6 +1109,50 @@ export const IntencaoSchema = z.discriminatedUnion("tipo", [
   intencao("som.pararTudo", SemDados),
   intencao("som.apagar", z.object({ hash: HashSchema })),
   /**
+   * MU1 (música da mesa), só o mestre (`som.controlar`). `musica.adicionar` põe músicas na biblioteca (o asset `som` já
+   * registrado; a duração vem do navegador do mestre; o mesmo arquivo entra uma vez só e, se já estava, ganha as etiquetas).
+   * `musica.editarFaixas` muda várias músicas de uma vez (nome, descrição, energia 1 a 5, e as etiquetas: trocar a lista,
+   * acrescentar ou tirar). `musica.tirarFaixas` as tira da lista. `musica.botao` cria ou troca um botão (um filtro salvo:
+   * etiquetas, faixa de energia e ordem); `musica.botaoApagar` o apaga. `musica.tocar` toca um botão ou um filtro solto para
+   * todos (a música que tocava fica para o "Voltar"). `musica.controle` pausa, retoma, vai para a próxima, volta para a
+   * anterior ou volta ao botão que tocava antes. `musica.volume` é o volume da música (0 a 1).
+   */
+  intencao("musica.adicionar", z.object({ faixas: z.array(FaixaDeMusicaSchema).min(1).max(200) })),
+  intencao(
+    "musica.editarFaixas",
+    z.object({
+      hashes: z.array(HashSchema).min(1).max(MAXIMO_DE_FAIXAS),
+      nome: FaixaDeMusicaSchema.shape.nome.optional(),
+      /** `null` tira a descrição. */
+      descricao: z.string().trim().min(1).max(200).nullable().optional(),
+      /** `null` tira a nota (volta a valer 3). */
+      energia: EnergiaSchema.nullable().optional(),
+      /** Troca a lista de etiquetas. */
+      etiquetas: z.array(EtiquetaSchema).max(MAXIMO_DE_ETIQUETAS).optional(),
+      maisEtiquetas: z.array(EtiquetaSchema).max(MAXIMO_DE_ETIQUETAS).optional(),
+      menosEtiquetas: z.array(EtiquetaSchema).max(MAXIMO_DE_ETIQUETAS).optional(),
+    }),
+  ),
+  intencao(
+    "musica.tirarFaixas",
+    z.object({ hashes: z.array(HashSchema).min(1).max(MAXIMO_DE_FAIXAS) }),
+  ),
+  intencao("musica.botao", z.object({ botao: BotaoDeMusicaSchema })),
+  intencao("musica.botaoApagar", z.object({ id: IdSchema })),
+  intencao(
+    "musica.tocar",
+    z
+      .object({ botaoId: IdSchema.optional(), filtro: FiltroDeMusicaSchema.optional() })
+      .refine((d) => (d.botaoId === undefined) !== (d.filtro === undefined), {
+        message: "Diga o botão ou o filtro.",
+      }),
+  ),
+  intencao(
+    "musica.controle",
+    z.object({ acao: z.enum(["pausar", "retomar", "proxima", "anterior", "voltar"]) }),
+  ),
+  intencao("musica.volume", z.object({ volume: VolumeSchema })),
+  /**
    * Automações (7b-1, seção 4.11). Todas só do mestre (`automacao.editar`). `ciclo.criar` com `pausado`
    * cria o ciclo parado no começo (sem ele, roda assim que a mesa corre). Editar o período ou as fases
    * reinicia o ciclo (mantendo-o pausado, se estava).
@@ -1317,6 +1372,14 @@ export const capacidadeDaIntencao: Record<TipoIntencao, Capacidade | null> = {
   "som.transporte": "som.controlar",
   "som.pararTudo": "som.controlar",
   "som.apagar": "som.controlar",
+  "musica.adicionar": "som.controlar",
+  "musica.editarFaixas": "som.controlar",
+  "musica.tirarFaixas": "som.controlar",
+  "musica.botao": "som.controlar",
+  "musica.botaoApagar": "som.controlar",
+  "musica.tocar": "som.controlar",
+  "musica.controle": "som.controlar",
+  "musica.volume": "som.controlar",
   // 7b-1: automações são dado do mestre (regra 7): nenhuma é delegável.
   "ciclo.criar": "automacao.editar",
   "ciclo.editar": "automacao.editar",
@@ -1495,6 +1558,13 @@ export const EventoSalaSchema = z.discriminatedUnion("tipo", [
    * `servidorMs` é refeito para cada um.
    */
   eventoDe("som.ligadoAlterado", z.object({ somLigado: SomLigadoSchema.nullable() })),
+  /** MU1: a biblioteca de música mudou (`null`: ficou sem música e sem botão). SÓ o mestre recebe. */
+  eventoDe("musica.bibliotecaAlterada", z.object({ musica: BibliotecaDeMusicaSchema.nullable() })),
+  /**
+   * MU1: a música que toca mudou (`null`: nada toca). Todos recebem, sem o "anterior" (do mestre); o `servidorMs` é refeito
+   * para cada um.
+   */
+  eventoDe("musica.tocandoAlterado", z.object({ musicaTocando: MusicaTocandoSchema.nullable() })),
   /** Q4: um lugar da mesa de som mudou (`null`: ficou vazio). SÓ o mestre recebe (nome, ícone e cor são dele). */
   eventoDe(
     "som.lugarAlterado",

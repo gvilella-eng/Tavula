@@ -186,6 +186,7 @@ test("o mestre monta uma cena pelo Claude (HTTP): rascunho invisível ao jogador
     "combate",
     "mesa",
     "som",
+    "musica",
     "chat",
     "rolar",
     "rascunhos",
@@ -474,7 +475,7 @@ test("segurança do HTTP: Origin, cookie, métodos, tipo e tamanho; a lista de f
 
   // O que o Claude nunca faz não é ferramenta: nem na lista, nem chamando pelo nome da intenção.
   const lista = await mcp.ferramentas();
-  expect(lista).toHaveLength(18);
+  expect(lista).toHaveLength(19);
   for (const proibida of [
     "papel.alterar",
     "permissao.alterar",

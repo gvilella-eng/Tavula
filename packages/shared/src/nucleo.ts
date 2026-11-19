@@ -125,6 +125,27 @@ import {
   usosDoSom,
   volumeGeralDe,
 } from "./mesadesom.ts";
+import {
+  anteriorMusica,
+  type BibliotecaDeMusica,
+  bibliotecaOuNada,
+  type FaixaDeMusica,
+  faixasDoFiltro,
+  filtroDoBotao,
+  iniciarMusica,
+  MAXIMO_DE_BOTOES_DE_MUSICA,
+  MAXIMO_DE_FAIXAS,
+  musicaComRelogio,
+  musicaParaJogador,
+  musicaUsaOHash,
+  nomeDoFiltro,
+  normalizarEtiquetas,
+  pausarMusica,
+  proximaMusica,
+  retomarMusica,
+  VOLUME_PADRAO_DA_MUSICA,
+  voltarMusica,
+} from "./musica.ts";
 import { acrescentarTraco, tirarUltimoTraco } from "./nevoa.ts";
 import {
   modelosParaJogador,
@@ -306,6 +327,36 @@ function ligadoComRelogio(s: SomLigado, agora: number): SomLigado {
   return { ...s, ambientes: s.ambientes.map((a) => ({ ...a, servidorMs: agora })) };
 }
 
+/** O evento que leva a biblioteca de música ao valor novo, ou `null` se nada mudou. */
+function eventoDaBiblioteca(estado: Estado, nova: BibliotecaDeMusica): NovoEvento | null {
+  const valor = bibliotecaOuNada(nova);
+  if (JSON.stringify(estado.musica ?? null) === JSON.stringify(valor)) return null;
+  return { tipo: "musica.bibliotecaAlterada", dados: { musica: valor } };
+}
+
+/** Uma música com as mudanças de `musica.editarFaixas` aplicadas. */
+function faixaEditada(
+  f: FaixaDeMusica,
+  d: Extract<Intencao, { tipo: "musica.editarFaixas" }>["dados"],
+): FaixaDeMusica {
+  const { descricao: _d, energia: _e, ...base } = f;
+  const descricao = d.descricao === undefined ? f.descricao : (d.descricao ?? undefined);
+  const energia = d.energia === undefined ? f.energia : (d.energia ?? undefined);
+  let etiquetas = d.etiquetas === undefined ? f.etiquetas : normalizarEtiquetas(d.etiquetas);
+  if (d.maisEtiquetas) etiquetas = normalizarEtiquetas([...etiquetas, ...d.maisEtiquetas]);
+  if (d.menosEtiquetas) {
+    const tirar = d.menosEtiquetas.map((e) => e.toLocaleLowerCase("pt-BR"));
+    etiquetas = etiquetas.filter((e) => !tirar.includes(e.toLocaleLowerCase("pt-BR")));
+  }
+  return {
+    ...base,
+    nome: d.nome ?? f.nome,
+    etiquetas,
+    ...(descricao === undefined ? {} : { descricao }),
+    ...(energia === undefined ? {} : { energia }),
+  };
+}
+
 function imagemDeTokenExiste(estado: Estado, hash: string): boolean {
   const tipo = metaDoAsset(estado, hash)?.tipo;
   return tipo === "token" || tipo === "retrato";
@@ -437,6 +488,7 @@ export function criarExportacao(estado: Estado, agora: string): Exportacao {
     memoriaEsquecida: _sessao,
     trilha: _trilha,
     somLigado: _somLigado,
+    musicaTocando: _musicaTocando,
     acendimentos: _pendentes,
     chat: _chat,
     retratosDoChat: _retratos,
@@ -1018,6 +1070,18 @@ export function reduzir(estado: Estado, evento: EventoSala): Estado {
       return evento.dados.somLigado === null
         ? semLigado
         : { ...semLigado, somLigado: evento.dados.somLigado };
+    }
+    case "musica.bibliotecaAlterada": {
+      const { musica: _antiga, ...semMusica } = base;
+      return evento.dados.musica === null
+        ? semMusica
+        : { ...semMusica, musica: evento.dados.musica };
+    }
+    case "musica.tocandoAlterado": {
+      const { musicaTocando: _antiga, ...semMusica } = base;
+      return evento.dados.musicaTocando === null
+        ? semMusica
+        : { ...semMusica, musicaTocando: evento.dados.musicaTocando };
     }
     case "som.lugarAlterado": {
       const { grupo, indice, lugar } = evento.dados;
@@ -3143,6 +3207,160 @@ function processarIntencao(
       return aplicado();
     }
 
+    case "musica.adicionar": {
+      const bib = estado.musica ?? { faixas: [], botoes: [] };
+      const faixas = [...bib.faixas];
+      for (const nova of intencao.dados.faixas) {
+        if (metaDoAsset(estado, nova.hash)?.tipo !== "som") {
+          return recusa("asset_inexistente", "Som não encontrado.");
+        }
+        const i = faixas.findIndex((f) => f.hash === nova.hash);
+        const etiquetas = normalizarEtiquetas(nova.etiquetas);
+        const existente = faixas[i];
+        if (existente) {
+          // O mesmo arquivo de novo: só ganha as etiquetas.
+          faixas[i] = {
+            ...existente,
+            etiquetas: normalizarEtiquetas([...existente.etiquetas, ...etiquetas]),
+          };
+        } else {
+          if (faixas.length >= MAXIMO_DE_FAIXAS) {
+            return recusa(
+              "dados_invalidos",
+              `A biblioteca está cheia (${MAXIMO_DE_FAIXAS} músicas).`,
+            );
+          }
+          faixas.push({ ...nova, etiquetas });
+        }
+      }
+      const ev = eventoDaBiblioteca(estado, { faixas, botoes: bib.botoes });
+      if (ev) emitir(ev);
+      return aplicado();
+    }
+
+    case "musica.editarFaixas": {
+      const d = intencao.dados;
+      const bib = estado.musica ?? { faixas: [], botoes: [] };
+      const alvo = new Set(d.hashes);
+      if (!bib.faixas.some((f) => alvo.has(f.hash))) {
+        return recusa("dados_invalidos", "Música não encontrada na biblioteca.");
+      }
+      const faixas = bib.faixas.map((f) => (alvo.has(f.hash) ? faixaEditada(f, d) : f));
+      const ev = eventoDaBiblioteca(estado, { faixas, botoes: bib.botoes });
+      if (ev) emitir(ev);
+      return aplicado();
+    }
+
+    case "musica.tirarFaixas": {
+      const bib = estado.musica ?? { faixas: [], botoes: [] };
+      const tirar = new Set(intencao.dados.hashes);
+      const ev = eventoDaBiblioteca(estado, {
+        faixas: bib.faixas.filter((f) => !tirar.has(f.hash)),
+        botoes: bib.botoes,
+      });
+      if (ev) emitir(ev);
+      return aplicado();
+    }
+
+    case "musica.botao": {
+      const { botao } = intencao.dados;
+      const bib = estado.musica ?? { faixas: [], botoes: [] };
+      const nome = botao.nome.toLocaleLowerCase("pt-BR");
+      if (bib.botoes.some((b) => b.id !== botao.id && b.nome.toLocaleLowerCase("pt-BR") === nome)) {
+        return recusa("dados_invalidos", "Já existe um botão de música com este nome.");
+      }
+      const limpo = { ...botao, etiquetas: normalizarEtiquetas(botao.etiquetas) };
+      const existe = bib.botoes.some((b) => b.id === botao.id);
+      if (!existe && bib.botoes.length >= MAXIMO_DE_BOTOES_DE_MUSICA) {
+        return recusa("dados_invalidos", `Há botões demais (${MAXIMO_DE_BOTOES_DE_MUSICA}).`);
+      }
+      const botoes = existe
+        ? bib.botoes.map((b) => (b.id === botao.id ? limpo : b))
+        : [...bib.botoes, limpo];
+      const ev = eventoDaBiblioteca(estado, { faixas: bib.faixas, botoes });
+      if (ev) emitir(ev);
+      return aplicado();
+    }
+
+    case "musica.botaoApagar": {
+      const bib = estado.musica ?? { faixas: [], botoes: [] };
+      const ev = eventoDaBiblioteca(estado, {
+        faixas: bib.faixas,
+        botoes: bib.botoes.filter((b) => b.id !== intencao.dados.id),
+      });
+      if (ev) emitir(ev);
+      return aplicado();
+    }
+
+    case "musica.tocar": {
+      const { botaoId, filtro: filtroPedido } = intencao.dados;
+      const bib = estado.musica ?? { faixas: [], botoes: [] };
+      const botao = botaoId === undefined ? undefined : bib.botoes.find((b) => b.id === botaoId);
+      if (botaoId !== undefined && !botao) {
+        return recusa("dados_invalidos", "Botão de música não encontrado.");
+      }
+      const filtro = botao ? filtroDoBotao(botao) : filtroPedido;
+      if (!filtro) return recusa("dados_invalidos", "Diga o botão ou o filtro.");
+      const faixas = faixasDoFiltro(bib.faixas, filtro);
+      if (faixas.length === 0) return recusa("dados_invalidos", "Nenhuma música neste filtro.");
+      const antes = estado.musicaTocando;
+      const mesmoBotao = botao !== undefined && antes?.botaoId === botao.id;
+      const nova = iniciarMusica(
+        {
+          ...(botao ? { botaoId: botao.id } : {}),
+          botaoNome: botao ? botao.nome : nomeDoFiltro(filtro),
+          ordem: filtro.ordem,
+          faixas,
+          volume: antes?.volume ?? VOLUME_PADRAO_DA_MUSICA,
+        },
+        mesmoBotao ? undefined : antes,
+        agoraMs,
+      );
+      if (!nova) return recusa("dados_invalidos", "Nenhuma música neste filtro.");
+      // Tocar o mesmo botão de novo sorteia outra fila, mas não troca o "anterior".
+      const final = mesmoBotao && antes?.anterior ? { ...nova, anterior: antes.anterior } : nova;
+      emitir({ tipo: "musica.tocandoAlterado", dados: { musicaTocando: final } });
+      return aplicado();
+    }
+
+    case "musica.controle": {
+      const atual = estado.musicaTocando;
+      if (!atual) return recusa("dados_invalidos", "Não há música tocando.");
+      let novo: typeof atual | null;
+      switch (intencao.dados.acao) {
+        case "pausar":
+          novo = pausarMusica(atual, agoraMs);
+          break;
+        case "retomar":
+          novo = retomarMusica(atual, agoraMs);
+          break;
+        case "proxima":
+          novo = proximaMusica(atual, agoraMs);
+          break;
+        case "anterior":
+          novo = anteriorMusica(atual, agoraMs);
+          break;
+        case "voltar":
+          novo = voltarMusica(atual, agoraMs);
+          if (!novo) return recusa("dados_invalidos", "Não há música anterior para voltar.");
+          break;
+      }
+      if (novo !== atual) {
+        emitir({ tipo: "musica.tocandoAlterado", dados: { musicaTocando: novo } });
+      }
+      return aplicado();
+    }
+
+    case "musica.volume": {
+      const atual = estado.musicaTocando;
+      if (!atual || atual.volume === intencao.dados.volume) return aplicado();
+      emitir({
+        tipo: "musica.tocandoAlterado",
+        dados: { musicaTocando: { ...atual, volume: intencao.dados.volume } },
+      });
+      return aplicado();
+    }
+
     case "som.efeito": {
       const { lugar: indice, hash: hashPedido, volume } = intencao.dados;
       const lugar = indice === undefined ? null : lugarDe(estado.mesaDeSom, "efeito", indice);
@@ -3248,6 +3466,13 @@ function processarIntencao(
 
     case "som.pararTudo": {
       emitir({ tipo: "som.efeitoParado", dados: {} });
+      // MU1: a música também para (pausa: dá para retomar).
+      if (estado.musicaTocando?.tocando) {
+        emitir({
+          tipo: "musica.tocandoAlterado",
+          dados: { musicaTocando: pausarMusica(estado.musicaTocando, agoraMs) },
+        });
+      }
       const r = ligadoSem(estado, () => true, false);
       if (r.mudou) {
         emitir({ tipo: "som.ligadoAlterado", dados: { somLigado: r.somLigado } });
@@ -3293,6 +3518,17 @@ function processarIntencao(
           return fazer.length === 0 ? [] : [{ ...x, fazer }];
         });
         emitir({ tipo: "automacoes.alterado", dados: { automacoes: { ...automacoes, reacoes } } });
+      }
+      // MU1: a música com este arquivo sai da biblioteca e, se tocava, a música para.
+      if (estado.musica?.faixas.some((f) => f.hash === hash)) {
+        const ev = eventoDaBiblioteca(estado, {
+          faixas: estado.musica.faixas.filter((f) => f.hash !== hash),
+          botoes: estado.musica.botoes,
+        });
+        if (ev) emitir(ev);
+      }
+      if (estado.musicaTocando && musicaUsaOHash(estado.musicaTocando, hash)) {
+        emitir({ tipo: "musica.tocandoAlterado", dados: { musicaTocando: null } });
       }
       emitir({ tipo: "asset.removido", dados: { hash } });
       return aplicado();
@@ -3470,12 +3706,15 @@ export function visaoPara(estado: Estado, usuario: Visao, agoraMs?: number): Est
     retratosDoChat: _retratos,
     trilha: _trilhaAntiga,
     somLigado: ligadoDaSala,
+    musicaTocando: musicaDaSala,
     ...semTrilha
   } = estado;
   // Q4: os ambientes vão com o relógio da sala de agora (o navegador calcula o desvio e o ponto em que cada um está).
+  // MU1: a música também.
   const semPendencias: Estado = {
     ...semTrilha,
     ...(ligadoDaSala ? { somLigado: ligadoComRelogio(ligadoDaSala, agora) } : {}),
+    ...(musicaDaSala ? { musicaTocando: musicaComRelogio(musicaDaSala, agora) } : {}),
   };
   // O histórico completo mora na sala: aqui só entra o que este usuário pode ver (as últimas 200).
   const chat =
@@ -3499,6 +3738,8 @@ export function visaoPara(estado: Estado, usuario: Visao, agoraMs?: number): Est
     zonas: _zonas,
     // Q4: nome, ícone e cor dos lugares da mesa de som são do mestre.
     mesaDeSom: _mesaDeSom,
+    // MU1: a biblioteca de música e os botões são do mestre.
+    musica: _musica,
     ...resto
   } = semPendencias;
   // 7b-3: do que o mestre liberou, o jogador recebe só o rótulo de cada botão.
@@ -3511,6 +3752,7 @@ export function visaoPara(estado: Estado, usuario: Visao, agoraMs?: number): Est
   const { combate: _combate, ...semCombate } = resto;
   return {
     ...semCombate,
+    ...(resto.musicaTocando ? { musicaTocando: musicaParaJogador(resto.musicaTocando) } : {}),
     ...chat,
     // A ordem de turno só com as entradas que ele vê; a Destreza e o valor oculto nunca viajam.
     ...(estado.combate ? { combate: combateParaUsuario(estado.combate, usuario, estado) } : {}),
@@ -3610,9 +3852,20 @@ export function eventoPara(
       const s = evento.dados.somLigado;
       return s === null ? evento : { ...evento, dados: { somLigado: ligadoComRelogio(s, agora) } };
     }
+    case "musica.tocandoAlterado": {
+      // MU1: o que toca é de todos (o "anterior" é do mestre); o relógio da sala vai refeito para a hora de agora.
+      const s = evento.dados.musicaTocando;
+      if (s === null) return evento;
+      const comRelogio = musicaComRelogio(s, agora);
+      return {
+        ...evento,
+        dados: { musicaTocando: mestre ? comRelogio : musicaParaJogador(comRelogio) },
+      };
+    }
+    case "musica.bibliotecaAlterada":
     case "som.lugarAlterado":
     case "asset.removido":
-      // Nome, ícone e cor dos lugares são do mestre; o jogador não guarda metas de som da mesa.
+      // Nome, ícone e cor dos lugares são do mestre; o jogador não guarda metas de som da mesa. A biblioteca de música também.
       return mestre ? evento : null;
     case "som.efeitoParado":
       return evento;

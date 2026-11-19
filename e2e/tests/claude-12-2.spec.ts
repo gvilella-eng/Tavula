@@ -191,6 +191,7 @@ test("o mestre monta uma cena pelo Claude (paredes, NPC, ciclo): rascunho invis√
     "combate",
     "mesa",
     "som",
+    "musica",
     "chat",
     "rolar",
     "rascunhos",
