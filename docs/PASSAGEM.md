@@ -1141,7 +1141,7 @@ Continua em aberto, por ser decisão e não erro de doc: `ficha.verOutras` (seç
 **Onde mexer**
 - As regras (biblioteca, filtro, sorteio, fila, posição, pausa, próxima, anterior, voltar): `packages/shared/src/musica.ts` (teste em `musica.test.ts`). As intenções `musica.*` estão em `nucleo.ts` (procure `case "musica.`), o sigilo do jogador em `visaoPara` e `eventoPara`; o protocolo em `protocolo.ts`.
 - Banco: `apps/server/src/armazenamento.ts` (`carregarSom` e `gravarSom`; as chaves `musica` e `musica_tocando` da tabela `meta`, sem migração).
-- O motor: `apps/web/src/som/motorDeSom.ts` (`definirMusica`, `reconciliarMusica`) e `useSomDaMesa.ts`; a tela: `MusicaDoSom.tsx` (tocar), `BibliotecaDeMusica.tsx` (organizar, dentro da aba Música de `ConfigDaMesaDeSom.tsx`), `DivisorDoSom.tsx` e `divisaoDoSom.ts` (divisão e minimizar, preferências locais), `useMusicaAgora.ts` (o ponto da música na tela), `duracao.ts` (lê a duração do arquivo). O layout (lado a lado na faixa, um em cima do outro nas janelas) está em `PainelDoSom.tsx` (`dividido`).
+- O motor: `apps/web/src/som/motorDeSom.ts` (`definirMusica`, `reconciliarMusica`) e `useSomDaMesa.ts`; a tela: `MusicaDoSom.tsx` (tocar), `BibliotecaDeMusica.tsx` (organizar, dentro da aba Música de `ConfigDaMesaDeSom.tsx`), `AbasDoSom.tsx` e `abaDoSom.ts` (as duas abas e a aba lembrada, MU2), `useMusicaAgora.ts` (o ponto da música na tela), `duracao.ts` (lê a duração do arquivo). O layout (a barra de abas e a aba à vista, nas três formas) está em `PainelDoSom.tsx` (`barraDeAbas`, `painelMusica`, `painelEfeitosVertical`).
 - O MCP: `packages/shared/src/mcp/ferramentas/musica.ts`, `paridade.ts` e `paridadeCampos.ts`. A chamada: `chamada/rotulos.ts` (`trilhaDaMesa`) e `Quadros.tsx` (`QuadroDaTrilha`).
 
 **Frágil**
@@ -1149,8 +1149,8 @@ Continua em aberto, por ser decisão e não erro de doc: `ficha.verOutras` (seç
 - O motor troca de música por um alarme (`setTimeout`) na emenda; uma aba em segundo plano pode atrasá-lo (o próximo snapshot ou evento acerta). O ponto é reposicionado se passar de 1,5 s do relógio da sala.
 - A música com o arquivo ainda baixando fica calada até chegar (`arquivoChegou`); a seguinte é pedida com antecedência.
 - A duração vem do `Audio.loadedmetadata` do navegador; um mp3 sem cabeçalho de duração (VBR sem Xing) pode vir um pouco errado e a emenda ficar com um silêncio curto ou um corte.
-- O divisor calcula a divisão pelo centro dele, o vão (`gap`) e o tamanho livre do pai; se o CSS do `.som-dividido` mudar (vão, largura do divisor), conferir `divisaoNoPonteiro` e `--som-divisor`.
-- `ALTURA_NATURAL_DO_CORPO` (modoDoSom.ts) ainda vale 190 px: a seção Música cabe nela (conferido em `som-q4b.spec.ts`).
+- MU2: as duas abas substituíram o divisor e o minimizar. A barra de abas tem 40 px (`ALTURA_DAS_ABAS_DA_FAIXA` em modoDoSom.ts, a mesma do `.som-abas` no CSS) e entra na conta da altura cheia e da escala da faixa; se mudar uma, mude a outra. O nome do efeito e do ambiente usa `line-clamp: 2` (`.som-nome`, `.som-nome-linha`): a dica com o nome inteiro só aparece quando o texto está cortado (`nomeCortado` em PainelDoSom.tsx). A aba escolhida fica em `tabletop:pref:som-aba`.
+- `ALTURA_NATURAL_DO_CORPO` (modoDoSom.ts) ainda vale 190 px, só do corpo: a barra de abas é à parte (40 px). Cada aba cabe sem rolar na altura padrão (conferido em `musica.spec.ts`).
 
 **Suposições**: ver `docs/REDESIGN.md`, "MU1 — como ficou".
 

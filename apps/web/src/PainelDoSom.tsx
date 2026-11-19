@@ -10,10 +10,7 @@ import {
 import {
   AppWindow,
   ChevronDown,
-  ChevronLeft,
-  ChevronRight,
   ChevronUp,
-  Music,
   PanelBottom,
   Play,
   Plus,
@@ -23,16 +20,16 @@ import {
   Volume2,
   X,
 } from "lucide-react";
-import type { CSSProperties, PointerEvent, ReactNode, KeyboardEvent as TecladoReact } from "react";
+import type { CSSProperties, PointerEvent, KeyboardEvent as TecladoReact } from "react";
 import { useRef, useState } from "react";
 import type { Fontes } from "./assets/fontes";
 import { BotaoComDica } from "./BotaoComDica";
 import { noCanto } from "./janelas/geometria";
 import { Janela } from "./janelas/Janela";
+import { AbasDoSom } from "./som/AbasDoSom";
+import { useAbaDoSom } from "./som/abaDoSom";
 import { ConfigDaMesaDeSom } from "./som/ConfigDaMesaDeSom";
 import { Deslizante } from "./som/Deslizante";
-import { DivisorDoSom } from "./som/DivisorDoSom";
-import { type LadoDoSom, useDivisaoDoSom } from "./som/divisaoDoSom";
 import type { SomEscolhido } from "./som/EscolherSom";
 import { CORES, IconeDoLugar } from "./som/iconesDoSom";
 import { MusicaDoSom } from "./som/MusicaDoSom";
@@ -65,6 +62,14 @@ type Props = {
   propria?: { aoVoltar: () => void } | undefined;
 };
 
+/** A dica com o nome inteiro só aparece quando o nome do cartão está cortado (mais de duas linhas). */
+function nomeCortado(botao: HTMLButtonElement): boolean {
+  const nome = botao
+    .closest("li, .som-efeito-celula")
+    ?.querySelector<HTMLElement>(".som-nome, .som-nome-linha");
+  return nome ? nome.scrollHeight > nome.clientHeight + 3 : false;
+}
+
 const corDe = (l: LugarDeSom): CSSProperties =>
   ({ "--cor-do-som": CORES[l.cor].variavel }) as CSSProperties;
 
@@ -82,7 +87,7 @@ export function PainelDoSom(p: Props) {
     indice: number;
     aba?: "lugares" | "musica";
   } | null>(null);
-  const { divisao, mudarDivisao, minimizado, minimizar } = useDivisaoDoSom();
+  const { aba, mudarAba } = useAbaDoSom();
   const [alturaDaFaixa, setAlturaDaFaixa] = useState<number | null>(lerAlturaDaFaixa);
   const [dicaDoTransporte, setDicaDoTransporte] = useState(false);
   const adiar = useEnvioAdiado();
@@ -113,7 +118,7 @@ export function PainelDoSom(p: Props) {
       <p>Nenhum som na mesa de som ainda</p>
       <button
         type="button"
-        className="primario"
+        className="primario som-botao-com-icone"
         data-testid="som-vazio-configurar"
         onClick={() => abrirConfig("efeito", 0)}
       >
@@ -129,26 +134,26 @@ export function PainelDoSom(p: Props) {
         const tocandoEfeito = p.efeitosEmAndamento.find((e) => e.lugar === i);
         if (!l) {
           return (
-            <button
+            <BotaoComDica
               key={chave}
-              type="button"
+              testid={`som-efeito-vazio-${i}`}
+              nome="Adicionar efeito"
               className="som-vazio"
-              data-testid={`som-efeito-vazio-${i}`}
               aria-label={`Adicionar efeito no lugar ${i + 1}`}
               onClick={() => abrirConfig("efeito", i)}
             >
               <Plus size={18} aria-hidden="true" />
-              <span>adicionar</span>
-            </button>
+            </BotaoComDica>
           );
         }
         return (
           <div key={chave} className="som-efeito-celula">
-            <button
-              type="button"
+            <BotaoComDica
+              nome={l.nome}
+              dicaSe={nomeCortado}
               className="som-efeito"
               style={corDe(l)}
-              data-testid={`som-efeito-${i}`}
+              testid={`som-efeito-${i}`}
               data-tocando={tocandoEfeito ? "sim" : "nao"}
               aria-label={`${tocandoEfeito ? "Tocar de novo" : "Tocar"}: ${l.nome}`}
               onClick={() => p.enviar("som.efeito", { lugar: i })}
@@ -165,7 +170,7 @@ export function PainelDoSom(p: Props) {
                   style={{ animationDuration: `${tocandoEfeito.duracaoS}s` }}
                 />
               ) : null}
-            </button>
+            </BotaoComDica>
             {tocandoEfeito && (
               <button
                 type="button"
@@ -190,16 +195,17 @@ export function PainelDoSom(p: Props) {
         if (!l) {
           return (
             <li key={chave}>
-              <button
-                type="button"
+              <BotaoComDica
+                nome="Adicionar ambiente"
+                dicaSe={(b) => b.scrollWidth > b.clientWidth + 1}
                 className="som-vazio som-vazio-linha"
-                data-testid={`som-ambiente-vazio-${i}`}
+                testid={`som-ambiente-vazio-${i}`}
                 aria-label={`Adicionar ambiente no lugar ${i + 1}`}
                 onClick={() => abrirConfig("ambiente", i)}
               >
                 <Plus size={14} aria-hidden="true" />
-                adicionar ambiente
-              </button>
+                <span className="som-vazio-texto-linha">Adicionar ambiente</span>
+              </BotaoComDica>
             </li>
           );
         }
@@ -214,20 +220,21 @@ export function PainelDoSom(p: Props) {
               data-ligado={ligado ? "sim" : "nao"}
               data-tocando={ligado && tocando ? "sim" : "nao"}
             >
-              <button
-                type="button"
+              <BotaoComDica
+                nome={l.nome}
+                dicaSe={nomeCortado}
                 role="switch"
                 aria-checked={ligado !== undefined}
                 aria-label={`${ligado ? "Desligar" : "Ligar"} ${l.nome}`}
                 className="som-interruptor"
-                data-testid={`som-ambiente-ligar-${i}`}
+                testid={`som-ambiente-ligar-${i}`}
                 onClick={() => {
                   setDicaDoTransporte(false);
                   p.enviar("som.ambiente", { indice: i, ligado: !ligado });
                 }}
               >
                 <span />
-              </button>
+              </BotaoComDica>
               <span className="som-icone">
                 <IconeDoLugar icone={l.icone} tamanho={16} />
               </span>
@@ -348,149 +355,67 @@ export function PainelDoSom(p: Props) {
     .map((i) => lugares.ambientes[i]?.nome)
     .filter((n): n is string => n !== undefined);
 
-  // --- MU1: a música ao lado (ou embaixo) dos efeitos e ambientes, com o divisor e o "minimizar" ----
+  // --- MU2: duas abas, "Efeitos e ambientes" e "Música": só a vista muda, nada para de tocar ----
 
   const musicaTocando = p.estado.musicaTocando;
   const resumoDaMusica = musicaTocando
     ? `${musicaTocando.botaoNome}${musicaTocando.tocando ? "" : " (pausada)"}`
     : "nada tocando";
-  const botoesDeMusica = p.estado.musica?.botoes.length ?? 0;
+  const partesDoEstado: string[] = [];
+  if (nAmbientes > 0)
+    partesDoEstado.push(
+      `${nAmbientes} ${nAmbientes === 1 ? "ambiente ligado" : "ambientes ligados"}`,
+    );
+  if (nEfeitos > 0)
+    partesDoEstado.push(`${nEfeitos} ${nEfeitos === 1 ? "efeito tocando" : "efeitos tocando"}`);
 
-  const botaoMinimizar = (lado: LadoDoSom, nome: string, seta: ReactNode) => (
-    <BotaoComDica
-      testid={`som-minimizar-${lado}`}
-      nome={`Minimizar ${nome}`}
-      className="botao-icone pequeno som-minimizar"
-      onClick={() => minimizar(lado)}
+  const barraDeAbas = (
+    <AbasDoSom
+      aba={aba}
+      aoMudar={mudarAba}
+      efeitos={{
+        estado: partesDoEstado.length > 0 ? partesDoEstado.join(" · ") : "nada tocando",
+        toca: partesDoEstado.length > 0,
+      }}
+      musica={{
+        nome: musicaTocando?.botaoNome ?? null,
+        tocando: musicaTocando?.tocando === true,
+        toca: musicaTocando?.tocando === true,
+      }}
+    />
+  );
+
+  const painelMusica = (
+    <section
+      className="som-painel-aba som-painel-musica"
+      role="tabpanel"
+      id="som-painel-musica"
+      aria-labelledby="som-aba-musica"
+      data-testid="som-painel-musica"
     >
-      {seta}
-    </BotaoComDica>
+      <MusicaDoSom
+        estado={p.estado}
+        enviar={p.enviar}
+        aoConfigurar={() => setConfigurando({ grupo: "efeito", indice: 0, aba: "musica" })}
+      />
+    </section>
   );
 
-  /** Efeitos e ambientes de um lado, Música do outro: `lado` (um ao lado do outro) ou `pilha` (um em cima do outro). */
-  function dividido(disposicao: "lado" | "pilha", efeitosEAmbientes: ReactNode) {
-    const lado = disposicao === "lado";
-    const trilho = (qual: LadoDoSom, nome: string, extra?: string) => (
-      <button
-        type="button"
-        className="som-trilho"
-        data-testid={`som-trilho-${qual}`}
-        data-orientacao={lado ? "vertical" : "horizontal"}
-        aria-label={`Abrir ${nome}`}
-        onClick={() => minimizar(null)}
-      >
-        {lado ? (
-          qual === "efeitos" ? (
-            <ChevronRight size={16} aria-hidden="true" />
-          ) : (
-            <ChevronLeft size={16} aria-hidden="true" />
-          )
-        ) : qual === "efeitos" ? (
-          <ChevronDown size={16} aria-hidden="true" />
-        ) : (
-          <ChevronUp size={16} aria-hidden="true" />
-        )}
-        <span className="som-trilho-nome" data-testid={`som-trilho-${qual}-nome`}>
-          {extra ? `${nome} · ${extra}` : nome}
-        </span>
-      </button>
-    );
-    return (
-      <div
-        className="som-dividido"
-        data-testid="som-dividido"
-        data-disposicao={disposicao}
-        style={{ "--som-divisao": divisao } as CSSProperties}
-      >
-        {minimizado === "efeitos" ? (
-          trilho("efeitos", "Efeitos e ambientes")
-        ) : (
-          <div
-            className="som-lado som-lado-efeitos"
-            data-testid="som-lado-efeitos"
-            data-sozinho={minimizado === "musica" ? "sim" : "nao"}
-          >
-            {efeitosEAmbientes}
-          </div>
-        )}
-        {minimizado === null && (
-          <DivisorDoSom
-            orientacao={lado ? "vertical" : "horizontal"}
-            divisao={divisao}
-            aoMudar={mudarDivisao}
-          />
-        )}
-        {minimizado === "musica" ? (
-          trilho("musica", "Música", musicaTocando ? musicaTocando.botaoNome : undefined)
-        ) : (
-          <section
-            className="som-lado som-lado-musica"
-            data-testid="som-lado-musica"
-            data-sozinho={minimizado === "efeitos" ? "sim" : "nao"}
-            aria-label="Música"
-          >
-            <h3 className="som-secao">
-              <Music size={13} aria-hidden="true" />
-              <span>Música · por cima dos ambientes</span>
-              <span className="som-secao-info" data-testid="som-musica-resumo">
-                {botoesDeMusica > 0 ? resumoDaMusica : ""}
-              </span>
-              {botaoMinimizar(
-                "musica",
-                "a música",
-                lado ? (
-                  <ChevronRight size={15} aria-hidden="true" />
-                ) : (
-                  <ChevronDown size={15} aria-hidden="true" />
-                ),
-              )}
-            </h3>
-            <MusicaDoSom
-              estado={p.estado}
-              enviar={p.enviar}
-              aoConfigurar={() => setConfigurando({ grupo: "efeito", indice: 0, aba: "musica" })}
-            />
-          </section>
-        )}
-      </div>
-    );
-  }
-  const minimizarEfeitos = (lado: boolean) =>
-    botaoMinimizar(
-      "efeitos",
-      "efeitos e ambientes",
-      lado ? (
-        <ChevronLeft size={15} aria-hidden="true" />
-      ) : (
-        <ChevronUp size={15} aria-hidden="true" />
-      ),
-    );
-
-  /** A mesa de som vazia ainda tem o título do lado, para poder minimizá-lo. */
-  const vazioComTitulo = (lado: boolean) => (
-    <>
-      <h3 className="som-secao">
-        <span className="som-secao-com-botao">
-          {minimizarEfeitos(lado)}
-          Efeitos e ambientes
-        </span>
-      </h3>
-      {vazioGeral}
-    </>
-  );
-
-  /** O corpo vertical: o da janela flutuante e o da janela própria do navegador. */
-  const efeitosEAmbientesVerticais = (
-    <>
+  /** A aba "Efeitos e ambientes" na forma vertical: a da janela flutuante e a da janela própria do navegador. */
+  const painelEfeitosVertical = (
+    <div
+      className="som-painel-aba som-painel-efeitos"
+      role="tabpanel"
+      id="som-painel-efeitos"
+      aria-labelledby="som-aba-efeitos"
+      data-testid="som-painel-efeitos"
+    >
       {mesaVazia ? (
-        vazioComTitulo(false)
+        vazioGeral
       ) : (
         <>
           <h3 className="som-secao">
-            <span className="som-secao-com-botao">
-              {minimizarEfeitos(false)}
-              Efeitos
-            </span>
+            <span>Efeitos</span>
             <span>
               {lugares.efeitos.filter(Boolean).length}/{LUGARES_POR_GRUPO}
               {nEfeitos > 0 ? ` · ${nEfeitos} tocando` : ""}
@@ -538,11 +463,12 @@ export function PainelDoSom(p: Props) {
           </div>
         </>
       )}
-    </>
+    </div>
   );
   const corpoVertical = (
     <>
-      {dividido("pilha", efeitosEAmbientesVerticais)}
+      {barraDeAbas}
+      {aba === "efeitos" ? painelEfeitosVertical : painelMusica}
       {pe}
       <p className="nota som-pe-nota" data-testid="som-resumo">
         {resumo} · {usados}/16 lugares · só o mestre controla; os jogadores só ouvem.
@@ -637,6 +563,7 @@ export function PainelDoSom(p: Props) {
               <X size={16} aria-hidden="true" />
             </BotaoComDica>
           </header>
+          {!recolhida && barraDeAbas}
           {!recolhida && (
             <div className="som-faixa-corpo" data-testid="som-faixa-corpo">
               <div
@@ -644,36 +571,42 @@ export function PainelDoSom(p: Props) {
                 data-testid="som-faixa-escala"
                 style={escala < 1 ? ({ zoom: escala } as CSSProperties) : undefined}
               >
-                {dividido(
-                  "lado",
-                  mesaVazia ? (
-                    vazioComTitulo(true)
-                  ) : (
-                    <div className="som-faixa-colunas">
-                      <div className="som-faixa-coluna som-faixa-efeitos">
-                        <h3 className="som-secao">
-                          <span className="som-secao-com-botao">
-                            {minimizarEfeitos(true)}
-                            Efeitos
-                          </span>
-                          <span>
-                            {lugares.efeitos.filter(Boolean).length}/{LUGARES_POR_GRUPO}
-                          </span>
-                        </h3>
-                        {efeitos}
+                {aba === "musica" ? (
+                  painelMusica
+                ) : (
+                  <div
+                    className="som-painel-aba som-painel-efeitos"
+                    role="tabpanel"
+                    id="som-painel-efeitos"
+                    aria-labelledby="som-aba-efeitos"
+                    data-testid="som-painel-efeitos"
+                  >
+                    {mesaVazia ? (
+                      vazioGeral
+                    ) : (
+                      <div className="som-faixa-colunas">
+                        <div className="som-faixa-coluna som-faixa-efeitos">
+                          <h3 className="som-secao">
+                            <span>Efeitos</span>
+                            <span>
+                              {lugares.efeitos.filter(Boolean).length}/{LUGARES_POR_GRUPO}
+                            </span>
+                          </h3>
+                          {efeitos}
+                        </div>
+                        <div className="som-faixa-coluna som-faixa-ambientes">
+                          <h3 className="som-secao">
+                            <span>Ambientes · em laço</span>
+                            <span>
+                              {lugares.ambientes.filter(Boolean).length}/{LUGARES_POR_GRUPO} ·{" "}
+                              {rotuloDosAmbientes}
+                            </span>
+                          </h3>
+                          {ambientes}
+                        </div>
                       </div>
-                      <div className="som-faixa-coluna som-faixa-ambientes">
-                        <h3 className="som-secao">
-                          <span>Ambientes · em laço</span>
-                          <span>
-                            {lugares.ambientes.filter(Boolean).length}/{LUGARES_POR_GRUPO} ·{" "}
-                            {rotuloDosAmbientes}
-                          </span>
-                        </h3>
-                        {ambientes}
-                      </div>
-                    </div>
-                  ),
+                    )}
+                  </div>
                 )}
               </div>
             </div>

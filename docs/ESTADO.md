@@ -4400,4 +4400,29 @@ Ver `PASSAGEM.md`, "A1".
 ### Roteiro manual
 Abrir Mesa → Regras e Luz, e as janelas de luz, token e reação, em larguras estreitas: as caixas do par têm o mesmo topo.
 
-## Próximo: o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b, N4, N5, M1, M2, Q1 a Q16, CH1, MU1, A1 e das otimizações O1–O4
+
+## Ajustes MU2 — a mesa de som em duas abas (entregue, aguardando o roteiro manual)
+
+### O que foi entregue
+O divisor e o minimizar do MU1 saíram; no lugar, duas abas ("Efeitos e ambientes" e "Música") logo abaixo do cabeçalho da mesa de som, na faixa, na janela flutuante e na janela própria. Cada aba mostra o que toca nela e um ponto marca a aba escondida que toca; a aba escolhida é lembrada (`tabletop:pref:som-aba`). Nomes de efeitos e ambientes em até duas linhas, volume do ambiente dentro do cartão, lugar vazio de efeito só com "+", espaço entre ícone e texto nos botões.
+
+### Como rodar
+`pnpm dev`; abrir a mesa de som (faixa, janela ou janela própria) e trocar de aba. E2E: `pnpm --filter @tabletop/e2e test tests/musica.spec.ts`.
+
+### Verificação
+Typecheck, lint, unidade da web (298), e os specs musica, som-q4, som-q4b, chamada, a1, organizacao e sala, um por vez (portas 8792 e 5178). Prints em `scratchpad\prints-mu2` (Grimório e Pergaminho, 1366×768 e 1280×720). Sem `pnpm verify` completo (lote só de tela).
+
+### Decisões
+Ver `REDESIGN.md`, "MU2 — como ficou". A faixa ficou 40 px mais alta (a barra de abas).
+
+### Desvios
+- E2E antigos alterados em `musica.spec.ts`: os dois testes do divisor e do minimizar saíram (não existem mais) e viraram testes das abas, das três formas e do transbordo de texto; os dois primeiros testes passaram a abrir a aba Música antes de usar os botões.
+- Saiu o print `e2e/prints/mu1.spec.ts` (mostrava o divisor); entrou `mu2.spec.ts`.
+
+### Frágil
+Ver `PASSAGEM.md`, "MU1" (a nota do MU2 sobre a barra de abas de 40 px).
+
+### Roteiro manual
+Ver `docs/ROTEIRO-DE-TESTES.md`, "MU1" (itens 10 e 11, agora das abas e dos textos).
+
+## Próximo: o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b, N4, N5, M1, M2, Q1 a Q16, CH1, MU1, MU2, A1 e das otimizações O1–O4

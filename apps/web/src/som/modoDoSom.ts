@@ -114,6 +114,8 @@ export function gravarAlturaDaFaixa(altura: number | null): void {
 /** A altura do cabeçalho da faixa (a linha do topo mais as duas bordas) e o espaço de dentro do corpo, em px (o CSS usa os mesmos). */
 export const ALTURA_DO_TOPO_DA_FAIXA = 42;
 export const ESPACO_DO_CORPO_DA_FAIXA = 20;
+/** MU2: a barra de abas entre o cabeçalho e o corpo (o CSS usa a mesma altura, com a borda de baixo). */
+export const ALTURA_DAS_ABAS_DA_FAIXA = 40;
 /** A altura do conteúdo do corpo da faixa na escala 1 (medida; o E2E confere). */
 export const ALTURA_NATURAL_DO_CORPO = 190;
 /** O quanto tudo pode encolher antes de aparecer a barra de rolagem. */
@@ -121,9 +123,13 @@ export const ESCALA_MINIMA_DA_FAIXA = 0.7;
 
 /** A altura da faixa inteira (topo + corpo) com tudo no tamanho natural, e a menor antes da rolagem. */
 export const ALTURA_CHEIA_DA_FAIXA =
-  ALTURA_DO_TOPO_DA_FAIXA + ESPACO_DO_CORPO_DA_FAIXA + ALTURA_NATURAL_DO_CORPO;
+  ALTURA_DO_TOPO_DA_FAIXA +
+  ALTURA_DAS_ABAS_DA_FAIXA +
+  ESPACO_DO_CORPO_DA_FAIXA +
+  ALTURA_NATURAL_DO_CORPO;
 export const ALTURA_MINIMA_SEM_ROLAGEM = Math.ceil(
   ALTURA_DO_TOPO_DA_FAIXA +
+    ALTURA_DAS_ABAS_DA_FAIXA +
     ESPACO_DO_CORPO_DA_FAIXA +
     ALTURA_NATURAL_DO_CORPO * ESCALA_MINIMA_DA_FAIXA,
 );
@@ -133,7 +139,8 @@ export const ALTURA_MINIMA_DA_FAIXA = 120;
 /** A escala (0,7 a 1) que a altura escolhida pede para o conteúdo caber sem rolar; `null` = tamanho natural. */
 export function escalaDaFaixa(altura: number | null): number {
   if (altura === null || altura >= ALTURA_CHEIA_DA_FAIXA) return 1;
-  const disponivel = altura - ALTURA_DO_TOPO_DA_FAIXA - ESPACO_DO_CORPO_DA_FAIXA;
+  const disponivel =
+    altura - ALTURA_DO_TOPO_DA_FAIXA - ALTURA_DAS_ABAS_DA_FAIXA - ESPACO_DO_CORPO_DA_FAIXA;
   const s = Math.floor((disponivel / ALTURA_NATURAL_DO_CORPO) * 100) / 100;
   return Math.min(1, Math.max(ESCALA_MINIMA_DA_FAIXA, s));
 }

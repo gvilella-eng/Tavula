@@ -6202,11 +6202,17 @@ button.inicio-botao-largo {
   border-radius: 50%;
   color: var(--cor-do-som, var(--texto-suave));
 }
+/* MU2: o nome do efeito mostra até duas linhas; as reticências só vêm se passar disso (o nome inteiro está na dica). */
 .som-nome {
+  display: -webkit-box;
   max-width: 100%;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.2;
+  text-align: center;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
 }
 .som-barra {
   position: absolute;
@@ -6260,8 +6266,17 @@ button.inicio-botao-largo {
 }
 .som-vazio-linha {
   flex-direction: row;
+  gap: 6px;
+  min-width: 0;
   height: 44px;
+  overflow: hidden;
   border-radius: 8px;
+}
+.som-vazio-texto-linha {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .som-ambientes {
   display: flex;
@@ -6276,7 +6291,9 @@ button.inicio-botao-largo {
   align-items: center;
   gap: 10px;
   height: 44px;
+  min-width: 0;
   padding: 0 10px;
+  overflow: hidden;
   background: var(--painel);
   border: 1px solid var(--borda);
   border-radius: 8px;
@@ -6323,13 +6340,17 @@ button.inicio-botao-largo {
   color: var(--cor-do-som, var(--texto-suave));
 }
 .som-nome-linha {
+  display: -webkit-box;
   flex: 1;
   min-width: 0;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   font-weight: 500;
+  line-height: 1.2;
   color: var(--texto-suave);
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
 }
 .som-ambiente[data-ligado="sim"] .som-nome-linha {
   color: var(--texto);
@@ -6337,6 +6358,9 @@ button.inicio-botao-largo {
 .som-ambiente-vol {
   flex: none;
   width: 150px;
+}
+.som-ambiente-vol output {
+  flex: none;
 }
 .som-apagado {
   opacity: 0.6;
@@ -6552,13 +6576,27 @@ button.inicio-botao-largo {
   min-width: 0;
 }
 .som-faixa-efeitos {
-  flex: 0 1 36%;
+  flex: 0 1 42%;
 }
 .som-faixa-efeitos .som-efeitos {
   grid-auto-rows: 64px;
+  gap: 6px;
+}
+/* O cartão do efeito na faixa é estreito: o nome menor, em até duas linhas. */
+.som-faixa .som-efeito {
+  gap: 3px;
+  padding: 0 3px;
+}
+.som-faixa .som-circulo {
+  width: 28px;
+  height: 28px;
+}
+.som-faixa .som-nome {
+  font-size: 11.5px;
 }
 .som-faixa-ambientes {
   flex: 1;
+  container-type: inline-size;
 }
 .som-faixa-ambientes .som-ambientes {
   display: grid;
@@ -6569,186 +6607,140 @@ button.inicio-botao-largo {
 .som-faixa-ambientes .som-vazio-linha {
   height: 38px;
 }
-.som-faixa-ambientes .som-ambiente-vol {
-  width: 96px;
+.som-faixa-ambientes .som-ambiente {
+  gap: 8px;
+  padding: 0 8px;
 }
-
-/* MU1: a música ao lado dos efeitos e ambientes, com o divisor arrastável e o "minimizar" de cada lado. */
+.som-faixa-ambientes .som-ambiente-vol {
+  width: 128px;
+}
+/* Faixa estreita: sem o ícone do ambiente e com o volume menor, para o nome ter espaço. */
+@container (max-width: 560px) {
+  .som-faixa-ambientes .som-ambiente {
+    gap: 6px;
+  }
+  .som-faixa-ambientes .som-icone {
+    display: none;
+  }
+  .som-faixa-ambientes .som-ambiente-vol {
+    width: 92px;
+  }
+  .som-faixa-ambientes .som-ambiente-vol output {
+    min-width: 32px;
+  }
+}
 .som-faixa-topo .som-resumo + .som-resumo {
   margin-left: -6px;
-}
-.som-secao-info {
-  margin-left: auto;
-  font-weight: 500;
-  letter-spacing: 0;
-  text-transform: none;
-}
-.som-secao-com-botao {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-.som-lado .som-secao {
-  gap: 6px;
-  margin: 0;
-}
-.som-minimizar {
-  margin: -6px 0;
-}
-.som-dividido {
-  --som-divisor: 14px;
-  --som-vao: 6px;
-  display: flex;
-  gap: var(--som-vao);
-  min-width: 0;
-  min-height: 0;
-}
-.som-dividido[data-disposicao="lado"] {
-  flex-direction: row;
-  align-items: stretch;
-}
-.som-dividido[data-disposicao="pilha"] {
-  flex: 1 1 auto;
-  flex-direction: column;
-  min-height: 300px;
-}
-.som-lado {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  min-width: 0;
-  min-height: 0;
-  overflow: auto;
-}
-.som-lado-efeitos[data-sozinho="nao"] {
-  flex: 0 0 calc((100% - var(--som-divisor) - 2 * var(--som-vao)) * var(--som-divisao));
-}
-.som-lado-musica,
-.som-lado[data-sozinho="sim"] {
-  flex: 1 1 0;
 }
 .som-faixa-colunas {
   display: flex;
   gap: 16px;
 }
 .som-faixa-colunas > .som-faixa-efeitos {
-  flex: 0 1 36%;
+  flex: 0 1 42%;
 }
 .som-faixa-colunas > .som-faixa-ambientes {
   flex: 1;
 }
-.som-trilho {
+
+/* MU2: as duas abas da mesa de som ("Efeitos e ambientes" e "Música"), logo abaixo do cabeçalho. */
+.som-abas {
   display: flex;
   flex: none;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 0;
-  background: var(--campo);
-  border: 0;
-  border-radius: 10px;
-  color: var(--texto);
-  font-size: 12px;
-  font-weight: 600;
+  gap: 4px;
+  box-sizing: border-box;
+  height: 40px;
+  padding: 4px 12px 0;
+  border-bottom: 1px solid var(--borda);
 }
-.som-trilho:hover {
-  background: var(--painel);
-}
-.som-trilho[data-orientacao="vertical"] {
-  flex-direction: column;
-  width: 44px;
-}
-.som-trilho[data-orientacao="vertical"] .som-trilho-nome {
-  writing-mode: vertical-rl;
-  transform: rotate(180deg);
-  letter-spacing: 0.04em;
-  white-space: nowrap;
-}
-.som-trilho[data-orientacao="horizontal"] {
-  flex-direction: row;
-  justify-content: flex-start;
-  padding: 8px 12px;
-}
-.som-divisor {
+.som-aba {
   position: relative;
   display: flex;
-  flex: 0 0 var(--som-divisor);
-  align-items: center;
-  justify-content: center;
-  border-radius: 6px;
-  touch-action: none;
-}
-.som-divisor[data-orientacao="vertical"] {
-  cursor: col-resize;
-}
-.som-divisor[data-orientacao="horizontal"] {
-  cursor: row-resize;
-}
-.som-divisor-linha {
-  background: var(--borda);
-  border-radius: 1px;
-}
-.som-divisor[data-orientacao="vertical"] .som-divisor-linha {
-  width: 2px;
-  height: 100%;
-}
-.som-divisor[data-orientacao="horizontal"] .som-divisor-linha {
-  width: 100%;
-  height: 2px;
-}
-.som-divisor:hover .som-divisor-linha,
-.som-divisor[data-ativo="sim"] .som-divisor-linha {
-  background: var(--acento-forte);
-}
-.som-divisor-pega {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 3px;
-  background: var(--cabecalho);
-  border: 1px solid var(--borda);
-  border-radius: 5px;
-  transform: translate(-50%, -50%);
-}
-.som-divisor[data-orientacao="vertical"] .som-divisor-pega {
+  flex: 0 1 280px;
   flex-direction: column;
-  width: 10px;
-  height: 34px;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 1px;
+  min-width: 0;
+  padding: 2px 14px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-bottom: 0;
+  border-radius: 8px 8px 0 0;
+  color: var(--texto-suave);
+  text-align: left;
 }
-.som-divisor[data-orientacao="horizontal"] .som-divisor-pega {
-  flex-direction: row;
-  width: 34px;
-  height: 10px;
+.som-aba[aria-selected="true"] {
+  background: var(--campo);
+  border-color: var(--borda);
+  box-shadow: inset 0 -2px 0 var(--acento-forte);
+  color: var(--texto);
 }
-.som-divisor-pega i {
-  width: 2px;
-  height: 2px;
-  background: var(--texto-suave);
-  border-radius: 1px;
-}
-.som-divisor-rotulo {
-  position: absolute;
-  top: 6px;
-  left: 50%;
-  z-index: 2;
-  padding: 3px 8px;
-  background: var(--acento);
-  border-radius: 6px;
-  color: var(--acento-texto);
-  font-size: 11px;
+.som-aba-nome {
+  font-size: 13px;
   font-weight: 600;
+  line-height: 1.2;
   white-space: nowrap;
-  pointer-events: none;
-  transform: translateX(-50%);
 }
-.som-dividido[data-disposicao="pilha"] .som-divisor-rotulo {
-  top: auto;
-  left: 8px;
-  transform: none;
+.som-aba-estado {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  font-size: 11px;
+  line-height: 1.2;
 }
-
+.som-aba-estado svg {
+  flex: none;
+}
+.som-aba-estado-texto {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.som-aba[data-toca="sim"] .som-aba-estado {
+  color: var(--acento-forte);
+}
+.som-aba-ponto {
+  display: inline-block;
+  margin-left: 7px;
+  vertical-align: middle;
+  width: 7px;
+  height: 7px;
+  background: var(--acento-forte);
+  border-radius: 50%;
+}
+.painel-som > .som-abas {
+  margin: 0 -12px;
+}
+.som-painel-aba {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.som-faixa-escala > .som-painel-aba {
+  flex: 1 1 0;
+}
+.som-painel-musica {
+  gap: 10px;
+}
+.som-painel-efeitos > .som-vazio-geral {
+  margin: 0;
+}
+.som-propria-corpo > .som-abas,
+.painel-som > .som-abas {
+  padding-top: 2px;
+}
+/* Botões da mesa de som com ícone e texto: o espaço entre os dois. */
+.som-transporte,
+.som-botao-com-icone,
+.musica-voltar {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
 /* A seção Música da mesa de som. */
 .musica-corpo {
   display: flex;

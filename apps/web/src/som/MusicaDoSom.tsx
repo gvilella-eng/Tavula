@@ -29,7 +29,12 @@ export function MusicaDoSom({ estado, enviar, aoConfigurar }: Props) {
     return (
       <div className="musica-vazia" data-testid="musica-vazia">
         <p>{faixas.length > 0 ? "Nenhum botão de música ainda" : "Nenhuma música na mesa ainda"}</p>
-        <button type="button" data-testid="musica-configurar" onClick={aoConfigurar}>
+        <button
+          type="button"
+          className="som-botao-com-icone"
+          data-testid="musica-configurar"
+          onClick={aoConfigurar}
+        >
           <Settings size={14} aria-hidden="true" />
           {faixas.length > 0 ? "Criar um botão" : "Adicionar músicas"}
         </button>

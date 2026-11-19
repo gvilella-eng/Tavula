@@ -2491,3 +2491,25 @@ O Vilella perguntou se o MCP sobe áudio, seta zonas e põe características nel
 
 **O que ficou para depois**
 - Nenhum.
+
+## MU2 — como ficou (2026-11-19): a mesa de som em duas abas e textos sem cortar
+
+O Vilella testou o divisor do MU1 a ~1360 px: "o espaço ficou muito pequeno e os textos começaram a cortar. Faz separado uma seção para efeitos e ambientes e outra para música, daí troco de um para o outro."
+
+**O que foi feito**
+- **Duas abas no lugar do divisor:** "Efeitos e ambientes" e "Música", logo abaixo do cabeçalho, nas três formas (faixa, janela flutuante, janela própria), cada uma na largura toda. `role="tablist"`; as setas, Home e End trocam.
+- **Cada aba diz o que toca nela:** "2 ambientes ligados" (e "1 efeito tocando", quando há); na Música, o nome do botão com o ícone de tocando ou pausada, ou "parada". Um ponto marca a aba escondida que tem algo tocando. O rótulo acessível leva o mesmo texto.
+- A aba escolhida fica lembrada por navegador (`tabletop:pref:som-aba`). Trocar de aba só muda a vista.
+- Saíram `DivisorDoSom.tsx`, `divisaoDoSom.ts` (e o teste), as tiras de minimizar, as preferências `som-divisao` e `som-lado-minimizado` e o CSS do divisor. O resto do MU1 (botões, player, Voltar, biblioteca, chamada) ficou igual.
+- **Textos que não cortam:** nome de efeito e de ambiente até duas linhas (`line-clamp`), com o nome inteiro na dica (`BotaoComDica`, só quando está cortado) e no rótulo acessível; lugar vazio de efeito é só "+" com "Adicionar efeito" na dica; o volume do ambiente ligado ficou dentro do cartão; espaço entre ícone e texto nos botões da mesa de som (inclusive "Adicionar músicas").
+- Na faixa o cartão do efeito é largo e baixo (círculo ao lado do nome, que pode ter duas linhas).
+
+**Decisões (assumido)**
+- A aba abre em "Efeitos e ambientes" na primeira vez.
+- "Ambiente ligado" no rótulo da aba conta só os que estão tocando; ambiente marcado com a mesa parada vale "nada tocando".
+- A barra de abas tem 40 px e entra na altura cheia da faixa (`ALTURA_DAS_ABAS_DA_FAIXA`): a faixa ficou 40 px mais alta (era 252, agora 292) e `ALTURA_NATURAL_DO_CORPO` continua 190.
+- O lugar vazio de ambiente continua mostrando "Adicionar ambiente" por extenso (cabe nos cartões largos); o de efeito é só "+".
+- A janela própria lê a mesma aba escolhida da janela da mesa (mesma preferência do navegador).
+
+**O que ficou para depois**
+- Nenhum.
