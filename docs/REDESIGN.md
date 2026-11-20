@@ -2681,3 +2681,27 @@ O Vilella pediu: os botões de entrar largos demais (a coluna inteira esticada),
 - Legendas ao vivo, e gravar a chamada de vídeo (só o áudio é gravado, e só a fala).
 - Escolher, antes de gravar, quem entra na gravação (hoje é cada um que sai).
 - Gravar quando o mestre usa a chamada em duas janelas ao mesmo tempo (a última que liga vale).
+
+## FG2 — como ficou (2026-11-20): fogo melhor, tocha na mão, cor da luz do mestre e som solto
+
+O Vilella usou o FG1 e pediu: a fogueira sem gravetos e como um fogo só; a tocha no suporte sem "se dividir em dois"; a tocha do jogador com os 3 estágios; o mestre vendo a mesma cor de luz que o jogador; o token do Vashta que o mestre não conseguia mexer; e som arrastado para a mesa indo para a biblioteca de música.
+
+**O que foi feito**
+- **Fogueira.** `montarQuadro` (`chamas.ts`) separa a geometria do desenho. A fogueira é uma massa: cama de brasas larga e brilhante, um corpo e línguas que se sobrepõem (cada uma cobre mais que o espaço até a vizinha, então esticada continua uma massa), núcleo claro e brasas que sobem por dentro. Sem achas, gravetos ou pedras (são itens da camada de mapa). O halo do chão não passa mais do quadro (antes deixava uma borda reta fraca embaixo).
+- **Tocha "dividida".** A causa: cada língua tinha o próprio balanço (sinal contrário nos dois lados) e a do meio era mais baixa; no quadro certo as pontas de fora se afastavam e a silhueta virava dois bicos. Agora há um corpo e duas ou três línguas coladas nele, com um vento só, e as brasas ficam por dentro do corpo. Teste de unidade: em cada um dos 16 quadros, de cada estilo e estágio, a silhueta (união dos contornos) é uma região conexa e toda brasa está dentro dela; teste E2E: o mesmo conferido nos pixels reais das folhas (alfa acima de 90), pelo gancho `regioesDaChama`.
+- **Tocha na mão.** O pino do token mostra a chama animada (sprite da `ChamasDoMapa`, no tamanho do pino, passando um pouco do alto dele) nos três estágios, com o gif próprio do estágio quando há. Só a fonte com fogo (a que tremula: tocha; lanterna não) e acesa; apagada ou sem fogo, o ícone de antes. O estágio do jogador no tempo "exato" não vinha da sala (só `restanteMs`): agora a tela calcula pelo tempo restante e pela configuração dos estágios (opção nova `estagioDe`); o objeto num ponto passou a usar o mesmo estágio (antes ficava sempre "forte" para o jogador no tempo exato).
+- **Cor da luz do mestre.** A causa: a Visão do mestre (`noturna`) só pintava "visto claro, resto apagado" e nunca desenhava as luzes. Agora o `noturna` roda o mesmo caminho do jogador (luz, cor, penumbra) e só a composição muda; a tremulação fica só com o jogador (no mestre custava o dobro com 48 chamas): onde algum jogador vê, a luz dele; no resto, o cinza apagado de antes. A visão no escuro soma meia luz só onde nenhuma luz chega (senão a de um jogador lavava a cor do mestre).
+- **O token que o mestre não movia.** A causa **era o pino da tocha cobrindo o token com o mapa afastado**, e não o modelo ao vivo: o pino tem tamanho mínimo de tela (9 px) e fica a 90% do raio do token; com o token pequeno (zoom baixo) ele cobria o meio, o clique no token virava o arrasto da tocha (que não leva a lugar nenhum) e o token não andava. Recarregar a página funcionou porque a vista voltava a um zoom maior. Agora o pino fica sempre fora do miolo (metade do raio na tela) do token. Reproduzido antes de corrigir (E2E, `fg2.spec.ts`: falhava no primeiro arrasto com zoom 0,3).
+- **Som arrastado.** Mp3, ogg e wav soltos em qualquer lugar da mesa entram na biblioteca de música (nome do arquivo, sem etiquetas; até 50 por vez), com o aviso e o botão "Abrir a biblioteca"; o jogador recebe "Só o mestre põe música na mesa." Da lista "Assets da mesa", arrastar um som para o mapa também põe na biblioteca (o botão "Pôr na mesa de som" ficou). Regra pura em `som/soltarSom.ts`.
+
+**Decisões (assumido)**
+- A chama da mão só aparece para fonte que tremula (assumido: a lanterna, que não tremula, não tem fogo e mantém o ícone).
+- A chama da mão fica dentro do pino do token (que é o clique do menu e o arrasto da tocha); ela passa um pouco do alto do pino. O tamanho segue o pino (que segue o token entre 9 e 15 px de raio na tela).
+- Na Visão do mestre, onde nenhum jogador vê o mapa fica apagado (45%) com a cor de toda luz somada por cima (0,55 da luz tingida); onde um jogador vê, vale a luz dele. A Visão do mestre vale também sem jogador na cena.
+- A fogueira esticada muito (por exemplo 4,5 × 2,4 m) fica achatada e larga, como um monte de fogo; é a mesma imagem esticada.
+- A decisão do E2E de cor: a Brisa (sem visão no escuro) é a jogadora comparada, porque a visão no escuro da outra "lava" o tom também para ela.
+- O som solto vale em qualquer lugar da janela (não só no mapa); o jogador que solta é avisado em vez de ficar sem resposta.
+
+**O que ficou para depois**
+- A fogueira desenhada na proporção da chama esticada (hoje é uma imagem esticada).
+- Prévia da chama no editor do modelo.

@@ -8,6 +8,20 @@ import { Rectangle, Texture } from "pixi.js";
 
 export type EstagioDaChama = keyof AnimacoesDaChama;
 
+/**
+ * FG2: a chama animada da tocha na mão do token. Só a fonte acesa e com fogo (a que tremula: a tocha, não a lanterna)
+ * tem chama; ela segue o estágio do objeto (forte, fraca, morrendo), e sem estágio (tempo escondido do jogador) vale
+ * o forte. Devolve `null` quando o pino mantém o ícone.
+ */
+export function estagioDaChamaDaMao(
+  estado: "acesa" | "apagada",
+  estagio: EstagioDaChama | undefined,
+  temFogo: boolean,
+): EstagioDaChama | null {
+  if (estado !== "acesa" || !temFogo) return null;
+  return estagio ?? "forte";
+}
+
 /** Uma animação pronta: os quadros (texturas de uma folha só), quanto cada um dura e a duração do laço. */
 export type Quadros = {
   texturas: Texture[];
@@ -24,13 +38,13 @@ const MS_POR_QUADRO_DO_PADRAO = 80;
 const MAX_QUADROS_DO_ARQUIVO = 48;
 const LADO_MAX_DO_ARQUIVO = 160;
 
-type Forma = { larg: number; alt: number };
-const FORMA: Record<EstiloDaChama, Forma> = {
+export type Forma = { larg: number; alt: number };
+export const FORMA: Record<EstiloDaChama, Forma> = {
   tocha: { larg: 72, alt: 104 },
   fogueira: { larg: 104, alt: 104 },
 };
 
-type Receita = {
+export type Receita = {
   escala: number;
   linguas: number;
   brasas: number;
@@ -40,7 +54,7 @@ type Receita = {
   brasa: number;
 };
 
-const RECEITAS: Record<EstiloDaChama, Record<EstagioDaChama, Receita>> = {
+export const RECEITAS: Record<EstiloDaChama, Record<EstagioDaChama, Receita>> = {
   tocha: {
     forte: { escala: 1, linguas: 3, brasas: 7, tremor: 0.12, brasa: 0 },
     fraca: { escala: 0.72, linguas: 2, brasas: 4, tremor: 0.16, brasa: 0.25 },
@@ -69,37 +83,221 @@ function cor(base: [number, number, number], brasa: number, alfa: number): strin
   return `rgba(${r},${g},${b},${alfa})`;
 }
 
-function lingua(
+/**
+ * Uma língua de fogo: uma gota com a base redonda e a ponta no alto, inclinada pelo balanço. A chama é uma MASSA só:
+ * todas as gotas de um quadro nascem na mesma base, se sobrepõem na maior parte e balançam juntas.
+ */
+export type Gota = {
+  x: number;
+  base: number;
+  largura: number;
+  altura: number;
+  balanco: number;
+};
+
+/** Uma brasa que sobe por dentro do fogo. */
+export type Brasa = { x: number; y: number; raio: number; alfa: number };
+
+/** O que há num quadro, em pixels do quadro (sem canvas): a geometria é testável, o desenho é só pintar. */
+export type QuadroDaChama = {
+  cx: number;
+  base: number;
+  gotas: Gota[];
+  /** O núcleo mais claro (mesmas gotas, menores, mais quentes). */
+  nucleo: Gota[];
+  brasas: Brasa[];
+  /** A cama de brasas no chão (elipse achatada). */
+  leito: { rx: number; ry: number };
+};
+
+/** O contorno de uma gota como polígono (as duas curvas de Bézier achatadas), para conferir a silhueta. */
+export function contornoDaGota(g: Gota, passos = 14): Array<[number, number]> {
+  const fundo = g.base + g.largura * 0.28;
+  const topo = g.base - g.altura;
+  const pts: Array<[number, number]> = [];
+  const bez = (
+    p0: [number, number],
+    p1: [number, number],
+    p2: [number, number],
+    p3: [number, number],
+  ) => {
+    for (let i = 0; i <= passos; i++) {
+      const u = i / passos;
+      const m = 1 - u;
+      pts.push([
+        m * m * m * p0[0] + 3 * m * m * u * p1[0] + 3 * m * u * u * p2[0] + u * u * u * p3[0],
+        m * m * m * p0[1] + 3 * m * m * u * p1[1] + 3 * m * u * u * p2[1] + u * u * u * p3[1],
+      ]);
+    }
+  };
+  bez(
+    [g.x, fundo],
+    [g.x - g.largura * 0.62, fundo],
+    [g.x - g.largura * 0.5 + g.balanco * 0.4, g.base - g.altura * 0.45],
+    [g.x + g.balanco, topo],
+  );
+  bez(
+    [g.x + g.balanco, topo],
+    [g.x + g.largura * 0.5 + g.balanco * 0.4, g.base - g.altura * 0.45],
+    [g.x + g.largura * 0.62, fundo],
+    [g.x, fundo],
+  );
+  return pts;
+}
+
+/**
+ * Monta UM quadro da chama no instante `t` (0 a 1, em laço sem emenda: só entram senos de frequência inteira).
+ * Tocha: um corpo e duas ou três línguas coladas nele, que balançam juntas (nunca duas pontas afastadas).
+ * Fogueira: uma massa larga, com a base brilhante, línguas que se juntam no corpo (o contorno de cima é um monte
+ * de pontas pequenas sobre uma massa só) e brasas subindo por dentro; sem lenha nem pedras (isso é item do mapa).
+ */
+export function montarQuadro(
+  forma: Forma,
+  t: number,
+  estilo: EstiloDaChama,
+  r: Receita,
+): QuadroDaChama {
+  const { larg, alt } = forma;
+  const cx = larg / 2;
+  const base = alt * 0.7;
+  const esc = r.escala;
+  const vida = (fase: number) =>
+    0.8 + 0.2 * Math.sin(TAU * (t + fase)) + r.tremor * 0.5 * Math.sin(TAU * (2 * t + fase * 3));
+  const gotas: Gota[] = [];
+  const nucleo: Gota[] = [];
+  const brasas: Brasa[] = [];
+
+  if (estilo === "tocha") {
+    const v0 = vida(0.3);
+    const larguraDoCorpo = larg * 0.4 * (0.6 + 0.4 * esc);
+    const alturaDoCorpo = alt * 0.58 * esc * v0;
+    // o vento é um só para o corpo e para as línguas: elas inclinam juntas
+    const vento = larg * (0.04 + r.tremor * 0.25) * Math.sin(TAU * (t + fixo(1.1)));
+    gotas.push({
+      x: cx,
+      base,
+      largura: larguraDoCorpo,
+      altura: alturaDoCorpo,
+      balanco: vento,
+    });
+    const n = r.linguas;
+    for (let i = 0; i < n; i++) {
+      const lado = n === 1 ? 0 : i / (n - 1) - 0.5;
+      const fase = fixo(i * 3.1 + 0.3);
+      const proprio = larg * 0.025 * Math.sin(TAU * (2 * t + fase * 2));
+      gotas.push({
+        x: cx + lado * larg * 0.07,
+        base,
+        largura: larguraDoCorpo * 0.66,
+        altura: alturaDoCorpo * (0.62 + 0.3 * vida(fase)),
+        balanco: vento * 0.9 + proprio,
+      });
+    }
+    for (const g of gotas.slice(0, 2)) {
+      nucleo.push({
+        ...g,
+        largura: g.largura * 0.55,
+        altura: g.altura * 0.7,
+        balanco: g.balanco * 0.8,
+      });
+    }
+    for (let k = 0; k < r.brasas; k++) {
+      const u = (t + k / r.brasas + fixo(k * 5.3) * 0.2) % 1;
+      const dx = (fixo(k * 7.7) - 0.5) * larguraDoCorpo * 0.5 * (1 - u * 0.8);
+      // sobem por dentro do corpo e apagam antes da ponta (a chama não solta pontinhos)
+      brasas.push({
+        x: cx + dx + vento * u * u * 0.8,
+        y: base - alt * 0.03 - u * alturaDoCorpo * 0.6,
+        raio: Math.max(0.7, larg * 0.02 * (1 - u)),
+        alfa: (1 - u) * 0.9,
+      });
+    }
+    return { cx, base, gotas, nucleo, brasas, leito: { rx: larg * 0.2, ry: larg * 0.2 * 0.42 } };
+  }
+
+  // Fogueira: massa larga e única.
+  const n = r.linguas;
+  const largaDoMonte = larg * 0.5;
+  const vento = larg * (0.03 + r.tremor * 0.2) * Math.sin(TAU * (t + fixo(2.2)));
+  const v0 = vida(0.7);
+  const alturaDoCorpo = alt * 0.6 * esc * v0;
+  const larguraDoCorpo = largaDoMonte * (0.7 + 0.3 * esc);
+  gotas.push({ x: cx, base, largura: larguraDoCorpo, altura: alturaDoCorpo, balanco: vento });
+  const passo = n === 1 ? 0 : largaDoMonte / (n - 1);
+  for (let i = 0; i < n; i++) {
+    const c = n === 1 ? 0 : (i / (n - 1) - 0.5) * 2;
+    const fase = fixo(i * 3.1 + 1.7);
+    const perfil = 0.4 + 0.6 * (1 - Math.abs(c) ** 1.6);
+    const proprio = passo * 0.18 * Math.sin(TAU * (2 * t + fase * 2));
+    gotas.push({
+      x: cx + (n === 1 ? 0 : c * (largaDoMonte / 2)),
+      base,
+      // cada língua cobre mais que o espaço até a vizinha: o monte é uma massa, não uma fileira
+      largura: Math.max(larg * 0.2, passo * 2.4) * (0.7 + 0.3 * esc),
+      altura: alt * 0.62 * esc * perfil * vida(fase),
+      balanco: vento * (0.6 + 0.4 * perfil) + proprio,
+    });
+  }
+  nucleo.push({
+    x: cx,
+    base,
+    largura: larguraDoCorpo * 0.4,
+    altura: alturaDoCorpo * 0.7,
+    balanco: vento * 0.7,
+  });
+  nucleo.push({
+    x: cx,
+    base,
+    largura: larguraDoCorpo * 0.2,
+    altura: alturaDoCorpo * 0.42,
+    balanco: vento * 0.5,
+  });
+  for (let k = 0; k < r.brasas; k++) {
+    const u = (t + k / r.brasas + fixo(k * 5.3) * 0.2) % 1;
+    const dx = (fixo(k * 7.7) - 0.5) * larguraDoCorpo * 0.7 * (1 - u * 0.7);
+    brasas.push({
+      x: cx + dx + vento * u * u * 0.8,
+      y: base - alt * 0.03 - u * alturaDoCorpo * 0.6,
+      raio: Math.max(0.7, larg * 0.022 * (1 - u)),
+      alfa: (1 - u) * 0.9,
+    });
+  }
+  return {
+    cx,
+    base,
+    gotas,
+    nucleo,
+    brasas,
+    leito: { rx: larg * 0.34 * (0.7 + 0.3 * esc), ry: larg * 0.34 * 0.42 },
+  };
+}
+
+function preencherGota(
   ctx: CanvasRenderingContext2D,
-  x: number,
-  base: number,
-  largura: number,
-  altura: number,
-  balanco: number,
+  g: Gota,
   paleta: Array<[number, [number, number, number], number]>,
   brasa: number,
 ): void {
-  const grad = ctx.createLinearGradient(0, base, 0, base - altura);
+  const grad = ctx.createLinearGradient(0, g.base, 0, g.base - g.altura);
   for (const [parada, rgb, alfa] of paleta) grad.addColorStop(parada, cor(rgb, brasa, alfa));
   ctx.fillStyle = grad;
-  // Uma gota de fogo: base redonda (sem corte reto), ponta no alto, inclinada pelo balanço.
-  const fundo = base + largura * 0.28;
+  const fundo = g.base + g.largura * 0.28;
   ctx.beginPath();
-  ctx.moveTo(x, fundo);
+  ctx.moveTo(g.x, fundo);
   ctx.bezierCurveTo(
-    x - largura * 0.62,
+    g.x - g.largura * 0.62,
     fundo,
-    x - largura * 0.5 + balanco * 0.4,
-    base - altura * 0.45,
-    x + balanco,
-    base - altura,
+    g.x - g.largura * 0.5 + g.balanco * 0.4,
+    g.base - g.altura * 0.45,
+    g.x + g.balanco,
+    g.base - g.altura,
   );
   ctx.bezierCurveTo(
-    x + largura * 0.5 + balanco * 0.4,
-    base - altura * 0.45,
-    x + largura * 0.62,
+    g.x + g.largura * 0.5 + g.balanco * 0.4,
+    g.base - g.altura * 0.45,
+    g.x + g.largura * 0.62,
     fundo,
-    x,
+    g.x,
     fundo,
   );
   ctx.closePath();
@@ -116,47 +314,35 @@ function desenharQuadro(
   r: Receita,
 ): void {
   const { larg, alt } = forma;
+  const q = montarQuadro(forma, t, estilo, r);
+  const { cx, base } = q;
+  const esc = r.escala;
   ctx.save();
   ctx.translate(ox, 0);
   ctx.beginPath();
   ctx.rect(0, 0, larg, alt);
   ctx.clip();
-  const cx = larg / 2;
-  const base = alt * 0.7;
-  const esc = r.escala;
 
-  // O brilho no chão: um halo suave e uma cama de brasas achatada (a vista dimétrica).
+  // O brilho no chão: um halo suave e uma cama de brasas achatada (a vista dimétrica). Na fogueira a base é larga e
+  // bem brilhante: é daí que o fogo sai.
   ctx.globalCompositeOperation = "source-over";
-  const halo = ctx.createRadialGradient(cx, base - alt * 0.1, 0, cx, base - alt * 0.1, larg * 0.5);
+  const halo = ctx.createRadialGradient(
+    cx,
+    base - alt * 0.1,
+    0,
+    cx,
+    base - alt * 0.1,
+    Math.min(larg, alt) * 0.4,
+  );
   halo.addColorStop(0, cor([255, 160, 60], r.brasa, 0.55 * esc + 0.1));
   halo.addColorStop(0.55, cor([255, 110, 30], r.brasa, 0.2 * esc));
   halo.addColorStop(1, cor([255, 90, 20], r.brasa, 0));
   ctx.fillStyle = halo;
   ctx.fillRect(0, 0, larg, alt);
 
-  if (estilo === "fogueira") {
-    // Duas achas cruzadas sob o fogo.
-    ctx.fillStyle = "rgba(38,24,14,0.95)";
-    for (const sinal of [-1, 1]) {
-      ctx.save();
-      ctx.translate(cx, base + alt * 0.02);
-      ctx.rotate(sinal * 0.42);
-      ctx.beginPath();
-      ctx.roundRect(-larg * 0.34, -alt * 0.035, larg * 0.68, alt * 0.07, alt * 0.035);
-      ctx.fill();
-      ctx.restore();
-    }
-  }
-  const leito = ctx.createRadialGradient(
-    cx,
-    base,
-    0,
-    cx,
-    base,
-    larg * (estilo === "tocha" ? 0.2 : 0.34),
-  );
-  leito.addColorStop(0, cor([255, 210, 110], r.brasa, 0.9));
-  leito.addColorStop(0.6, cor([230, 80, 20], r.brasa, 0.7));
+  const leito = ctx.createRadialGradient(cx, base, 0, cx, base, q.leito.rx);
+  leito.addColorStop(0, cor([255, 205, 100], r.brasa, estilo === "fogueira" ? 0.9 : 0.9));
+  leito.addColorStop(0.55, cor([240, 95, 25], r.brasa, estilo === "fogueira" ? 0.85 : 0.7));
   leito.addColorStop(1, cor([140, 30, 10], r.brasa, 0));
   ctx.save();
   ctx.translate(cx, base);
@@ -166,79 +352,92 @@ function desenharQuadro(
   ctx.fillRect(0, 0, larg, alt);
   ctx.restore();
 
-  // As línguas de fogo: somam luz umas nas outras.
+  // As línguas de fogo: somam luz umas nas outras, em três camadas (vermelho, laranja e o núcleo claro).
   ctx.globalCompositeOperation = "lighter";
-  const n = r.linguas;
-  const aberto = estilo === "tocha" ? 0.14 : 0.34;
-  for (let i = 0; i < n; i++) {
-    const fase = fixo(i * 3.1 + (estilo === "tocha" ? 0.3 : 1.7));
-    const centro = n === 1 ? 0 : i / (n - 1) - 0.5;
-    const x = cx + centro * larg * aberto * 2;
-    const vida =
-      0.75 +
-      0.25 * Math.sin(TAU * (t + fase)) +
-      r.tremor * Math.sin(TAU * (2 * t + fase * 3)) * 0.5;
-    const meio = 1 - Math.abs(centro) * 0.9;
-    const altura =
-      alt * 0.56 * esc * vida * (0.55 + 0.45 * meio) * (estilo === "tocha" ? 1.05 : 0.95);
-    const largura = larg * (estilo === "tocha" ? 0.42 : 0.24) * (0.6 + 0.4 * esc);
-    const balanco =
-      larg * (0.05 + r.tremor * 0.3) * Math.sin(TAU * (t + fase * 2)) * (centro >= 0 ? 1 : -1);
-    lingua(
+  for (const g of q.gotas) {
+    preencherGota(
       ctx,
-      x,
-      base,
-      largura,
-      altura,
-      balanco,
+      g,
       [
-        [0, [255, 70, 20], 0.85],
-        [0.55, [255, 150, 40], 0.65],
+        [0, [255, 70, 20], 0.7],
+        [0.55, [255, 150, 40], 0.55],
         [1, [255, 210, 90], 0],
       ],
       r.brasa,
     );
-    lingua(
+  }
+  for (const g of q.gotas) {
+    preencherGota(
       ctx,
-      x,
-      base,
-      largura * 0.62,
-      altura * 0.72,
-      balanco * 0.8,
+      { ...g, largura: g.largura * 0.62, altura: g.altura * 0.72, balanco: g.balanco * 0.8 },
       [
-        [0, [255, 190, 60], 0.9],
+        [0, [255, 190, 60], 0.75],
         [1, [255, 230, 130], 0],
       ],
       r.brasa * 0.6,
     );
-    lingua(
+  }
+  for (const g of q.nucleo) {
+    preencherGota(
       ctx,
-      x,
-      base,
-      largura * 0.3,
-      altura * 0.42,
-      balanco * 0.55,
+      g,
       [
-        [0, [255, 250, 200], 0.95],
-        [1, [255, 245, 190], 0],
+        [0, [255, 245, 200], 0.75],
+        [1, [255, 240, 180], 0],
       ],
       r.brasa * 0.3,
     );
   }
 
-  // Faíscas que sobem e se apagam (voltam ao começo no fim do laço).
-  for (let k = 0; k < r.brasas; k++) {
-    const u = (t + k / r.brasas + fixo(k * 5.3) * 0.2) % 1;
-    const dx = (fixo(k * 7.7) - 0.5) * larg * (estilo === "tocha" ? 0.3 : 0.6);
-    const x = cx + dx + Math.sin(TAU * (u * 2 + fixo(k))) * larg * 0.04;
-    const y = base - alt * 0.08 - u * alt * 0.55 * Math.max(0.5, esc);
-    const raio = Math.max(0.7, larg * 0.022 * (1 - u));
-    ctx.fillStyle = cor([255, 200, 90], r.brasa, (1 - u) * 0.95);
+  // As brasas sobem por dentro do fogo e se apagam (voltam ao começo no fim do laço).
+  for (const b of q.brasas) {
+    ctx.fillStyle = cor([255, 200, 90], r.brasa, b.alfa);
     ctx.beginPath();
-    ctx.arc(x, y, raio, 0, TAU);
+    ctx.arc(b.x, b.y, b.raio, 0, TAU);
     ctx.fill();
   }
   ctx.restore();
+}
+
+/**
+ * As regiões conexas de uma máscara (`true` onde o alfa passa do limiar), com vizinhança de 4. A chama de um quadro
+ * tem de ser UMA região (o teste da geração e o do navegador usam esta mesma conta).
+ */
+export function regioesConexas(mascara: Uint8Array | boolean[], larg: number, alt: number): number {
+  const visto = new Uint8Array(larg * alt);
+  let regioes = 0;
+  const fila: number[] = [];
+  for (let i0 = 0; i0 < larg * alt; i0++) {
+    if (!mascara[i0] || visto[i0]) continue;
+    regioes++;
+    visto[i0] = 1;
+    fila.push(i0);
+    while (fila.length > 0) {
+      const i = fila.pop() as number;
+      const x = i % larg;
+      const y = (i - x) / larg;
+      const vizinhos = [
+        x > 0 ? i - 1 : -1,
+        x < larg - 1 ? i + 1 : -1,
+        y > 0 ? i - larg : -1,
+        y < alt - 1 ? i + larg : -1,
+      ];
+      for (const j of vizinhos) {
+        if (j >= 0 && mascara[j] && !visto[j]) {
+          visto[j] = 1;
+          fila.push(j);
+        }
+      }
+    }
+  }
+  return regioes;
+}
+
+/** A máscara de alfa (dados RGBA) acima do limiar (0 a 255). */
+export function mascaraDeAlfa(rgba: ArrayLike<number>, limiar: number): Uint8Array {
+  const m = new Uint8Array(rgba.length / 4);
+  for (let i = 0; i < m.length; i++) m[i] = (rgba[i * 4 + 3] as number) > limiar ? 1 : 0;
+  return m;
 }
 
 function criarTela(w: number, h: number): HTMLCanvasElement | OffscreenCanvas {
@@ -275,8 +474,10 @@ function texturasDaFolha(
   return { folha, texturas };
 }
 
-/** Gera a animação padrão de um estilo e estágio: `QUADROS_DO_PADRAO` quadros de um laço sem emenda. */
-export function gerarPadrao(estilo: EstiloDaChama, estagio: EstagioDaChama): Quadros {
+function pintarFolha(
+  estilo: EstiloDaChama,
+  estagio: EstagioDaChama,
+): { tela: HTMLCanvasElement | OffscreenCanvas; colunas: number; forma: Forma } {
   const forma = FORMA[estilo];
   const receita = RECEITAS[estilo][estagio];
   const colunas = 8;
@@ -291,6 +492,36 @@ export function gerarPadrao(estilo: EstiloDaChama, estagio: EstagioDaChama): Qua
     desenharQuadro(ctx, col * forma.larg, forma, i / QUADROS_DO_PADRAO, estilo, receita);
     ctx.restore();
   }
+  return { tela, colunas, forma };
+}
+
+/**
+ * Para o teste do navegador: em cada quadro da animação padrão, em quantas regiões conexas se divide a chama (alfa
+ * acima do limiar, 0 a 255). Tem de dar 1 em todos.
+ */
+export function regioesDoPadrao(
+  estilo: EstiloDaChama,
+  estagio: EstagioDaChama,
+  limiar = 90,
+): number[] {
+  const { tela, colunas, forma } = pintarFolha(estilo, estagio);
+  const ctx = contexto2d(tela);
+  const contagens: number[] = [];
+  for (let i = 0; i < QUADROS_DO_PADRAO; i++) {
+    const dados = ctx.getImageData(
+      (i % colunas) * forma.larg,
+      Math.floor(i / colunas) * forma.alt,
+      forma.larg,
+      forma.alt,
+    );
+    contagens.push(regioesConexas(mascaraDeAlfa(dados.data, limiar), forma.larg, forma.alt));
+  }
+  return contagens;
+}
+
+/** Gera a animação padrão de um estilo e estágio: `QUADROS_DO_PADRAO` quadros de um laço sem emenda. */
+export function gerarPadrao(estilo: EstiloDaChama, estagio: EstagioDaChama): Quadros {
+  const { tela, colunas, forma } = pintarFolha(estilo, estagio);
   const { folha, texturas } = texturasDaFolha(
     tela,
     QUADROS_DO_PADRAO,

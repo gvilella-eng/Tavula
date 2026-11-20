@@ -331,14 +331,25 @@ export async function soltarArquivoNoMapa(
   arquivo: { name: string; mimeType: string; buffer: Buffer },
   alvo: { x: number; y: number },
 ): Promise<void> {
+  await soltarArquivosNoMapa(pagina, [arquivo], alvo);
+}
+
+/** FG2: solta vários arquivos de uma vez no ponto da página. */
+export async function soltarArquivosNoMapa(
+  pagina: Page,
+  arquivos: { name: string; mimeType: string; buffer: Buffer }[],
+  alvo: { x: number; y: number },
+): Promise<void> {
   const dataTransfer = await pagina.evaluateHandle(
-    ({ nome, tipo, base64 }) => {
-      const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+    (lista) => {
       const dt = new DataTransfer();
-      dt.items.add(new File([bytes], nome, { type: tipo }));
+      for (const a of lista) {
+        const bytes = Uint8Array.from(atob(a.base64), (c) => c.charCodeAt(0));
+        dt.items.add(new File([bytes], a.nome, { type: a.tipo }));
+      }
       return dt;
     },
-    { nome: arquivo.name, tipo: arquivo.mimeType, base64: arquivo.buffer.toString("base64") },
+    arquivos.map((a) => ({ nome: a.name, tipo: a.mimeType, base64: a.buffer.toString("base64") })),
   );
   await pagina.dispatchEvent('[data-testid="mapa"]', "drop", {
     dataTransfer,

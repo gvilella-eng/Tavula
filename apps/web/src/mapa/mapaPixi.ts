@@ -82,9 +82,11 @@ import { CamadaDaNevoa } from "./camadaDeNevoa";
 import {
   ChamasDoMapa,
   decodificarAnimacao,
+  estagioDaChamaDaMao,
   faseDoId,
   indiceDoQuadro,
   type Quadros,
+  regioesDoPadrao,
 } from "./chamas";
 import {
   ArmazemDeMemoria,
@@ -183,6 +185,8 @@ type AlcaVisual = {
   quadros: Quadros | null;
   indice: number;
   chamaAtiva: boolean;
+  /** FG2: a alça é o pino da tocha na mão do token (a chama é pequena, em pixels da tela); senão é o objeto num ponto. */
+  naMao: boolean;
   tamanhoPx: { larg: number; alt: number };
   estagio: "forte" | "fraca" | "morrendo";
   modeloId: string | undefined;
@@ -292,6 +296,8 @@ export type OpcoesDoMapa = {
   restanteDe: (luzId: string) => number | undefined;
   /** Duração total (ms) do objeto, para o anel da tocha; `undefined` quando este usuário não a conhece. */
   duracaoDe: (luz: FonteDeLuz) => number | undefined;
+  /** FG2: o estágio do objeto (forte, fraca, morrendo) para quem o vê, mesmo no modo de tempo exato; `undefined` sem tempo. */
+  estagioDe: (luz: FonteDeLuz) => "forte" | "fraca" | "morrendo" | undefined;
   /** Pode arrastar, apagar e guardar esta tocha (dono do personagem ou mestre)? */
   podeMexerNaTocha: (luz: FonteDeLuz) => boolean;
   /** Token da entrada que está na vez (anel destacado, para todos que veem o token). */
@@ -345,6 +351,7 @@ const QUEM_LE_A_OPCAO: Record<keyof OpcoesDoMapa, "paredes" | "luz" | "ambas" | 
   alcanceInteracaoM: "nenhuma",
   restanteDe: "nenhuma",
   duracaoDe: "nenhuma",
+  estagioDe: "nenhuma",
   podeMexerNaTocha: "nenhuma",
   tokenDaVezId: "nenhuma",
   pincel: "nenhuma",
@@ -545,6 +552,8 @@ const MARCAS_VISIVEIS = 4;
 /** V11: as marcas do token (condições e tochas) medem ~30% do raio do token, com limites em pixels de tela. */
 const FRACAO_DA_MARCA = 0.3;
 const RAIO_MIN_DA_MARCA = 9;
+/** FG2: o miolo do token (fração do raio na tela) onde o clique é sempre do token, nunca do pino da tocha. */
+const MIOLO_DO_TOKEN = 0.5;
 const RAIO_MAX_DA_MARCA = 15;
 /** V11: a tocha na mão vira um pino no canto do token: ângulos (graus) da 1ª, 2ª... mão. 1ª: canto superior direito. */
 const ANGULOS_DA_TOCHA = [-45, -135, 0, 180, -20, -160];
@@ -3042,11 +3051,16 @@ export class MapaPixi {
       const lado = Math.cos((base * Math.PI) / 180) >= 0 ? 1 : -1;
       const rTela = this.raioDaAlca(luz);
       const pontos = this.pontosDaTela();
+      // FG2: com o mapa afastado o token é menor que o pino (que tem tamanho mínimo de tela) e o pino cobria o meio
+      // dele: o clique no token virava arrasto da tocha e o mestre não conseguia mover o token. O pino fica sempre
+      // fora do miolo do token (metade do raio na tela), que continua sendo do token.
+      const z = this.vista.zoom;
+      const dist = Math.max(raioPx * 0.9, (rTela + MIOLO_DO_TOKEN * raioPx * z + 2) / z);
       const na = (graus: number): Ponto => {
         const rad = (graus * Math.PI) / 180;
         return {
-          x: centro.x + (Math.cos(rad) * raioPx * 0.9) / PX_POR_M,
-          y: centro.y + (Math.sin(rad) * raioPx * 0.9) / PX_POR_M,
+          x: centro.x + (Math.cos(rad) * dist) / PX_POR_M,
+          y: centro.y + (Math.sin(rad) * dist) / PX_POR_M,
         };
       };
       const livre = (graus: number) => {
@@ -3111,6 +3125,11 @@ export class MapaPixi {
     const restante = this.opcoes.restanteDe(luz.id);
     if (restante !== undefined) return formatarRestante(restante);
     return luz.estagio ?? "";
+  }
+
+  /** FG2: o estágio que a tela mostra do objeto: o da sala ou, no tempo exato do jogador, o calculado pelo tempo restante. */
+  private estagioDaLuz(luz: FonteDeLuz): "forte" | "fraca" | "morrendo" | undefined {
+    return luz.estagio ?? this.opcoes.estagioDe(luz);
   }
 
   /** Os objetos que aparecem como alça ou ícone, com a âncora de cada um. */
@@ -3186,6 +3205,7 @@ export class MapaPixi {
       quadros: null,
       indice: -1,
       chamaAtiva: false,
+      naMao: false,
       tamanhoPx: { larg: 0, alt: 0 },
       estagio: "forte",
       modeloId: undefined,
@@ -3216,15 +3236,33 @@ export class MapaPixi {
         this.desenharObjetoNoPonto(alca, luz, mundo, z);
         continue;
       }
-      if (alca.chamaAtiva || alca.chama.visible) {
+      if (!alca.naMao) {
         // A tocha voltou para a mão: a chama do ponto sai e o rótulo volta ao tamanho de tela.
+        alca.naMao = true;
         alca.chamaAtiva = false;
         alca.chama.visible = false;
         alca.chave = "";
       }
       const r = this.raioDaAlca(luz);
-      const anel = naMao ? this.anelDaTocha(luz) : null;
-      const chave = `${mundo.x.toFixed(3)},${mundo.y.toFixed(3)}|${z}|${acesa}|${rotulo}|${dono}|${arrastando}|${luz.estagio ?? ""}|${r.toFixed(2)}|${anel?.fracao.toFixed(3) ?? ""}|${anel?.alerta ?? ""}`;
+      // FG2: a fonte com fogo (a tocha) é uma chama animada pequena dentro do pino, nos três estágios; a que não
+      // tem fogo (a lanterna) e a apagada mantêm o ícone.
+      const estagioDaChama = estagioDaChamaDaMao(
+        luz.estado,
+        this.estagioDaLuz(luz),
+        luz.luz.tremula,
+      );
+      alca.estagio = estagioDaChama ?? "forte";
+      alca.modeloId = luz.modeloId;
+      const animada = estagioDaChama !== null;
+      alca.chamaAtiva = animada;
+      alca.chama.visible = animada;
+      if (animada) {
+        // a chama nasce no fundo do pino e passa um pouco do alto dele (unidades da alça: pixels da tela)
+        alca.tamanhoPx = { larg: r * 2.1, alt: r * 3.1 };
+        alca.chama.position.set(0, -r * 0.45);
+      }
+      const anel = this.anelDaTocha(luz);
+      const chave = `${animada}|${estagioDaChama ?? ""}|${mundo.x.toFixed(3)},${mundo.y.toFixed(3)}|${z}|${acesa}|${rotulo}|${dono}|${arrastando}|${luz.estagio ?? ""}|${r.toFixed(2)}|${anel?.fracao.toFixed(3) ?? ""}|${anel?.alerta ?? ""}`;
       if (chave === alca.chave) continue;
       alca.chave = chave;
       this.sujo = true;
@@ -3245,7 +3283,7 @@ export class MapaPixi {
           g.arc(0, 0, rAnel, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * anel.fracao);
           g.stroke({ width: largura, color: cor });
         }
-        this.desenharChama(g, acesa, r * 0.058);
+        if (!animada) this.desenharChama(g, acesa, r * 0.058);
         alca.rotulo.visible = false;
         alca.container.alpha = acesa ? 1 : 0.7;
         continue;
@@ -3278,9 +3316,10 @@ export class MapaPixi {
     const modelo = this.modelos.find((m) => m.id === luz.modeloId);
     const tam = this.tamanhoDaChamaDe(luz);
     const rotulo = this.rotuloDaAlca(luz);
-    const estagio = luz.estagio ?? "forte";
+    const estagio = this.estagioDaLuz(luz) ?? "forte";
     const chave = `${mundo.x.toFixed(3)},${mundo.y.toFixed(3)}|${z}|${acesa}|${rotulo}|${estagio}|${tam.larguraM}x${tam.alturaM}|${modelo?.ocupaMao ?? ""}`;
     alca.chamaAtiva = acesa;
+    alca.naMao = false;
     alca.estagio = estagio;
     alca.modeloId = luz.modeloId;
     if (chave === alca.chave) return;
@@ -6257,6 +6296,8 @@ export class MapaPixi {
         this.modelo ? visaoNoPonto(this.modelo, { x, y }) : "plena",
       /** Nível de luz (0 a 1) no ponto: ambiente mais as luzes que chegam ali. */
       nivelNoPonto: (x: number, y: number) => (this.modelo ? nivelDeLuz(this.modelo, { x, y }) : 1),
+      /** FG2: a cor (RGB) que a camada de luz multiplica no ponto, igual para o jogador e para o mestre. */
+      corDaLuzNoPonto: (x: number, y: number) => this.camada.corNoPonto(x, y),
       /** As luzes que valem agora (com os raios efetivos: intensidade × fator geral). */
       luzes: () =>
         (this.modelo?.luzes ?? []).map(({ luz }) => ({
@@ -6327,17 +6368,36 @@ export class MapaPixi {
       /** FG1: as chamas animadas dos objetos nos pontos: tamanho na tela (px), de onde vem a animação e o quadro de agora. */
       chamas: () =>
         [...this.alcas.entries()]
-          .filter(([, a]) => a.chamaAtiva && a.chama.visible)
+          .filter(([, a]) => a.chamaAtiva && a.chama.visible && !a.naMao)
           .map(([id, a]) => ({
             id,
             larguraPx: a.tamanhoPx.larg * this.vista.zoom,
             alturaPx: a.tamanhoPx.alt * this.vista.zoom,
             estagio: a.estagio,
+            naMao: a.naMao,
             origem: a.quadros?.origem ?? null,
             quadros: a.quadros?.texturas.length ?? 0,
             indice: a.indice,
             rotuloVisivel: a.rotulo.visible,
           })),
+      /** FG2: as chamas animadas dos pinos das tochas na mão (mesmos campos). */
+      chamasDaMao: () =>
+        [...this.alcas.entries()]
+          .filter(([, a]) => a.chamaAtiva && a.chama.visible && a.naMao)
+          .map(([id, a]) => ({
+            id,
+            larguraPx: a.tamanhoPx.larg * this.vista.zoom,
+            alturaPx: a.tamanhoPx.alt * this.vista.zoom,
+            estagio: a.estagio,
+            naMao: a.naMao,
+            origem: a.quadros?.origem ?? null,
+            quadros: a.quadros?.texturas.length ?? 0,
+            indice: a.indice,
+            rotuloVisivel: a.rotulo.visible,
+          })),
+      /** FG2: em cada quadro da chama padrão, em quantas regiões conexas ela se divide (tem de ser 1). */
+      regioesDaChama: (estilo: "tocha" | "fogueira", estagio: "forte" | "fraca" | "morrendo") =>
+        regioesDoPadrao(estilo, estagio),
       /** FG1: o alvo da tocha arrastada (id do ponto ou do token) e a área de soltar. */
       alvoDaTocha: () => {
         const alvo = this.alcaArrastada?.alvo;

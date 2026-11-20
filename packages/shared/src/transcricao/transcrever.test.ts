@@ -154,7 +154,8 @@ describe("a segurança do script", () => {
   });
 });
 
-describe("transcrever com o whisper falso", () => {
+// Cada teste abre processos Node (o whisper falso): com a bateria inteira rodando junto, passa dos 5 s padrão.
+describe("transcrever com o whisper falso", { timeout: 30_000 }, () => {
   it("gera transcricao.json e transcricao.md com a hora da sessão, misturados com os eventos", async () => {
     const pasta = await montar("boa");
     const passos: Passo[] = [];
