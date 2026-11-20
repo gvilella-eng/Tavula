@@ -15,7 +15,8 @@ import {
   type EventoDeAutomacao,
   efeitosParaJogador,
   MAXIMO_DE_FLUXOS,
-  trilhasSem,
+  nosDeGatilho,
+  semOsNos,
 } from "./automacoes.ts";
 import {
   type ContextoDoMotor,
@@ -1049,9 +1050,15 @@ export function reduzir(estado: Estado, evento: EventoSala): Estado {
       const automacoes = base.automacoes
         ? {
             ...base.automacoes,
-            fluxos: base.automacoes.fluxos.filter(
-              (f) => !(f.gatilho.tipo === "zona" && f.gatilho.zona === id),
-            ),
+            // Os gatilhos da zona saem; a automação que ficou sem nenhum gatilho sai junto.
+            fluxos: base.automacoes.fluxos.flatMap((f) => {
+              const dela = nosDeGatilho(f).filter(
+                (n) => n.config.tipo === "zona" && n.config.zona === id,
+              );
+              if (dela.length === 0) return [f];
+              if (dela.length === nosDeGatilho(f).length) return [];
+              return [semOsNos(f, new Set(dela.map((n) => n.id)))];
+            }),
           }
         : undefined;
       return {
@@ -2396,8 +2403,13 @@ function processarIntencao(
         });
       if (copiaDeZona.size > 0 && estado.automacoes) {
         const copias = estado.automacoes.fluxos.flatMap((f, i) => {
-          const g = f.gatilho;
-          if (g.tipo !== "zona" || g.zona === undefined || !copiaDeZona.has(g.zona)) return [];
+          const usa = nosDeGatilho(f).some(
+            (n) =>
+              n.config.tipo === "zona" &&
+              n.config.zona !== undefined &&
+              copiaDeZona.has(n.config.zona),
+          );
+          if (!usa) return [];
           return [
             {
               ...comZonasTrocadas(f, copiaDeZona),
@@ -3505,9 +3517,19 @@ function processarIntencao(
       if (automacoes && usos.automacoes.length > 0) {
         const fluxos = automacoes.fluxos.flatMap((f) => {
           if (!acoesDoFluxo(f).some((a) => a.acao === "som.tocar" && a.hash === hash)) return [f];
-          const trilhas = trilhasSem(f.trilhas, (a) => a.acao === "som.tocar" && a.hash === hash);
-          // Sem mais nenhuma ação o fluxo não tem o que fazer: sai junto.
-          return trilhas.every((x) => x.length === 0) ? [] : [{ ...f, trilhas }];
+          const tirar = new Set(
+            f.nos
+              .filter(
+                (n) =>
+                  n.tipo === "acao" &&
+                  n.config.acao.acao === "som.tocar" &&
+                  n.config.acao.hash === hash,
+              )
+              .map((n) => n.id),
+          );
+          const sem = semOsNos(f, tirar);
+          // Sem mais nenhum bloco depois do gatilho o fluxo não tem o que fazer: sai junto.
+          return sem.nos.every((n) => n.tipo === "gatilho") ? [] : [sem];
         });
         emitir({ tipo: "automacoes.alterado", dados: { automacoes: { ...automacoes, fluxos } } });
       }

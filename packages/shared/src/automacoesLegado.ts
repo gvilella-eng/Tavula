@@ -30,12 +30,11 @@ export function ehEventoDoSistemaLegado(nome: string): boolean {
   return (EVENTOS_DO_SISTEMA as readonly string[]).includes(nome);
 }
 
-/** Nome de evento: letras, números, ponto, hífen e sublinhado ("inspiracao", "objeto.apagou"). */
-export const NomeDeEventoSchema = z
-  .string()
-  .min(1)
-  .max(48)
-  .regex(/^[\p{L}\p{N}._-]+$/u, "Use só letras, números, ponto, hífen e sublinhado.");
+/**
+ * Nome de evento ou de sinal: o que a pessoa escreveu, com acento e espaço ("Inspiração", "objeto.apagou"). Só se tiram os
+ * espaços das pontas; a comparação é exata (AU2: antes só aceitava letras, números, ponto, hífen e sublinhado).
+ */
+export const NomeDeEventoSchema = z.string().trim().min(1).max(48);
 
 const Segundos = z
   .number()

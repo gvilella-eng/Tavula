@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   type Estado,
   fonteComSemente,
+  gatilhoPrincipal,
   type Intencao,
   IntencaoSchema,
   lerExportacao,
@@ -112,7 +113,7 @@ function simular(): Linha[] {
     e = sis.estado;
     if (t === 50) {
       // O botão "Rajada de vento": no motor antigo era `evento:rajada`; nos fluxos é o fluxo de botão de mesmo nome.
-      const fluxo = e.automacoes?.fluxos.find((f) => f.gatilho.tipo === "botao");
+      const fluxo = e.automacoes?.fluxos.find((f) => gatilhoPrincipal(f)?.tipo === "botao");
       mestre("botao.usar", { botaoId: `evento:${fluxo?.id ?? "rajada"}` }, t);
     }
     if (t === 100) mestre("token.soltar", { id: "A", x: 20, y: 15 }, t);

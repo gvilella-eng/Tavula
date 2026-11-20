@@ -1,22 +1,34 @@
 import { describe, expect, it } from "vitest";
 import {
   AutomacoesSchema,
-  type Fluxo,
+  arvoreParaGrafo,
+  converterParaArvores,
+  type FluxoArvore,
+  FluxoArvoreSchema,
   fraseDoFluxo,
   type Gatilho,
   migrarAutomacoes,
   nomesDaMesa,
   numeroEmPortugues,
   problemasDoFluxo,
+  semOsNos,
   tempoHumano,
-  trilhasSem,
 } from "./index.ts";
 
 // AU1: a conversão dos ciclos, reações e botões antigos em fluxos (um caso por lugar de reação), a frase em português e a
 // conferência em português com o lugar do problema.
 
-const converter = (antigo: Record<string, unknown>) => AutomacoesSchema.parse(antigo);
-const fluxo = (a: ReturnType<typeof converter>, id: string): Fluxo => {
+const converter = (antigo: Record<string, unknown>) => {
+  const a = AutomacoesSchema.parse(antigo);
+  // As asserções olham a ÁRVORE (o que a conversão monta antes de virar grafo); `ligado` vem do grafo (carrega o ciclo pausado).
+  const arvores = converterParaArvores({
+    ciclos: a.legado?.ciclos ?? [],
+    reacoes: a.legado?.reacoes ?? [],
+    botoes: a.legado?.botoes ?? [],
+  }).map((t) => ({ ...t, ligado: a.fluxos.find((g) => g.id === t.id)?.ligado ?? t.ligado }));
+  return { ...a, fluxos: arvores, grafos: a.fluxos };
+};
+const fluxo = (a: ReturnType<typeof converter>, id: string): FluxoArvore => {
   const f = a.fluxos.find((x) => x.id === id);
   if (!f) throw new Error(`sem o fluxo ${id}: ${a.fluxos.map((x) => x.id).join(", ")}`);
   return f;
@@ -259,7 +271,7 @@ describe("a conversão do formato antigo em fluxos", () => {
       ciclos: [{ id: "c", nome: "C", periodoS: 60, cenas: [], fases: [{ emS: 0, evento: "x" }] }],
     });
     const de_novo = AutomacoesSchema.parse(JSON.parse(JSON.stringify(a)));
-    expect(de_novo.fluxos).toEqual(a.fluxos);
+    expect(de_novo.fluxos).toEqual(a.grafos);
     expect(de_novo.legado).toEqual(a.legado);
     expect(migrarAutomacoes(null)).toBeNull();
     // item antigo inválido é pulado (não derruba a mesa)
@@ -280,7 +292,10 @@ describe("a frase em português", () => {
     zonas: [{ id: "z1", nome: "Ar Morto" }] as never,
   });
   const frase = (gatilho: Gatilho, trilhas: unknown[][], cenas: string[] | null = null) =>
-    fraseDoFluxo({ gatilho, trilhas: trilhas as never, cenas }, nomes);
+    fraseDoFluxo(
+      arvoreParaGrafo(FluxoArvoreSchema.parse({ id: "x", nome: "x", gatilho, trilhas, cenas })),
+      nomes,
+    );
 
   it("conta o fluxo inteiro, sem ids, com o tempo em linguagem humana", () => {
     const f = frase(
@@ -377,7 +392,10 @@ describe("a conferência do fluxo, em português e com o lugar do problema", () 
   };
   const base = { id: "f", nome: "F", ligado: true, cenas: null };
   const confere = (gatilho: Gatilho, trilhas: unknown[][], extra: Record<string, unknown> = {}) =>
-    problemasDoFluxo({ ...base, ...extra, gatilho, trilhas } as never, ref);
+    problemasDoFluxo(
+      arvoreParaGrafo(FluxoArvoreSchema.parse({ ...base, ...extra, gatilho, trilhas })),
+      ref,
+    );
 
   it("ação solta, zona e cena que sumiram, sinal sem alvo e blocos vazios", () => {
     const p = confere({ tipo: "zona", quando: "entra", zona: "z-sumiu" }, [
@@ -392,12 +410,12 @@ describe("a conferência do fluxo, em português e com o lugar do problema", () 
       ],
     ]);
     const onde = Object.fromEntries(p.map((x) => [x.caminho, x.mensagem]));
-    expect(onde.gatilho).toContain("zona não existe");
-    expect(onde["trilhas.0.0"]).toContain("para cada");
-    expect(onde["trilhas.0.1"]).toContain("zona não existe");
-    expect(onde["trilhas.0.1.sim"]).toContain("Ponha algo");
-    expect(onde["trilhas.0.2"]).toContain("cena não existe");
-    expect(onde["trilhas.0.2.corpo.0"]).toContain("som não está mais");
+    expect(onde["nos.n1"]).toContain("zona não existe");
+    expect(onde["nos.n2"]).toContain("para cada");
+    expect(onde["nos.n4"]).toContain("zona não existe");
+    expect(onde["nos.n3"]).toBeUndefined(); // "se" com os dois ramos vazios segue direto para o bloco de baixo
+    expect(onde["nos.n5"]).toContain("cena não existe");
+    expect(onde["nos.n6"]).toContain("som não está mais");
   });
 
   it("a ação de luz num gatilho de tocha vale; um fluxo sem nenhum bloco não", () => {
@@ -409,29 +427,86 @@ describe("a conferência do fluxo, em português e com o lugar do problema", () 
     expect(confere({ tipo: "turno" }, [[]])[0]?.mensagem).toContain("pelo menos um bloco");
   });
 
-  it('tirar as ações de um som apaga o "se" que ficou sem o "sim", mas deixa o "não" vazio em paz', () => {
+  it("tirar as ações de um som religa o que vinha antes ao que vinha depois (a automação segue de pé)", () => {
     const hash = "b".repeat(64);
-    const t = trilhasSem(
-      [
-        [
-          {
-            bloco: "se",
-            condicao: { condicao: "etiqueta", etiqueta: "x" },
-            sim: [
-              {
-                bloco: "acao",
-                acao: { acao: "som.tocar", hash, nome: "s", volume: 0.8, para: "todos" },
-              },
-            ],
-            nao: [],
-          },
-          { bloco: "acao", acao: { acao: "chat.anunciar", texto: "fica", para: "todos" } },
+    const g = arvoreParaGrafo(
+      FluxoArvoreSchema.parse({
+        id: "f",
+        nome: "F",
+        gatilho: { tipo: "botao", nome: "B" },
+        trilhas: [
+          [
+            {
+              bloco: "acao",
+              acao: { acao: "som.tocar", hash, nome: "s", volume: 0.8, para: "todos" },
+            },
+            { bloco: "acao", acao: { acao: "chat.anunciar", texto: "fica", para: "todos" } },
+          ],
         ],
-      ],
-      (a) => a.acao === "som.tocar" && a.hash === hash,
+      }),
     );
-    expect(t).toEqual([
-      [{ bloco: "acao", acao: { acao: "chat.anunciar", texto: "fica", para: "todos" } }],
-    ]);
+    const som = g.nos.find((n) => n.tipo === "acao" && n.config.acao.acao === "som.tocar");
+    const sem = semOsNos(g, new Set(som ? [som.id] : []));
+    expect(sem.nos.map((n) => n.tipo)).toEqual(["gatilho", "acao"]);
+    expect(sem.fios).toHaveLength(1);
+    expect(sem.fios[0]?.de.no).toBe(g.nos[0]?.id);
+    expect(problemasDoFluxo(sem, ref)).toEqual([]);
+  });
+});
+
+describe("o que o AU1 guardou na mesa (árvore) carrega como grafo (AU2)", () => {
+  it("o fluxo de árvore vira grafo, as esperas antigas (pelo caminho da árvore) caem e as novas e os sinais ficam", () => {
+    const a = AutomacoesSchema.parse({
+      fluxos: [
+        {
+          id: "f",
+          nome: "F",
+          ligado: true,
+          cenas: null,
+          gatilho: { tipo: "relogio", cadaS: 60 },
+          trilhas: [
+            [
+              { bloco: "esperar", s: 5 },
+              { bloco: "acao", acao: { acao: "chat.anunciar", texto: "x" } },
+            ],
+          ],
+        },
+      ],
+      execucao: { f: { baseSala: 0, proximoTau: 60000 } },
+      esperando: [
+        {
+          id: "e1",
+          ateSala: 5000,
+          profundidade: 0,
+          fluxoId: "f",
+          caminho: [0, 1],
+          contexto: { cenas: null },
+        },
+        {
+          id: "e2",
+          ateSala: 5000,
+          profundidade: 0,
+          fluxoId: "f",
+          no: "n2",
+          contexto: { cenas: null },
+        },
+        {
+          id: "e3",
+          ateSala: 5000,
+          profundidade: 1,
+          sinal: "vento",
+          fluxoId: "f",
+          contexto: { cenas: null },
+        },
+      ],
+    });
+    const f = a.fluxos[0];
+    expect(f?.nos.map((n) => n.tipo)).toEqual(["gatilho", "esperar", "acao"]);
+    expect(f?.fios).toHaveLength(2);
+    expect("trilhas" in (f ?? {})).toBe(false);
+    expect(a.execucao.f?.proximoTau).toBe(60000);
+    expect(a.esperando.map((e) => e.id)).toEqual(["e2", "e3"]);
+    // e o grafo, salvo e lido de novo, é o mesmo
+    expect(AutomacoesSchema.parse(JSON.parse(JSON.stringify(a))).fluxos).toEqual(a.fluxos);
   });
 });

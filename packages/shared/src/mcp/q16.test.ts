@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { type Estado, espacosDaFicha } from "../index.ts";
+import { type Estado, espacosDaFicha, gatilhoPrincipal } from "../index.ts";
 import { ErroDoMcp } from "./erros.ts";
 import type { QualquerFerramenta, Saida } from "./ferramentas/base.ts";
 import { TODAS_AS_FERRAMENTAS } from "./ferramentas/index.ts";
@@ -430,10 +430,15 @@ describe("zona e reação com som pelo nome do arquivo (Q16)", () => {
       som: { hash: HASH_VENTO, nome: "vento.mp3", volume: 0.4, laco: false },
     });
     const fluxo = sala.verdade.automacoes?.fluxos[0];
-    expect(fluxo?.gatilho).toEqual({ tipo: "zona", quando: "entra", zona: z?.id });
-    expect(fluxo?.trilhas[0]?.[0]).toMatchObject({
-      bloco: "acao",
-      acao: { acao: "som.tocar", hash: HASH_TROVAO, nome: "trovao.mp3", volume: 0.9 },
+    expect(fluxo && gatilhoPrincipal(fluxo)).toEqual({
+      tipo: "zona",
+      quando: "entra",
+      zona: z?.id,
+    });
+    expect(fluxo?.nos.find((n) => n.tipo === "acao")).toMatchObject({
+      config: {
+        acao: { acao: "som.tocar", hash: HASH_TROVAO, nome: "trovao.mp3", volume: 0.9 },
+      },
     });
   });
 
@@ -541,16 +546,13 @@ describe("a preparação completa só pelo MCP (Q16)", () => {
     });
     expect(zona?.pontos).toHaveLength(4);
     const fluxo = sala.verdade.automacoes?.fluxos.find((r) => r.nome === "Aviso ao entrar");
-    expect(fluxo).toMatchObject({
-      gatilho: { tipo: "zona", quando: "entra", zona: zona?.id },
-      trilhas: [
-        [
-          {
-            bloco: "acao",
-            acao: { acao: "chat.anunciar", texto: "O vento uiva.", para: "mestre" },
-          },
-        ],
-      ],
+    expect(fluxo && gatilhoPrincipal(fluxo)).toEqual({
+      tipo: "zona",
+      quando: "entra",
+      zona: zona?.id,
+    });
+    expect(fluxo?.nos.find((n) => n.tipo === "acao")).toMatchObject({
+      config: { acao: { acao: "chat.anunciar", texto: "O vento uiva.", para: "mestre" } },
     });
 
     // 4) O som da zona também pelo `som` (troca por nome), e a trilha da cena.

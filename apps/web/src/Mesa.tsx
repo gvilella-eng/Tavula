@@ -25,6 +25,7 @@ import {
   membrosDaMesa,
   modInteligenciaDe,
   nevoaCobreAlgo,
+  nosDeGatilho,
   PASTA_NPCS_ID,
   personagemDoMonstro,
   pode,
@@ -75,7 +76,8 @@ import { ganchosDoTeste, instalarGanchoDeAssets } from "./assets/ganchoE2E";
 import { type Canal, GerenteDeAssets } from "./assets/gerente";
 import { Processador } from "./assets/processador";
 import { BotoesDaBarra } from "./automacoes/ChipsDaBarra";
-import { JanelaDasAutomacoes, type PedidoDeAutomacao } from "./automacoes/JanelaDasAutomacoes";
+import { JanelaDasAutomacoes } from "./automacoes/JanelaDasAutomacoes";
+import { MesaDeEventos } from "./automacoes/MesaDeEventos";
 import { BarraDeFerramentas } from "./BarraDeFerramentas";
 import { BarraLateral, type PedidoDeAba } from "./BarraLateral";
 import { BotaoComDica } from "./BotaoComDica";
@@ -92,8 +94,10 @@ import { FaixaDeCenas, type PedirImagem } from "./FaixaDeCenas";
 import {
   abrirAutomacaoEmJanela,
   abrirChamadaEmJanela,
+  abrirEventosEmJanela,
   abrirFichaEmJanela,
   abrirSomEmJanela,
+  ID_DA_MESA_DE_EVENTOS,
   ID_DA_MESA_DE_SOM,
   TEXTO_DO_POPUP_BLOQUEADO,
   trazerFichaDeFora,
@@ -330,8 +334,8 @@ export function Mesa({
   const [configAberta, setConfigAberta] = useState(false);
   // 7b-3: o editor das automações (janela aberta pela aba Mesa; só do mestre).
   const [automacoesAbertas, setAutomacoesAbertas] = useState(false);
-  // AU1: um pedido para a janela abrir direto no editor (o painel da zona: "+ automação para esta zona").
-  const [pedidoDeAutomacao, setPedidoDeAutomacao] = useState<PedidoDeAutomacao | null>(null);
+  // AU2: a mesa de eventos (botões das automações): aberta aqui como janela ou faixa, ou numa janela própria do navegador.
+  const [eventosAbertos, setEventosAbertos] = useState(false);
   // N5: o painel de Som do mestre.
   const [somAberto, setSomAberto] = useState(false);
   const [luzSelecionadaId, setLuzSelecionadaId] = useState<string | null>(null);
@@ -444,18 +448,34 @@ export function Mesa({
     if (!abrirSomEmJanela(mesa.id, { largura: 460, altura: 720 })) avisar(TEXTO_DO_POPUP_BLOQUEADO);
   }, [mesa.id, avisar]);
 
-  // AU1: o editor de uma automação numa janela própria do navegador (o mesmo padrão da ficha e do som).
-  const abrirAutomacaoEmOutraJanela = useCallback(
-    (fluxoId: string | null) => {
-      if (!abrirAutomacaoEmJanela(mesa.id, fluxoId, { largura: 1280, altura: 760 }))
-        avisar(TEXTO_DO_POPUP_BLOQUEADO);
+  // AU2: o editor de uma automação abre SEMPRE numa janela própria do navegador, na hora (o mesmo padrão da ficha e do som); a
+  // janela principal nunca mostra o editor. `gatilho`: com o que uma automação nova nasce ("+ automação para esta zona").
+  const abrirAutomacao = useCallback(
+    (fluxoId: string | null, gatilho?: Gatilho) => {
+      if (!abrirAutomacaoEmJanela(mesa.id, fluxoId, { largura: 1280, altura: 760 }, gatilho))
+        avisar(TEXTO_DO_POPUP_BLOQUEADO, {
+          rotulo: "Abrir o editor",
+          aoClicar: () => {
+            abrirAutomacaoEmJanela(mesa.id, fluxoId, { largura: 1280, altura: 760 }, gatilho);
+          },
+        });
     },
     [mesa.id, avisar],
   );
-  const abrirAutomacao = useCallback((fluxoId: string | null, gatilho?: Gatilho) => {
-    setPedidoDeAutomacao({ chave: Date.now(), fluxoId, gatilho });
-    setAutomacoesAbertas(true);
-  }, []);
+
+  // AU2: a mesa de eventos. Com a janela própria aberta, o botão a traz para a frente (se ela sumiu, volta para cá).
+  const eventosFora = fichasFora.has(ID_DA_MESA_DE_EVENTOS);
+  const alternarEventos = useCallback(() => {
+    if (eventosFora) {
+      if (!trazerFichaDeFora(mesa.id, ID_DA_MESA_DE_EVENTOS)) setEventosAbertos(true);
+      return;
+    }
+    setEventosAbertos((v) => !v);
+  }, [eventosFora, mesa.id]);
+  const abrirEventosEmOutraJanela = useCallback(() => {
+    if (!abrirEventosEmJanela(mesa.id, { largura: 520, altura: 420 }))
+      avisar(TEXTO_DO_POPUP_BLOQUEADO);
+  }, [mesa.id, avisar]);
 
   // CH1: a chamada da mesa mora numa janela própria; aqui só se abre (ou traz para a frente) e se vê quem está nela.
   const abrirChamada = useCallback(() => {
@@ -1760,16 +1780,27 @@ export function Mesa({
   apagarZonaAtual.current = (id) => {
     const zona = estadoAtual.current?.zonas?.find((z) => z.id === id);
     if (!zona) return;
-    const fluxos = (estadoAtual.current?.automacoes?.fluxos ?? []).filter(
-      (f) => f.gatilho.tipo === "zona" && f.gatilho.zona === id,
-    );
+    // As automações que perdem gatilho com a zona: as que ficam sem nenhum gatilho somem (voltam por `fluxo.criar`); as que
+    // têm outros gatilhos só perdem o gatilho da zona (voltam trocando o desenho).
+    const afetadas = (estadoAtual.current?.automacoes?.fluxos ?? []).flatMap((f) => {
+      const gatilhos = nosDeGatilho(f);
+      const dela = gatilhos.filter((n) => n.config.tipo === "zona" && n.config.zona === id);
+      return dela.length === 0 ? [] : [{ fluxo: f, some: dela.length === gatilhos.length }];
+    });
     enviar("zona.apagar", { id });
     setZonaSelecionadaId(null);
     avisar(`Zona "${zona.nome}" apagada.`, {
       rotulo: "Desfazer",
       aoClicar: () => {
         enviar("zona.criar", { zona });
-        for (const fluxo of fluxos) enviar("fluxo.criar", { fluxo });
+        for (const { fluxo, some } of afetadas) {
+          if (some) enviar("fluxo.criar", { fluxo });
+          else
+            enviar("fluxo.editar", {
+              id: fluxo.id,
+              mudancas: { nos: fluxo.nos, fios: fluxo.fios },
+            });
+        }
         setZonaSelecionadaId(id);
       },
     });
@@ -2171,6 +2202,7 @@ export function Mesa({
                   euMestre={euMestre}
                   enviar={enviar}
                   salaMs={tempo.salaMs}
+                  aoAbrirMesaDeEventos={alternarEventos}
                 />
               )
             }
@@ -2628,14 +2660,18 @@ export function Mesa({
                 estado={estado}
                 enviar={enviar}
                 salaMs={tempo.salaMs}
-                fontes={fontes}
-                registrarSom={registrarSom}
-                pedido={pedidoDeAutomacao}
-                aoAbrirEmJanela={abrirAutomacaoEmOutraJanela}
-                aoFechar={() => {
-                  setAutomacoesAbertas(false);
-                  setPedidoDeAutomacao(null);
-                }}
+                aoEditar={abrirAutomacao}
+                aoAbrirMesaDeEventos={alternarEventos}
+                aoFechar={() => setAutomacoesAbertas(false)}
+              />
+            )}
+            {eventosAbertos && !eventosFora && (
+              <MesaDeEventos
+                estado={estado}
+                euMestre={euMestre}
+                enviar={enviar}
+                aoAbrirEmJanela={abrirEventosEmOutraJanela}
+                aoFechar={() => setEventosAbertos(false)}
               />
             )}
             {modoMestre && configAberta && (

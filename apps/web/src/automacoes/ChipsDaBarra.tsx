@@ -4,8 +4,9 @@ import {
   type Estado,
   type Fluxo,
   situacaoDoFluxo,
+  temGatilho,
 } from "@tabletop/shared";
-import { Pause, Play, SkipForward, Zap } from "lucide-react";
+import { LayoutGrid, Pause, Play, SkipForward, Zap } from "lucide-react";
 import { BotaoComDica } from "../BotaoComDica";
 import { useTic } from "../tempo";
 import { duracaoCurta } from "./rascunho";
@@ -18,6 +19,8 @@ type Props = {
   enviar: Enviar;
   /** O relógio da sala em ms (só o mestre o recebe; sem ele o tempo do próximo disparo não aparece). */
   salaMs: () => number | undefined;
+  /** AU2: abre (ou fecha) a mesa de eventos; o botão só aparece quando há botões de evento para mostrar. */
+  aoAbrirMesaDeEventos?: () => void;
 };
 
 /**
@@ -25,21 +28,29 @@ type Props = {
  * botão); o jogador vê só os que o mestre liberou, com o nome e a ação e nada da definição. Cada chip é pequeno: nome,
  * quando dispara de novo (no mestre) e os botões de disparar e de pausar ou retomar.
  */
-export function BotoesDaBarra({ estado, euMestre, enviar, salaMs }: Props) {
+export function BotoesDaBarra({ estado, euMestre, enviar, salaMs, aoAbrirMesaDeEventos }: Props) {
+  const botaoDaMesa = aoAbrirMesaDeEventos && (
+    <BotaoComDica
+      className="botao-icone pequeno"
+      testid="abrir-mesa-de-eventos"
+      nome="Mesa de eventos"
+      onClick={aoAbrirMesaDeEventos}
+    >
+      <LayoutGrid size={14} />
+    </BotaoComDica>
+  );
   if (euMestre) {
     const a = automacoesDe(estado);
     const fixados = a.fluxos.filter(
       (f) =>
-        f.fixado === true &&
-        !f.rascunho &&
-        (f.gatilho.tipo === "relogio" || f.gatilho.tipo === "botao"),
+        f.fixado === true && !f.rascunho && (temGatilho(f, "relogio") || temGatilho(f, "botao")),
     );
     if (fixados.length === 0) return null;
     return (
       <div className="botoes-da-barra" data-testid="botoes-da-barra">
         <span className="so-leitor">Automações fixadas</span>
         {fixados.map((f) =>
-          f.gatilho.tipo === "relogio" ? (
+          temGatilho(f, "relogio") && !temGatilho(f, "botao") ? (
             <ChipDoRelogioDoMestre
               key={f.id}
               fluxo={f}
@@ -63,6 +74,7 @@ export function BotoesDaBarra({ estado, euMestre, enviar, salaMs }: Props) {
             </div>
           ),
         )}
+        {botaoDaMesa}
       </div>
     );
   }
@@ -74,6 +86,7 @@ export function BotoesDaBarra({ estado, euMestre, enviar, salaMs }: Props) {
       {liberados.map((b) => (
         <ChipDoJogador key={b.id} botao={b} enviar={enviar} />
       ))}
+      {botaoDaMesa}
     </div>
   );
 }

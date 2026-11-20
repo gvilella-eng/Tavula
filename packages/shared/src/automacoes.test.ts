@@ -12,8 +12,9 @@ import {
   estadoInicial,
   eventoPara,
   type Fluxo,
-  FluxoSchema,
+  FluxoDeQualquerFormaSchema,
   fonteComSemente,
+  gatilhoPrincipal,
   type Intencao,
   IntencaoSchema,
   lerExportacao,
@@ -107,13 +108,18 @@ function criarEstado(luzes: ObjetoDeLuz[] = [tocha("o1")]): Estado {
 }
 
 const fluxo = (parcial: Record<string, unknown>): Fluxo =>
-  FluxoSchema.parse({
+  FluxoDeQualquerFormaSchema.parse({
     id: "f1",
     nome: "Fluxo",
     gatilho: { tipo: "botao", nome: "Botão" },
     trilhas: [[]],
     ...parcial,
   });
+/** As mudanças de desenho (nós e fios) de um fluxo montado como árvore (o `fluxo.editar` troca o desenho inteiro). */
+const muda = (parcial: Record<string, unknown>) => {
+  const g = fluxo(parcial);
+  return { nos: g.nos, fios: g.fios };
+};
 const comFluxos = (e: Estado, ...fluxos: Fluxo[]): Estado => ({
   ...e,
   automacoes: AutomacoesSchema.parse({ fluxos }),
@@ -169,18 +175,27 @@ describe("os schemas dos fluxos", () => {
   it("a intenção com ação fora da lista nem chega ao motor", () => {
     expect(() =>
       intencao("fluxo.criar", {
-        fluxo: { ...fluxo({}), trilhas: [[acao({ acao: "apagar.tudo" })]] },
+        fluxo: {
+          id: "f1",
+          nome: "x",
+          gatilho: { tipo: "botao", nome: "B" },
+          trilhas: [[acao({ acao: "apagar.tudo" })]],
+        },
       }),
     ).toThrow();
   });
 
   it('o fluxo confere o nome, o relógio e as saídas; o "não" é opcional', () => {
     expect(
-      FluxoSchema.safeParse({ id: "x", nome: " ", gatilho: { tipo: "turno" }, trilhas: [[]] })
-        .success,
+      FluxoDeQualquerFormaSchema.safeParse({
+        id: "x",
+        nome: " ",
+        gatilho: { tipo: "turno" },
+        trilhas: [[]],
+      }).success,
     ).toBe(false);
     expect(
-      FluxoSchema.safeParse({
+      FluxoDeQualquerFormaSchema.safeParse({
         id: "x",
         nome: "a",
         gatilho: { tipo: "relogio", cadaS: 0 },
@@ -188,11 +203,15 @@ describe("os schemas dos fluxos", () => {
       }).success,
     ).toBe(false);
     expect(
-      FluxoSchema.safeParse({ id: "x", nome: "a", gatilho: { tipo: "turno" }, trilhas: [] })
-        .success,
+      FluxoDeQualquerFormaSchema.safeParse({
+        id: "x",
+        nome: "a",
+        gatilho: { tipo: "turno" },
+        trilhas: [],
+      }).success,
     ).toBe(false);
     const f = fluxo({ trilhas: [[{ bloco: "sortear", chance: 0.5, sim: [anunciar("a")] }]] });
-    expect(f.trilhas[0]?.[0]).toMatchObject({ bloco: "sortear", nao: [] });
+    expect(f.nos.find((n) => n.tipo === "sortear")).toMatchObject({ config: { chance: 0.5 } });
     expect(f.ligado).toBe(true);
     expect(f.cenas).toBeNull();
   });
@@ -618,13 +637,16 @@ describe("as intenções de automação", () => {
     expect(e.automacoes?.fluxos[0]).toMatchObject({
       nome: "Novo nome",
       ligado: true,
-      trilhas: f.trilhas,
+      nos: f.nos,
     });
     // erro de validação: ação de luz solta, zona que não existe, cena que não existe
     const solta = processar(
       e,
       "m",
-      intencao("fluxo.editar", { id: "f1", mudancas: { trilhas: [[luz(0.5, 5)]] } }),
+      intencao("fluxo.editar", {
+        id: "f1",
+        mudancas: muda({ gatilho: { tipo: "relogio", cadaS: 60 }, trilhas: [[luz(0.5, 5)]] }),
+      }),
       iso(0),
     );
     expect(solta).toMatchObject({ ok: false, erro: { codigo: "dados_invalidos" } });
@@ -634,7 +656,10 @@ describe("as intenções de automação", () => {
       "m",
       intencao("fluxo.editar", {
         id: "f1",
-        mudancas: { gatilho: { tipo: "zona", quando: "entra", zona: "nada" } },
+        mudancas: muda({
+          gatilho: { tipo: "zona", quando: "entra", zona: "nada" },
+          trilhas: [[anunciar("a")]],
+        }),
       }),
       iso(0),
     );
@@ -673,7 +698,10 @@ describe("as intenções de automação", () => {
     e = ok(
       e,
       "m",
-      intencao("fluxo.editar", { id: "f1", mudancas: { trilhas: [[anunciar("y")]] } }),
+      intencao("fluxo.editar", {
+        id: "f1",
+        mudancas: muda({ gatilho: { tipo: "relogio", cadaS: 60 }, trilhas: [[anunciar("y")]] }),
+      }),
       1,
     ).estado;
     expect(e.automacoes?.esperando).toEqual([]);
@@ -763,7 +791,7 @@ describe("o sigilo: nada de automação chega ao jogador", () => {
       fluxo({ id: "b", nome: SEGREDO, trilhas: [[anunciar("y")]] }),
     );
     const v = visaoPara(base, J1, T0);
-    expect(v.botoes).toEqual([{ id: "evento:a", tipo: "evento", nome: "Soprar" }]);
+    expect(v.botoes).toEqual([{ id: "evento:a", tipo: "evento", nome: "Soprar", rotulo: "Botão" }]);
     expect(JSON.stringify(v)).not.toContain(SEGREDO);
     // ele aperta o liberado, e o que não está liberado dá recusa
     const ok1 = processar(base, "j1", intencao("botao.usar", { botaoId: "evento:a" }), iso(1));
@@ -852,9 +880,9 @@ describe("exportar, importar e a campanha antiga", () => {
     expect(lida.ok).toBe(true);
     if (!lida.ok) return;
     const a = lida.exportacao.dados.automacoes;
-    expect(a?.fluxos.map((f) => f.gatilho.tipo)).toEqual(["relogio"]);
+    expect(a?.fluxos.map((f) => gatilhoPrincipal(f)?.tipo)).toEqual(["relogio"]);
     // a reação só liga àquele ciclo: fica dentro da trilha da fase, com o "dura" da fase como prazo
-    expect(JSON.stringify(a?.fluxos[0]?.trilhas[0])).toContain('"porS":20');
+    expect(JSON.stringify(a?.fluxos[0]?.nos)).toContain('"porS":20');
     expect(a?.legado?.ciclos).toHaveLength(1);
     expect(a?.legado?.reacoes).toHaveLength(1);
     // o modelo exportado não carrega a reação

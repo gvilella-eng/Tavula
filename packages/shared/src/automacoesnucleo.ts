@@ -3,7 +3,6 @@ import {
   type AlvoDoParaCada,
   type Automacoes,
   automacoesDe,
-  type Bloco,
   type CondicaoDoSe,
   type ContextoDoFluxo,
   type Efeito,
@@ -11,16 +10,23 @@ import {
   type EventoDeAutomacao,
   type Fluxo,
   FluxoSchema,
+  type Gatilho,
   idDoBotaoDeCiclo,
   idDoBotaoDeEvento,
   MAXIMO_DE_EFEITOS,
   MAXIMO_DE_EXECUCOES_ESPERANDO,
   MAXIMO_DE_FLUXOS,
   MAXIMO_DO_REGISTRO,
+  type No,
+  type NoDe,
+  noDeDisparoManual,
+  noDeGatilhoDoTipo,
+  nosDeGatilho,
   PRAZO_PADRAO_S,
   PROFUNDIDADE_MAXIMA,
   TETO_DE_ACOES,
   tauDoFluxo,
+  temGatilho,
 } from "./automacoes.ts";
 import type { FonteDeAleatoriedade } from "./dados.ts";
 import type { Estado, Modificador, ObjetoDeLuz, Token } from "./estado.ts";
@@ -92,6 +98,9 @@ type Rodada = {
   profundidade: number;
   referenciaSala: number;
   encadeados: Encadeado[];
+  /** Quantos nós esta rodada já percorreu (o teto pega ciclos que não pausam). */
+  passos: number;
+  porId: Map<string, No>;
 };
 
 // ---------------------------------------------------------------------------------------------
@@ -282,6 +291,13 @@ function avaliar(m: Motor, c: CondicaoDoSe, ctx: ContextoDoFluxo): boolean {
         return cena !== undefined && c.cenas.includes(cena);
       }
       return ctx.cenas === null || ctx.cenas.some((x) => c.cenas.includes(x));
+    }
+    case "chance":
+      return m.sortear(c.chance);
+    case "tokenDeJogador": {
+      const token =
+        ctx.tokenId === undefined ? undefined : e.tokens.find((t) => t.id === ctx.tokenId);
+      return token !== undefined && token.controladoPor.length > 0;
     }
   }
 }
@@ -529,135 +545,151 @@ function aplicarAcao(
   }
 }
 
-// --- Rodar as listas de blocos ---------------------------------------------------------------
+// --- Seguir os fios --------------------------------------------------------------------------
 
-type Fim = "fim" | "espera";
+/** Quantos nós um disparo percorre, no máximo (um grafo com ciclo e esperas curtas não trava a sala). */
+const MAXIMO_DE_PASSOS_POR_DISPARO = 2000;
 
-/** Roda a lista de `desde` até o fim. Devolve "espera" se um "esperar" segurou a execução (a continuação foi guardada). */
-function rodarLista(
-  m: Motor,
-  rd: Rodada,
-  prefixo: Caminho,
-  lista: readonly Bloco[],
-  desde: number,
-  ctx: ContextoDoFluxo,
-): Fim {
-  for (let i = desde; i < lista.length; i++) {
-    if (m.cortado) return "fim";
-    const b = lista[i];
-    if (b === undefined) continue;
-    const caminho = [...prefixo, i];
-    switch (b.bloco) {
-      case "esperar": {
-        if (m.slice.esperando.length >= MAXIMO_DE_EXECUCOES_ESPERANDO) {
-          m.anotar(`${rd.fluxo.nome}: execuções esperando demais, esta foi cortada.`);
-          return "fim";
-        }
-        m.slice.esperando = [
-          ...m.slice.esperando,
-          {
-            id: m.novoId("esp"),
-            ateSala: rd.referenciaSala + b.s * 1000,
-            profundidade: rd.profundidade,
-            fluxoId: rd.fluxo.id,
-            caminho: [...prefixo, i + 1],
-            contexto: ctx,
-          },
-        ];
-        return "espera";
-      }
-      case "acao":
-        aplicarAcao(m, rd, caminho, b.acao, ctx);
-        break;
-      case "sinal":
-        if (!m.contar()) return "fim";
-        rd.encadeados.push({ nome: b.nome, atrasoS: b.atrasoS ?? 0, contexto: ctx });
-        break;
-      case "se": {
-        const vale = avaliar(m, b.condicao, ctx);
-        const r = rodarLista(
-          m,
-          rd,
-          [...caminho, vale ? "sim" : "nao"],
-          vale ? b.sim : b.nao,
-          0,
-          vale ? estreitar(ctx, b.condicao) : ctx,
-        );
-        if (r === "espera") return "espera";
-        break;
-      }
-      case "sortear": {
-        const vale = m.sortear(b.chance);
-        const r = rodarLista(
-          m,
-          rd,
-          [...caminho, vale ? "sim" : "nao"],
-          vale ? b.sim : b.nao,
-          0,
-          ctx,
-        );
-        if (r === "espera") return "espera";
-        break;
-      }
-      case "paraCada": {
-        const alvos =
-          b.alvo.tipo === "objetos"
-            ? objetosDoParaCada(m, b.alvo, ctx.cenas).map(
-                (o): ContextoDoFluxo => ({
-                  cenas: ctx.cenas,
-                  objetoId: o.id,
-                  ...(ctx.zonaId === undefined ? {} : { zonaId: ctx.zonaId }),
-                }),
-              )
-            : tokensDoParaCada(m, b.alvo, ctx.cenas).map(
-                (t): ContextoDoFluxo => ({
-                  cenas: ctx.cenas,
-                  tokenId: t.id,
-                  ...(ctx.zonaId === undefined ? {} : { zonaId: ctx.zonaId }),
-                }),
-              );
-        // Um "esperar" no corpo segura só aquele alvo: o que vem depois do "para cada" não espera por ele.
-        for (const c of alvos) {
-          if (m.cortado) return "fim";
-          rodarLista(m, rd, [...caminho, "corpo"], b.corpo, 0, c);
-        }
-        break;
-      }
-    }
-  }
-  return "fim";
+function novaRodada(
+  f: Fluxo,
+  profundidade: number,
+  referenciaSala: number,
+  encadeados: Encadeado[] = [],
+): Rodada {
+  return {
+    fluxo: f,
+    profundidade,
+    referenciaSala,
+    encadeados,
+    passos: 0,
+    porId: new Map(f.nos.map((n) => [n.id, n])),
+  };
 }
 
-/** Retoma uma execução esperando: desce pelo caminho e roda o resto, subindo (menos além de um "para cada"). */
-function retomarLista(
+/** O valor de um nó de condição ou de uma porta lógica, para o contexto da vez. `memo`: cada nó vale uma vez por conferência. */
+function valorDoNo(
   m: Motor,
   rd: Rodada,
-  prefixo: Caminho,
-  lista: readonly Bloco[],
-  restante: Caminho,
+  id: string,
   ctx: ContextoDoFluxo,
-): Fim {
-  const primeiro = restante[0];
-  if (restante.length <= 1)
-    return rodarLista(m, rd, prefixo, lista, typeof primeiro === "number" ? primeiro : 0, ctx);
-  const ramo = restante[1];
-  const b = typeof primeiro === "number" ? lista[primeiro] : undefined;
-  if (b === undefined || typeof primeiro !== "number") return "fim";
-  let sub: readonly Bloco[] = [];
-  if ((b.bloco === "se" || b.bloco === "sortear") && (ramo === "sim" || ramo === "nao"))
-    sub = ramo === "sim" ? b.sim : b.nao;
-  else if (b.bloco === "paraCada" && ramo === "corpo") sub = b.corpo;
-  else return "fim";
-  const r = retomarLista(
-    m,
-    rd,
-    [...prefixo, primeiro, ramo as string],
-    sub,
-    restante.slice(2),
-    ctx,
-  );
-  if (r === "espera" || ramo === "corpo") return r;
-  return rodarLista(m, rd, prefixo, lista, primeiro + 1, ctx);
+  memo: Map<string, boolean>,
+  pilha: ReadonlySet<string>,
+): boolean {
+  const no = rd.porId.get(id);
+  if (no === undefined || pilha.has(id)) return false;
+  const guardado = memo.get(id);
+  if (guardado !== undefined) return guardado;
+  let valor = false;
+  if (no.tipo === "condicao") {
+    valor = avaliar(m, no.config, ctx);
+  } else if (no.tipo === "porta") {
+    const depois = new Set([...pilha, id]);
+    const entradas = rd.fluxo.fios
+      .filter((x) => x.para.no === id)
+      .map((x) => valorDoNo(m, rd, x.de.no, ctx, memo, depois));
+    if (no.config.porta === "e") valor = entradas.length > 0 && entradas.every(Boolean);
+    else if (no.config.porta === "ou") valor = entradas.some(Boolean);
+    else valor = entradas.length > 0 && !entradas.some(Boolean);
+  }
+  memo.set(id, valor);
+  return valor;
+}
+
+/** Segue todos os fios que saem desta porta, na ordem; cada um é um caminho (os vários rodam um depois do outro, no mesmo instante). */
+function seguir(m: Motor, rd: Rodada, no: string, saida: string, ctx: ContextoDoFluxo): void {
+  for (const fio of rd.fluxo.fios) {
+    if (m.cortado) return;
+    if (fio.de.no !== no || fio.de.saida !== saida) continue;
+    const alvo = rd.porId.get(fio.para.no);
+    if (alvo !== undefined && fio.para.entrada === "entrada") executarNo(m, rd, alvo, ctx);
+  }
+}
+
+/** Um nó recebeu a execução (chegou por um fio, ou é o gatilho). Cada chegada roda de novo (como no n8n). */
+function executarNo(m: Motor, rd: Rodada, no: No, ctx: ContextoDoFluxo): void {
+  if (m.cortado) return;
+  if (++rd.passos > MAXIMO_DE_PASSOS_POR_DISPARO) {
+    m.cortado = true;
+    m.anotar(
+      `${rd.fluxo.nome}: automação cortada, passou de ${MAXIMO_DE_PASSOS_POR_DISPARO} passos num disparo só.`,
+    );
+    return;
+  }
+  switch (no.tipo) {
+    case "gatilho":
+      seguir(m, rd, no.id, "saida", ctx);
+      break;
+    case "esperar": {
+      if (m.slice.esperando.length >= MAXIMO_DE_EXECUCOES_ESPERANDO) {
+        m.anotar(`${rd.fluxo.nome}: execuções esperando demais, esta foi cortada.`);
+        return;
+      }
+      m.slice.esperando = [
+        ...m.slice.esperando,
+        {
+          id: m.novoId("esp"),
+          ateSala: rd.referenciaSala + no.config.s * 1000,
+          profundidade: rd.profundidade,
+          fluxoId: rd.fluxo.id,
+          no: no.id,
+          contexto: ctx,
+        },
+      ];
+      break;
+    }
+    case "acao":
+      aplicarAcao(m, rd, [no.id], no.config.acao, ctx);
+      seguir(m, rd, no.id, "saida", ctx);
+      break;
+    case "sinal":
+      if (!m.contar()) return;
+      rd.encadeados.push({ nome: no.config.nome, atrasoS: no.config.atrasoS ?? 0, contexto: ctx });
+      seguir(m, rd, no.id, "saida", ctx);
+      break;
+    case "se": {
+      const ligada = rd.fluxo.fios.find(
+        (x) => x.para.no === no.id && x.para.entrada === "condicao",
+      );
+      const vale =
+        ligada !== undefined && valorDoNo(m, rd, ligada.de.no, ctx, new Map(), new Set());
+      // Dentro do "sim" de um "se na cena X", só X vale (quando a condição é a própria condição de cena).
+      const condicao = ligada === undefined ? undefined : rd.porId.get(ligada.de.no);
+      const novoCtx = vale && condicao?.tipo === "condicao" ? estreitar(ctx, condicao.config) : ctx;
+      seguir(m, rd, no.id, vale ? "sim" : "nao", novoCtx);
+      break;
+    }
+    case "sortear":
+      seguir(m, rd, no.id, m.sortear(no.config.chance) ? "sim" : "nao", ctx);
+      break;
+    case "paraCada": {
+      const alvo = no.config.alvo;
+      const alvos =
+        alvo.tipo === "objetos"
+          ? objetosDoParaCada(m, alvo, ctx.cenas).map(
+              (o): ContextoDoFluxo => ({
+                cenas: ctx.cenas,
+                objetoId: o.id,
+                ...(ctx.zonaId === undefined ? {} : { zonaId: ctx.zonaId }),
+              }),
+            )
+          : tokensDoParaCada(m, alvo, ctx.cenas).map(
+              (t): ContextoDoFluxo => ({
+                cenas: ctx.cenas,
+                tokenId: t.id,
+                ...(ctx.zonaId === undefined ? {} : { zonaId: ctx.zonaId }),
+              }),
+            );
+      // Um "esperar" no corpo segura só aquele alvo: o que vem em "depois" não espera por ele.
+      for (const c of alvos) {
+        if (m.cortado) return;
+        seguir(m, rd, no.id, "corpo", c);
+      }
+      seguir(m, rd, no.id, "depois", ctx);
+      break;
+    }
+    default:
+      break;
+  }
 }
 
 // --- Rodar um disparo ------------------------------------------------------------------------
@@ -671,9 +703,12 @@ function contextoDoEvento(ev: EventoDeAutomacao, cenas: Escopo): ContextoDoFluxo
   };
 }
 
-/** O fluxo responde a este evento? (O gatilho, não as cenas.) */
-function gatilhoCasa(m: Motor, f: Fluxo, ev: EventoDeAutomacao): boolean {
-  const g = f.gatilho;
+/** Os gatilhos do fluxo que respondem a este evento (o gatilho, não as cenas). Vários gatilhos formam um OU. */
+function gatilhosQueCasam(m: Motor, f: Fluxo, ev: EventoDeAutomacao): NoDe<"gatilho">[] {
+  return nosDeGatilho(f).filter((n) => gatilhoCasa(m, n.config, ev));
+}
+
+function gatilhoCasa(m: Motor, g: Gatilho, ev: EventoDeAutomacao): boolean {
   if (ev.origem === "sistema") {
     switch (ev.nome) {
       case "objeto.acendeu":
@@ -708,20 +743,18 @@ function gatilhoCasa(m: Motor, f: Fluxo, ev: EventoDeAutomacao): boolean {
   return g.tipo === "sinal" && g.nome === ev.nome;
 }
 
-/** Roda um fluxo (todas as trilhas) com este contexto. */
+/** Roda um fluxo a partir deste gatilho, seguindo os fios, com este contexto. */
 function dispararFluxo(
   m: Motor,
   f: Fluxo,
+  inicio: NoDe<"gatilho">,
   ctx: ContextoDoFluxo,
   profundidade: number,
   referenciaSala: number,
 ): Encadeado[] {
-  const rd: Rodada = { fluxo: f, profundidade, referenciaSala, encadeados: [] };
+  const rd = novaRodada(f, profundidade, referenciaSala);
   m.slice.ultimaVez[f.id] = m.sala;
-  for (const [t, trilha] of f.trilhas.entries()) {
-    if (m.cortado) break;
-    rodarLista(m, rd, [t], trilha, 0, ctx);
-  }
+  executarNo(m, rd, inicio, ctx);
   return rd.encadeados;
 }
 
@@ -785,12 +818,18 @@ function executarEvento(m: Motor, ev: EventoDeAutomacao, profundidade: number): 
   const encadeados: Encadeado[] = [];
   const rodados: Fluxo[] = [];
   for (const f of m.slice.fluxos) {
-    if (!f.ligado || f.rascunho || !gatilhoCasa(m, f, ev)) continue;
+    if (!f.ligado || f.rascunho) continue;
+    const inicios = gatilhosQueCasam(m, f, ev);
+    if (inicios.length === 0) continue;
     const cenas = escopoDoFluxo(f, ev.cenas);
     if (cenas === "nunca") continue;
     if (m.cortado) return;
     rodados.push(f);
-    encadeados.push(...dispararFluxo(m, f, contextoDoEvento(ev, cenas), profundidade, m.sala));
+    for (const inicio of inicios) {
+      encadeados.push(
+        ...dispararFluxo(m, f, inicio, contextoDoEvento(ev, cenas), profundidade, m.sala),
+      );
+    }
   }
   fecharDisparo(m, antes, encadeados, profundidade, rodados);
 }
@@ -802,12 +841,20 @@ function executarFluxoDireto(
   ev: EventoDeAutomacao,
   profundidade: number,
   referenciaSala: number,
+  inicio: NoDe<"gatilho"> | undefined = noDeDisparoManual(f),
 ): void {
-  if (m.cortado) return;
+  if (m.cortado || inicio === undefined) return;
   const antes = m.ctx.atual();
   const cenas = escopoDoFluxo(f, ev.cenas);
   if (cenas === "nunca") return;
-  const encadeados = dispararFluxo(m, f, contextoDoEvento(ev, cenas), profundidade, referenciaSala);
+  const encadeados = dispararFluxo(
+    m,
+    f,
+    inicio,
+    contextoDoEvento(ev, cenas),
+    profundidade,
+    referenciaSala,
+  );
   fecharDisparo(m, antes, encadeados, profundidade, [f]);
 }
 
@@ -1016,18 +1063,12 @@ function retomar(m: Motor, p: Esperando): void {
     return;
   }
   const f = m.slice.fluxos.find((x) => x.id === p.fluxoId);
-  const caminho = p.caminho;
-  if (!f?.ligado || f.rascunho || caminho === undefined) return;
-  const trilha = typeof caminho[0] === "number" ? f.trilhas[caminho[0]] : undefined;
-  if (trilha === undefined) return;
+  if (!f?.ligado || f.rascunho || p.no === undefined) return;
+  const parado = f.nos.find((n) => n.id === p.no);
+  if (parado === undefined) return;
   const antes = m.ctx.atual();
-  const rd: Rodada = {
-    fluxo: f,
-    profundidade: p.profundidade,
-    referenciaSala: p.ateSala,
-    encadeados: [],
-  };
-  retomarLista(m, rd, [caminho[0] as number], trilha, caminho.slice(1), p.contexto);
+  const rd = novaRodada(f, p.profundidade, p.ateSala);
+  seguir(m, rd, parado.id, "saida", p.contexto);
   fecharDisparo(m, antes, rd.encadeados, p.profundidade, [f]);
 }
 
@@ -1048,8 +1089,9 @@ function avancar(m: Motor): void {
   }
   // 3. Os fluxos de relógio que rodam.
   for (const f of m.slice.fluxos) {
-    if (f.rascunho || !f.ligado || f.gatilho.tipo !== "relogio") continue;
-    const g = f.gatilho;
+    const noRelogio = noDeGatilhoDoTipo(f, "relogio");
+    if (f.rascunho || !f.ligado || noRelogio?.config.tipo !== "relogio") continue;
+    const g = noRelogio.config;
     let exec = m.slice.execucao[f.id];
     if (exec === undefined) {
       // Fluxo que ainda não começou (veio de um arquivo, ou foi criado com a mesa pausada): começa agora.
@@ -1067,7 +1109,14 @@ function avancar(m: Motor): void {
         m.anotar(`${f.nome}: disparos demais atrasados, o resto foi pulado.`);
         break;
       }
-      executarFluxoDireto(m, f, { nome: f.id, cenas: null, origem: "ciclo" }, 0, planejado);
+      executarFluxoDireto(
+        m,
+        f,
+        { nome: f.id, cenas: null, origem: "ciclo" },
+        0,
+        planejado,
+        noRelogio,
+      );
       if (m.cortado) return;
     }
   }
@@ -1095,7 +1144,7 @@ export function intencaoDoBotao(
   const naoLibera = (f: Fluxo) =>
     !mestre && (f.liberadoParaJogadores !== true || f.rascunho === true);
   const relogio = a.fluxos.find(
-    (f) => f.gatilho.tipo === "relogio" && idDoBotaoDeCiclo(f.id) === botaoId,
+    (f) => temGatilho(f, "relogio") && idDoBotaoDeCiclo(f.id) === botaoId,
   );
   if (relogio) {
     if (naoLibera(relogio)) return recusa;
@@ -1113,9 +1162,7 @@ export function intencaoDoBotao(
       } as Intencao,
     };
   }
-  const botao = a.fluxos.find(
-    (f) => f.gatilho.tipo === "botao" && idDoBotaoDeEvento(f.id) === botaoId,
-  );
+  const botao = a.fluxos.find((f) => temGatilho(f, "botao") && idDoBotaoDeEvento(f.id) === botaoId);
   if (botao) {
     if (naoLibera(botao) || (!mestre && !botao.ligado)) return recusa;
     return {
@@ -1177,8 +1224,9 @@ export function tratarAutomacao(ctx: ContextoDoMotor, intencao: Intencao): Saida
       if (problema) return problema;
       m.slice.fluxos = m.slice.fluxos.map((f) => (f.id === id ? novo : f));
       if (
-        JSON.stringify(novo.gatilho) !== JSON.stringify(atual.gatilho) ||
-        JSON.stringify(novo.trilhas) !== JSON.stringify(atual.trilhas)
+        JSON.stringify(novo.nos.map((n) => [n.id, n.tipo, n.config])) !==
+          JSON.stringify(atual.nos.map((n) => [n.id, n.tipo, n.config])) ||
+        JSON.stringify(novo.fios) !== JSON.stringify(atual.fios)
       ) {
         esquecer(id);
       } else if (novo.ligado !== atual.ligado) {
@@ -1208,7 +1256,8 @@ export function tratarAutomacao(ctx: ContextoDoMotor, intencao: Intencao): Saida
       const { id } = intencao.dados;
       const f = fluxoDe(id);
       if (!f) return erro("fluxo_inexistente", SEM_FLUXO);
-      const cena = f.gatilho.tipo === "botao" ? f.gatilho.cena : undefined;
+      const botao = noDeDisparoManual(f)?.config;
+      const cena = botao?.tipo === "botao" ? botao.cena : undefined;
       executarFluxoDireto(
         m,
         f,

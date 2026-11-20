@@ -1,18 +1,21 @@
 import {
   automacoesDe,
-  type Bloco,
   type Estado,
+  type Fio,
   type Fluxo,
-  FluxoSchema,
+  FluxoDeQualquerFormaSchema,
   fraseDoFluxo,
   type Gatilho,
+  idNovoDeNo,
+  type No,
   nomesDaMesa,
+  organizarGrafo,
 } from "@tabletop/shared";
-import { ArrowLeft, Braces, ExternalLink, Play, Plus, Save, Trash2, Undo2 } from "lucide-react";
+import { ArrowLeft, Braces, LayoutGrid, Play, Save, Undo2 } from "lucide-react";
 import {
   type DragEvent,
   type KeyboardEvent,
-  type ReactNode,
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -22,31 +25,20 @@ import type { Fontes } from "../assets/fontes";
 import { BotaoComDica } from "../BotaoComDica";
 import type { SomEscolhido } from "../som/EscolherSom";
 import {
-  blocoEm,
-  type Caminho,
-  caminhoDeLista,
-  caminhosDosBlocos,
-  type ErroDoEditor,
+  COR_DO_GRUPO,
   errosDoFluxo,
   fluxoNovo,
-  type GrupoDePeca,
-  grupoDoBloco,
-  idDoCaminho,
-  inserirEm,
-  listaEm,
-  moverBloco,
+  GRUPOS_DE_PECA,
   PECAS,
   type Peca,
   ROTULO_DO_GRUPO,
-  rotuloDoBloco,
-  rotuloDoGatilho,
+  SEM_SELECAO,
   type Selecao,
-  tirarEm,
-  trocarEm,
 } from "./blocos";
+import { CanvasDoGrafo, type ManejoDoCanvas } from "./CanvasDoGrafo";
 import { VistaJson } from "./Editor";
 import { type ErroDeCampo, errosEmPortugues } from "./erros";
-import { PainelDoBloco } from "./PainelDoBloco";
+import { PainelDaAutomacao, PainelDoBloco } from "./PainelDoBloco";
 import { idDoNome } from "./rascunho";
 
 type Enviar = (tipo: string, dados: object) => string | null;
@@ -61,21 +53,13 @@ export type PropsDoEditor = {
   fontes: Fontes | null;
   registrarSom: ((arquivo: File) => Promise<SomEscolhido>) | null;
   aoVoltar: () => void;
-  /** Abre este editor numa janela do navegador (só na mesa; a janela própria não tem o botão). */
-  aoAbrirEmJanela?: ((fluxoId: string | null) => void) | undefined;
-};
-
-const COR_DO_GRUPO: Record<GrupoDePeca, string> = {
-  quando: "var(--acento-forte)",
-  fluxo: "var(--etiqueta-azul)",
-  faca: "var(--sucesso)",
 };
 
 /**
- * O editor de automação por blocos (AU1): a barra de cima (voltar, nome, ligada, testar, desfazer, salvar), as peças em três
- * cores à esquerda, o fluxo no meio (a árvore do gatilho, arrumada sozinha: cada trilha é uma fileira, "se" e "sortear" têm
- * as saídas sim e não, "para cada" tem um corpo), os campos do bloco escolhido à direita e a frase em português embaixo.
- * Nada salva com erro: cada bloco com problema ganha contorno e a mensagem.
+ * O editor de automação em grade (AU2), como o do n8n: a barra de cima (fechar, nome, ligada, organizar, JSON, testar,
+ * desfazer, salvar), as peças em cinco cores à esquerda (arraste para a grade, ou clique), a grade livre no meio (nós,
+ * fios, portas lógicas, caminhos em paralelo), os campos do nó escolhido à direita e a frase em português embaixo. Nada
+ * salva com erro: o nó com problema ganha contorno e a mensagem. Só vive numa janela própria do navegador.
  */
 export function EditorDeFluxo(p: PropsDoEditor) {
   const { estado } = p;
@@ -84,95 +68,163 @@ export function EditorDeFluxo(p: PropsDoEditor) {
   const idNovo = useRef<string | null>(null);
   const [rascunho, setRascunho] = useState<Fluxo>(() => {
     if (existente) return structuredClone(existente);
-    const f = fluxoNovo(`auto-${Math.random().toString(36).slice(2, 10)}`);
-    return p.gatilhoInicial ? { ...f, gatilho: p.gatilhoInicial } : f;
+    return fluxoNovo(`auto-${Math.random().toString(36).slice(2, 10)}`, p.gatilhoInicial);
   });
+  const rascunhoRef = useRef(rascunho);
+  rascunhoRef.current = rascunho;
   const [historico, setHistorico] = useState<Fluxo[]>([]);
-  const [selecao, setSelecao] = useState<Selecao>({ tipo: "gatilho" });
-  const [mais, setMais] = useState<{ lista: Caminho; indice: number } | null>(null);
+  const [selecao, setSelecao] = useState<Selecao>(SEM_SELECAO);
   const [tentou, setTentou] = useState(false);
   const [erroDoJson, setErroDoJson] = useState<ErroDeCampo[]>([]);
   const [aviso, setAviso] = useState<string | null>(null);
   const jaCriado = useRef(existente !== undefined);
+  const canvas = useRef<ManejoDoCanvas>(null);
+  const painel = useRef<HTMLElement>(null);
+  const area = useRef<HTMLDivElement>(null);
+  const copiados = useRef<{ nos: No[]; fios: Fio[]; vezes: number } | null>(null);
+  const inicioDoGesto = useRef<Fluxo | null>(null);
 
   const nomes = useMemo(() => nomesDaMesa(estado), [estado]);
   const erros = useMemo(() => errosDoFluxo(rascunho, estado), [rascunho, estado]);
   const frase = useMemo(() => fraseDoFluxo(rascunho, nomes), [rascunho, nomes]);
   const errosDe = (onde: string) => erros.filter((e) => e.onde === onde);
 
-  function mudar(novo: Fluxo) {
-    setHistorico((h) => [...h.slice(-49), rascunho]);
+  const mudar = useCallback((novo: Fluxo) => {
+    setHistorico((h) => [...h.slice(-49), rascunhoRef.current]);
     setRascunho(novo);
     setAviso(null);
-  }
+  }, []);
+
   function desfazer() {
     setHistorico((h) => {
       const anterior = h.at(-1);
       if (anterior === undefined) return h;
       setRascunho(anterior);
-      setSelecao((s) =>
-        s.tipo === "bloco" && blocoEm(anterior, s.caminho) === undefined ? { tipo: "gatilho" } : s,
-      );
+      setSelecao((s) => ({
+        nos: s.nos.filter((id) => anterior.nos.some((n) => n.id === id)),
+        fio: null,
+      }));
       return h.slice(0, -1);
     });
   }
 
-  function inserirPeca(peca: Peca, lista?: Caminho, indice?: number) {
-    const feito = peca.criar();
-    if ("gatilho" in feito) {
-      mudar({ ...rascunho, gatilho: feito.gatilho });
-      setSelecao({ tipo: "gatilho" });
-      return;
-    }
-    let destino = lista;
-    let pos = indice;
-    if (destino === undefined) {
-      if (selecao.tipo === "bloco") {
-        destino = caminhoDeLista(selecao.caminho);
-        pos = Number(selecao.caminho.at(-1)) + 1;
-      } else {
-        destino = [0];
-        pos = listaEm(rascunho, [0])?.length ?? 0;
-      }
-    }
-    const novoFluxo = inserirEm(rascunho, destino, pos ?? 0, feito.bloco);
-    mudar(novoFluxo);
-    setSelecao({ tipo: "bloco", caminho: [...destino, pos ?? 0] });
-    setMais(null);
+  // --- Mexer no desenho ---
+
+  function nosNovo(peca: Peca, x: number, y: number): No {
+    const f = rascunhoRef.current;
+    return { ...peca.criar(), id: idNovoDeNo(f.nos), x: Math.round(x), y: Math.round(y) } as No;
   }
 
-  function tirar(caminho: Caminho) {
-    mudar(tirarEm(rascunho, caminho));
-    setSelecao({ tipo: "gatilho" });
-  }
-  function duplicar(caminho: Caminho) {
-    const b = blocoEm(rascunho, caminho);
-    if (b === undefined) return;
-    const lista = caminhoDeLista(caminho);
-    const pos = Number(caminho.at(-1)) + 1;
-    mudar(inserirEm(rascunho, lista, pos, structuredClone(b)));
-    setSelecao({ tipo: "bloco", caminho: [...lista, pos] });
-  }
-  function trocarBloco(caminho: Caminho, novo: Bloco) {
-    mudar(trocarEm(rascunho, caminho, novo));
+  function pecaNaGrade(peca: Peca, x: number, y: number) {
+    const no = nosNovo(peca, x, y);
+    mudar({ ...rascunhoRef.current, nos: [...rascunhoRef.current.nos, no] });
+    setSelecao({ nos: [no.id], fio: null });
   }
 
-  function soltarEm(lista: Caminho, indice: number, e: DragEvent) {
-    e.preventDefault();
-    const idPeca = e.dataTransfer.getData("text/x-peca");
-    if (idPeca) {
-      const peca = PECAS.find((x) => x.id === idPeca);
-      if (peca) inserirPeca(peca, lista, indice);
+  /** Clicou numa peça: entra no meio da tela (cada uma um pouco mais para baixo e para a direita, para não empilhar). */
+  function pecaPorClique(peca: Peca) {
+    const c = canvas.current?.centro() ?? { x: 160, y: 160 };
+    const n = rascunhoRef.current.nos.length;
+    // À direita do meio, uma peça embaixo da outra (quatro por coluna): nada nasce em cima de outro nó.
+    pecaNaGrade(peca, c.x + 130 + Math.floor(n / 4) * 240, c.y - 140 + (n % 4) * 88);
+  }
+
+  function moverNos(
+    fase: "comecou" | "moveu" | "terminou",
+    posicoes?: ReadonlyMap<string, { x: number; y: number }>,
+  ) {
+    if (fase === "comecou") {
+      inicioDoGesto.current = rascunhoRef.current;
+    } else if (fase === "moveu" && posicoes) {
+      setRascunho((f) => ({
+        ...f,
+        nos: f.nos.map((n) => {
+          const nova = posicoes.get(n.id);
+          return nova ? { ...n, ...nova } : n;
+        }),
+      }));
+    } else if (fase === "terminou" && inicioDoGesto.current) {
+      const antes = inicioDoGesto.current;
+      inicioDoGesto.current = null;
+      setHistorico((h) => [...h.slice(-49), antes]);
+      setAviso(null);
+    }
+  }
+
+  function ligar(de: Fio["de"], para: Fio["para"]) {
+    const f = rascunhoRef.current;
+    mudar({ ...f, fios: [...f.fios, { de, para }] });
+    setSelecao({ nos: [], fio: `${de.no}.${de.saida}>${para.no}.${para.entrada}` });
+  }
+
+  function apagarSelecao() {
+    const f = rascunhoRef.current;
+    if (selecao.fio !== null) {
+      mudar({
+        ...f,
+        fios: f.fios.filter(
+          (x) => `${x.de.no}.${x.de.saida}>${x.para.no}.${x.para.entrada}` !== selecao.fio,
+        ),
+      });
+      setSelecao(SEM_SELECAO);
       return;
     }
-    const origem = e.dataTransfer.getData("text/x-bloco");
-    if (!origem) return;
-    const de = JSON.parse(origem) as Caminho;
-    const r = moverBloco(rascunho, de, lista, indice);
-    if (r) {
-      mudar(r.fluxo);
-      setSelecao({ tipo: "bloco", caminho: r.caminho });
+    if (selecao.nos.length === 0) return;
+    const ids = new Set(selecao.nos);
+    mudar({
+      ...f,
+      nos: f.nos.filter((n) => !ids.has(n.id)),
+      fios: f.fios.filter((x) => !ids.has(x.de.no) && !ids.has(x.para.no)),
+    });
+    setSelecao(SEM_SELECAO);
+  }
+
+  function copiar() {
+    const f = rascunhoRef.current;
+    const ids = new Set(selecao.nos);
+    if (ids.size === 0) return;
+    copiados.current = {
+      nos: structuredClone(f.nos.filter((n) => ids.has(n.id))),
+      fios: structuredClone(f.fios.filter((x) => ids.has(x.de.no) && ids.has(x.para.no))),
+      vezes: 0,
+    };
+  }
+
+  function colar() {
+    const c = copiados.current;
+    if (!c || c.nos.length === 0) return;
+    c.vezes++;
+    const f = rascunhoRef.current;
+    const novos: No[] = [];
+    const mapa = new Map<string, string>();
+    for (const n of c.nos) {
+      const id = idNovoDeNo([...f.nos, ...novos]);
+      mapa.set(n.id, id);
+      novos.push({ ...structuredClone(n), id, x: n.x + 36 * c.vezes, y: n.y + 36 * c.vezes } as No);
     }
+    const fios = c.fios.flatMap((x): Fio[] => {
+      const de = mapa.get(x.de.no);
+      const para = mapa.get(x.para.no);
+      return de && para ? [{ de: { ...x.de, no: de }, para: { ...x.para, no: para } }] : [];
+    });
+    mudar({ ...f, nos: [...f.nos, ...novos], fios: [...f.fios, ...fios] });
+    setSelecao({ nos: novos.map((n) => n.id), fio: null });
+  }
+
+  function duplicar() {
+    copiar();
+    colar();
+  }
+
+  function organizar() {
+    const f = rascunhoRef.current;
+    mudar({ ...f, nos: organizarGrafo(f) });
+    setTimeout(() => canvas.current?.ajustar(), 0);
+  }
+
+  function trocarNo(novo: No) {
+    const f = rascunhoRef.current;
+    mudar({ ...f, nos: f.nos.map((n) => (n.id === novo.id ? novo : n)) });
   }
 
   function teclado(e: KeyboardEvent) {
@@ -182,36 +234,55 @@ export function EditorDeFluxo(p: PropsDoEditor) {
       e.target instanceof HTMLTextAreaElement
     )
       return;
-    const todos = caminhosDosBlocos(rascunho);
-    const atual =
-      selecao.tipo === "bloco"
-        ? todos.findIndex((c) => idDoCaminho(c) === idDoCaminho(selecao.caminho))
-        : -1;
-    if (e.key === "ArrowRight" || e.key === "ArrowDown") {
-      const prox = todos[atual + 1];
-      if (prox) setSelecao({ tipo: "bloco", caminho: prox });
-      else if (selecao.tipo === "gatilho" && todos[0])
-        setSelecao({ tipo: "bloco", caminho: todos[0] });
+    const ctrl = e.ctrlKey || e.metaKey;
+    if (ctrl && e.key.toLowerCase() === "c") {
+      copiar();
       e.preventDefault();
-    } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
-      if (atual > 0) setSelecao({ tipo: "bloco", caminho: todos[atual - 1] as Caminho });
-      else if (atual === 0) setSelecao({ tipo: "gatilho" });
+    } else if (ctrl && e.key.toLowerCase() === "v") {
+      colar();
       e.preventDefault();
-    } else if ((e.key === "Delete" || e.key === "Backspace") && selecao.tipo === "bloco") {
-      tirar(selecao.caminho);
+    } else if (ctrl && e.key.toLowerCase() === "d") {
+      duplicar();
+      e.preventDefault();
+    } else if (ctrl && e.key.toLowerCase() === "z") {
+      desfazer();
+      e.preventDefault();
+    } else if (ctrl && e.key.toLowerCase() === "a") {
+      setSelecao({ nos: rascunhoRef.current.nos.map((n) => n.id), fio: null });
+      e.preventDefault();
+    } else if (e.key === "Delete" || e.key === "Backspace") {
+      if (selecao.nos.length > 0 || selecao.fio !== null) {
+        apagarSelecao();
+        e.preventDefault();
+      }
+    } else if (e.key === "Escape") {
+      setSelecao(SEM_SELECAO);
+    } else if (e.key === "Enter" && selecao.nos.length === 1) {
+      // Enter edita: o foco vai para o primeiro campo do painel.
+      painel.current?.querySelector<HTMLElement>("input, select, textarea")?.focus();
+      e.preventDefault();
+    } else if (
+      (e.key === "ArrowLeft" ||
+        e.key === "ArrowRight" ||
+        e.key === "ArrowUp" ||
+        e.key === "ArrowDown") &&
+      selecao.nos.length > 0
+    ) {
+      // As setas movem o(s) nó(s) escolhido(s); com Shift, em passos maiores.
+      const passo = e.shiftKey ? 40 : 10;
+      const dx = e.key === "ArrowLeft" ? -passo : e.key === "ArrowRight" ? passo : 0;
+      const dy = e.key === "ArrowUp" ? -passo : e.key === "ArrowDown" ? passo : 0;
+      const ids = new Set(selecao.nos);
+      const f = rascunhoRef.current;
+      mudar({
+        ...f,
+        nos: f.nos.map((n) => (ids.has(n.id) ? { ...n, x: n.x + dx, y: n.y + dy } : n)),
+      });
       e.preventDefault();
     }
   }
 
-  // Foco: quando a seleção muda por teclado, o nó escolhido recebe o foco.
-  const raiz = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const id =
-      selecao.tipo === "gatilho" ? "ed-no-gatilho" : `ed-no-${idDoCaminho(selecao.caminho)}`;
-    const el = raiz.current?.querySelector<HTMLElement>(`[data-testid="${id}"]`);
-    if (el && document.activeElement?.closest(".ed-canvas") && document.activeElement !== el)
-      el.focus();
-  }, [selecao]);
+  // --- Salvar, testar ---
 
   function salvar(): string | null {
     setTentou(true);
@@ -246,7 +317,7 @@ export function EditorDeFluxo(p: PropsDoEditor) {
     return id;
   }
 
-  function salvarEVoltar() {
+  function salvarEFechar() {
     if (salvar() !== null) p.aoVoltar();
   }
   function testar() {
@@ -260,7 +331,7 @@ export function EditorDeFluxo(p: PropsDoEditor) {
   useEffect(() => setParaGuardar(rascunho), [rascunho]);
 
   function aoMudarJson(v: unknown) {
-    const lido = FluxoSchema.safeParse(v);
+    const lido = FluxoDeQualquerFormaSchema.safeParse(v);
     if (lido.success) {
       setErroDoJson([]);
       if (JSON.stringify(lido.data) !== JSON.stringify(rascunho))
@@ -270,16 +341,26 @@ export function EditorDeFluxo(p: PropsDoEditor) {
 
   const nomeErro = tentou ? errosDe("nome")[0]?.texto : undefined;
   const sinaisEmUso = useMemo(() => sinaisDaMesa(a.fluxos), [a.fluxos]);
+  const noEscolhido =
+    selecao.nos.length === 1 ? rascunho.nos.find((n) => n.id === selecao.nos[0]) : undefined;
+  const fioEscolhido =
+    selecao.fio === null
+      ? undefined
+      : rascunho.fios.find(
+          (x) => `${x.de.no}.${x.de.saida}>${x.para.no}.${x.para.entrada}` === selecao.fio,
+        );
 
-  const selecionado = selecao.tipo === "bloco" ? blocoEm(rascunho, selecao.caminho) : undefined;
-  const geral = errosDe("geral");
+  function aoComecarAArrastarPeca(e: DragEvent, peca: Peca) {
+    e.dataTransfer.setData("text/x-peca", peca.id);
+    e.dataTransfer.effectAllowed = "copy";
+  }
 
   return (
-    // biome-ignore lint/a11y/noStaticElementInteractions: as setas e o Delete navegam pelos blocos (o foco já está num botão dentro)
-    <div className="ed-raiz" data-testid="ed-raiz" ref={raiz} onKeyDown={teclado}>
+    // biome-ignore lint/a11y/noStaticElementInteractions: os atalhos (Delete, setas, copiar e colar) valem para os nós da grade (o foco já está num deles)
+    <div className="ed-raiz" data-testid="ed-raiz" ref={area} onKeyDown={teclado}>
       <header className="ed-barra">
         <button type="button" className="ed-voltar" data-testid="ed-voltar" onClick={p.aoVoltar}>
-          <ArrowLeft size={15} aria-hidden /> Automações
+          <ArrowLeft size={15} aria-hidden /> Fechar
         </button>
         <label className="ed-nome">
           <span className="so-leitor">Nome da automação</span>
@@ -307,18 +388,14 @@ export function EditorDeFluxo(p: PropsDoEditor) {
           <span className="ed-ligada-texto">{rascunho.ligado ? "Ligada" : "Desligada"}</span>
         </button>
         <div className="ed-espaco" />
-        {p.aoAbrirEmJanela && (
-          <BotaoComDica
-            className="ed-acao"
-            testid="ed-janela"
-            nome="Abrir numa janela própria"
-            onClick={() =>
-              p.aoAbrirEmJanela?.(jaCriado.current ? (idNovo.current ?? rascunho.id) : null)
-            }
-          >
-            <ExternalLink size={14} aria-hidden />
-          </BotaoComDica>
-        )}
+        <BotaoComDica
+          className="ed-acao"
+          testid="ed-organizar"
+          nome="Organizar os blocos sozinho"
+          onClick={organizar}
+        >
+          <LayoutGrid size={14} aria-hidden /> Organizar
+        </BotaoComDica>
         <details className="ed-mais-menu">
           <summary className="ed-acao ed-json-botao" data-testid="ed-menu-json">
             <Braces size={14} aria-hidden /> JSON
@@ -354,7 +431,7 @@ export function EditorDeFluxo(p: PropsDoEditor) {
           type="button"
           className="ed-acao forte"
           data-testid="ed-salvar"
-          onClick={salvarEVoltar}
+          onClick={salvarEFechar}
         >
           <Save size={14} aria-hidden /> Salvar
         </button>
@@ -372,7 +449,10 @@ export function EditorDeFluxo(p: PropsDoEditor) {
 
       <div className="ed-corpo">
         <aside className="ed-pecas" aria-label="Blocos">
-          {(["quando", "fluxo", "faca"] as const).map((g) => (
+          <p className="nota ed-pecas-dica">
+            Arraste para a grade, ou clique. Duplo clique na grade busca.
+          </p>
+          {GRUPOS_DE_PECA.map((g) => (
             <div key={g} className="ed-grupo-de-pecas">
               <div className="ed-grupo-titulo" style={{ color: COR_DO_GRUPO[g] }}>
                 {ROTULO_DO_GRUPO[g]}
@@ -383,9 +463,9 @@ export function EditorDeFluxo(p: PropsDoEditor) {
                   type="button"
                   className="ed-peca"
                   data-testid={`ed-peca-${peca.id}`}
-                  draggable={g !== "quando"}
-                  onDragStart={(e) => e.dataTransfer.setData("text/x-peca", peca.id)}
-                  onClick={() => inserirPeca(peca)}
+                  draggable
+                  onDragStart={(e) => aoComecarAArrastarPeca(e, peca)}
+                  onClick={() => pecaPorClique(peca)}
                 >
                   <span className="ed-ponto" style={{ background: COR_DO_GRUPO[g] }} aria-hidden />
                   {peca.rotulo}
@@ -395,115 +475,84 @@ export function EditorDeFluxo(p: PropsDoEditor) {
           ))}
         </aside>
 
-        <div className="ed-canvas" data-testid="ed-canvas">
-          <div className="ed-fluxo">
-            <div className="ed-no-coluna">
+        <CanvasDoGrafo
+          fluxo={rascunho}
+          nomes={nomes}
+          selecao={selecao}
+          erros={erros}
+          mostrarErros={tentou}
+          aoSelecionar={setSelecao}
+          aoMoverNos={moverNos}
+          aoLigar={ligar}
+          aoPecaNaGrade={pecaNaGrade}
+          aoAviso={setAviso}
+          manejo={canvas}
+        />
+
+        <aside
+          className="ed-painel"
+          aria-label="O que está escolhido"
+          data-testid="ed-painel"
+          ref={painel}
+        >
+          {noEscolhido ? (
+            <PainelDoBloco
+              key={noEscolhido.id}
+              estado={estado}
+              rascunho={rascunho}
+              no={noEscolhido}
+              nomes={nomes}
+              sinais={sinaisEmUso}
+              erros={tentou ? erros : []}
+              fontes={p.fontes}
+              registrarSom={p.registrarSom}
+              aoMudarNo={trocarNo}
+              aoDuplicar={duplicar}
+              aoApagar={apagarSelecao}
+            />
+          ) : fioEscolhido ? (
+            <div className="ed-painel-conteudo" data-testid="ed-painel-fio">
+              <div className="ed-painel-titulo">
+                <h2>Fio</h2>
+              </div>
+              <p className="nota">
+                Liga “{nomeDoNo(rascunho, fioEscolhido.de.no)}” a “
+                {nomeDoNo(rascunho, fioEscolhido.para.no)}”. Delete apaga o fio.
+              </p>
               <button
                 type="button"
-                className="ed-no ed-no-gatilho"
-                data-testid="ed-no-gatilho"
-                data-grupo="quando"
-                aria-pressed={selecao.tipo === "gatilho"}
-                aria-invalid={errosDe("gatilho").length > 0}
-                onClick={() => setSelecao({ tipo: "gatilho" })}
+                className="perigo"
+                data-testid="ed-apagar-fio"
+                onClick={apagarSelecao}
               >
-                <span
-                  className="ed-ponto"
-                  style={{ background: COR_DO_GRUPO.quando }}
-                  aria-hidden
-                />
-                <span className="ed-no-texto">
-                  <b>{rotuloDoGatilho(rascunho.gatilho, nomes).titulo}</b>
-                  <span>
-                    {rascunho.cenas && rascunho.cenas.length > 0
-                      ? `nas cenas: ${rascunho.cenas.map((c) => nomes.cena(c) ?? "(apagada)").join(", ")}`
-                      : rotuloDoGatilho(rascunho.gatilho, nomes).detalhe}
-                  </span>
-                </span>
+                Apagar o fio
               </button>
-              {tentou &&
-                errosDe("gatilho").map((e) => (
-                  <span
-                    key={e.texto}
-                    className="ed-erro"
-                    role="alert"
-                    data-testid="ed-erro-gatilho"
-                  >
-                    {e.texto}
-                  </span>
-                ))}
             </div>
-            <div className="ed-trilhas">
-              {rascunho.trilhas.map((trilha, t) => (
-                // biome-ignore lint/suspicious/noArrayIndexKey: a trilha é identificada pela posição
-                <div className="ed-trilha" key={t} data-testid={`ed-trilha-${t}`}>
-                  <span className="ed-conector" aria-hidden />
-                  <ListaDeBlocos
-                    lista={[t]}
-                    blocos={trilha}
-                    ctx={{
-                      nomes,
-                      selecao,
-                      mais,
-                      erros,
-                      tentou,
-                      setSelecao,
-                      setMais,
-                      inserirPeca,
-                      soltarEm,
-                    }}
-                  />
-                  {rascunho.trilhas.length > 1 && (
-                    <button
-                      type="button"
-                      className="ed-tirar-trilha"
-                      data-testid={`ed-tirar-trilha-${t}`}
-                      aria-label={`Tirar a trilha ${t + 1}`}
-                      onClick={() => {
-                        mudar({ ...rascunho, trilhas: rascunho.trilhas.filter((_, k) => k !== t) });
-                        setSelecao({ tipo: "gatilho" });
-                      }}
-                    >
-                      <Trash2 size={13} aria-hidden />
-                    </button>
-                  )}
-                </div>
-              ))}
-              {rascunho.trilhas.length < 8 && (
-                <button
-                  type="button"
-                  className="ed-nova-trilha"
-                  data-testid="ed-nova-trilha"
-                  onClick={() => mudar({ ...rascunho, trilhas: [...rascunho.trilhas, []] })}
-                >
-                  <Plus size={13} aria-hidden /> Trilha em paralelo
-                </button>
-              )}
+          ) : selecao.nos.length > 1 ? (
+            <div className="ed-painel-conteudo" data-testid="ed-painel-varios">
+              <div className="ed-painel-titulo">
+                <h2>{selecao.nos.length} blocos</h2>
+              </div>
+              <p className="nota">
+                Arraste um deles para mover todos juntos. Ctrl+C e Ctrl+V copiam, Delete apaga.
+              </p>
+              <button
+                type="button"
+                className="perigo"
+                data-testid="ed-apagar-varios"
+                onClick={apagarSelecao}
+              >
+                Apagar os {selecao.nos.length} blocos
+              </button>
             </div>
-          </div>
-          {geral.map((e) => (
-            <p key={e.texto} className="ed-erro" role="alert" data-testid="ed-erro-geral">
-              {e.texto}
-            </p>
-          ))}
-        </div>
-
-        <aside className="ed-painel" aria-label="O bloco escolhido" data-testid="ed-painel">
-          <PainelDoBloco
-            estado={estado}
-            rascunho={rascunho}
-            selecao={selecao}
-            bloco={selecionado}
-            nomes={nomes}
-            sinais={sinaisEmUso}
-            erros={tentou ? erros : []}
-            fontes={p.fontes}
-            registrarSom={p.registrarSom}
-            aoMudarFluxo={mudar}
-            aoMudarBloco={(b) => selecao.tipo === "bloco" && trocarBloco(selecao.caminho, b)}
-            aoDuplicar={() => selecao.tipo === "bloco" && duplicar(selecao.caminho)}
-            aoApagar={() => selecao.tipo === "bloco" && tirar(selecao.caminho)}
-          />
+          ) : (
+            <PainelDaAutomacao
+              estado={estado}
+              rascunho={rascunho}
+              erros={tentou ? erros : []}
+              aoMudarFluxo={mudar}
+            />
+          )}
         </aside>
       </div>
 
@@ -514,158 +563,19 @@ export function EditorDeFluxo(p: PropsDoEditor) {
   );
 }
 
-type CtxDaLista = {
-  nomes: ReturnType<typeof nomesDaMesa>;
-  selecao: Selecao;
-  mais: { lista: Caminho; indice: number } | null;
-  erros: readonly ErroDoEditor[];
-  tentou: boolean;
-  setSelecao: (s: Selecao) => void;
-  setMais: (m: { lista: Caminho; indice: number } | null) => void;
-  inserirPeca: (peca: Peca, lista?: Caminho, indice?: number) => void;
-  soltarEm: (lista: Caminho, indice: number, e: DragEvent) => void;
+const nomeDoNo = (f: Fluxo, id: string): string => {
+  const n = f.nos.find((x) => x.id === id);
+  return n?.nome ?? n?.tipo ?? id;
 };
-
-/** Uma lista de blocos: um "+" antes de cada um e no fim, e os blocos (com os ramos dos que têm saídas). */
-function ListaDeBlocos(p: { lista: Caminho; blocos: readonly Bloco[]; ctx: CtxDaLista }) {
-  const { ctx } = p;
-  const itens: ReactNode[] = [];
-  for (let i = 0; i <= p.blocos.length; i++) {
-    itens.push(<Encaixe key={`mais-${i}`} lista={p.lista} indice={i} ctx={ctx} />);
-    const b = p.blocos[i];
-    if (b !== undefined)
-      itens.push(<GrupoDoBloco key={`b-${i}`} caminho={[...p.lista, i]} bloco={b} ctx={ctx} />);
-  }
-  return <div className="ed-lista">{itens}</div>;
-}
-
-/** O "+" entre dois blocos (ou no fim da lista): abre o menu das peças; também recebe o que se arrasta. */
-function Encaixe(p: { lista: Caminho; indice: number; ctx: CtxDaLista }) {
-  const { ctx } = p;
-  const id = `${idDoCaminho(p.lista)}-${p.indice}`;
-  const aberto =
-    ctx.mais !== null &&
-    idDoCaminho(ctx.mais.lista) === idDoCaminho(p.lista) &&
-    ctx.mais.indice === p.indice;
-  return (
-    // biome-ignore lint/a11y/noStaticElementInteractions: é só o alvo de soltar; o "+" dentro dele é o controle de teclado
-    <div
-      className="ed-encaixe"
-      data-testid={`ed-encaixe-${id}`}
-      onDragOver={(e) => e.preventDefault()}
-      onDrop={(e) => ctx.soltarEm(p.lista, p.indice, e)}
-    >
-      <span className="ed-conector" aria-hidden />
-      <button
-        type="button"
-        className="ed-mais"
-        data-testid={`ed-mais-${id}`}
-        aria-label="Encaixar um bloco aqui"
-        aria-expanded={aberto}
-        onClick={() => ctx.setMais(aberto ? null : { lista: p.lista, indice: p.indice })}
-      >
-        <Plus size={12} aria-hidden />
-      </button>
-      {aberto && (
-        <div className="ed-menu-de-pecas" role="menu" data-testid={`ed-menu-${id}`}>
-          {PECAS.filter((x) => x.grupo !== "quando").map((peca) => (
-            <button
-              key={peca.id}
-              type="button"
-              className="ed-menu-item"
-              role="menuitem"
-              data-testid={`ed-menu-${id}-${peca.id}`}
-              onClick={() => ctx.inserirPeca(peca, p.lista, p.indice)}
-            >
-              <span
-                className="ed-ponto"
-                style={{ background: COR_DO_GRUPO[peca.grupo] }}
-                aria-hidden
-              />
-              {peca.rotulo}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function GrupoDoBloco(p: { caminho: Caminho; bloco: Bloco; ctx: CtxDaLista }) {
-  const { caminho, bloco, ctx } = p;
-  const id = idDoCaminho(caminho);
-  const rotulo = rotuloDoBloco(bloco, ctx.nomes);
-  const escolhido = ctx.selecao.tipo === "bloco" && idDoCaminho(ctx.selecao.caminho) === id;
-  const meusErros = ctx.erros.filter((e) => e.onde === id);
-  const comErro = ctx.tentou && meusErros.length > 0;
-  const grupo = grupoDoBloco(bloco);
-  const ramos: { nome: string; rotulo: string; blocos: readonly Bloco[] }[] =
-    bloco.bloco === "se" || bloco.bloco === "sortear"
-      ? [
-          { nome: "sim", rotulo: "sim", blocos: bloco.sim },
-          { nome: "nao", rotulo: "não", blocos: bloco.nao },
-        ]
-      : bloco.bloco === "paraCada"
-        ? [{ nome: "corpo", rotulo: "cada um", blocos: bloco.corpo }]
-        : [];
-  return (
-    <div className="ed-grupo-do-bloco">
-      <div className="ed-no-coluna">
-        <button
-          type="button"
-          className="ed-no"
-          data-testid={`ed-no-${id}`}
-          data-grupo={grupo}
-          aria-pressed={escolhido}
-          aria-invalid={comErro}
-          draggable
-          onDragStart={(e) => e.dataTransfer.setData("text/x-bloco", JSON.stringify(caminho))}
-          onClick={() => ctx.setSelecao({ tipo: "bloco", caminho })}
-        >
-          <span className="ed-ponto" style={{ background: COR_DO_GRUPO[grupo] }} aria-hidden />
-          <span className="ed-no-texto">
-            <b>{rotulo.titulo}</b>
-            <span>{rotulo.detalhe}</span>
-          </span>
-        </button>
-        {comErro &&
-          meusErros.map((e) => (
-            <span key={e.texto} className="ed-erro" role="alert" data-testid={`ed-erro-${id}`}>
-              {e.texto}
-            </span>
-          ))}
-      </div>
-      {ramos.length > 0 && (
-        <div className="ed-ramos">
-          {ramos.map((r) => (
-            <div className="ed-ramo" key={r.nome} data-testid={`ed-ramo-${id}-${r.nome}`}>
-              <span className="ed-ramo-rotulo" data-ramo={r.nome}>
-                {r.rotulo}
-              </span>
-              <ListaDeBlocos lista={[...caminho, r.nome]} blocos={r.blocos} ctx={ctx} />
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
 
 /** Os nomes de sinal que já existem nas automações (a sugestão do campo). */
 function sinaisDaMesa(fluxos: readonly Fluxo[]): string[] {
   const nomes = new Set<string>();
   for (const f of fluxos) {
-    if (f.gatilho.tipo === "sinal") nomes.add(f.gatilho.nome);
-    const anda = (lista: readonly Bloco[]) => {
-      for (const b of lista) {
-        if (b.bloco === "sinal") nomes.add(b.nome);
-        if (b.bloco === "se" || b.bloco === "sortear") {
-          anda(b.sim);
-          anda(b.nao);
-        } else if (b.bloco === "paraCada") anda(b.corpo);
-      }
-    };
-    for (const t of f.trilhas) anda(t);
+    for (const n of f.nos) {
+      if (n.tipo === "gatilho" && n.config.tipo === "sinal") nomes.add(n.config.nome);
+      if (n.tipo === "sinal") nomes.add(n.config.nome);
+    }
   }
   return [...nomes].sort((x, y) => x.localeCompare(y, "pt-BR"));
 }

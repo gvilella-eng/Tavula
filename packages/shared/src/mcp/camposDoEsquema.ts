@@ -36,8 +36,15 @@ export function camposDoEsquema(
     case "nonoptional":
     case "catch":
       return camposDoEsquema(d.innerType as z.ZodType, prefixo, vistos);
-    case "pipe":
-      return camposDoEsquema(d.in as z.ZodType, prefixo, vistos);
+    case "pipe": {
+      // `z.preprocess` é um pipe cuja entrada é uma transformação: os campos estão na saída.
+      const entrada = d.in as z.ZodType;
+      return camposDoEsquema(
+        def(entrada).type === "transform" ? (d as unknown as { out: z.ZodType }).out : entrada,
+        prefixo,
+        vistos,
+      );
+    }
     case "lazy": {
       if (vistos.has(esquema)) return prefixo ? [prefixo] : [];
       vistos.add(esquema);

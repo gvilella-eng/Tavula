@@ -157,14 +157,19 @@ test("o botão Automações da barra abre a janela e dá para editar por ela; o 
   await expect(p.getByTestId("menu-automacoes")).toHaveAttribute("aria-pressed", "true");
 
   // edita uma automação por ela: uma automação nova (um botão que avisa no chat) aparece na lista
-  await p.getByTestId("auto-nova").click();
-  await p.getByTestId("ed-nome").fill("Treme");
-  await p.getByTestId("ed-peca-botao").click();
-  await p.getByTestId("ed-campo-botao").fill("Tremer");
-  await p.getByTestId("ed-mais-t0-0").click();
-  await p.getByTestId("ed-menu-t0-0-chat").click();
-  await p.getByTestId("ed-campo-texto").fill("A montanha treme.");
-  await p.getByTestId("ed-salvar").click();
+  // (AU2: o editor abre numa janela própria do navegador, na hora, e a janela principal nunca o mostra)
+  const [editor] = await Promise.all([p.waitForEvent("popup"), p.getByTestId("auto-nova").click()]);
+  await expect(p.getByTestId("ed-raiz")).toHaveCount(0);
+  await editor.getByTestId("ed-nome").fill("Treme");
+  await editor.getByTestId("ed-no-n1").click();
+  await editor.getByTestId("ed-campo-gatilho").selectOption("botao");
+  await editor.getByTestId("ed-campo-botao").fill("Tremer");
+  await editor.getByTestId("ed-peca-chat").click();
+  await editor.getByTestId("ed-campo-texto").fill("A montanha treme.");
+  await editor.getByTestId("ed-no-n1").click();
+  await editor.getByTestId("ed-ligar-a").click();
+  await editor.getByTestId("ed-ligar-saida-n2-entrada").click();
+  await Promise.all([editor.waitForEvent("close"), editor.getByTestId("ed-salvar").click()]);
   await expect(p.getByTestId("auto-item-treme")).toContainText("Tremer");
 
   // o botão fecha a janela; a aba Mesa abre de novo pela linha dela

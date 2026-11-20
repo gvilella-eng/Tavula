@@ -1,7 +1,7 @@
 import type { Page } from "@playwright/test";
 import { abrirAba, abrirPreferencia, enviarCru, expect, intencaoCrua, test } from "./ajudas";
 import { entrarNoMapa, type GanchoDoMapa, pontoNaPagina } from "./ajudasMapa";
-import { arquivoWav, esperarHashDoSom, somDe } from "./ajudasSom";
+import { arquivoWav, configurarLugar, esperarHashDoSom, somDe } from "./ajudasSom";
 
 // N5: som ambiente. (A trilha e os efeitos do mestre passaram para a mesa de som: som-q4.spec.ts.) A zona toca um som para quem está dentro, a
 // automação `som.tocar` toca um efeito, e cada pessoa ajusta o volume nas Preferências. Os arquivos são wavs de silêncio
@@ -143,28 +143,29 @@ test("a automação som.tocar: o editor monta o bloco e o botão toca o som para
   const mestre = await entrarNoMapa(mesa, "mestre");
   const j1 = await entrarNoMapa(mesa, "jogador-1");
   const p = mestre.pagina;
+  // o som entra na mesa pela mesa de som (o editor, na janela própria, escolhe entre os que já estão na mesa)
+  await configurarLugar(p, "efeito", 1, arquivoWav("sopro-do-pulmao.wav", 1));
+  const hash = await esperarHashDoSom(p, "sopro-do-pulmao.wav");
+  await p.getByTestId("som-config-pronto").click();
   await abrirAba(p, "mesa");
   await p.getByTestId("automacoes-abrir").click();
   await expect(p.getByTestId("automacoes-janela")).toBeVisible();
-  await p.getByTestId("auto-nova").click();
-  await p.getByTestId("ed-nome").fill("Sopro");
-  await p.getByTestId("ed-peca-botao").click();
-  await p.getByTestId("ed-campo-botao").fill("Soprar");
-  await p.getByTestId("ed-mais-t0-0").click();
-  await p.getByTestId("ed-menu-t0-0-som").click();
-  await p.getByTestId("ed-adicionar-som").locator("summary").click();
-  await p
-    .getByTestId("ed-escolher-som-arquivo")
-    .setInputFiles(arquivoWav("sopro-do-pulmao.wav", 1));
-  const hash = await esperarHashDoSom(p, "sopro-do-pulmao.wav");
-  await expect(p.getByTestId("ed-campo-som")).toHaveValue(hash ?? "sem-hash");
-  await p.getByTestId("ed-campo-volume").fill("50");
-  await p.getByTestId("ed-campo-para").selectOption("todos");
-  await p.getByTestId("ed-salvar").click();
+  const [editor] = await Promise.all([p.waitForEvent("popup"), p.getByTestId("auto-nova").click()]);
+  await editor.getByTestId("ed-nome").fill("Sopro");
+  await editor.getByTestId("ed-no-n1").click();
+  await editor.getByTestId("ed-campo-gatilho").selectOption("botao");
+  await editor.getByTestId("ed-campo-botao").fill("Soprar");
+  await editor.getByTestId("ed-peca-som").click();
+  // (AU2: na janela própria do editor se escolhe o som entre os que já estão na mesa)
+  await editor.getByTestId("ed-campo-som").selectOption(hash);
+  await editor.getByTestId("ed-campo-volume").fill("50");
+  await editor.getByTestId("ed-campo-para").selectOption("todos");
+  await editor.getByTestId("ed-no-n1").click();
+  await editor.getByTestId("ed-ligar-a").click();
+  await editor.getByTestId("ed-ligar-saida-n2-entrada").click();
+  await Promise.all([editor.waitForEvent("close"), editor.getByTestId("ed-salvar").click()]);
   await expect(p.getByTestId("auto-item-sopro")).toContainText("Soprar");
-  expect(
-    mestre.enviados.filter((f) => f.includes('"fluxo.criar"') && f.includes("som.tocar")).length,
-  ).toBe(1);
+  // (a automação foi criada pela janela do editor: a conexão dela é que mandou o `fluxo.criar`)
 
   // o botão (ou o relógio, ou o próprio sistema) toca o efeito uma vez, para todos
   expect((await somDe(j1.pagina)).efeitos).toEqual([]);

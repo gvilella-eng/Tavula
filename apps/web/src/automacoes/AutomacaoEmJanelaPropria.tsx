@@ -1,4 +1,5 @@
-import { useEffect } from "react";
+import { GatilhoSchema } from "@tabletop/shared";
+import { useEffect, useMemo } from "react";
 import { AvisoPerto } from "../AvisoPerto";
 import type { DadosDaMesa } from "../api";
 import {
@@ -42,6 +43,17 @@ export function AutomacaoEmJanelaPropria({ mesa, automacaoId, aoPerderSessao }: 
   });
   const fluxoId = automacaoId === "nova" ? null : automacaoId;
   const idDaJanela = idDaJanelaDaAutomacao(fluxoId);
+  // O gatilho com que uma automação nova nasce (o "+ automação para esta zona" põe ele no endereço).
+  const gatilhoInicial = useMemo(() => {
+    try {
+      const bruto = new URLSearchParams(window.location.search).get("g");
+      if (bruto === null) return undefined;
+      const r = GatilhoSchema.safeParse(JSON.parse(bruto));
+      return r.success ? r.data : undefined;
+    } catch {
+      return undefined;
+    }
+  }, []);
 
   useEffect(() => anunciarFichaFora(mesa.id, idDaJanela), [mesa.id, idDaJanela]);
   useEffect(() => {
@@ -89,6 +101,7 @@ export function AutomacaoEmJanelaPropria({ mesa, automacaoId, aoPerderSessao }: 
             estado={estado}
             enviar={enviar}
             fluxoId={fluxoId}
+            gatilhoInicial={gatilhoInicial}
             fontes={null}
             registrarSom={null}
             aoVoltar={voltar}

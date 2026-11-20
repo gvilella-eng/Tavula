@@ -728,10 +728,12 @@ describe("Armazenamento: automações (7b-1)", () => {
     const carregado = banco.carregar();
     // o ciclo virou um fluxo de relógio; o original fica em `legado`, só para leitura
     expect(carregado?.automacoes?.fluxos).toHaveLength(1);
-    expect(carregado?.automacoes?.fluxos[0]).toMatchObject({
-      id: "c",
-      nome: "C",
-      gatilho: { tipo: "relogio", cadaS: 60 },
+    const fluxo = carregado?.automacoes?.fluxos[0];
+    expect(fluxo).toMatchObject({ id: "c", nome: "C" });
+    // (AU2: o fluxo é um grafo; o relógio é o nó do gatilho)
+    expect(fluxo?.nos[0]).toMatchObject({
+      tipo: "gatilho",
+      config: { tipo: "relogio", cadaS: 60 },
     });
     expect(carregado?.automacoes?.legado?.ciclos).toHaveLength(1);
     // abrir de novo não muda o que está guardado (a conversão é só na leitura)

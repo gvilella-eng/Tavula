@@ -4,7 +4,7 @@ import {
   AutomacoesSchema,
   BotaoParaJogadorSchema,
   EfeitoSchema,
-  FluxoSchema,
+  FluxoDeQualquerFormaSchema,
   MAXIMO_DE_BOTOES_DO_JOGADOR,
   MAXIMO_DE_EFEITOS,
   MudancasDoFluxoSchema,
@@ -1122,7 +1122,7 @@ export const IntencaoSchema = z.discriminatedUnion("tipo", [
    * `fluxo.ligar` liga ou desliga (desligado, o relógio congela). `fluxo.disparar` roda o fluxo agora, uma vez (o "Testar
    * agora", o botão).
    */
-  intencao("fluxo.criar", z.object({ fluxo: FluxoSchema })),
+  intencao("fluxo.criar", z.object({ fluxo: FluxoDeQualquerFormaSchema })),
   intencao("fluxo.editar", z.object({ id: IdSchema, mudancas: MudancasDoFluxoSchema })),
   intencao("fluxo.apagar", z.object({ id: IdSchema })),
   intencao("fluxo.ligar", z.object({ id: IdSchema, ligado: z.boolean() })),

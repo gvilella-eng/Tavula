@@ -46,8 +46,13 @@ describe("erros do zod em português", () => {
   it("as frases que o schema já escreveu passam como estão", () => {
     const e = erros(CicloSchema, ciclo({ fases: [{ emS: 200, evento: "a" }] }));
     expect(e.some((x) => x.mensagem === "A fase precisa cair antes do fim do período.")).toBe(true);
-    const nome = erros(CicloSchema, ciclo({ fases: [{ emS: 0, evento: "com espaço" }] }));
-    expect(nome[0]?.mensagem).toBe("Use só letras, números, ponto, hífen e sublinhado.");
+    // AU2: o nome do evento (do sinal) é o que a pessoa escreveu, com acento e espaço; só o vazio é recusado.
+    expect(
+      CicloSchema.safeParse(ciclo({ fases: [{ emS: 0, evento: "Inspiração dela" }] })).success,
+    ).toBe(true);
+    expect(erros(CicloSchema, ciclo({ fases: [{ emS: 0, evento: "  " }] }))[0]?.mensagem).toBe(
+      "não pode ficar vazio.",
+    );
   });
 
   it("lista vazia, texto vazio e tipo errado", () => {

@@ -1,5 +1,11 @@
 import { useEffect, useSyncExternalStore } from "react";
-import { caminhoDaAutomacao, caminhoDaChamada, caminhoDaFicha, caminhoDoSom } from "../rotas";
+import {
+  caminhoDaAutomacao,
+  caminhoDaChamada,
+  caminhoDaFicha,
+  caminhoDoSom,
+  caminhoDosEventos,
+} from "../rotas";
 
 /**
  * A ficha numa janela própria do navegador (V9). A mesa (janela principal) e as janelas das fichas se falam só por
@@ -212,17 +218,49 @@ export function abrirSomEmJanela(mesaId: string, medidaPadrao: MedidaDaJanela): 
  */
 export const idDaJanelaDaAutomacao = (fluxoId: string | null) => `automacao-${fluxoId ?? "nova"}`;
 
+/**
+ * AU2: abre o editor numa janela própria, na hora (a medida da última vez, ou a padrão). Se a janela dessa automação já está
+ * aberta, só a traz para a frente (abrir de novo NÃO recarrega: recarregar perderia o que ainda não foi salvo). `gatilho`:
+ * com o que a automação nova nasce. `false`: o navegador bloqueou o pop-up.
+ */
 export function abrirAutomacaoEmJanela(
   mesaId: string,
   fluxoId: string | null,
   medidaPadrao: MedidaDaJanela,
+  gatilho?: object,
 ): boolean {
-  return abrirFichaEmJanela(
-    mesaId,
-    idDaJanelaDaAutomacao(fluxoId),
-    medidaPadrao,
-    caminhoDaAutomacao(mesaId, fluxoId),
-  );
+  const id = idDaJanelaDaAutomacao(fluxoId);
+  const medida = lerMedidaGuardada(mesaId, id) ?? medidaPadrao;
+  const partes = [
+    "popup=yes",
+    `width=${Math.max(360, Math.round(medida.largura))}`,
+    `height=${Math.max(300, Math.round(medida.altura))}`,
+  ];
+  if (medida.x !== undefined && medida.y !== undefined) {
+    partes.push(`left=${medida.x}`, `top=${medida.y}`);
+  }
+  const janela = window.open("", nomeDaJanela(mesaId, id), partes.join(","));
+  if (!janela) return false;
+  let nova = false;
+  try {
+    nova = janela.location.href === "about:blank";
+  } catch {
+    // outra origem: a janela existe e já tem conteúdo
+  }
+  if (nova) janela.location.href = caminhoDaAutomacao(mesaId, fluxoId, gatilho);
+  try {
+    janela.focus();
+  } catch {
+    // o navegador pode negar o foco
+  }
+  return true;
+}
+
+/** AU2: a mesa de eventos numa janela própria, como a da mesa de som (id `mesa-de-eventos`). */
+export const ID_DA_MESA_DE_EVENTOS = "mesa-de-eventos";
+
+export function abrirEventosEmJanela(mesaId: string, medidaPadrao: MedidaDaJanela): boolean {
+  return abrirFichaEmJanela(mesaId, ID_DA_MESA_DE_EVENTOS, medidaPadrao, caminhoDosEventos(mesaId));
 }
 
 /**
