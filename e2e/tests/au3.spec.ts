@@ -72,6 +72,23 @@ async function ligar(p: Page, de: string, saida: string, para: string, entrada: 
 const fio = (p: Page, de: string, para: string) =>
   p.locator(`[data-testid^="ed-fio-"][data-de="${de}"][data-para="${para}"]`);
 
+/** Os espaços e o pé com o "+" ficam dentro da borda da caixa (a altura que a caixa conta bate com o desenho). */
+async function esperarTudoDentroDaCaixa(p: Page, caixa: string) {
+  const borda = await p.getByTestId(`ed-no-${caixa}`).boundingBox();
+  if (!borda) throw new Error(`sem caixa ${caixa}`);
+  const partes = p.locator(`[data-espaco-de="${caixa}"], [data-fim-de="${caixa}"]`);
+  const n = await partes.count();
+  expect(n).toBeGreaterThan(1);
+  for (let i = 0; i < n; i++) {
+    const r = await partes.nth(i).boundingBox();
+    if (!r) throw new Error(`parte ${i} da caixa ${caixa} sem medida`);
+    expect(r.y, `parte ${i} da caixa ${caixa}`).toBeGreaterThanOrEqual(borda.y - 1);
+    expect(r.y + r.height, `parte ${i} da caixa ${caixa}`).toBeLessThanOrEqual(
+      borda.y + borda.height + 1,
+    );
+  }
+}
+
 /** Arrasta uma peça da paleta e solta na grade, em (dx, dy) do canto de cima da grade. */
 async function soltarPeca(p: Page, peca: string, dx: number, dy: number) {
   await p.getByTestId(`ed-peca-${peca}`).dragTo(p.getByTestId("ed-canvas"), {
@@ -248,6 +265,8 @@ test("a caixa cresce pelo + e arrastando para entre dois espaços, e encolhe ao 
   await e.getByTestId("ed-peca-sinal").dragTo(e.locator('[data-fim-de="n2"]')); // n4
   expect(await numeroDeEspacos(e, "n2")).toBe(4);
   await expect(dentroDe(e, "n2", 3, "n4")).toHaveCount(1);
+  // com três peças, o último espaço e o "+" ficam dentro da caixa (antes, cada peça empurrava uns 20 px e vazavam)
+  await esperarTudoDentroDaCaixa(e, "n2");
   // tirar a peça de um espaço, numa caixa com mais de 2, remove o espaço
   await arrastarNo(e, "n4", await pontoDaGrade(e, 1000, 560));
   expect(await numeroDeEspacos(e, "n2")).toBe(3);
@@ -285,6 +304,9 @@ test("uma caixa de três itens e caixa dentro de caixa, em qualquer espaço", as
   await e.getByTestId("ed-campo-chance").fill("0");
   await expect(dentroDe(e, "n3", 1, "n5")).toHaveCount(1);
   await expect(dentroDe(e, "n5", 1, "n7")).toHaveCount(1);
+  // a caixa de fora e a de dentro cabem o que têm
+  await esperarTudoDentroDaCaixa(e, "n3");
+  await esperarTudoDentroDaCaixa(e, "n5");
   await soltarPeca(e, "chat", 900, 60); // n9
   await e.getByTestId("ed-campo-texto").fill("alguma valeu");
   await ligar(e, "n1", "saida", "n2", "entrada");

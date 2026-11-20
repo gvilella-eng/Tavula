@@ -1,5 +1,6 @@
 import {
   type AcaoDeFluxo,
+  ALTURA_DA_PECA,
   alturaDoNo as alturaDoNoDoGrafo,
   conteudoDaCaixa,
   type DestinoNaCaixa,
@@ -323,10 +324,13 @@ export const larguraDoNo = (no: Pick<No, "tipo">, nos?: readonly No[]): number =
  * sem eles a caixa conta como vazia).
  */
 export function alturaDoNo(
-  no: Pick<No, "tipo"> & { id?: string; config?: unknown },
+  no: Pick<No, "tipo"> & { id?: string; config?: unknown; em?: string | undefined },
   nos?: readonly No[],
 ): number {
   if (no.tipo === "caixa") return nos === undefined ? 64 : alturaDoNoDoGrafo(nos, no as No);
+  // A peça guardada numa caixa tem a altura que a caixa conta para ela; com a de bloco solto (60 ou 84), cada peça
+  // empurrava o espaço seguinte uns 20 px e, com 3 ou 4 peças, o último espaço e o "+" vazavam pelo pé da caixa.
+  if (no.em !== undefined) return ALTURA_DA_PECA;
   const p = portasDoNo(no);
   return Math.max(p.entradas.length, p.saidas.length) > 1 ? 84 : 60;
 }

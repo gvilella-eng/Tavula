@@ -1,9 +1,14 @@
 import {
+  ALTURA_DA_PECA,
+  ALTURA_DO_MAIS,
+  ALTURA_DO_ROTULO,
   type Estado,
   type Fluxo,
   FluxoSchema,
   idDoBotaoDeEvento,
+  MARGEM_DA_CAIXA,
   organizarGrafo,
+  VAO_DA_CAIXA,
 } from "@tabletop/shared";
 import { describe, expect, it } from "vitest";
 import {
@@ -57,6 +62,38 @@ const PEDEM_PREENCHER = new Set([
 ]);
 
 describe("a geometria da grade", () => {
+  it("a peça guardada numa caixa tem a altura que a caixa conta para ela (o pé da caixa não vaza)", () => {
+    const nos = FluxoSchema.parse({
+      id: "f",
+      nome: "OU de quatro",
+      nos: [
+        { id: "c", tipo: "caixa", x: 0, y: 0, config: { porta: "ou", espacos: 4 } },
+        ...[0, 1, 2, 3].map((i) => ({
+          id: `g${i}`,
+          tipo: "gatilho",
+          x: 0,
+          y: 0,
+          em: "c",
+          espaco: i,
+          config: { tipo: "relogio", cadaS: 60 },
+        })),
+        { id: "s", tipo: "se", x: 0, y: 0, em: "c", espaco: 3, config: {} },
+      ].filter((n) => n.id !== "g3"),
+      fios: [],
+    }).nos;
+    const caixa = nos.find((n) => n.id === "c");
+    if (!caixa) throw new Error("sem caixa");
+    // o desenho soma o que o alturaDoNo dá a cada espaço; tem de bater com a conta da caixa
+    const pecas = nos.filter((n) => n.em === "c");
+    for (const p of pecas) expect(alturaDoNo(p, nos)).toBe(ALTURA_DA_PECA);
+    expect(alturaDoNo(caixa, nos)).toBe(
+      MARGEM_DA_CAIXA * 2 +
+        4 * ALTURA_DA_PECA +
+        3 * (ALTURA_DO_ROTULO + 2 * VAO_DA_CAIXA) +
+        VAO_DA_CAIXA +
+        ALTURA_DO_MAIS,
+    );
+  });
   it("as portas ficam nas bordas e a altura cresce com duas saídas", () => {
     const f = fluxoNovo("x");
     const g = f.nos[0];

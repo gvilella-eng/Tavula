@@ -4674,4 +4674,15 @@ Ver `PASSAGEM.md`, "CH4".
 ### Roteiro manual
 Nada novo: o comportamento do app não mudou.
 
-## Próximo: o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b, N4, N5, M1, M2, Q1 a Q16, CH1, CH2, CH3, CH4, MU1, MU2, MU3, A1, AU1, AU2, AU3, FG1, FG2, AS1 e das otimizações O1–O4
+## Ajuste AU3b — a caixa lógica com 3 ou 4 peças vazava pelo pé (entregue)
+
+### O que foi entregue
+O espaço com peça era desenhado com a altura de bloco solto (60 px, ou 84 com duas portas), e a caixa contava 40 px por peça: cada peça empurrava a de baixo uns 20 px e, com 3 ou 4 peças, o último espaço e o "+" ficavam fora da caixa. O `alturaDoNo` da web (`blocos.ts`) agora dá `ALTURA_DA_PECA` à peça guardada.
+
+### Verificação
+Teste de unidade novo (falha sem a correção: 60 em vez de 40); `au3.spec.ts` confere que os espaços e o pé cabem na caixa (de fora e de dentro). Typecheck, lint e unidade da web verdes.
+
+### Roteiro manual
+Numa caixa OU, pôr 4 gatilhos: os 4 e o "+" ficam dentro da borda.
+
+## Próximo: o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b, N4, N5, M1, M2, Q1 a Q16, CH1, CH2, CH3, CH4, MU1, MU2, MU3, A1, AU1, AU2, AU3, AU3b, FG1, FG2, AS1 e das otimizações O1–O4
