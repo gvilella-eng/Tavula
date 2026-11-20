@@ -2509,3 +2509,41 @@ Automações por blocos: dado (`fluxos.ts`), motor (`automacoesnucleo.ts`), conv
 
 ### O que ficou para depois
 Arrastar com o teclado; zoom e arrastar o canvas; colar blocos entre automações; histórico de execuções além do "rodou há" e do registro de 30 avisos.
+
+## MU2 — como ficou (2026-11-19): a mesa de som em duas abas e textos sem cortar
+
+O Vilella testou o divisor do MU1 a ~1360 px: "o espaço ficou muito pequeno e os textos começaram a cortar. Faz separado uma seção para efeitos e ambientes e outra para música, daí troco de um para o outro."
+
+**O que foi feito**
+- **Duas abas no lugar do divisor:** "Efeitos e ambientes" e "Música", logo abaixo do cabeçalho, nas três formas (faixa, janela flutuante, janela própria), cada uma na largura toda. `role="tablist"`; as setas, Home e End trocam.
+- **Cada aba diz o que toca nela:** "2 ambientes ligados" (e "1 efeito tocando", quando há); na Música, o nome do botão com o ícone de tocando ou pausada, ou "parada". Um ponto marca a aba escondida que tem algo tocando. O rótulo acessível leva o mesmo texto.
+- A aba escolhida fica lembrada por navegador (`tabletop:pref:som-aba`). Trocar de aba só muda a vista.
+- Saíram `DivisorDoSom.tsx`, `divisaoDoSom.ts` (e o teste), as tiras de minimizar, as preferências `som-divisao` e `som-lado-minimizado` e o CSS do divisor. O resto do MU1 (botões, player, Voltar, biblioteca, chamada) ficou igual.
+- **Textos que não cortam:** nome de efeito e de ambiente até duas linhas (`line-clamp`), com o nome inteiro na dica (`BotaoComDica`, só quando está cortado) e no rótulo acessível; lugar vazio de efeito é só "+" com "Adicionar efeito" na dica; o volume do ambiente ligado ficou dentro do cartão; espaço entre ícone e texto nos botões da mesa de som (inclusive "Adicionar músicas").
+- Na faixa o cartão do efeito é largo e baixo (círculo ao lado do nome, que pode ter duas linhas).
+
+**Decisões (assumido)**
+- A aba abre em "Efeitos e ambientes" na primeira vez.
+- "Ambiente ligado" no rótulo da aba conta só os que estão tocando; ambiente marcado com a mesa parada vale "nada tocando".
+- A barra de abas tem 40 px e entra na altura cheia da faixa (`ALTURA_DAS_ABAS_DA_FAIXA`): a faixa ficou 40 px mais alta (era 252, agora 292) e `ALTURA_NATURAL_DO_CORPO` continua 190.
+- O lugar vazio de ambiente continua mostrando "Adicionar ambiente" por extenso (cabe nos cartões largos); o de efeito é só "+".
+- A janela própria lê a mesma aba escolhida da janela da mesa (mesma preferência do navegador).
+
+**O que ficou para depois**
+- Nenhum.
+
+## MU3 — como ficou (2026-11-19): abas no seletor da ficha e o zoom acima da faixa
+
+**O que foi feito**
+- Um seletor segmentado só (`SeletorSegmentado`), no desenho do "Personagem | NPC" da ficha: grupo com borda e cantos arredondados, o escolhido cheio na cor de destaque, os outros em texto suave. Usado na ficha (idêntica), nas abas da mesa de som (faixa, janela flutuante e janela própria) e nas abas da janela "Mesa de som · configuração". As abas mantêm `tablist` e `tab`, setas, Home, End e a aba lembrada.
+- Sem subtítulo nas abas da mesa de som: saiu a linha de estado. O estado continua no rótulo acessível.
+- A barra de abas da faixa passou de 40 para 46 px (`ALTURA_DAS_ABAS_DA_FAIXA` e o CSS); a faixa ficou 6 px mais alta.
+- O zoom sobe para ficar acima da faixa (aberta, recolhida e durante o arrasto da alça) e volta ao pé quando a mesa de som vira janela, janela própria ou fecha. A mesma regra vale para o selo de modo ("ver como"), o aviso do som e o aviso da importação.
+
+**Decisões (assumido)**
+- O ponto ao lado do nome da aba escondida que tem algo tocando ficou.
+- Fora da ficha o seletor usa Space Grotesk 600 (a fonte da ficha vem do tema da ficha).
+- O aviso perto do ponto (`AvisoPerto`) e a dica da barra de ferramentas não mudam: não ficam no pé do mapa sob a faixa.
+
+**O que ficou para depois**
+- Nenhum.
