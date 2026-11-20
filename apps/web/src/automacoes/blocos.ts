@@ -1,14 +1,22 @@
 import {
   type AcaoDeFluxo,
+  alturaDoNo as alturaDoNoDoGrafo,
+  conteudoDaCaixa,
+  type DestinoNaCaixa,
   type Estado,
   type Fio,
   type Fluxo,
   FluxoSchema,
   type Gatilho,
+  LARGURA_DA_CAIXA,
+  larguraDaCaixa,
+  motivoDaRecusa,
+  NOMES_DAS_CAIXAS,
   type No,
   type NomesParaAFrase,
   nomesDaMesa,
   numeroEmPortugues,
+  pecasDaCaixa,
   portasDoNo,
   problemasDoFluxo,
   referenciasDaMesa,
@@ -153,23 +161,24 @@ export const PECAS: readonly Peca[] = [
     criar: () => ({ tipo: "condicao", config: { condicao: "tokenDeJogador" } }),
   },
 
-  {
-    id: "e",
-    grupo: "logica",
-    rotulo: "E (todas valem)",
-    criar: () => ({ tipo: "porta", config: { porta: "e" } }),
-  },
+  // AU3: as portas viraram caixas na grade; as peças entram nelas arrastando.
   {
     id: "ou",
     grupo: "logica",
-    rotulo: "OU (alguma vale)",
-    criar: () => ({ tipo: "porta", config: { porta: "ou" } }),
+    rotulo: "OU (qualquer um)",
+    criar: () => ({ tipo: "caixa", config: { porta: "ou" } }),
+  },
+  {
+    id: "e",
+    grupo: "logica",
+    rotulo: "E (todos)",
+    criar: () => ({ tipo: "caixa", config: { porta: "e" } }),
   },
   {
     id: "nao",
     grupo: "logica",
-    rotulo: "NÃO (inverte)",
-    criar: () => ({ tipo: "porta", config: { porta: "nao" } }),
+    rotulo: "NÃO",
+    criar: () => ({ tipo: "caixa", config: { porta: "nao" } }),
   },
 
   {
@@ -263,18 +272,32 @@ export function fluxoNovo(id: string, gatilho: Gatilho = { tipo: "relogio", cada
     cenas: null,
     nos: [{ id: "n1", tipo: "gatilho", x: 80, y: 80, config: gatilho }],
     fios: [],
+    // AU3: o fluxo nasce no formato das caixas (dois gatilhos soltos no mesmo bloco não viram caixa sozinhos).
+    caixas: true,
   };
 }
 
 /** O grupo (a cor) de um nó. */
-export function grupoDoNo(no: Pick<No, "tipo">): GrupoDePeca {
+export function grupoDoNo(
+  no: Pick<No, "tipo"> & { id?: string },
+  nos?: readonly No[],
+): GrupoDePeca {
   switch (no.tipo) {
     case "gatilho":
       return "quando";
     case "condicao":
       return "condicao";
-    case "porta":
-      return "logica";
+    case "caixa": {
+      // AU3: a cor e a borda da caixa são as do que sai dela.
+      const tipo = nos !== undefined && no.id !== undefined ? conteudoDaCaixa(nos, no.id) : "vazia";
+      return tipo === "gatilho"
+        ? "quando"
+        : tipo === "valor"
+          ? "condicao"
+          : tipo === "acao"
+            ? "faca"
+            : "logica";
+    }
     case "acao":
     case "sinal":
       return "faca";
@@ -287,8 +310,23 @@ export function grupoDoNo(no: Pick<No, "tipo">): GrupoDePeca {
 
 export const LARGURA_DO_NO = 208;
 
-/** A altura do nó: com duas portas de um lado ele cresce. */
-export function alturaDoNo(no: Pick<No, "tipo"> & { config?: unknown }): number {
+/** A largura do nó na grade: a caixa é mais larga (as peças ficam empilhadas dentro dela). */
+export const larguraDoNo = (no: Pick<No, "tipo">, nos?: readonly No[]): number =>
+  no.tipo === "caixa"
+    ? nos === undefined
+      ? LARGURA_DA_CAIXA
+      : larguraDaCaixa(nos, no as No)
+    : LARGURA_DO_NO;
+
+/**
+ * A altura do nó: com duas portas de um lado ele cresce; a caixa cresce com o que tem dentro (`nos` são os nós do fluxo;
+ * sem eles a caixa conta como vazia).
+ */
+export function alturaDoNo(
+  no: Pick<No, "tipo"> & { id?: string; config?: unknown },
+  nos?: readonly No[],
+): number {
+  if (no.tipo === "caixa") return nos === undefined ? 64 : alturaDoNoDoGrafo(nos, no as No);
   const p = portasDoNo(no);
   return Math.max(p.entradas.length, p.saidas.length) > 1 ? 84 : 60;
 }
@@ -298,16 +336,17 @@ export function pontoDaPorta(
   no: No,
   lado: "entrada" | "saida",
   porta: string,
+  nos?: readonly No[],
 ): { x: number; y: number } {
-  const p = portasDoNo(no);
+  const p = portasDoNo(no, nos);
   const lista = lado === "entrada" ? p.entradas : p.saidas;
   const i = Math.max(
     0,
     lista.findIndex((x) => x.id === porta),
   );
-  const h = alturaDoNo(no);
+  const h = alturaDoNo(no, nos);
   return {
-    x: no.x + (lado === "entrada" ? 0 : LARGURA_DO_NO),
+    x: no.x + (lado === "entrada" ? 0 : larguraDoNo(no, nos)),
     y: no.y + (h * (i + 1)) / (lista.length + 1),
   };
 }
@@ -332,10 +371,11 @@ export function limitesDosNos(
   let x1 = Number.NEGATIVE_INFINITY;
   let y1 = Number.NEGATIVE_INFINITY;
   for (const n of nos) {
+    if (n.em !== undefined) continue;
     x0 = Math.min(x0, n.x);
     y0 = Math.min(y0, n.y);
-    x1 = Math.max(x1, n.x + LARGURA_DO_NO);
-    y1 = Math.max(y1, n.y + alturaDoNo(n));
+    x1 = Math.max(x1, n.x + larguraDoNo(n, nos));
+    y1 = Math.max(y1, n.y + alturaDoNo(n, nos));
   }
   return { x: x0, y: y0, largura: x1 - x0, altura: y1 - y0 };
 }
@@ -451,12 +491,16 @@ export function rotuloDoNo(no: No, n: NomesParaAFrase): Rotulo {
       }
       return { titulo: "Condição", detalhe: "" };
     }
-    case "porta":
-      return no.config.porta === "e"
-        ? { titulo: "E", detalhe: "vale se todas valem" }
-        : no.config.porta === "ou"
-          ? { titulo: "OU", detalhe: "vale se alguma vale" }
-          : { titulo: "NÃO", detalhe: "inverte a entrada" };
+    case "caixa":
+      return {
+        titulo: NOMES_DAS_CAIXAS[no.config.porta],
+        detalhe:
+          no.config.porta === "e"
+            ? "todos os espaços"
+            : no.config.porta === "ou"
+              ? "qualquer um dos espaços"
+              : "inverte a peça de dentro",
+      };
     case "acao": {
       const a = no.config.acao;
       switch (a.acao) {
@@ -545,6 +589,46 @@ export function errosDoFluxo(f: Fluxo, estado: Estado): ErroDoEditor[] {
     else poe("geral", p.mensagem);
   }
   return saida;
+}
+
+/** O que a caixa diz (em letra pequena), conforme o que tem dentro. */
+export function detalheDaCaixa(nos: readonly No[], caixa: No): string {
+  if (caixa.tipo !== "caixa") return "";
+  const tipo = conteudoDaCaixa(nos, caixa.id);
+  if (tipo === "vazia") return "vazia";
+  const logica = caixa.config.porta;
+  if (tipo === "gatilho")
+    return logica === "ou" ? "quando qualquer um destes acontecer" : "quando acontecer e valer";
+  if (tipo === "acao") return logica === "e" ? "faz todas, de cima para baixo" : "sorteia uma";
+  return logica === "e"
+    ? "vale se todas valem"
+    : logica === "ou"
+      ? "vale se alguma vale"
+      : "inverte";
+}
+
+/** Como o menu do teclado chama uma caixa: o nome dela e o que tem dentro, para distinguir duas iguais. */
+export function nomeDaCaixaNoMenu(nos: readonly No[], caixa: No, n: NomesParaAFrase): string {
+  if (caixa.tipo !== "caixa") return "";
+  const dentro = pecasDaCaixa(nos, caixa.id);
+  const base = caixa.nome ?? NOMES_DAS_CAIXAS[caixa.config.porta];
+  if (dentro.length === 0) return `${base} (vazia)`;
+  const nomes = dentro.slice(0, 2).map((x) => rotuloDoNo(x, n).titulo);
+  return `${base} com ${nomes.join(", ")}${dentro.length > 2 ? "…" : ""}`;
+}
+
+/** AU3: a peça da paleta que está sendo arrastada agora (o navegador não deixa ler o que se arrasta antes de soltar). */
+export const arrastandoPeca: { atual: Peca | null } = { atual: null };
+
+/** AU3: a peça nova (da paleta) cabe neste lugar da caixa? `null` se cabe; senão, a dica curta do porquê. */
+export function motivoDaNovaPeca(
+  nos: readonly No[],
+  peca: Peca,
+  caixa: string,
+  destino: DestinoNaCaixa,
+): string | null {
+  const temporario = { ...peca.criar(), id: "__nova", x: 0, y: 0 } as No;
+  return motivoDaRecusa([...nos, temporario], "__nova", caixa, destino);
 }
 
 export { nomesDaMesa };

@@ -15,6 +15,7 @@ import {
 import { Copy, Trash2 } from "lucide-react";
 import { type CSSProperties, type ReactNode, useEffect, useId, useState } from "react";
 import type { Fontes } from "../assets/fontes";
+import { SeletorSegmentado } from "../SeletorSegmentado";
 import { EscolherSom, type SomEscolhido } from "../som/EscolherSom";
 import { CORES, ICONES, IconeDoLugar } from "../som/iconesDoSom";
 import { COR_DO_GRUPO, type ErroDoEditor, grupoDoNo, PECAS, rotuloDoNo } from "./blocos";
@@ -246,7 +247,7 @@ export function PainelDoBloco(p: Props) {
       case "se":
         return (
           <p className="nota" data-testid="ed-se-nota">
-            Ligue uma condição (ou uma porta E, OU, NÃO) à entrada de baixo do bloco. Se ela vale,
+            Ligue uma condição (ou uma caixa E, OU ou NÃO) à entrada de baixo do bloco. Se ela vale,
             segue pelo “sim”; senão, pelo “não”.
           </p>
         );
@@ -259,24 +260,30 @@ export function PainelDoBloco(p: Props) {
             zonas={zonas}
           />
         );
-      case "porta":
+      case "caixa":
         return (
-          <CampoEscolha
-            testid="ed-campo-porta"
-            rotulo="Porta lógica"
-            valor={no.config.porta}
-            opcoes={[
-              { valor: "e", nome: "E: vale se todas as entradas valem" },
-              { valor: "ou", nome: "OU: vale se alguma entrada vale" },
-              { valor: "nao", nome: "NÃO: inverte a única entrada" },
-            ]}
-            aoMudar={(v) =>
-              p.aoMudarNo({
-                ...no,
-                config: { porta: v === "ou" ? "ou" : v === "nao" ? "nao" : "e" },
-              })
-            }
-          />
+          <div className="campo-coluna">
+            <span>Tipo da caixa</span>
+            <SeletorSegmentado
+              modo="escolha"
+              rotulo="Tipo da caixa"
+              testid="ed-campo-porta"
+              valor={no.config.porta}
+              itens={[
+                { id: "ou", nome: "OU", testid: "ed-caixa-tipo-ou" },
+                { id: "e", nome: "E", testid: "ed-caixa-tipo-e" },
+                { id: "nao", nome: "NÃO", testid: "ed-caixa-tipo-nao" },
+              ]}
+              aoMudar={(v) => p.aoMudarNo({ ...no, config: { ...no.config, porta: v } })}
+            />
+            <span className="ajuda-do-campo">
+              {no.config.porta === "ou"
+                ? "Gatilhos: qualquer um dispara. Condições: vale se alguma vale. Ações: sorteia uma. (O rótulo OU entre os espaços também troca.)"
+                : no.config.porta === "e"
+                  ? "Condições: todas valem. Um gatilho com condições: segue se elas valem. Ações: todas acontecem."
+                  : "Um espaço só, com uma condição (ou uma caixa): inverte o que ela diz."}
+            </span>
+          </div>
         );
       case "paraCada":
         return (
@@ -370,7 +377,7 @@ export function PainelDoBloco(p: Props) {
 function descricaoDoNo(no: No): string {
   switch (no.tipo) {
     case "gatilho":
-      return "O que faz a automação começar. Vários gatilhos ligados ao mesmo bloco formam um OU: qualquer um dispara.";
+      return "O que faz a automação começar. Para vários gatilhos, arraste-os para uma caixa OU: qualquer um dispara.";
     case "esperar":
       return "Segura o caminho por um tempo e só depois segue pelo fio de saída.";
     case "se":
@@ -378,9 +385,9 @@ function descricaoDoNo(no: No): string {
     case "sortear":
       return "Sorteia a cada vez: segue pelo “sim” com a chance escolhida, senão pelo “não”.";
     case "condicao":
-      return "Dá verdadeiro ou falso. Ligue a saída a um “se” ou a uma porta E, OU, NÃO.";
-    case "porta":
-      return "Combina condições: ligue as condições na entrada e a saída no “se” (ou em outra porta).";
+      return "Dá verdadeiro ou falso. Ligue a saída a um “se”, ou ponha-a num espaço de uma caixa E, OU ou NÃO.";
+    case "caixa":
+      return "Cada espaço guarda uma peça (gatilho, condição, ação ou outra caixa). Dois espaços para começar: o “+” acrescenta, soltar entre dois espaços abre um novo. A saída é uma só e se liga ao próximo bloco, ou ao “se”.";
     case "paraCada":
       return "Repete o caminho “para cada” para cada objeto ou token do alvo; “depois” roda uma vez no fim.";
     case "sinal":

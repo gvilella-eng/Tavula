@@ -460,7 +460,7 @@ describe("a conferência do grafo, em português e no próprio nó", () => {
     );
     const m = mensagens(f);
     expect(m["nos.se"]).toContain("sem condição");
-    expect(m["nos.P"]).toContain("sem entrada");
+    expect(m["nos.P"]).toContain("vazia");
     expect(m["nos.c"]).toContain("Ligue esta condição");
     expect(m["nos.solto"]).toContain("nenhum gatilho");
   });
@@ -554,7 +554,7 @@ describe("a frase do grafo em português", () => {
     const frase = fraseDoFluxo(f, nomes);
     expect(frase).toContain("Quando um token entra na zona A, ou quando um token entra na zona B");
     expect(frase).toContain("NÃO");
-    expect(frase).toContain(" E ");
+    expect(frase).toContain("(NÃO o token for de um jogador) e o sorteio de 50% der certo");
     expect(frase).toContain("sorteio de 50%");
     expect(frase).toContain("Pegou");
     expect(frase).toContain("Outro");
@@ -585,7 +585,7 @@ describe("a frase do grafo em português", () => {
       ],
     );
     const frase = fraseDoFluxo(f, nomes);
-    expect(frase).toContain(" OU ");
+    expect(frase).toContain(" ou o alvo estiver");
     expect(frase.match(/fim/g)?.length).toBe(1);
   });
 });

@@ -216,7 +216,8 @@ test("montar do zero, só arrastando: a peça cai onde foi solta, os fios ligam,
   await expect.poll(() => anunciou(mestre.frames, "Montei arrastando")).toBe(true);
 });
 
-test("porta lógica num se: NÃO(chance 100%) manda para o caminho do não", async ({ mesa }) => {
+// AU3: a porta NÃO virou uma caixa; a condição entra nela arrastando e a saída da caixa liga na entrada de condição do "se".
+test("caixa NÃO num se: NÃO(chance 100%) manda para o caminho do não", async ({ mesa }) => {
   const mestre = await entrarNoMapa(mesa, "mestre");
   const p = mestre.pagina;
   await abrirAutomacoes(p);
@@ -227,11 +228,12 @@ test("porta lógica num se: NÃO(chance 100%) manda para o caminho do não", asy
   await e.getByTestId("ed-campo-gatilho").selectOption("botao");
   // as peças, soltas em lugares diferentes da grade
   await soltarPeca(e, "se", 330, 90); // n2
-  await soltarPeca(e, "chance", 330, 330); // n3
-  await soltarPeca(e, "nao", 560, 330); // n4
+  await soltarPeca(e, "nao", 560, 330); // n3: a caixa NÃO
+  await e.getByTestId("ed-peca-chance").dragTo(e.getByTestId("ed-no-n3")); // n4: a chance, solta dentro da caixa
   await soltarPeca(e, "chat", 780, 70); // n5
   await soltarPeca(e, "chat", 780, 220); // n6
-  await e.getByTestId("ed-no-n3").click();
+  await expect(e.locator('[data-testid="ed-no-n3"] [data-testid="ed-no-n4"]')).toHaveCount(1);
+  await e.getByTestId("ed-no-n4").click();
   await e.getByTestId("ed-campo-chance").fill("100");
   await e.getByTestId("ed-no-n5").click();
   await e.getByTestId("ed-campo-texto").fill("caminho do sim");
@@ -239,13 +241,12 @@ test("porta lógica num se: NÃO(chance 100%) manda para o caminho do não", asy
   await e.getByTestId("ed-campo-texto").fill("caminho do nao");
 
   await ligar(e, "n1", "saida", "n2", "entrada");
-  await ligar(e, "n3", "valor", "n4", "entrada");
-  await ligar(e, "n4", "valor", "n2", "condicao");
+  await ligar(e, "n3", "saida", "n2", "condicao");
   await ligar(e, "n2", "sim", "n5", "entrada");
   await ligar(e, "n2", "nao", "n6", "entrada");
-  await expect(e.locator('[data-testid^="ed-fio-"]')).toHaveCount(5);
+  await expect(e.locator('[data-testid^="ed-fio-"]')).toHaveCount(4);
   // fio de condição e fio de ordem têm aparência diferente
-  await expect(e.locator('[data-testid^="ed-fio-"][data-tipo-fio="valor"]')).toHaveCount(2);
+  await expect(e.locator('[data-testid^="ed-fio-"][data-tipo-fio="valor"]')).toHaveCount(1);
   await expect(e.getByTestId("ed-frase")).toContainText("NÃO");
   await Promise.all([e.waitForEvent("close"), e.getByTestId("ed-salvar").click()]);
 
@@ -254,7 +255,8 @@ test("porta lógica num se: NÃO(chance 100%) manda para o caminho do não", asy
   expect(anunciou(mestre.frames, "caminho do sim")).toBe(false);
 });
 
-test("dois gatilhos em OU disparam pelos dois; o editor mostra os dois ligados ao mesmo bloco", async ({
+// AU3: dois gatilhos ligados ao mesmo bloco (o AU2) viram uma caixa QUALQUER UM com os dois dentro.
+test("dois gatilhos em OU disparam pelos dois; o editor mostra os dois dentro de uma caixa ligada ao bloco", async ({
   mesa,
 }) => {
   const mestre = await entrarNoMapa(mesa, "mestre");
@@ -297,12 +299,18 @@ test("dois gatilhos em OU disparam pelos dois; o editor mostra os dois ligados a
 
   await abrirAutomacoes(p);
   await expect(p.getByTestId("auto-frase-ou")).toContainText(
-    "Ao receber o sinal “A”, ou ao receber o sinal “B”",
+    "qualquer um destes acontecer (ao receber o sinal “A”, ou ao receber o sinal “B”)",
   );
   const e = await abrirEditor(p, "auto-editar-ou");
   await expect(e.locator('[data-testid^="ed-no-"][data-tipo="gatilho"]')).toHaveCount(2);
-  await expect(fio(e, "ga.saida", "av.entrada")).toHaveCount(1);
-  await expect(fio(e, "gb.saida", "av.entrada")).toHaveCount(1);
+  await expect(e.locator('[data-testid^="ed-no-"][data-tipo="caixa"]')).toHaveCount(1);
+  // os dois gatilhos estão dentro da caixa, e é a caixa que se liga ao bloco (um fio só)
+  await expect(
+    e.locator(
+      '[data-tipo="caixa"] [data-testid="ed-no-ga"], [data-tipo="caixa"] [data-testid="ed-no-gb"]',
+    ),
+  ).toHaveCount(2);
+  await expect(e.locator('[data-testid^="ed-fio-"][data-para="av.entrada"]')).toHaveCount(1);
   await e.close();
 });
 

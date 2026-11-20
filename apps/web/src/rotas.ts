@@ -62,10 +62,17 @@ export const caminhoDaAutomacao = (
   fluxoId: string | null,
   /** O gatilho com que uma automação nova nasce (JSON na pergunta `g`): o "+ automação para esta zona". */
   gatilho?: object,
-) =>
-  `/m/${mesaId}/automacao/${encodeURIComponent(fluxoId ?? "nova")}${
-    gatilho === undefined ? "" : `?g=${encodeURIComponent(JSON.stringify(gatilho))}`
+  /** AU3: o editor abre já com o tour das automações. */
+  tour?: boolean,
+) => {
+  const perguntas = [
+    gatilho === undefined ? "" : `g=${encodeURIComponent(JSON.stringify(gatilho))}`,
+    tour === true ? "tour=1" : "",
+  ].filter(Boolean);
+  return `/m/${mesaId}/automacao/${encodeURIComponent(fluxoId ?? "nova")}${
+    perguntas.length === 0 ? "" : `?${perguntas.join("&")}`
   }`;
+};
 
 /** O link completo de uma mesa, para copiar e mandar. */
 export const linkDaMesa = (id: string) => `${location.origin}${caminhoDaMesa(id)}`;

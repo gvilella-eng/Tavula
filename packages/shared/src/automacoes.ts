@@ -21,6 +21,7 @@ import { CorDoSomSchema, IconeDoSomSchema } from "./mesadesom.ts";
 
 export * from "./automacoesLegado.ts";
 export * from "./fluxos.ts";
+export * from "./fluxosCaixas.ts";
 export * from "./fluxosConversao.ts";
 export * from "./fluxosFrase.ts";
 export * from "./fluxosGrafo.ts";

@@ -55,6 +55,15 @@ export function AutomacaoEmJanelaPropria({ mesa, automacaoId, aoPerderSessao }: 
     }
   }, []);
 
+  // AU3: `?tour=1` abre o editor já com o tour das automações.
+  const comTour = useMemo(() => {
+    try {
+      return new URLSearchParams(window.location.search).get("tour") === "1";
+    } catch {
+      return false;
+    }
+  }, []);
+
   useEffect(() => anunciarFichaFora(mesa.id, idDaJanela), [mesa.id, idDaJanela]);
   useEffect(() => {
     // Só a janela aberta pela mesa lembra a medida (uma aba comum, aberta pelo endereço, não).
@@ -102,6 +111,7 @@ export function AutomacaoEmJanelaPropria({ mesa, automacaoId, aoPerderSessao }: 
             enviar={enviar}
             fluxoId={fluxoId}
             gatilhoInicial={gatilhoInicial}
+            tour={comTour}
             fontes={null}
             registrarSom={null}
             aoVoltar={voltar}

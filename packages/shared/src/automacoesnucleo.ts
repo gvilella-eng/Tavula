@@ -5,6 +5,7 @@ import {
   automacoesDe,
   type CondicaoDoSe,
   type ContextoDoFluxo,
+  condicoesDoGatilho,
   type Efeito,
   type Esperando,
   type EventoDeAutomacao,
@@ -21,9 +22,11 @@ import {
   type NoDe,
   noDeDisparoManual,
   noDeGatilhoDoTipo,
+  noDosFios,
   nosDeGatilho,
   PRAZO_PADRAO_S,
   PROFUNDIDADE_MAXIMA,
+  pecasDaCaixa,
   TETO_DE_ACOES,
   tauDoFluxo,
   temGatilho,
@@ -582,11 +585,12 @@ function valorDoNo(
   let valor = false;
   if (no.tipo === "condicao") {
     valor = avaliar(m, no.config, ctx);
-  } else if (no.tipo === "porta") {
+  } else if (no.tipo === "caixa") {
     const depois = new Set([...pilha, id]);
-    const entradas = rd.fluxo.fios
-      .filter((x) => x.para.no === id)
-      .map((x) => valorDoNo(m, rd, x.de.no, ctx, memo, depois));
+    // AU3: as peças de dentro da caixa, de cima para baixo.
+    const entradas = pecasDaCaixa(rd.fluxo.nos, id).map((x) =>
+      valorDoNo(m, rd, x.id, ctx, memo, depois),
+    );
     if (no.config.porta === "e") valor = entradas.length > 0 && entradas.every(Boolean);
     else if (no.config.porta === "ou") valor = entradas.some(Boolean);
     else valor = entradas.length > 0 && !entradas.some(Boolean);
@@ -605,6 +609,33 @@ function seguir(m: Motor, rd: Rodada, no: string, saida: string, ctx: ContextoDo
   }
 }
 
+/** Roda uma ação, um sinal ou uma caixa de ação (as peças de uma caixa não têm fios: a caixa as roda). */
+function executarPecaDeAcao(m: Motor, rd: Rodada, no: No, ctx: ContextoDoFluxo): void {
+  if (m.cortado) return;
+  if (no.tipo === "acao") {
+    aplicarAcao(m, rd, [no.id], no.config.acao, ctx);
+  } else if (no.tipo === "sinal") {
+    if (!m.contar()) return;
+    rd.encadeados.push({ nome: no.config.nome, atrasoS: no.config.atrasoS ?? 0, contexto: ctx });
+  } else if (no.tipo === "caixa") {
+    const pecas = pecasDaCaixa(rd.fluxo.nos, no.id);
+    if (no.config.porta === "e") {
+      for (const x of pecas) executarPecaDeAcao(m, rd, x, ctx);
+    } else if (no.config.porta === "ou" && pecas.length > 0) {
+      // sorteia uma só, por igual (50/50 com duas)
+      let escolhida = pecas.length - 1;
+      for (let i = 0; i < pecas.length - 1; i++) {
+        if (m.sortear(1 / (pecas.length - i))) {
+          escolhida = i;
+          break;
+        }
+      }
+      const x = pecas[escolhida];
+      if (x) executarPecaDeAcao(m, rd, x, ctx);
+    }
+  }
+}
+
 /** Um nó recebeu a execução (chegou por um fio, ou é o gatilho). Cada chegada roda de novo (como no n8n). */
 function executarNo(m: Motor, rd: Rodada, no: No, ctx: ContextoDoFluxo): void {
   if (m.cortado) return;
@@ -616,7 +647,17 @@ function executarNo(m: Motor, rd: Rodada, no: No, ctx: ContextoDoFluxo): void {
     return;
   }
   switch (no.tipo) {
-    case "gatilho":
+    case "gatilho": {
+      // AU3: um gatilho dentro de uma caixa segue os fios da caixa de fora; "gatilho E condição" só segue se as condições valem.
+      const condicoes = condicoesDoGatilho(rd.fluxo.nos, no.id);
+      const memo = new Map<string, boolean>();
+      if (!condicoes.every((c) => valorDoNo(m, rd, c, ctx, memo, new Set()))) break;
+      seguir(m, rd, noDosFios(rd.fluxo.nos, no.id), "saida", ctx);
+      break;
+    }
+    case "caixa":
+      // AU3: uma caixa de ação roda as peças de dentro (E: todas, de cima para baixo; OU: sorteia uma) e segue.
+      executarPecaDeAcao(m, rd, no, ctx);
       seguir(m, rd, no.id, "saida", ctx);
       break;
     case "esperar": {
@@ -1224,8 +1265,8 @@ export function tratarAutomacao(ctx: ContextoDoMotor, intencao: Intencao): Saida
       if (problema) return problema;
       m.slice.fluxos = m.slice.fluxos.map((f) => (f.id === id ? novo : f));
       if (
-        JSON.stringify(novo.nos.map((n) => [n.id, n.tipo, n.config])) !==
-          JSON.stringify(atual.nos.map((n) => [n.id, n.tipo, n.config])) ||
+        JSON.stringify(novo.nos.map((n) => [n.id, n.tipo, n.config, n.em])) !==
+          JSON.stringify(atual.nos.map((n) => [n.id, n.tipo, n.config, n.em])) ||
         JSON.stringify(novo.fios) !== JSON.stringify(atual.fios)
       ) {
         esquecer(id);

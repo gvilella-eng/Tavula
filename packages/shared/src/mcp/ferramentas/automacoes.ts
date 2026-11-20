@@ -98,14 +98,14 @@ const FioDoMcpSchema = z
       .string()
       .optional()
       .describe(
-        'A porta de saída: "saida" (padrão), "sim" ou "nao" (se e sortear), "corpo" ou "depois" (paraCada), "valor" (condição e porta lógica, o padrão delas).',
+        'A porta de saída: "saida" (padrão), "sim" ou "nao" (se e sortear), "corpo" ou "depois" (paraCada), "valor" (condição, o padrão dela; a caixa sai em "saida").',
       ),
     para: z.string().min(1).max(40).describe("Nome do nó onde o fio chega."),
     entrada: z
       .string()
       .optional()
       .describe(
-        'A porta de entrada: "entrada" (padrão); "condicao" no "se" (o padrão quando o fio vem de uma condição ou porta); "entradas" numa porta E ou OU.',
+        'A porta de entrada: "entrada" (padrão); "condicao" no "se" (o padrão quando o fio vem de uma condição ou porta).',
       ),
   })
   .strict();
@@ -130,7 +130,7 @@ const FluxoPedidoSchema = z
       .max(MAXIMO_DE_NOS)
       .optional()
       .describe(
-        'O GRAFO da automação (como o editor): os nós, cada um com `nome` (único na automação), `tipo` (gatilho, esperar, sortear, paraCada, se, acao, sinal, condicao, porta) e `config`. Ex.: {"nome":"Entrou na A","tipo":"gatilho","config":{"tipo":"zona","quando":"entra","zona":"A"}}. Nomes no lugar de ids; som.tocar: hash = nome do arquivo. Mande `fios` junto. Chame `guia`.',
+        'O GRAFO da automação (como o editor): os nós, cada um com `nome` (único na automação), `tipo` (gatilho, esperar, sortear, paraCada, se, acao, sinal, condicao, caixa) e `config`. Ex.: {"nome":"Entrou na A","tipo":"gatilho","config":{"tipo":"zona","quando":"entra","zona":"A"}}. Nomes no lugar de ids; som.tocar: hash = nome do arquivo. Mande `fios` junto. Chame `guia`.',
       ),
     fios: z
       .array(FioDoMcpSchema)
@@ -294,6 +294,53 @@ function grafoDoPedido(
     if (b.x === undefined || b.y === undefined) semPosicao = true;
     return { ...b, id, nome, x: b.x ?? 0, y: b.y ?? 0, config: traduzirNo(b, estado) } as No;
   });
+  // AU3: `em` chega como o NOME da caixa; a mesa guarda o id.
+  const dentro = new Map<string, string>();
+  for (const n of nos) {
+    const nomeDaCaixa = (n as { em?: string }).em;
+    if (nomeDaCaixa === undefined) continue;
+    const id = ids.get(nomeDaCaixa);
+    const caixa = nos.find((x) => x.id === id);
+    if (caixa === undefined || caixa.tipo !== "caixa") {
+      throw new ErroDoMcp(
+        `O nó "${n.nome}" está \`em\` "${nomeDaCaixa}", que não é o nome de uma caixa. Caixas: ${
+          nos
+            .filter((x) => x.tipo === "caixa")
+            .map((x) => `"${x.nome}"`)
+            .join(", ") || "nenhuma"
+        }.`,
+      );
+    }
+    dentro.set(n.id, caixa.id);
+  }
+  for (const n of nos) {
+    const caixa = dentro.get(n.id);
+    if (caixa === undefined) {
+      delete n.em;
+      delete n.espaco;
+    } else n.em = caixa;
+  }
+  // `espaco` (0 é o de cima): a peça que não diz o seu vai no primeiro espaço livre da caixa, na ordem em que aparece; a
+  // caixa ganha os espaços que as peças pedem (o padrão são dois; o NÃO tem um).
+  const ocupados = new Map<string, Set<number>>();
+  for (const n of nos) {
+    if (n.em === undefined || n.espaco === undefined) continue;
+    ocupados.set(n.em, (ocupados.get(n.em) ?? new Set<number>()).add(n.espaco));
+  }
+  for (const n of nos) {
+    if (n.em === undefined || n.espaco !== undefined) continue;
+    const s = ocupados.get(n.em) ?? new Set<number>();
+    let livre = 0;
+    while (s.has(livre)) livre++;
+    n.espaco = livre;
+    ocupados.set(n.em, s.add(livre));
+  }
+  for (const n of nos) {
+    if (n.tipo !== "caixa" || n.config.porta === "nao") continue;
+    const s = ocupados.get(n.id);
+    const pedido = s === undefined ? 0 : Math.max(...s) + 1;
+    if (pedido > (n.config.espacos ?? 2)) n.config = { ...n.config, espacos: pedido };
+  }
   const porNome = (nome: string, de: string): No => {
     const id = ids.get(nome);
     const no = nos.find((n) => n.id === id);
@@ -307,7 +354,14 @@ function grafoDoPedido(
   const fios: Fio[] = (p.fios ?? []).map((f) => {
     const origem = porNome(f.de, "origem");
     const destino = porNome(f.para, "destino");
-    const saidas = portasDoNo(origem).saidas;
+    for (const ponta of [origem, destino]) {
+      if (ponta.em !== undefined) {
+        throw new ErroDoMcp(
+          `O nó "${ponta.nome}" está dentro de uma caixa: não tem fio próprio. Ligue a caixa "${nos.find((x) => x.id === ponta.em)?.nome}".`,
+        );
+      }
+    }
+    const saidas = portasDoNo(origem, nos).saidas;
     if (f.saida === undefined && saidas.length > 1) {
       throw new ErroDoMcp(
         `O nó "${f.de}" tem mais de uma saída: diga \`saida\` no fio (${saidas.map((s) => `"${s.id}"`).join(" ou ")}).`,
@@ -316,8 +370,8 @@ function grafoDoPedido(
     const saida = f.saida ?? saidas[0]?.id ?? "saida";
     let entrada = f.entrada;
     if (entrada === undefined) {
-      const e = portasDoNo(destino).entradas.find(
-        (x) => x.tipo === (ehNoDeValor(origem) ? "valor" : "exec"),
+      const e = portasDoNo(destino, nos).entradas.find(
+        (x) => x.tipo === (ehNoDeValor(origem, nos) ? "valor" : "exec"),
       );
       entrada = e?.id ?? "entrada";
     }
@@ -567,7 +621,7 @@ async function usarBotao(
  */
 export const GUIA_DAS_AUTOMACOES = [
   "AUTOMAÇÕES (como funcionam)",
-  "Uma automação é um GRAFO, como no editor da mesa: NÓS (blocos soltos na grade) ligados por FIOS. Ela tem as cenas onde vale (vazio = todas), os `nos` e os `fios`. Um gatilho dispara e a execução percorre os fios; uma saída com vários fios roda os caminhos em paralelo (um depois do outro, no mesmo instante); um nó com vários fios chegando roda a cada chegada. Vários gatilhos ligados ao mesmo bloco formam um OU: qualquer um dispara.",
+  'Uma automação é um GRAFO, como no editor da mesa: NÓS (blocos soltos na grade) ligados por FIOS. Ela tem as cenas onde vale (vazio = todas), os `nos` e os `fios`. Um gatilho dispara e a execução percorre os fios; uma saída com vários fios roda os caminhos em paralelo (um depois do outro, no mesmo instante); um nó com vários fios chegando roda a cada chegada. As CAIXAS (tipo "caixa") são a lógica, como os blocos e/ou/não do Scratch na vertical: "e" e "ou" têm dois espaços (ou mais, com `config.espacos`), um em cima do outro, e "nao" tem um; cada espaço guarda UMA peça (um gatilho, uma condição, uma ação ou outra caixa) e a caixa tem uma saída só.',
   "NÓS (campo `nos`; cada um tem `nome` único, `tipo`, `config` e, se quiser, `x` e `y`; sem posição a mesa arruma na grade): " +
     '{"nome":"Quando","tipo":"gatilho","config":{"tipo":"zona",...}} (o "Quando": veja GATILHOS); ' +
     '{"tipo":"esperar","config":{"s":90}}; ' +
@@ -577,10 +631,10 @@ export const GUIA_DAS_AUTOMACOES = [
     '{"tipo":"acao","config":{"acao":{...}}} (veja AÇÕES); ' +
     '{"tipo":"sinal","config":{"nome":"vento","atrasoS":10}} (manda um sinal); ' +
     '{"tipo":"condicao","config":{"condicao":"..."}} (uma condição; sai "valor": verdadeiro ou falso; veja CONDIÇÕES); ' +
-    '{"tipo":"porta","config":{"porta":"e"|"ou"|"nao"}} (porta lógica: "e" vale se todas as entradas valem, "ou" se alguma vale, "nao" inverte a única entrada; sai "valor").',
-  'FIOS (campo `fios`): {"de":"nome do nó","saida":"sim","para":"nome do nó","entrada":"entrada"}. `saida` e `entrada` têm padrão: "saida" e "entrada" nos nós de ordem; "valor" nas condições e portas, que chegam em "condicao" (no "se") ou "entradas" (na porta E ou OU) ou "entrada" (na porta NÃO). Dá para dizer só {"de":"A","para":"B"} quando o nó tem uma saída só. Fio de ORDEM (gatilho, esperar, ação...: o que roda depois do quê) só liga com fio de ordem; fio de CONDIÇÃO (de condição ou porta para o "se" ou outra porta) só com condição. O "se" precisa de uma condição ligada: para combinar condições, ligue-as a uma porta E, OU ou NÃO e ligue a porta ao "se". A condição "chance" sorteia a cada vez que o "se" confere.',
+    '{"nome":"Qualquer um","tipo":"caixa","config":{"porta":"ou"|"e"|"nao","espacos":3}} (CAIXA lógica. Cada peça de dentro leva `"em":"nome da caixa"` e, se quiser, `"espaco":0` (0 é o de cima; sem `espaco`, a peça vai no primeiro espaço livre, na ordem em que aparece em `nos`); a peça de dentro não tem fio: o fio sai da caixa. A caixa nasce com 2 espaços (`espacos` pede mais, até 12; o NÃO tem 1) e uma caixa dentro de um espaço vale até 4 níveis, para combinar muita coisa. O que sai depende do que está dentro: GATILHO "ou" GATILHO é o "quando qualquer um destes acontecer" (a saída é de ordem: liga ao próximo bloco); GATILHO "e" CONDIÇÃO só segue quando a condição vale (saída de ordem); CONDIÇÃO com CONDIÇÃO ("e": todas valem, "ou": alguma vale) ou "nao" CONDIÇÃO dão um valor (liga na entrada "condicao" do "se" ou fica dentro de outra caixa); AÇÃO "e" AÇÃO faz as duas (em paralelo, de cima para baixo) e AÇÃO "ou" AÇÃO sorteia uma por igual (50/50 com duas): essa caixa fica no fluxo como um bloco de ação, com entrada "entrada" e saída "saida". Não combina e é recusado: gatilho "e" gatilho, gatilho "ou" condição, "nao" com gatilho ou ação, ação misturada com gatilho ou condição, espaço vazio, mais de uma peça por espaço).',
+  'FIOS (campo `fios`): {"de":"nome do nó","saida":"sim","para":"nome do nó","entrada":"entrada"}. `saida` e `entrada` têm padrão: "saida" e "entrada" nos nós de ordem; "valor" nas condições, que chegam em "condicao" (no "se"); a caixa sai em "saida" (de ordem se guarda gatilhos ou ações, de condição se guarda condições; a de ação também entra em "entrada"). Dá para dizer só {"de":"A","para":"B"} quando o nó tem uma saída só. Fio de ORDEM (gatilho, caixa de gatilho, esperar, ação...: o que roda depois do quê) só liga com fio de ordem; fio de CONDIÇÃO (de condição ou caixa de condições para o "se") só com condição. O "se" precisa de uma condição ligada: para combinar condições, ponha-as nos espaços de uma caixa E, OU ou NÃO e ligue a caixa ao "se". Peça dentro de caixa não tem fio. A condição "chance" sorteia a cada vez que o "se" confere.',
   'CICLOS: um fio pode voltar a um bloco anterior só se o caminho passar por um "esperar" de pelo menos 1 s (senão a conferência recusa). Cada gatilho de relógio ou de botão pode aparecer uma vez por automação.',
-  'EXEMPLO DE GRAFO: "quando um token entra na zona A OU na zona B, se NÃO for um jogador E o sorteio de 50% der certo, avisa no chat": {"nome":"Armadilha","nos":[{"nome":"Entra A","tipo":"gatilho","config":{"tipo":"zona","quando":"entra","zona":"A"}},{"nome":"Entra B","tipo":"gatilho","config":{"tipo":"zona","quando":"entra","zona":"B"}},{"nome":"É jogador","tipo":"condicao","config":{"condicao":"tokenDeJogador"}},{"nome":"Não jogador","tipo":"porta","config":{"porta":"nao"}},{"nome":"Metade","tipo":"condicao","config":{"condicao":"chance","chance":0.5}},{"nome":"E","tipo":"porta","config":{"porta":"e"}},{"nome":"Se","tipo":"se","config":{}},{"nome":"Avisa","tipo":"acao","config":{"acao":{"acao":"chat.anunciar","texto":"Pegou!"}}}],"fios":[{"de":"Entra A","para":"Se"},{"de":"Entra B","para":"Se"},{"de":"É jogador","para":"Não jogador"},{"de":"Não jogador","para":"E"},{"de":"Metade","para":"E"},{"de":"E","para":"Se"},{"de":"Se","saida":"sim","para":"Avisa"}]}',
+  'EXEMPLO DE GRAFO: "quando um token entra na zona A OU na zona B, se NÃO for um jogador E o sorteio de 50% der certo, avisa no chat": {"nome":"Armadilha","nos":[{"nome":"Qualquer entrada","tipo":"caixa","config":{"porta":"ou"}},{"nome":"Entra A","tipo":"gatilho","em":"Qualquer entrada","config":{"tipo":"zona","quando":"entra","zona":"A"}},{"nome":"Entra B","tipo":"gatilho","em":"Qualquer entrada","config":{"tipo":"zona","quando":"entra","zona":"B"}},{"nome":"Todas","tipo":"caixa","config":{"porta":"e"}},{"nome":"Não jogador","tipo":"caixa","em":"Todas","config":{"porta":"nao"}},{"nome":"É jogador","tipo":"condicao","em":"Não jogador","config":{"condicao":"tokenDeJogador"}},{"nome":"Metade","tipo":"condicao","em":"Todas","config":{"condicao":"chance","chance":0.5}},{"nome":"Se","tipo":"se","config":{}},{"nome":"Avisa","tipo":"acao","config":{"acao":{"acao":"chat.anunciar","texto":"Pegou!"}}}],"fios":[{"de":"Qualquer entrada","para":"Se"},{"de":"Todas","para":"Se"},{"de":"Se","saida":"sim","para":"Avisa"}]}. Outro, as tochas: "a cada 3 min OU ao apertar o botão Combate, para cada tocha acesa, sortear 30% e apagar": caixa "ou" com os gatilhos relógio e botão nos dois espaços, ligada a um paraCada de objetos (acesos), que liga (corpo) a um sortear 30% (sim) e a uma ação objeto.apagar. Três ou mais coisas: a caixa "ou" com `espacos` 3 e três peças.',
   "FORMA CURTA (campos `gatilho` e `trilhas`, no lugar de `nos` e `fios`; a mesa converte em grafo): um gatilho e trilhas de blocos que rodam de cima para baixo, todas juntas ao disparar. Serve para sequências simples; use o grafo para OU, E, NÃO e caminhos que se encontram.",
   "GATILHOS (config de um nó gatilho, ou campo `gatilho` na forma curta): " +
     '{"tipo":"relogio","cadaS":180,"primeiroS":0}: a cada tantos segundos, no tempo da mesa (começa na hora em que a mesa corre; `primeiroS` adia a primeira vez); ' +
@@ -654,7 +708,7 @@ function explicarEsse(p: { fluxo?: string | undefined }, estado: Estado): string
 export const automacoes = definir({
   nome: "automacoes",
   descricao:
-    'Só do mestre. Automações como grafo (nós: gatilhos, esperar, se, sortear, para cada, condições, portas lógicas E, OU e NÃO, ações e sinais, ligados por fios; ou a forma curta gatilho + trilhas) e zonas (polígonos com efeitos). `fluxos` cria e edita pelo nome (nomes no lugar de ids); `zonas` também; tudo entra como rascunho e não roda até o mestre publicar. Ordem: zonas, depois as automações que as usam. Durante a sessão: `acionar` ([{fluxo, acao: disparar|ligar|desligar}]) e `usarBotoes` ([{botao}]). PERGUNTARAM COMO FUNCIONA, O QUE UMA AUTOMAÇÃO FAZ OU COMO MONTAR UMA? Chame `guia: true` (como as peças funcionam) e `explicar` (o que cada automação da mesa faz, em português) ANTES de responder; `listar: true` mostra todas. Exemplo: {"fluxos":[{"nome":"Vento","gatilho":{"tipo":"relogio","cadaS":600},"trilhas":[[{"bloco":"paraCada","alvo":{"tipo":"tokens"},"corpo":[{"bloco":"acao","acao":{"acao":"visao.limitar","alcanceM":3,"porS":60}}]}]]}]}',
+    'Só do mestre. Automações como grafo (nós: gatilhos, esperar, se, sortear, para cada, condições, caixas lógicas QUALQUER UM, TODAS e NÃO (com gatilhos ou condições dentro), ações e sinais, ligados por fios, as peças das caixas sem fio; ou a forma curta gatilho + trilhas) e zonas (polígonos com efeitos). `fluxos` cria e edita pelo nome (nomes no lugar de ids); `zonas` também; tudo entra como rascunho e não roda até o mestre publicar. Ordem: zonas, depois as automações que as usam. Durante a sessão: `acionar` ([{fluxo, acao: disparar|ligar|desligar}]) e `usarBotoes` ([{botao}]). PERGUNTARAM COMO FUNCIONA, O QUE UMA AUTOMAÇÃO FAZ OU COMO MONTAR UMA? Chame `guia: true` (como as peças funcionam) e `explicar` (o que cada automação da mesa faz, em português) ANTES de responder; `listar: true` mostra todas. Exemplo: {"fluxos":[{"nome":"Vento","gatilho":{"tipo":"relogio","cadaS":600},"trilhas":[[{"bloco":"paraCada","alvo":{"tipo":"tokens"},"corpo":[{"bloco":"acao","acao":{"acao":"visao.limitar","alcanceM":3,"porS":60}}]}]]}]}',
   entrada: z
     .object({
       zonas: z.array(ZonaPedidaSchema).max(30).optional(),

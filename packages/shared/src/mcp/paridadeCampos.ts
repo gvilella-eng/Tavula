@@ -650,6 +650,7 @@ export const CAMPOS_DA_PARIDADE: Partial<Record<TipoIntencao, Tabela>> = {
     "fluxo.fixado": "automacoes:fluxos[].fixado",
     "fluxo.liberadoParaJogadores": "automacoes:fluxos[].liberadoParaJogadores",
     "fluxo.rascunho": AUTO,
+    "fluxo.caixas": AUTO,
     "fluxo.nos[].*": "automacoes:fluxos[].nos[].*",
     "fluxo.fios[].de.no": "automacoes:fluxos[].fios[].de",
     "fluxo.fios[].de.saida": "automacoes:fluxos[].fios[].saida",

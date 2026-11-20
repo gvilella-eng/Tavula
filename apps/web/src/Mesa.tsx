@@ -225,6 +225,8 @@ type Props = {
   login?: string | undefined;
   /** O tour de introdução abre sozinho (primeiro acesso desta conta a esta mesa). */
   tourAutomatico?: boolean;
+  /** AU3: o tour das automações abre sozinho na primeira vez que o mestre abre o centro de automações. */
+  tourDasAutomacoes?: boolean;
   aoSair: () => void;
   aoPerderSessao: () => void;
   /** Vai para a tela inicial (`/`). */
@@ -247,6 +249,7 @@ export function Mesa({
   mesa,
   login,
   tourAutomatico = false,
+  tourDasAutomacoes = false,
   aoSair,
   aoPerderSessao,
   aoTrocarDeMesa,
@@ -457,12 +460,12 @@ export function Mesa({
   // AU2: o editor de uma automação abre SEMPRE numa janela própria do navegador, na hora (o mesmo padrão da ficha e do som); a
   // janela principal nunca mostra o editor. `gatilho`: com o que uma automação nova nasce ("+ automação para esta zona").
   const abrirAutomacao = useCallback(
-    (fluxoId: string | null, gatilho?: Gatilho) => {
-      if (!abrirAutomacaoEmJanela(mesa.id, fluxoId, { largura: 1280, altura: 760 }, gatilho))
+    (fluxoId: string | null, gatilho?: Gatilho, tour?: boolean) => {
+      if (!abrirAutomacaoEmJanela(mesa.id, fluxoId, { largura: 1280, altura: 760 }, gatilho, tour))
         avisar(TEXTO_DO_POPUP_BLOQUEADO, {
           rotulo: "Abrir o editor",
           aoClicar: () => {
-            abrirAutomacaoEmJanela(mesa.id, fluxoId, { largura: 1280, altura: 760 }, gatilho);
+            abrirAutomacaoEmJanela(mesa.id, fluxoId, { largura: 1280, altura: 760 }, gatilho, tour);
           },
         });
     },
@@ -2836,6 +2839,8 @@ export function Mesa({
                 enviar={enviar}
                 salaMs={tempo.salaMs}
                 aoEditar={abrirAutomacao}
+                aoEditarComTour={() => abrirAutomacao(null, undefined, true)}
+                tourAutomatico={tourDasAutomacoes}
                 aoAbrirMesaDeEventos={alternarEventos}
                 aoFechar={() => setAutomacoesAbertas(false)}
               />

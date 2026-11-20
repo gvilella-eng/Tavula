@@ -11,6 +11,7 @@ import {
 } from "@tabletop/shared";
 import {
   Copy,
+  GraduationCap,
   LayoutGrid,
   MoreHorizontal,
   Pin,
@@ -24,7 +25,13 @@ import { useMemo, useState } from "react";
 import { SeloDeRascunho } from "../claude/RascunhosDoClaude";
 import { useTic } from "../tempo";
 import { rotuloDoGatilho } from "./blocos";
+import {
+  marcarTourDasAutomacoesVisto,
+  PASSOS_DO_CENTRO,
+  tourDasAutomacoesJaVisto,
+} from "./passosDoTour";
 import { duracaoCurta, idDoNome } from "./rascunho";
+import { TourDasAutomacoes } from "./TourDasAutomacoes";
 
 type Enviar = (tipo: string, dados: object) => string | null;
 
@@ -33,6 +40,10 @@ type Props = {
   enviar: Enviar;
   salaMs: () => number | undefined;
   aoEditar: (fluxoId: string | null) => void;
+  /** AU3: o editor de uma automação nova, já com o tour (o último passo do tour do centro). */
+  aoEditarComTour: () => void;
+  /** AU3: abre o tour sozinho (a primeira vez que o centro é aberto). */
+  tourAutomatico: boolean;
   aoAbrirMesaDeEventos: () => void;
 };
 
@@ -74,9 +85,13 @@ export function ListaDeAutomacoes({
   enviar,
   salaMs,
   aoEditar,
+  aoEditarComTour,
+  tourAutomatico,
   aoAbrirMesaDeEventos,
 }: Props) {
   useTic(true);
+  // Abre sozinho só enquanto a pessoa ainda não viu (ou pulou) o tour neste navegador.
+  const [tour, setTour] = useState(() => tourAutomatico && !tourDasAutomacoesJaVisto());
   const a = automacoesDe(estado);
   const nomes = useMemo(() => nomesDaMesa(estado), [estado]);
   const [filtro, setFiltro] = useState<Filtro>("todas");
@@ -134,6 +149,14 @@ export function ListaDeAutomacoes({
         <div className="ed-espaco" />
         <button
           type="button"
+          data-testid="auto-conhecer"
+          title="Um passeio pelas peças das automações, montando juntos uma automação das tochas"
+          onClick={() => setTour(true)}
+        >
+          <GraduationCap size={14} aria-hidden /> Conhecer as automações
+        </button>
+        <button
+          type="button"
           data-testid="auto-abrir-mesa-de-eventos"
           title="Uma mesa só com os botões das automações, para apertar durante a sessão"
           onClick={aoAbrirMesaDeEventos}
@@ -149,6 +172,17 @@ export function ListaDeAutomacoes({
           <Plus size={14} aria-hidden /> Nova automação
         </button>
       </header>
+      {tour && (
+        <TourDasAutomacoes
+          passos={PASSOS_DO_CENTRO}
+          fluxo={null}
+          aoFechar={(concluido) => {
+            marcarTourDasAutomacoesVisto();
+            setTour(false);
+            if (concluido) aoEditarComTour();
+          }}
+        />
+      )}
       <div className="auto-lista-filtros">
         {FILTROS.map((f) => (
           <button

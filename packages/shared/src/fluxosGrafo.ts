@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
   type Bloco,
   type CondicaoDoSe,
+  conteudoDaCaixa,
   ehNoDeValor,
   type Fio,
   type Fluxo,
@@ -11,6 +12,8 @@ import {
   type Gatilho,
   type No,
   type NoDe,
+  numeroDeEspacos,
+  pecaDoEspaco,
   portasDoNo,
   type TipoDeGatilho,
 } from "./fluxos.ts";
@@ -73,8 +76,8 @@ export function podeLigar(
   const b = f.nos.find((n) => n.id === para.no);
   if (a === undefined || b === undefined) return { ok: false, motivo: "O bloco não existe." };
   if (a.id === b.id) return { ok: false, motivo: "Não dá para ligar um bloco a ele mesmo." };
-  const saida = portasDoNo(a).saidas.find((p) => p.id === de.saida);
-  const entrada = portasDoNo(b).entradas.find((p) => p.id === para.entrada);
+  const saida = portasDoNo(a, f.nos).saidas.find((p) => p.id === de.saida);
+  const entrada = portasDoNo(b, f.nos).entradas.find((p) => p.id === para.entrada);
   if (saida === undefined || entrada === undefined)
     return { ok: false, motivo: "Porta inexistente." };
   if (saida.tipo !== entrada.tipo) {
@@ -115,12 +118,26 @@ export function idNovoDeNo(nos: readonly Pick<No, "id">[]): string {
  * O fluxo sem estes nós. Os fios deles saem junto; quando o nó tem uma única saída de ordem (uma ação, um sinal, um esperar),
  * quem chegava nele passa a ligar direto no que vinha depois, para a automação continuar de pé.
  */
-export function semOsNos<T extends Pick<Fluxo, "nos" | "fios">>(f: T, ids: ReadonlySet<string>): T {
+export function semOsNos<T extends Pick<Fluxo, "nos" | "fios">>(
+  f: T,
+  ids0: ReadonlySet<string>,
+): T {
+  // AU3: apagar uma caixa apaga o que está dentro dela.
+  const ids = new Set(ids0);
+  for (let mudou = true; mudou; ) {
+    mudou = false;
+    for (const n of f.nos) {
+      if (n.em !== undefined && ids.has(n.em) && !ids.has(n.id)) {
+        ids.add(n.id);
+        mudou = true;
+      }
+    }
+  }
   let fios = f.fios;
   for (const id of ids) {
     const no = f.nos.find((n) => n.id === id);
     if (no === undefined) continue;
-    const saidas = portasDoNo(no).saidas;
+    const saidas = portasDoNo(no, f.nos).saidas;
     const unica = saidas.length === 1 && saidas[0]?.tipo === "exec" ? saidas[0].id : undefined;
     if (unica !== undefined) {
       const entram = fios.filter((x) => x.para.no === id && x.para.entrada === "entrada");
@@ -145,6 +162,54 @@ export function semOsNos<T extends Pick<Fluxo, "nos" | "fios">>(f: T, ids: Reado
 
 export const LARGURA_DO_NO = 210;
 export const ALTURA_DO_NO = 84;
+/** AU3: as medidas da caixa na grade (o desenho do editor usa as mesmas, para a arrumação e os fios não desalinharem). */
+export const LARGURA_DA_CAIXA = 250;
+/** Quanto a caixa de fora fica mais larga por cada nível de caixa dentro dela (a de dentro aparece inteira, com folga). */
+export const RECUO_DA_CAIXA = 26;
+
+/** A largura de uma caixa na grade: a base mais um recuo por nível de caixa dentro dela. */
+export function larguraDaCaixa(nos: readonly No[], n: No): number {
+  const fundo = (id: string, nivel: number): number => {
+    if (nivel > 6) return 0;
+    const filhas = nos.filter((x) => x.em === id && x.tipo === "caixa");
+    return filhas.length === 0 ? 0 : 1 + Math.max(...filhas.map((f) => fundo(f.id, nivel + 1)));
+  };
+  return LARGURA_DA_CAIXA + RECUO_DA_CAIXA * fundo(n.id, 0);
+}
+/** A margem de dentro da caixa e o vão entre o rótulo e os espaços. */
+export const MARGEM_DA_CAIXA = 6;
+export const VAO_DA_CAIXA = 4;
+/** O rótulo "E" / "OU" entre dois espaços (e o "NÃO" no alto da caixa NÃO). */
+export const ALTURA_DO_ROTULO = 22;
+/** Um espaço sem peça. */
+export const ALTURA_DO_ESPACO_VAZIO = 44;
+/** O pé da caixa E/OU, com o botão "+". */
+export const ALTURA_DO_MAIS = 24;
+export const ALTURA_DA_PECA = 40;
+
+/** A altura de um nó na grade: a de uma caixa cresce com o que tem dentro e com o número de espaços. */
+export function alturaDoNo(nos: readonly No[], n: No, fundo = 0): number {
+  if (n.tipo !== "caixa") return n.em === undefined ? ALTURA_DO_NO : ALTURA_DA_PECA;
+  const espacos = numeroDeEspacos(nos, n.id);
+  const alturas: number[] = [];
+  for (let i = 0; i < espacos; i++) {
+    const p = pecaDoEspaco(nos, n.id, i);
+    alturas.push(
+      p === undefined || fundo > 6 ? ALTURA_DO_ESPACO_VAZIO : alturaDoNo(nos, p, fundo + 1),
+    );
+  }
+  const soma = alturas.reduce((t, h) => t + h, 0);
+  if (n.config.porta === "nao")
+    return MARGEM_DA_CAIXA + ALTURA_DO_ROTULO + VAO_DA_CAIXA + soma + MARGEM_DA_CAIXA;
+  return (
+    MARGEM_DA_CAIXA +
+    soma +
+    (espacos - 1) * (ALTURA_DO_ROTULO + 2 * VAO_DA_CAIXA) +
+    VAO_DA_CAIXA +
+    ALTURA_DO_MAIS +
+    MARGEM_DA_CAIXA
+  );
+}
 const PASSO_X = 300;
 const PASSO_Y = 120;
 const MARGEM = 60;
@@ -154,17 +219,24 @@ const MARGEM = 60;
  * chama; as condições e portas lógicas ficam na coluna antes do bloco que as usa. Devolve só as posições novas.
  */
 export function organizarGrafo(f: Pick<Fluxo, "nos" | "fios">): No[] {
+  const todos = f.nos;
+  // AU3: as peças guardadas numa caixa não vão para a grade (a posição delas é da caixa).
+  const nosSoltos = todos.filter((n) => n.em === undefined);
+  const ehValor = (n: No) => ehNoDeValor(n, todos);
   const exec = f.fios.filter((x) => {
-    const de = f.nos.find((n) => n.id === x.de.no);
-    return de !== undefined && !ehNoDeValor(de);
+    const de = todos.find((n) => n.id === x.de.no);
+    return de !== undefined && !ehValor(de);
   });
   const valor = f.fios.filter((x) => {
-    const de = f.nos.find((n) => n.id === x.de.no);
-    return de !== undefined && ehNoDeValor(de);
+    const de = todos.find((n) => n.id === x.de.no);
+    return de !== undefined && ehValor(de);
   });
-  const ids = f.nos.map((n) => n.id);
+  const ids = nosSoltos.map((n) => n.id);
   const col = new Map<string, number>();
-  for (const n of f.nos) if (n.tipo === "gatilho") col.set(n.id, 0);
+  for (const n of nosSoltos) {
+    if (n.tipo === "gatilho" || (n.tipo === "caixa" && conteudoDaCaixa(todos, n.id) === "gatilho"))
+      col.set(n.id, 0);
+  }
   // A coluna é o caminho mais longo desde um gatilho; o limite de passadas impede o ciclo de rodar para sempre.
   for (let passo = 0; passo < ids.length + 1; passo++) {
     let mudou = false;
@@ -178,8 +250,8 @@ export function organizarGrafo(f: Pick<Fluxo, "nos" | "fios">): No[] {
     }
     if (!mudou) break;
   }
-  for (const n of f.nos) {
-    if (!ehNoDeValor(n) && !col.has(n.id)) col.set(n.id, 1);
+  for (const n of nosSoltos) {
+    if (!ehValor(n) && !col.has(n.id)) col.set(n.id, 1);
   }
   // Os nós de valor, uma coluna antes de quem os usa (e as portas encadeadas, mais uma antes).
   for (let passo = 0; passo < ids.length + 1; passo++) {
@@ -195,17 +267,17 @@ export function organizarGrafo(f: Pick<Fluxo, "nos" | "fios">): No[] {
     }
     if (!mudou) break;
   }
-  for (const n of f.nos) if (!col.has(n.id)) col.set(n.id, 0);
+  for (const n of nosSoltos) if (!col.has(n.id)) col.set(n.id, 0);
   const menor = Math.min(0, ...col.values());
   const linhas = new Map<number, number>();
   // Quem é de ordem vem primeiro em cada coluna (na ordem da lista); os de valor, depois.
-  const ordem = [...f.nos].sort((a, b) => Number(ehNoDeValor(a)) - Number(ehNoDeValor(b)));
+  const ordem = [...nosSoltos].sort((a, b) => Number(ehValor(a)) - Number(ehValor(b)));
   const posicao = new Map<string, { x: number; y: number }>();
   for (const n of ordem) {
     const c = (col.get(n.id) ?? 0) - menor;
-    const l = linhas.get(c) ?? 0;
-    linhas.set(c, l + 1);
-    posicao.set(n.id, { x: MARGEM + c * PASSO_X, y: MARGEM + l * PASSO_Y });
+    const y = linhas.get(c) ?? MARGEM;
+    linhas.set(c, y + Math.max(PASSO_Y, alturaDoNo(todos, n) + 36));
+    posicao.set(n.id, { x: MARGEM + c * PASSO_X, y });
   }
   return f.nos.map((n) => ({ ...n, ...(posicao.get(n.id) ?? { x: n.x, y: n.y }) }) as No);
 }

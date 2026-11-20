@@ -107,18 +107,18 @@ describe("a geometria da grade", () => {
 });
 
 describe("os erros por nó", () => {
-  it("o nome vazio é do nome; o bloco solto e a porta sem entrada são do nó", () => {
+  it("o nome vazio é do nome; o bloco solto e a caixa vazia são do nó", () => {
     const f: Fluxo = {
       ...fluxoNovo("x"),
       nos: [
         { id: "n1", tipo: "gatilho", x: 0, y: 0, config: { tipo: "botao", nome: "B" } },
-        { id: "n2", tipo: "porta", x: 0, y: 0, config: { porta: "e" } },
+        { id: "n2", tipo: "caixa", x: 0, y: 0, config: { porta: "e" } },
         { id: "n3", tipo: "esperar", x: 0, y: 0, config: { s: 5 } },
       ],
     };
     const e = errosDoFluxo(f, estadoCom([]));
     expect(e.some((x) => x.onde === "nome")).toBe(true);
-    expect(e.find((x) => x.onde === "n2")?.texto).toContain("sem entrada");
+    expect(e.find((x) => x.onde === "n2")?.texto).toContain("vazia");
     expect(e.find((x) => x.onde === "n3")?.texto).toContain("nenhum gatilho");
   });
 

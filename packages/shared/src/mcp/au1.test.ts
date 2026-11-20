@@ -167,31 +167,41 @@ describe("AU2: a automação como grafo, pelo MCP", () => {
   const ARMADILHA = {
     nome: "Armadilha",
     nos: [
+      // AU3: as portas são caixas e as peças vão dentro delas (`em`: o nome da caixa).
+      { nome: "Qualquer entrada", tipo: "caixa", config: { porta: "ou" } },
       {
         nome: "Entra na A",
         tipo: "gatilho",
+        em: "Qualquer entrada",
         config: { tipo: "zona", quando: "entra", zona: "Zona A" },
       },
       {
         nome: "Entra na B",
         tipo: "gatilho",
+        em: "Qualquer entrada",
         config: { tipo: "zona", quando: "entra", zona: "Zona B" },
       },
-      { nome: "É jogador", tipo: "condicao", config: { condicao: "tokenDeJogador" } },
-      { nome: "Não é jogador", tipo: "porta", config: { porta: "nao" } },
-      { nome: "Meia chance", tipo: "condicao", config: { condicao: "chance", chance: 0.5 } },
-      { nome: "E", tipo: "porta", config: { porta: "e" } },
+      { nome: "Todas", tipo: "caixa", config: { porta: "e" } },
+      { nome: "Não é jogador", tipo: "caixa", em: "Todas", config: { porta: "nao" } },
+      {
+        nome: "É jogador",
+        tipo: "condicao",
+        em: "Não é jogador",
+        config: { condicao: "tokenDeJogador" },
+      },
+      {
+        nome: "Meia chance",
+        tipo: "condicao",
+        em: "Todas",
+        config: { condicao: "chance", chance: 0.5 },
+      },
       { nome: "Se", tipo: "se", config: {} },
       { nome: "Cada tocha", tipo: "paraCada", config: { alvo: { tipo: "objetos", acesos: true } } },
       { nome: "Apaga", tipo: "acao", config: { acao: { acao: "objeto.apagar" } } },
     ],
     fios: [
-      { de: "Entra na A", para: "Se" },
-      { de: "Entra na B", para: "Se" },
-      { de: "É jogador", para: "Não é jogador" },
-      { de: "Não é jogador", para: "E" },
-      { de: "Meia chance", para: "E" },
-      { de: "E", para: "Se" },
+      { de: "Qualquer entrada", para: "Se" },
+      { de: "Todas", para: "Se" },
       { de: "Se", saida: "sim", para: "Cada tocha" },
       { de: "Cada tocha", saida: "corpo", para: "Apaga" },
     ],
@@ -232,18 +242,149 @@ describe("AU2: a automação como grafo, pelo MCP", () => {
     const f = sala.verdade.automacoes?.fluxos[0];
     expect(f?.nome).toBe("Armadilha");
     expect(f?.rascunho).toBe(true);
-    expect(f?.nos).toHaveLength(9);
-    expect(f?.fios).toHaveLength(8);
+    expect(f?.nos).toHaveLength(10);
+    expect(f?.fios).toHaveLength(4);
     // nomes viraram ids e cada nó ganhou um lugar na grade
     const zonaA = sala.verdade.zonas?.find((z) => z.nome === "Zona A");
     expect(JSON.stringify(f?.nos)).toContain(zonaA?.id);
-    expect(new Set(f?.nos.map((n) => `${n.x},${n.y}`)).size).toBe(9);
+    // só as peças soltas na grade ganham lugar; as de dentro das caixas ficam com a caixa
+    const soltas = f?.nos.filter((n) => n.em === undefined) ?? [];
+    expect(new Set(soltas.map((n) => `${n.x},${n.y}`)).size).toBe(5);
+    expect(f?.nos.find((n) => n.em !== undefined)?.em).toBeTruthy();
     const e = await rodar(sala, "automacoes", { explicar: { fluxo: "Armadilha" } });
     expect(e.texto).toContain("zona Zona A");
     expect(e.texto).toContain("zona Zona B");
     expect(e.texto).toContain("NÃO");
-    expect(e.texto).toContain(" E ");
+    expect(e.texto).toContain("(NÃO o token for de um jogador) e o sorteio de 50% der certo");
+    expect(e.texto).toContain("qualquer um destes acontecer");
     expect(e.texto).toContain("50%");
+  });
+
+  it("recusa o que não combina numa caixa, com o motivo", async () => {
+    const sala = await mesaComZonas();
+    const gatilhoEmTodas = await rodar(sala, "automacoes", {
+      fluxos: [
+        {
+          nome: "Errada",
+          nos: [
+            { nome: "Todas", tipo: "caixa", config: { porta: "e" } },
+            { nome: "Botão", tipo: "gatilho", em: "Todas", config: { tipo: "botao", nome: "B" } },
+            { nome: "Botão 2", tipo: "gatilho", em: "Todas", config: { tipo: "botao", nome: "C" } },
+          ],
+          fios: [],
+        },
+      ],
+    });
+    expect(gatilhoEmTodas.erro).toBe(true);
+    expect(gatilhoEmTodas.texto).toContain("use OU");
+    const acaoDentro = await rodar(sala, "automacoes", {
+      fluxos: [
+        {
+          nome: "Errada2",
+          nos: [
+            { nome: "Qualquer", tipo: "caixa", config: { porta: "ou" } },
+            {
+              nome: "Aviso",
+              tipo: "acao",
+              em: "Qualquer",
+              config: { acao: { acao: "chat.anunciar", texto: "x" } },
+            },
+          ],
+          fios: [],
+        },
+      ],
+    });
+    expect(acaoDentro.erro).toBe(true);
+    expect(automacoesDe(sala.verdade).fluxos).toEqual([]);
+  });
+
+  it('monta "a cada 3 min OU botão Combate, para cada tocha acesa, sortear 30%, apaga" com as peças dentro da caixa', async () => {
+    const sala = await mesaDoPulmao();
+    const r = await rodar(sala, "automacoes", {
+      fluxos: [
+        {
+          nome: "Tochas apagam",
+          nos: [
+            { nome: "Gatilhos", tipo: "caixa", config: { porta: "ou" } },
+            {
+              nome: "Relógio",
+              tipo: "gatilho",
+              em: "Gatilhos",
+              config: { tipo: "relogio", cadaS: 180 },
+            },
+            {
+              nome: "Combate",
+              tipo: "gatilho",
+              em: "Gatilhos",
+              config: { tipo: "botao", nome: "Combate" },
+            },
+            {
+              nome: "Cada tocha",
+              tipo: "paraCada",
+              config: { alvo: { tipo: "objetos", acesos: true } },
+            },
+            { nome: "Sorteio", tipo: "sortear", config: { chance: 0.3 } },
+            { nome: "Apaga", tipo: "acao", config: { acao: { acao: "objeto.apagar" } } },
+          ],
+          fios: [
+            { de: "Gatilhos", para: "Cada tocha" },
+            { de: "Cada tocha", saida: "corpo", para: "Sorteio" },
+            { de: "Sorteio", saida: "sim", para: "Apaga" },
+          ],
+        },
+      ],
+    });
+    expect(r.erro, r.texto).toBeFalsy();
+    const e = await rodar(sala, "automacoes", { explicar: { fluxo: "Tochas apagam" } });
+    expect(e.texto).toContain("qualquer um destes acontecer");
+    expect(e.texto).toContain("a cada 3 min");
+    expect(e.texto).toContain("Combate");
+    expect(e.texto).toContain("30%");
+  });
+
+  it("monta caixas com N espaços por nome: três gatilhos em OU e duas ações em E, com o espaço inferido", async () => {
+    const sala = await mesaDoPulmao();
+    const r = await rodar(sala, "automacoes", {
+      fluxos: [
+        {
+          nome: "Tres",
+          nos: [
+            { nome: "Gatilhos", tipo: "caixa", config: { porta: "ou" } },
+            { nome: "G1", tipo: "gatilho", em: "Gatilhos", config: { tipo: "botao", nome: "Um" } },
+            {
+              nome: "G2",
+              tipo: "gatilho",
+              em: "Gatilhos",
+              config: { tipo: "sinal", nome: "dois" },
+            },
+            { nome: "G3", tipo: "gatilho", em: "Gatilhos", config: { tipo: "turno" } },
+            { nome: "Faz tudo", tipo: "caixa", config: { porta: "e" } },
+            {
+              nome: "A1",
+              tipo: "acao",
+              em: "Faz tudo",
+              config: { acao: { acao: "chat.anunciar", texto: "primeiro" } },
+            },
+            {
+              nome: "A2",
+              tipo: "acao",
+              em: "Faz tudo",
+              config: { acao: { acao: "chat.anunciar", texto: "segundo" } },
+            },
+          ],
+          fios: [{ de: "Gatilhos", para: "Faz tudo" }],
+        },
+      ],
+    });
+    expect(r.erro, r.texto).toBeFalsy();
+    const f = sala.verdade.automacoes?.fluxos[0];
+    const caixaOu = f?.nos.find((n) => n.nome === "Gatilhos");
+    expect(caixaOu?.tipo === "caixa" && caixaOu.config.espacos).toBe(3);
+    expect(f?.nos.filter((n) => n.em === caixaOu?.id).map((n) => n.espaco)).toEqual([0, 1, 2]);
+    const e = await rodar(sala, "automacoes", { explicar: { fluxo: "Tres" } });
+    expect(e.texto).toContain("qualquer um destes acontecer");
+    expect(e.texto).toContain("avisa no chat: “primeiro”");
+    expect(e.texto).toContain("avisa no chat: “segundo”");
   });
 
   it("os erros do grafo vêm em português, com o nome do nó", async () => {
@@ -341,7 +482,18 @@ describe("o guia das automações", () => {
     const texto = await guia();
     for (const tipo of TIPOS_DE_NO) expect(texto, `nó "${tipo}"`).toContain(`"tipo":"${tipo}"`);
     for (const porta of PORTAS_LOGICAS) expect(texto, `porta "${porta}"`).toContain(`"${porta}"`);
-    for (const palavra of ["fios", "OU", "paralelo", "entradas", "condicao", "depois", "corpo"]) {
+    for (const palavra of [
+      "fios",
+      "OU",
+      "paralelo",
+      "espaço",
+      "sorteia",
+      "NÃO",
+      "caixa",
+      "condicao",
+      "depois",
+      "corpo",
+    ]) {
       expect(texto).toContain(palavra);
     }
   });

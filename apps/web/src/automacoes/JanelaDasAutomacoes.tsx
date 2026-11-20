@@ -13,6 +13,10 @@ type Props = {
   aoFechar: () => void;
   /** Abre o editor numa janela própria do navegador, na hora (`null`: uma automação nova). O editor nunca vive aqui. */
   aoEditar: (fluxoId: string | null) => void;
+  /** AU3: abre o editor de uma automação nova já com o tour. */
+  aoEditarComTour: () => void;
+  /** AU3: o tour abre sozinho (a primeira vez que o mestre abre o centro de automações). */
+  tourAutomatico: boolean;
   /** Abre a mesa de eventos (os botões das automações), como a mesa de som. */
   aoAbrirMesaDeEventos: () => void;
 };
@@ -44,6 +48,8 @@ export function JanelaDasAutomacoes(p: Props) {
         enviar={p.enviar}
         salaMs={p.salaMs}
         aoEditar={p.aoEditar}
+        aoEditarComTour={p.aoEditarComTour}
+        tourAutomatico={p.tourAutomatico}
         aoAbrirMesaDeEventos={p.aoAbrirMesaDeEventos}
       />
     </Janela>

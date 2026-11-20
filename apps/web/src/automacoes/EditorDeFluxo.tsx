@@ -1,5 +1,10 @@
 import {
+  adicionarEspaco,
+  agruparGatilhos,
+  alternarCaixa,
   automacoesDe,
+  conflitoDaCaixa,
+  type DestinoNaCaixa,
   type Estado,
   type Fio,
   type Fluxo,
@@ -7,11 +12,14 @@ import {
   fraseDoFluxo,
   type Gatilho,
   idNovoDeNo,
+  moverPeca,
   type No,
   nomesDaMesa,
   organizarGrafo,
+  removerEspaco,
+  reordenarPeca,
 } from "@tabletop/shared";
-import { ArrowLeft, Braces, LayoutGrid, Play, Save, Undo2 } from "lucide-react";
+import { ArrowLeft, Braces, GraduationCap, LayoutGrid, Play, Save, Undo2 } from "lucide-react";
 import {
   type DragEvent,
   type KeyboardEvent,
@@ -25,6 +33,7 @@ import type { Fontes } from "../assets/fontes";
 import { BotaoComDica } from "../BotaoComDica";
 import type { SomEscolhido } from "../som/EscolherSom";
 import {
+  arrastandoPeca,
   COR_DO_GRUPO,
   errosDoFluxo,
   fluxoNovo,
@@ -35,11 +44,19 @@ import {
   SEM_SELECAO,
   type Selecao,
 } from "./blocos";
-import { CanvasDoGrafo, type ManejoDoCanvas } from "./CanvasDoGrafo";
+import { CanvasDoGrafo, type DestinoDaPeca, type ManejoDoCanvas } from "./CanvasDoGrafo";
 import { VistaJson } from "./Editor";
 import { type ErroDeCampo, errosEmPortugues } from "./erros";
 import { PainelDaAutomacao, PainelDoBloco } from "./PainelDoBloco";
+import {
+  marcarTourDasAutomacoesVisto,
+  nomeDoExemploDoTour,
+  type PassoDoTourDasAutomacoes,
+  passosDoEditor,
+  podeMontarOExemplo,
+} from "./passosDoTour";
 import { idDoNome } from "./rascunho";
+import { TourDasAutomacoes } from "./TourDasAutomacoes";
 
 type Enviar = (tipo: string, dados: object) => string | null;
 
@@ -50,6 +67,8 @@ export type PropsDoEditor = {
   fluxoId: string | null;
   /** O gatilho com que a automação nova nasce (a zona que pediu "+ automação para esta zona"). */
   gatilhoInicial?: Gatilho | undefined;
+  /** AU3: abre já com o tour das automações. */
+  tour?: boolean | undefined;
   fontes: Fontes | null;
   registrarSom: ((arquivo: File) => Promise<SomEscolhido>) | null;
   aoVoltar: () => void;
@@ -82,6 +101,10 @@ export function EditorDeFluxo(p: PropsDoEditor) {
   const painel = useRef<HTMLElement>(null);
   const area = useRef<HTMLDivElement>(null);
   const copiados = useRef<{ nos: No[]; fios: Fio[]; vezes: number } | null>(null);
+  // AU3: o tour das automações (os passos são escolhidos ao abrir: o exemplo só se monta numa automação nova e vazia).
+  const [passosDoTour, setPassosDoTour] = useState<readonly PassoDoTourDasAutomacoes[] | null>(
+    () => (p.tour === true ? passosDoEditor(podeMontarOExemplo(rascunho)) : null),
+  );
   const inicioDoGesto = useRef<Fluxo | null>(null);
 
   const nomes = useMemo(() => nomesDaMesa(estado), [estado]);
@@ -151,6 +174,82 @@ export function EditorDeFluxo(p: PropsDoEditor) {
     }
   }
 
+  /**
+   * AU3: soltou uma peça numa caixa, de volta na grade, ou em cima de outro gatilho (cria um OU). Devolve o motivo
+   * da recusa, ou `null`. Numa recusa, o desenho volta ao que era antes do arrasto.
+   */
+  function encaixar(id: string, destino: DestinoDaPeca): string | null {
+    const base = inicioDoGesto.current ?? rascunhoRef.current;
+    inicioDoGesto.current = null;
+    let novo: Fluxo;
+    let escolher = id;
+    if (destino.tipo === "agrupar") {
+      const g = agruparGatilhos(base, id, destino.alvo);
+      if (!g.ok) {
+        setRascunho(base);
+        return g.motivo;
+      }
+      novo = g.fluxo;
+      escolher = g.caixa;
+    } else {
+      const r =
+        destino.tipo === "caixa"
+          ? moverPeca(
+              base,
+              id,
+              destino.caixa,
+              "inserirEm" in destino
+                ? { inserirEm: destino.inserirEm }
+                : { espaco: destino.espaco },
+            )
+          : moverPeca(base, id, null, { x: destino.x, y: destino.y });
+      if (!r.ok) {
+        setRascunho(base);
+        return r.motivo;
+      }
+      novo = r.fluxo;
+    }
+    setHistorico((h) => [...h.slice(-49), base]);
+    setRascunho(novo);
+    setAviso(null);
+    setSelecao({ nos: [escolher], fio: null });
+    return null;
+  }
+
+  /** AU3: soltou uma peça nova da paleta dentro de uma caixa. */
+  function pecaNaCaixa(peca: Peca, caixa: string, destino: DestinoNaCaixa): string | null {
+    const f = rascunhoRef.current;
+    const no = nosNovo(peca, 0, 0);
+    const r = moverPeca({ ...f, nos: [...f.nos, no] }, no.id, caixa, destino);
+    if (!r.ok) return r.motivo;
+    mudar(r.fluxo);
+    setSelecao({ nos: [no.id], fio: null });
+    return null;
+  }
+
+  /** AU3: o rótulo E/OU foi clicado: troca a caixa inteira, se as peças de dentro combinam com a nova. */
+  function alternarCaixaNoEditor(id: string) {
+    const r = alternarCaixa(rascunhoRef.current, id);
+    if (r.ok) mudar(r.fluxo);
+    else setAviso(r.motivo);
+  }
+  function adicionarEspacoNoEditor(id: string) {
+    const r = adicionarEspaco(rascunhoRef.current, id);
+    if (r.ok) mudar(r.fluxo);
+    else setAviso(r.motivo);
+  }
+  function removerEspacoNoEditor(id: string, espaco: number) {
+    const r = removerEspaco(rascunhoRef.current, id, espaco);
+    if (r.ok) mudar(r.fluxo);
+    else setAviso(r.motivo);
+  }
+
+  function reordenar(id: string, delta: -1 | 1) {
+    const f = rascunhoRef.current;
+    const novo = reordenarPeca(f, id, delta);
+    if (novo !== f) mudar(novo);
+  }
+
   function ligar(de: Fio["de"], para: Fio["para"]) {
     const f = rascunhoRef.current;
     mudar({ ...f, fios: [...f.fios, { de, para }] });
@@ -170,7 +269,7 @@ export function EditorDeFluxo(p: PropsDoEditor) {
       return;
     }
     if (selecao.nos.length === 0) return;
-    const ids = new Set(selecao.nos);
+    const ids = comOQueTemDentro(f.nos, selecao.nos);
     mudar({
       ...f,
       nos: f.nos.filter((n) => !ids.has(n.id)),
@@ -181,7 +280,7 @@ export function EditorDeFluxo(p: PropsDoEditor) {
 
   function copiar() {
     const f = rascunhoRef.current;
-    const ids = new Set(selecao.nos);
+    const ids = comOQueTemDentro(f.nos, selecao.nos);
     if (ids.size === 0) return;
     copiados.current = {
       nos: structuredClone(f.nos.filter((n) => ids.has(n.id))),
@@ -201,6 +300,15 @@ export function EditorDeFluxo(p: PropsDoEditor) {
       const id = idNovoDeNo([...f.nos, ...novos]);
       mapa.set(n.id, id);
       novos.push({ ...structuredClone(n), id, x: n.x + 36 * c.vezes, y: n.y + 36 * c.vezes } as No);
+    }
+    // AU3: a peça copiada sem a caixa dela cai solta na grade; com a caixa, continua dentro da cópia.
+    for (const n of novos) {
+      if (n.em === undefined) continue;
+      const nova = mapa.get(n.em);
+      if (nova === undefined) {
+        delete n.em;
+        delete n.espaco;
+      } else n.em = nova;
     }
     const fios = c.fios.flatMap((x): Fio[] => {
       const de = mapa.get(x.de.no);
@@ -224,7 +332,16 @@ export function EditorDeFluxo(p: PropsDoEditor) {
 
   function trocarNo(novo: No) {
     const f = rascunhoRef.current;
-    mudar({ ...f, nos: f.nos.map((n) => (n.id === novo.id ? novo : n)) });
+    const nos = f.nos.map((n) => (n.id === novo.id ? novo : n));
+    // AU3: trocar o tipo da caixa (E, OU, NÃO) só vale se as peças de dentro combinam com o novo.
+    if (novo.tipo === "caixa") {
+      const motivo = conflitoDaCaixa(nos, novo.id);
+      if (motivo !== null) {
+        setAviso(motivo);
+        return;
+      }
+    }
+    mudar({ ...f, nos });
   }
 
   function teclado(e: KeyboardEvent) {
@@ -274,9 +391,20 @@ export function EditorDeFluxo(p: PropsDoEditor) {
       const dy = e.key === "ArrowUp" ? -passo : e.key === "ArrowDown" ? passo : 0;
       const ids = new Set(selecao.nos);
       const f = rascunhoRef.current;
+      // Alt + seta para cima ou para baixo muda a ordem de uma peça dentro da caixa (AU3).
+      const unico =
+        selecao.nos.length === 1 ? f.nos.find((n) => n.id === selecao.nos[0]) : undefined;
+      if (e.altKey && unico?.em !== undefined && dy !== 0) {
+        reordenar(unico.id, dy < 0 ? -1 : 1);
+        e.preventDefault();
+        return;
+      }
+      // (a peça guardada numa caixa não anda pela grade)
       mudar({
         ...f,
-        nos: f.nos.map((n) => (ids.has(n.id) ? { ...n, x: n.x + dx, y: n.y + dy } : n)),
+        nos: f.nos.map((n) =>
+          ids.has(n.id) && n.em === undefined ? { ...n, x: n.x + dx, y: n.y + dy } : n,
+        ),
       });
       e.preventDefault();
     }
@@ -284,37 +412,62 @@ export function EditorDeFluxo(p: PropsDoEditor) {
 
   // --- Salvar, testar ---
 
-  function salvar(): string | null {
+  function salvar(f: Fluxo = rascunho): string | null {
     setTentou(true);
-    if (erros.length > 0) {
+    const problemas = f === rascunho ? erros : errosDoFluxo(f, estado);
+    if (problemas.length > 0) {
       setAviso(
-        erros.length === 1
+        problemas.length === 1
           ? "Corrija este ponto para salvar."
-          : `Corrija estes ${erros.length} pontos para salvar.`,
+          : `Corrija estes ${problemas.length} pontos para salvar.`,
       );
       return null;
     }
-    let id = idNovo.current ?? rascunho.id;
+    let id = idNovo.current ?? f.id;
     if (!jaCriado.current) {
       if (idNovo.current === null) {
-        idNovo.current = idDoNome(rascunho.nome, new Set(a.fluxos.map((f) => f.id)), "automacao");
+        idNovo.current = idDoNome(f.nome, new Set(a.fluxos.map((x) => x.id)), "automacao");
       }
       id = idNovo.current;
       // (o que `enviar` devolve é o id do pedido, não um erro: a recusa da sala chega pelo aviso da mesa)
-      p.enviar("fluxo.criar", { fluxo: { ...rascunho, id } });
+      p.enviar("fluxo.criar", { fluxo: { ...f, id } });
       jaCriado.current = true;
     } else {
-      const { id: _id, ...resto } = rascunho;
+      const { id: _id, ...resto } = f;
       p.enviar("fluxo.editar", {
         id,
         mudancas: {
           ...resto,
-          fixado: rascunho.fixado ?? false,
-          liberadoParaJogadores: rascunho.liberadoParaJogadores ?? false,
+          fixado: f.fixado ?? false,
+          liberadoParaJogadores: f.liberadoParaJogadores ?? false,
         },
       });
     }
     return id;
+  }
+
+  /** AU3: o fim do tour. "Concluir" guarda o exemplo desligado; "Ligar agora" guarda e liga; "Apagar o exemplo" descarta. */
+  function fecharOTour(concluido: boolean, acao?: "ligar" | "concluir") {
+    marcarTourDasAutomacoesVisto();
+    setPassosDoTour(null);
+    if (!concluido || acao !== "concluir") return;
+    const f = rascunhoRef.current;
+    salvar({ ...f, nome: f.nome === "" ? nomeDoExemploDoTour : f.nome, ligado: false });
+  }
+  function ligarOExemploAgora() {
+    const f = rascunhoRef.current;
+    const ligada = { ...f, nome: f.nome === "" ? nomeDoExemploDoTour : f.nome, ligado: true };
+    mudar(ligada);
+    marcarTourDasAutomacoesVisto();
+    setPassosDoTour(null);
+    salvar(ligada);
+  }
+  function apagarOExemplo() {
+    marcarTourDasAutomacoesVisto();
+    setPassosDoTour(null);
+    if (jaCriado.current)
+      p.enviar("fluxo.apagar", { id: idNovo.current ?? rascunhoRef.current.id });
+    p.aoVoltar();
   }
 
   function salvarEFechar() {
@@ -353,6 +506,7 @@ export function EditorDeFluxo(p: PropsDoEditor) {
   function aoComecarAArrastarPeca(e: DragEvent, peca: Peca) {
     e.dataTransfer.setData("text/x-peca", peca.id);
     e.dataTransfer.effectAllowed = "copy";
+    arrastandoPeca.atual = peca;
   }
 
   return (
@@ -388,6 +542,14 @@ export function EditorDeFluxo(p: PropsDoEditor) {
           <span className="ed-ligada-texto">{rascunho.ligado ? "Ligada" : "Desligada"}</span>
         </button>
         <div className="ed-espaco" />
+        <BotaoComDica
+          className="ed-acao"
+          testid="ed-conhecer"
+          nome="Conhecer as automações (um passeio pelas peças)"
+          onClick={() => setPassosDoTour(passosDoEditor(podeMontarOExemplo(rascunhoRef.current)))}
+        >
+          <GraduationCap size={14} aria-hidden /> Conhecer as automações
+        </BotaoComDica>
         <BotaoComDica
           className="ed-acao"
           testid="ed-organizar"
@@ -453,7 +615,7 @@ export function EditorDeFluxo(p: PropsDoEditor) {
             Arraste para a grade, ou clique. Duplo clique na grade busca.
           </p>
           {GRUPOS_DE_PECA.map((g) => (
-            <div key={g} className="ed-grupo-de-pecas">
+            <div key={g} className="ed-grupo-de-pecas" data-testid={`ed-grupo-${g}`}>
               <div className="ed-grupo-titulo" style={{ color: COR_DO_GRUPO[g] }}>
                 {ROTULO_DO_GRUPO[g]}
               </div>
@@ -465,6 +627,9 @@ export function EditorDeFluxo(p: PropsDoEditor) {
                   data-testid={`ed-peca-${peca.id}`}
                   draggable
                   onDragStart={(e) => aoComecarAArrastarPeca(e, peca)}
+                  onDragEnd={() => {
+                    arrastandoPeca.atual = null;
+                  }}
                   onClick={() => pecaPorClique(peca)}
                 >
                   <span className="ed-ponto" style={{ background: COR_DO_GRUPO[g] }} aria-hidden />
@@ -485,6 +650,12 @@ export function EditorDeFluxo(p: PropsDoEditor) {
           aoMoverNos={moverNos}
           aoLigar={ligar}
           aoPecaNaGrade={pecaNaGrade}
+          aoEncaixar={encaixar}
+          aoPecaNaCaixa={pecaNaCaixa}
+          aoReordenar={reordenar}
+          aoAlternarCaixa={alternarCaixaNoEditor}
+          aoAdicionarEspaco={adicionarEspacoNoEditor}
+          aoRemoverEspaco={removerEspacoNoEditor}
           aoAviso={setAviso}
           manejo={canvas}
         />
@@ -559,8 +730,34 @@ export function EditorDeFluxo(p: PropsDoEditor) {
       <footer className="ed-frase" data-testid="ed-frase-caixa">
         <b>Em português:</b> <span data-testid="ed-frase">{frase}</span>
       </footer>
+      {passosDoTour !== null && (
+        <TourDasAutomacoes
+          passos={passosDoTour}
+          fluxo={rascunho}
+          aoMudarFluxo={mudar}
+          aoEscolher={(id) => setSelecao(id === undefined ? SEM_SELECAO : { nos: [id], fio: null })}
+          aoEnquadrar={() => canvas.current?.ajustar()}
+          aoFechar={fecharOTour}
+          fim={{ ligarAgora: ligarOExemploAgora, apagarOExemplo }}
+        />
+      )}
     </div>
   );
+}
+
+/** Os ids escolhidos mais tudo o que está dentro das caixas escolhidas. */
+function comOQueTemDentro(nos: readonly No[], ids: readonly string[]): Set<string> {
+  const todos = new Set(ids);
+  for (let mudou = true; mudou; ) {
+    mudou = false;
+    for (const n of nos) {
+      if (n.em !== undefined && todos.has(n.em) && !todos.has(n.id)) {
+        todos.add(n.id);
+        mudou = true;
+      }
+    }
+  }
+  return todos;
 }
 
 const nomeDoNo = (f: Fluxo, id: string): string => {

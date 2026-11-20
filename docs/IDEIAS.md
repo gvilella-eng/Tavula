@@ -222,3 +222,10 @@ git).
 - **Miniatura de mapa em pedaços e de som** (hoje o ícone do tipo).
 - **Encaixe opcional da imagem solta no grid** (hoje ela anda livre) e **rótulo da imagem** no mapa.
 - **Reabrir o arquivo original do disco** ("subi, ainda está aqui") só valeria com o File System Access API guardando o arquivo de verdade: o ganho sobre o cache é pequeno, ver `PROJETO.md` 4.17.
+
+## Depois das caixas lógicas e do tour (AU3, 2026-11-20)
+
+- **Minimapa** da grade (continua aqui) e **soltar um fio no vazio** para criar o nó ali.
+- **Copiar uma caixa com o que tem dentro** entre automações; **arrastar uma condição direto para o "Se"** (cria a ligação).
+- **Reabrir o tour no editor que já estava aberto** (hoje o botão do próprio editor serve); um tour curto para o jogador (a mesa de eventos).
+- **"Caixa vazia" com mais tipos de peça** (esperar, sortear e "se" dentro de uma caixa de ação) e um rótulo "mais ou menos" (a caixa de ação OU com pesos, em vez de 50/50).

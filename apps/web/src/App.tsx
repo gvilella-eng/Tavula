@@ -7,6 +7,7 @@ import {
   type UsuarioDaEntrada,
   usuarioDaSessao,
 } from "./api";
+import { tourDasAutomacoesAbreSozinho } from "./automacoes/passosDoTour";
 import { Logo } from "./Logo";
 import { lembrarMesa } from "./mesasLocais";
 import { irPara, lerRota, type Rota, tituloDaMesa, useRota } from "./rotas";
@@ -200,6 +201,7 @@ function MesaEncontrada({
           mesa={mesa}
           login={usuario.login}
           tourAutomatico={tourAbreSozinho(usuario)}
+          tourDasAutomacoes={tourDasAutomacoesAbreSozinho(usuario)}
           aoSair={aoSair}
           aoPerderSessao={aoPerderSessao}
           aoTrocarDeMesa={voltarAoInicio}

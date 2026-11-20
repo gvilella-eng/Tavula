@@ -9186,3 +9186,295 @@ button.chamada-linha:hover {
 .asset-aviso p {
   margin: 0 0 6px;
 }
+
+/* AU3: as portas lógicas viram caixas na grade (E, OU, NÃO), como os blocos do Scratch na vertical: espaços um em cima do outro,
+   com o rótulo E/OU entre cada par e um "+" no pé. A cor e a borda são as do que sai da caixa (gatilho, condição, ação). */
+.ed-no.ed-caixa-logica {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  padding: 5px 8px 5px 4px;
+  cursor: move;
+}
+.ed-no.ed-caixa-logica[data-saida="valor"] {
+  border-radius: 18px;
+}
+.ed-no.ed-caixa-logica.aninhada {
+  position: relative;
+  flex: none;
+  width: 100%;
+  background: var(--fundo-mesa);
+  border: 1px solid var(--cor-do-grupo);
+  border-left-width: 5px;
+  border-radius: 10px;
+  box-shadow: none;
+}
+.ed-no.ed-caixa-logica.aninhada[data-saida="valor"] {
+  border-radius: 16px;
+}
+.ed-espaco {
+  position: relative;
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  justify-content: center;
+  box-sizing: border-box;
+  border-radius: 8px;
+}
+.ed-espaco[data-vazio="sim"] {
+  align-items: center;
+  padding: 0 22px 0 8px;
+  background: var(--fundo-mesa);
+  border: 1px dashed var(--borda);
+}
+.ed-espaco-dica {
+  font-size: 11px;
+  line-height: 1.25;
+  text-align: center;
+  color: var(--texto-suave);
+  pointer-events: none;
+}
+.ed-espaco-x {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  display: inline-flex;
+  padding: 2px;
+  color: var(--texto-suave);
+  background: transparent;
+  border: 0;
+  border-radius: 50%;
+}
+.ed-espaco-x:hover {
+  color: var(--perigo);
+}
+.ed-caixa-separador {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  height: 22px;
+  border-radius: 6px;
+}
+.ed-caixa-rotulo {
+  min-width: 44px;
+  height: 22px;
+  padding: 0 14px;
+  font-family: var(--fonte-titulo);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 20px;
+  color: var(--cor-do-grupo);
+  text-align: center;
+  background: var(--painel);
+  border: 1px solid var(--cor-do-grupo);
+  border-radius: 11px;
+  cursor: pointer;
+}
+.ed-caixa-rotulo.nao {
+  display: block;
+  flex: none;
+  align-self: flex-start;
+  box-sizing: border-box;
+  cursor: move;
+  pointer-events: none;
+}
+.ed-caixa-pe {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  height: 24px;
+  border-radius: 6px;
+}
+.ed-caixa-mais {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 20px;
+  padding: 0;
+  color: var(--texto-suave);
+  background: transparent;
+  border: 1px dashed var(--borda);
+  border-radius: 10px;
+}
+.ed-caixa-mais:hover:not(:disabled) {
+  color: var(--cor-do-grupo);
+  border-color: var(--cor-do-grupo);
+}
+.ed-caixa-mais:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.ed-no-dentro {
+  position: relative;
+  display: flex;
+  flex: none;
+  align-items: center;
+  box-sizing: border-box;
+  height: 40px;
+  padding: 2px 10px 2px 12px;
+  overflow: visible;
+  text-align: left;
+  user-select: none;
+  cursor: move;
+  background: var(--fundo-mesa);
+  border: 1px solid var(--borda);
+  border-left: 4px solid var(--cor-do-grupo, var(--borda));
+  border-radius: 8px;
+}
+.ed-no-dentro:hover {
+  border-color: var(--acento-forte);
+  border-left-color: var(--cor-do-grupo, var(--acento-forte));
+}
+.ed-no-dentro[aria-pressed="true"] {
+  background: var(--acento-suave);
+  outline: 2px solid var(--acento-forte);
+  outline-offset: 1px;
+}
+.ed-no-dentro[aria-invalid="true"] {
+  border-color: var(--perigo);
+  border-left-color: var(--perigo);
+}
+.ed-no-dentro .ed-no-texto {
+  flex: 1;
+}
+.ed-no-alerta.dentro {
+  top: -6px;
+  right: -6px;
+}
+/* o lugar onde a peça cai: o espaço (verde) ou a faixa entre dois espaços / no pé (um espaço novo); vermelho se não cabe */
+.ed-espaco[data-solta="ok"] {
+  outline: 2px solid var(--sucesso);
+  outline-offset: 1px;
+}
+.ed-espaco[data-solta="recusa"] {
+  outline: 2px dashed var(--perigo);
+  outline-offset: 1px;
+}
+.ed-caixa-separador[data-solta="ok"],
+.ed-caixa-pe[data-solta="ok"] {
+  background: var(--sucesso);
+}
+.ed-caixa-separador[data-solta="recusa"],
+.ed-caixa-pe[data-solta="recusa"] {
+  background: var(--perigo);
+}
+.ed-caixa-logica[data-solta="recusa"] {
+  cursor: not-allowed;
+}
+.ed-solta-dica {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 5;
+  padding: 4px 8px;
+  font-size: 12px;
+  line-height: 1.3;
+  color: var(--perigo);
+  background: var(--painel);
+  border: 1px solid var(--perigo);
+  border-radius: 6px;
+  pointer-events: none;
+}
+.ed-no[data-agrupar="sim"] {
+  outline: 2px dashed var(--acento-forte);
+  outline-offset: 3px;
+}
+.ed-no[data-arrastando],
+.ed-no-dentro[data-arrastando] {
+  opacity: 0.55;
+  pointer-events: none;
+}
+.ed-fantasma {
+  position: fixed;
+  z-index: 30;
+  max-width: 220px;
+  padding: 4px 10px;
+  overflow: hidden;
+  font-size: 12.5px;
+  color: var(--texto);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: var(--painel);
+  border: 1px solid var(--acento-forte);
+  border-radius: 8px;
+  box-shadow: 0 6px 18px var(--sombra);
+  pointer-events: none;
+}
+.ed-menu-motivo {
+  font-size: 11px;
+  color: var(--texto-suave);
+}
+.ed-menu-item[aria-disabled="true"] {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* AU3: o tour do centro de automações (não modal nos passos de "fazer": a pessoa arrasta e liga com a tela livre). */
+.tour-livre {
+  pointer-events: none;
+}
+.tour-livre .tour-veu,
+.tour-livre .tour-cartao {
+  pointer-events: auto;
+}
+.tour-anel {
+  position: absolute;
+  border-radius: 10px;
+  outline: 3px solid var(--acento);
+  outline-offset: 0;
+  box-shadow: 0 0 0 5px var(--acento-suave);
+  pointer-events: none;
+}
+.tour-anel.suave {
+  outline-width: 2px;
+  outline-style: dashed;
+  box-shadow: none;
+  opacity: 0.8;
+}
+.tour-seta {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+.tour-seta-linha {
+  fill: none;
+  stroke: var(--acento);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-dasharray: 2 7;
+}
+.tour-seta-ponta {
+  fill: var(--acento);
+}
+.tour-feito {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: -4px 0 10px;
+  font-size: 12.5px;
+  color: var(--texto-suave);
+}
+.tour-feito[data-feito="sim"] {
+  color: var(--sucesso);
+}
+.tour-acoes-fim {
+  margin-top: 8px;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .tour-anel {
+    transition:
+      left 140ms ease-out,
+      top 140ms ease-out,
+      width 140ms ease-out,
+      height 140ms ease-out;
+  }
+}

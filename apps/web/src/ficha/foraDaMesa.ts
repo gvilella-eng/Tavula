@@ -228,6 +228,8 @@ export function abrirAutomacaoEmJanela(
   fluxoId: string | null,
   medidaPadrao: MedidaDaJanela,
   gatilho?: object,
+  /** AU3: a janela nova abre já com o tour das automações (uma janela que já estava aberta só vem para a frente). */
+  tour?: boolean,
 ): boolean {
   const id = idDaJanelaDaAutomacao(fluxoId);
   const medida = lerMedidaGuardada(mesaId, id) ?? medidaPadrao;
@@ -247,7 +249,7 @@ export function abrirAutomacaoEmJanela(
   } catch {
     // outra origem: a janela existe e já tem conteúdo
   }
-  if (nova) janela.location.href = caminhoDaAutomacao(mesaId, fluxoId, gatilho);
+  if (nova) janela.location.href = caminhoDaAutomacao(mesaId, fluxoId, gatilho, tour);
   try {
     janela.focus();
   } catch {

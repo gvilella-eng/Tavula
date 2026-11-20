@@ -3,11 +3,14 @@ import {
   type AcaoDeFluxo,
   type AlvoDoParaCada,
   type CondicaoDoSe,
+  conteudoDaCaixa,
   ehNoDeValor,
   type Fluxo,
   type Gatilho,
   type No,
   type NoDe,
+  noDosFios,
+  pecasDaCaixa,
 } from "./fluxos.ts";
 
 // ---------------------------------------------------------------------------------------------
@@ -233,32 +236,47 @@ type Grafo = {
   porId: Map<string, No>;
 };
 
-const sucessores = (g: Grafo, id: string, porta?: string): No[] =>
-  g.f.fios
-    .filter((x) => x.de.no === id && (porta === undefined || x.de.saida === porta))
+const sucessores = (g: Grafo, id: string, porta?: string): No[] => {
+  // AU3: o gatilho dentro de uma caixa segue os fios da caixa.
+  const origem = noDosFios(g.f.nos, id);
+  return g.f.fios
+    .filter((x) => x.de.no === origem && (porta === undefined || x.de.saida === porta))
     .flatMap((x) => {
       const no = g.porId.get(x.para.no);
-      return no === undefined || ehNoDeValor(no) ? [] : [no];
+      return no === undefined || ehNoDeValor(no, g.f.nos) ? [] : [no];
     });
+};
 
 /** Uma condição, uma porta lógica ou uma cadeia delas, como texto ("o token for de um jogador E o sorteio de 50% der certo"). */
 function textoDoValor(g: Grafo, id: string, quem: Quem, pilha: ReadonlySet<string>): string {
   const no = g.porId.get(id);
   if (no === undefined || pilha.has(id)) return "…";
   if (no.tipo === "condicao") return textoDaCondicao(no.config, quem, g.n);
-  if (no.tipo !== "porta") return "…";
-  const entradas = g.f.fios
-    .filter((x) => x.para.no === id)
-    .flatMap((x) => (g.porId.get(x.de.no) ? [x.de.no] : []));
+  if (no.tipo !== "caixa") return "…";
+  const entradas = pecasDaCaixa(g.f.nos, id).map((x) => x.id);
   const depois = new Set([...pilha, id]);
   const operando = (e: string): string => {
     const t = textoDoValor(g, e, quem, depois);
-    return g.porId.get(e)?.tipo === "porta" ? `(${t})` : t;
+    return g.porId.get(e)?.tipo === "caixa" ? `(${t})` : t;
   };
   if (entradas.length === 0) return "…";
   if (no.config.porta === "nao") return `NÃO ${operando(entradas[0] as string)}`;
-  const juntador = no.config.porta === "e" ? " E " : " OU ";
-  return entradas.map(operando).join(juntador);
+  // AU3: a caixa E ou OU junta os espaços com "e" ou "ou" ("a e b e c"); a caixa dentro de caixa vai entre parênteses.
+  return entradas.map(operando).join(no.config.porta === "e" ? " e " : " ou ");
+}
+
+/** Uma peça de ação (ou a caixa de ação) em pedaços de frase: "E" faz as duas coisas, "OU" sorteia uma. */
+function pedacosDaPecaDeAcao(g: Grafo, no: No, quem: Quem): Pedaco[] {
+  if (no.tipo === "acao") return [pedacoDaAcao(no.config.acao, quem, g.n)];
+  if (no.tipo === "sinal")
+    return [{ sujeito: null, predicado: `manda o sinal ${aspas(no.config.nome)}` }];
+  if (no.tipo !== "caixa") return [];
+  const filhas = pecasDaCaixa(g.f.nos, no.id);
+  if (no.config.porta === "e") return filhas.flatMap((x) => pedacosDaPecaDeAcao(g, x, quem));
+  const opcoes = filhas.map((x) => juntar(pedacosDaPecaDeAcao(g, x, quem)));
+  return [
+    { sujeito: null, predicado: `sorteia uma destas: ${opcoes.map((t) => `(${t})`).join(" ou ")}` },
+  ];
 }
 
 /** Os nós de ordem que se alcança a partir de `inicios` (largura primeiro). */
@@ -303,7 +321,7 @@ function textoDaCadeia(p0: Passo, inicio: string): string {
   let id: string | undefined = inicio;
   while (id !== undefined) {
     const no = g.porId.get(id);
-    if (no === undefined || ehNoDeValor(no) || p0.parar.has(id)) break;
+    if (no === undefined || ehNoDeValor(no, g.f.nos) || p0.parar.has(id)) break;
     if (pilha.has(id)) {
       atual().pedacos.push({ sujeito: null, predicado: "volta a repetir" });
       break;
@@ -322,6 +340,10 @@ function textoDaCadeia(p0: Passo, inicio: string): string {
     };
     switch (no.tipo) {
       case "gatilho":
+        continuar("saida");
+        break;
+      case "caixa":
+        atual().pedacos.push(...pedacosDaPecaDeAcao(g, no, p0.quem));
         continuar("saida");
         break;
       case "esperar":
@@ -402,10 +424,35 @@ export function fraseDoFluxo(f: Pick<Fluxo, "nos" | "fios" | "cenas">, n: NomesP
   const g: Grafo = { f, n, porId: new Map(f.nos.map((x) => [x.id, x])) };
   const gatilhos = f.nos.filter((x): x is NoDe<"gatilho"> => x.tipo === "gatilho");
   if (gatilhos.length === 0) return "Sem gatilho ainda: não roda.";
-  const cabeca = gatilhos
+  // AU3: a caixa de gatilho vira "Quando qualquer um destes acontecer (a, ou b)" (OU) ou "a, mas só se c" (gatilho E condição). Só
+  // entram na cabeça as peças de fora (um gatilho solto ou uma caixa solta); o que está dentro de uma caixa aparece nela.
+  const ehPecaDeGatilho = (x: No): boolean =>
+    x.tipo === "gatilho" || (x.tipo === "caixa" && conteudoDaCaixa(f.nos, x.id) === "gatilho");
+  const folhas = (x: No): number =>
+    x.tipo === "gatilho"
+      ? 1
+      : pecasDaCaixa(f.nos, x.id)
+          .filter(ehPecaDeGatilho)
+          .reduce((t, y) => t + folhas(y), 0);
+  const textoDeGatilho = (x: No): string => {
+    if (x.tipo === "gatilho") return minuscula(fraseDoGatilho(x.config, n));
+    if (x.tipo !== "caixa") return "…";
+    const dentro = pecasDaCaixa(f.nos, x.id);
+    const gat = dentro.filter(ehPecaDeGatilho).map(textoDeGatilho);
+    if (x.config.porta === "ou") return gat.join(", ou ");
+    const condicoes = dentro
+      .filter((y) => !ehPecaDeGatilho(y))
+      .map((y) => textoDoValor(g, y.id, null, new Set()));
+    return `${gat.join(", ou ")}, mas só se ${condicoes.join(" e ")}`;
+  };
+  const deFora = f.nos.filter((x) => x.em === undefined && ehPecaDeGatilho(x));
+  const cabeca = deFora
     .map((x, i) => {
-      const t = fraseDoGatilho(x.config, n);
-      return i === 0 ? t : minuscula(t);
+      const t =
+        x.tipo === "caixa" && x.config.porta === "ou" && folhas(x) > 1
+          ? `Quando qualquer um destes acontecer (${textoDeGatilho(x)})`
+          : textoDeGatilho(x);
+      return i === 0 ? maiuscula(t) : minuscula(t);
     })
     .join(", ou ");
   const cenas = nasCenas(f, n);
@@ -414,6 +461,7 @@ export function fraseDoFluxo(f: Pick<Fluxo, "nos" | "fios" | "cenas">, n: NomesP
   // Os blocos que os gatilhos chamam (o que dois gatilhos chamam em comum vale uma vez só).
   const primeiros = new Map<string, No>();
   for (const x of gatilhos) for (const s of sucessores(g, x.id)) primeiros.set(s.id, s);
+  if (cabeca === "") return "Sem gatilho ainda: não roda.";
   const trilhas = [...primeiros.values()]
     .map((s) => textoDaCadeia({ g, quem, parar: new Set(), pilha: new Set() }, s.id))
     .filter((t) => t !== "");

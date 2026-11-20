@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { HashSchema } from "./assets.ts";
 import { NomeDeEventoSchema } from "./automacoesLegado.ts";
+import { portasParaCaixas } from "./fluxosCaixas.ts";
 import { CorDoSomSchema, IconeDoSomSchema } from "./mesadesom.ts";
 import { ParaQuemOSomSchema, VolumeSchema } from "./som.ts";
 
@@ -259,8 +260,14 @@ const Coordenada = z.number().min(-50000).max(50000);
 const NomeDoNo = z.string().trim().min(1).max(40);
 const NomeDaPorta = z.string().min(1).max(16);
 
+/** AU3: as três caixas lógicas. `ou` = QUALQUER UM, `e` = TODAS, `nao` = NÃO. */
 export const PORTAS_LOGICAS = ["e", "ou", "nao"] as const;
 export type PortaLogica = (typeof PORTAS_LOGICAS)[number];
+/** AU3: até quantos níveis de caixa dentro de caixa (assumido). */
+export const NIVEIS_DE_CAIXA = 4;
+/** AU3: quantos espaços uma caixa E ou OU pode ter (assumido). Ela nasce com 2. */
+export const MAXIMO_DE_ESPACOS = 12;
+export const MINIMO_DE_ESPACOS = 2;
 
 export const TIPOS_DE_NO = [
   "gatilho",
@@ -271,7 +278,7 @@ export const TIPOS_DE_NO = [
   "acao",
   "sinal",
   "condicao",
-  "porta",
+  "caixa",
 ] as const;
 export type TipoDeNo = (typeof TIPOS_DE_NO)[number];
 
@@ -281,9 +288,34 @@ export type TipoDeNo = (typeof TIPOS_DE_NO)[number];
  */
 export function criarNoSchema(acao: z.ZodType, paraMcp = false): z.ZodType<No, unknown> {
   // O MCP fala em NOMES: o nó tem `nome` (obrigatório) e a posição é opcional (a sala arruma na grade).
+  // AU3: `em` é a caixa onde a peça está (a ordem das peças dentro da caixa é a ordem dos nós na lista).
   const base = paraMcp
-    ? { id: Id.optional(), x: Coordenada.optional(), y: Coordenada.optional(), nome: NomeDoNo }
-    : { id: Id, x: Coordenada, y: Coordenada, nome: NomeDoNo.optional() };
+    ? {
+        id: Id.optional(),
+        x: Coordenada.optional(),
+        y: Coordenada.optional(),
+        nome: NomeDoNo,
+        em: z.string().min(1).max(40).optional(),
+        espaco: z
+          .number()
+          .int()
+          .min(0)
+          .max(MAXIMO_DE_ESPACOS - 1)
+          .optional(),
+      }
+    : {
+        id: Id,
+        x: Coordenada,
+        y: Coordenada,
+        nome: NomeDoNo.optional(),
+        em: Id.optional(),
+        espaco: z
+          .number()
+          .int()
+          .min(0)
+          .max(MAXIMO_DE_ESPACOS - 1)
+          .optional(),
+      };
   return z.discriminatedUnion("tipo", [
     z.object({ ...base, tipo: z.literal("gatilho"), config: GatilhoSchema }),
     z.object({ ...base, tipo: z.literal("esperar"), config: z.object({ s: Segundos }) }),
@@ -310,13 +342,26 @@ export function criarNoSchema(acao: z.ZodType, paraMcp = false): z.ZodType<No, u
     z.object({ ...base, tipo: z.literal("condicao"), config: CondicaoDoSeSchema }),
     z.object({
       ...base,
-      tipo: z.literal("porta"),
-      config: z.object({ porta: z.enum(PORTAS_LOGICAS) }),
+      tipo: z.literal("caixa"),
+      config: z.object({
+        porta: z.enum(PORTAS_LOGICAS),
+        /** AU3: quantos espaços a caixa E ou OU tem (padrão e mínimo 2; o NÃO tem um). */
+        espacos: z.number().int().min(1).max(MAXIMO_DE_ESPACOS).optional(),
+      }),
     }),
   ]) as unknown as z.ZodType<No, unknown>;
 }
 
-type Base = { id: string; x: number; y: number; nome?: string | undefined };
+type Base = {
+  id: string;
+  x: number;
+  y: number;
+  nome?: string | undefined;
+  /** AU3: a caixa onde a peça está. */
+  em?: string | undefined;
+  /** AU3: o espaço da caixa onde a peça está (cada espaço guarda uma peça só). */
+  espaco?: number | undefined;
+};
 export type No =
   | (Base & { tipo: "gatilho"; config: Gatilho })
   | (Base & { tipo: "esperar"; config: { s: number } })
@@ -326,7 +371,7 @@ export type No =
   | (Base & { tipo: "acao"; config: { acao: AcaoDeFluxo } })
   | (Base & { tipo: "sinal"; config: { nome: string; atrasoS?: number | undefined } })
   | (Base & { tipo: "condicao"; config: CondicaoDoSe })
-  | (Base & { tipo: "porta"; config: { porta: PortaLogica } });
+  | (Base & { tipo: "caixa"; config: { porta: PortaLogica; espacos?: number | undefined } });
 export type NoDe<T extends TipoDeNo> = Extract<No, { tipo: T }>;
 
 export const NoSchema: z.ZodType<No, unknown> = criarNoSchema(AcaoDeFluxoSchema);
@@ -353,11 +398,118 @@ export type PortaDeSaida = { id: string; tipo: TipoDeFio; rotulo: string };
 const ENTRADA_EXEC: PortaDeEntrada = { id: "entrada", tipo: "exec", rotulo: "Entra", varias: true };
 const saidaExec = (id: string, rotulo: string): PortaDeSaida => ({ id, tipo: "exec", rotulo });
 
-/** As portas de um nó: o que encaixa onde. */
-export function portasDoNo(no: Pick<No, "tipo"> & { config?: unknown }): {
+/**
+ * O que a caixa produz (AU3): `gatilho` (um "quando", com ou sem condição junto; a saída é de ordem), `valor`
+ * (uma condição; a saída é de valor), `acao` (um bloco de ação com entrada e saída de ordem) ou `vazia` (nada ainda).
+ */
+export type ConteudoDaCaixa = "gatilho" | "valor" | "acao" | "vazia";
+
+/** Quantos espaços a caixa tem: o NÃO tem um; a E e a OU, no mínimo dois (e os que as peças de dentro já ocupam). */
+export function numeroDeEspacos(nos: readonly No[], caixa: string): number {
+  const c = nos.find((n) => n.id === caixa);
+  if (c?.tipo !== "caixa") return 0;
+  if (c.config.porta === "nao") return 1;
+  const ocupado = Math.max(-1, ...nos.filter((n) => n.em === caixa).map((n) => n.espaco ?? 0)) + 1;
+  return Math.min(
+    MAXIMO_DE_ESPACOS,
+    Math.max(MINIMO_DE_ESPACOS, c.config.espacos ?? MINIMO_DE_ESPACOS, ocupado),
+  );
+}
+
+/** A peça que está neste espaço da caixa (cada espaço guarda uma só). */
+export const pecaDoEspaco = (nos: readonly No[], caixa: string, espaco: number): No | undefined =>
+  nos.find((n) => n.em === caixa && (n.espaco ?? 0) === espaco);
+
+/** As peças que estão direto dentro da caixa, na ordem dos espaços (de cima para baixo). */
+export const pecasDaCaixa = (nos: readonly No[], id: string): No[] =>
+  nos.filter((n) => n.em === id).sort((a, b) => (a.espaco ?? 0) - (b.espaco ?? 0));
+
+/** O que uma peça é, para a caixa: o que ela dá de saída. */
+function naturezaDaPeca(nos: readonly No[], n: No, visto: ReadonlySet<string>): ConteudoDaCaixa {
+  if (n.tipo === "gatilho") return "gatilho";
+  if (n.tipo === "condicao") return "valor";
+  if (n.tipo === "acao" || n.tipo === "sinal") return "acao";
+  if (n.tipo === "caixa") return conteudoDaCaixa(nos, n.id, visto);
+  return "vazia";
+}
+
+/**
+ * O que a caixa produz, pelas peças de dentro: gatilho OU gatilho e gatilho E condição são um gatilho; condição com condição
+ * (e NÃO condição) é um valor; ação com ação é uma ação. Com um espaço só preenchido, é o que aquela peça é. Mistura que não
+ * combina conta pelo gatilho, depois pela ação (o erro é apontado à parte).
+ */
+export function conteudoDaCaixa(
+  nos: readonly No[],
+  id: string,
+  visto: ReadonlySet<string> = new Set(),
+): ConteudoDaCaixa {
+  if (visto.has(id)) return "vazia";
+  const v = new Set([...visto, id]);
+  const pecas = pecasDaCaixa(nos, id).map((p) => naturezaDaPeca(nos, p, v));
+  const reais = pecas.filter((p) => p !== "vazia");
+  if (reais.length === 0) return "vazia";
+  if (reais.includes("gatilho")) return "gatilho";
+  if (reais.includes("acao")) return "acao";
+  return "valor";
+}
+
+/**
+ * Os nós que só dão um valor: as condições e as caixas de condições (e a vazia, que ainda não é nada). O gatilho, a caixa de
+ * gatilho e a caixa de ação são de ordem. Sem `nos`, a caixa conta como de valor.
+ */
+export function ehNoDeValor(no: Pick<No, "tipo" | "id">, nos?: readonly No[]): boolean {
+  if (no.tipo === "condicao") return true;
+  if (no.tipo !== "caixa") return false;
+  if (nos === undefined) return true;
+  const c = conteudoDaCaixa(nos, no.id);
+  return c === "valor" || c === "vazia";
+}
+
+/** O nó de onde os fios saem: a caixa mais de fora para uma peça guardada; o próprio nó nos outros casos. */
+export function noDosFios(nos: readonly No[], id: string): string {
+  let atual = id;
+  for (let i = 0; i <= NIVEIS_DE_CAIXA + 2; i++) {
+    const pai = nos.find((n) => n.id === atual)?.em;
+    if (pai === undefined || !nos.some((n) => n.id === pai)) return atual;
+    atual = pai;
+  }
+  return atual;
+}
+
+/**
+ * As condições que seguram um gatilho guardado: "gatilho E condição" só segue quando a condição é verdade. Sobe pelas caixas
+ * de fora e junta as outras peças de cada caixa E, quando são condições.
+ */
+export function condicoesDoGatilho(nos: readonly No[], id: string): string[] {
+  const condicoes: string[] = [];
+  let atual = nos.find((n) => n.id === id);
+  for (let i = 0; i <= NIVEIS_DE_CAIXA + 2 && atual?.em !== undefined; i++) {
+    const caixa: No | undefined = nos.find((n) => n.id === atual?.em);
+    if (caixa === undefined || caixa.tipo !== "caixa") break;
+    if (caixa.config.porta === "e") {
+      for (const outro of pecasDaCaixa(nos, caixa.id)) {
+        if (outro.id !== atual.id && naturezaDaPeca(nos, outro, new Set()) === "valor")
+          condicoes.push(outro.id);
+      }
+    }
+    atual = caixa;
+  }
+  return condicoes;
+}
+
+/**
+ * As portas de um nó: o que encaixa onde. `nos` (os nós do fluxo) só importa para a caixa: de gatilho, tem a saída de ordem;
+ * de ação, tem a entrada e a saída de ordem; de condição (ou vazia), tem a saída de valor. Uma peça guardada numa caixa não
+ * tem porta: ela só se liga pela caixa.
+ */
+export function portasDoNo(
+  no: Pick<No, "tipo"> & { id?: string; em?: string | undefined; config?: unknown },
+  nos?: readonly No[],
+): {
   entradas: PortaDeEntrada[];
   saidas: PortaDeSaida[];
 } {
+  if (no.em !== undefined) return { entradas: [], saidas: [] };
   switch (no.tipo) {
     case "gatilho":
       return { entradas: [], saidas: [saidaExec("saida", "Dispara")] };
@@ -385,23 +537,15 @@ export function portasDoNo(no: Pick<No, "tipo"> & { config?: unknown }): {
       };
     case "condicao":
       return { entradas: [], saidas: [{ id: "valor", tipo: "valor", rotulo: "Vale" }] };
-    case "porta": {
-      const nao = (no.config as { porta?: string } | undefined)?.porta === "nao";
-      return {
-        entradas: [
-          nao
-            ? { id: "entrada", tipo: "valor", rotulo: "Entra", varias: false }
-            : { id: "entradas", tipo: "valor", rotulo: "Entradas", varias: true },
-        ],
-        saidas: [{ id: "valor", tipo: "valor", rotulo: "Vale" }],
-      };
+    case "caixa": {
+      const c =
+        nos !== undefined && no.id !== undefined ? conteudoDaCaixa(nos, no.id) : ("vazia" as const);
+      if (c === "gatilho") return { entradas: [], saidas: [saidaExec("saida", "Dispara")] };
+      if (c === "acao") return { entradas: [ENTRADA_EXEC], saidas: [saidaExec("saida", "Depois")] };
+      return { entradas: [], saidas: [{ id: "saida", tipo: "valor", rotulo: "Vale" }] };
     }
   }
 }
-
-/** Os nós que só dão um valor (condições e portas lógicas): não entram na ordem de execução. */
-export const ehNoDeValor = (no: Pick<No, "tipo">): boolean =>
-  no.tipo === "condicao" || no.tipo === "porta";
 
 export const chaveDoFio = (f: Fio): string =>
   `${f.de.no}.${f.de.saida}>${f.para.no}.${f.para.entrada}`;
@@ -413,7 +557,7 @@ export const chaveDoFio = (f: Fio): string =>
  * o fio solto, o ciclo sem espera) é de `problemasDoFluxo`. Aqui só se garante a forma: ids de nó únicos, fios entre nós que
  * existem, portas que existem e fio de ordem só com fio de ordem.
  */
-export const FluxoSchema = z
+const FluxoBaseSchema = z
   .object({
     id: Id,
     nome: z.string().trim().min(1, "Dê um nome à automação.").max(64),
@@ -429,6 +573,8 @@ export const FluxoSchema = z
     rascunho: z.boolean().optional(),
     nos: z.array(NoSchema).max(MAXIMO_DE_NOS),
     fios: z.array(FioSchema).max(MAXIMO_DE_FIOS).default([]),
+    /** AU3: o fluxo já está no formato das caixas (marca da conversão do AU2). */
+    caixas: z.literal(true).optional(),
   })
   .superRefine((f, ctx) => {
     const porId = new Map<string, No>();
@@ -439,6 +585,54 @@ export const FluxoSchema = z
       }
       porId.set(n.id, n);
     }
+    // AU3: a peça guardada aponta para uma caixa que existe, e as caixas não se contêm em círculo.
+    for (const n of f.nos) {
+      if (n.em === undefined) continue;
+      if (porId.get(n.em)?.tipo !== "caixa") {
+        ctx.addIssue({
+          code: "custom",
+          message: "Uma peça está dentro de uma caixa que não existe.",
+        });
+        return;
+      }
+      let acima: string | undefined = n.em;
+      for (let i = 0; i < f.nos.length + 1 && acima !== undefined; i++) {
+        if (acima === n.id) {
+          ctx.addIssue({ code: "custom", message: "Uma caixa não cabe dentro dela mesma." });
+          return;
+        }
+        acima = porId.get(acima)?.em;
+      }
+    }
+    // AU3: cada espaço da caixa guarda uma peça só, e a peça cabe nos espaços que a caixa tem.
+    const ocupados = new Set<string>();
+    for (const n of f.nos) {
+      if (n.em === undefined) continue;
+      const caixa = porId.get(n.em);
+      const tem =
+        caixa?.tipo === "caixa"
+          ? caixa.config.porta === "nao"
+            ? 1
+            : (caixa.config.espacos ?? MINIMO_DE_ESPACOS)
+          : 0;
+      if ((n.espaco ?? 0) >= tem) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Uma peça está num espaço que a caixa não tem.",
+        });
+        return;
+      }
+      const chave = `${n.em}/${n.espaco ?? 0}`;
+      if (ocupados.has(chave)) {
+        ctx.addIssue({
+          code: "custom",
+          message:
+            "Cada espaço da caixa guarda uma peça só: nesta, dois blocos estão no mesmo espaço.",
+        });
+        return;
+      }
+      ocupados.add(chave);
+    }
     const vistos = new Set<string>();
     for (const fio of f.fios) {
       const de = porId.get(fio.de.no);
@@ -447,8 +641,8 @@ export const FluxoSchema = z
         ctx.addIssue({ code: "custom", message: "Há um fio ligado a um bloco que não existe." });
         return;
       }
-      const saida = portasDoNo(de).saidas.find((p) => p.id === fio.de.saida);
-      const entrada = portasDoNo(para).entradas.find((p) => p.id === fio.para.entrada);
+      const saida = portasDoNo(de, f.nos).saidas.find((p) => p.id === fio.de.saida);
+      const entrada = portasDoNo(para, f.nos).entradas.find((p) => p.id === fio.para.entrada);
       if (saida === undefined || entrada === undefined) {
         ctx.addIssue({ code: "custom", message: "Há um fio ligado a uma porta que não existe." });
         return;
@@ -480,7 +674,9 @@ export const FluxoSchema = z
       }
     }
   });
-export type Fluxo = z.infer<typeof FluxoSchema>;
+/** AU3: lê também o AU2 (portas com fios), convertido em caixas na hora. */
+export const FluxoSchema = z.preprocess(portasParaCaixas, FluxoBaseSchema);
+export type Fluxo = z.infer<typeof FluxoBaseSchema>;
 
 /** Os campos que se mudam num `fluxo.editar` (todos opcionais; a sala junta e confere o fluxo inteiro de novo). */
 export const MudancasDoFluxoSchema = z

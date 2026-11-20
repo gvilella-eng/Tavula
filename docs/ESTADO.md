@@ -4573,4 +4573,28 @@ Ver `PASSAGEM.md`, "AS1".
 ### Roteiro manual
 Ver `ROTEIRO-DE-TESTES.md`, "AS1".
 
-## Próximo: o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b, N4, N5, M1, M2, Q1 a Q16, CH1, CH2, MU1, MU2, MU3, A1, AU1, AU2, FG1, AS1 e das otimizações O1–O4
+## Ajustes AU3 — portas lógicas viram caixas e o tour do centro de automações (entregue, aguardando o roteiro manual)
+
+### O que foi entregue
+As portas E, OU e NÃO viraram caixas na grade, como os blocos do Scratch na vertical: E e OU com dois espaços (que crescem pelo "+" ou arrastando entre dois espaços, e encolhem), NÃO com um, cada espaço com uma peça (gatilho, condição, ação ou outra caixa, até 4 níveis); a saída vem do que está dentro (gatilho OU gatilho, gatilho E condição, condições, ação E ação, ação OU ação sorteando uma); recusa com dica do que não combina, atalho de juntar dois gatilhos, menu do teclado, conversão das automações do AU2 (A ou B ou C vira uma caixa de 3 espaços), erros no próprio bloco, frase e MCP (`em`: o nome da caixa, `espaco`); o tour do centro de automações (primeira vez, botão "Conhecer as automações", as peças, a mesa de eventos, a montagem das tochas com 30% a cada 3 minutos, "Fazer este passo por mim" e o fim desligado com "Ligar agora" e "Apagar o exemplo").
+
+### Como rodar
+`pnpm dev`; Automações → Nova automação; arraste uma caixa e peças para dentro dela; "Conhecer as automações". E2E: `pnpm --filter @tabletop/e2e test tests/au3.spec.ts` (portas por `E2E_PORTA_SALA` e `E2E_PORTA_WEB`).
+
+### Verificação
+Ver o relatório do lote (números do typecheck, lint, unidade e E2E).
+
+### Decisões
+Ver `REDESIGN.md`, "AU3 — como ficou".
+
+### Desvios
+- E2E antigos alterados: `au2.spec.ts` (o teste "porta lógica num se" virou "caixa NÃO num se": a chance entra no espaço da caixa arrastando e a saída da caixa liga na condição do "se"; e o do OU de gatilhos: agora os dois gatilhos vêm nos espaços de uma caixa ligada ao bloco, e a frase diz "qualquer um destes acontecer (…)"). Mudou de propósito; as asserções de comportamento (o que dispara, o que o motor faz) continuam as mesmas.
+- Testes de unidade ajustados: `grafo.test.ts` (as frases e a mensagem do "sem entrada", que agora é "caixa vazia"), `mcp/au1.test.ts` (a armadilha monta com caixas; o guia cita "espaço", "sorteia", "NÃO" e "caixa"; um teste novo monta caixas com 3 espaços e ação E ação) e `grafoDoEditor.test.ts`.
+
+### Frágil
+Ver `PASSAGEM.md`, "AU3".
+
+### Roteiro manual
+Ver `ROTEIRO-DE-TESTES.md`, "AU3".
+
+## Próximo: o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b, N4, N5, M1, M2, Q1 a Q16, CH1, CH2, MU1, MU2, MU3, A1, AU1, AU2, AU3, FG1, AS1 e das otimizações O1–O4

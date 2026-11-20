@@ -2653,3 +2653,29 @@ O Vilella pediu: soltar imagem ou gif na cena, uma lista "Assets da mesa", o upl
 - O Claude de um jogador listar os assets dele (hoje só o mestre lista, renomeia e apaga).
 - Mover os arquivos antigos de `recebidos/` para `assets/` (hoje só se copia).
 - Miniaturas de mapas em pedaços e de sons (ícone do tipo).
+
+## AU3 — como ficou (2026-11-20): portas lógicas viram caixas e o tour do centro de automações
+
+O Vilella testou o AU2: "as portas lógicas estão um pouco diferentes do que eu imaginei. Imaginei elas mais como uma caixa onde eu posso colocar as coisas dentro pra fazer as lógicas. Eu também gostaria de colocar o quando dentro das portas, por exemplo, a cada relógio ou ao apertar o botão, coisa x acontece... também acho que deve haver um tour pelo centro de automações [...] e fazer uma automação simples das tochas terem 30% de chance de apagarem a cada 3 minutos." Ele escolheu a caixa solta na grade e, depois, corrigiu o desenho com a referência do Scratch: "uma caixa com dois espaços, um em cima do outro e um 'ou' ou 'e' entre elas. Dentro de cada espaço eu posso colocar uma segunda porta lógica ou alguma ação, condição, quando"; e ajustou: "pode ser dois como default, mas ter uma opção de ir aumentando (um botão + ou arrastando algo além ali pra dentro). Acho importante conseguir colocar portas dentro de portas também."
+
+### O que foi feito
+- **As portas viraram caixas** (`fluxos.ts`, `fluxosCaixas.ts`): E, OU e NÃO são nós `caixa` na grade. E e OU nascem com **dois espaços** empilhados, com o rótulo "E" ou "OU" entre cada par (clicar troca a caixa inteira); o NÃO tem um. Cada espaço guarda **uma peça**: gatilho, condição, ação ou outra caixa (até 4 níveis). O espaço vazio mostra a dica e acende ao arrastar por cima.
+- **Cresce e encolhe:** o "+" no pé acrescenta um espaço; soltar entre dois espaços (ou logo abaixo do último) abre um novo ali, marcado no arrasto; tirar a peça de um espaço, numa caixa com mais de 2, remove o espaço; um espaço vazio a mais tem "×"; o mínimo é 2 e o máximo 12.
+- **A saída vem do que está dentro:** gatilho OU gatilho (o "quando dentro da porta") e gatilho E condição dão saída de ordem; condições (E, OU, NÃO) dão saída de valor, ligada ao "se" ou a outra caixa; ação E ação faz as duas, ação OU ação sorteia uma (50/50 com duas), e essa caixa fica no fluxo com entrada e saída de ordem, como um bloco de ação.
+- **Recusa ao soltar**, com dica curta (`motivoDaRecusa`): gatilho E gatilho, gatilho OU condição, NÃO com gatilho ou ação, ação misturada, espaço ocupado, outro bloco de fluxo, caixa dentro dela mesma. Erros no próprio bloco: caixa vazia, espaço sem peça, NÃO vazio e caixa sem saída ligada.
+- **Atalho** de soltar um gatilho em cima de outro (cria uma caixa OU); **teclado:** menu "Caixa…" (tirar, pôr num espaço, subir e descer de espaço), Alt + seta para cima ou para baixo, e o rótulo e o "+" são botões.
+- **Conversão** (`portasParaCaixas`): as portas do AU2 viram caixas com as peças nos espaços (A ou B ou C é uma caixa OU com 3 espaços, sem aninhar à força); vários gatilhos ligados aos mesmos blocos viram uma caixa OU; posições arrumadas (`organizarGrafo` conta a altura da caixa). Os formatos antigos continuam convertendo e o ouro bate.
+- **A frase** descreve as caixas ("Quando qualquer um destes acontecer (…)", "…, mas só se …", "(NÃO a) e b", "sorteia uma destas: (a) ou (b)").
+- **O tour do centro de automações** (`TourDasAutomacoes.tsx`, `passosDoTour.ts`): na primeira vez que se abre o centro e pelo botão "Conhecer as automações" (no centro e no editor); passa por cada tipo de peça (com um passo que mostra uma caixa, "a cada 3 min OU o botão Combate"), mostra a mesa de eventos e o "Liberar aos jogadores" e monta com a pessoa "as tochas têm 30% de chance de apagar a cada 3 minutos", com seta, destaque e "Fazer este passo por mim"; no fim a automação fica salva desligada, com "Ligar agora" e "Apagar o exemplo".
+- **MCP:** monta as caixas por nome, com `em` (o nome da caixa) e `espaco` (ou na ordem em que as peças aparecem) e `config.espacos`; `explicar` lê as caixas aninhadas; o `guia` explica os espaços e as combinações; `paridadeCampos` passa.
+
+### Decisões (assumido)
+- A caixa nasce com 2 espaços e vai até 12; até 4 níveis de caixa dentro de caixa. Ação OU ação sorteia por igual (50/50 com duas).
+- A caixa não tem entrada, exceto a de ação (entrada e saída de ordem). A caixa vazia conta como de valor.
+- A ordem é a dos espaços (`espaco`); apagar a caixa apaga o que está dentro; a peça guardada não anda pela grade.
+- Dentro de uma caixa só entram gatilho, condição, ação, sinal e outra caixa; "esperar", "se", "sortear" e "para cada" ficam na grade.
+- O tipo `porta` deixou de existir no esquema: o `preprocess` converte ao ler. A marca `caixas: true` impede reagrupar gatilhos soltos de propósito.
+- O tour: marca `tabletop:pref:tourDasAutomacoes` no navegador (nunca vai à sala); abre sozinho só com conta; o exemplo só se monta numa automação nova e vazia; no centro, o último passo abre o editor com `?tour=1`. O exemplo fica desligado, com o nome "As tochas apagam (exemplo do tour)".
+
+### O que ficou para depois
+Minimapa do editor (continua em `IDEIAS.md`); copiar uma caixa com o que tem dentro entre automações; arrastar uma condição direto para o "Se"; reabrir o tour num editor "nova" que já estava aberto.
