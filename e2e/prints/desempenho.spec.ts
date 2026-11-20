@@ -1183,6 +1183,128 @@ base(
         await fecharAsFichas(p);
       }
 
+      // ---- F. chamas animadas no mapa (FG1) ---------------------------------------------------
+      // Dezenas de inflamáveis acesos ao mesmo tempo na tela (a animação padrão de fogueira, 16 quadros, uma chama
+      // defasada da outra), comparados com a mesma cena sem chamas. Mede 3 s parados e 3 s com pan e zoom.
+      if (pede(/^F/)) {
+        await p.emulateMedia({ reducedMotion: "no-preference" });
+        const enviarLote = (mensagens: { tipo: string; dados: object }[]) =>
+          p.evaluate(
+            (lista) =>
+              new Promise<void>((resolve) => {
+                const ws = new WebSocket(`ws://${location.host}/api/m/t3st-m3sa-e2e7/ws`);
+                ws.onopen = () => {
+                  lista.forEach((m, i) => {
+                    setTimeout(() => {
+                      ws.send(
+                        JSON.stringify({
+                          v: 1,
+                          id: `f-${i}-${Math.random()}`,
+                          tipo: m.tipo,
+                          dados: m.dados,
+                        }),
+                      );
+                    }, i * 12);
+                  });
+                  setTimeout(
+                    () => {
+                      ws.close();
+                      resolve();
+                    },
+                    lista.length * 12 + 1200,
+                  );
+                };
+              }),
+            mensagens,
+          );
+        resultado.ambiente.reducedMotionDaPagina = await p.evaluate(
+          () => window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+        );
+        await mandar(p, "mochila.ajustar", {
+          personagemId: "pers-aldric",
+          modeloId: "modelo-tocha",
+          delta: 2,
+        });
+        await enviarLote([
+          { tipo: "config.mesa", dados: { mudancas: { alcanceInteracaoM: 30 } } },
+          {
+            tipo: "tocha.acender",
+            dados: { personagemId: "pers-aldric", modeloId: "modelo-tocha", novoId: "tocha-f" },
+          },
+        ]);
+        const centrarNasChamas = () =>
+          p.evaluate(() => {
+            const h = (window as unknown as { __tabletop: GanchoDoMapa }).__tabletop;
+            h.definirZoom(1);
+            h.centrarEm(25, 15);
+          });
+        const chamasNaTela = () =>
+          p.evaluate(
+            () => (window as unknown as { __tabletop: GanchoDoMapa }).__tabletop.chamas().length,
+          );
+        const acender = async (quantas: number, de: number) => {
+          const mensagens: { tipo: string; dados: object }[] = [];
+          for (let i = de; i < de + quantas; i++) {
+            const id = `fogo-${i}`;
+            const x = 14.25 + (i % 8) * 3;
+            const y = 8.25 + Math.floor(i / 8) * 3;
+            mensagens.push({
+              tipo: "ponto.criar",
+              dados: {
+                cenaId: "cena-1",
+                ponto: {
+                  id,
+                  nome: id,
+                  x,
+                  y,
+                  tipo: "inflamavel",
+                  modeloId: "modelo-fogueira",
+                  segurarS: 0,
+                  visivelParaJogadores: true,
+                },
+              },
+            });
+          }
+          for (let i = de; i < de + quantas; i++) {
+            mensagens.push({
+              tipo: "ponto.acenderInicio",
+              dados: { pontoId: `fogo-${i}`, objetoId: "tocha-f" },
+            });
+            mensagens.push({
+              tipo: "ponto.acenderFim",
+              dados: { pontoId: `fogo-${i}`, objetoId: "tocha-f" },
+            });
+          }
+          await enviarLote(mensagens);
+        };
+        const parados = async () => {
+          await p.waitForTimeout(3000);
+        };
+        const mexendo = async () => {
+          for (let i = 0; i < 12; i++) {
+            await p.evaluate((k) => {
+              const h = (window as unknown as { __tabletop: GanchoDoMapa }).__tabletop;
+              h.definirZoom(k % 2 === 0 ? 0.8 : 1.2);
+              h.centrarEm(25 + (k % 3), 15 + (k % 2));
+            }, i);
+            await p.waitForTimeout(250);
+          }
+        };
+        await centrarNasChamas();
+        await m.cenario("F0-sem-chamas", "3 s parados, sem nenhuma chama na tela", parados);
+        await m.cenario("F0b-sem-chamas-mexendo", "3 s de pan e zoom, sem chamas", mexendo);
+        await acender(12, 0);
+        await centrarNasChamas();
+        await expect.poll(chamasNaTela, { timeout: 30_000 }).toBe(12);
+        await m.cenario("F1-12-chamas", "3 s parados com 12 chamas animadas na tela", parados);
+        await m.cenario("F1b-12-chamas-mexendo", "3 s de pan e zoom com 12 chamas", mexendo);
+        await acender(36, 12);
+        await centrarNasChamas();
+        await expect.poll(chamasNaTela, { timeout: 60_000 }).toBe(48);
+        await m.cenario("F2-48-chamas", "3 s parados com 48 chamas animadas na tela", parados);
+        await m.cenario("F2b-48-chamas-mexendo", "3 s de pan e zoom com 48 chamas", mexendo);
+      }
+
       // ---- o compêndio grande entra na mesa ---------------------------------------------------
       if (pede(/^(B2|A-|C)/)) {
         const texto = compendioSintetico();

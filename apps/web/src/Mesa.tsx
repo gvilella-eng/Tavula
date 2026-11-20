@@ -673,6 +673,13 @@ export function Mesa({
     },
     [gerente],
   );
+  const registrarAnimacao = useCallback(
+    (arquivo: File) => {
+      if (!gerente) return Promise.reject(new Error("Os arquivos da mesa ainda estão abrindo."));
+      return gerente.registrarAnimacao(arquivo);
+    },
+    [gerente],
+  );
   // Q3: importar um mapa do Dungeondraft (Universal VTT) pelo botão do painel de cenas ou arrastando o arquivo para a mesa.
   const [importacao, setImportacao] = useState<EstadoDaImportacao | null>(null);
   const importarMapaUvtt = useCallback(
@@ -1534,6 +1541,8 @@ export function Mesa({
         setFerramenta("selecionar");
       },
       moverPonto: (id, x, y) => enviar("ponto.editar", { id, mudancas: { x, y } }),
+      redimensionarChama: (id, larguraM, alturaM) =>
+        enviar("ponto.editar", { id, mudancas: { chamaM: { larguraM, alturaM } } }),
       selecionarPonto: setPontoSelecionadoId,
       entregarTocha: (id, tokenId) => enviar("tocha.entregar", { id, tokenId }),
       posarTocha: (id, pontoId) => enviar("tocha.posar", { id, pontoId }),
@@ -1786,6 +1795,7 @@ export function Mesa({
     [tokensDaMesaTodos, cenaDoPedidoId],
   );
   const assetsDoEstado = estado?.assets;
+  const modelosDoEstado = estado?.modelos;
   // biome-ignore lint/correctness/useExhaustiveDependencies: roda quando mudam o mapa, os tokens, as fichas ou as metas
   useEffect(() => {
     if (!gerente || !pronto || !euId) return;
@@ -1796,6 +1806,10 @@ export function Mesa({
       if (p.tokenPadrao.assetHash) gerente.garantir(p.tokenPadrao.assetHash);
     }
     for (const h of handoutsDoEstado ?? []) if (h.imagemHash) gerente.garantir(h.imagemHash);
+    // FG1: as animações de chama dos modelos de luz (todos as baixam, sob demanda).
+    for (const m of modelosDoEstado ?? []) {
+      for (const h of Object.values(m.animacoes ?? {})) if (h) gerente.garantir(h);
+    }
     if (!euMestre) return;
     for (const a of assetsDoEstado ?? []) {
       gerente.conhecerMeta(a);
@@ -1812,6 +1826,7 @@ export function Mesa({
     tokensDoEstado,
     personagens,
     handoutsDoEstado,
+    modelosDoEstado,
     assetsDoEstado,
     versaoDosProntos,
   ]);
@@ -2141,6 +2156,7 @@ export function Mesa({
                       avisoDeContas={avisoDeContas}
                       enviar={enviar}
                       aoAbrirAutomacoes={aoAbrirAutomacoes}
+                      registrarAnimacao={registrarAnimacao}
                     />
                   ),
                 },
@@ -2300,6 +2316,7 @@ export function Mesa({
               zonas={modoMestre ? (estado.zonas ?? SEM_ZONAS) : SEM_ZONAS}
               luzes={estadoVisto?.luzes ?? estado.luzes}
               pontos={estadoVisto?.pontos ?? estado.pontos}
+              modelos={estado.modelos}
               desenhos={estadoVisto?.desenhos ?? estado.desenhos}
               opcoes={opcoes}
               retornos={retornos}

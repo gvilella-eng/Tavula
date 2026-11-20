@@ -40,6 +40,8 @@ export const LIMITES_DE_ASSET = {
   bytesDoCompendio: 16 * 1024 * 1024,
   /** Um arquivo de som (N5: mp3, ogg ou wav): 20 MB são 80 pedaços de 256 KB (assumido). */
   bytesDoSom: 20 * 1024 * 1024,
+  /** FG1: uma animação de chama (gif, webp animado ou apng): 4 MB (assumido). */
+  bytesDaAnimacao: 4 * 1024 * 1024,
 } as const;
 
 /** Os formatos de som aceitos (N5: mp3, ogg e wav), pelo tipo MIME que o navegador diz. */
@@ -54,6 +56,13 @@ export const MIMES_DE_SOM = [
 
 export function mimeDeSomValido(mime: string): boolean {
   return (MIMES_DE_SOM as readonly string[]).includes(mime.toLowerCase());
+}
+
+/** FG1: os formatos de animação aceitos (gif, webp, png/apng), pelo tipo MIME. */
+export const MIMES_DE_ANIMACAO = ["image/gif", "image/webp", "image/png"] as const;
+
+export function mimeDeAnimacaoValido(mime: string): boolean {
+  return (MIMES_DE_ANIMACAO as readonly string[]).includes(mime.toLowerCase());
 }
 
 export const PX_POR_QUADRADO_PADRAO = 70;
@@ -72,6 +81,7 @@ export const ACRESCIMO_DA_CIFRA = 12 + 16;
  * que a mesa definiu (`Estado.compendio`) é baixável por todos; os demais seguem a regra comum.
  * `som` (N5): arquivo de áudio (mp3, ogg ou wav), sem dimensões reais (1 x 1). Todo jogador pode baixá-lo (a sala só
  * diz qual tocar); a zona que o usa continua secreta, porque o hash não diz de onde veio.
+ * `animacao` (FG1): gif, webp animado ou apng da chama de um modelo de luz (sem dimensões reais: 1 x 1). Todo jogador pode baixá-lo.
  */
 export const TIPOS_DE_ASSET = [
   "mapa",
@@ -81,6 +91,7 @@ export const TIPOS_DE_ASSET = [
   "cifrado",
   "compendio",
   "som",
+  "animacao",
 ] as const;
 export const TipoDeAssetSchema = z.enum(TIPOS_DE_ASSET);
 export type TipoDeAsset = z.infer<typeof TipoDeAssetSchema>;
@@ -165,6 +176,10 @@ export function validarMeta(meta: MetaNova | AssetMeta): string | null {
   if (meta.tipo === "som") {
     if (!mimeDeSomValido(meta.mime)) return "só mp3, ogg e wav";
     if (meta.bytes > LIMITES_DE_ASSET.bytesDoSom) return "som grande demais (até 20 MB)";
+  }
+  if (meta.tipo === "animacao") {
+    if (!mimeDeAnimacaoValido(meta.mime)) return "só gif, webp ou apng";
+    if (meta.bytes > LIMITES_DE_ASSET.bytesDaAnimacao) return "animação grande demais (até 4 MB)";
   }
   const limite =
     LIMITES_DE_ASSET.bytesPorArquivo + (meta.tipo === "cifrado" ? ACRESCIMO_DA_CIFRA : 0);
@@ -384,7 +399,14 @@ export function hashesUsados(
     Partial<
       Pick<
         Estado,
-        "compendio" | "handouts" | "trilha" | "zonas" | "automacoes" | "mesaDeSom" | "musica"
+        | "compendio"
+        | "handouts"
+        | "trilha"
+        | "zonas"
+        | "automacoes"
+        | "mesaDeSom"
+        | "musica"
+        | "modelos"
       >
     >,
 ): Set<string> {
@@ -416,6 +438,12 @@ export function hashesUsados(
   }
   // MU1: os arquivos da biblioteca de música.
   for (const f of estado.musica?.faixas ?? []) usar(f.hash);
+  // FG1: as animações de chama dos modelos de luz.
+  for (const m of estado.modelos ?? []) {
+    usar(m.animacoes?.forte);
+    usar(m.animacoes?.fraca);
+    usar(m.animacoes?.morrendo);
+  }
   for (const z of estado.zonas ?? []) usar(z.efeitos.som?.hash);
   for (const f of estado.automacoes?.fluxos ?? []) {
     for (const a of acoesDoFluxo(f)) if (a.acao === "som.tocar") usar(a.hash);
@@ -468,7 +496,7 @@ export function assetVisivelPara(
   if (usuario.papel !== "jogador") return false;
   if (meta.tipo === "cifrado") return true;
   if (meta.tipo === "compendio" && estado.compendio?.hash === hash) return true;
-  if (meta.tipo === "som") return true;
+  if (meta.tipo === "som" || meta.tipo === "animacao") return true;
   if (meta.donoId === usuario.id) return true;
   if (
     estado.tokens.some(

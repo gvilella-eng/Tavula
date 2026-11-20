@@ -1387,12 +1387,26 @@
   padding: 0 6px;
   font-size: 15.5px;
 }
+/* FG1: a setinha que recolhe os detalhes de um item de modelo (e o vazio que a substitui nos outros). */
+.fl-raiz .fl-item-seta,
+.fl-raiz .fl-item-seta-vazia {
+  flex: none;
+  width: 20px;
+  height: 28px;
+  padding: 0;
+}
+.fl-raiz .fl-item-baixo[hidden] {
+  display: none;
+}
 .fl-raiz .fl-item-baixo {
   display: flex;
   gap: 4px;
   align-items: center;
   min-height: 30px;
   padding-left: 92px;
+}
+.fl-raiz .fl-item-baixo-com-seta {
+  padding-left: 112px;
 }
 .fl-raiz .fl-item-peso {
   flex: none;

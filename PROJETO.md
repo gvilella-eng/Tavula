@@ -146,7 +146,8 @@ type CapacidadeDelegavel =          // lista completa em docs/protocolo.md
   | 'tocha.acender' | 'tocha.entregar' | 'ponto.usar' | 'luz.apagar' | 'ficha.verOutras'
   | 'dado.rolarOculto' | 'asset.subir' | 'desenho.criar' /* lote 13, ligada por padrão */
   | 'token.colocarProprio' /* V10b */ | 'mapa.pingar' /* V12, 2026-11-13: pingar o mapa; ligada por padrão */
-  | 'personagem.criarProprio' /* 12-1, 2026-11-13: criar as próprias fichas e handouts (teto de 20 de cada); ligada por padrão */;
+  | 'personagem.criarProprio' /* 12-1, 2026-11-13: criar as próprias fichas e handouts (teto de 20 de cada); ligada por padrão */
+  | 'equipamento.dar' /* FG1, 2026-11-20: dar e tirar equipamento de modelo (tochas) dos próprios personagens; ligada por padrão */;
 type CapacidadeDoMestre =           // só do mestre, nunca delegáveis
   | 'papel.alterar' | 'permissao.alterar' | 'mesa.configurar' | 'automacao.editar'
   | 'camadaMestre.ver' | 'objeto.ajustar' | 'campanha.exportar' | 'campanha.importar'
@@ -307,6 +308,8 @@ interface ModeloDeObjeto {          // criado pelo mestre na campanha: "Tocha", 
   ocupaMao: boolean;
   tags: string[];                   // ex.: "chama", usadas pelas automações
   reacoes: Reacao[];                // seção 4.11
+  chamaM?: { larguraM: number; alturaM: number };       // FG1, 2026-11-20: tamanho padrão da chama no mapa (m)
+  animacoes?: { forte?: Hash; fraca?: Hash; morrendo?: Hash }; // FG1: animação da chama por estágio (asset 'animacao')
 }
 
 type Portador =
@@ -337,6 +340,7 @@ interface Ponto {                   // lugar do mapa onde se põe ou se acende u
   capacidade?: number;              // suporte: quantos objetos cabem
   modeloId?: string;                // inflamável: no que ele vira ao queimar (ex.: "Fogueira")
   segurarS?: number;                // inflamável: tempo segurando a tocha acesa em cima (padrão 3)
+  chamaM?: { larguraM: number; alturaM: number }; // FG1: tamanho da chama deste inflamável (sem ele, o do modelo)
   visivelParaJogadores: boolean;
 }
 
@@ -1708,6 +1712,13 @@ assumido sem o Vilella está marcado com "(assumido)" e entra nas perguntas do f
 - **`ConfigDaMesa` completa** (`maosPorPersonagem` 2, `penalidadeAoApagarS` 0, `alcanceInteracaoM` 1,5,
   `tempoParaJogadores` 'exato', `estagios`), editada pelo mestre na aba **Configurações** da barra
   direita, seção "Mesa" (hoje: aba **Mesa**, seções de regras da mesa e de modelos de luz). Intenção `config.mesa` (`mesa.configurar`).
+- **Luz e fogo (FG1, 2026-11-20).**
+  - **Modelo ao vivo:** editar o modelo (nome, luz, cor, tremular, duração, ocupa a mão, etiquetas, tamanho e animações da chama) muda na hora todos os objetos dele, nas mãos, mochilas, suportes, pontos e mapa, para todos. Fica com o objeto: aceso, tempo que resta (limitado à duração nova), portador, intensidade, modificadores, histórico e o tamanho próprio do inflamável. Modificadores de automação e de zona continuam por cima.
+  - **Soltar a tocha:** o suporte ou inflamável mais próximo dentro de 1 célula de raio (mínimo ~40 px na tela) pega a tocha arrastada, com destaque do alvo; o ícone continua pequeno.
+  - **No lugar do ícone:** o objeto num ponto é desenhado no centro do ponto, no lugar do ícone (que some e volta); ícones, tochas e chamas têm tamanho de mundo (em metros e células) e escalam com o zoom; relógio e rótulos têm tamanho de tela e somem abaixo de 70% de zoom.
+  - **Chama animada:** inflamável aceso e tocha num ponto mostram fogo animado (visto de cima), por estágio (forte, fraca, morrendo), nunca o símbolo da tocha; as animações padrão (tocha e fogueira) são geradas por código; o mestre escolhe, por estágio, um gif, webp animado ou apng próprio (asset `animacao`). "Reduzir movimento": a chama fica parada.
+  - **Tamanho da chama:** o mestre estica a chama do inflamável por alças no mapa e por campos (largura e altura, em metros), antes e depois de acender; o modelo tem o tamanho padrão. A luz (raios) continua a do modelo ("luz acompanha o tamanho" fica em `docs/IDEIAS.md`).
+  - **Equipamento do jogador:** capacidade `equipamento.dar` (padrão ligada): o jogador dá e tira equipamento de modelo (e acende) nos personagens que controla; o mestre pode desligá-la. Nunca no personagem de outro.
 - **Modelos de objeto** (nome, luz, duração ou infinita, ocupa mão, tags) na mesma aba, seção "Objetos de
   luz". Semente: Tocha 5e (6 m + 6 m, 60 min, ocupa mão), Lanterna (9 m + 9 m, 6 h, ocupa mão) e Fogueira
   (6 m + 6 m, infinita, não ocupa mão). A campanha de referência muda a tocha para 30 min e 9 m + 6 m por
@@ -1773,7 +1784,7 @@ assumido sem o Vilella está marcado com "(assumido)" e entra nas perguntas do f
 - gancho de teste `POST /teste/avancar-relogio?ms=N`, só com `MODO=teste`;
 - assumido pelo agente: o mestre também precisa do alcance para entregar; apagar ou reacender objeto de
   ponto exige alcance para o jogador; apagar com penalidade maior que o saldo consome a tocha; modelo em
-  uso não pode ser apagado e editar um modelo não muda os objetos já criados;
+  uso não pode ser apagado e ~~editar um modelo não muda os objetos já criados~~ (FG1, 2026-11-20: editar o modelo muda, na hora, todos os objetos dele; o que é de cada objeto fica);
 - pendência pequena: a tocha na mão só chega ao jogador se o token do personagem estiver na cena ativa;
   quem edita o personagem deveria vê-la na mochila mesmo assim (corrigir no Lote 9, junto da ficha).
 

@@ -117,7 +117,31 @@ export type GanchoDoMapa = {
     y: number;
   }[];
   /** Os pontos de luz que a tela mostra (posição na página). */
-  pontos(): { id: string; tipo: string; x: number; y: number }[];
+  pontos(): {
+    id: string;
+    tipo: string;
+    x: number;
+    y: number;
+    /** FG1: o ícone do ponto está desenhado (some enquanto um objeto toma o lugar dele) e o raio dele na tela (px). */
+    iconeVisivel: boolean;
+    raioPx: number;
+    /** FG1: o raio da área de soltar uma tocha (px) e o tamanho da chama do ponto (m). */
+    soltarPx: number;
+    chamaM: { larguraM: number; alturaM: number };
+  }[];
+  /** FG1: as chamas animadas dos objetos nos pontos (tamanho na tela em px, de onde vem a animação, quadros e o relógio). */
+  chamas(): {
+    id: string;
+    larguraPx: number;
+    alturaPx: number;
+    estagio: "forte" | "fraca" | "morrendo";
+    origem: "padrao" | "arquivo" | null;
+    quadros: number;
+    indice: number;
+    rotuloVisivel: boolean;
+  }[];
+  /** FG1: o alvo da tocha arrastada (id do ponto ou do token), ou `null`. */
+  alvoDaTocha(): string | null;
   /** A contagem de acender (0 a 1) enquanto se segura a tocha sobre um inflamável. */
   anelDeAcender(): number | null;
 };

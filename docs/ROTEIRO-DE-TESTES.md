@@ -763,3 +763,15 @@ Montar a Respiração da Montanha do zero (cena "Pulmão" com algumas tochas ace
 
 Armadilha de zona: desenhe a zona "Armadilha", abra o painel (ferramenta Zonas), **+ automação para esta zona**, ponha **Avisar no chat**, salve, e leve um token para dentro. Teste também **Testar agora**, **Desfazer** no editor, setas e Delete, **JSON**, **Janela própria**, liberar o botão aos jogadores (menu ⋯ da lista) e **Apagar** com **Desfazer**.
 Importe a Chama Primordial: 5 automações convertidas; a Respiração igual à de cima. Peça ao Claude: "como funciona a Respiração?" (ele chama `guia` e `explicar`).
+
+## FG1 — luz e fogo
+
+1. **Modelo ao vivo.** Ponha uma tocha na mão de um jogador e outra num suporte. Em Mesa, Luz, abra o modelo da tocha e mude a luz plena: as duas mudam na hora, para todos. Mude a duração para menos que o tempo que resta: o relógio das tochas acesas cai para o novo máximo. Renomeie o modelo: o nome das tochas muda. O jogador não vê a duração do modelo fora do modo exato.
+2. **Área de soltar.** Arraste a tocha da mão para perto do suporte, fora do ícone (uns 40 px de distância): o suporte ganha um círculo de destaque e, ao soltar, a tocha pendura. Longe demais (mais de uma célula), ela volta para a mão.
+3. **No lugar do ícone.** A tocha no suporte fica exatamente onde estava o ícone do suporte, que some; "Pegar do suporte" devolve o ícone.
+4. **Zoom.** Dê zoom para fora e para dentro: ícones, tochas e chamas crescem e encolhem com o mapa; o relógio fica legível e some em zoom bem baixo. O clique e o arrasto continuam fáceis de acertar.
+5. **Chama.** Segure uma tocha acesa sobre um inflamável: nasce um fogo animado (sem o símbolo da tocha). Com o painel de luzes aberto, selecione o inflamável e arraste as alças brancas para esticar o fogo (e veja os campos "Chama: largura" e "altura"); um jogador vê o mesmo tamanho. "Usar o tamanho do modelo" volta ao padrão. Um morro pequeno e um grande têm chamas de tamanhos diferentes.
+6. **Estágios e arquivos.** No editor do modelo, em "Chama no mapa", escolha "Arquivo" num estágio e envie um gif, webp animado ou apng: o fogo daquele estágio passa a ser o seu (o jogador baixa o arquivo sozinho). "Padrão" volta ao fogo gerado pela mesa. Com "reduzir movimento" ligado no sistema, o fogo fica parado.
+7. **Jogador dá equipamento.** O jogador abre a ficha do próprio personagem e usa o "+" do item "Tocha": a quantidade sobe. No personagem de outro, nada. O mestre desliga "Dar e tirar equipamentos de luz dos próprios personagens" nas Permissões: o "+" do jogador fica desabilitado.
+8. **Setinha.** Na ficha, a setinha ao lado do item de modelo (tocha) recolhe e expande o peso, a nota e as tochas usadas. O estado fica lembrado neste navegador, por item. Funciona com Enter e Espaço.
+9. **Claude.** Peça ao Claude: "mude o tamanho da chama da Fogueira para 2 por 2 metros", "use o arquivo fogo.gif no estágio forte da Tocha" (depois de enviar) e "dê 3 tochas à minha ficha" (como jogador).

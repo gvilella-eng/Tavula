@@ -430,11 +430,16 @@ test("a tocha na mão chega a quem edita o personagem mesmo sem o token na cena 
   await expect(janela.getByTestId("item-usada-texto-obj-darion")).toContainText("guardada");
   // quem não edita o Darion não recebe a tocha dele (nenhum frame de luz com o portador)
   expect(texto(j2)).not.toContain('"personagemId":"pers-darion"');
-  // e o jogador não repõe tochas pela ficha (só o mestre): subir a quantidade é recusado
+  // FG1: quem edita a ficha dá e tira tochas dela (o recurso é do jogador); quem não a edita não mexe
   await abrirFicha(j1.pagina, DARION_ID, "principal");
   const forjada = intencaoCrua("ficha.alterar", {
     personagemId: DARION_ID,
     operacoes: [{ caminho: "itens.12.quantidade", valor: 99 }],
   });
-  expect((await enviarCru(j1.pagina, forjada))?.dados.codigo).toBe("sem_permissao");
+  expect((await enviarCru(j1.pagina, forjada))?.tipo).toBe("evento");
+  const deOutro = intencaoCrua("ficha.alterar", {
+    personagemId: DARION_ID,
+    operacoes: [{ caminho: "itens.12.quantidade", valor: 5 }],
+  });
+  expect((await enviarCru(j2.pagina, deOutro))?.tipo).toBe("erro");
 });

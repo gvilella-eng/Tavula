@@ -342,6 +342,24 @@ export function objetoDoBanco(bruto: unknown): ObjetoDeLuz {
   return ObjetoDeLuzSchema.parse(bruto);
 }
 
+/** FG1: o tamanho da chama no mundo, em metros (esticada como uma imagem: largura e altura). */
+export const TamanhoDaChamaSchema = z.object({
+  larguraM: z.number().min(0.1).max(30),
+  alturaM: z.number().min(0.1).max(30),
+});
+export type TamanhoDaChama = z.infer<typeof TamanhoDaChamaSchema>;
+
+/**
+ * FG1: a animação da chama de cada estágio (forte, fraca, morrendo). O hash é de um arquivo animado já enviado
+ * (asset `animacao`: gif, webp animado ou apng); estágio sem hash usa a animação padrão da mesa.
+ */
+export const AnimacoesDaChamaSchema = z.object({
+  forte: HashSchema.optional(),
+  fraca: HashSchema.optional(),
+  morrendo: HashSchema.optional(),
+});
+export type AnimacoesDaChama = z.infer<typeof AnimacoesDaChamaSchema>;
+
 /** Modelo de objeto criado pelo mestre na campanha ("Tocha 5e", "Lanterna", "Fogueira"). */
 export const ModeloDeObjetoSchema = z.object({
   id: IdCurto,
@@ -356,6 +374,10 @@ export const ModeloDeObjetoSchema = z.object({
   ocupaMao: z.boolean(),
   /** Ex.: "chama": usadas pelas automações (Lote 7b). */
   tags: z.array(z.string().min(1).max(32)).max(12),
+  /** FG1: tamanho padrão da chama no mapa (sem ele, vale o padrão do estilo: tocha ou fogueira). */
+  chamaM: TamanhoDaChamaSchema.optional(),
+  /** FG1: animação própria de cada estágio da chama (sem ela, a animação padrão da mesa). */
+  animacoes: AnimacoesDaChamaSchema.optional(),
   /** 12-1: rascunho do Claude do mestre: o jogador não o recebe. */
   rascunho: z.boolean().optional(),
 });
@@ -378,6 +400,8 @@ export const PontoDeLuzSchema = z.object({
   modeloId: IdCurto.optional(),
   /** Inflamável: segundos segurando a tocha acesa em cima (padrão 3). */
   segurarS: z.number().min(0).max(60).optional(),
+  /** FG1: tamanho da chama deste inflamável (aceso ou não); sem ele vale o do modelo. */
+  chamaM: TamanhoDaChamaSchema.optional(),
   visivelParaJogadores: z.boolean(),
   /** 12-1: rascunho do Claude do mestre: o jogador não o recebe. */
   rascunho: z.boolean().optional(),

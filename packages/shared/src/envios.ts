@@ -23,6 +23,7 @@ export const USOS_DE_ENVIO = [
   "simbolo",
   "handout",
   "som",
+  "animacao",
   "compendio",
   "mapa-uvtt",
 ] as const;
@@ -38,6 +39,7 @@ export const ROTULO_DO_USO: Record<UsoDeEnvio, string> = {
   simbolo: "símbolo da ficha",
   handout: "imagem do handout",
   som: "som",
+  animacao: "animação da chama",
   compendio: "compêndio",
   "mapa-uvtt": "mapa Universal VTT (Dungeondraft)",
 };
@@ -52,6 +54,7 @@ export const FAMILIA_DO_USO: Record<UsoDeEnvio, FamiliaDeFormato> = {
   simbolo: "imagem",
   handout: "imagem",
   som: "som",
+  animacao: "imagem",
   compendio: "json",
   "mapa-uvtt": "json",
 };
@@ -64,6 +67,7 @@ export const LIMITES_DO_ENVIO = {
   /** Mapa: o original antes dos tiles (assumido: 64 MB; um PNG de 3150 x 3150 tem uns 16 MB). */
   bytesDoMapa: 64 * 1024 * 1024,
   bytesDoSom: LIMITES_DE_ASSET.bytesDoSom,
+  bytesDaAnimacao: LIMITES_DE_ASSET.bytesDaAnimacao,
   bytesDoCompendio: LIMITES_DE_ASSET.bytesDoCompendio,
   /** A caixa de entrada inteira (assumido: 300 MB). */
   bytesDaCaixa: 300 * 1024 * 1024,
@@ -93,6 +97,8 @@ export function limiteDoUso(uso: UsoDeEnvio): number {
       return LIMITES_DO_ENVIO.bytesDoMapa;
     case "som":
       return LIMITES_DO_ENVIO.bytesDoSom;
+    case "animacao":
+      return LIMITES_DO_ENVIO.bytesDaAnimacao;
     case "compendio":
       return LIMITES_DO_ENVIO.bytesDoCompendio;
     default:
@@ -369,6 +375,13 @@ export function usoDoArquivo(
         ok: true,
         tipo: null,
         frase: "o som ficou na mesa (ponha-o num lugar da mesa de som para tocar)",
+      };
+    case "animacao":
+      // FG1: a animação só entra na mesa; o modelo de luz a escolhe pela configuração (ou pela ferramenta `objetos`).
+      return {
+        ok: true,
+        tipo: null,
+        frase: "a animação ficou na mesa (escolha-a num estágio do modelo de luz)",
       };
     case "compendio": {
       const nome = (meta?.nomeOriginal ?? "compendio.json").slice(0, 200);

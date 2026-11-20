@@ -2441,6 +2441,41 @@ button[aria-disabled="true"]:hover {
   gap: 8px;
   margin-top: 8px;
 }
+/* FG1: a chama do modelo no mapa (tamanho e animação por estágio). */
+.modelo-chama {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 6px 8px 8px;
+  border: 1px solid var(--borda);
+  border-radius: 8px;
+}
+.modelo-chama legend {
+  padding: 0 4px;
+  color: var(--texto-suave);
+}
+.modelo-animacao {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+}
+.modelo-animacao-rotulo {
+  color: var(--texto-suave);
+}
+.modelo-animacao-arquivo {
+  grid-column: 2;
+  min-width: 0;
+}
+.modelo-animacao-arquivo select {
+  width: 100%;
+  min-width: 0;
+}
+.modelo-animacao-enviar {
+  grid-column: 2;
+  justify-self: start;
+}
 
 /* --- chat (Lote 8) -------------------------------------------------------------------------- */
 

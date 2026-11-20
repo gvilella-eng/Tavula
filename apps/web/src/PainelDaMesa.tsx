@@ -1,15 +1,20 @@
 import {
+  type AssetMeta,
   automacoesDe,
   type ConfigDaMesa,
+  chamaDoModelo,
   type Estado,
+  estiloDaChama,
   fluxoUsa,
   formatarDistancia,
   type ModeloDeObjeto,
   TEMPOS_PARA_JOGADORES,
   type TempoParaJogadores,
 } from "@tabletop/shared";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, Upload } from "lucide-react";
+import { useRef } from "react";
 import { Campo, CampoDeDistancia } from "./Campo";
+import { SeletorSegmentado } from "./SeletorSegmentado";
 import { useUnidade } from "./unidade";
 
 type Enviar = (tipo: string, dados: object) => string | null;
@@ -121,13 +126,113 @@ export function SecaoMesa({ config, enviar }: { config: ConfigDaMesa; enviar: En
   );
 }
 
+/** FG1: a escolha da animação da chama de um estágio: a padrão da mesa ou um arquivo animado já enviado (ou novo). */
+function LinhaDaAnimacao({
+  modelo: m,
+  estagio,
+  rotulo,
+  animacoes,
+  registrar,
+  editar,
+}: {
+  modelo: ModeloDeObjeto;
+  estagio: "forte" | "fraca" | "morrendo";
+  rotulo: string;
+  animacoes: readonly AssetMeta[];
+  registrar: ((arquivo: File) => Promise<{ hash: string; nome: string }>) | undefined;
+  editar: (mudancas: object) => void;
+}) {
+  const arquivo = useRef<HTMLInputElement>(null);
+  const atuais = m.animacoes ?? {};
+  const hash = atuais[estagio];
+  const comArquivo = hash !== undefined;
+  const mudarPara = (novo: string | undefined) => {
+    const proximas: Record<string, string> = {};
+    for (const [k, v] of Object.entries(atuais)) if (v) proximas[k] = v;
+    if (novo === undefined) delete proximas[estagio];
+    else proximas[estagio] = novo;
+    editar({ animacoes: proximas });
+  };
+  return (
+    <div className="modelo-animacao" data-testid={`modelo-anim-${estagio}-${m.id}`}>
+      <span className="modelo-animacao-rotulo">{rotulo}</span>
+      <SeletorSegmentado
+        modo="escolha"
+        rotulo={`Animação da chama (${rotulo.toLowerCase()})`}
+        testid={`modelo-anim-modo-${estagio}-${m.id}`}
+        valor={comArquivo ? "arquivo" : "padrao"}
+        itens={[
+          { id: "padrao", nome: "Padrão", testid: `modelo-anim-padrao-${estagio}-${m.id}` },
+          { id: "arquivo", nome: "Arquivo", testid: `modelo-anim-arquivo-${estagio}-${m.id}` },
+        ]}
+        aoMudar={(id) => {
+          if (id === "padrao") mudarPara(undefined);
+          else if (animacoes[0]) mudarPara(animacoes[0].hash);
+          else arquivo.current?.click();
+        }}
+      />
+      {comArquivo && (
+        <div className="modelo-animacao-arquivo">
+          <select
+            aria-label={`Arquivo da animação (${rotulo.toLowerCase()})`}
+            data-testid={`modelo-anim-escolha-${estagio}-${m.id}`}
+            value={hash}
+            onChange={(e) => mudarPara(e.target.value)}
+          >
+            {animacoes.map((a) => (
+              <option key={a.hash} value={a.hash}>
+                {a.nomeOriginal}
+              </option>
+            ))}
+            {hash !== undefined && !animacoes.some((a) => a.hash === hash) && (
+              <option value={hash}>(arquivo)</option>
+            )}
+          </select>
+        </div>
+      )}
+      {comArquivo && registrar && (
+        <button
+          type="button"
+          className="modelo-animacao-enviar"
+          data-testid={`modelo-anim-enviar-${estagio}-${m.id}`}
+          onClick={() => arquivo.current?.click()}
+        >
+          <Upload size={14} aria-hidden /> Enviar outro
+        </button>
+      )}
+      {registrar && (
+        <input
+          ref={arquivo}
+          type="file"
+          hidden
+          accept="image/gif,image/webp,image/png,.gif,.webp,.apng,.png"
+          data-testid={`modelo-anim-arquivo-input-${estagio}-${m.id}`}
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            e.target.value = "";
+            if (!f) return;
+            registrar(f)
+              .then((r) => mudarPara(r.hash))
+              .catch((erro) => console.warn("Não consegui enviar a animação", erro));
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
 function LinhaDoModelo({
   modelo: m,
   enviar,
   automacoes,
+  animacoes,
+  registrarAnimacao,
 }: {
   modelo: ModeloDeObjeto;
   enviar: Enviar;
+  /** FG1: os arquivos de animação já enviados e como enviar um novo. */
+  animacoes: readonly AssetMeta[];
+  registrarAnimacao: ((arquivo: File) => Promise<{ hash: string; nome: string }>) | undefined;
   /** AU1: os nomes das automações que mexem neste modelo. */
   automacoes: readonly string[];
 }) {
@@ -201,14 +306,14 @@ function LinhaDoModelo({
           )}
         </div>
         <div className="linha-par">
-          <label className="campo-coluna">
-            Cor
+          <label className="linha-opcao">
             <input
               type="color"
               data-testid={`modelo-cor-${m.id}`}
               value={m.luz.cor}
               onChange={(e) => editar({ luz: { cor: e.target.value } })}
             />
+            Cor
           </label>
           <label className="linha-opcao">
             <input
@@ -229,6 +334,56 @@ function LinhaDoModelo({
           />
           Ocupa a mão
         </label>
+        <fieldset className="modelo-chama" data-testid={`modelo-chama-${m.id}`}>
+          <legend>Chama no mapa</legend>
+          <div className="linha-par">
+            <CampoDeDistancia
+              testid={`modelo-chama-largura-${m.id}`}
+              rotulo="Largura"
+              minM={0.1}
+              maxM={30}
+              valorM={chamaDoModelo(m).larguraM}
+              aoConfirmar={(n) => {
+                if (n !== null && n >= 0.1) {
+                  editar({ chamaM: { ...chamaDoModelo(m), larguraM: n } });
+                }
+              }}
+            />
+            <CampoDeDistancia
+              testid={`modelo-chama-altura-${m.id}`}
+              rotulo="Altura"
+              minM={0.1}
+              maxM={30}
+              valorM={chamaDoModelo(m).alturaM}
+              aoConfirmar={(n) => {
+                if (n !== null && n >= 0.1) {
+                  editar({ chamaM: { ...chamaDoModelo(m), alturaM: n } });
+                }
+              }}
+            />
+          </div>
+          {(
+            [
+              ["forte", "Forte"],
+              ["fraca", "Fraca"],
+              ["morrendo", "Morrendo"],
+            ] as const
+          ).map(([estagio, rotulo]) => (
+            <LinhaDaAnimacao
+              key={estagio}
+              modelo={m}
+              estagio={estagio}
+              rotulo={rotulo}
+              animacoes={animacoes}
+              registrar={registrarAnimacao}
+              editar={editar}
+            />
+          ))}
+          <p className="nota">
+            Animação {estiloDaChama(m) === "fogueira" ? "de fogueira" : "de tocha"} padrão, ou um
+            gif, webp animado ou apng seu (até 4 MB).
+          </p>
+        </fieldset>
         <Campo
           testid={`modelo-tags-${m.id}`}
           rotulo="Tags (separadas por vírgula)"
@@ -267,10 +422,13 @@ function LinhaDoModelo({
 export function SecaoObjetosDeLuz({
   estado,
   enviar,
+  registrarAnimacao,
 }: {
-  estado: Pick<Estado, "modelos" | "automacoes">;
+  estado: Pick<Estado, "modelos" | "automacoes" | "assets">;
   enviar: Enviar;
+  registrarAnimacao?: ((arquivo: File) => Promise<{ hash: string; nome: string }>) | undefined;
 }) {
+  const animacoes = (estado.assets ?? []).filter((a) => a.tipo === "animacao");
   function novoModelo() {
     enviar("modelo.criar", {
       modelo: {
@@ -287,13 +445,17 @@ export function SecaoObjetosDeLuz({
     <section className="secao-objetos" data-testid="config-objetos" aria-label="Objetos de luz">
       <p className="nota">
         Modelos de tocha, lanterna, fogueira… Os personagens carregam na mochila (quantidade) e os
-        pontos do mapa acendem. Mudar o modelo não muda os objetos que já existem.
+        pontos do mapa acendem. Mudar o modelo muda, na hora, todos os objetos dele (nas mãos, nas
+        mochilas, nos suportes e no mapa); o que é de cada objeto (aceso, tempo, onde está) fica
+        como está.
       </p>
       {estado.modelos.map((m) => (
         <LinhaDoModelo
           key={m.id}
           modelo={m}
           enviar={enviar}
+          animacoes={animacoes}
+          registrarAnimacao={registrarAnimacao}
           automacoes={automacoesDe(estado)
             .fluxos.filter((f) => fluxoUsa(f, "modelo", m.id))
             .map((f) => f.nome)}

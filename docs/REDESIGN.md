@@ -2547,3 +2547,34 @@ O Vilella testou o divisor do MU1 a ~1360 px: "o espaço ficou muito pequeno e o
 
 **O que ficou para depois**
 - Nenhum.
+
+## FG1 — como ficou (2026-11-20): luz e fogo
+
+O Vilella usou a mesa e pediu: o modelo de luz ao vivo, uma área de soltar a tocha maior, a tocha no lugar do ícone do suporte, tudo em tamanho de mundo, fogo animado no inflamável (com tamanho controlável), animações por estágio (padrão e as dele) e o jogador dando equipamento a si mesmo.
+
+**O que foi feito**
+- **Modelo ao vivo.** Editar um modelo (nome, luz plena e penumbra, cor, tremular, duração, ocupa a mão, etiquetas, tamanho e animações da chama) muda na hora TODOS os objetos dele (mãos, mochilas, suportes, pontos e mapa), para todos (`modelo.editar` emite também `fonte.editada` de cada objeto e manda snapshot a todos). O que é do objeto fica: aceso, tempo que resta, portador, intensidade, modificadores, histórico e o tamanho próprio do inflamável. Duração nova menor que o tempo que resta: o restante vira a duração nova e, se está acesa, a contagem recomeça agora; duração maior não devolve tempo; "não se consome" tira o saldo; voltar a ter duração dá o saldo cheio. O texto "Mudar o modelo não muda os objetos que já existem" saiu. Os modificadores de automação e de zona continuam por cima.
+- **Área de soltar.** A tocha arrastada pega o suporte ou inflamável mais próximo dentro de 1 célula de raio (no mínimo 40 px na tela); o alvo é destacado durante o arrasto. O ícone continua pequeno.
+- **A tocha no lugar do suporte.** O objeto num ponto é desenhado no centro do ponto, no lugar do ícone (que some enquanto ele está lá e volta quando sai). Com mais de um objeto no mesmo suporte, ficam lado a lado, centrados.
+- **Tamanho de mundo.** Os ícones de suporte e de inflamável (0,2 célula de raio), a tocha e a chama (em metros) escalam com o zoom do mapa. O relógio e os rótulos continuam em tamanho de tela e somem abaixo de 70% de zoom. A área de toque nunca fica menor que 20 px (15 px no ícone do ponto).
+- **Chama animada.** Inflamável aceso e tocha num ponto mostram um fogo crepitante (visto de cima, achatado, um pouco dimétrico), nunca o símbolo da tocha. Estágios forte, fraca e morrendo; estilo de tocha (quem ocupa a mão) e de fogueira (o resto). As animações padrão são geradas por código no navegador (canvas 2D, `apps/web/src/mapa/chamas.ts`): nada de arquivo de terceiros nem da internet. A tocha na mão continua sendo o pino do token.
+- **Animação própria por estágio.** No editor do modelo, cada estágio escolhe "Padrão" ou "Arquivo": um gif, webp animado ou apng já enviado (ou novo). O arquivo é um asset novo, `animacao` (até 4 MB, sem processar), com o caminho das imagens de hoje: hash, cache, pasta da mesa e transferência sob demanda; o navegador decodifica com o `ImageDecoder` (sem dependência) e toca em laço.
+- **Tamanho da chama do inflamável.** Por alças no mapa (oito, esticando a partir do centro, Shift no canto mantém a proporção) e por campos no painel do ponto ("Chama: largura" e "altura"); "Usar o tamanho do modelo" volta ao padrão. O modelo tem o tamanho padrão (tocha 0,6 × 0,8 m, fogueira 1,2 × 1,2 m). A luz (raios) continua a do modelo.
+- **Jogador dá equipamento.** Capacidade nova `equipamento.dar` ("Dar e tirar equipamentos de luz dos próprios personagens"), delegável e **ligada por padrão**. Vale para `ficha.alterar` (subir a quantidade de item de modelo) e para `mochila.ajustar`, só no personagem que o jogador edita ou controla. O mestre pode desligá-la nas Permissões (ou por jogador).
+- **Cor alinhada** no editor do modelo (a cor ficou na mesma linha do "Tremular").
+- **Setinha no item de modelo da ficha** (pedido extra do Vilella): recolhe e expande o peso, a nota e as unidades usadas.
+
+**Decisões (assumido)**
+- O estilo da chama padrão vem de `ocupaMao`: quem se segura na mão é tocha; o resto é fogueira.
+- A tocha na mão ficou como o pino do token (a chama animada vale para o que está num ponto).
+- O nome de um objeto só acompanha o do modelo se ainda era igual ao nome antigo do modelo.
+- A área de soltar vale para o ponto mais próximo; tocha acesa solta sobre inflamável já aceso continua dando o aviso "Já há fogo aí".
+- A setinha da ficha: padrão **aberto**, lembrada por navegador e por item (`tabletop:pref:itensRecolhidos`, chave `personagem:modelo`).
+- "Reduzir movimento": a chama fica no primeiro quadro, parada.
+- Animação própria: no máximo 48 quadros e 160 px no lado maior; mais que isso é reduzido.
+- O login no portal Távola (e não por mesa) é decisão do Vilella, a pensar depois (ver `IDEIAS.md`).
+
+**O que ficou para depois**
+- "A luz acompanha o tamanho da chama" (`IDEIAS.md`).
+- Chama animada no pino da tocha na mão.
+- Prévia da animação no editor do modelo.

@@ -506,13 +506,34 @@ describe("ficha.alterar", () => {
     ).toBe(false);
   });
 
-  it("jogador não repõe tochas (aumentar a quantidade de item de modelo); gastar pode", () => {
+  it("FG1: o jogador dá e tira equipamento de modelo (tocha) do próprio personagem, não do dos outros; o mestre pode tirar a capacidade", () => {
     const mais = intencao("ficha.alterar", {
       personagemId: "p1",
       operacoes: [{ caminho: "itens.12.quantidade", valor: 12 }],
     });
-    expect(codigo(e, "j1", mais)).toBe("sem_permissao");
+    expect(codigo(e, "j1", mais)).toBeNull();
     expect(codigo(e, "m", mais)).toBeNull();
+    // o jogador 2 não edita o personagem 1: nada de dar tocha a ele
+    expect(codigo(e, "j2", mais)).toBe("sem_permissao");
+    // com a capacidade desligada, só o mestre
+    const sem = aplicar(
+      e,
+      "m",
+      intencao("permissao.alterar", { capacidade: "equipamento.dar", valor: false }),
+    ).estado;
+    expect(codigo(sem, "j1", mais)).toBe("sem_permissao");
+    expect(codigo(sem, "m", mais)).toBeNull();
+    // exceção por jogador volta a ligar para ele
+    const excecao = aplicar(
+      sem,
+      "m",
+      intencao("permissao.alterar", {
+        capacidade: "equipamento.dar",
+        valor: true,
+        usuarioId: "j1",
+      }),
+    ).estado;
+    expect(codigo(excecao, "j1", mais)).toBeNull();
     const gasta = intencao("ficha.alterar", {
       personagemId: "p1",
       operacoes: [{ caminho: "itens.12.quantidade", valor: 1 }],

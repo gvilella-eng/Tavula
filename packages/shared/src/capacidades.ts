@@ -16,6 +16,7 @@ export const CAPACIDADES_DELEGAVEIS = [
   "token.colocarProprio",
   "mapa.pingar",
   "personagem.criarProprio",
+  "equipamento.dar",
 ] as const;
 
 /** Capacidades só do mestre: nunca delegáveis. */
@@ -63,6 +64,8 @@ export const PERMISSOES_PADRAO: Record<CapacidadeDelegavel, boolean> = {
   "mapa.pingar": true,
   // 12-1: ligada por padrão (decisão do Vilella): o jogador cria as próprias fichas e handouts, com teto de 20 de cada.
   "personagem.criarProprio": true,
+  // FG1: o jogador dá e tira equipamentos de modelo (tochas, lanternas) dos personagens que controla: o recurso é dele.
+  "equipamento.dar": true,
 };
 
 /** Rótulos em pt-BR para o painel do mestre. */
@@ -81,6 +84,7 @@ export const ROTULO_DA_CAPACIDADE: Record<CapacidadeDelegavel, string> = {
   "token.colocarProprio": "Pôr o próprio token no mapa (na bandeira)",
   "mapa.pingar": "Pingar o mapa e centralizar a tela de todos",
   "personagem.criarProprio": "Criar fichas e notas próprias",
+  "equipamento.dar": "Dar e tirar equipamentos de luz dos próprios personagens",
 };
 
 type ComPapel = Pick<Usuario, "id" | "papel">;

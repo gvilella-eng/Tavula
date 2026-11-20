@@ -48,3 +48,23 @@ export function somPorNome(estado: Estado, pedido: string): AssetMeta {
   }
   return achar(sons, p, { rotulo: "som", nomeDe: (s) => s.nomeOriginal, idDe: (s) => s.hash });
 }
+
+/** FG1: uma animação de chama já enviada, pelo nome do arquivo ou pelo começo do hash. */
+export function animacaoPorNome(estado: Estado, pedido: string): AssetMeta {
+  const lista = (estado.assets ?? []).filter((a) => a.tipo === "animacao");
+  if (lista.length === 0) {
+    throw new ErroDoMcp(
+      "A mesa não tem nenhuma animação. Suba uma com a ferramenta `arquivos` (uso `animacao`) e tente de novo.",
+    );
+  }
+  const p = pedido.trim();
+  if (p.length >= 6) {
+    const porHash = lista.filter((s) => s.hash.startsWith(p.toLowerCase()));
+    if (porHash.length === 1) return porHash[0] as AssetMeta;
+  }
+  return achar(lista, p, {
+    rotulo: "animação",
+    nomeDe: (s) => s.nomeOriginal,
+    idDe: (s) => s.hash,
+  });
+}

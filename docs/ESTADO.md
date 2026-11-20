@@ -4470,4 +4470,28 @@ Ver `PASSAGEM.md`, "MU3" (`--faixa-do-som` e os 46 px).
 ### Roteiro manual
 Abrir a mesa de som em faixa, arrastar a alça e recolher: o zoom acompanha. Soltar em janela: o zoom volta ao pé.
 
-## Próximo: o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b, N4, N5, M1, M2, Q1 a Q16, CH1, MU1, MU2, MU3, A1, AU1 e das otimizações O1–O4
+## Ajustes FG1 — luz e fogo: modelo ao vivo, suportes, escala do mapa, chama animada e jogador dá equipamento (entregue, aguardando o roteiro manual)
+
+### O que foi entregue
+Editar o modelo de luz muda todos os objetos dele na hora; a área de soltar a tocha é maior; a tocha toma o lugar do ícone do suporte; ícones, tochas e chamas têm tamanho de mundo (escalam com o zoom); inflamável aceso e tocha num ponto mostram fogo animado (padrão gerado por código, ou gif, webp animado ou apng do mestre por estágio); o mestre estica a chama do inflamável por alças e por campos; o jogador dá e tira equipamento de modelo dos personagens dele (capacidade `equipamento.dar`); a cor do editor do modelo alinhou; a ficha ganhou a setinha que recolhe os detalhes do item de modelo. O MCP alcança tudo (modelo ao vivo, tamanho da chama, animação por estágio pelo nome do arquivo, dar equipamento).
+
+### Como rodar
+`pnpm dev`; aba Mesa, Luz (modelo Tocha, "Chama no mapa"); painel de luzes, ponto inflamável (alças brancas). E2E: `pnpm --filter @tabletop/e2e test tests/fg1.spec.ts`.
+
+### Verificação
+Typecheck, lint, unidade (shared 1414, server 140, web 298, mcp 19) e E2E inteiro numa rodada (538 testes, 86 arquivos, 8792/5178): tudo passou; um instável no `chamada.spec.ts` (WebRTC, fora do lote) passou ao rodar de novo sozinho. Depois, só CSS (largura do rótulo das animações): fg1, sala e a1 de novo, verdes. Medida de desempenho (3 s parados, tarefa da thread principal: sem chamas 70 ms, 12 chamas 180 ms, 48 chamas 285 ms, sem tarefas longas; com pan e zoom 317 / 407 / 490 ms): `e2e/prints/desempenho.spec.ts` (grupo F, `MEDIDA_SO=F`). Prints: Grimório 1600×900 e 1280×720 e Pergaminho 1600×900.
+
+### Decisões
+Ver `REDESIGN.md`, "FG1 — como ficou".
+
+### Desvios
+- E2E antigos alterados: `ficha.spec.ts` (a tocha na mão de quem não tem token: o jogador que edita agora PODE repor tochas; o teste confere que quem não edita não pode) e `ficha-livro.spec.ts` (o "+" do jogador deixou de ficar desabilitado). Os dois testavam a regra "só o mestre repõe tochas", que mudou de propósito.
+- Testes de unidade alterados: `ficha.test.ts` e `tochas.test.ts` (mesma regra).
+
+### Frágil
+Ver `PASSAGEM.md`, "FG1".
+
+### Roteiro manual
+Ver `docs/ROTEIRO-DE-TESTES.md`, "FG1".
+
+## Próximo: o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b, N4, N5, M1, M2, Q1 a Q16, CH1, MU1, MU2, MU3, A1, AU1, FG1 e das otimizações O1–O4

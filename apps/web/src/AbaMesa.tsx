@@ -39,6 +39,7 @@ export const FATIA_DA_MESA = [
   "config",
   "modelos",
   "automacoes",
+  "assets",
 ] as const;
 export type EstadoDaMesa = Pick<Estado, (typeof FATIA_DA_MESA)[number]>;
 
@@ -52,6 +53,8 @@ type Props = {
   enviar: (tipo: string, dados: object) => string | null;
   /** 7b-3: abre o editor das automações (janela sobre o mapa). */
   aoAbrirAutomacoes: () => void;
+  /** FG1: envia uma animação de chama (gif, webp animado ou apng) para a mesa. */
+  registrarAnimacao?: ((arquivo: File) => Promise<{ hash: string; nome: string }>) | undefined;
 };
 
 /**
@@ -144,6 +147,7 @@ function AbaMesaBase({
   avisoDeContas,
   enviar,
   aoAbrirAutomacoes,
+  registrarAnimacao,
 }: Props) {
   const jogadores = jogadoresDaMesa(estado);
   const [alvo, setAlvo] = useState<string>("");
@@ -228,7 +232,7 @@ function AbaMesaBase({
         icone={<Flame size={16} />}
         resumo={`${modelos} ${modelos === 1 ? "modelo" : "modelos"} de tocha e objetos`}
       >
-        <SecaoObjetosDeLuz estado={estado} enviar={enviar} />
+        <SecaoObjetosDeLuz estado={estado} enviar={enviar} registrarAnimacao={registrarAnimacao} />
       </SecaoDePreferencias>
 
       <SecaoDePreferencias

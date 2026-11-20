@@ -1,6 +1,7 @@
 import {
   type Cena,
   cenaDoObjeto,
+  chamaDoPonto,
   type Estado,
   type FonteDeLuz,
   formatarRestante,
@@ -579,6 +580,11 @@ function EditorDoPonto(props: {
 }) {
   const { ponto: x, estado } = props;
   const editar = (mudancas: object) => props.enviar("ponto.editar", { id: x.id, mudancas });
+  // FG1: o tamanho da chama do inflamável (o dele, ou o do modelo); também se estica por alças no mapa.
+  const chama = chamaDoPonto(
+    x,
+    estado.modelos.find((m) => m.id === x.modeloId),
+  );
   return (
     <fieldset className="quem-controla" data-testid="ponto-editor">
       <legend>Ponto “{x.nome}”</legend>
@@ -618,6 +624,37 @@ function EditorDoPonto(props: {
               ))}
             </select>
           </label>
+          <div className="linha-par">
+            <CampoDeDistancia
+              testid="ponto-chama-largura"
+              rotulo="Chama: largura"
+              minM={0.1}
+              maxM={30}
+              valorM={chama.larguraM}
+              aoConfirmar={(n) => {
+                if (n !== null && n >= 0.1) editar({ chamaM: { ...chama, larguraM: n } });
+              }}
+            />
+            <CampoDeDistancia
+              testid="ponto-chama-altura"
+              rotulo="Chama: altura"
+              minM={0.1}
+              maxM={30}
+              valorM={chama.alturaM}
+              aoConfirmar={(n) => {
+                if (n !== null && n >= 0.1) editar({ chamaM: { ...chama, alturaM: n } });
+              }}
+            />
+          </div>
+          {x.chamaM && (
+            <button
+              type="button"
+              data-testid="ponto-chama-padrao"
+              onClick={() => editar({ chamaM: null })}
+            >
+              Usar o tamanho do modelo
+            </button>
+          )}
           <Campo
             testid="ponto-segurar"
             rotulo="Segurar a tocha por (s)"
@@ -641,7 +678,10 @@ function EditorDoPonto(props: {
         />
         Visível para os jogadores
       </label>
-      <p className="nota">Arraste o ponto no mapa para mudar de lugar.</p>
+      <p className="nota">
+        Arraste o ponto no mapa para mudar de lugar
+        {x.tipo === "inflamavel" ? "; arraste as alças brancas para esticar a chama" : ""}.
+      </p>
     </fieldset>
   );
 }

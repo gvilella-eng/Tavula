@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  assetVisivelPara,
+  CHAMA_PADRAO,
   CONFIG_PADRAO,
+  chamaDoModelo,
+  chamaDoPonto,
   dentroDoAlcance,
   distanciaEmQuadrados,
   type Estado,
@@ -677,13 +681,27 @@ describe("pontos e modelos", () => {
     expect(recusa(e, "j1", intencao("modelo.apagar", { id: "modelo-lanterna" }))).toBe(
       "sem_permissao",
     );
-    expect(
-      recusa(
-        e,
-        "j1",
-        intencao("mochila.ajustar", { personagemId: "p1", modeloId: "modelo-tocha", delta: 1 }),
-      ),
-    ).toBe("sem_permissao");
+  });
+  it("FG1: o jogador ajusta a mochila do próprio personagem (com equipamento.dar), nunca a de outro", () => {
+    let e = criarEstado();
+    const mais = intencao("mochila.ajustar", {
+      personagemId: "p1",
+      modeloId: "modelo-tocha",
+      delta: 1,
+    });
+    const antes = e.personagens.find((p) => p.id === "p1")?.ficha?.itens?.[0]?.quantidade;
+    e = ok(e, "j1", mais).estado;
+    expect(e.personagens.find((p) => p.id === "p1")?.ficha?.itens?.[0]?.quantidade).toBe(
+      (antes ?? 0) + 1,
+    );
+    expect(recusa(e, "j2", mais)).not.toBeNull();
+    const sem = ok(
+      e,
+      "m",
+      intencao("permissao.alterar", { capacidade: "equipamento.dar", valor: false }),
+    ).estado;
+    expect(recusa(sem, "j1", mais)).toBe("sem_permissao");
+    expect(recusa(sem, "m", mais)).toBeNull();
   });
   it("config.mesa muda os campos e valida os estágios; modelo em uso não se apaga", () => {
     let e = criarEstado();
@@ -1073,5 +1091,285 @@ describe("pausa automática: não sobrou mestre conectado", () => {
     expect(recusa(r.estado, "j1", intencao("mesa.retomar"), em(8))).not.toBeNull();
     const volta = ok(r.estado, "m", intencao("mesa.retomar"), em(8));
     expect(volta.estado.relogio).toMatchObject({ pausada: false, acumuladoMs: 7 * MIN });
+  });
+});
+
+// ---------------------------------------------------------------------------------------------
+// FG1: o modelo ao vivo, a chama (tamanho e animação) e o equipamento do jogador
+// ---------------------------------------------------------------------------------------------
+
+describe("FG1: editar o modelo muda todos os objetos dele, na hora", () => {
+  const suporte = {
+    id: "s1",
+    nome: "Suporte",
+    x: 6,
+    y: 5.25,
+    tipo: "suporte" as const,
+    visivelParaJogadores: true,
+  };
+  /** o1 guardado na mochila, o2 num suporte do mapa e o3 ainda na mão de Aldric. */
+  function cenario(): Estado {
+    let e = criarEstado();
+    e = ok(e, "m", intencao("ponto.criar", { ponto: suporte })).estado;
+    e = acender(e, "j1", "p1", "o1");
+    e = acender(e, "j1", "p1", "o2");
+    e = ok(e, "j1", intencao("tocha.posar", { id: "o2", pontoId: "s1" })).estado;
+    e = ok(e, "j1", intencao("tocha.guardar", { id: "o1" })).estado;
+    e = acender(e, "j1", "p1", "o3");
+    return e;
+  }
+  const editar = (e: Estado, mudancas: object, agora = em(0)) =>
+    ok(e, "m", intencao("modelo.editar", { id: "modelo-tocha", mudancas }), agora);
+
+  it("luz, cor, nome: nas mãos, nas mochilas e nos suportes, para todos (o jogador vê o novo)", () => {
+    const e = cenario();
+    const r = editar(e, { nome: "Archote", luz: { claraM: 9, penumbraM: 2, cor: "#112233" } });
+    for (const id of ["o1", "o2", "o3"]) {
+      expect(luz(r.estado, id)).toMatchObject({
+        nome: "Archote",
+        luz: { claraM: 9, penumbraM: 2, cor: "#112233" },
+      });
+    }
+    const dos = (quem: string, id: string) =>
+      visaoPara(r.estado, { id: quem, papel: "jogador" }, T0).luzes.find((l) => l.id === id);
+    expect(dos("j1", "o1")?.luz.claraM).toBe(9); // na mochila dele
+    expect(dos("j2", "o2")?.luz.claraM).toBe(9); // no suporte, que o outro jogador também vê
+    expect(dos("j1", "o3")?.nome).toBe("Archote"); // na mão
+    // O que é do objeto fica: aceso, portador, tempo que resta, intensidade.
+    expect(luz(r.estado, "o2")).toMatchObject({
+      estado: "acesa",
+      portador: { tipo: "ponto", pontoId: "s1" },
+      saldoMs: luz(e, "o2")?.saldoMs,
+      intensidade: luz(e, "o2")?.intensidade,
+    });
+    expect(luz(r.estado, "o1")?.portador).toMatchObject({ tipo: "mochila" });
+    // Os eventos levam os objetos mudados (a sala os envia a quem os vê).
+    expect(r.eventos.filter((x) => x.tipo === "fonte.editada")).toHaveLength(3);
+  });
+
+  it("o nome que o mestre deu a um objeto em particular fica; o do modelo muda", () => {
+    const e = cenario();
+    const comNomePropio = ok(
+      e,
+      "m",
+      intencao("fonte.editar", { id: "o3", mudancas: { nome: "Tocha do Aldric" } }),
+    ).estado;
+    const r = editar(comNomePropio, { nome: "Archote" });
+    expect(luz(r.estado, "o3")?.nome).toBe("Tocha do Aldric");
+    expect(luz(r.estado, "o1")?.nome).toBe("Archote");
+  });
+
+  it("duração menor que o tempo que resta: o restante vira a duração nova e a contagem recomeça agora", () => {
+    const e = cenario(); // 30 min de duração, acesas no minuto 0
+    const r = editar(e, { duracaoS: 15 * 60 }, em(10)); // restam 20 min; passa a caber 15
+    const o = luz(r.estado, "o2") as ObjetoDeLuz;
+    expect(o.duracaoMs).toBe(15 * MIN);
+    expect(restanteDoObjeto(o, 10 * MIN)).toBe(15 * MIN);
+    expect(restanteDoObjeto(o, 12 * MIN)).toBe(13 * MIN); // segue contando
+    // A tocha guardada (apagada) também é limitada.
+    expect(restanteDoObjeto(luz(r.estado, "o1") as ObjetoDeLuz, 10 * MIN)).toBeLessThanOrEqual(
+      15 * MIN,
+    );
+  });
+
+  it("duração menor, mas ainda maior que o restante: o tempo que resta fica como está", () => {
+    const e = cenario();
+    const r = editar(e, { duracaoS: 25 * 60 }, em(10)); // restam 20 min, cabem 25
+    const o = luz(r.estado, "o2") as ObjetoDeLuz;
+    expect(o.duracaoMs).toBe(25 * MIN);
+    expect(restanteDoObjeto(o, 10 * MIN)).toBe(20 * MIN);
+    expect(o.saldoMs).toBe(luz(e, "o2")?.saldoMs);
+    expect(o.acesaDesdeSala).toBe(0);
+  });
+
+  it("duração maior não devolve tempo; infinita tira o consumo; voltar a ter duração dá o saldo cheio", () => {
+    const e = cenario();
+    const maior = editar(e, { duracaoS: 3600 }, em(10)).estado;
+    expect(restanteDoObjeto(luz(maior, "o2") as ObjetoDeLuz, 10 * MIN)).toBe(20 * MIN);
+    const infinita = editar(e, { duracaoS: null }, em(10)).estado;
+    expect(luz(infinita, "o2")).toMatchObject({ saldoMs: null });
+    expect(luz(infinita, "o2")?.duracaoMs).toBeUndefined();
+    const devolta = ok(
+      infinita,
+      "m",
+      intencao("modelo.editar", { id: "modelo-tocha", mudancas: { duracaoS: 600 } }),
+      em(20),
+    ).estado;
+    expect(restanteDoObjeto(luz(devolta, "o2") as ObjetoDeLuz, 20 * MIN)).toBe(10 * MIN);
+  });
+
+  it("os outros modelos não mudam e quem não é o mestre não edita", () => {
+    const e = cenario();
+    const lanterna = ok(
+      acender(e, "j1", "p1", "o9"),
+      "m",
+      intencao("modelo.editar", { id: "modelo-lanterna", mudancas: { luz: { claraM: 1 } } }),
+    );
+    expect(luz(lanterna.estado, "o3")?.luz.claraM).toBe(6);
+    expect(
+      recusa(e, "j1", intencao("modelo.editar", { id: "modelo-tocha", mudancas: { nome: "X" } })),
+    ).toBe("sem_permissao");
+  });
+});
+
+describe("FG1: a chama do modelo e do ponto (tamanho e animação)", () => {
+  const HASH = "a".repeat(64);
+  const metaAnimacao = {
+    hash: HASH,
+    tipo: "animacao" as const,
+    mime: "image/gif",
+    bytes: 10,
+    largura: 1,
+    altura: 1,
+    nomeOriginal: "fogo.gif",
+    pedacos: ["b".repeat(64)],
+  };
+  const registrar = (e: Estado, quem: string) =>
+    processar(e, quem, intencao("asset.registrar", { metas: [metaAnimacao] }), em(0));
+
+  it("tamanho padrão por estilo, o do modelo e o do ponto (que vale mais)", () => {
+    const [tocha, lanterna, fogueira] = modelos();
+    expect(chamaDoModelo(tocha)).toEqual(CHAMA_PADRAO.tocha);
+    expect(chamaDoModelo(lanterna)).toEqual(CHAMA_PADRAO.tocha);
+    expect(chamaDoModelo(fogueira)).toEqual(CHAMA_PADRAO.fogueira);
+    const grande = { larguraM: 3, alturaM: 4 };
+    expect(chamaDoModelo({ ocupaMao: false, chamaM: grande })).toEqual(grande);
+    expect(chamaDoPonto({}, fogueira)).toEqual(CHAMA_PADRAO.fogueira);
+    expect(chamaDoPonto({ chamaM: { larguraM: 2, alturaM: 2 } }, fogueira)).toEqual({
+      larguraM: 2,
+      alturaM: 2,
+    });
+  });
+
+  it("o mestre estica a chama do inflamável (e volta ao do modelo); o jogador vê o tamanho; limites", () => {
+    let e = criarEstado();
+    const inflamavel = {
+      id: "i1",
+      nome: "Palha",
+      x: 3,
+      y: 3,
+      tipo: "inflamavel" as const,
+      modeloId: "modelo-fogueira",
+      visivelParaJogadores: true,
+    };
+    e = ok(e, "m", intencao("ponto.criar", { ponto: inflamavel })).estado;
+    e = ok(
+      e,
+      "m",
+      intencao("ponto.editar", { id: "i1", mudancas: { chamaM: { larguraM: 2.5, alturaM: 1.5 } } }),
+    ).estado;
+    expect(e.pontos[0]?.chamaM).toEqual({ larguraM: 2.5, alturaM: 1.5 });
+    const doJogador = visaoPara(e, { id: "j2", papel: "jogador" }, T0);
+    expect(doJogador.pontos[0]?.chamaM).toEqual({ larguraM: 2.5, alturaM: 1.5 });
+    e = ok(e, "m", intencao("ponto.editar", { id: "i1", mudancas: { chamaM: null } })).estado;
+    expect(e.pontos[0]?.chamaM).toBeUndefined();
+    expect(() =>
+      intencao("ponto.editar", { id: "i1", mudancas: { chamaM: { larguraM: 0, alturaM: 1 } } }),
+    ).toThrow();
+    expect(() =>
+      intencao("ponto.editar", { id: "i1", mudancas: { chamaM: { larguraM: 40, alturaM: 1 } } }),
+    ).toThrow();
+    expect(
+      recusa(
+        e,
+        "j1",
+        intencao("ponto.editar", { id: "i1", mudancas: { chamaM: { larguraM: 2, alturaM: 2 } } }),
+      ),
+    ).toBe("sem_permissao");
+  });
+
+  it("a animação por estágio: só arquivo `animacao` da mesa; o jogador não envia e o modelo leva ao jogador", () => {
+    const e = criarEstado();
+    // O jogador não registra animação; o mestre sim.
+    const negado = registrar(e, "j1");
+    expect(negado.ok).toBe(false);
+    const r = registrar(e, "m");
+    if (!r.ok) throw new Error(r.erro.mensagem);
+    const comArquivo = r.estado;
+    // Hash que não é de uma animação da mesa: recusado.
+    expect(
+      recusa(
+        comArquivo,
+        "m",
+        intencao("modelo.editar", {
+          id: "modelo-tocha",
+          mudancas: { animacoes: { forte: "c".repeat(64) } },
+        }),
+      ),
+    ).toBe("asset_inexistente");
+    const e2 = ok(
+      comArquivo,
+      "m",
+      intencao("modelo.editar", {
+        id: "modelo-tocha",
+        mudancas: { animacoes: { forte: HASH }, chamaM: { larguraM: 1, alturaM: 1.4 } },
+      }),
+    ).estado;
+    const tocha = e2.modelos.find((m) => m.id === "modelo-tocha");
+    expect(tocha?.animacoes).toEqual({ forte: HASH });
+    expect(tocha?.chamaM).toEqual({ larguraM: 1, alturaM: 1.4 });
+    // O jogador recebe o modelo com a animação e pode baixar o arquivo.
+    const vista = visaoPara(e2, { id: "j2", papel: "jogador" }, T0);
+    expect(vista.modelos.find((m) => m.id === "modelo-tocha")?.animacoes).toEqual({ forte: HASH });
+    expect(assetVisivelPara(HASH, e2, { id: "j2", papel: "jogador" })).toBe(true);
+    // Um objeto vazio volta à animação padrão de todos os estágios.
+    const e3 = ok(
+      e2,
+      "m",
+      intencao("modelo.editar", { id: "modelo-tocha", mudancas: { animacoes: {} } }),
+    ).estado;
+    expect(e3.modelos.find((m) => m.id === "modelo-tocha")?.animacoes).toBeUndefined();
+  });
+
+  it("a exportação leva o tamanho e a animação (e a meta do arquivo); importar devolve igual", () => {
+    const e0 = criarEstado();
+    const r = registrar(e0, "m");
+    if (!r.ok) throw new Error(r.erro.mensagem);
+    let e = ok(
+      r.estado,
+      "m",
+      intencao("modelo.editar", {
+        id: "modelo-fogueira",
+        mudancas: { animacoes: { morrendo: HASH }, chamaM: { larguraM: 2, alturaM: 2 } },
+      }),
+    ).estado;
+    e = ok(
+      e,
+      "m",
+      intencao("ponto.criar", {
+        ponto: {
+          id: "i1",
+          nome: "Palha",
+          x: 3,
+          y: 3,
+          tipo: "inflamavel",
+          modeloId: "modelo-fogueira",
+          chamaM: { larguraM: 4, alturaM: 3 },
+          visivelParaJogadores: true,
+        },
+      }),
+    ).estado;
+    const x = ok(e, "m", intencao("campanha.exportar")).exportacao;
+    if (!x) throw new Error("sem exportação");
+    const lida = lerExportacao(JSON.parse(JSON.stringify(x)));
+    if (!lida.ok) throw new Error(lida.motivo);
+    const d = lida.exportacao.dados;
+    expect(d.modelos.find((m) => m.id === "modelo-fogueira")).toMatchObject({
+      animacoes: { morrendo: HASH },
+      chamaM: { larguraM: 2, alturaM: 2 },
+    });
+    expect(d.pontos[0]?.chamaM).toEqual({ larguraM: 4, alturaM: 3 });
+    expect(d.assets?.some((a) => a.hash === HASH && a.tipo === "animacao")).toBe(true);
+  });
+
+  it("campanha antiga (modelo e ponto sem os campos novos) carrega como sempre", () => {
+    const e = criarEstado();
+    const x = ok(e, "m", intencao("campanha.exportar")).exportacao;
+    if (!x) throw new Error("sem exportação");
+    const lida = lerExportacao(JSON.parse(JSON.stringify(x)));
+    expect(lida.ok).toBe(true);
+    const tocha = e.modelos.find((m) => m.id === "modelo-tocha");
+    expect(tocha?.chamaM).toBeUndefined();
+    expect(tocha?.animacoes).toBeUndefined();
   });
 });

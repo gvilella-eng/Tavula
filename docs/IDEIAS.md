@@ -197,3 +197,9 @@ git).
 - **Modelos de automação** prontos (vento, gás, armadilha, respiração) para colar e ajustar.
 - **Canvas melhor:** arrastar e dar zoom, minimapa, colar blocos entre automações, arrastar pelo teclado.
 - **Histórico de execuções** (a lista guarda só o "rodou há"): quando rodou, o que mudou.
+
+## Depois do FG1 (2026-11-20)
+
+- **A luz acompanha o tamanho da chama:** uma opção no modelo (ou no ponto) para os raios de luz crescerem e encolherem junto com o tamanho da chama que o mestre esticou. Hoje a chama é só visual; a luz é a do modelo.
+- **Login no portal Távola, não por mesa:** decisão do Vilella (2026-11-20): o login passa a ser no portal Távola, e não por mesa (a pensar depois).
+- **Chama animada no pino da tocha na mão** e prévia da animação no editor do modelo.
