@@ -9,6 +9,7 @@ import {
   eventoPara,
   eventosDoSistema,
   fonteComSemente,
+  gatilhoPrincipal,
   type Intencao,
   IntencaoSchema,
   lerExportacao,
@@ -629,9 +630,14 @@ describe("as intenções da zona", () => {
     expect(copia?.id).not.toBe("z1");
     expect(copia?.pontos).toEqual(QUADRADO);
     expect(e.zonas).toHaveLength(2);
-    expect(e.automacoes?.fluxos.filter((f) => f.gatilho.tipo === "zona")).toHaveLength(2);
+    expect(e.automacoes?.fluxos.filter((f) => gatilhoPrincipal(f)?.tipo === "zona")).toHaveLength(
+      2,
+    );
     expect(
-      e.automacoes?.fluxos.some((f) => f.gatilho.tipo === "zona" && f.gatilho.zona === copia?.id),
+      e.automacoes?.fluxos.some((f) => {
+        const g = gatilhoPrincipal(f);
+        return g?.tipo === "zona" && g.zona === copia?.id;
+      }),
     ).toBe(true);
   });
 });
@@ -778,7 +784,7 @@ describe("editar só um campo não zera os outros (automação e zona)", () => {
     expect(e.automacoes?.fluxos.find((f) => f.id === "rx-r1")).toMatchObject({
       nome: "Nova",
       ligado: false,
-      trilhas: [[{ bloco: "sortear", chance: 0.5 }]],
+      nos: expect.arrayContaining([expect.objectContaining({ tipo: "sortear" })]),
     });
     e = ok(e, "m", intencao("fluxo.editar", { id: "c1", mudancas: { nome: "Outro" } })).estado;
     expect(e.automacoes?.fluxos.find((f) => f.id === "c1")).toMatchObject({

@@ -13,7 +13,7 @@ export type Rota =
       id: string | null;
       bruto: string;
       fichaId?: string;
-      painel?: "som" | "chamada";
+      painel?: "som" | "chamada" | "eventos";
       /** AU1: `/m/<id>/automacao/<fluxoId>` (ou `/automacao/nova`) mostra só o editor da automação, na janela própria. */
       automacaoId?: string;
     };
@@ -27,9 +27,10 @@ const decodificar = (texto: string): string => {
 };
 
 export function lerRota(caminho: string): Rota {
-  const m = /^\/m\/([^/]+)(?:\/ficha\/([^/]+)|\/(som|chamada)|\/automacao\/([^/]+))?\/?$/.exec(
-    caminho,
-  );
+  const m =
+    /^\/m\/([^/]+)(?:\/ficha\/([^/]+)|\/(som|chamada|eventos)|\/automacao\/([^/]+))?\/?$/.exec(
+      caminho,
+    );
   if (!m) return { tipo: "inicio" };
   const bruto = decodificar(m[1] ?? "");
   const fichaId = m[2] === undefined ? undefined : decodificar(m[2]);
@@ -38,7 +39,7 @@ export function lerRota(caminho: string): Rota {
     id: normalizarIdDeMesa(bruto),
     bruto,
     ...(fichaId ? { fichaId } : {}),
-    ...(m[3] === "som" || m[3] === "chamada" ? { painel: m[3] } : {}),
+    ...(m[3] === "som" || m[3] === "chamada" || m[3] === "eventos" ? { painel: m[3] } : {}),
     ...(m[4] === undefined ? {} : { automacaoId: decodificar(m[4]) }),
   };
 }
@@ -56,8 +57,15 @@ export const caminhoDoSom = (mesaId: string) => `/m/${mesaId}/som`;
 export const caminhoDaChamada = (mesaId: string) => `/m/${mesaId}/chamada`;
 
 /** A rota do editor de uma automação na janela própria (AU1): `nova` é uma automação nova. */
-export const caminhoDaAutomacao = (mesaId: string, fluxoId: string | null) =>
-  `/m/${mesaId}/automacao/${encodeURIComponent(fluxoId ?? "nova")}`;
+export const caminhoDaAutomacao = (
+  mesaId: string,
+  fluxoId: string | null,
+  /** O gatilho com que uma automação nova nasce (JSON na pergunta `g`): o "+ automação para esta zona". */
+  gatilho?: object,
+) =>
+  `/m/${mesaId}/automacao/${encodeURIComponent(fluxoId ?? "nova")}${
+    gatilho === undefined ? "" : `?g=${encodeURIComponent(JSON.stringify(gatilho))}`
+  }`;
 
 /** O link completo de uma mesa, para copiar e mandar. */
 export const linkDaMesa = (id: string) => `${location.origin}${caminhoDaMesa(id)}`;
@@ -88,3 +96,6 @@ export function useRota(): Rota {
 
 /** O título da aba do navegador: "Távola" ou "Távola · nome da mesa". */
 export const tituloDaMesa = (nome?: string) => (nome ? `Távola · ${nome}` : "Távola");
+
+/** A rota da mesa de eventos na janela própria (AU2). */
+export const caminhoDosEventos = (mesaId: string) => `/m/${mesaId}/eventos`;

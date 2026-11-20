@@ -1171,11 +1171,17 @@ Continua em aberto, por ser decisão e não erro de doc: `ficha.verOutras` (seç
 - Frágil: quem puser `display: flex` num `.campo-coluna` dentro de `.linha-par` desfaz o subgrid (o `.secao-mesa label.campo-coluna` foi rebaixado com `:where` por isso). O subgrid precisa de Chrome/Edge atuais.
 - Teste: `e2e/tests/a1.spec.ts`.
 
-## AU1 — automações por blocos
+## AU1 — automações por blocos (o desenho virou grafo no AU2: ver "AU2")
 
 - **Onde mexer:** `packages/shared/src/fluxos*.ts` (dado, conversão, frase, conferência, leitura), `automacoes.ts` (fatia, botões, relógio), `automacoesnucleo.ts` (motor e intenções), `mcp/ferramentas/automacoes.ts` (MCP, guia), `apps/web/src/automacoes/` (`EditorDeFluxo`, `PainelDoBloco`, `blocos.ts`, `ListaDeAutomacoes`, `AutomacaoEmJanelaPropria`). `automacoesLegado.ts` é o formato antigo, só leitura.
 - **Frágil:** (1) a conversão roda na leitura (`z.preprocess` do `AutomacoesSchema`): qualquer mudança nela muda os ids dos fluxos (`rx-<id>`, `botao-<id>`); o `ouro.test.ts` vigia. (2) O caminho de uma execução esperando (`[trilha, i, "sim", j…]`) depende da posição dos blocos: editar trilhas cancela as esperas do fluxo. (3) O guia do MCP tem de citar toda peça nova (teste). (4) Tabela de paridade por campo recursiva (`fluxo.trilhas[][].*`). (5) `enviar()` do cliente devolve o id do pedido, não erro. (6) O editor guarda a árvore num estado do React por cópia (`structuredClone`); fluxos de ~80 blocos ainda são rápidos.
 - **Suposições:** ver `REDESIGN.md`, "AU1 — como ficou".
+
+## AU2 — automações como o n8n (grafo, janela própria, mesa de eventos)
+
+- **Onde mexer:** `packages/shared/src/fluxos.ts` (esquemas dos nós e fios, `portasDoNo`, a forma antiga em `FluxoArvoreSchema`), `fluxosGrafo.ts` (gatilhos, `podeLigar`, `organizarGrafo`, `arvoreParaGrafo`, `semOsNos`), `fluxosValidar.ts`, `fluxosFrase.ts`, `automacoesnucleo.ts` (`executarNo`, `seguir`, `valorDoNo`), `mcp/ferramentas/automacoes.ts` (`grafoDoPedido`) e, na web, `apps/web/src/automacoes/` (`CanvasDoGrafo.tsx`, `EditorDeFluxo.tsx`, `PainelDoBloco.tsx`, `blocos.ts`, `MesaDeEventos.tsx`, `eventosDaMesa.ts`, `EventosEmJanelaPropria.tsx`), `ficha/foraDaMesa.ts` (`abrirAutomacaoEmJanela`, `abrirEventosEmJanela`) e `rotas.ts` (`/m/<id>/eventos`).
+- **Frágil:** (1) `Fluxo` não tem mais `gatilho` nem `trilhas`: use `gatilhoPrincipal`, `nosDeGatilho` e `temGatilho`; quem lê uma automação de fora passa por `FluxoDeQualquerFormaSchema` ou `AutomacoesSchema` (convertem a árvore do AU1). (2) A ordem dos fios é a ordem de execução, e a conversão da árvore depende dela para sortear o RNG na mesma ordem: o `ouro.test.ts` vigia. (3) O tamanho do nó na grade é fixo (`LARGURA_DO_NO`, `alturaDoNo`): os fios acham as portas por conta, não medindo o DOM; mudar o CSS do nó sem mudar `blocos.ts` desalinha os fios. (4) `pointerup` de um fio acha a porta com `document.elementFromPoint`: classes de CSS com nomes comuns (`.entrada`, `.saida`) já pegaram regras de outras telas; as portas usam `ed-porta-ent` e `ed-porta-sai`. (5) A faixa da mesa de eventos usa `--faixa-dos-eventos` além de `--faixa-do-som` (quatro regras de `bottom` leem as duas). (6) `esperando[].no` guarda o id do nó: renomear id de nó numa edição cancela a espera daquela automação (editar o desenho já cancela as esperas). (7) O editor só abre em janela própria; testes de E2E pegam a janela com `waitForEvent("popup")`.
+- **Suposições:** ver `REDESIGN.md`, "AU2 — como ficou".
 
 ## FG1 — luz e fogo
 

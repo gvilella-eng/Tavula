@@ -764,6 +764,19 @@ Montar a Respiração da Montanha do zero (cena "Pulmão" com algumas tochas ace
 Armadilha de zona: desenhe a zona "Armadilha", abra o painel (ferramenta Zonas), **+ automação para esta zona**, ponha **Avisar no chat**, salve, e leve um token para dentro. Teste também **Testar agora**, **Desfazer** no editor, setas e Delete, **JSON**, **Janela própria**, liberar o botão aos jogadores (menu ⋯ da lista) e **Apagar** com **Desfazer**.
 Importe a Chama Primordial: 5 automações convertidas; a Respiração igual à de cima. Peça ao Claude: "como funciona a Respiração?" (ele chama `guia` e `explicar`).
 
+## AU2 — automações como o n8n
+
+Montar a Respiração da Montanha do zero, só arrastando (cena "Pulmão" com algumas tochas acesas e um token):
+1. Botão **Automações** → **+ Nova automação**: o editor abre **numa janela nova**, na hora (a janela da mesa não mostra editor nenhum). Nome "Respiração". Clique no bloco do gatilho (a cada 60 s) e mude para 180 s; em "Esta automação" (clique no fundo da grade) marque a cena Pulmão.
+2. Arraste **Para cada (tochas, tokens)** da esquerda para a grade (objetos, modelo Tocha, só os acesos); arraste **Luz** e **Apagar a tocha** para perto. Ligue as bolinhas: gatilho → "para cada"; **Cada um** do "para cada" → Luz; Luz → Apagar a tocha. (Luz ×0,5 por 20 s; apagar com 30% e perde 300 s.)
+3. Arraste **Esperar** (90 s), **Para cada** (tokens) e **Limitar a visão** (1,5 m por 30 s) e ligue o gatilho → Esperar → Para cada → Limitar (um segundo caminho saindo do mesmo gatilho: roda em paralelo). Confira "Em português:" embaixo. **Salvar** fecha a janela.
+4. Conferir no mapa como no AU1. Teste **Organizar** (arruma em colunas), a roda do mouse (zoom), arrastar o fundo, **Shift + arrastar** (caixa de seleção), **Ctrl+C / Ctrl+V** e o duplo clique na grade (busca de peças).
+5. Teclado: Tab entre os nós, setas movem o nó, Enter vai aos campos, Delete apaga, e o botão **Ligar a…** (acima do nó escolhido) liga sem mouse.
+
+Uma armadilha com OU de zonas: crie as zonas A e B. Numa automação nova ponha dois gatilhos **Token entra ou sai de zona** (A e B), um **Se**, uma condição **Token de jogador** ligada a uma porta **NÃO**, uma condição **Chance** (50%), uma porta **E** (liga NÃO e Chance nela), ligue a porta E na entrada de baixo do **Se**, os dois gatilhos na entrada de cima, e o "sim" a **Para cada** (objetos acesos) → **Apagar a tocha**. Entre com um NPC pela zona A e pela B: a tocha apaga em metade das vezes; com um token de jogador, nunca.
+
+Mesa de eventos: crie duas automações com gatilho de botão (escolha cor e ícone no gatilho). Na lista, **Abrir mesa de eventos**: os botões aparecem grandes, com nome, cor, ícone e "Ligada"; clicar dispara e brilha "Disparou". Teste a faixa (encaixar), a janela própria, e libere um botão aos jogadores: o jogador abre a mesa pelo botão da barra e vê só o liberado.
+
 ## FG1 — luz e fogo
 
 1. **Modelo ao vivo.** Ponha uma tocha na mão de um jogador e outra num suporte. Em Mesa, Luz, abra o modelo da tocha e mude a luz plena: as duas mudam na hora, para todos. Mude a duração para menos que o tempo que resta: o relógio das tochas acesas cai para o novo máximo. Renomeie o modelo: o nome das tochas muda. O jogador não vê a duração do modelo fora do modo exato.

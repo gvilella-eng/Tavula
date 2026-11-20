@@ -3,8 +3,11 @@ import {
   automacoesDe,
   fraseDoFluxo,
   GatilhoSchema,
+  gatilhoPrincipal,
   nomesDaMesa,
+  PORTAS_LOGICAS,
   TIPOS_DE_BLOCO,
+  TIPOS_DE_NO,
 } from "../index.ts";
 import { ErroDoMcp } from "./erros.ts";
 import type { QualquerFerramenta, Saida } from "./ferramentas/base.ts";
@@ -73,7 +76,7 @@ describe("a Respiração da Montanha só pelo MCP", () => {
     // nomes viraram ids
     const pulmao = sala.verdade.cenas.find((c) => c.nome === "Pulmão");
     expect(f?.cenas).toEqual([pulmao?.id]);
-    expect(JSON.stringify(f?.trilhas)).toContain(
+    expect(JSON.stringify(f?.nos)).toContain(
       sala.verdade.modelos.find((m) => m.nome === "Tocha 5e")?.id,
     );
 
@@ -100,11 +103,11 @@ describe("a Respiração da Montanha só pelo MCP", () => {
       ],
     });
     expect(ed.erro, ed.texto).toBeFalsy();
-    expect(sala.verdade.automacoes?.fluxos[0]).toMatchObject({
-      ligado: false,
-      gatilho: { tipo: "relogio", cadaS: 60 },
-    });
-    expect(sala.verdade.automacoes?.fluxos[0]?.trilhas).toHaveLength(2);
+    const editado = sala.verdade.automacoes?.fluxos[0];
+    expect(editado).toMatchObject({ ligado: false });
+    expect(editado && gatilhoPrincipal(editado)).toEqual({ tipo: "relogio", cadaS: 60 });
+    // o resto do desenho ficou (a Respiração tem duas trilhas saindo do gatilho)
+    expect(editado?.fios.filter((x) => x.de.no === editado.nos[0]?.id)).toHaveLength(2);
     // ação de luz solta, sem "para cada": o MCP diz em português, com o lugar
     const ruim = await rodar(sala, "automacoes", {
       fluxos: [
@@ -115,7 +118,7 @@ describe("a Respiração da Montanha só pelo MCP", () => {
         },
       ],
     });
-    expect(ruim.texto).toContain("trilha 1, bloco 1");
+    expect(ruim.texto).toContain("a ação luz.modificar");
     expect(ruim.texto).toContain("para cada");
     // zona que não existe
     const semZona = await rodar(sala, "automacoes", {
@@ -160,6 +163,166 @@ describe("a Respiração da Montanha só pelo MCP", () => {
   });
 });
 
+describe("AU2: a automação como grafo, pelo MCP", () => {
+  const ARMADILHA = {
+    nome: "Armadilha",
+    nos: [
+      {
+        nome: "Entra na A",
+        tipo: "gatilho",
+        config: { tipo: "zona", quando: "entra", zona: "Zona A" },
+      },
+      {
+        nome: "Entra na B",
+        tipo: "gatilho",
+        config: { tipo: "zona", quando: "entra", zona: "Zona B" },
+      },
+      { nome: "É jogador", tipo: "condicao", config: { condicao: "tokenDeJogador" } },
+      { nome: "Não é jogador", tipo: "porta", config: { porta: "nao" } },
+      { nome: "Meia chance", tipo: "condicao", config: { condicao: "chance", chance: 0.5 } },
+      { nome: "E", tipo: "porta", config: { porta: "e" } },
+      { nome: "Se", tipo: "se", config: {} },
+      { nome: "Cada tocha", tipo: "paraCada", config: { alvo: { tipo: "objetos", acesos: true } } },
+      { nome: "Apaga", tipo: "acao", config: { acao: { acao: "objeto.apagar" } } },
+    ],
+    fios: [
+      { de: "Entra na A", para: "Se" },
+      { de: "Entra na B", para: "Se" },
+      { de: "É jogador", para: "Não é jogador" },
+      { de: "Não é jogador", para: "E" },
+      { de: "Meia chance", para: "E" },
+      { de: "E", para: "Se" },
+      { de: "Se", saida: "sim", para: "Cada tocha" },
+      { de: "Cada tocha", saida: "corpo", para: "Apaga" },
+    ],
+  };
+
+  async function mesaComZonas(): Promise<SalaSimulada> {
+    const sala = await mesaDoPulmao();
+    const z = await rodar(sala, "automacoes", {
+      zonas: [
+        {
+          cena: "Pulmão",
+          nome: "Zona A",
+          pontos: [
+            [1, 1],
+            [3, 1],
+            [3, 3],
+          ],
+        },
+        {
+          cena: "Pulmão",
+          nome: "Zona B",
+          pontos: [
+            [6, 6],
+            [8, 6],
+            [8, 8],
+          ],
+        },
+      ],
+    });
+    expect(z.erro, z.texto).toBeFalsy();
+    return sala;
+  }
+
+  it('monta "quando entra na zona A OU na B, se NÃO for jogador E chance 50%, apaga a tocha" por nós e fios', async () => {
+    const sala = await mesaComZonas();
+    const r = await rodar(sala, "automacoes", { fluxos: [ARMADILHA] });
+    expect(r.erro, r.texto).toBeFalsy();
+    const f = sala.verdade.automacoes?.fluxos[0];
+    expect(f?.nome).toBe("Armadilha");
+    expect(f?.rascunho).toBe(true);
+    expect(f?.nos).toHaveLength(9);
+    expect(f?.fios).toHaveLength(8);
+    // nomes viraram ids e cada nó ganhou um lugar na grade
+    const zonaA = sala.verdade.zonas?.find((z) => z.nome === "Zona A");
+    expect(JSON.stringify(f?.nos)).toContain(zonaA?.id);
+    expect(new Set(f?.nos.map((n) => `${n.x},${n.y}`)).size).toBe(9);
+    const e = await rodar(sala, "automacoes", { explicar: { fluxo: "Armadilha" } });
+    expect(e.texto).toContain("zona Zona A");
+    expect(e.texto).toContain("zona Zona B");
+    expect(e.texto).toContain("NÃO");
+    expect(e.texto).toContain(" E ");
+    expect(e.texto).toContain("50%");
+  });
+
+  it("os erros do grafo vêm em português, com o nome do nó", async () => {
+    const sala = await mesaComZonas();
+    const semCondicao = await rodar(sala, "automacoes", {
+      fluxos: [
+        {
+          nome: "Quebrada",
+          nos: [
+            { nome: "Quando", tipo: "gatilho", config: { tipo: "botao", nome: "B" } },
+            { nome: "Se", tipo: "se", config: {} },
+            {
+              nome: "Aviso",
+              tipo: "acao",
+              config: { acao: { acao: "chat.anunciar", texto: "x" } },
+            },
+          ],
+          fios: [
+            { de: "Quando", para: "Se" },
+            { de: "Se", saida: "sim", para: "Aviso" },
+          ],
+        },
+      ],
+    });
+    expect(semCondicao.texto).toContain('o nó "Se"');
+    expect(semCondicao.texto).toContain("sem condição");
+    const semSaida = await rodar(sala, "automacoes", {
+      fluxos: [
+        {
+          nome: "Duvida",
+          nos: [
+            { nome: "Quando", tipo: "gatilho", config: { tipo: "botao", nome: "B" } },
+            { nome: "Sorteio", tipo: "sortear", config: { chance: 0.5 } },
+            {
+              nome: "Aviso",
+              tipo: "acao",
+              config: { acao: { acao: "chat.anunciar", texto: "x" } },
+            },
+          ],
+          fios: [
+            { de: "Quando", para: "Sorteio" },
+            { de: "Sorteio", para: "Aviso" },
+          ],
+        },
+      ],
+    });
+    expect(semSaida.texto).toContain("mais de uma saída");
+    const nomeFantasma = await rodar(sala, "automacoes", {
+      fluxos: [
+        {
+          nome: "Fantasma",
+          nos: [{ nome: "Quando", tipo: "gatilho", config: { tipo: "botao", nome: "B" } }],
+          fios: [{ de: "Quando", para: "Ninguém" }],
+        },
+      ],
+    });
+    expect(nomeFantasma.texto).toContain('"Ninguém"');
+    expect(automacoesDe(sala.verdade).fluxos).toEqual([]);
+  });
+
+  it("nós e fios trocam o desenho inteiro de uma automação que já existe", async () => {
+    const sala = await mesaComZonas();
+    await rodar(sala, "automacoes", { fluxos: [ARMADILHA] });
+    const nova = {
+      nome: "Armadilha",
+      nos: [
+        { nome: "Botão", tipo: "gatilho", config: { tipo: "botao", nome: "Soltar" } },
+        { nome: "Aviso", tipo: "acao", config: { acao: { acao: "chat.anunciar", texto: "oi" } } },
+      ],
+      fios: [{ de: "Botão", para: "Aviso" }],
+    };
+    const r = await rodar(sala, "automacoes", { fluxos: [nova] });
+    expect(r.erro, r.texto).toBeFalsy();
+    const f = automacoesDe(sala.verdade).fluxos[0];
+    expect(f?.nos).toHaveLength(2);
+    expect(f?.fios).toHaveLength(1);
+  });
+});
+
 describe("o guia das automações", () => {
   async function guia(): Promise<string> {
     const sala = await mesaDoPulmao();
@@ -174,12 +337,28 @@ describe("o guia das automações", () => {
       expect(texto, `bloco "${tipo}"`).toContain(`"bloco":"${tipo}"`);
   });
 
+  it("cita cada tipo de nó, cada porta lógica e as portas dos fios (AU2)", async () => {
+    const texto = await guia();
+    for (const tipo of TIPOS_DE_NO) expect(texto, `nó "${tipo}"`).toContain(`"tipo":"${tipo}"`);
+    for (const porta of PORTAS_LOGICAS) expect(texto, `porta "${porta}"`).toContain(`"${porta}"`);
+    for (const palavra of ["fios", "OU", "paralelo", "entradas", "condicao", "depois", "corpo"]) {
+      expect(texto).toContain(palavra);
+    }
+  });
+
   it("cita cada gatilho, cada condição e cada ação", async () => {
     const texto = await guia();
     for (const o of GatilhoSchema.options) {
       expect(texto, `gatilho ${o.shape.tipo.value}`).toContain(`"tipo":"${o.shape.tipo.value}"`);
     }
-    for (const c of ["etiqueta", "dentroDaZona", "cena", "zonaLigada"]) {
+    for (const c of [
+      "etiqueta",
+      "dentroDaZona",
+      "cena",
+      "zonaLigada",
+      "chance",
+      "tokenDeJogador",
+    ]) {
       expect(texto, `condição ${c}`).toContain(`"condicao":"${c}"`);
     }
     for (const a of [

@@ -198,6 +198,16 @@ git).
 - **Canvas melhor:** arrastar e dar zoom, minimapa, colar blocos entre automações, arrastar pelo teclado.
 - **Histórico de execuções** (a lista guarda só o "rodou há"): quando rodou, o que mudou.
 
+## Depois das automações como o n8n (AU2, 2026-11-20)
+
+- **Minimapa** da grade e **soltar um fio no vazio** para criar o nó ali (como no n8n).
+- **Arrastar um fio de uma entrada para uma saída** (hoje só da saída para a entrada).
+- **Colar nós entre automações** (a área de transferência vale dentro de uma janela do editor).
+- **Sons novos dentro da janela do editor** (hoje se escolhe entre os que já estão na mesa).
+- **Subgrafos** (agrupar nós numa caixa com nome) e **notas** soltas na grade.
+- **Condições por NPC ou por jogador específico**, e uma porta de comparação (maior, menor) para contadores.
+- Mesa de eventos com **grupos de botões** (abas) e com **atalhos de teclado**.
+
 ## Depois do FG1 (2026-11-20)
 
 - **A luz acompanha o tamanho da chama:** uma opção no modelo (ou no ponto) para os raios de luz crescerem e encolherem junto com o tamanho da chama que o mestre esticou. Hoje a chama é só visual; a luz é a do modelo.

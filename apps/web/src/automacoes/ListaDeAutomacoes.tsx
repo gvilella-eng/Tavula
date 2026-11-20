@@ -3,10 +3,23 @@ import {
   type Estado,
   type Fluxo,
   fraseDoFluxo,
+  gatilhoPrincipal,
   nomesDaMesa,
+  nosDeGatilho,
   situacaoDoFluxo,
+  temGatilho,
 } from "@tabletop/shared";
-import { Copy, MoreHorizontal, Pin, Play, Plus, Trash2, Undo2, Users } from "lucide-react";
+import {
+  Copy,
+  LayoutGrid,
+  MoreHorizontal,
+  Pin,
+  Play,
+  Plus,
+  Trash2,
+  Undo2,
+  Users,
+} from "lucide-react";
 import { useMemo, useState } from "react";
 import { SeloDeRascunho } from "../claude/RascunhosDoClaude";
 import { useTic } from "../tempo";
@@ -20,6 +33,7 @@ type Props = {
   enviar: Enviar;
   salaMs: () => number | undefined;
   aoEditar: (fluxoId: string | null) => void;
+  aoAbrirMesaDeEventos: () => void;
 };
 
 type Filtro = "todas" | "ligadas" | "desligadas" | "cena";
@@ -40,7 +54,7 @@ function situacaoEmTexto(
   if (f.rascunho) return "rascunho";
   const ultima = a.ultimaVez[f.id];
   const s = situacaoDoFluxo(f, a.execucao[f.id], sala ?? 0);
-  if (f.gatilho.tipo === "relogio") {
+  if (temGatilho(f, "relogio")) {
     if (!f.ligado) return "desligada";
     if (sala === undefined || s.proximaEmMs === null) return "ainda não começou";
     return `próxima em ${duracaoCurta(s.proximaEmMs)}`;
@@ -55,7 +69,13 @@ function situacaoEmTexto(
  * situação, "Disparar agora" e "Editar"; o menu de cada uma (duplicar, apagar com desfazer, fixar, liberar) e os avisos
  * do motor no rodapé.
  */
-export function ListaDeAutomacoes({ estado, enviar, salaMs, aoEditar }: Props) {
+export function ListaDeAutomacoes({
+  estado,
+  enviar,
+  salaMs,
+  aoEditar,
+  aoAbrirMesaDeEventos,
+}: Props) {
   useTic(true);
   const a = automacoesDe(estado);
   const nomes = useMemo(() => nomesDaMesa(estado), [estado]);
@@ -71,7 +91,8 @@ export function ListaDeAutomacoes({ estado, enviar, salaMs, aoEditar }: Props) {
     if (filtro === "cena") {
       const ativa = estado.cenaAtivaId;
       const daCena =
-        (f.cenas ?? []).includes(ativa) || ("cena" in f.gatilho && f.gatilho.cena === ativa);
+        (f.cenas ?? []).includes(ativa) ||
+        nosDeGatilho(f).some((n) => "cena" in n.config && n.config.cena === ativa);
       if (!daCena) return false;
     }
     const q = busca.trim().toLocaleLowerCase("pt-BR");
@@ -113,6 +134,14 @@ export function ListaDeAutomacoes({ estado, enviar, salaMs, aoEditar }: Props) {
         <div className="ed-espaco" />
         <button
           type="button"
+          data-testid="auto-abrir-mesa-de-eventos"
+          title="Uma mesa só com os botões das automações, para apertar durante a sessão"
+          onClick={aoAbrirMesaDeEventos}
+        >
+          <LayoutGrid size={14} aria-hidden /> Abrir mesa de eventos
+        </button>
+        <button
+          type="button"
           className="primario"
           data-testid="auto-nova"
           onClick={() => aoEditar(null)}
@@ -147,15 +176,18 @@ export function ListaDeAutomacoes({ estado, enviar, salaMs, aoEditar }: Props) {
       <div className="auto-lista-corpo">
         {a.fluxos.length === 0 && (
           <p className="nota" data-testid="auto-vazia">
-            Nenhuma automação ainda. Crie uma: escolha o gatilho (quando) e encaixe os blocos do que
-            acontece.
+            Nenhuma automação ainda. Crie uma: o editor abre numa janela própria; arraste os blocos
+            para a grade e ligue-os com fios.
           </p>
         )}
         {a.fluxos.length > 0 && visiveis.length === 0 && (
           <p className="nota">Nenhuma automação com este filtro.</p>
         )}
         {visiveis.map((f) => {
-          const g = rotuloDoGatilho(f.gatilho, nomes);
+          const gp = gatilhoPrincipal(f);
+          const g = gp
+            ? rotuloDoGatilho(gp, nomes)
+            : { titulo: "Sem gatilho", detalhe: "não roda" };
           const frase = fraseDoFluxo(f, nomes);
           return (
             <article
@@ -232,7 +264,7 @@ export function ListaDeAutomacoes({ estado, enviar, salaMs, aoEditar }: Props) {
                     >
                       <Copy size={13} aria-hidden /> Duplicar
                     </button>
-                    {(f.gatilho.tipo === "relogio" || f.gatilho.tipo === "botao") && (
+                    {(temGatilho(f, "relogio") || temGatilho(f, "botao")) && (
                       <>
                         <button
                           type="button"

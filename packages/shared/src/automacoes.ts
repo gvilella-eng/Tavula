@@ -16,11 +16,14 @@ import {
   MAXIMO_DE_FLUXOS,
 } from "./fluxos.ts";
 import { migrarAutomacoes } from "./fluxosConversao.ts";
+import { noDeGatilhoDoTipo, temGatilho } from "./fluxosGrafo.ts";
+import { CorDoSomSchema, IconeDoSomSchema } from "./mesadesom.ts";
 
 export * from "./automacoesLegado.ts";
 export * from "./fluxos.ts";
 export * from "./fluxosConversao.ts";
 export * from "./fluxosFrase.ts";
+export * from "./fluxosGrafo.ts";
 export * from "./fluxosLeitura.ts";
 export * from "./fluxosValidar.ts";
 
@@ -120,6 +123,10 @@ export const BotaoParaJogadorSchema = z.object({
   tipo: z.enum(["ciclo", "evento"]),
   nome: z.string().min(1).max(64),
   pausado: z.boolean().optional(),
+  /** AU2: o botão como a mesa de eventos o mostra (o rótulo do gatilho, a cor e o ícone). */
+  rotulo: z.string().min(1).max(64).optional(),
+  cor: CorDoSomSchema.optional(),
+  icone: IconeDoSomSchema.optional(),
 });
 export type BotaoParaJogador = z.infer<typeof BotaoParaJogadorSchema>;
 export const MAXIMO_DE_BOTOES_DO_JOGADOR = MAXIMO_DE_BOTOES + 50;
@@ -133,10 +140,19 @@ export function botoesParaJogador(automacoes: Pick<Automacoes, "fluxos">): Botao
   const saida: BotaoParaJogador[] = [];
   for (const f of automacoes.fluxos) {
     if (f.liberadoParaJogadores !== true || f.rascunho === true) continue;
-    if (f.gatilho.tipo === "relogio") {
+    if (temGatilho(f, "relogio")) {
       saida.push({ id: idDoBotaoDeCiclo(f.id), tipo: "ciclo", nome: f.nome, pausado: !f.ligado });
-    } else if (f.gatilho.tipo === "botao" && f.ligado) {
-      saida.push({ id: idDoBotaoDeEvento(f.id), tipo: "evento", nome: f.nome });
+    }
+    const botao = noDeGatilhoDoTipo(f, "botao")?.config;
+    if (botao?.tipo === "botao" && f.ligado) {
+      saida.push({
+        id: idDoBotaoDeEvento(f.id),
+        tipo: "evento",
+        nome: f.nome,
+        rotulo: botao.nome,
+        ...(botao.cor === undefined ? {} : { cor: botao.cor }),
+        ...(botao.icone === undefined ? {} : { icone: botao.icone }),
+      });
     }
   }
   return saida.slice(0, MAXIMO_DE_BOTOES_DO_JOGADOR);
@@ -158,11 +174,11 @@ export function tauDoFluxo(
  * correndo.
  */
 export function situacaoDoFluxo(
-  fluxo: Pick<z.infer<typeof FluxoSchema>, "gatilho" | "ligado" | "rascunho">,
+  fluxo: Pick<z.infer<typeof FluxoSchema>, "nos" | "ligado" | "rascunho">,
   exec: z.infer<typeof ExecucaoDoFluxoSchema> | undefined,
   salaMs: number,
 ): { rodando: boolean; proximaEmMs: number | null } {
-  if (fluxo.gatilho.tipo !== "relogio") return { rodando: fluxo.ligado, proximaEmMs: null };
+  if (!temGatilho(fluxo, "relogio")) return { rodando: fluxo.ligado, proximaEmMs: null };
   const rodando = fluxo.ligado && fluxo.rascunho !== true;
   if (!rodando) return { rodando: false, proximaEmMs: null };
   if (exec === undefined) return { rodando, proximaEmMs: 0 };
@@ -257,7 +273,7 @@ export function proximoMarcoDasAutomacoes(
   const a = automacoesDe(estado);
   const candidatos: number[] = [];
   for (const f of a.fluxos) {
-    if (f.rascunho || !f.ligado || f.gatilho.tipo !== "relogio") continue;
+    if (f.rascunho || !f.ligado || !temGatilho(f, "relogio")) continue;
     const exec = a.execucao[f.id];
     if (exec === undefined) candidatos.push(0);
     else if (exec.pausadoEmTau === undefined)

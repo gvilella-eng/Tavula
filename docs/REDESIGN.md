@@ -2548,6 +2548,37 @@ O Vilella testou o divisor do MU1 a ~1360 px: "o espaço ficou muito pequeno e o
 **O que ficou para depois**
 - Nenhum.
 
+## AU2 — como ficou (2026-11-20): as automações como o n8n
+
+O Vilella testou o AU1: "tem que clicar nos botões pra adicionar, isso tá ruim. Não consegui colocar mais condições do when... queria portas lógicas como not, or, and... arrastar livremente os blocos e conectar os fios, fazer lógicas paralelas também... clicar em editar ou adicionar já tem que criar uma nova janela automático... uma mesa de eventos (estilo a de áudio) só com botões."
+
+### O que foi feito
+- **O fluxo virou grafo** (`nos[]` e `fios[]`, `fluxos.ts`, `fluxosGrafo.ts`): gatilhos, esperar, sortear, para cada (saídas corpo e depois), se (entrada de condição), condições (as quatro de antes mais `chance` e `tokenDeJogador`), portas lógicas E, OU e NÃO, ações e sinal. Fio de ordem e fio de condição só encaixam no tipo certo.
+- **O motor segue os fios** (`automacoesnucleo.ts`): paralelo, chegada múltipla (roda a cada chegada), OU de gatilhos, ciclo só com "esperar" de 1 s ou mais, esperas guardadas por nó (`Esperando.no`) e sobreviventes à hibernação. O ouro bate.
+- **Conversão:** a árvore do AU1 vira grafo (`arvoreParaGrafo`, posições por `organizarGrafo`) ao ler a mesa, o arquivo e a intenção; o formato antigo (ciclos, reações) passa por árvore e depois grafo.
+- **O editor em grade** (`CanvasDoGrafo.tsx`, `EditorDeFluxo.tsx`, `PainelDoBloco.tsx`, `blocos.ts`): zoom, vista arrastável, peças arrastadas da paleta (ou clique, ou duplo clique com busca), nós livres, fios por arrasto, caixa de seleção, copiar e colar, desfazer, "Organizar", erros no nó e teclado (Tab, setas, Enter, Delete e o menu "Ligar a…"). Só vive numa janela própria do navegador.
+- **Mesa de eventos** (`MesaDeEventos.tsx`, `eventosDaMesa.ts`, `EventosEmJanelaPropria.tsx`): só botões grandes; janela flutuante, faixa ou janela própria.
+- **MCP:** `nos` e `fios` por nome, `explicar` e `guia` com as portas lógicas; a forma curta do AU1 continua.
+- **Correções do AU1:** nó cortado na borda da grade (a primeira vista enquadra tudo), campo "Buscar" com a borda do tema (`input[type="search"]` entrou na regra dos campos) e o nome do sinal como a pessoa o escreveu (acento e espaço).
+
+### Decisões (assumido)
+- Vários gatilhos ligados ao mesmo bloco são um OU. No máximo um gatilho de relógio e um de botão por automação (o relógio e o chip dependem disso).
+- Um bloco com vários fios chegando roda a cada chegada (como no n8n).
+- Os ramos "sim" e "não" de um "se" que terminam no mesmo bloco o chamam uma vez só (só um dos ramos roda).
+- Condições e portas são avaliadas sob demanda, uma vez por conferência; "se" sem condição ligada é erro.
+- "NÃO for o mestre" é "NÃO `tokenDeJogador`" (o token da vez sem jogador controlando é do mestre).
+- Esperas guardadas no formato do AU1 (pelo caminho da árvore) caem ao carregar; o relógio dos fluxos já recomeçava na conversão do AU1.
+- Limites: 120 nós, 300 fios, 2000 nós percorridos por disparo.
+- Copiar e colar leva os fios entre os nós copiados, e cola 36 px adiante a cada vez.
+- A mesa de eventos mostra o nome do gatilho de botão (não o da automação); padrão âmbar e chama. O mestre vê todas as automações de botão (as desligadas apagadas, que ele ainda pode disparar, como no chip); o jogador vê só as liberadas, por um botão na barra de cima, e a definição nunca chega a ele.
+- A mesa de eventos em faixa fica logo acima da faixa do som; o zoom e os avisos sobem pela variável `--faixa-dos-eventos`.
+- Na janela do editor se escolhe o som entre os que já estão na mesa; adicionar um som novo é pela mesa de som (como no AU1).
+- "Ligar a…" é um botão acima do nó escolhido, para o teclado; o painel da direita traz os campos.
+- O "+ automação para esta zona" abre a janela do editor com o gatilho na pergunta `?g=` do endereço.
+
+### O que ficou para depois
+Minimapa; arrastar um fio solto para o vazio e criar o nó ali; inverter o arrasto (de uma entrada para uma saída); colar nós entre automações; sons novos dentro da janela do editor; histórico de execuções.
+
 ## FG1 — como ficou (2026-11-20): luz e fogo
 
 O Vilella usou a mesa e pediu: o modelo de luz ao vivo, uma área de soltar a tocha maior, a tocha no lugar do ícone do suporte, tudo em tamanho de mundo, fogo animado no inflamável (com tamanho controlável), animações por estágio (padrão e as dele) e o jogador dando equipamento a si mesmo.

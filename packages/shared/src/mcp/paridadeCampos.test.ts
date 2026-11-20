@@ -56,9 +56,9 @@ describe("paridade campo a campo com o MCP (Q16)", () => {
     expect(zona).toContain("zona.efeitos.som.volume");
     expect(zona).toContain("zona.pontos[].x");
     const fluxo = intencoes.find((i) => i.tipo === "fluxo.criar")?.campos ?? [];
-    expect(fluxo).toContain("fluxo.gatilho.quando");
-    expect(fluxo).toContain("fluxo.trilhas[][].condicao.zona");
-    expect(fluxo).toContain("fluxo.trilhas[][].acao.raioX");
+    expect(fluxo).toContain("fluxo.nos[].config.quando");
+    expect(fluxo).toContain("fluxo.nos[].config.zona");
+    expect(fluxo).toContain("fluxo.nos[].config.acao.raioX");
     const token = intencoes.find((i) => i.tipo === "token.editar")?.campos ?? [];
     expect(token).toContain("mudancas.borda");
   });

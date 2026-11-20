@@ -1,51 +1,41 @@
-import type {
-  AcaoDeFluxo,
-  AlvoDoParaCada,
-  Bloco,
-  CondicaoDoSe,
-  Estado,
-  Fluxo,
-  Gatilho,
-  NomesParaAFrase,
+import {
+  type AcaoDeFluxo,
+  type AlvoDoParaCada,
+  CORES_DO_SOM,
+  type CondicaoDoSe,
+  type CorDoSom,
+  type Estado,
+  type Fluxo,
+  type Gatilho,
+  ICONES_DO_SOM,
+  type IconeDoSom,
+  type No,
+  type NomesParaAFrase,
 } from "@tabletop/shared";
 import { Copy, Trash2 } from "lucide-react";
-import { type ReactNode, useEffect, useId, useState } from "react";
+import { type CSSProperties, type ReactNode, useEffect, useId, useState } from "react";
 import type { Fontes } from "../assets/fontes";
 import { EscolherSom, type SomEscolhido } from "../som/EscolherSom";
-import {
-  type ErroDoEditor,
-  grupoDoBloco,
-  idDoCaminho,
-  PECAS,
-  rotuloDoBloco,
-  rotuloDoGatilho,
-  type Selecao,
-} from "./blocos";
+import { CORES, ICONES, IconeDoLugar } from "../som/iconesDoSom";
+import { COR_DO_GRUPO, type ErroDoEditor, grupoDoNo, PECAS, rotuloDoNo } from "./blocos";
 
-// O painel da direita do editor (AU1): os campos do bloco escolhido. Cada grupo de campos lado a lado usa `.linha-par`, a
-// grade de 3 trilhas (rótulo, caixa, ajuda) do A1: o rótulo mais alto define a linha e as caixas ficam alinhadas.
+// O painel da direita do editor (AU1/AU2): os campos do nó escolhido, ou os da automação quando não há nó escolhido. Cada
+// grupo de campos lado a lado usa `.linha-par`, a grade de 3 trilhas (rótulo, caixa, ajuda) do A1: o rótulo mais alto
+// define a linha e as caixas ficam alinhadas.
 
 type Props = {
   estado: Estado;
   rascunho: Fluxo;
-  selecao: Selecao;
-  bloco: Bloco | undefined;
+  no: No;
   nomes: NomesParaAFrase;
   sinais: readonly string[];
   erros: readonly ErroDoEditor[];
   fontes: Fontes | null;
   registrarSom: ((arquivo: File) => Promise<SomEscolhido>) | null;
-  aoMudarFluxo: (f: Fluxo) => void;
-  aoMudarBloco: (b: Bloco) => void;
+  aoMudarNo: (n: No) => void;
   aoDuplicar: () => void;
   aoApagar: () => void;
 };
-
-const COR = {
-  quando: "var(--acento-forte)",
-  fluxo: "var(--etiqueta-azul)",
-  faca: "var(--sucesso)",
-} as const;
 
 const formatar = (n: number | undefined) =>
   n === undefined ? "" : String(Math.round(n * 1000) / 1000).replace(".", ",");
@@ -203,7 +193,7 @@ const sem = <T extends object, K extends keyof T>(o: T, k: K): Omit<T, K> => {
 };
 
 export function PainelDoBloco(p: Props) {
-  const { estado } = p;
+  const { estado, no } = p;
   const cenas = estado.cenas.map((c) => ({ valor: c.id, nome: c.nome }));
   const modelos = estado.modelos.map((m) => ({ valor: m.id, nome: m.nome }));
   const zonas = (estado.zonas ?? []).map((z) => ({ valor: z.id, nome: z.nome }));
@@ -211,27 +201,31 @@ export function PainelDoBloco(p: Props) {
     .filter((a) => a.tipo === "som")
     .map((a) => ({ hash: a.hash, nome: a.nomeOriginal.replace(/\.[^.]+$/, "") }));
   const qualquer = (rotulo: string) => ({ valor: "", nome: rotulo });
-
-  if (p.selecao.tipo === "gatilho")
-    return (
-      <PainelDoGatilho {...p} cenas={cenas} modelos={modelos} zonas={zonas} qualquer={qualquer} />
-    );
-  const b = p.bloco;
-  if (b === undefined) return <p className="nota">Escolha um bloco no fluxo.</p>;
-  const id = idDoCaminho(p.selecao.caminho);
-  const grupo = grupoDoBloco(b);
-  const rotulo = rotuloDoBloco(b, p.nomes);
-  const meus = p.erros.filter((e) => e.onde === id);
+  const grupo = grupoDoNo(no);
+  const rotulo = rotuloDoNo(no, p.nomes);
+  const meus = p.erros.filter((e) => e.onde === no.id);
 
   const campos = (() => {
-    switch (b.bloco) {
+    switch (no.tipo) {
+      case "gatilho":
+        return (
+          <CamposDoGatilho
+            g={no.config}
+            aoMudar={(g) => p.aoMudarNo({ ...no, config: g })}
+            sinais={p.sinais}
+            cenas={cenas}
+            modelos={modelos}
+            zonas={zonas}
+            qualquer={qualquer}
+          />
+        );
       case "esperar":
         return (
           <CampoNumero
             testid="ed-campo-s"
             rotulo="Esperar (segundos)"
-            valor={b.s}
-            aoMudar={(v) => v !== undefined && p.aoMudarBloco({ ...b, s: v })}
+            valor={no.config.s}
+            aoMudar={(v) => v !== undefined && p.aoMudarNo({ ...no, config: { s: v } })}
             ajuda="Conta no tempo da mesa: pausar a mesa pausa a espera."
           />
         );
@@ -240,21 +234,55 @@ export function PainelDoBloco(p: Props) {
           <CampoNumero
             testid="ed-campo-chance"
             rotulo="Chance de “sim” (%)"
-            valor={b.chance}
+            valor={no.config.chance}
             escala={100}
             aoMudar={(v) =>
-              v !== undefined && p.aoMudarBloco({ ...b, chance: Math.min(1, Math.max(0, v)) })
+              v !== undefined &&
+              p.aoMudarNo({ ...no, config: { chance: Math.min(1, Math.max(0, v)) } })
             }
             ajuda="Cada vez tira a sua sorte. O “não” é a saída de baixo."
           />
         );
       case "se":
-        return <CamposDaCondicao b={b} p={p} cenas={cenas} zonas={zonas} />;
+        return (
+          <p className="nota" data-testid="ed-se-nota">
+            Ligue uma condição (ou uma porta E, OU, NÃO) à entrada de baixo do bloco. Se ela vale,
+            segue pelo “sim”; senão, pelo “não”.
+          </p>
+        );
+      case "condicao":
+        return (
+          <CamposDaCondicao
+            c={no.config}
+            aoMudar={(c) => p.aoMudarNo({ ...no, config: c })}
+            cenas={cenas}
+            zonas={zonas}
+          />
+        );
+      case "porta":
+        return (
+          <CampoEscolha
+            testid="ed-campo-porta"
+            rotulo="Porta lógica"
+            valor={no.config.porta}
+            opcoes={[
+              { valor: "e", nome: "E: vale se todas as entradas valem" },
+              { valor: "ou", nome: "OU: vale se alguma entrada vale" },
+              { valor: "nao", nome: "NÃO: inverte a única entrada" },
+            ]}
+            aoMudar={(v) =>
+              p.aoMudarNo({
+                ...no,
+                config: { porta: v === "ou" ? "ou" : v === "nao" ? "nao" : "e" },
+              })
+            }
+          />
+        );
       case "paraCada":
         return (
           <CamposDoAlvo
-            b={b}
-            p={p}
+            a={no.config.alvo}
+            aoMudar={(alvo) => p.aoMudarNo({ ...no, config: { alvo } })}
             cenas={cenas}
             zonas={zonas}
             modelos={modelos}
@@ -267,21 +295,22 @@ export function PainelDoBloco(p: Props) {
             <CampoTexto
               testid="ed-campo-sinal"
               rotulo="Nome do sinal"
-              valor={b.nome}
+              valor={no.config.nome}
               maxLength={48}
               sugestoes={p.sinais}
-              aoMudar={(v) => p.aoMudarBloco({ ...b, nome: v })}
+              aoMudar={(v) => p.aoMudarNo({ ...no, config: { ...no.config, nome: v } })}
               ajuda="Roda as automações que esperam este sinal."
             />
             <CampoNumero
               testid="ed-campo-atraso"
               rotulo="Daqui a (segundos)"
-              valor={b.atrasoS}
+              valor={no.config.atrasoS}
               opcional
               aoMudar={(v) =>
-                p.aoMudarBloco(
-                  v === undefined ? (sem(b, "atrasoS") as Bloco) : { ...b, atrasoS: v },
-                )
+                p.aoMudarNo({
+                  ...no,
+                  config: v === undefined ? { nome: no.config.nome } : { ...no.config, atrasoS: v },
+                })
               }
               ajuda="Vazio: manda agora."
             />
@@ -290,8 +319,8 @@ export function PainelDoBloco(p: Props) {
       case "acao":
         return (
           <CamposDaAcao
-            a={b.acao}
-            aoMudar={(a) => p.aoMudarBloco({ bloco: "acao", acao: a })}
+            a={no.config.acao}
+            aoMudar={(a) => p.aoMudarNo({ ...no, config: { acao: a } })}
             zonas={zonas}
             sons={sons}
             fontes={p.fontes}
@@ -302,15 +331,26 @@ export function PainelDoBloco(p: Props) {
   })();
 
   return (
-    <div className="ed-painel-conteudo" data-testid={`ed-painel-${id}`}>
+    <div className="ed-painel-conteudo" data-testid={`ed-painel-${no.id}`}>
       <div className="ed-painel-titulo">
-        <span className="ed-ponto" style={{ background: COR[grupo] }} aria-hidden />
+        <span className="ed-ponto" style={{ background: COR_DO_GRUPO[grupo] }} aria-hidden />
         <h2>{rotulo.titulo}</h2>
       </div>
-      <p className="nota">{descricaoDoBloco(b)}</p>
+      <p className="nota">{descricaoDoNo(no)}</p>
+      <CampoTexto
+        testid="ed-campo-nome-do-no"
+        rotulo="Nome do bloco (opcional)"
+        valor={no.nome ?? ""}
+        maxLength={40}
+        aoMudar={(v) => {
+          const { nome: _n, ...resto } = no;
+          p.aoMudarNo((v.trim() === "" ? resto : { ...resto, nome: v }) as No);
+        }}
+        ajuda="Aparece no lugar do título, e é como o Claude chama este bloco."
+      />
       {campos}
       {meus.map((e) => (
-        <p key={e.texto} className="ed-erro" role="alert" data-testid={`ed-painel-erro-${id}`}>
+        <p key={e.texto} className="ed-erro" role="alert" data-testid={`ed-painel-erro-${no.id}`}>
           {e.texto}
         </p>
       ))}
@@ -327,36 +367,41 @@ export function PainelDoBloco(p: Props) {
   );
 }
 
-function descricaoDoBloco(b: Bloco): string {
-  switch (b.bloco) {
+function descricaoDoNo(no: No): string {
+  switch (no.tipo) {
+    case "gatilho":
+      return "O que faz a automação começar. Vários gatilhos ligados ao mesmo bloco formam um OU: qualquer um dispara.";
     case "esperar":
-      return "Segura a trilha por um tempo e só depois segue para o próximo bloco.";
+      return "Segura o caminho por um tempo e só depois segue pelo fio de saída.";
     case "se":
-      return "Segue pelo “sim” se a condição vale; senão, pelo “não”.";
+      return "Segue pelo “sim” se a condição ligada vale; senão, pelo “não”.";
     case "sortear":
       return "Sorteia a cada vez: segue pelo “sim” com a chance escolhida, senão pelo “não”.";
+    case "condicao":
+      return "Dá verdadeiro ou falso. Ligue a saída a um “se” ou a uma porta E, OU, NÃO.";
+    case "porta":
+      return "Combina condições: ligue as condições na entrada e a saída no “se” (ou em outra porta).";
     case "paraCada":
-      return "Repete o que está dentro para cada objeto ou token do alvo. As ações de dentro mexem em quem a vez é.";
+      return "Repete o caminho “para cada” para cada objeto ou token do alvo; “depois” roda uma vez no fim.";
     case "sinal":
       return "Avisa as outras automações. As que esperam este sinal rodam (já, ou depois de um tempo).";
     case "acao":
-      return b.acao.acao.startsWith("objeto") || b.acao.acao === "luz.modificar"
+      return no.config.acao.acao.startsWith("objeto") || no.config.acao.acao === "luz.modificar"
         ? "Mexe na luz da vez: o objeto do gatilho ou o do “para cada” em volta."
-        : b.acao.acao.startsWith("visao") || b.acao.acao.startsWith("token")
+        : no.config.acao.acao.startsWith("visao") || no.config.acao.acao.startsWith("token")
           ? "Mexe no token da vez: o do gatilho ou o do “para cada” em volta."
           : "Uma ação da mesa.";
   }
 }
 
 function CamposDaCondicao(p: {
-  b: Extract<Bloco, { bloco: "se" }>;
-  p: Props;
+  c: CondicaoDoSe;
+  aoMudar: (c: CondicaoDoSe) => void;
   cenas: { valor: string; nome: string }[];
   zonas: { valor: string; nome: string }[];
 }) {
-  const { b } = p;
-  const c = b.condicao;
-  const trocar = (condicao: CondicaoDoSe) => p.p.aoMudarBloco({ ...b, condicao });
+  const c = p.c;
+  const trocar = p.aoMudar;
   return (
     <>
       <CampoEscolha
@@ -364,13 +409,16 @@ function CamposDaCondicao(p: {
         rotulo="Condição"
         valor={c.condicao}
         opcoes={[
+          { valor: "chance", nome: "Acontece com uma chance" },
           { valor: "etiqueta", nome: "O objeto tem a etiqueta" },
           { valor: "dentroDaZona", nome: "Está dentro da zona" },
           { valor: "cena", nome: "Está numa destas cenas" },
           { valor: "zonaLigada", nome: "A zona está ligada" },
+          { valor: "tokenDeJogador", nome: "O token é de um jogador" },
         ]}
         aoMudar={(v) => {
-          if (v === "etiqueta") trocar({ condicao: "etiqueta", etiqueta: "chama" });
+          if (v === "chance") trocar({ condicao: "chance", chance: 0.5 });
+          else if (v === "etiqueta") trocar({ condicao: "etiqueta", etiqueta: "chama" });
           else if (v === "cena")
             trocar({
               condicao: "cena",
@@ -378,9 +426,27 @@ function CamposDaCondicao(p: {
             } as CondicaoDoSe);
           else if (v === "dentroDaZona")
             trocar({ condicao: "dentroDaZona", zona: p.zonas[0]?.valor ?? "" });
+          else if (v === "tokenDeJogador") trocar({ condicao: "tokenDeJogador" });
           else trocar({ condicao: "zonaLigada", zona: p.zonas[0]?.valor ?? "" });
         }}
       />
+      {c.condicao === "chance" && (
+        <CampoNumero
+          testid="ed-campo-chance"
+          rotulo="Chance (%)"
+          valor={c.chance}
+          escala={100}
+          aoMudar={(v) =>
+            v !== undefined && trocar({ condicao: "chance", chance: Math.min(1, Math.max(0, v)) })
+          }
+          ajuda="Sorteia a cada vez que o “se” confere."
+        />
+      )}
+      {c.condicao === "tokenDeJogador" && (
+        <p className="nota">
+          Vale quando o token da vez tem um jogador controlando; senão é do mestre.
+        </p>
+      )}
       {c.condicao === "etiqueta" && (
         <CampoTexto
           testid="ed-campo-etiqueta"
@@ -421,16 +487,15 @@ function CamposDaCondicao(p: {
 }
 
 function CamposDoAlvo(p: {
-  b: Extract<Bloco, { bloco: "paraCada" }>;
-  p: Props;
+  a: AlvoDoParaCada;
+  aoMudar: (a: AlvoDoParaCada) => void;
   cenas: { valor: string; nome: string }[];
   zonas: { valor: string; nome: string }[];
   modelos: { valor: string; nome: string }[];
   qualquer: (r: string) => { valor: string; nome: string };
 }) {
-  const { b } = p;
-  const a = b.alvo;
-  const mudar = (alvo: AlvoDoParaCada) => p.p.aoMudarBloco({ ...b, alvo });
+  const a = p.a;
+  const mudar = p.aoMudar;
   const opcional = <T extends object>(o: T, k: string, v: string): T => {
     const { [k as keyof T]: _fora, ...resto } = o;
     return (v === "" ? resto : { ...resto, [k]: v }) as T;
@@ -726,33 +791,25 @@ function CamposDaAcao(p: {
   }
 }
 
-function PainelDoGatilho(
-  p: Props & {
-    cenas: { valor: string; nome: string }[];
-    modelos: { valor: string; nome: string }[];
-    zonas: { valor: string; nome: string }[];
-    qualquer: (r: string) => { valor: string; nome: string };
-  },
-) {
-  const g = p.rascunho.gatilho;
-  const mudarGatilho = (novo: Gatilho) => p.aoMudarFluxo({ ...p.rascunho, gatilho: novo });
+const corDoSom = (c: CorDoSom) => ({ "--cor-do-som": CORES[c].variavel }) as CSSProperties;
+
+function CamposDoGatilho(p: {
+  g: Gatilho;
+  aoMudar: (g: Gatilho) => void;
+  sinais: readonly string[];
+  cenas: { valor: string; nome: string }[];
+  modelos: { valor: string; nome: string }[];
+  zonas: { valor: string; nome: string }[];
+  qualquer: (r: string) => { valor: string; nome: string };
+}) {
+  const g = p.g;
+  const mudarGatilho = p.aoMudar;
   const opcional = <T extends object>(o: T, k: string, v: string): T => {
     const { [k as keyof T]: _fora, ...resto } = o;
     return (v === "" ? resto : { ...resto, [k]: v }) as T;
   };
-  const rotulo = rotuloDoGatilho(g, p.nomes);
-  const podeFixar = g.tipo === "relogio" || g.tipo === "botao";
-  const meus = p.erros.filter((e) => e.onde === "gatilho" || e.onde === "cenas");
   return (
-    <div className="ed-painel-conteudo" data-testid="ed-painel-gatilho">
-      <div className="ed-painel-titulo">
-        <span className="ed-ponto" style={{ background: COR.quando }} aria-hidden />
-        <h2>Quando: {rotulo.titulo.toLowerCase()}</h2>
-      </div>
-      <p className="nota">
-        O que faz a automação começar. Depois dele, cada trilha roda de cima para baixo, todas
-        juntas.
-      </p>
+    <>
       <CampoEscolha
         testid="ed-campo-gatilho"
         rotulo="Quando"
@@ -764,7 +821,7 @@ function PainelDoGatilho(
         aoMudar={(v) => {
           const peca = PECAS.find((x) => x.id === v);
           const feito = peca?.criar();
-          if (feito && "gatilho" in feito) mudarGatilho(feito.gatilho);
+          if (feito && feito.tipo === "gatilho") mudarGatilho(feito.config);
         }}
       />
       {g.tipo === "relogio" && (
@@ -808,6 +865,40 @@ function PainelDoGatilho(
             opcoes={[p.qualquer("Em todas as cenas"), ...p.cenas]}
             aoMudar={(v) => mudarGatilho(opcional(g, "cena", v))}
           />
+          <div className="som-secao-nome">Ícone na mesa de eventos</div>
+          <fieldset className="som-config-icones" aria-label="Ícone do botão">
+            {ICONES_DO_SOM.map((id: IconeDoSom) => (
+              <button
+                key={id}
+                type="button"
+                className="som-config-icone"
+                style={corDoSom(g.cor ?? "ambar")}
+                data-testid={`ed-botao-icone-${id}`}
+                aria-pressed={(g.icone ?? "chama") === id}
+                aria-label={ICONES[id].nome}
+                title={ICONES[id].nome}
+                onClick={() => mudarGatilho({ ...g, icone: id })}
+              >
+                <IconeDoLugar icone={id} tamanho={18} />
+              </button>
+            ))}
+          </fieldset>
+          <div className="som-secao-nome">Cor do botão</div>
+          <fieldset className="som-config-cores" aria-label="Cor do botão">
+            {CORES_DO_SOM.map((id: CorDoSom) => (
+              <button
+                key={id}
+                type="button"
+                className="som-config-cor"
+                style={corDoSom(id)}
+                data-testid={`ed-botao-cor-${id}`}
+                aria-pressed={(g.cor ?? "ambar") === id}
+                aria-label={CORES[id].nome}
+                title={CORES[id].nome}
+                onClick={() => mudarGatilho({ ...g, cor: id })}
+              />
+            ))}
+          </fieldset>
         </>
       )}
       {g.tipo === "sinal" && (
@@ -880,11 +971,36 @@ function PainelDoGatilho(
           aoMudar={(v) => mudarGatilho(opcional(g, "cena", v))}
         />
       )}
+    </>
+  );
+}
+
+/** O painel quando nenhum nó está escolhido: o que vale para a automação toda (cenas, fixar na barra, liberar aos jogadores). */
+export function PainelDaAutomacao(p: {
+  estado: Estado;
+  rascunho: Fluxo;
+  erros: readonly ErroDoEditor[];
+  aoMudarFluxo: (f: Fluxo) => void;
+}) {
+  const cenas = p.estado.cenas.map((c) => ({ valor: c.id, nome: c.nome }));
+  const podeFixar = p.rascunho.nos.some(
+    (n) => n.tipo === "gatilho" && (n.config.tipo === "relogio" || n.config.tipo === "botao"),
+  );
+  const meus = p.erros.filter((e) => e.onde === "cenas" || e.onde === "geral");
+  return (
+    <div className="ed-painel-conteudo" data-testid="ed-painel-automacao">
+      <div className="ed-painel-titulo">
+        <h2>Esta automação</h2>
+      </div>
+      <p className="nota">
+        Arraste peças da esquerda para a grade e ligue as bolinhas com fios: da saída de um bloco
+        até a entrada do outro. Escolha um bloco para mudar os campos dele.
+      </p>
       <fieldset className="ed-cenas">
         <legend>Cenas onde vale</legend>
         <p className="nota">Sem nenhuma marcada, vale em todas.</p>
         <div className="ed-escolha-de-cenas" data-testid="ed-campo-cenas-do-fluxo">
-          {p.cenas.map((c) => {
+          {cenas.map((c) => {
             const lista = p.rascunho.cenas ?? [];
             return (
               <Caixa
@@ -918,7 +1034,7 @@ function PainelDoGatilho(
         </>
       )}
       {meus.map((e) => (
-        <p key={e.texto} className="ed-erro" role="alert" data-testid="ed-painel-erro-gatilho">
+        <p key={e.texto} className="ed-erro" role="alert" data-testid="ed-painel-erro-geral">
           {e.texto}
         </p>
       ))}

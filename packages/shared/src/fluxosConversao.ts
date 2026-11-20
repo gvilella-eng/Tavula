@@ -14,10 +14,12 @@ import {
   type AlvoDoParaCada,
   type Bloco,
   type Fluxo,
+  type FluxoArvore,
   type Gatilho,
   MAXIMO_DE_FLUXOS,
   PRAZO_PADRAO_S,
 } from "./fluxos.ts";
+import { arvoreParaGrafo, lerFluxoDeQualquerForma } from "./fluxosGrafo.ts";
 
 // ---------------------------------------------------------------------------------------------
 // AU1: da forma antiga (ciclos, reações e botões de evento) para os fluxos. Nada se perde: o que roda vira fluxo e o
@@ -228,10 +230,10 @@ const idUnico = (usados: Set<string>, base: string): string => {
  * evento só liga aquele ciclo a elas ficam dentro da trilha; as demais viram fluxos "ao receber o sinal" (ou o gatilho do
  * sistema) e o ciclo manda o sinal. O botão de evento vira um fluxo de botão que manda o sinal.
  */
-export function converterParaFluxos(
+export function converterParaArvores(
   antigas: AutomacoesAntigas,
   execucaoAntiga: Record<string, { pausadoEmTau?: number | undefined }> = {},
-): Fluxo[] {
+): FluxoArvore[] {
   const { ciclos, reacoes, botoes } = antigas;
   const usados = new Set<string>();
   // Quantos emitem cada nome de evento (fases, botões e reações que o disparam).
@@ -257,7 +259,7 @@ export function converterParaFluxos(
     return [...ds];
   };
 
-  const fluxos: Fluxo[] = [];
+  const fluxos: FluxoArvore[] = [];
   for (const c of ciclos) {
     const ordenadas = [...c.fases].sort((a, b) => a.emS - b.emS);
     const trilhas: Bloco[][] = ordenadas.map((fase) => {
@@ -340,6 +342,14 @@ export function converterParaFluxos(
   return fluxos.slice(0, MAXIMO_DE_FLUXOS);
 }
 
+/** Como `converterParaArvores`, já em grafo (AU2): é o que a mesa guarda. */
+export function converterParaFluxos(
+  antigas: AutomacoesAntigas,
+  execucaoAntiga: Record<string, { pausadoEmTau?: number | undefined }> = {},
+): Fluxo[] {
+  return converterParaArvores(antigas, execucaoAntiga).map(arvoreParaGrafo);
+}
+
 /**
  * A fatia de automações como vem do disco ou de um arquivo: se traz o formato antigo (ciclos, reações, botões), converte
  * em fluxos e guarda o original em `legado`. Já no formato novo passa como está. O estado de execução e os eventos pendentes
@@ -375,9 +385,16 @@ export function migrarAutomacoes(bruto: unknown): unknown {
   const temAntigas = antigas.ciclos.length + antigas.reacoes.length + antigas.botoes.length > 0;
   const base: Solto = { ...resto };
   if (Object.keys(execNova).length > 0) base.execucao = execNova;
+  // AU2: as automações guardadas como árvore (AU1) viram grafo; as execuções esperando que apontam para a árvore deixam de valer.
+  if (Array.isArray(resto.fluxos)) base.fluxos = resto.fluxos.map(lerFluxoDeQualquerForma);
+  if (Array.isArray(resto.esperando)) {
+    base.esperando = resto.esperando.filter(
+      (p) => ehObjeto(p) && (p.sinal !== undefined || p.no !== undefined),
+    );
+  }
   if (!temAntigas) return base;
   const convertidos = converterParaFluxos(antigas, execAntiga);
-  const jaTem = lista(resto.fluxos);
+  const jaTem = lista(base.fluxos);
   base.fluxos = jaTem.length > 0 ? jaTem : convertidos;
   // Ciclo que estava pausado continua pausado; o que corria recomeça no próximo período (o que faltava deste não roda).
   const exec: Record<string, unknown> = { ...execNova };

@@ -50,6 +50,7 @@ function useModulo<M>(p: Pedaco<M>): M | null {
 
 const pedacoDaEntrada = pedaco(() => import("./contas/EntradaDaMesa"));
 const pedacoDaAutomacao = pedaco(() => import("./automacoes/AutomacaoEmJanelaPropria"));
+const pedacoDosEventos = pedaco(() => import("./automacoes/EventosEmJanelaPropria"));
 const pedacoDaChamada = pedaco(() => import("./chamada/ChamadaEmJanelaPropria"));
 const pedacoDaFicha = pedaco(() => import("./ficha/FichaEmJanelaPropria"));
 const pedacoDaMesa = pedaco(() => import("./Mesa"));
@@ -71,15 +72,17 @@ function adiantarRota(rota: Rota): void {
   if (!rota.id) return;
   void pedacoDaEntrada.baixar();
   void (
-    rota.painel === "som"
-      ? pedacoDoSom
-      : rota.painel === "chamada"
-        ? pedacoDaChamada
-        : rota.automacaoId
-          ? pedacoDaAutomacao
-          : rota.fichaId
-            ? pedacoDaFicha
-            : pedacoDaMesa
+    rota.painel === "eventos"
+      ? pedacoDosEventos
+      : rota.painel === "som"
+        ? pedacoDoSom
+        : rota.painel === "chamada"
+          ? pedacoDaChamada
+          : rota.automacaoId
+            ? pedacoDaAutomacao
+            : rota.fichaId
+              ? pedacoDaFicha
+              : pedacoDaMesa
   ).baixar();
 }
 
@@ -102,7 +105,7 @@ function MesaEncontrada({
 }: {
   mesa: DadosDaMesa;
   fichaId?: string | undefined;
-  painel?: "som" | "chamada" | undefined;
+  painel?: "som" | "chamada" | "eventos" | undefined;
   automacaoId?: string | undefined;
   aoRenomear: (n: string) => void;
 }) {
@@ -139,6 +142,15 @@ function MesaEncontrada({
       <ComPedaco key="chamada" de={pedacoDaChamada}>
         {(m) => (
           <m.ChamadaEmJanelaPropria key={usuario.id} mesa={mesa} aoPerderSessao={aoPerderSessao} />
+        )}
+      </ComPedaco>
+    );
+  }
+  if (painel === "eventos") {
+    return (
+      <ComPedaco key="eventos" de={pedacoDosEventos}>
+        {(m) => (
+          <m.EventosEmJanelaPropria key={usuario.id} mesa={mesa} aoPerderSessao={aoPerderSessao} />
         )}
       </ComPedaco>
     );
@@ -231,7 +243,7 @@ function RotaDaMesa({
   id: string | null;
   bruto: string;
   fichaId?: string | undefined;
-  painel?: "som" | "chamada" | undefined;
+  painel?: "som" | "chamada" | "eventos" | undefined;
   automacaoId?: string | undefined;
 }) {
   // `undefined`: consultando; `null`: não existe.

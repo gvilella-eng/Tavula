@@ -1,5 +1,14 @@
 import type { Estado } from "./estado.ts";
-import type { AcaoDeFluxo, AlvoDoParaCada, Bloco, CondicaoDoSe, Fluxo, Gatilho } from "./fluxos.ts";
+import {
+  type AcaoDeFluxo,
+  type AlvoDoParaCada,
+  type CondicaoDoSe,
+  ehNoDeValor,
+  type Fluxo,
+  type Gatilho,
+  type No,
+  type NoDe,
+} from "./fluxos.ts";
 
 // ---------------------------------------------------------------------------------------------
 // AU1: o fluxo em português ("Em português:" do editor, a frase da lista, o `explicar` do MCP). Função PURA: recebe um
@@ -194,6 +203,10 @@ function textoDaCondicao(c: CondicaoDoSe, quem: Quem, n: NomesParaAFrase): strin
       return `${quem ?? "o alvo"} estiver ${c.cenas.length === 1 ? "na cena" : "nas cenas"} ${listaDeNomes(c.cenas.map((x) => n.cena(x) ?? APAGADO))}`;
     case "zonaLigada":
       return `a zona ${n.zona(c.zona) ?? APAGADO} estiver ligada`;
+    case "chance":
+      return `o sorteio de ${pct(c.chance)} der certo`;
+    case "tokenDeJogador":
+      return `${quem ?? "o token"} for de um jogador`;
   }
 }
 
@@ -212,69 +225,156 @@ function juntar(pedacos: Pedaco[]): string {
 
 type Segmento = { espera: number; pedacos: Pedaco[] };
 
-function pedacosDaLista(
-  lista: readonly Bloco[],
-  quem: Quem,
-  f: Pick<Fluxo, "cenas">,
-  n: NomesParaAFrase,
-): Segmento[] {
+// --- O grafo em português (AU2) --------------------------------------------------------------
+
+type Grafo = {
+  f: Pick<Fluxo, "nos" | "fios" | "cenas">;
+  n: NomesParaAFrase;
+  porId: Map<string, No>;
+};
+
+const sucessores = (g: Grafo, id: string, porta?: string): No[] =>
+  g.f.fios
+    .filter((x) => x.de.no === id && (porta === undefined || x.de.saida === porta))
+    .flatMap((x) => {
+      const no = g.porId.get(x.para.no);
+      return no === undefined || ehNoDeValor(no) ? [] : [no];
+    });
+
+/** Uma condição, uma porta lógica ou uma cadeia delas, como texto ("o token for de um jogador E o sorteio de 50% der certo"). */
+function textoDoValor(g: Grafo, id: string, quem: Quem, pilha: ReadonlySet<string>): string {
+  const no = g.porId.get(id);
+  if (no === undefined || pilha.has(id)) return "…";
+  if (no.tipo === "condicao") return textoDaCondicao(no.config, quem, g.n);
+  if (no.tipo !== "porta") return "…";
+  const entradas = g.f.fios
+    .filter((x) => x.para.no === id)
+    .flatMap((x) => (g.porId.get(x.de.no) ? [x.de.no] : []));
+  const depois = new Set([...pilha, id]);
+  const operando = (e: string): string => {
+    const t = textoDoValor(g, e, quem, depois);
+    return g.porId.get(e)?.tipo === "porta" ? `(${t})` : t;
+  };
+  if (entradas.length === 0) return "…";
+  if (no.config.porta === "nao") return `NÃO ${operando(entradas[0] as string)}`;
+  const juntador = no.config.porta === "e" ? " E " : " OU ";
+  return entradas.map(operando).join(juntador);
+}
+
+/** Os nós de ordem que se alcança a partir de `inicios` (largura primeiro). */
+function alcance(g: Grafo, inicios: readonly No[]): string[] {
+  const vistos = new Set<string>();
+  const ordem: string[] = [];
+  const fila = [...inicios];
+  while (fila.length > 0) {
+    const no = fila.shift();
+    if (no === undefined || vistos.has(no.id)) continue;
+    vistos.add(no.id);
+    ordem.push(no.id);
+    fila.push(...sucessores(g, no.id));
+  }
+  return ordem;
+}
+
+/** Onde os dois ramos de um "se" ou "sortear" voltam a se encontrar (o primeiro bloco que os dois alcançam), se voltam. */
+function pontoDeEncontro(g: Grafo, no: No): string | undefined {
+  const sim = alcance(g, sucessores(g, no.id, "sim"));
+  const nao = new Set(alcance(g, sucessores(g, no.id, "nao")));
+  return sim.find((id) => nao.has(id));
+}
+
+type Passo = { g: Grafo; quem: Quem; parar: ReadonlySet<string>; pilha: ReadonlySet<string> };
+
+/** O que acontece a partir de uma porta de um nó, como texto (vários fios = caminhos ao mesmo tempo). */
+function textoDaPorta(p: Passo, no: No, porta: string | undefined): string {
+  const textos = sucessores(p.g, no.id, porta)
+    .map((s) => textoDaCadeia(p, s.id))
+    .filter((t) => t !== "");
+  if (textos.length <= 1) return textos[0] ?? "";
+  return `ao mesmo tempo, ${textos.map((t) => `(${t})`).join(" e ")}`;
+}
+
+/** Segue uma cadeia de blocos a partir de `inicio`, como uma frase ("faz isso; 90 s depois, faz aquilo"). */
+function textoDaCadeia(p0: Passo, inicio: string): string {
+  const { g } = p0;
   const segs: Segmento[] = [{ espera: 0, pedacos: [] }];
   const atual = () => segs.at(-1) as Segmento;
-  for (const b of lista) {
-    switch (b.bloco) {
+  let pilha = new Set(p0.pilha);
+  let id: string | undefined = inicio;
+  while (id !== undefined) {
+    const no = g.porId.get(id);
+    if (no === undefined || ehNoDeValor(no) || p0.parar.has(id)) break;
+    if (pilha.has(id)) {
+      atual().pedacos.push({ sujeito: null, predicado: "volta a repetir" });
+      break;
+    }
+    pilha = new Set([...pilha, id]);
+    const p: Passo = { ...p0, pilha };
+    let proximo: string | undefined;
+    const continuar = (porta: string | undefined) => {
+      const sucs = sucessores(g, no.id, porta);
+      if (sucs.length === 1) {
+        proximo = sucs[0]?.id;
+      } else if (sucs.length > 1) {
+        const t = textoDaPorta(p, no, porta);
+        if (t !== "") atual().pedacos.push({ sujeito: null, predicado: t });
+      }
+    };
+    switch (no.tipo) {
+      case "gatilho":
+        continuar("saida");
+        break;
       case "esperar":
-        segs.push({ espera: b.s, pedacos: [] });
+        segs.push({ espera: no.config.s, pedacos: [] });
+        continuar("saida");
         break;
       case "acao":
-        atual().pedacos.push(pedacoDaAcao(b.acao, quem, n));
+        atual().pedacos.push(pedacoDaAcao(no.config.acao, p0.quem, g.n));
+        continuar("saida");
         break;
       case "sinal":
         atual().pedacos.push({
           sujeito: null,
-          predicado: `manda o sinal ${aspas(b.nome)}${b.atrasoS === undefined || b.atrasoS === 0 ? "" : ` daqui a ${tempoHumano(b.atrasoS)}`}`,
+          predicado: `manda o sinal ${aspas(no.config.nome)}${no.config.atrasoS === undefined || no.config.atrasoS === 0 ? "" : ` daqui a ${tempoHumano(no.config.atrasoS)}`}`,
         });
+        continuar("saida");
         break;
       case "paraCada": {
-        const quemNovo = descreverAlvo(b.alvo, f, n);
+        const quemNovo = descreverAlvo(no.config.alvo, g.f, g.n);
+        const dentro = textoDaPorta({ ...p, quem: quemNovo }, no, "corpo");
         atual().pedacos.push({
           sujeito: null,
-          predicado:
-            textoDaLista(b.corpo, quemNovo, f, n, false) || `${quemNovo} ainda não faz nada`,
+          predicado: dentro || `${quemNovo} ainda não faz nada`,
         });
+        continuar("depois");
         break;
       }
-      case "se": {
-        const sim = textoDaLista(b.sim, quem, f, n, false) || "ainda não faz nada";
-        const nao = b.nao.length === 0 ? "" : `; senão, ${textoDaLista(b.nao, quem, f, n, false)}`;
-        atual().pedacos.push({
-          sujeito: null,
-          predicado: `se ${textoDaCondicao(b.condicao, quem, n)}, ${sim}${nao}`,
-        });
-        break;
-      }
+      case "se":
       case "sortear": {
-        const sim = textoDaLista(b.sim, quem, f, n, false) || "ainda não faz nada";
-        const nao = b.nao.length === 0 ? "" : `; senão, ${textoDaLista(b.nao, quem, f, n, false)}`;
-        atual().pedacos.push({
-          sujeito: null,
-          predicado: `com ${pct(b.chance)} de chance, ${sim}${nao}`,
-        });
+        const encontro = pontoDeEncontro(g, no);
+        const dentro: Passo = {
+          ...p,
+          parar: encontro === undefined ? p.parar : new Set([...p.parar, encontro]),
+        };
+        const sim = textoDaPorta(dentro, no, "sim") || "ainda não faz nada";
+        const naoTexto = textoDaPorta(dentro, no, "nao");
+        const nao = naoTexto === "" ? "" : `; senão, ${naoTexto}`;
+        let cabeca: string;
+        if (no.tipo === "sortear") {
+          cabeca = `com ${pct(no.config.chance)} de chance`;
+        } else {
+          const cond = g.f.fios.find((x) => x.para.no === no.id && x.para.entrada === "condicao");
+          cabeca = `se ${cond === undefined ? "…" : textoDoValor(g, cond.de.no, p0.quem, new Set())}`;
+        }
+        atual().pedacos.push({ sujeito: null, predicado: `${cabeca}, ${sim}${nao}` });
+        proximo = encontro;
         break;
       }
+      default:
+        break;
     }
+    id = proximo;
   }
-  return segs;
-}
-
-/** Os blocos de uma lista como texto. `topo`: frases separadas por ponto; senão, por ponto e vírgula. */
-function textoDaLista(
-  lista: readonly Bloco[],
-  quem: Quem,
-  f: Pick<Fluxo, "cenas">,
-  n: NomesParaAFrase,
-  topo: boolean,
-): string {
-  const segs = pedacosDaLista(lista, quem, f, n);
   const partes = segs.flatMap((s, i) => {
     const corpo = juntar(s.pedacos);
     if (i === 0) return corpo === "" ? [] : [corpo];
@@ -284,7 +384,7 @@ function textoDaLista(
         : `${tempoHumano(s.espera)} depois, ${corpo}`,
     ];
   });
-  return partes.join(topo ? ". " : "; ");
+  return partes.join("; ");
 }
 
 /** O sujeito de um gatilho que traz alguém: "a tocha", "o token". */
@@ -294,15 +394,29 @@ function quemDoGatilho(g: Gatilho): Quem {
   return null;
 }
 
-/** O fluxo inteiro em português, sem ids. */
-export function fraseDoFluxo(
-  f: Pick<Fluxo, "gatilho" | "trilhas" | "cenas">,
-  n: NomesParaAFrase,
-): string {
-  const cabeca = fraseDoGatilho(f.gatilho, n);
+const minuscula = (t: string) =>
+  t.length === 0 ? t : t.charAt(0).toLocaleLowerCase("pt-BR") + t.slice(1);
+
+/** O fluxo inteiro em português, sem ids. Vários gatilhos juntos são um OU: qualquer um dispara. */
+export function fraseDoFluxo(f: Pick<Fluxo, "nos" | "fios" | "cenas">, n: NomesParaAFrase): string {
+  const g: Grafo = { f, n, porId: new Map(f.nos.map((x) => [x.id, x])) };
+  const gatilhos = f.nos.filter((x): x is NoDe<"gatilho"> => x.tipo === "gatilho");
+  if (gatilhos.length === 0) return "Sem gatilho ainda: não roda.";
+  const cabeca = gatilhos
+    .map((x, i) => {
+      const t = fraseDoGatilho(x.config, n);
+      return i === 0 ? t : minuscula(t);
+    })
+    .join(", ou ");
   const cenas = nasCenas(f, n);
-  const quem = quemDoGatilho(f.gatilho);
-  const trilhas = f.trilhas.map((t) => textoDaLista(t, quem, f, n, true)).filter((t) => t !== "");
+  const quens = gatilhos.map((x) => quemDoGatilho(x.config));
+  const quem = quens.every((q) => q !== null && q === quens[0]) ? (quens[0] ?? null) : null;
+  // Os blocos que os gatilhos chamam (o que dois gatilhos chamam em comum vale uma vez só).
+  const primeiros = new Map<string, No>();
+  for (const x of gatilhos) for (const s of sucessores(g, x.id)) primeiros.set(s.id, s);
+  const trilhas = [...primeiros.values()]
+    .map((s) => textoDaCadeia({ g, quem, parar: new Set(), pilha: new Set() }, s.id))
+    .filter((t) => t !== "");
   const inicio = `${cabeca}${cenas === null ? "" : `, ${cenas}`}`;
   if (trilhas.length === 0) return `${inicio}: não faz nada ainda.`;
   const corpo = trilhas.map((t, i) => (i === 0 ? t : maiuscula(t))).join(". ");

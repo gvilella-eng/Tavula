@@ -5,6 +5,7 @@ import {
   type Estado,
   estadoDeMesaNova,
   fonteComSemente,
+  gatilhoPrincipal,
   type Intencao,
   IntencaoSchema,
   lerExportacao,
@@ -102,28 +103,28 @@ describe("as campanhas prontas passam pelo schema da importação", () => {
     const porNome = (n: string) => a.fluxos.find((f) => f.nome === n);
     // o ciclo vira um fluxo de relógio com uma trilha por fase; a expiração só liga ao ciclo e fica dentro dele
     const respiracao = porNome("Respiração do Pulmão");
-    expect(respiracao?.gatilho).toEqual({ tipo: "relogio", cadaS: 180 });
+    expect(respiracao && gatilhoPrincipal(respiracao)).toEqual({ tipo: "relogio", cadaS: 180 });
     expect(respiracao?.cenas).toEqual(["pulmao"]);
-    expect(respiracao?.trilhas).toHaveLength(2);
-    expect(JSON.stringify(respiracao?.trilhas[1])).toContain('"visao.limitar"');
-    expect(respiracao?.trilhas[1]?.[0]).toEqual({ bloco: "esperar", s: 90 });
+    expect(respiracao?.fios.filter((x) => x.de.no === respiracao.nos[0]?.id)).toHaveLength(2);
+    expect(JSON.stringify(respiracao?.nos)).toContain('"visao.limitar"');
+    expect(respiracao?.nos.some((n) => n.tipo === "esperar" && n.config.s === 90)).toBe(true);
     // a inspiração também sai de um botão: fica como sinal, e a tocha ouve o sinal
-    expect(JSON.stringify(respiracao?.trilhas[0])).toContain('"sinal"');
+    expect(JSON.stringify(respiracao?.nos)).toContain('"sinal"');
     const tocha = porNome("A rajada encolhe e pode apagar a tocha");
-    expect(tocha?.gatilho).toEqual({ tipo: "sinal", nome: "inspiracao" });
-    expect(JSON.stringify(tocha?.trilhas)).toContain('"modelo":"modelo-tocha"');
-    expect(JSON.stringify(tocha?.trilhas)).toContain('"chance":0.3');
-    expect(porNome("Rajada de vento")?.gatilho).toEqual({
+    expect(tocha && gatilhoPrincipal(tocha)).toEqual({ tipo: "sinal", nome: "inspiracao" });
+    expect(JSON.stringify(tocha?.nos)).toContain('"modelo":"modelo-tocha"');
+    expect(JSON.stringify(tocha?.nos)).toContain('"chance":0.3');
+    expect(gatilhoPrincipal(porNome("Rajada de vento") as never)).toEqual({
       tipo: "botao",
       nome: "Rajada de vento",
       cena: "pulmao",
     });
-    expect(porNome("Aviso: uma tocha foi reacesa")?.gatilho).toEqual({
+    expect(gatilhoPrincipal(porNome("Aviso: uma tocha foi reacesa") as never)).toEqual({
       tipo: "tocha",
       muda: "acende",
       etiqueta: "chama",
     });
-    expect(porNome("Aviso: alguém entrou no Ar Morto")?.gatilho).toEqual({
+    expect(gatilhoPrincipal(porNome("Aviso: alguém entrou no Ar Morto") as never)).toEqual({
       tipo: "zona",
       quando: "entra",
       zona: "zona-ar-morto",

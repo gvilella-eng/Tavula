@@ -7,6 +7,8 @@ import {
   estadoInicial,
   eventoPara,
   fonteComSemente,
+  type Gatilho,
+  gatilhoPrincipal,
   INTERVALO_MINIMO_DO_BOTAO_MS,
   type Intencao,
   IntencaoSchema,
@@ -131,7 +133,7 @@ describe("os botões liberados chegam ao jogador só com o rótulo", () => {
     const v = visaoPara(e, J1, T0);
     expect(v.botoes).toEqual([
       { id: "ciclo:resp", tipo: "ciclo", nome: "Respiração", pausado: false },
-      { id: "evento:botao-b1", tipo: "evento", nome: "Soprar o vento" },
+      { id: "evento:botao-b1", tipo: "evento", nome: "Soprar o vento", rotulo: expect.any(String) },
     ]);
     expect(v.automacoes).toBeUndefined();
     const json = JSON.stringify(v);
@@ -163,7 +165,12 @@ describe("os botões liberados chegam ao jogador só com o rótulo", () => {
     expect(doJogador?.tipo === "botoes.alterados" ? doJogador.dados : null).toEqual({
       botoes: [
         { id: "ciclo:resp", tipo: "ciclo", nome: "Respiração", pausado: true },
-        { id: "evento:botao-b1", tipo: "evento", nome: "Soprar o vento" },
+        {
+          id: "evento:botao-b1",
+          tipo: "evento",
+          nome: "Soprar o vento",
+          rotulo: expect.any(String),
+        },
       ],
     });
   });
@@ -265,12 +272,17 @@ describe("fixar, liberar e apagar (só o mestre)", () => {
       "m",
       intencao("fluxo.editar", {
         id: "botao-b1",
-        mudancas: { gatilho: { tipo: "botao", nome: "Mudou", cena: "pulmao" } },
+        mudancas: {
+          nos: (e.automacoes?.fluxos.find((f) => f.id === "botao-b1")?.nos ?? []).map((n) =>
+            n.tipo === "gatilho"
+              ? { ...n, config: { tipo: "botao" as const, nome: "Mudou", cena: "pulmao" } }
+              : n,
+          ),
+        },
       }),
     ).estado;
-    expect(e.automacoes?.fluxos.find((f) => f.id === "botao-b1")?.gatilho).toMatchObject({
-      cena: "pulmao",
-    });
+    const mudado = e.automacoes?.fluxos.find((f) => f.id === "botao-b1");
+    expect(mudado && gatilhoPrincipal(mudado)).toMatchObject({ cena: "pulmao" });
     e = ok(e, "m", intencao("fluxo.apagar", { id: "botao-b1" })).estado;
     expect(e.automacoes?.fluxos.some((f) => f.id === "botao-b1")).toBe(false);
   });
@@ -286,7 +298,13 @@ describe("fixar, liberar e apagar (só o mestre)", () => {
         "m",
         intencao("fluxo.editar", {
           id: "botao-b1",
-          mudancas: { gatilho: { tipo: "botao", nome: "X", cena: "fantasma" } },
+          mudancas: {
+            nos: (e.automacoes?.fluxos.find((f) => f.id === "botao-b1")?.nos ?? []).map((n) =>
+              n.tipo === "gatilho"
+                ? { ...n, config: { tipo: "botao" as const, nome: "X", cena: "fantasma" } }
+                : n,
+            ),
+          },
         }),
       ).codigo,
     ).toBe("dados_invalidos");
@@ -326,7 +344,8 @@ describe("o limite de frequência e os nomes", () => {
 });
 
 describe("situação do fluxo de relógio", () => {
-  const f = { gatilho: { tipo: "relogio" as const, cadaS: 100 }, ligado: true };
+  const no = (config: Gatilho) => [{ id: "g", tipo: "gatilho" as const, x: 0, y: 0, config }];
+  const f = { nos: no({ tipo: "relogio", cadaS: 100 }), ligado: true };
 
   it("conta o tempo do próximo disparo", () => {
     const s = situacaoDoFluxo(f, { baseSala: 0, proximoTau: 100_000 }, 40_000);
@@ -341,7 +360,7 @@ describe("situação do fluxo de relógio", () => {
   });
 
   it("fluxo de outro gatilho não tem próximo disparo", () => {
-    expect(situacaoDoFluxo({ gatilho: { tipo: "turno" }, ligado: true }, undefined, 0)).toEqual({
+    expect(situacaoDoFluxo({ nos: no({ tipo: "turno" }), ligado: true }, undefined, 0)).toEqual({
       rodando: true,
       proximaEmMs: null,
     });

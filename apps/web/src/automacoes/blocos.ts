@@ -1,321 +1,346 @@
 import {
   type AcaoDeFluxo,
-  type Bloco,
   type Estado,
+  type Fio,
   type Fluxo,
   FluxoSchema,
   type Gatilho,
+  type No,
   type NomesParaAFrase,
   nomesDaMesa,
   numeroEmPortugues,
+  portasDoNo,
   problemasDoFluxo,
   referenciasDaMesa,
   tempoHumano,
 } from "@tabletop/shared";
 import { errosEmPortugues } from "./erros";
 
-// O que o editor por blocos sabe fazer com a árvore do fluxo (AU1): caminhos, inserir, tirar, mover, os rótulos das peças
-// e os erros por bloco. Tudo puro: o editor guarda o `Fluxo` num estado do React e troca por uma cópia a cada edição.
+// O que o editor em grade sabe fazer com o grafo (AU2): as peças da paleta, os rótulos dos nós, a geometria das portas e
+// os erros por nó. Tudo puro: o editor guarda o `Fluxo` num estado do React e troca por uma cópia a cada edição.
 
-/** `[trilha, i, "sim", j, ...]`: o caminho de um bloco. O de uma lista é o mesmo sem o último índice. */
-export type Caminho = (number | string)[];
-
-export type Selecao = { tipo: "gatilho" } | { tipo: "bloco"; caminho: Caminho };
-
-/** O id de HTML de um caminho (`t0-b1-sim-b2`): serve de `data-testid` e de chave. */
-export function idDoCaminho(c: readonly (number | string)[]): string {
-  return c
-    .map((p, i) => {
-      if (i === 0) return `t${p}`;
-      return typeof p === "number" ? `b${p}` : p;
-    })
-    .join("-");
-}
-
-export const caminhoDeLista = (c: readonly (number | string)[]): Caminho => c.slice(0, -1);
-const indiceDe = (c: readonly (number | string)[]): number => Number(c.at(-1));
-
-/** A lista de blocos no caminho `[t]` ou `[t, i, "sim"]`. */
-export function listaEm(
-  f: Pick<Fluxo, "trilhas">,
-  lista: readonly (number | string)[],
-): Bloco[] | undefined {
-  let atual: Bloco[] | undefined = f.trilhas[Number(lista[0])];
-  for (let k = 1; k + 1 < lista.length + 1 && atual !== undefined; k += 2) {
-    const i = lista[k];
-    const ramo = lista[k + 1];
-    if (i === undefined || ramo === undefined) break;
-    const b: Bloco | undefined = atual[Number(i)];
-    if (b === undefined) return undefined;
-    if ((b.bloco === "se" || b.bloco === "sortear") && (ramo === "sim" || ramo === "nao")) {
-      atual = ramo === "sim" ? b.sim : b.nao;
-    } else if (b.bloco === "paraCada" && ramo === "corpo") atual = b.corpo;
-    else return undefined;
-  }
-  return atual;
-}
-
-export function blocoEm(
-  f: Pick<Fluxo, "trilhas">,
-  caminho: readonly (number | string)[],
-): Bloco | undefined {
-  return listaEm(f, caminhoDeLista(caminho))?.[indiceDe(caminho)];
-}
-
-const copia = <T>(v: T): T => structuredClone(v);
-
-export function inserirEm(
-  f: Fluxo,
-  lista: readonly (number | string)[],
-  indice: number,
-  bloco: Bloco,
-): Fluxo {
-  const novo = copia(f);
-  const alvo = listaEm(novo, lista);
-  if (alvo === undefined) return f;
-  alvo.splice(Math.max(0, Math.min(indice, alvo.length)), 0, bloco);
-  return novo;
-}
-
-export function tirarEm(f: Fluxo, caminho: readonly (number | string)[]): Fluxo {
-  const novo = copia(f);
-  const alvo = listaEm(novo, caminhoDeLista(caminho));
-  if (alvo === undefined) return f;
-  alvo.splice(indiceDe(caminho), 1);
-  return novo;
-}
-
-export function trocarEm(f: Fluxo, caminho: readonly (number | string)[], bloco: Bloco): Fluxo {
-  const novo = copia(f);
-  const alvo = listaEm(novo, caminhoDeLista(caminho));
-  if (alvo === undefined) return f;
-  alvo[indiceDe(caminho)] = bloco;
-  return novo;
-}
-
-const ehPrefixo = (prefixo: readonly (number | string)[], c: readonly (number | string)[]) =>
-  prefixo.length <= c.length && prefixo.every((p, i) => p === c[i]);
-
-/**
- * Move o bloco `de` para a lista `para`, na posição `indice` (contada na lista ANTES de tirar o bloco). Não deixa pôr um
- * bloco dentro de si mesmo. Devolve o fluxo novo e o caminho que o bloco passou a ter.
- */
-export function moverBloco(
-  f: Fluxo,
-  de: readonly (number | string)[],
-  para: readonly (number | string)[],
-  indice: number,
-): { fluxo: Fluxo; caminho: Caminho } | null {
-  if (ehPrefixo(de, para)) return null;
-  const bloco = blocoEm(f, de);
-  if (bloco === undefined) return null;
-  const listaDe = caminhoDeLista(de);
-  const mesmaLista = listaDe.length === para.length && ehPrefixo(listaDe, para);
-  // Tirar o bloco desloca os índices de quem vem depois dele, na mesma lista ou numa lista de dentro de um irmão seguinte.
-  let paraAjustado: Caminho = [...para];
-  let destino = indice;
-  if (mesmaLista && indice > indiceDe(de)) destino = indice - 1;
-  else if (!mesmaLista && ehPrefixo(listaDe, para) && para.length > listaDe.length) {
-    const posicao = listaDe.length;
-    const irmao = Number(para[posicao]);
-    if (irmao > indiceDe(de)) paraAjustado = para.map((p, k) => (k === posicao ? irmao - 1 : p));
-  }
-  const semBloco = tirarEm(f, de);
-  const comBloco = inserirEm(semBloco, paraAjustado, destino, bloco);
-  return { fluxo: comBloco, caminho: [...paraAjustado, destino] };
-}
-
-/** Os caminhos de todos os blocos, na ordem em que aparecem (de cima para baixo, da esquerda para a direita). */
-export function caminhosDosBlocos(f: Pick<Fluxo, "trilhas">): Caminho[] {
-  const saida: Caminho[] = [];
-  const anda = (lista: readonly Bloco[], prefixo: Caminho) => {
-    for (const [i, b] of lista.entries()) {
-      const c = [...prefixo, i];
-      saida.push(c);
-      if (b.bloco === "se" || b.bloco === "sortear") {
-        anda(b.sim, [...c, "sim"]);
-        anda(b.nao, [...c, "nao"]);
-      } else if (b.bloco === "paraCada") anda(b.corpo, [...c, "corpo"]);
-    }
-  };
-  for (const [t, trilha] of f.trilhas.entries()) anda(trilha, [t]);
-  return saida;
-}
+/** O que o editor tem escolhido: nós, e no máximo um fio. */
+export type Selecao = { nos: readonly string[]; fio: string | null };
+export const SEM_SELECAO: Selecao = { nos: [], fio: null };
 
 // --- As peças ----------------------------------------------------------------------------------
 
-export type GrupoDePeca = "quando" | "fluxo" | "faca";
+export type GrupoDePeca = "quando" | "fluxo" | "condicao" | "logica" | "faca";
+
+/** Um nó novo, sem o id e a posição (o editor dá). */
+export type NoNovo = No extends infer T
+  ? T extends No
+    ? Omit<T, "id" | "x" | "y">
+    : never
+  : never;
 
 export type Peca = {
   id: string;
   grupo: GrupoDePeca;
   rotulo: string;
-  /** O gatilho ou o bloco que a peça cria, com valores que já passam no schema. */
-  criar: () => { gatilho: Gatilho } | { bloco: Bloco };
+  /** O nó que a peça cria, com valores que já passam no schema. */
+  criar: () => NoNovo;
 };
 
-const acao = (a: AcaoDeFluxo): Bloco => ({ bloco: "acao", acao: a });
+const acao = (a: AcaoDeFluxo): NoNovo => ({ tipo: "acao", config: { acao: a } });
 
 export const PECAS: readonly Peca[] = [
   {
     id: "relogio",
     grupo: "quando",
     rotulo: "A cada… (relógio)",
-    criar: () => ({ gatilho: { tipo: "relogio", cadaS: 60 } }),
+    criar: () => ({ tipo: "gatilho", config: { tipo: "relogio", cadaS: 60 } }),
   },
   {
     id: "botao",
     grupo: "quando",
     rotulo: "Ao apertar um botão",
-    criar: () => ({ gatilho: { tipo: "botao", nome: "Meu botão" } }),
+    criar: () => ({ tipo: "gatilho", config: { tipo: "botao", nome: "Meu botão" } }),
   },
   {
     id: "tocha",
     grupo: "quando",
     rotulo: "Tocha acende ou apaga",
-    criar: () => ({ gatilho: { tipo: "tocha", muda: "acende" } }),
+    criar: () => ({ tipo: "gatilho", config: { tipo: "tocha", muda: "acende" } }),
   },
   {
     id: "zona",
     grupo: "quando",
     rotulo: "Token entra ou sai de zona",
-    criar: () => ({ gatilho: { tipo: "zona", quando: "entra" } }),
+    criar: () => ({ tipo: "gatilho", config: { tipo: "zona", quando: "entra" } }),
   },
   {
     id: "turno",
     grupo: "quando",
     rotulo: "Começa um turno",
-    criar: () => ({ gatilho: { tipo: "turno" } }),
+    criar: () => ({ tipo: "gatilho", config: { tipo: "turno" } }),
   },
   {
     id: "cena",
     grupo: "quando",
     rotulo: "Cena é ativada",
-    criar: () => ({ gatilho: { tipo: "cena" } }),
+    criar: () => ({ tipo: "gatilho", config: { tipo: "cena" } }),
   },
   {
     id: "sinal",
     grupo: "quando",
     rotulo: "Ao receber um sinal",
-    criar: () => ({ gatilho: { tipo: "sinal", nome: "sinal" } }),
+    criar: () => ({ tipo: "gatilho", config: { tipo: "sinal", nome: "sinal" } }),
   },
 
   {
     id: "esperar",
     grupo: "fluxo",
     rotulo: "Esperar",
-    criar: () => ({ bloco: { bloco: "esperar", s: 10 } }),
+    criar: () => ({ tipo: "esperar", config: { s: 10 } }),
   },
   {
     id: "se",
     grupo: "fluxo",
     rotulo: "Se… (condição)",
-    criar: () => ({
-      bloco: {
-        bloco: "se",
-        condicao: { condicao: "etiqueta", etiqueta: "chama" },
-        sim: [],
-        nao: [],
-      },
-    }),
+    criar: () => ({ tipo: "se", config: {} }),
   },
   {
     id: "sortear",
     grupo: "fluxo",
     rotulo: "Sortear (chance)",
-    criar: () => ({ bloco: { bloco: "sortear", chance: 0.5, sim: [], nao: [] } }),
+    criar: () => ({ tipo: "sortear", config: { chance: 0.5 } }),
   },
   {
     id: "paraCada",
     grupo: "fluxo",
     rotulo: "Para cada (tochas, tokens)",
     criar: () => ({
-      bloco: { bloco: "paraCada", alvo: { tipo: "objetos", acesos: true }, corpo: [] },
+      tipo: "paraCada",
+      config: { alvo: { tipo: "objetos", acesos: true } },
     }),
+  },
+
+  {
+    id: "chance",
+    grupo: "condicao",
+    rotulo: "Chance",
+    criar: () => ({ tipo: "condicao", config: { condicao: "chance", chance: 0.5 } }),
+  },
+  {
+    id: "etiqueta",
+    grupo: "condicao",
+    rotulo: "Tem a etiqueta",
+    criar: () => ({ tipo: "condicao", config: { condicao: "etiqueta", etiqueta: "chama" } }),
+  },
+  {
+    id: "dentroDaZona",
+    grupo: "condicao",
+    rotulo: "Está dentro da zona",
+    criar: () => ({ tipo: "condicao", config: { condicao: "dentroDaZona", zona: "" } }),
+  },
+  {
+    id: "estaNaCena",
+    grupo: "condicao",
+    rotulo: "Está numa cena",
+    criar: () => ({ tipo: "condicao", config: { condicao: "cena", cenas: [] as never } }),
+  },
+  {
+    id: "zonaLigada",
+    grupo: "condicao",
+    rotulo: "A zona está ligada",
+    criar: () => ({ tipo: "condicao", config: { condicao: "zonaLigada", zona: "" } }),
+  },
+  {
+    id: "tokenDeJogador",
+    grupo: "condicao",
+    rotulo: "Token de jogador",
+    criar: () => ({ tipo: "condicao", config: { condicao: "tokenDeJogador" } }),
+  },
+
+  {
+    id: "e",
+    grupo: "logica",
+    rotulo: "E (todas valem)",
+    criar: () => ({ tipo: "porta", config: { porta: "e" } }),
+  },
+  {
+    id: "ou",
+    grupo: "logica",
+    rotulo: "OU (alguma vale)",
+    criar: () => ({ tipo: "porta", config: { porta: "ou" } }),
+  },
+  {
+    id: "nao",
+    grupo: "logica",
+    rotulo: "NÃO (inverte)",
+    criar: () => ({ tipo: "porta", config: { porta: "nao" } }),
   },
 
   {
     id: "luz",
     grupo: "faca",
     rotulo: "Luz",
-    criar: () => ({ bloco: acao({ acao: "luz.modificar", raioX: 0.5, porS: 20 }) }),
+    criar: () => acao({ acao: "luz.modificar", raioX: 0.5, porS: 20 }),
   },
   {
     id: "apagar",
     grupo: "faca",
     rotulo: "Apagar a tocha",
-    criar: () => ({ bloco: acao({ acao: "objeto.apagar", chance: 1 }) }),
+    criar: () => acao({ acao: "objeto.apagar", chance: 1 }),
   },
   {
     id: "tempo",
     grupo: "faca",
     rotulo: "Tempo da tocha",
-    criar: () => ({ bloco: acao({ acao: "objeto.ajustarTempo", deltaS: -60 }) }),
+    criar: () => acao({ acao: "objeto.ajustarTempo", deltaS: -60 }),
   },
   {
     id: "visao",
     grupo: "faca",
     rotulo: "Limitar a visão",
-    criar: () => ({ bloco: acao({ acao: "visao.limitar", alcanceM: 1.5, porS: 30 }) }),
+    criar: () => acao({ acao: "visao.limitar", alcanceM: 1.5, porS: 30 }),
   },
   {
     id: "chat",
     grupo: "faca",
     rotulo: "Avisar no chat",
-    criar: () => ({ bloco: acao({ acao: "chat.anunciar", texto: "", para: "todos" }) }),
+    criar: () => acao({ acao: "chat.anunciar", texto: "", para: "todos" }),
   },
   {
     id: "som",
     grupo: "faca",
     rotulo: "Tocar som",
-    criar: () => ({
-      bloco: acao({ acao: "som.tocar", hash: "", nome: "", volume: 0.8, para: "todos" }),
-    }),
+    criar: () => acao({ acao: "som.tocar", hash: "", nome: "", volume: 0.8, para: "todos" }),
   },
   {
     id: "mostrar",
     grupo: "faca",
     rotulo: "Mostrar ou ocultar token",
-    criar: () => ({ bloco: acao({ acao: "token.ocultar" }) }),
+    criar: () => acao({ acao: "token.ocultar" }),
   },
   {
     id: "zonaLigar",
     grupo: "faca",
     rotulo: "Ligar ou desligar zona",
-    criar: () => ({ bloco: acao({ acao: "zona.ativar", zona: "", ativa: true }) }),
+    criar: () => acao({ acao: "zona.ativar", zona: "", ativa: true }),
   },
   {
     id: "sinalMandar",
     grupo: "faca",
     rotulo: "Mandar um sinal",
-    criar: () => ({ bloco: { bloco: "sinal", nome: "sinal" } }),
+    criar: () => ({ tipo: "sinal", config: { nome: "sinal" } }),
   },
+];
+
+export const GRUPOS_DE_PECA: readonly GrupoDePeca[] = [
+  "quando",
+  "fluxo",
+  "condicao",
+  "logica",
+  "faca",
 ];
 
 export const ROTULO_DO_GRUPO: Record<GrupoDePeca, string> = {
   quando: "Quando",
   fluxo: "Fluxo",
+  condicao: "Condições",
+  logica: "Lógica",
   faca: "Faça",
 };
 
-/** O fluxo novo: um relógio com uma trilha vazia. */
-export function fluxoNovo(id: string): Fluxo {
+/** A cor de cada grupo: sempre um token do tema. */
+export const COR_DO_GRUPO: Record<GrupoDePeca, string> = {
+  quando: "var(--acento-forte)",
+  fluxo: "var(--etiqueta-azul)",
+  condicao: "var(--aviso)",
+  logica: "var(--etiqueta-vermelho)",
+  faca: "var(--sucesso)",
+};
+
+/** O fluxo novo: um relógio e mais nada (a pessoa escolhe o gatilho trocando-o na grade). */
+export function fluxoNovo(id: string, gatilho: Gatilho = { tipo: "relogio", cadaS: 60 }): Fluxo {
   // Sem `parse`: o nome vazio é um erro que o editor mostra, não um motivo para a tela nascer quebrada.
   return {
     id,
     nome: "",
     ligado: true,
     cenas: null,
-    gatilho: { tipo: "relogio", cadaS: 60 },
-    trilhas: [[]],
+    nos: [{ id: "n1", tipo: "gatilho", x: 80, y: 80, config: gatilho }],
+    fios: [],
   };
 }
 
-/** O grupo (a cor) de um bloco. */
-export const grupoDoBloco = (b: Bloco): GrupoDePeca =>
-  b.bloco === "acao" || b.bloco === "sinal" ? "faca" : "fluxo";
+/** O grupo (a cor) de um nó. */
+export function grupoDoNo(no: Pick<No, "tipo">): GrupoDePeca {
+  switch (no.tipo) {
+    case "gatilho":
+      return "quando";
+    case "condicao":
+      return "condicao";
+    case "porta":
+      return "logica";
+    case "acao":
+    case "sinal":
+      return "faca";
+    default:
+      return "fluxo";
+  }
+}
 
-// --- Os rótulos dos blocos ---------------------------------------------------------------------
+// --- A geometria (a grade tem tamanho fixo de nó, para os fios saberem onde ficam as portas) -----
+
+export const LARGURA_DO_NO = 208;
+
+/** A altura do nó: com duas portas de um lado ele cresce. */
+export function alturaDoNo(no: Pick<No, "tipo"> & { config?: unknown }): number {
+  const p = portasDoNo(no);
+  return Math.max(p.entradas.length, p.saidas.length) > 1 ? 84 : 60;
+}
+
+/** Onde fica uma porta, em coordenadas da grade. */
+export function pontoDaPorta(
+  no: No,
+  lado: "entrada" | "saida",
+  porta: string,
+): { x: number; y: number } {
+  const p = portasDoNo(no);
+  const lista = lado === "entrada" ? p.entradas : p.saidas;
+  const i = Math.max(
+    0,
+    lista.findIndex((x) => x.id === porta),
+  );
+  const h = alturaDoNo(no);
+  return {
+    x: no.x + (lado === "entrada" ? 0 : LARGURA_DO_NO),
+    y: no.y + (h * (i + 1)) / (lista.length + 1),
+  };
+}
+
+/** O id do fio, o mesmo que a sala usa para conferir fios iguais. */
+export const chaveDoFio = (f: Fio): string =>
+  `${f.de.no}.${f.de.saida}>${f.para.no}.${f.para.entrada}`;
+
+/** O caminho em curva de um fio, de (x1, y1) a (x2, y2). */
+export function caminhoDoFio(x1: number, y1: number, x2: number, y2: number): string {
+  const dx = Math.max(48, Math.abs(x2 - x1) / 2);
+  return `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`;
+}
+
+/** O retângulo que contém todos os nós (para "Ajustar à tela"). */
+export function limitesDosNos(
+  nos: readonly No[],
+): { x: number; y: number; largura: number; altura: number } | null {
+  if (nos.length === 0) return null;
+  let x0 = Number.POSITIVE_INFINITY;
+  let y0 = Number.POSITIVE_INFINITY;
+  let x1 = Number.NEGATIVE_INFINITY;
+  let y1 = Number.NEGATIVE_INFINITY;
+  for (const n of nos) {
+    x0 = Math.min(x0, n.x);
+    y0 = Math.min(y0, n.y);
+    x1 = Math.max(x1, n.x + LARGURA_DO_NO);
+    y1 = Math.max(y1, n.y + alturaDoNo(n));
+  }
+  return { x: x0, y: y0, largura: x1 - x0, altura: y1 - y0 };
+}
+
+// --- Os rótulos dos nós ------------------------------------------------------------------------
 
 export type Rotulo = { titulo: string; detalhe: string };
 
@@ -360,26 +385,18 @@ export function rotuloDoGatilho(g: Gatilho, n: NomesParaAFrase): Rotulo {
   }
 }
 
-export function rotuloDoBloco(b: Bloco, n: NomesParaAFrase): Rotulo {
-  switch (b.bloco) {
+export function rotuloDoNo(no: No, n: NomesParaAFrase): Rotulo {
+  switch (no.tipo) {
+    case "gatilho":
+      return rotuloDoGatilho(no.config, n);
     case "esperar":
-      return { titulo: `Esperar ${tempoHumano(b.s)}`, detalhe: "depois do bloco anterior" };
-    case "se": {
-      const c = b.condicao;
-      const detalhe =
-        c.condicao === "etiqueta"
-          ? `etiqueta ${c.etiqueta}`
-          : c.condicao === "dentroDaZona"
-            ? `dentro da zona ${n.zona(c.zona) ?? "(apagada)"}`
-            : c.condicao === "zonaLigada"
-              ? `zona ${n.zona(c.zona) ?? "(apagada)"} ligada`
-              : `em ${c.cenas.map((x) => n.cena(x) ?? "(apagada)").join(", ")}`;
-      return { titulo: "Se", detalhe };
-    }
+      return { titulo: `Esperar ${tempoHumano(no.config.s)}`, detalhe: "depois do bloco anterior" };
+    case "se":
+      return { titulo: "Se", detalhe: "confere a condição ligada" };
     case "sortear":
-      return { titulo: "Sortear", detalhe: `${Math.round(b.chance * 100)}%` };
+      return { titulo: "Sortear", detalhe: `${Math.round(no.config.chance * 100)}% de “sim”` };
     case "paraCada": {
-      const a = b.alvo;
+      const a = no.config.alvo;
       if (a.tipo === "objetos") {
         const partes = [
           a.modelo === undefined ? "objetos" : (n.modelo(a.modelo) ?? "(apagado)"),
@@ -398,14 +415,50 @@ export function rotuloDoBloco(b: Bloco, n: NomesParaAFrase): Rotulo {
     }
     case "sinal":
       return {
-        titulo: `Sinal “${b.nome}”`,
+        titulo: `Sinal “${no.config.nome}”`,
         detalhe:
-          b.atrasoS === undefined || b.atrasoS === 0
+          no.config.atrasoS === undefined || no.config.atrasoS === 0
             ? "agora"
-            : `daqui a ${tempoHumano(b.atrasoS)}`,
+            : `daqui a ${tempoHumano(no.config.atrasoS)}`,
       };
+    case "condicao": {
+      const c = no.config;
+      switch (c.condicao) {
+        case "chance":
+          return { titulo: `Chance ${Math.round(c.chance * 100)}%`, detalhe: "sorteia a cada vez" };
+        case "etiqueta":
+          return { titulo: "Tem a etiqueta", detalhe: c.etiqueta };
+        case "dentroDaZona":
+          return {
+            titulo: "Dentro da zona",
+            detalhe: c.zona === "" ? "(escolha uma zona)" : (n.zona(c.zona) ?? "(apagada)"),
+          };
+        case "zonaLigada":
+          return {
+            titulo: "Zona ligada",
+            detalhe: c.zona === "" ? "(escolha uma zona)" : (n.zona(c.zona) ?? "(apagada)"),
+          };
+        case "cena":
+          return {
+            titulo: "Numa destas cenas",
+            detalhe:
+              c.cenas.length === 0
+                ? "(escolha cenas)"
+                : c.cenas.map((x) => n.cena(x) ?? "(apagada)").join(", "),
+          };
+        case "tokenDeJogador":
+          return { titulo: "Token de jogador", detalhe: "senão é do mestre" };
+      }
+      return { titulo: "Condição", detalhe: "" };
+    }
+    case "porta":
+      return no.config.porta === "e"
+        ? { titulo: "E", detalhe: "vale se todas valem" }
+        : no.config.porta === "ou"
+          ? { titulo: "OU", detalhe: "vale se alguma vale" }
+          : { titulo: "NÃO", detalhe: "inverte a entrada" };
     case "acao": {
-      const a = b.acao;
+      const a = no.config.acao;
       switch (a.acao) {
         case "luz.modificar": {
           const partes = [
@@ -457,12 +510,12 @@ export function rotuloDoBloco(b: Bloco, n: NomesParaAFrase): Rotulo {
   }
 }
 
-// --- Os erros por bloco ------------------------------------------------------------------------
+// --- Os erros por nó ---------------------------------------------------------------------------
 
-/** O erro e onde ele aparece: `caminho` é o do bloco (`t0-b1-sim-b2`), ou `nome`, `gatilho`, `cenas`, `geral`. */
+/** O erro e onde ele aparece: o id do nó, ou `nome`, `cenas`, `geral`. */
 export type ErroDoEditor = { onde: string; texto: string };
 
-/** Todos os problemas do fluxo, em português, cada um preso ao bloco que o tem. Vazio = pode salvar. */
+/** Todos os problemas do fluxo, em português, cada um preso ao nó que o tem. Vazio = pode salvar. */
 export function errosDoFluxo(f: Fluxo, estado: Estado): ErroDoEditor[] {
   const saida: ErroDoEditor[] = [];
   const visto = new Set<string>();
@@ -476,31 +529,20 @@ export function errosDoFluxo(f: Fluxo, estado: Estado): ErroDoEditor[] {
   if (!nova.success) {
     for (const issue of nova.error.issues) {
       const e = errosEmPortugues({ issues: [issue] })[0];
-      // O bloco é o prefixo do caminho: ["trilhas", t, i, "sim", j, "acao", "raioX"] -> t, i, "sim", j.
       const p = issue.path;
       if (p[0] === "nome") poe("nome", e?.mensagem ?? issue.message);
-      else if (p[0] === "gatilho") poe("gatilho", e?.mensagem ?? issue.message);
       else if (p[0] === "cenas") poe("cenas", e?.mensagem ?? issue.message);
-      else if (p[0] === "trilhas") {
-        const c: Caminho = [];
-        for (const parte of p.slice(1)) {
-          if (typeof parte === "number" || parte === "sim" || parte === "nao" || parte === "corpo")
-            c.push(parte);
-          else break;
-        }
-        // Um erro na lista (o "sim" vazio) é do bloco dono dela.
-        if (typeof c.at(-1) === "string") c.pop();
-        poe(c.length === 0 ? "geral" : idDoCaminho(c), e?.texto ?? issue.message);
+      else if (p[0] === "nos" && typeof p[1] === "number") {
+        const no = f.nos[p[1]];
+        poe(no?.id ?? "geral", e?.mensagem ?? issue.message);
       } else poe("geral", e?.texto ?? issue.message);
     }
   }
   for (const p of problemasDoFluxo(f, referenciasDaMesa(estado))) {
     const partes = p.caminho.split(".");
-    if (partes[0] === "trilhas") {
-      const c: Caminho = partes.slice(1).map((x) => (/^\d+$/.test(x) ? Number(x) : x));
-      if (typeof c.at(-1) === "string") c.pop();
-      poe(c.length <= 1 ? (c.length === 0 ? "geral" : `t${c[0]}`) : idDoCaminho(c), p.mensagem);
-    } else poe(partes[0] ?? "geral", p.mensagem);
+    if (partes[0] === "nos") poe(partes[1] ?? "geral", p.mensagem);
+    else if (partes[0] === "nome" || partes[0] === "cenas") poe(partes[0], p.mensagem);
+    else poe("geral", p.mensagem);
   }
   return saida;
 }

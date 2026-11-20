@@ -4470,6 +4470,31 @@ Ver `PASSAGEM.md`, "MU3" (`--faixa-do-som` e os 46 px).
 ### Roteiro manual
 Abrir a mesa de som em faixa, arrastar a alça e recolher: o zoom acompanha. Soltar em janela: o zoom volta ao pé.
 
+## Ajustes AU2 — automações como o n8n (entregue, aguardando o roteiro manual)
+
+### O que foi entregue
+O fluxo virou grafo (nós soltos numa grade, ligados por fios, com portas lógicas E, OU e NÃO, OU de gatilhos e caminhos em paralelo); o motor segue os fios; o editor é uma grade livre (arrastar peças, ligar, mover, caixa de seleção, copiar e colar, zoom, Organizar, teclado) e abre **sempre numa janela própria** ("Editar" e "+ Nova automação" abrem na hora); a **mesa de eventos** (só botões) abre em janela, faixa ou janela própria; o MCP monta por `nos` e `fios`. Correções do AU1: nó cortado na borda, borda do campo "Buscar" e o nome do sinal como a pessoa o escreveu. Ver `REDESIGN.md`, "AU2 — como ficou", e `PROJETO.md` 4.11 e 4.12.
+
+### Como rodar
+`pnpm dev`; botão Automações → "+ Nova automação" (abre uma janela do navegador) e "Abrir mesa de eventos". E2E: `pnpm --filter @tabletop/e2e test tests/au2.spec.ts` (portas 8790 e 5176 nesta rodada: `E2E_PORTA_SALA` e `E2E_PORTA_WEB`).
+
+### Verificação
+Typecheck e lint limpos; unidade: shared 1424, web 307, server 140 (o `ouro.test.ts` bate com o arquivo guardado, sem regravar); E2E completo em duas metades, uma depois da outra: 279 + 256 passaram, e o `chamada.spec.ts` (vídeo, sem relação com o lote) ficou instável uma vez e passou rodando de novo (4/4). Prints: Grimório 1600×900 e 1280×720 e Pergaminho 1600×900 (9 por caso).
+
+### Decisões
+Ver `REDESIGN.md`, "AU2 — como ficou".
+
+### Desvios
+- `au1.spec.ts`: saíram os testes do editor dentro da janela principal (criar pelo editor, armadilha de zona, erro no bloco, janela própria): esse editor não existe mais; eles voltaram em `au2.spec.ts`, já na janela própria e com a grade. Os que ficaram (botão liberado, editar/desligar/apagar, Chama Primordial) abrem o editor pela janela nova.
+- `q8.spec.ts` e `som-n5.spec.ts`: o editor passou para a janela própria; o som entra pela mesa de som e o editor o escolhe entre os que já estão na mesa.
+- Testes de unidade: `fluxosConversao.test.ts` olha a árvore (`converterParaArvores`) e a conferência passou a apontar `nos.<id>`; `automacoes`, `botoes`, `zonas`, `campanhasProntas`, `q16`, `au1` (MCP), `paridadeCampos` e `armazenamento` leem o grafo; `erros.test.ts` aceita nome de sinal com espaço e acento. O `ouro.test.ts` só trocou o jeito de achar o fluxo de botão.
+
+### Frágil
+Ver `PASSAGEM.md`, "AU2".
+
+### Roteiro manual
+Ver `docs/ROTEIRO-DE-TESTES.md`, "AU2".
+
 ## Ajustes FG1 — luz e fogo: modelo ao vivo, suportes, escala do mapa, chama animada e jogador dá equipamento (entregue, aguardando o roteiro manual)
 
 ### O que foi entregue
@@ -4548,4 +4573,4 @@ Ver `PASSAGEM.md`, "AS1".
 ### Roteiro manual
 Ver `ROTEIRO-DE-TESTES.md`, "AS1".
 
-## Próximo: o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b, N4, N5, M1, M2, Q1 a Q16, CH1, CH2, MU1, MU2, MU3, A1, AU1, FG1 AS1 e das otimizações O1–O4
+## Próximo: o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b, N4, N5, M1, M2, Q1 a Q16, CH1, CH2, MU1, MU2, MU3, A1, AU1, AU2, FG1, AS1 e das otimizações O1–O4

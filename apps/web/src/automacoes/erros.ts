@@ -47,6 +47,15 @@ const ROTULO: Record<string, string> = {
   hash: "Som",
   volume: "Volume",
   trilhas: "Trilhas",
+  nos: "Blocos",
+  fios: "Fios",
+  config: "",
+  de: "De",
+  saida: "Saída",
+  entrada: "Entrada",
+  porta: "Porta lógica",
+  x: "Posição x",
+  y: "Posição y",
   bloco: "Bloco",
   s: "Esperar (segundos)",
   cadaS: "A cada (segundos)",
@@ -83,17 +92,22 @@ export function rotuloDoCaminho(caminho: readonly PropertyKey[]): string {
     const proximo = caminho[i + 1];
     if (typeof p === "number") continue;
     const nome = ROTULO[String(p)] ?? String(p);
+    if (nome === "" && typeof proximo !== "number") continue;
     if (typeof proximo === "number") {
       const singular =
-        p === "fases"
-          ? "Fase"
-          : p === "fazer"
-            ? "Ação"
-            : p === "se"
-              ? "Condição"
-              : p === "cenas"
-                ? "Cena"
-                : nome;
+        p === "nos"
+          ? "Bloco"
+          : p === "fios"
+            ? "Fio"
+            : p === "fases"
+              ? "Fase"
+              : p === "fazer"
+                ? "Ação"
+                : p === "se"
+                  ? "Condição"
+                  : p === "cenas"
+                    ? "Cena"
+                    : nome;
       partes.push(`${singular} ${proximo + 1}`);
       i++; // consome o índice
     } else {
