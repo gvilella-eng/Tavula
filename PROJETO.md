@@ -1239,10 +1239,15 @@ próprio computador quando der. E perguntou se um jogador consegue pôr vírus n
 - **Imagem ou animação** (png, jpg, webp, gif, apng) solta **no mapa**: vira uma **imagem solta na cena**, no ponto onde soltou e na camada ativa
   (o mestre usa a camada de trabalho; o jogador, a dos tokens). Até 10 por vez; a segunda e as seguintes ficam escalonadas.
 - **Outro arquivo** solto no mapa (campanha, json, texto, exe, svg): recusado com um aviso que diz o que é. O navegador nunca o abre no lugar da mesa.
+- **Som** (mp3, ogg ou wav) solto **em qualquer lugar da mesa** (FG2, 2026-11-20): se quem soltou é o **mestre**, entra nos assets e na **biblioteca de música**,
+  com o nome do arquivo (sem a extensão) e sem etiquetas; o aviso diz "Adicionada à biblioteca de música." (ou "N músicas adicionadas…") e tem o botão
+  "Abrir a biblioteca" (abre a configuração da mesa de som na aba Música). Vários de uma vez entram todos (até 50 por vez); o mesmo arquivo de novo não duplica
+  a faixa (a biblioteca já une pelo hash). Se quem soltou é um **jogador**, nada entra e o aviso diz "Só o mestre põe música na mesa."
 - **Imagem solta fora do mapa**: nada acontece.
 - **Caixa do Claude**: não aceita arrastar; o Claude manda pelo `arquivos` e a caixa processa (`uso: "imagem"`).
 - **Um asset arrastado da lista** para o mapa: o mesmo que soltar o arquivo (imagem, animação, token, retrato ou mapa inteiro sem pedaços); **som** arrastado para
-  o mapa entra no primeiro ambiente livre da mesa de som (a biblioteca de música tem botão próprio na lista).
+  o mapa entra na **biblioteca de música** (FG2: antes ia para o primeiro ambiente livre da mesa de som; o botão "Pôr na mesa de som" da lista continua a pôr o
+  som como ambiente).
 
 **A imagem solta é um token sem ficha** (`Token.imagem`: `larguraM`, `alturaM`, `rotacao` em graus e `por`, quem a pôs). Assim herda camadas
 (`mapa`, `tokens`, `mestre`), ocultar, visão por camada e o filtro dos frames do jogador, arrastar, copiar, duplicar, apagar e o desfazer do apagar
@@ -1796,6 +1801,11 @@ assumido sem o Vilella está marcado com "(assumido)" e entra nas perguntas do f
   - **Chama animada:** inflamável aceso e tocha num ponto mostram fogo animado (visto de cima), por estágio (forte, fraca, morrendo), nunca o símbolo da tocha; as animações padrão (tocha e fogueira) são geradas por código; o mestre escolhe, por estágio, um gif, webp animado ou apng próprio (asset `animacao`). "Reduzir movimento": a chama fica parada.
   - **Tamanho da chama:** o mestre estica a chama do inflamável por alças no mapa e por campos (largura e altura, em metros), antes e depois de acender; o modelo tem o tamanho padrão. A luz (raios) continua a do modelo ("luz acompanha o tamanho" fica em `docs/IDEIAS.md`).
   - **Equipamento do jogador:** capacidade `equipamento.dar` (padrão ligada): o jogador dá e tira equipamento de modelo (e acende) nos personagens que controla; o mestre pode desligá-la. Nunca no personagem de outro.
+- **Fogo melhor, tocha na mão e cor para o mestre (FG2, 2026-11-20).** Só de tela: nenhum campo, intenção, protocolo ou migração novo (o MCP e a trava `paridadeCampos` não mudam).
+  - **A fogueira é um fogo só.** Gerada por código (`chamas.ts`, `montarQuadro`): base larga e brilhante (cama de brasas), línguas que se sobrepõem no corpo, brasas que sobem por dentro e um núcleo mais claro. Sem lenha, gravetos nem pedras: isso é item da camada de mapa. Esticada, continua uma massa (cada língua cobre mais que o espaço até a vizinha); vale para palha, barril e qualquer inflamável aceso.
+  - **A tocha não se divide.** Um corpo e duas ou três línguas coladas nele balançam juntas (o vento é um só). Em todo quadro e estágio a silhueta (alfa acima do limiar) é **uma região conexa**; os testes conferem na geometria e nos pixels reais.
+  - **A tocha na mão tem os 3 estágios.** No pino do token, a fonte com fogo (a que tremula: tocha; a lanterna não) é uma chama animada pequena, forte, fraca ou morrendo como a do mapa, com a animação própria do estágio se o modelo tiver uma. Apagada ou sem fogo, o pino mantém o ícone. O estágio vem do objeto (mestre) ou do tempo restante e da configuração dos estágios (jogador no tempo exato). "Reduzir movimento" a deixa no primeiro quadro.
+  - **O mestre vê a luz como o jogador.** Na Visão do mestre a luz tem a mesma cor e o mesmo alcance que o jogador vê, onde algum jogador enxerga; onde nenhum jogador vê, o mapa continua apagado como antes, mas com a cor e o alcance de **toda** luz por cima (com as paredes), haja jogador vendo ou não; sem luz nem jogador, o mapa apagado (nunca preto). Sem a tremulação (refazer a luz de dezenas de chamas a cada instante só para o mestre custava o dobro). A Visão do mestre vale também com a cena sem jogador. A visão no escuro de um jogador não lava a cor para o mestre (soma meia luz só onde nenhuma luz chega).
 - **Modelos de objeto** (nome, luz, duração ou infinita, ocupa mão, tags) na mesma aba, seção "Objetos de
   luz". Semente: Tocha 5e (6 m + 6 m, 60 min, ocupa mão), Lanterna (9 m + 9 m, 6 h, ocupa mão) e Fogueira
   (6 m + 6 m, infinita, não ocupa mão). A campanha de referência muda a tocha para 30 min e 9 m + 6 m por

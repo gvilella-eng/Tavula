@@ -11,6 +11,7 @@ import {
   ehArquivoUniversalVtt,
   ehPersonagemDeJogador,
   encaixarNoGrid,
+  estagioDe,
   type FonteDeLuz,
   fluxoUsa,
   type Gatilho,
@@ -18,10 +19,10 @@ import {
   iluminacaoDinamicaLigada,
   jogadoresDaMesa,
   jogadorVeABandeira,
+  LIMITES_DE_ASSET,
   lerEntradaArrastada,
   limitarAlcance,
   limiteDeVisaoDoToken,
-  lugaresDe,
   MAXIMO_DE_TOKENS_POR_VEZ,
   membrosDaMesa,
   modInteligenciaDe,
@@ -169,6 +170,14 @@ import {
   prefParaSeguir,
 } from "./seguirToken";
 import { AvisoDoSom } from "./som/AvisoDoSom";
+import { lerDuracaoMs } from "./som/duracao";
+import {
+  AVISO_SO_O_MESTRE_PONHA_MUSICA,
+  decidirSomSolto,
+  nomeDaFaixa,
+  semOsSons,
+  textoDoAvisoDaBiblioteca,
+} from "./som/soltarSom";
 import { useSomDaMesa } from "./som/useSomDaMesa";
 import { Topo } from "./Topo";
 import { useTempoDaSala } from "./tempo";
@@ -733,6 +742,52 @@ export function Mesa({
     },
     [enviar, avisar, euId, camadaTrabalho],
   );
+  /** FG2: o aviso "Abrir a biblioteca" pede à mesa de som para abrir a configuração na aba Música. */
+  const [pedidoDaBiblioteca, setPedidoDaBiblioteca] = useState(0);
+  const abrirBiblioteca = useCallback(() => {
+    setPedidoDaBiblioteca((n) => n + 1);
+    setSomAberto(true);
+  }, []);
+  /**
+   * FG2: põe sons na biblioteca de música (nos assets e em `musica.adicionar`), com o nome do arquivo e sem etiquetas.
+   * Vem de um arquivo do computador (`arquivo`) ou de um asset que a mesa já tem (`hash`).
+   */
+  const adicionarSonsNaBiblioteca = useCallback(
+    async (itens: { arquivo?: File; hash?: string; nome: string }[], sobraram = 0) => {
+      if (!gerente || itens.length === 0) return;
+      const faixas: { hash: string; nome: string; duracaoMs: number; etiquetas: string[] }[] = [];
+      let falhas = 0;
+      let entraram = 0;
+      const despachar = () => {
+        if (faixas.length === 0) return;
+        if (enviar("musica.adicionar", { faixas: faixas.splice(0) }) === null) falhas++;
+      };
+      for (const item of itens) {
+        try {
+          let hash = item.hash;
+          let blob: Blob | null | undefined = item.arquivo;
+          if (item.arquivo) {
+            if (item.arquivo.size > LIMITES_DE_ASSET.bytesDoSom) throw new Error("grande demais");
+          } else if (hash) blob = await gerente.blobDe(hash);
+          if (!blob) throw new Error("sem arquivo");
+          const duracaoMs = Math.max(1000, await lerDuracaoMs(blob));
+          if (item.arquivo) hash = (await gerente.registrarSom(item.arquivo)).hash;
+          if (!hash) throw new Error("sem hash");
+          faixas.push({ hash, nome: nomeDaFaixa(item.nome), duracaoMs, etiquetas: [] });
+          entraram++;
+          if (faixas.length >= 25) despachar();
+        } catch {
+          falhas++;
+        }
+      }
+      despachar();
+      avisar(
+        textoDoAvisoDaBiblioteca(entraram, falhas, sobraram),
+        entraram > 0 ? { rotulo: "Abrir a biblioteca", aoClicar: abrirBiblioteca } : undefined,
+      );
+    },
+    [gerente, enviar, avisar, abrirBiblioteca],
+  );
   /** AS1: arquivos do computador soltos no mapa: cada imagem ou gif vira uma imagem solta na camada ativa, onde se soltou. */
   const soltarArquivosNoMapa = useCallback(
     async (arquivos: File[], x: number, y: number) => {
@@ -740,7 +795,8 @@ export function Mesa({
       const quem = c?.usuarios.find((u) => u.id === euId);
       if (!c || !quem || !gerente) return;
       // O mapa do Dungeondraft solto continua indo para a importação (o ouvinte da janela cuida dele).
-      const candidatos = arquivos.filter((f) => !ehArquivoUniversalVtt(f.name));
+      // FG2: som solto não é imagem: vai para a biblioteca de música (o ouvinte da janela cuida dele).
+      const candidatos = semOsSons(arquivos).filter((f) => !ehArquivoUniversalVtt(f.name));
       if (candidatos.length === 0) return;
       if (quem.papel !== "mestre" && !pode(quem, "imagem.colocar", c.permissoes)) {
         avisar("Você não pode pôr imagens soltas na cena. Peça ao mestre para liberar.");
@@ -773,27 +829,12 @@ export function Mesa({
       if (!c || !quem) return;
       const meta = gerente?.meta(hash) ?? c.assets?.find((a) => a.hash === hash);
       if (meta?.tipo === "som") {
-        if (quem.papel !== "mestre") return;
-        const livre = lugaresDe(c.mesaDeSom).ambientes.indexOf(null);
-        if (livre < 0) {
-          avisar("A mesa de som está cheia: os 8 ambientes já têm som.");
+        // FG2: som arrastado para o mapa vai para a biblioteca de música (o botão "Pôr na mesa de som" da lista é o ambiente).
+        if (quem.papel !== "mestre") {
+          avisar(AVISO_SO_O_MESTRE_PONHA_MUSICA);
           return;
         }
-        enviar("som.lugar", {
-          grupo: "ambiente",
-          indice: livre,
-          lugar: {
-            hash,
-            nome:
-              nomeDoAsset(meta)
-                .replace(/\.[^.]+$/, "")
-                .slice(0, 12) || "Som",
-            icone: "musica",
-            cor: "ambar",
-            volume: 0.6,
-          },
-        });
-        avisar(`"${nomeDoAsset(meta)}" entrou na mesa de som (ambiente ${livre + 1}).`);
+        void adicionarSonsNaBiblioteca([{ hash, nome: nomeDoAsset(meta) }]);
         return;
       }
       if (quem.papel !== "mestre" && !pode(quem, "imagem.colocar", c.permissoes)) {
@@ -802,7 +843,7 @@ export function Mesa({
       }
       colocarImagemNaCena(hash, x, y);
     },
-    [gerente, euId, enviar, avisar, colocarImagemNaCena],
+    [gerente, euId, avisar, colocarImagemNaCena, adicionarSonsNaBiblioteca],
   );
   /** AS1: o botão "Pôr na cena" da lista de assets: no centro do que se vê. */
   const porAssetNoCentro = useCallback(
@@ -840,13 +881,26 @@ export function Mesa({
     [euMestre, gerente, fontes, enviar],
   );
   useEffect(() => {
-    if (!euMestre) return;
     const temArquivo = (e: DragEvent) => e.dataTransfer?.types.includes("Files") === true;
     const sobre = (e: DragEvent) => {
       if (temArquivo(e)) e.preventDefault();
     };
     const soltou = (e: DragEvent) => {
-      const arquivo = [...(e.dataTransfer?.files ?? [])].find((f) => ehArquivoUniversalVtt(f.name));
+      const soltos = [...(e.dataTransfer?.files ?? [])];
+      // FG2: som solto em qualquer lugar da mesa: o mestre põe na biblioteca de música; o jogador recebe o aviso.
+      const som = decidirSomSolto(euMestre ? "mestre" : "jogador", soltos);
+      if (som.acao === "biblioteca") {
+        e.preventDefault();
+        void adicionarSonsNaBiblioteca(
+          som.sons.map((arquivo) => ({ arquivo, nome: arquivo.name })),
+          som.sobraram,
+        );
+      } else if (som.acao === "recusar") {
+        e.preventDefault();
+        avisar(AVISO_SO_O_MESTRE_PONHA_MUSICA);
+      }
+      if (!euMestre) return;
+      const arquivo = soltos.find((f) => ehArquivoUniversalVtt(f.name));
       if (!arquivo) return;
       e.preventDefault();
       void importarMapaUvtt(arquivo);
@@ -857,7 +911,7 @@ export function Mesa({
       window.removeEventListener("dragover", sobre);
       window.removeEventListener("drop", soltou);
     };
-  }, [euMestre, importarMapaUvtt]);
+  }, [euMestre, importarMapaUvtt, adicionarSonsNaBiblioteca, avisar]);
   const imagens = useMemo<ImagensDoMapa | null>(
     () =>
       gerente
@@ -1536,7 +1590,8 @@ export function Mesa({
         memoriaM: alcanceDaMemoria(configLuz, modInteligenciaDe(t, personagens)),
       }));
     if (!modoMestre) return { modo: "jogador", fontes, memoria };
-    return { modo: visaoDoMestre && fontes.length > 0 ? "noturna" : "claro", fontes, memoria };
+    // FG2: a Visão do mestre vale mesmo sem jogador na cena: o mestre vê a cor de toda luz (preparar a cena antes da sessão).
+    return { modo: visaoDoMestre ? "noturna" : "claro", fontes, memoria };
   }, [
     usuariosDaMesa,
     tokensDaMesa,
@@ -1772,6 +1827,17 @@ export function Mesa({
         const m = estado?.modelos.find((x) => x.id === luz.modeloId);
         return m?.duracaoS ? m.duracaoS * 1000 : undefined;
       },
+      estagioDe: (luz: FonteDeLuz) => {
+        // chamado a cada quadro por objeto: sai cedo sem duração (fogueira, "não se consome")
+        if (luz.estado !== "acesa") return undefined;
+        const m = estado?.modelos.find((x) => x.id === luz.modeloId);
+        const total = luz.duracaoMs ?? (m?.duracaoS ? m.duracaoS * 1000 : undefined);
+        const estagios = estado?.config.estagios;
+        if (!total || !estagios) return undefined;
+        const restante = tempo.restanteDe(luz.id);
+        if (restante === undefined) return undefined;
+        return estagioDe(restante, total, estagios);
+      },
       podeMexerNaTocha: (luz: FonteDeLuz) => {
         if (!eu || usuarioVisto !== null) return false;
         if (euMestre) return true;
@@ -1853,6 +1919,7 @@ export function Mesa({
       estado?.config.alcanceInteracaoM,
       tempo.restanteDe,
       estado?.modelos,
+      estado?.config.estagios,
       euMestre,
       modoMestre,
       usuarioVisto,
@@ -2787,6 +2854,7 @@ export function Mesa({
                 fontes={fontes}
                 registrar={registrarSom}
                 enviar={enviar}
+                abrirBiblioteca={pedidoDaBiblioteca}
                 aoFechar={() => setSomAberto(false)}
               />
             )}

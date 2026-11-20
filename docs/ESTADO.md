@@ -4573,4 +4573,27 @@ Ver `PASSAGEM.md`, "AS1".
 ### Roteiro manual
 Ver `ROTEIRO-DE-TESTES.md`, "AS1".
 
-## Próximo: o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b, N4, N5, M1, M2, Q1 a Q16, CH1, CH2, MU1, MU2, MU3, A1, AU1, AU2, FG1, AS1 e das otimizações O1–O4
+## Ajustes FG2 — fogo melhor, tocha na mão com estágios, cor da luz do mestre e som solto (entregue, aguardando o roteiro manual)
+
+### O que foi entregue
+Fogueira de um fogo só (sem gravetos); tocha no suporte que não se divide; chama animada de 3 estágios no pino da tocha na mão (lanterna e apagada mantêm o ícone); o mestre vê a mesma cor e alcance da luz que o jogador e a cor de toda luz também onde nenhum jogador vê; o token que o mestre não movia (causa: o pino da tocha cobria o token com o mapa afastado); som solto na mesa (ou arrastado da lista para o mapa) vai para a biblioteca de música. Só `apps/web`: sem estado, protocolo ou migração novos (o MCP e a trava `paridadeCampos` não mudam). Ver `PROJETO.md` (luz e fogo, 4.17).
+
+### Como rodar
+`pnpm dev`. E2E: `pnpm --filter @tabletop/e2e test tests/fg2.spec.ts` (portas por `E2E_PORTA_SALA` e `E2E_PORTA_WEB`).
+
+### Verificação
+Typecheck, lint, unidade (web 335, com `chamas.test.ts` e `soltarSom.test.ts` novos). Como o lote só mexeu em `apps/web`, E2E dos specs tocados e vizinhos (fg2, fg1, luz, tochas, token-v11, musica, som-q4, som-q4b, som-n5, as1, assets, mapa, sala, v10b, q12, q13): 110 passaram, 1 instável (`luz.spec.ts:347`, arrastar uma luz, não passou na 1ª tentativa; sozinho e na rodada final passou); depois da última mudança (a luz do mestre sem tremular e o estágio mais barato), fg2, fg1, luz, tochas, token-v11 e sala de novo: 50 passaram. Desempenho (`e2e/prints/desempenho.spec.ts`, grupo F, tarefa de script em 3 s parados; FG1 entre parênteses): sem chamas 52 (70), 12 chamas 173 (180), 48 chamas 351 (285) ms; ruído de 15 a 20% entre rodadas; sem tarefas longas. Prints: Grimório 1600×900 e 1280×720 e Pergaminho 1600×900, conferidos.
+
+### Decisões
+Ver `REDESIGN.md`, "FG2 — como ficou".
+
+### Desvios
+Nenhum E2E antigo mudou. O gancho `chamas()` continua só com as chamas dos pontos; as da mão estão no novo `chamasDaMao()`. O som arrastado da lista para o mapa deixou de ir para a mesa de som (agora biblioteca).
+
+### Frágil
+Ver `PASSAGEM.md`, "FG2".
+
+### Roteiro manual
+Ver `ROTEIRO-DE-TESTES.md`, "FG2".
+
+## Próximo: o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b, N4, N5, M1, M2, Q1 a Q16, CH1, CH2, MU1, MU2, MU3, A1, AU1, AU2, FG1, FG2, AS1 e das otimizações O1–O4
