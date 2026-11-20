@@ -776,3 +776,21 @@ Montar a Respiração da Montanha do zero, só arrastando (cena "Pulmão" com al
 Uma armadilha com OU de zonas: crie as zonas A e B. Numa automação nova ponha dois gatilhos **Token entra ou sai de zona** (A e B), um **Se**, uma condição **Token de jogador** ligada a uma porta **NÃO**, uma condição **Chance** (50%), uma porta **E** (liga NÃO e Chance nela), ligue a porta E na entrada de baixo do **Se**, os dois gatilhos na entrada de cima, e o "sim" a **Para cada** (objetos acesos) → **Apagar a tocha**. Entre com um NPC pela zona A e pela B: a tocha apaga em metade das vezes; com um token de jogador, nunca.
 
 Mesa de eventos: crie duas automações com gatilho de botão (escolha cor e ícone no gatilho). Na lista, **Abrir mesa de eventos**: os botões aparecem grandes, com nome, cor, ícone e "Ligada"; clicar dispara e brilha "Disparou". Teste a faixa (encaixar), a janela própria, e libere um botão aos jogadores: o jogador abre a mesa pelo botão da barra e vê só o liberado.
+
+## FG1 — luz e fogo
+
+1. **Modelo ao vivo.** Ponha uma tocha na mão de um jogador e outra num suporte. Em Mesa, Luz, abra o modelo da tocha e mude a luz plena: as duas mudam na hora, para todos. Mude a duração para menos que o tempo que resta: o relógio das tochas acesas cai para o novo máximo. Renomeie o modelo: o nome das tochas muda. O jogador não vê a duração do modelo fora do modo exato.
+2. **Área de soltar.** Arraste a tocha da mão para perto do suporte, fora do ícone (uns 40 px de distância): o suporte ganha um círculo de destaque e, ao soltar, a tocha pendura. Longe demais (mais de uma célula), ela volta para a mão.
+3. **No lugar do ícone.** A tocha no suporte fica exatamente onde estava o ícone do suporte, que some; "Pegar do suporte" devolve o ícone.
+4. **Zoom.** Dê zoom para fora e para dentro: ícones, tochas e chamas crescem e encolhem com o mapa; o relógio fica legível e some em zoom bem baixo. O clique e o arrasto continuam fáceis de acertar.
+5. **Chama.** Segure uma tocha acesa sobre um inflamável: nasce um fogo animado (sem o símbolo da tocha). Com o painel de luzes aberto, selecione o inflamável e arraste as alças brancas para esticar o fogo (e veja os campos "Chama: largura" e "altura"); um jogador vê o mesmo tamanho. "Usar o tamanho do modelo" volta ao padrão. Um morro pequeno e um grande têm chamas de tamanhos diferentes.
+6. **Estágios e arquivos.** No editor do modelo, em "Chama no mapa", escolha "Arquivo" num estágio e envie um gif, webp animado ou apng: o fogo daquele estágio passa a ser o seu (o jogador baixa o arquivo sozinho). "Padrão" volta ao fogo gerado pela mesa. Com "reduzir movimento" ligado no sistema, o fogo fica parado.
+7. **Jogador dá equipamento.** O jogador abre a ficha do próprio personagem e usa o "+" do item "Tocha": a quantidade sobe. No personagem de outro, nada. O mestre desliga "Dar e tirar equipamentos de luz dos próprios personagens" nas Permissões: o "+" do jogador fica desabilitado.
+8. **Setinha.** Na ficha, a setinha ao lado do item de modelo (tocha) recolhe e expande o peso, a nota e as tochas usadas. O estado fica lembrado neste navegador, por item. Funciona com Enter e Espaço.
+9. **Claude.** Peça ao Claude: "mude o tamanho da chama da Fogueira para 2 por 2 metros", "use o arquivo fogo.gif no estágio forte da Tocha" (depois de enviar) e "dê 3 tochas à minha ficha" (como jogador).
+
+### CH2 — a grade da chamada
+1. Abra a chamada sozinho e com mais uma pessoa: os quadros e a trilha cabem, sem barra de rolagem, centralizados. O botão "Abrir a mesa de som" aparece inteiro.
+2. Arraste a janela até ficar bem pequena e bem grande: a grade se refaz e nunca rola. Abra e feche a lista de pessoas (botão do topo): o mesmo.
+3. Com 9 quadros ou mais (peça a mais gente ou use o teste): a segunda página aparece com setas e "1/2"; as setas do teclado trocam quando a grade tem o foco. Quem fala numa página escondida acende um ponto verde na seta.
+4. A barra de baixo está mais baixa, a lista de pessoas mais estreita e "Volume para você" cabe numa linha acima do controle.

@@ -1117,6 +1117,17 @@ Continua em aberto, por ser decisão e não erro de doc: `ficha.verOutras` (seç
 
 **Suposições**: ver `docs/REDESIGN.md`, "Q16 — como ficou".
 
+## CH2 (2026-11-20): a grade da chamada
+
+**Onde mexer**
+- `apps/web/src/chamada/grade.ts` (`calcularGrade`, páginas; teste em `grade.test.ts`) e `GradeDeQuadros.tsx` (mede com `ResizeObserver`, tamanho de cada célula inline, setas e ponto de quem fala). O CSS está em `.chamada-grade`, `.chamada-quadros`, `.chamada-paginas` e, no fim do `styles.css`, `.chamada-trilha[data-compacto]`.
+- `pessoasFalsas.ts`: gancho de teste (`window.__tabletopChamadaFalsas`) só no modo e2e.
+
+**Frágil**
+- O respiro de 12 px e o vão de 12 px estão em `GradeDeQuadros.tsx` e em `.chamada-quadros`/`.chamada-quadros-miolo`: mudar um sem o outro faz o quadro passar do espaço.
+- O quadro da trilha decide ficar compacto pela medida (420 x 236 px) passada pela grade, não por CSS.
+- `chamada.spec.ts` falha na primeira tentativa dos testes com vídeo recebido (já falhava antes do CH2).
+
 ## CH1 (2026-11-19): a chamada da mesa
 
 **Onde mexer**
@@ -1171,3 +1182,9 @@ Continua em aberto, por ser decisão e não erro de doc: `ficha.verOutras` (seç
 - **Onde mexer:** `packages/shared/src/fluxos.ts` (esquemas dos nós e fios, `portasDoNo`, a forma antiga em `FluxoArvoreSchema`), `fluxosGrafo.ts` (gatilhos, `podeLigar`, `organizarGrafo`, `arvoreParaGrafo`, `semOsNos`), `fluxosValidar.ts`, `fluxosFrase.ts`, `automacoesnucleo.ts` (`executarNo`, `seguir`, `valorDoNo`), `mcp/ferramentas/automacoes.ts` (`grafoDoPedido`) e, na web, `apps/web/src/automacoes/` (`CanvasDoGrafo.tsx`, `EditorDeFluxo.tsx`, `PainelDoBloco.tsx`, `blocos.ts`, `MesaDeEventos.tsx`, `eventosDaMesa.ts`, `EventosEmJanelaPropria.tsx`), `ficha/foraDaMesa.ts` (`abrirAutomacaoEmJanela`, `abrirEventosEmJanela`) e `rotas.ts` (`/m/<id>/eventos`).
 - **Frágil:** (1) `Fluxo` não tem mais `gatilho` nem `trilhas`: use `gatilhoPrincipal`, `nosDeGatilho` e `temGatilho`; quem lê uma automação de fora passa por `FluxoDeQualquerFormaSchema` ou `AutomacoesSchema` (convertem a árvore do AU1). (2) A ordem dos fios é a ordem de execução, e a conversão da árvore depende dela para sortear o RNG na mesma ordem: o `ouro.test.ts` vigia. (3) O tamanho do nó na grade é fixo (`LARGURA_DO_NO`, `alturaDoNo`): os fios acham as portas por conta, não medindo o DOM; mudar o CSS do nó sem mudar `blocos.ts` desalinha os fios. (4) `pointerup` de um fio acha a porta com `document.elementFromPoint`: classes de CSS com nomes comuns (`.entrada`, `.saida`) já pegaram regras de outras telas; as portas usam `ed-porta-ent` e `ed-porta-sai`. (5) A faixa da mesa de eventos usa `--faixa-dos-eventos` além de `--faixa-do-som` (quatro regras de `bottom` leem as duas). (6) `esperando[].no` guarda o id do nó: renomear id de nó numa edição cancela a espera daquela automação (editar o desenho já cancela as esperas). (7) O editor só abre em janela própria; testes de E2E pegam a janela com `waitForEvent("popup")`.
 - **Suposições:** ver `REDESIGN.md`, "AU2 — como ficou".
+
+## FG1 — luz e fogo
+
+- **Onde mexer:** o modelo ao vivo é `objetoComModeloNovo` (`packages/shared/src/objetos.ts`) chamado de `modelo.editar` (`nucleo.ts`); o tamanho e o estilo da chama são `chamaDoModelo`, `chamaDoPonto`, `estiloDaChama` e `CHAMA_PADRAO` (mesmo arquivo). A capacidade nova é `equipamento.dar` (`capacidades.ts`; confere em `ficha.alterar` no `nucleo.ts` e em `mochilaAjustar` no `tochas.ts`). O asset `animacao` está em `assets.ts` (tipo, MIME, 4 MB, visível a todos), `envios.ts` (uso `animacao`), `gerente.ts` (`registrarAnimacao`). No navegador: `apps/web/src/mapa/chamas.ts` (as animações padrão por código e a decodificação do gif) e, em `mapaPixi.ts`, `desenharObjetoNoPonto`, `animarChamas`, `desenharPontos`, `alcasDeTamanho`, `alvoDaAlca` e `areaDeSoltarM`. Editor: `PainelDaMesa.tsx` (`LinhaDaAnimacao`), `PainelDeFontesDeLuz.tsx` (`EditorDoPonto`). A setinha: `AbaPrincipal.tsx` (`EquipamentoBruta`) e `preferencias.ts`.
+- **Frágil:** (1) `modelo.editar` agora também emite `fonte.editada` de cada objeto do modelo: toda mudança de campo do objeto que vem do modelo precisa entrar em `objetoComModeloNovo`. (2) O objeto num ponto não se desenha mais como alça de tela: `AlcaVisual` tem dois modos (pino da mão em tamanho de tela; objeto no ponto em tamanho de mundo, com o relógio em tamanho de tela e escondido abaixo de `ZOOM_MIN_DO_ROTULO`); mexer num pode quebrar o outro (a troca de modo reseta a `chave`). (3) O ícone do ponto some enquanto há objeto à vista (`pontosOcupados`); o clique no objeto de um ponto cai no ponto para o mestre com o painel de luzes aberto. (4) A chama depende de `ImageDecoder` (Chrome/Edge); sem ele, o gif vira um quadro parado. (5) As texturas de chama pertencem ao renderer de cada mapa (`ChamasDoMapa`); destruir o mapa as destrói. (6) O filtro por `tipo === "animacao"` em `modelo.editar` é o que impede um hash qualquer no modelo. (7) `AbaPrincipal` compara `estado.permissoes` na memo do equipamento: sem isso o "+" do jogador não reage ao mestre desligar a capacidade.
+- **Suposições:** ver `REDESIGN.md`, "FG1 — como ficou".

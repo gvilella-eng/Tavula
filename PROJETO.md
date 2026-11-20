@@ -146,7 +146,8 @@ type CapacidadeDelegavel =          // lista completa em docs/protocolo.md
   | 'tocha.acender' | 'tocha.entregar' | 'ponto.usar' | 'luz.apagar' | 'ficha.verOutras'
   | 'dado.rolarOculto' | 'asset.subir' | 'desenho.criar' /* lote 13, ligada por padrão */
   | 'token.colocarProprio' /* V10b */ | 'mapa.pingar' /* V12, 2026-11-13: pingar o mapa; ligada por padrão */
-  | 'personagem.criarProprio' /* 12-1, 2026-11-13: criar as próprias fichas e handouts (teto de 20 de cada); ligada por padrão */;
+  | 'personagem.criarProprio' /* 12-1, 2026-11-13: criar as próprias fichas e handouts (teto de 20 de cada); ligada por padrão */
+  | 'equipamento.dar' /* FG1, 2026-11-20: dar e tirar equipamento de modelo (tochas) dos próprios personagens; ligada por padrão */;
 type CapacidadeDoMestre =           // só do mestre, nunca delegáveis
   | 'papel.alterar' | 'permissao.alterar' | 'mesa.configurar' | 'automacao.editar'
   | 'camadaMestre.ver' | 'objeto.ajustar' | 'campanha.exportar' | 'campanha.importar'
@@ -307,6 +308,8 @@ interface ModeloDeObjeto {          // criado pelo mestre na campanha: "Tocha", 
   ocupaMao: boolean;
   tags: string[];                   // ex.: "chama", usadas pelas automações
   reacoes: Reacao[];                // seção 4.11
+  chamaM?: { larguraM: number; alturaM: number };       // FG1, 2026-11-20: tamanho padrão da chama no mapa (m)
+  animacoes?: { forte?: Hash; fraca?: Hash; morrendo?: Hash }; // FG1: animação da chama por estágio (asset 'animacao')
 }
 
 type Portador =
@@ -337,6 +340,7 @@ interface Ponto {                   // lugar do mapa onde se põe ou se acende u
   capacidade?: number;              // suporte: quantos objetos cabem
   modeloId?: string;                // inflamável: no que ele vira ao queimar (ex.: "Fogueira")
   segurarS?: number;                // inflamável: tempo segurando a tocha acesa em cima (padrão 3)
+  chamaM?: { larguraM: number; alturaM: number }; // FG1: tamanho da chama deste inflamável (sem ele, o do modelo)
   visivelParaJogadores: boolean;
 }
 
@@ -1195,6 +1199,7 @@ O Vilella pediu "um discord vinculado à mesa": uma janela com chamada de vídeo
 - **Tema**: a janela segue o tema da mesa (lê a mesma preferência `tabletop:pref:tema` ao abrir e acompanha a troca ao vivo pelo evento `storage`); não tem seletor de tema.
 - **A janela**: "antes de entrar" (a própria câmera grande, mic e câmera, nível do microfone, fundo Sem efeito / Desfocar / Desfocar forte, aparelhos, "Reduzir ruído e eco", "Entrar com o microfone desligado", quem já está, "Entrar na chamada" e "Entrar só ouvindo"); a **janela larga** (só a Grade, sem modo Palco por pedido do Vilella; lista lateral "Na chamada" e "Na mesa, fora da chamada" com "Chamar", barra de baixo com Microfone, Câmera, Desfocar o fundo, Parar de ouvir, aparelhos e Sair; atalhos **M**, **V** e **B**, só dentro dela); e a **janela estreita** (abaixo de ~560 px de largura, sozinha: linhas com miniatura, nome, personagem, "falando", a trilha numa linha). "Flutuar por cima" usa o Document Picture-in-Picture (Chrome e Edge; sem suporte o botão some). Entrar só ouvindo trava microfone, câmera e fundo até sair e entrar de novo (assumido).
 - **Trilha da mesa**: um quadro que mostra o que a mesa de som toca agora (nomes dos ambientes, equalizador); para o mestre, "Abrir a mesa de som". **(MU1, 2026-11-19: com música tocando mostra o nome da música e o do botão, e o mestre ganha Pausar e Próxima ali; ver 4.16.)**
+- **A grade (CH2, 2026-11-20)**: nunca rola. Colunas e linhas saem de `calcularGrade` (quadros 16:9 o maiores possível, centralizados, recalculados ao mudar o tamanho, a lista lateral ou quem está na chamada). No máximo **9 quadros por página**; com mais, setas, "1/2" e as setas do teclado (grade com o foco) trocam de página, e um ponto verde na seta avisa que alguém fala numa página escondida. A trilha conta como um quadro e fica por último (assumido). Barra de baixo de 56 px, lista lateral de 232 px; quadro da trilha pequeno usa botões só com ícone.
 - **"Chamar"**: de dentro da chamada, a quem está na mesa e fora dela; vira um aviso transitório na mesa da pessoa ("Vilella está chamando para a chamada", com "Entrar") (assumido).
 - **Paridade com o Claude**: a chamada precisa da câmera e do microfone de uma pessoa; as intenções `chamada.*` entram na tabela como `gesto ao vivo` (e `chamada.sinal`, `transporte`), com o motivo. Ver `docs/MCP.md`.
 - **Fora, por ora**: compartilhar tela, gravar e transcrever (Whisper). (A playlist da trilha virou a música da mesa, 4.16.)
@@ -1715,6 +1720,13 @@ assumido sem o Vilella está marcado com "(assumido)" e entra nas perguntas do f
 - **`ConfigDaMesa` completa** (`maosPorPersonagem` 2, `penalidadeAoApagarS` 0, `alcanceInteracaoM` 1,5,
   `tempoParaJogadores` 'exato', `estagios`), editada pelo mestre na aba **Configurações** da barra
   direita, seção "Mesa" (hoje: aba **Mesa**, seções de regras da mesa e de modelos de luz). Intenção `config.mesa` (`mesa.configurar`).
+- **Luz e fogo (FG1, 2026-11-20).**
+  - **Modelo ao vivo:** editar o modelo (nome, luz, cor, tremular, duração, ocupa a mão, etiquetas, tamanho e animações da chama) muda na hora todos os objetos dele, nas mãos, mochilas, suportes, pontos e mapa, para todos. Fica com o objeto: aceso, tempo que resta (limitado à duração nova), portador, intensidade, modificadores, histórico e o tamanho próprio do inflamável. Modificadores de automação e de zona continuam por cima.
+  - **Soltar a tocha:** o suporte ou inflamável mais próximo dentro de 1 célula de raio (mínimo ~40 px na tela) pega a tocha arrastada, com destaque do alvo; o ícone continua pequeno.
+  - **No lugar do ícone:** o objeto num ponto é desenhado no centro do ponto, no lugar do ícone (que some e volta); ícones, tochas e chamas têm tamanho de mundo (em metros e células) e escalam com o zoom; relógio e rótulos têm tamanho de tela e somem abaixo de 70% de zoom.
+  - **Chama animada:** inflamável aceso e tocha num ponto mostram fogo animado (visto de cima), por estágio (forte, fraca, morrendo), nunca o símbolo da tocha; as animações padrão (tocha e fogueira) são geradas por código; o mestre escolhe, por estágio, um gif, webp animado ou apng próprio (asset `animacao`). "Reduzir movimento": a chama fica parada.
+  - **Tamanho da chama:** o mestre estica a chama do inflamável por alças no mapa e por campos (largura e altura, em metros), antes e depois de acender; o modelo tem o tamanho padrão. A luz (raios) continua a do modelo ("luz acompanha o tamanho" fica em `docs/IDEIAS.md`).
+  - **Equipamento do jogador:** capacidade `equipamento.dar` (padrão ligada): o jogador dá e tira equipamento de modelo (e acende) nos personagens que controla; o mestre pode desligá-la. Nunca no personagem de outro.
 - **Modelos de objeto** (nome, luz, duração ou infinita, ocupa mão, tags) na mesma aba, seção "Objetos de
   luz". Semente: Tocha 5e (6 m + 6 m, 60 min, ocupa mão), Lanterna (9 m + 9 m, 6 h, ocupa mão) e Fogueira
   (6 m + 6 m, infinita, não ocupa mão). A campanha de referência muda a tocha para 30 min e 9 m + 6 m por
@@ -1780,7 +1792,7 @@ assumido sem o Vilella está marcado com "(assumido)" e entra nas perguntas do f
 - gancho de teste `POST /teste/avancar-relogio?ms=N`, só com `MODO=teste`;
 - assumido pelo agente: o mestre também precisa do alcance para entregar; apagar ou reacender objeto de
   ponto exige alcance para o jogador; apagar com penalidade maior que o saldo consome a tocha; modelo em
-  uso não pode ser apagado e editar um modelo não muda os objetos já criados;
+  uso não pode ser apagado e ~~editar um modelo não muda os objetos já criados~~ (FG1, 2026-11-20: editar o modelo muda, na hora, todos os objetos dele; o que é de cada objeto fica);
 - pendência pequena: a tocha na mão só chega ao jogador se o token do personagem estiver na cena ativa;
   quem edita o personagem deveria vê-la na mochila mesmo assim (corrigir no Lote 9, junto da ficha).
 

@@ -10,6 +10,7 @@ import {
   UserRound,
 } from "lucide-react";
 import { type CSSProperties, useEffect, useRef } from "react";
+import { BotaoComDica } from "../BotaoComDica";
 import { inicialDe } from "./puras";
 
 // CH1: os quadros da chamada: o vídeo de uma pessoa (ou a inicial dela, na cor dela) com o nome, o microfone desligado, o
@@ -128,10 +129,13 @@ export function QuadroDaTrilha({
   subtitulo,
   musica,
   pequeno,
+  medida,
   euMestre,
   aoAbrirSom,
   aoMusica,
 }: {
+  /** O tamanho que a grade deu ao quadro: quadro pequeno vira botões só com ícone (e a dica) e menos texto. */
+  medida?: { largura: number; altura: number } | undefined;
   tocando: boolean;
   titulo: string;
   /** O botão da música que toca (ou "Música pausada · botão"). */
@@ -143,52 +147,31 @@ export function QuadroDaTrilha({
   /** O mestre pausa, retoma e pula a música daqui. */
   aoMusica: (acao: "pausar" | "retomar" | "proxima") => void;
 }) {
+  // Quadro pequeno: botões só com ícone (a dica diz o nome) e sem a linha de apoio. Muito baixo: sem o equalizador.
+  const compacto =
+    pequeno || (medida !== undefined && (medida.largura < 420 || medida.altura < 236));
+  const baixo = medida !== undefined && medida.altura < 150;
+  const pausar = musica === "tocando";
   return (
     <div
       className="chamada-quadro chamada-trilha"
       data-testid="chamada-trilha"
       data-tocando={tocando ? "sim" : "nao"}
       data-musica={musica ?? "nenhuma"}
+      data-compacto={compacto ? "sim" : "nao"}
+      data-baixo={baixo ? "sim" : "nao"}
     >
       <div className="chamada-trilha-cab">
-        <Music size={pequeno ? 13 : 15} aria-hidden="true" />
-        {pequeno ? "Trilha" : "Trilha da mesa"}
+        <Music size={compacto ? 13 : 15} aria-hidden="true" />
+        {compacto ? "Trilha" : "Trilha da mesa"}
       </div>
       <div className="chamada-trilha-titulo" data-testid="chamada-trilha-titulo">
         {titulo}
       </div>
-      {!pequeno && (
+      {!compacto && (
         <div className="chamada-trilha-sub" data-testid="chamada-trilha-sub">
           {subtitulo ??
             (tocando ? "Da mesa de som · toca para todos" : "A mesa de som está parada")}
-        </div>
-      )}
-      {euMestre && musica !== null && (
-        <div className="chamada-trilha-musica">
-          <button
-            type="button"
-            className="chamada-botao-texto"
-            data-testid="chamada-musica-pausar"
-            aria-label={musica === "tocando" ? "Pausar a música" : "Tocar a música"}
-            onClick={() => aoMusica(musica === "tocando" ? "pausar" : "retomar")}
-          >
-            {musica === "tocando" ? (
-              <Pause size={14} aria-hidden="true" />
-            ) : (
-              <Play size={14} aria-hidden="true" />
-            )}
-            {pequeno ? null : musica === "tocando" ? "Pausar" : "Tocar"}
-          </button>
-          <button
-            type="button"
-            className="chamada-botao-texto"
-            data-testid="chamada-musica-proxima"
-            aria-label="Próxima música"
-            onClick={() => aoMusica("proxima")}
-          >
-            <SkipForward size={14} aria-hidden="true" />
-            {pequeno ? null : "Próxima"}
-          </button>
         </div>
       )}
       <div className="chamada-trilha-fim">
@@ -202,16 +185,52 @@ export function QuadroDaTrilha({
             <span className="chamada-eq-barra" />
           </div>
         )}
-        {euMestre && !pequeno && (
-          <button
-            type="button"
-            className="chamada-botao-texto"
-            data-testid="chamada-abrir-som"
-            onClick={aoAbrirSom}
-          >
-            <ExternalLink size={14} aria-hidden="true" />
-            Abrir a mesa de som
-          </button>
+        {euMestre && (
+          <div className="chamada-trilha-musica">
+            {musica !== null && (
+              <>
+                <BotaoComDica
+                  testid="chamada-musica-pausar"
+                  className="chamada-botao-texto"
+                  nome={pausar ? "Pausar a música" : "Tocar a música"}
+                  nomeVisivel={!compacto}
+                  aria-label={pausar ? "Pausar a música" : "Tocar a música"}
+                  onClick={() => aoMusica(pausar ? "pausar" : "retomar")}
+                >
+                  {pausar ? (
+                    <Pause size={14} aria-hidden="true" />
+                  ) : (
+                    <Play size={14} aria-hidden="true" />
+                  )}
+                  {compacto ? null : pausar ? "Pausar" : "Tocar"}
+                </BotaoComDica>
+                <BotaoComDica
+                  testid="chamada-musica-proxima"
+                  className="chamada-botao-texto"
+                  nome="Próxima música"
+                  nomeVisivel={!compacto}
+                  aria-label="Próxima música"
+                  onClick={() => aoMusica("proxima")}
+                >
+                  <SkipForward size={14} aria-hidden="true" />
+                  {compacto ? null : "Próxima"}
+                </BotaoComDica>
+              </>
+            )}
+            {!pequeno && (
+              <BotaoComDica
+                testid="chamada-abrir-som"
+                className="chamada-botao-texto"
+                nome="Abrir a mesa de som"
+                nomeVisivel={!compacto}
+                aria-label="Abrir a mesa de som"
+                onClick={aoAbrirSom}
+              >
+                <ExternalLink size={14} aria-hidden="true" />
+                {compacto ? null : "Abrir a mesa de som"}
+              </BotaoComDica>
+            )}
+          </div>
         )}
       </div>
     </div>

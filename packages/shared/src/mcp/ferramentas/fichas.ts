@@ -329,7 +329,7 @@ async function editar(
 export const fichas = definir({
   nome: "fichas",
   descricao:
-    'Cria, edita e apaga fichas em lote (`apagar`), gasta dados de vida (`dadoDeVida`) e ajusta a mochila de objetos de luz (`mochila`, só o mestre). Cria e edita por partes (atributos, classes e nível, perícias, ataques, magias, itens e equipamento, história...). A mesa calcula modificadores, proficiência, CA e PV como na ficha. Nomes do compêndio ("Bola de Fogo", "Espada Longa") vão em `compendio`. Para NPCs de monstros do compêndio use `monstro` (e `quantidade`): {"nome":"Goblin","monstro":"Goblin","quantidade":4}. Se já existe ficha com o nome, edita; senão, cria. O jogador cria e edita as dele (teto de 20); o mestre cria NPCs (entram como rascunho) e edita qualquer ficha. Exemplo: {"fichas":[{"nome":"Brisa","raca":"Anã","classes":[{"classe":"Clérigo","nivel":3}],"atributos":{"for":10,"des":12,"con":14,"int":10,"sab":16,"car":12},"pericias":["Religião","Medicina"],"compendio":["Luz","Espada Longa"]}]}',
+    'Cria, edita e apaga fichas em lote (`apagar`), gasta dados de vida (`dadoDeVida`) e ajusta a mochila de objetos de luz (`mochila`: o mestre em qualquer ficha; o jogador, nas dele). Cria e edita por partes (atributos, classes e nível, perícias, ataques, magias, itens e equipamento, história...). A mesa calcula modificadores, proficiência, CA e PV como na ficha. Nomes do compêndio ("Bola de Fogo", "Espada Longa") vão em `compendio`. Para NPCs de monstros do compêndio use `monstro` (e `quantidade`): {"nome":"Goblin","monstro":"Goblin","quantidade":4}. Se já existe ficha com o nome, edita; senão, cria. O jogador cria e edita as dele (teto de 20); o mestre cria NPCs (entram como rascunho) e edita qualquer ficha. Exemplo: {"fichas":[{"nome":"Brisa","raca":"Anã","classes":[{"classe":"Clérigo","nivel":3}],"atributos":{"for":10,"des":12,"con":14,"int":10,"sab":16,"car":12},"pericias":["Religião","Medicina"],"compendio":["Luz","Espada Longa"]}]}',
   entrada: z
     .object({
       fichas: z.array(PedidoDeFichaSchema).min(1).max(30).optional(),
@@ -372,7 +372,9 @@ export const fichas = definir({
         )
         .max(30)
         .optional()
-        .describe("Muda a quantidade de objetos de luz novos na mochila da ficha (só o mestre)."),
+        .describe(
+          "Muda a quantidade de objetos de luz novos na mochila da ficha (mestre; o jogador, nas fichas dele).",
+        ),
     })
     .strict(),
   visivel(estado, eu) {

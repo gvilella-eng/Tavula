@@ -19,6 +19,7 @@ import {
   type NivelDeProficiencia,
   type OperacaoDeFicha,
   PERICIAS,
+  pode,
   posicoesDoGrupo,
   previaDoAtaque,
   ROTULO_DO_ATRIBUTO,
@@ -26,11 +27,21 @@ import {
   SIGLA_DO_ATRIBUTO,
   type Token,
 } from "@tabletop/shared";
-import { Dices, GripVertical, Minus, Plus, Settings, Trash2 } from "lucide-react";
-import { createContext, type HTMLAttributes } from "react";
+import {
+  ChevronDown,
+  ChevronRight,
+  Dices,
+  GripVertical,
+  Minus,
+  Plus,
+  Settings,
+  Trash2,
+} from "lucide-react";
+import { createContext, type HTMLAttributes, useState } from "react";
 import { BotaoComDica } from "../BotaoComDica";
 import type { PedirImagem } from "../FaixaDeCenas";
 import type { ImagensDoMapa } from "../mapa/mapaPixi";
+import { gravarItemRecolhido, lerItensRecolhidos } from "../preferencias";
 import { CampoDecimal, CampoDeNovo, CampoNumero, CampoTexto } from "./campos";
 import { type AlvoDoEditor, EditorDeAtaque } from "./EditorDeAtaque";
 import { ListaDeCaracteristicas } from "./ListaDeTitulos";
@@ -197,6 +208,7 @@ function mesmaLuz(a: unknown, b: unknown): boolean {
     x.estado.luzes === y.estado.luzes &&
     x.estado.tokens === y.estado.tokens &&
     x.estado.cenaAtivaId === y.estado.cenaAtivaId &&
+    x.estado.permissoes === y.estado.permissoes &&
     x.estado.config === y.estado.config &&
     x.eu === y.eu &&
     x.personagem.id === y.personagem.id &&
@@ -1353,8 +1365,25 @@ function EquipamentoBruta(props: PropsDaAba) {
     aoSoltar: (entrada, posicao) => soltarNaFicha(props, "personagem", entrada, { posicao }),
   });
   const euMestre = luz?.eu.papel === "mestre";
+  // FG1: o mestre e quem a mesa deixa (capacidade `equipamento.dar`, ligada por padrão) dão e tiram equipamento de modelo.
+  const podeDarEquipamento =
+    luz !== undefined && (euMestre || pode(luz.eu, "equipamento.dar", luz.estado.permissoes));
   useTicDasLuzes(luz);
   const modeloDe = itens.map((it) => modeloDaLinha(luz, it));
+  // FG1: a setinha do item de modelo recolhe e expande o peso, a nota e as unidades usadas. Padrão: aberto.
+  const [recolhidos, setRecolhidos] = useState(lerItensRecolhidos);
+  const chaveDoItem = (i: number) =>
+    luz && modeloDe[i] ? `${luz.personagem.id}:${modeloDe[i]}` : undefined;
+  const alternarItem = (chave: string) => {
+    const novo = recolhidos[chave] !== true;
+    gravarItemRecolhido(chave, novo);
+    setRecolhidos((r) => {
+      const proximo = { ...r };
+      if (novo) proximo[chave] = true;
+      else delete proximo[chave];
+      return proximo;
+    });
+  };
   return (
     <Caixa testid="fh-itens" className="fl-bloco fl-soltar" rotulo="Equipamento" {...soltar.props}>
       <Secao>Equipamento</Secao>
@@ -1372,6 +1401,38 @@ function EquipamentoBruta(props: PropsDaAba) {
             <div className="fl-item" data-testid={`item-${i}`}>
               <div className="fl-item-linha">
                 {editar && <GripVertical size={14} className="fl-alca" aria-hidden />}
+                {(() => {
+                  const chave = chaveDoItem(i);
+                  if (chave === undefined) {
+                    return luz ? <span className="fl-item-seta-vazia" aria-hidden /> : null;
+                  }
+                  const fechado = recolhidos[chave] === true;
+                  return (
+                    <BotaoComDica
+                      className="fl-ib fl-item-seta"
+                      testid={`item-seta-${i}`}
+                      nome={
+                        fechado
+                          ? `Mostrar os detalhes de ${it.nome}`
+                          : `Recolher os detalhes de ${it.nome}`
+                      }
+                      aria-label={
+                        fechado
+                          ? `Mostrar os detalhes de ${it.nome}`
+                          : `Recolher os detalhes de ${it.nome}`
+                      }
+                      aria-expanded={!fechado}
+                      aria-controls={`item-detalhes-${i}`}
+                      onClick={() => alternarItem(chave)}
+                    >
+                      {fechado ? (
+                        <ChevronRight size={14} aria-hidden />
+                      ) : (
+                        <ChevronDown size={14} aria-hidden />
+                      )}
+                    </BotaoComDica>
+                  );
+                })()}
                 <BotaoComDica
                   className="fl-ib fl-mq"
                   testid={`item-menos-${i}`}
@@ -1388,7 +1449,7 @@ function EquipamentoBruta(props: PropsDaAba) {
                   testid={`item-quantidade-${i}`}
                   rotulo={`Quantidade de ${it.nome}`}
                   valor={it.quantidade}
-                  max={modeloDe[i] && !euMestre ? it.quantidade : 9999}
+                  max={modeloDe[i] && !podeDarEquipamento ? it.quantidade : 9999}
                   desabilitado={!editar}
                   className="fl-in fl-fa fl-item-qtd"
                   aoMudar={(n) => alterar(um(`itens.${i}.quantidade`, n))}
@@ -1401,8 +1462,8 @@ function EquipamentoBruta(props: PropsDaAba) {
                   motivo={
                     !editar
                       ? "Só quem edita a ficha muda"
-                      : modeloDe[i] && !euMestre
-                        ? "Só o mestre repõe objetos de luz"
+                      : modeloDe[i] && !podeDarEquipamento
+                        ? "A mesa desligou dar equipamento de luz"
                         : null
                   }
                   onClick={() =>
@@ -1432,7 +1493,13 @@ function EquipamentoBruta(props: PropsDaAba) {
                   </BotaoComDica>
                 )}
               </div>
-              <div className="fl-item-baixo">
+              <div
+                className={luz ? "fl-item-baixo fl-item-baixo-com-seta" : "fl-item-baixo"}
+                id={`item-detalhes-${i}`}
+                hidden={
+                  chaveDoItem(i) !== undefined && recolhidos[chaveDoItem(i) as string] === true
+                }
+              >
                 <CampoDecimal
                   testid={`item-peso-${i}`}
                   rotulo={`Peso de ${it.nome} em quilos`}
@@ -1465,9 +1532,12 @@ function EquipamentoBruta(props: PropsDaAba) {
                 )}
               </div>
             </div>
-            {luz && modeloDe[i] && modeloDe.indexOf(modeloDe[i]) === i && (
-              <SublinhasDeLuz luz={luz} modeloId={modeloDe[i] as string} enviar={enviar} />
-            )}
+            {luz &&
+              modeloDe[i] &&
+              modeloDe.indexOf(modeloDe[i]) === i &&
+              recolhidos[chaveDoItem(i) as string] !== true && (
+                <SublinhasDeLuz luz={luz} modeloId={modeloDe[i] as string} enviar={enviar} />
+              )}
           </div>
         ))}
       </div>

@@ -24,6 +24,7 @@ const SUBPASTA_DO_USO: Record<UsoDeEnvio, string | null> = {
   simbolo: "retratos",
   handout: "handouts",
   som: "sons",
+  animacao: null,
   // Fora da pasta: o compêndio da pasta vale por cima do que a mesa guarda, e não se sobrescreve o arquivo do mestre.
   compendio: null,
 };
@@ -72,6 +73,8 @@ async function processar(
       return { hash: await gerente.usarArquivo(arquivo, "retrato") };
     case "som":
       return { hash: (await gerente.registrarSom(arquivo)).hash };
+    case "animacao":
+      return { hash: (await gerente.registrarAnimacao(arquivo)).hash };
     case "compendio": {
       const bytes = new Uint8Array(await arquivo.arrayBuffer());
       const lido = lerCompendio(new TextDecoder().decode(bytes));

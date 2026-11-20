@@ -124,10 +124,12 @@ chamada só. Se um nome for repetido ou não existir, a resposta diz o que corri
 | `chat` | todos | M2. Narrar, falar como uma ficha, sussurrar, emote, mostrar handout, cartão de característica ou magia, limpar o histórico. Sai "pelo Claude". |
 | `rolar` | todos | Rola dados (expressão, teste ou ataque da ficha) e conjura (`conjurar`: gasta o espaço, o pacto ou o uso da inata e rola a magia); o chat marca "pelo Claude". |
 | `rascunhos` | mestre | Lista, publica e descarta o que o Claude criou. |
-| `arquivos` | todos (jogador: só o que é dele) | Sobe um arquivo do computador para a mesa (mapa da cena, mapa do Dungeondraft / Universal VTT, token, retrato, aparência e símbolo da ficha, imagem de handout, som, compêndio) e usa um arquivo que já está na mesa (M1). |
+| `arquivos` | todos (jogador: só o que é dele) | Sobe um arquivo do computador para a mesa (mapa da cena, mapa do Dungeondraft / Universal VTT, token, retrato, aparência e símbolo da ficha, imagem de handout, som, animação de chama, compêndio) e usa um arquivo que já está na mesa (M1). |
 | `desfazer` | todos | Lista o que o Claude fez e desfaz um lote inteiro. |
 
 `cenas` (M2) também duplica uma cena (`duplicarDe`) e leva o grupo (`levarGrupo`); `fichas` apaga, gasta dado de vida e ajusta a mochila; `objetos` acende, passa e guarda tochas e ajusta tempo e raio dos objetos de luz.
+
+**FG1 (luz e fogo).** `objetos` também define a chama: em `modelos[]`, `chama: { larguraM, alturaM }` (tamanho padrão no mapa, em metros) e `animacoes: { forte?, fraca?, morrendo? }` (o **nome** de um arquivo de animação já enviado, ou `"padrao"` para a animação da mesa; o estágio que você não cita fica como está); em `pontos[]`, `chama: { larguraM, alturaM }` ou `null` (o tamanho da chama de um inflamável, aceso ou não). Antes, suba a animação com `arquivos` (`uso: "animacao"`, gif, webp animado ou apng, até 4 MB). Editar um modelo muda **na hora todos os objetos dele** (mãos, mochilas, suportes e pontos), mantendo o que é de cada objeto (aceso, tempo, onde está). O jogador dá e tira equipamento de modelo nas fichas dele com `fichas.mochila` (capacidade `equipamento.dar`, ligada por padrão; o mestre pode desligá-la).
 
 ### A tabela de paridade (M2)
 

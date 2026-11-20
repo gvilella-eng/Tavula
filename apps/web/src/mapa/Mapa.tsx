@@ -2,6 +2,7 @@ import {
   type Cena,
   type Desenho,
   type FonteDeLuz,
+  type ModeloDeObjeto,
   type Parede,
   type PontoDeLuz,
   TIPO_DO_ARRASTO_DO_COMPENDIO,
@@ -20,6 +21,8 @@ type Props = {
   zonas: Zona[];
   luzes: FonteDeLuz[];
   pontos: PontoDeLuz[];
+  /** FG1: os modelos de objeto (tamanho e animações da chama). */
+  modelos: ModeloDeObjeto[];
   desenhos: Desenho[];
   opcoes: OpcoesDoMapa;
   retornos: RetornosDoMapa;
@@ -42,6 +45,7 @@ export function Mapa({
   zonas,
   luzes,
   pontos,
+  modelos,
   desenhos,
   opcoes,
   retornos,
@@ -62,6 +66,7 @@ export function Mapa({
     zonas,
     luzes,
     pontos,
+    modelos,
     desenhos,
     opcoes,
     imagens,
@@ -72,7 +77,7 @@ export function Mapa({
   useEffect(() => {
     const el = host.current;
     if (!el) return;
-    const { cena, tokens, paredes, zonas, luzes, pontos, desenhos, opcoes, imagens } =
+    const { cena, tokens, paredes, zonas, luzes, pontos, modelos, desenhos, opcoes, imagens } =
       dadosIniciais.current;
     const m = new MapaPixi(el, () => retornosAtuais.current, opcoes);
     if (imagens) m.definirImagens(imagens);
@@ -81,6 +86,7 @@ export function Mapa({
     m.definirParedes(paredes);
     m.definirZonas(zonas);
     m.definirLuzes(luzes);
+    m.definirModelos(modelos);
     m.definirPontos(pontos);
     m.definirDesenhos(desenhos);
     mapa.current = m;
@@ -129,6 +135,7 @@ export function Mapa({
   useEffect(() => mapa.current?.definirZonas(zonas), [zonas]);
   useEffect(() => mapa.current?.definirLuzes(luzes), [luzes]);
   useEffect(() => mapa.current?.definirPontos(pontos), [pontos]);
+  useEffect(() => mapa.current?.definirModelos(modelos), [modelos]);
   useEffect(() => mapa.current?.definirDesenhos(desenhos), [desenhos]);
   useEffect(() => mapa.current?.definirOpcoes(opcoes), [opcoes]);
   // biome-ignore lint/correctness/useExhaustiveDependencies: a versão avisa que o cache de imagens mudou

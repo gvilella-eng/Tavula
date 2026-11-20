@@ -3,6 +3,7 @@ import {
   arquivoConfere,
   cifrar,
   decifrarEConferir,
+  detectarFormato,
   dividirEmPedacos,
   hashesDosPedacos,
   type ImportacaoDeMapa,
@@ -12,6 +13,7 @@ import {
   type MensagemDaSala,
   type MetaNova,
   metaDoCifrado,
+  mimeDeAnimacaoValido,
   mimeDeSomValido,
   mimeDoSomPeloNome,
   montarFrameDePedaco,
@@ -735,6 +737,47 @@ export class GerenteDeAssets {
       largura: 1,
       altura: 1,
       nomeOriginal: arquivo.name.slice(0, 200) || "som",
+      pedacos: await hashesDosPedacos(dividirEmPedacos(bytes)),
+    };
+    if (!this.completos.has(hash)) {
+      await this.d.cache.gravarArquivo(hash, bytes as BufferSource);
+      this.completos.add(hash);
+    }
+    void this.guardarNaPasta(hash);
+    await this.guardarMeta({ ...meta, donoId: this.d.meuId });
+    this.persistir();
+    if (canal.enviar("asset.registrar", { metas: [meta] }) === null) {
+      throw new Error("Sem conexão com a sala.");
+    }
+    canal.enviar("asset.tenho", { hash });
+    this.mudou();
+    this.prontosMudaram();
+    return { hash, nome };
+  }
+
+  /**
+   * FG1, só no mestre: registra uma animação de chama (gif, webp animado ou apng) como asset `animacao`, sem processar
+   * (o arquivo vai como veio, até 4 MB). Mesmo caminho do som: cache, pasta da mesa, meta na sala e bytes sob demanda.
+   */
+  async registrarAnimacao(arquivo: File): Promise<{ hash: string; nome: string }> {
+    const canal = this.d.canal();
+    if (!canal?.conectado()) throw new Error("Sem conexão com a sala.");
+    if (arquivo.size <= 0) throw new Error("O arquivo está vazio.");
+    if (arquivo.size > LIMITES_DE_ASSET.bytesDaAnimacao)
+      throw new Error("Animação grande demais (até 4 MB).");
+    const bytes = new Uint8Array(await arquivo.arrayBuffer());
+    const mime = detectarFormato(bytes)?.mime;
+    if (mime === undefined || !mimeDeAnimacaoValido(mime)) throw new Error("Só gif, webp ou apng.");
+    const hash = await sha256Hex(bytes);
+    const nome = arquivo.name.replace(/\.[^.]+$/, "").slice(0, 200) || "Animação";
+    const meta: MetaNova = {
+      hash,
+      tipo: "animacao",
+      mime,
+      bytes: bytes.length,
+      largura: 1,
+      altura: 1,
+      nomeOriginal: arquivo.name.slice(0, 200) || "animacao",
       pedacos: await hashesDosPedacos(dividirEmPedacos(bytes)),
     };
     if (!this.completos.has(hash)) {

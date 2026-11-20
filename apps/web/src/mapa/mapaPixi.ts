@@ -8,6 +8,8 @@ import {
   type Cena,
   CORES_DA_BORDA,
   calcularModelo,
+  chamaDoModelo,
+  chamaDoPonto,
   chegadaDaCena,
   contarLembradas,
   corEmCanais,
@@ -23,6 +25,7 @@ import {
   encaixarNoGrid,
   esquecerAlemDoAlcance,
   esquecerTudo,
+  estiloDaChama,
   type FonteDeLuz,
   type FormaDaNevoa,
   formatarRestante,
@@ -36,6 +39,7 @@ import {
   luzAmbienteDa,
   type Medida,
   type ModeloDeLuz,
+  type ModeloDeObjeto,
   type ModoDaNevoa,
   marcarVisto,
   medirPercurso,
@@ -75,6 +79,7 @@ import type { ConfigDoPincel } from "../pincel";
 import { CamadaDeDesenho, type DesenhoNaTela } from "./camadaDeDesenho";
 import { CamadaDeLuz } from "./camadaDeLuz";
 import { CamadaDaNevoa } from "./camadaDeNevoa";
+import { ChamasDoMapa, faseDoId, indiceDoQuadro, type Quadros } from "./chamas";
 import {
   ArmazemDeMemoria,
   chaveAntigaDaMemoria,
@@ -150,6 +155,8 @@ type AlcaArrastada = {
   luzId: string;
   pos: Ponto;
   segurando: { pontoId: string; desde: number; fimEnviado: boolean } | null;
+  /** FG1: o alvo mais próximo dentro da área de soltar (a tela o destaca). */
+  alvo: AlvoDaAlca | null;
 };
 
 /** O que está sob a tocha arrastada. */
@@ -164,6 +171,15 @@ type AlcaVisual = {
   corpo: Graphics;
   rotulo: Text;
   chave: string;
+  /** FG1: a chama animada do objeto num ponto (no mundo, em metros) e o que a animação precisa saber. */
+  chama: Sprite;
+  fase: number;
+  quadros: Quadros | null;
+  indice: number;
+  chamaAtiva: boolean;
+  tamanhoPx: { larg: number; alt: number };
+  estagio: "forte" | "fraca" | "morrendo";
+  modeloId: string | undefined;
 };
 
 /**
@@ -434,6 +450,8 @@ export type RetornosDoMapa = {
   /** A ferramenta de ponto clicou no mapa: cria um suporte ou inflamável ali. */
   colocarPonto: (cenaId: string, tipo: "suporte" | "inflamavel", x: number, y: number) => void;
   moverPonto: (id: string, x: number, y: number) => void;
+  /** FG1: o mestre esticou a chama de um inflamável (metros). */
+  redimensionarChama: (id: string, larguraM: number, alturaM: number) => void;
   selecionarPonto: (id: string | null) => void;
   /** A alça da tocha foi solta sobre outro token (entregar) ou sobre um suporte (pôr). */
   entregarTocha: (luzId: string, tokenId: string) => void;
@@ -524,6 +542,16 @@ const COR_DO_ALERTA = 0xff5b4a;
 /** A alça do objeto de luz num ponto (a da mão é a marca do token, menor): raio do círculo e letra do tempo. */
 const RAIO_DA_ALCA_TOCHA = 20;
 const LETRA_DO_TEMPO = 15;
+/** FG1: o ícone do ponto mede isto da célula de raio (no mundo, escala com o zoom). */
+const RAIO_DO_ICONE_DO_PONTO = 0.2;
+/** FG1: o relógio e os rótulos dos objetos no mapa somem abaixo deste zoom (viram ruído). */
+const ZOOM_MIN_DO_ROTULO = 0.7;
+/** FG1: área de toque mínima (raio em pixels de tela) de um objeto num ponto. */
+const TOQUE_MIN_PX = 20;
+/** FG1: a área de soltar uma tocha num suporte ou inflamável: no mínimo 1 célula de raio e este tanto de pixels de tela. */
+const SOLTAR_MIN_PX = 40;
+const CHAMA_MIN_M = 0.2;
+const CHAMA_MAX_M = 30;
 /** A dica da alça da tocha (o que ela faz). */
 const DICA_DA_BANDEIRA =
   'Os tokens do grupo aparecem aqui quando você usa "Levar grupo" para esta cena. Arraste para mudar.';
@@ -560,6 +588,13 @@ type Gesto =
   | { tipo: "luz"; id: string; deslocamento: Ponto }
   | { tipo: "ponto"; id: string; deslocamento: Ponto }
   | { tipo: "alca"; luzId: string }
+  | {
+      tipo: "chama";
+      id: string;
+      hx: -1 | 0 | 1;
+      hy: -1 | 0 | 1;
+      inicial: { larguraM: number; alturaM: number };
+    }
   | { tipo: "regua" }
   | {
       tipo: "traco";
@@ -644,6 +679,17 @@ export class MapaPixi {
   private readonly camadaDeAlcas = new Container();
   private readonly alcas = new Map<string, AlcaVisual>();
   private alcaArrastada: AlcaArrastada | null = null;
+  /** FG1: os modelos de objeto (tamanho e animações da chama) e as animações de chama deste mapa. */
+  private modelos: ModeloDeObjeto[] = [];
+  private readonly chamas = new ChamasDoMapa(
+    (hash) => this.imagens?.blob(hash) ?? Promise.resolve(null),
+    () => {
+      this.sujo = true;
+    },
+  );
+  /** FG1: o tamanho da chama que o mestre está esticando (ao vivo, antes de a sala confirmar). */
+  private chamaArrastada: { id: string; tam: { larguraM: number; alturaM: number } } | null = null;
+  private reduzirCache: { em: number; valor: boolean } = { em: -1e9, valor: false };
   // Memória do mapa (só de tela; IndexedDB por usuário e cena).
   private readonly armazem = new ArmazemDeMemoria();
   private gradeDaMemoria: GradeDeMemoria | null = null;
@@ -893,6 +939,7 @@ export class MapaPixi {
     if (!this.pronto) return;
     this.pronto = false;
     cancelAnimationFrame(this.quadro);
+    this.chamas.destruir();
     const c = this.app.canvas;
     c.removeEventListener("pointerdown", this.aoApertar);
     c.removeEventListener("pointermove", this.aoMover);
@@ -973,6 +1020,7 @@ export class MapaPixi {
 
   /** Chegou ou mudou algo no cache de imagens: refaz o fundo e as imagens dos tokens. */
   imagensMudaram(): void {
+    this.chamas.tentarDeNovo();
     if (!this.pronto) return;
     this.atualizarMapa();
     this.sincronizarTokens();
@@ -1116,6 +1164,14 @@ export class MapaPixi {
     if (!this.pronto) return;
     this.visaoSuja = true;
     this.desenharMarcasDeLuz();
+  }
+
+  /** FG1: os modelos de objeto (o tamanho padrão e as animações da chama de cada um). */
+  definirModelos(modelos: ModeloDeObjeto[]): void {
+    this.modelos = modelos;
+    this.chaveDosPontos = "";
+    for (const a of this.alcas.values()) a.chave = "";
+    this.sujo = true;
   }
 
   /** Os pontos de luz da cena (o que a sala mandou para quem está olhando). */
@@ -2694,12 +2750,12 @@ export class MapaPixi {
   private ancoraDaAlca(
     luz: FonteDeLuz,
     ordemNoPonto: number,
+    totalNoPonto = 1,
   ): { mundo: Ponto; lado: number } | null {
     const arrasto = this.alcaArrastada;
     if (arrasto && arrasto.luzId === luz.id) return { mundo: arrasto.pos, lado: 0 };
     const centro = this.posicaoDoObjeto(luz);
     if (!centro) return null;
-    const z = this.vista.zoom;
     const p = luz.portador;
     if (p.tipo === "mao") {
       // V11: a tocha é uma marca no canto do token (1ª mão: superior direito; 2ª: superior esquerdo), por
@@ -2729,15 +2785,46 @@ export class MapaPixi {
       for (let passo = 0; passo < 3 && !livre(graus); passo++) graus += lado * -22;
       return { mundo: na(graus), lado };
     }
-    // No ponto (suporte, fogueira): o ícone fica acima do ponto, lado a lado se houver mais de um.
+    // FG1: no ponto (suporte, fogueira) o objeto toma o LUGAR do ícone (o centro do ponto), em tamanho de mundo; com
+    // mais de um objeto no mesmo ponto, ficam lado a lado, centrados nele.
+    const passo = Math.max(this.tamanhoDaChamaDe(luz).larguraM, 0.5);
     return {
-      mundo: { x: centro.x + (ordemNoPonto * 34) / z / PX_POR_M, y: centro.y - 52 / z / PX_POR_M },
+      mundo: { x: centro.x + (ordemNoPonto - (totalNoPonto - 1) / 2) * passo, y: centro.y },
       lado: 0,
     };
   }
 
+  /** FG1: o tamanho da chama (em metros) de um objeto: o do ponto onde está, ou o do modelo. */
+  private tamanhoDaChamaDe(luz: FonteDeLuz): { larguraM: number; alturaM: number } {
+    if (luz.portador.tipo === "ponto") {
+      const id = luz.portador.pontoId;
+      const ponto = this.pontosDaTela().find((x) => x.id === id);
+      if (ponto) return this.chamaDoPontoNaTela(ponto, luz.modeloId);
+    }
+    return chamaDoModelo(this.modelos.find((m) => m.id === luz.modeloId));
+  }
+
+  /** FG1: o tamanho da chama de um ponto na tela (o que está sendo esticado vale na hora). */
+  private chamaDoPontoNaTela(
+    ponto: PontoDeLuz,
+    modeloDoObjeto?: string,
+  ): { larguraM: number; alturaM: number } {
+    const a = this.chamaArrastada;
+    if (a && a.id === ponto.id) return a.tam;
+    const modelo = this.modelos.find((m) => m.id === (ponto.modeloId ?? modeloDoObjeto));
+    return chamaDoPonto(ponto, modelo);
+  }
+
   /** O raio (px da tela) da alça: a tocha na mão é uma marca pequena do token; a de um ponto é maior. */
   private raioDaAlca(luz: FonteDeLuz): number {
+    if (luz.portador.tipo === "ponto") {
+      // FG1: a área de toque acompanha o tamanho no mundo, nunca menor que o mínimo na tela.
+      const t = this.tamanhoDaChamaDe(luz);
+      return Math.max(
+        TOQUE_MIN_PX,
+        Math.min(t.larguraM, t.alturaM) * PX_POR_M * this.vista.zoom * 0.4,
+      );
+    }
     if (luz.portador.tipo !== "mao") return RAIO_DA_ALCA_TOCHA;
     const v = this.visualDoPersonagem(luz.portador.personagemId);
     return v ? this.raioNaTelaDaMarca(this.raioDoToken(v.token)) : RAIO_MIN_DA_MARCA;
@@ -2754,6 +2841,13 @@ export class MapaPixi {
   private alcasDaTela(): { luz: FonteDeLuz; mundo: Ponto }[] {
     const resultado: { luz: FonteDeLuz; mundo: Ponto }[] = [];
     const porPonto = new Map<string, number>();
+    const totalPorPonto = new Map<string, number>();
+    for (const luz of this.luzes) {
+      if (luz.portador.tipo === "ponto") {
+        const id = luz.portador.pontoId;
+        totalPorPonto.set(id, (totalPorPonto.get(id) ?? 0) + 1);
+      }
+    }
     for (const luz of this.luzes) {
       const p = luz.portador;
       if (p.tipo !== "mao" && p.tipo !== "ponto") continue;
@@ -2761,7 +2855,11 @@ export class MapaPixi {
       if (!pos || !this.objetoVisivelNaTela(luz, pos)) continue;
       const ordem = p.tipo === "ponto" ? (porPonto.get(p.pontoId) ?? 0) : 0;
       if (p.tipo === "ponto") porPonto.set(p.pontoId, ordem + 1);
-      const a = this.ancoraDaAlca(luz, ordem);
+      const a = this.ancoraDaAlca(
+        luz,
+        ordem,
+        p.tipo === "ponto" ? (totalPorPonto.get(p.pontoId) ?? 1) : 1,
+      );
       if (a) resultado.push({ luz, mundo: a.mundo });
     }
     return resultado;
@@ -2796,9 +2894,26 @@ export class MapaPixi {
     });
     rotulo.anchor.set(0.5, 0);
     rotulo.position.set(0, RAIO_DA_ALCA_TOCHA + 3);
-    container.addChild(corpo, rotulo);
+    const chama = new Sprite(Texture.EMPTY);
+    chama.anchor.set(0.5);
+    chama.visible = false;
+    container.addChild(corpo, chama, rotulo);
     this.camadaDeAlcas.addChild(container);
-    return { luzId, container, corpo, rotulo, chave: "" };
+    return {
+      luzId,
+      container,
+      corpo,
+      rotulo,
+      chave: "",
+      chama,
+      fase: faseDoId(luzId),
+      quadros: null,
+      indice: -1,
+      chamaAtiva: false,
+      tamanhoPx: { larg: 0, alt: 0 },
+      estagio: "forte",
+      modeloId: undefined,
+    };
   }
 
   /**
@@ -2821,6 +2936,16 @@ export class MapaPixi {
       const dono = this.opcoes.podeMexerNaTocha(luz);
       const arrastando = arrasto?.luzId === luz.id;
       const naMao = luz.portador.tipo === "mao";
+      if (!naMao) {
+        this.desenharObjetoNoPonto(alca, luz, mundo, z);
+        continue;
+      }
+      if (alca.chamaAtiva || alca.chama.visible) {
+        // A tocha voltou para a mão: a chama do ponto sai e o rótulo volta ao tamanho de tela.
+        alca.chamaAtiva = false;
+        alca.chama.visible = false;
+        alca.chave = "";
+      }
       const r = this.raioDaAlca(luz);
       const anel = naMao ? this.anelDaTocha(luz) : null;
       const chave = `${mundo.x.toFixed(3)},${mundo.y.toFixed(3)}|${z}|${acesa}|${rotulo}|${dono}|${arrastando}|${luz.estagio ?? ""}|${r.toFixed(2)}|${anel?.fracao.toFixed(3) ?? ""}|${anel?.alerta ?? ""}`;
@@ -2863,7 +2988,94 @@ export class MapaPixi {
       this.alcas.delete(id);
       this.sujo = true;
     }
+    this.animarChamas(performance.now());
     this.desenharPontos(z, arrasto);
+  }
+
+  /**
+   * FG1: o objeto num ponto (tocha no suporte, fogueira acesa, objeto apagado) no lugar do ícone do ponto, com tamanho
+   * de mundo: a chama é um sprite esticado a larguraM x alturaM; apagado, um toco ou brasas escuras. O relógio fica
+   * sob ele em tamanho de tela e some quando o zoom o transformaria em ruído.
+   */
+  private desenharObjetoNoPonto(alca: AlcaVisual, luz: FonteDeLuz, mundo: Ponto, z: number): void {
+    const acesa = luz.estado === "acesa";
+    const modelo = this.modelos.find((m) => m.id === luz.modeloId);
+    const tam = this.tamanhoDaChamaDe(luz);
+    const rotulo = this.rotuloDaAlca(luz);
+    const estagio = luz.estagio ?? "forte";
+    const chave = `${mundo.x.toFixed(3)},${mundo.y.toFixed(3)}|${z}|${acesa}|${rotulo}|${estagio}|${tam.larguraM}x${tam.alturaM}|${modelo?.ocupaMao ?? ""}`;
+    alca.chamaAtiva = acesa;
+    alca.estagio = estagio;
+    alca.modeloId = luz.modeloId;
+    if (chave === alca.chave) return;
+    alca.chave = chave;
+    this.sujo = true;
+    const larg = tam.larguraM * PX_POR_M;
+    const alt = tam.alturaM * PX_POR_M;
+    alca.tamanhoPx = { larg, alt };
+    alca.indice = -1;
+    alca.container.position.set(mundo.x * PX_POR_M, mundo.y * PX_POR_M);
+    alca.container.scale.set(1);
+    alca.container.alpha = 1;
+    const g = alca.corpo.clear();
+    alca.chama.visible = acesa;
+    if (!acesa) {
+      if (estiloDaChama(modelo) === "tocha") {
+        // Uma tocha apagada: o cabo e a ponta escura.
+        g.roundRect(-larg * 0.1, -alt * 0.3, larg * 0.2, alt * 0.62, larg * 0.07).fill({
+          color: 0x5a4631,
+          alpha: 0.95,
+        });
+        g.ellipse(0, -alt * 0.3, larg * 0.16, alt * 0.07).fill({ color: 0x2b2a2e, alpha: 0.95 });
+      } else {
+        // Uma fogueira apagada: achas escuras e cinza.
+        g.ellipse(0, 0, larg * 0.36, alt * 0.2).fill({ color: 0x1d1814, alpha: 0.85 });
+        g.moveTo(-larg * 0.3, alt * 0.06)
+          .lineTo(larg * 0.3, -alt * 0.06)
+          .moveTo(-larg * 0.3, -alt * 0.06)
+          .lineTo(larg * 0.3, alt * 0.06)
+          .stroke({ width: Math.max(2, larg * 0.07), color: 0x4a3828, alpha: 0.95 });
+      }
+    }
+    const mostrar = rotulo !== "" && z >= ZOOM_MIN_DO_ROTULO;
+    alca.rotulo.visible = mostrar;
+    if (mostrar) {
+      alca.rotulo.text = rotulo;
+      alca.rotulo.scale.set(1 / z);
+      alca.rotulo.position.set(0, alt / 2 + 3 / z);
+    }
+  }
+
+  /** Reduzir movimento, lido no máximo uma vez por segundo. */
+  private movimentoReduzido(agora: number): boolean {
+    if (agora - this.reduzirCache.em > 1000) {
+      this.reduzirCache = { em: agora, valor: this.reduzirMovimento() };
+    }
+    return this.reduzirCache.valor;
+  }
+
+  /**
+   * FG1: troca o quadro de cada chama visível (cada uma defasada das outras). Só marca o mapa como sujo quando algum
+   * quadro mudou. Com "reduzir movimento", a chama fica no primeiro quadro.
+   */
+  private animarChamas(agora: number): void {
+    const parado = this.movimentoReduzido(agora);
+    for (const a of this.alcas.values()) {
+      if (!a.chamaAtiva || !a.container.visible) {
+        if (a.chama.visible && !a.chamaAtiva) a.chama.visible = false;
+        continue;
+      }
+      const modelo = this.modelos.find((m) => m.id === a.modeloId);
+      const quadros = this.chamas.escolher(modelo?.animacoes, estiloDaChama(modelo), a.estagio);
+      const indice = parado ? 0 : indiceDoQuadro(quadros, agora, a.fase);
+      if (quadros === a.quadros && indice === a.indice) continue;
+      a.quadros = quadros;
+      a.indice = indice;
+      const tex = quadros.texturas[indice] as Texture;
+      a.chama.texture = tex;
+      a.chama.scale.set(a.tamanhoPx.larg / tex.width, a.tamanhoPx.alt / tex.height);
+      this.sujo = true;
+    }
   }
 
   /**
@@ -2882,13 +3094,24 @@ export class MapaPixi {
   /** Ícones dos pontos (suporte e inflamável), o alcance do selecionado e o anel de acender. */
   private desenharPontos(z: number, arrasto: AlcaArrastada | null): void {
     const g = this.desenhoDosPontos;
-    const r = 10 / z;
+    const q = this.quadradoM();
+    const r = q * RAIO_DO_ICONE_DO_PONTO * PX_POR_M;
+    const ocupados = this.pontosOcupados();
     const progresso = arrasto?.segurando ? this.progressoDeAcender() : null;
     const chave = JSON.stringify([
       z,
       this.opcoes.pontoSelecionadoId,
       this.opcoes.alcanceInteracaoM,
       this.pontosDaTela(),
+      [...ocupados].sort(),
+      this.chamaArrastada,
+      this.modelos.map((m) => m.chamaM ?? null),
+      this.marcasVisiveis(),
+      arrasto?.alvo
+        ? arrasto.alvo.tipo === "token"
+          ? arrasto.alvo.tokenId
+          : arrasto.alvo.ponto.id
+        : null,
       this.opcoes.modoMestre,
       this.opcoes.visao.modo,
       this.modelo !== null,
@@ -2910,28 +3133,51 @@ export class MapaPixi {
       const alpha = ponto.visivelParaJogadores ? 1 : 0.55;
       const selecionado = ponto.id === this.opcoes.pontoSelecionadoId;
       if (selecionado) {
-        const q = this.quadradoM();
         const alcance = (this.opcoes.alcanceInteracaoM + q / 2) * PX_POR_M;
         g.circle(cx, cy, alcance).stroke({ width: 1.5 / z, color: cor, alpha: 0.55 });
       }
+      if (selecionado && this.marcasVisiveis() && ponto.tipo === "inflamavel") {
+        this.desenharAlcasDeTamanho(g, ponto, z);
+      }
+      // FG1: o objeto que está no ponto toma o lugar do ícone (que volta quando ele sai).
+      if (ocupados.has(ponto.id)) continue;
+      const lw = r * 0.17;
       g.circle(cx, cy, r)
         .fill({ color: 0x10141a, alpha: 0.9 * alpha })
-        .stroke({ width: (selecionado ? 3 : 2) / z, color: selecionado ? ACENTO : cor, alpha });
+        .stroke({ width: selecionado ? lw * 1.6 : lw, color: selecionado ? ACENTO : cor, alpha });
       if (suporte) {
         // um "U": a tocha se apoia nele
         g.moveTo(cx - r * 0.5, cy - r * 0.35)
           .lineTo(cx - r * 0.5, cy + r * 0.2)
           .lineTo(cx + r * 0.5, cy + r * 0.2)
           .lineTo(cx + r * 0.5, cy - r * 0.35)
-          .stroke({ width: 1.8 / z, color: cor, alpha });
+          .stroke({ width: lw * 1.1, color: cor, alpha });
       } else {
         // lenha cruzada
         g.moveTo(cx - r * 0.55, cy + r * 0.4)
           .lineTo(cx + r * 0.55, cy - r * 0.4)
           .moveTo(cx - r * 0.55, cy - r * 0.4)
           .lineTo(cx + r * 0.55, cy + r * 0.4)
-          .stroke({ width: 2 / z, color: cor, alpha });
+          .stroke({ width: lw * 1.2, color: cor, alpha });
       }
+    }
+    // FG1: a área de soltar destaca o alvo mais próximo da tocha arrastada.
+    const alvoAtual = arrasto?.alvo;
+    if (alvoAtual?.tipo === "token") {
+      const v = [...this.visuais.values()].find((x) => x.token.id === alvoAtual.tokenId);
+      if (v) {
+        g.circle(v.x * PX_POR_M, v.y * PX_POR_M, this.raioDoToken(v.token) + 6 / z)
+          .fill({ color: ACENTO, alpha: 0.12 })
+          .stroke({ width: 2.5 / z, color: ACENTO, alpha: 0.9 });
+      }
+    } else if (alvoAtual) {
+      g.circle(
+        alvoAtual.ponto.x * PX_POR_M,
+        alvoAtual.ponto.y * PX_POR_M,
+        this.areaDeSoltarM() * PX_POR_M,
+      )
+        .fill({ color: ACENTO, alpha: 0.1 })
+        .stroke({ width: 2 / z, color: ACENTO, alpha: 0.85 });
     }
     // O anel que enche enquanto a tocha acesa é segurada sobre o inflamável.
     const seg = arrasto?.segurando;
@@ -2955,6 +3201,80 @@ export class MapaPixi {
         }
       }
     }
+  }
+
+  /** FG1: os pontos que têm um objeto à vista (ele toma o lugar do ícone). */
+  private pontosOcupados(): Set<string> {
+    const s = new Set<string>();
+    for (const { luz } of this.alcasDaTela()) {
+      if (luz.portador.tipo === "ponto") s.add(luz.portador.pontoId);
+    }
+    return s;
+  }
+
+  /** FG1: o raio (metros) em que uma tocha solta pega um suporte ou inflamável: 1 célula, ou ~40 px de tela. */
+  private areaDeSoltarM(): number {
+    return Math.max(this.quadradoM(), SOLTAR_MIN_PX / (this.vista.zoom * PX_POR_M));
+  }
+
+  /** FG1: as 8 alças de esticar a chama do inflamável selecionado (posição em metros). */
+  private alcasDeTamanho(
+    ponto: PontoDeLuz,
+  ): { hx: -1 | 0 | 1; hy: -1 | 0 | 1; x: number; y: number }[] {
+    const t = this.chamaDoPontoNaTela(ponto);
+    const lados: (-1 | 0 | 1)[] = [-1, 0, 1];
+    const lista: { hx: -1 | 0 | 1; hy: -1 | 0 | 1; x: number; y: number }[] = [];
+    for (const hy of lados) {
+      for (const hx of lados) {
+        if (hx === 0 && hy === 0) continue;
+        lista.push({
+          hx,
+          hy,
+          x: ponto.x + (hx * t.larguraM) / 2,
+          y: ponto.y + (hy * t.alturaM) / 2,
+        });
+      }
+    }
+    return lista;
+  }
+
+  /** FG1: o retângulo da chama (tracejado) e as alças para esticá-la, do inflamável selecionado. */
+  private desenharAlcasDeTamanho(g: Graphics, ponto: PontoDeLuz, z: number): void {
+    const t = this.chamaDoPontoNaTela(ponto);
+    const w = t.larguraM * PX_POR_M;
+    const h = t.alturaM * PX_POR_M;
+    const x0 = ponto.x * PX_POR_M - w / 2;
+    const y0 = ponto.y * PX_POR_M - h / 2;
+    const cantos: Ponto[] = [
+      { x: x0, y: y0 },
+      { x: x0 + w, y: y0 },
+      { x: x0 + w, y: y0 + h },
+      { x: x0, y: y0 + h },
+    ];
+    for (let i = 0; i < 4; i++) {
+      this.tracejar(g, cantos[i] as Ponto, cantos[(i + 1) % 4] as Ponto, 6 / z, 4 / z);
+    }
+    g.stroke({ width: 1.5 / z, color: ACENTO, alpha: 0.9 });
+    for (const a of this.alcasDeTamanho(ponto)) {
+      const l = 8 / z;
+      g.rect(a.x * PX_POR_M - l / 2, a.y * PX_POR_M - l / 2, l, l)
+        .fill(0xffffff)
+        .stroke({ width: 1.5 / z, color: ACENTO });
+    }
+  }
+
+  /** FG1: a alça de esticar a chama sob o ponto da tela (só no inflamável selecionado, para o mestre). */
+  private alcaDeTamanhoEm(p: Ponto): { ponto: PontoDeLuz; hx: -1 | 0 | 1; hy: -1 | 0 | 1 } | null {
+    if (!this.marcasVisiveis()) return null;
+    const ponto = this.pontosDaTela().find(
+      (x) => x.id === this.opcoes.pontoSelecionadoId && x.tipo === "inflamavel",
+    );
+    if (!ponto) return null;
+    for (const a of this.alcasDeTamanho(ponto)) {
+      const t = this.paraTela(a.x, a.y);
+      if (Math.hypot(p.x - t.x, p.y - t.y) <= 8) return { ponto, hx: a.hx, hy: a.hy };
+    }
+    return null;
   }
 
   private pontoNaVisao(pos: Ponto): boolean {
@@ -2990,7 +3310,11 @@ export class MapaPixi {
   /** O ponto de luz (suporte ou inflamável) cujo ícone está sob o ponto da tela. */
   private pontoEm(p: Ponto): PontoDeLuz | null {
     let achado: PontoDeLuz | null = null;
-    let melhor = 15;
+    // FG1: o ícone tem tamanho de mundo; a área de toque nunca fica menor que 15 px.
+    let melhor = Math.max(
+      15,
+      this.quadradoM() * RAIO_DO_ICONE_DO_PONTO * PX_POR_M * this.vista.zoom + 4,
+    );
     for (const ponto of this.pontosDaTela()) {
       if (!this.opcoes.modoMestre && !this.pontoNaVisao(ponto)) continue;
       const t = this.paraTela(ponto.x, ponto.y);
@@ -3014,12 +3338,19 @@ export class MapaPixi {
       const raio = Math.max((v.token.tamanhoQuadrados * q) / 2, 12 / (this.vista.zoom * PX_POR_M));
       if (Math.hypot(m.x - v.x, m.y - v.y) <= raio) return { tipo: "token", tokenId: v.token.id };
     }
-    const margem = Math.max(q * 0.6, 14 / (this.vista.zoom * PX_POR_M));
+    // FG1: a área de soltar é bem maior que o ícone (1 célula de raio, ou ~40 px de tela); vale o ponto mais próximo.
+    const area = this.areaDeSoltarM();
+    let melhor: PontoDeLuz | null = null;
+    let menor = Number.POSITIVE_INFINITY;
     for (const ponto of this.pontosDaTela()) {
-      if (Math.hypot(m.x - ponto.x, m.y - ponto.y) > margem) continue;
-      return { tipo: ponto.tipo, ponto };
+      if (!this.opcoes.modoMestre && !this.pontoNaVisao(ponto)) continue;
+      const d = Math.hypot(m.x - ponto.x, m.y - ponto.y);
+      if (d <= area && d < menor) {
+        menor = d;
+        melhor = ponto;
+      }
     }
-    return null;
+    return melhor ? { tipo: melhor.tipo, ponto: melhor } : null;
   }
 
   /** O token do dono da tocha está ao alcance do ponto? (só uma dica; a sala confere de verdade) */
@@ -3042,6 +3373,7 @@ export class MapaPixi {
     const luz = this.luzes.find((l) => l.id === arrasto.luzId);
     if (!luz) return;
     const alvo = this.alvoDaAlca(arrasto.pos, luz);
+    arrasto.alvo = alvo;
     const sobreInflamavel =
       alvo?.tipo === "inflamavel" &&
       luz.estado === "acesa" &&
@@ -4045,16 +4377,28 @@ export class MapaPixi {
     }
 
     // A alça da tocha: só o dono (ou o mestre) a arrasta; a dos outros ignora o clique.
+    // FG1: as alças de esticar a chama do inflamável selecionado vêm antes de tudo.
+    const esticar = this.alcaDeTamanhoEm(p);
+    if (esticar) {
+      const inicial = { ...this.chamaDoPontoNaTela(esticar.ponto) };
+      this.gesto = { tipo: "chama", id: esticar.ponto.id, hx: esticar.hx, hy: esticar.hy, inicial };
+      this.chamaArrastada = { id: esticar.ponto.id, tam: inicial };
+      this.app.canvas.setPointerCapture(e.pointerId);
+      this.atualizarCursor();
+      return;
+    }
     const alca = this.alcaEm(p);
     if (alca) {
       if (alca.luz.portador.tipo === "mao" && this.opcoes.podeMexerNaTocha(alca.luz)) {
         const m = this.paraMundo(p);
-        this.alcaArrastada = { luzId: alca.luz.id, pos: m, segurando: null };
+        this.alcaArrastada = { luzId: alca.luz.id, pos: m, segurando: null, alvo: null };
         this.gesto = { tipo: "alca", luzId: alca.luz.id };
         this.app.canvas.setPointerCapture(e.pointerId);
         this.atualizarCursor();
+        return;
       }
-      return;
+      // FG1: o objeto num ponto cobre o ponto; o mestre com o painel de luzes aberto ainda seleciona e arrasta o ponto.
+      if (alca.luz.portador.tipo !== "ponto" || !this.marcasVisiveis()) return;
     }
 
     const pontoMarcado = this.marcasVisiveis() ? this.pontoEm(p) : null;
@@ -4359,6 +4703,25 @@ export class MapaPixi {
       }
       return;
     }
+    if (g.tipo === "chama") {
+      const ponto = this.pontosDaTela().find((x) => x.id === g.id);
+      if (!ponto) return;
+      const m = this.paraMundo(p);
+      let larg = g.hx === 0 ? g.inicial.larguraM : Math.abs(m.x - ponto.x) * 2;
+      let alt = g.hy === 0 ? g.inicial.alturaM : Math.abs(m.y - ponto.y) * 2;
+      if (e.shiftKey && g.hx !== 0 && g.hy !== 0) {
+        // Shift no canto mantém a proporção.
+        const k = Math.max(larg / g.inicial.larguraM, alt / g.inicial.alturaM);
+        larg = g.inicial.larguraM * k;
+        alt = g.inicial.alturaM * k;
+      }
+      const limitar = (n: number) =>
+        Math.round(Math.min(CHAMA_MAX_M, Math.max(CHAMA_MIN_M, n)) * 100) / 100;
+      this.chamaArrastada = { id: g.id, tam: { larguraM: limitar(larg), alturaM: limitar(alt) } };
+      this.chaveDosPontos = "";
+      this.sujo = true;
+      return;
+    }
     if (g.tipo === "ponto") {
       if (!this.cena) return;
       const m = this.paraMundo(p);
@@ -4558,6 +4921,22 @@ export class MapaPixi {
         if (alvo?.tipo === "token") this.retornos().entregarTocha(luz.id, alvo.tokenId);
         else if (alvo?.tipo === "suporte") this.retornos().posarTocha(luz.id, alvo.ponto.id);
       }
+      this.atualizarCursor();
+      return;
+    }
+    if (g.tipo === "chama") {
+      const arrasto = this.chamaArrastada;
+      if (arrasto) {
+        this.retornos().redimensionarChama(arrasto.id, arrasto.tam.larguraM, arrasto.tam.alturaM);
+      }
+      // A chama fica no tamanho solto até a sala confirmar (o evento chega em seguida).
+      setTimeout(() => {
+        this.chamaArrastada = null;
+        if (this.pronto) {
+          this.chaveDosPontos = "";
+          for (const a of this.alcas.values()) a.chave = "";
+        }
+      }, 600);
       this.atualizarCursor();
       return;
     }
@@ -4882,6 +5261,9 @@ export class MapaPixi {
     } else if (g.tipo === "alca") {
       this.alcaArrastada = null;
       this.chaveDosPontos = "";
+    } else if (g.tipo === "chama") {
+      this.chamaArrastada = null;
+      this.chaveDosPontos = "";
     } else if (g.tipo !== "regua") {
       return;
     }
@@ -4911,6 +5293,7 @@ export class MapaPixi {
       g?.tipo === "luz" ||
       g?.tipo === "ponto" ||
       g?.tipo === "desenhoMover" ||
+      g?.tipo === "chama" ||
       g?.tipo === "alca"
     )
       cursor = "grabbing";
@@ -5557,10 +5940,43 @@ export class MapaPixi {
       /** Os pontos de luz que a tela mostra (posição na página) e a contagem de acender, se houver. */
       pontos: () => {
         const r = this.app.canvas.getBoundingClientRect();
+        const ocupados = this.pontosOcupados();
+        const raioPx = this.quadradoM() * RAIO_DO_ICONE_DO_PONTO * PX_POR_M * this.vista.zoom;
         return this.pontosDaTela().map((p) => {
           const t = this.paraTela(p.x, p.y);
-          return { id: p.id, tipo: p.tipo, x: r.left + t.x, y: r.top + t.y };
+          return {
+            id: p.id,
+            tipo: p.tipo,
+            x: r.left + t.x,
+            y: r.top + t.y,
+            /** FG1: o ícone do ponto está desenhado (some enquanto um objeto está no lugar dele) e o raio dele na tela (px). */
+            iconeVisivel: !ocupados.has(p.id) && (this.opcoes.modoMestre || this.pontoNaVisao(p)),
+            raioPx,
+            /** FG1: o raio da área de soltar uma tocha (px) e o tamanho da chama do ponto (m). */
+            soltarPx: this.areaDeSoltarM() * PX_POR_M * this.vista.zoom,
+            chamaM: this.chamaDoPontoNaTela(p),
+          };
         });
+      },
+      /** FG1: as chamas animadas dos objetos nos pontos: tamanho na tela (px), de onde vem a animação e o quadro de agora. */
+      chamas: () =>
+        [...this.alcas.entries()]
+          .filter(([, a]) => a.chamaAtiva && a.chama.visible)
+          .map(([id, a]) => ({
+            id,
+            larguraPx: a.tamanhoPx.larg * this.vista.zoom,
+            alturaPx: a.tamanhoPx.alt * this.vista.zoom,
+            estagio: a.estagio,
+            origem: a.quadros?.origem ?? null,
+            quadros: a.quadros?.texturas.length ?? 0,
+            indice: a.indice,
+            rotuloVisivel: a.rotulo.visible,
+          })),
+      /** FG1: o alvo da tocha arrastada (id do ponto ou do token) e a área de soltar. */
+      alvoDaTocha: () => {
+        const alvo = this.alcaArrastada?.alvo;
+        if (!alvo) return null;
+        return alvo.tipo === "token" ? alvo.tokenId : alvo.ponto.id;
       },
       anelDeAcender: () => this.progressoDeAcender(),
       /** Pontos da sequência de paredes em desenho. */

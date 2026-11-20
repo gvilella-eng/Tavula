@@ -28,7 +28,11 @@ export function negarEnvio(
 ): string | null {
   if (
     usuario.papel !== "mestre" &&
-    (uso === "mapa" || uso === "mapa-uvtt" || uso === "som" || uso === "compendio")
+    (uso === "mapa" ||
+      uso === "mapa-uvtt" ||
+      uso === "som" ||
+      uso === "animacao" ||
+      uso === "compendio")
   ) {
     return `Só o mestre põe ${ROTULO_DO_USO[uso]}.`;
   }
@@ -39,9 +43,11 @@ export function negarEnvio(
         ? "mapa"
         : uso === "som"
           ? "som"
-          : uso === "compendio"
-            ? "compendio"
-            : "retrato",
+          : uso === "animacao"
+            ? "animacao"
+            : uso === "compendio"
+              ? "compendio"
+              : "retrato",
     mime: "image/webp",
     bytes: 1,
     largura: 1000,

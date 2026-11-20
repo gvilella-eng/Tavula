@@ -70,6 +70,7 @@ import type {
   Estado,
   FonteDeLuz,
   Handout,
+  ModeloDeObjeto,
   Parede,
   Pasta,
   Personagem,
@@ -154,6 +155,7 @@ import {
 import { acrescentarTraco, tirarUltimoTraco } from "./nevoa.ts";
 import {
   modelosParaJogador,
+  objetoComModeloNovo,
   objetoParaVisao,
   pontoVisivelPara,
   relogioParaVisao,
@@ -1568,11 +1570,12 @@ function processarIntencao(
             m.tipo === "tile" ||
             m.tipo === "cifrado" ||
             m.tipo === "compendio" ||
-            m.tipo === "som")
+            m.tipo === "som" ||
+            m.tipo === "animacao")
         ) {
           return recusa(
             "sem_permissao",
-            "Só o mestre registra mapas, arquivos cifrados, sons e o compêndio.",
+            "Só o mestre registra mapas, arquivos cifrados, sons, animações e o compêndio.",
           );
         }
         if (m.tiles) {
@@ -1791,12 +1794,14 @@ function processarIntencao(
           return recusa("dados_invalidos", "Imagem da ficha desconhecida.");
         }
       }
-      // Só o mestre repõe tochas (e outros itens de modelo): quem edita a própria ficha só gasta.
+      // FG1: quem edita a ficha dá e tira equipamentos de modelo (tochas) enquanto `equipamento.dar` estiver ligada para ele;
+      // o mestre sempre pode. Antes só o mestre repunha.
       if (
         usuario.papel !== "mestre" &&
-        modelosAumentados(atual.ficha, r.ficha, estado.modelos).length > 0
+        modelosAumentados(atual.ficha, r.ficha, estado.modelos).length > 0 &&
+        !pode(usuario, "equipamento.dar", estado.permissoes)
       ) {
-        return recusa("sem_permissao", "Só o mestre repõe tochas e outros objetos de luz.");
+        return recusa("sem_permissao", "Dar equipamento de luz está desligado para você.");
       }
       const personagem: Personagem = { ...atual, ficha: r.ficha };
       if (JSON.stringify(personagem) === JSON.stringify(atual)) return aplicado();
@@ -2857,15 +2862,38 @@ function processarIntencao(
       const atual = estado.modelos.find((m) => m.id === intencao.dados.id);
       if (!atual) return recusa("modelo_inexistente", "Modelo de objeto não encontrado.");
       const m = intencao.dados.mudancas;
-      const modelo = {
+      // FG1: a animação de cada estágio é um arquivo `animacao` que já está na mesa.
+      for (const h of Object.values(m.animacoes ?? {})) {
+        if (h !== undefined && metaDoAsset(estado, h)?.tipo !== "animacao") {
+          return recusa("asset_inexistente", "Animação desconhecida: envie o arquivo antes.");
+        }
+      }
+      const modelo: ModeloDeObjeto = {
         ...atual,
         ...semIndefinidos({ nome: m.nome, ocupaMao: m.ocupaMao, tags: m.tags }),
         ...(m.duracaoS === undefined ? {} : { duracaoS: m.duracaoS }),
+        ...(m.chamaM === undefined ? {} : { chamaM: m.chamaM }),
         luz: { ...atual.luz, ...semIndefinidos(m.luz ?? {}) },
       };
+      if (m.animacoes !== undefined) {
+        // O objeto inteiro troca (um objeto vazio volta à animação padrão de todos os estágios).
+        if (Object.values(m.animacoes).some((h) => h !== undefined)) modelo.animacoes = m.animacoes;
+        else delete modelo.animacoes;
+      }
       if (JSON.stringify(modelo) === JSON.stringify(atual)) return aplicado();
       emitir({ tipo: "modelo.alterado", dados: { modelo } });
-      return aplicado();
+      // FG1: editar o modelo muda na hora TODOS os objetos dele (mãos, mochilas, suportes, pontos e mapa), para todos.
+      // O que é do objeto (aceso, tempo, portador, tamanho do inflamável) fica; o tempo que resta é limitado à duração nova.
+      const salaMs = tempoDaSala(estado.relogio, agoraMs);
+      let mudouObjeto = false;
+      for (const l of estado.luzes) {
+        if (l.modeloId !== atual.id) continue;
+        const novo = objetoComModeloNovo(l, atual, modelo, salaMs);
+        if (JSON.stringify(novo) === JSON.stringify(l)) continue;
+        mudouObjeto = true;
+        emitir({ tipo: "fonte.editada", dados: { fonte: novo } });
+      }
+      return aplicado(mudouObjeto ? "todos" : []);
     }
 
     case "modelo.apagar": {
@@ -2907,12 +2935,13 @@ function processarIntencao(
         return recusa("modelo_inexistente", "Modelo de objeto não encontrado.");
       }
       const cena = estado.cenas.find((c) => c.id === atual.cenaId) ?? cenaAtiva(estado);
-      const { capacidade, modeloId, segurarS, ...simples } = m;
-      const { capacidade: _c, modeloId: _m, segurarS: _s, ...fixos } = atual;
+      const { capacidade, modeloId, segurarS, chamaM, ...simples } = m;
+      const { capacidade: _c, modeloId: _m, segurarS: _s, chamaM: _ch, ...fixos } = atual;
       const posicao = limitarNaCena({ x: m.x ?? atual.x, y: m.y ?? atual.y }, cena);
       const cap = capacidade === null ? undefined : (capacidade ?? atual.capacidade);
       const mod = modeloId === null ? undefined : (modeloId ?? atual.modeloId);
       const seg = segurarS === null ? undefined : (segurarS ?? atual.segurarS);
+      const chama = chamaM === null ? undefined : (chamaM ?? atual.chamaM);
       const ponto: PontoDeLuz = {
         ...fixos,
         ...semIndefinidos(simples),
@@ -2920,6 +2949,7 @@ function processarIntencao(
         ...(cap === undefined ? {} : { capacidade: cap }),
         ...(mod === undefined ? {} : { modeloId: mod }),
         ...(seg === undefined ? {} : { segurarS: seg }),
+        ...(chama === undefined ? {} : { chamaM: chama }),
       };
       if (JSON.stringify(ponto) === JSON.stringify(atual)) return aplicado();
       emitir({ tipo: "ponto.alterado", dados: { ponto } });

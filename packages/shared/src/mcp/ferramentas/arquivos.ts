@@ -34,6 +34,8 @@ const FORMAS_DO_USO = [
   "handout",
   "imagem do handout",
   "som",
+  "animacao",
+  "animação",
   "compendio",
   "compêndio",
   "mapa universal vtt",
@@ -59,6 +61,9 @@ function usoDe(forma: (typeof FORMAS_DO_USO)[number]): UsoDeEnvio {
     case "handout":
     case "imagem do handout":
       return "handout";
+    case "animacao":
+    case "animação":
+      return "animacao";
     case "compendio":
     case "compêndio":
       return "compendio";
@@ -198,8 +203,8 @@ function pedidoDe(
 export const arquivos = definir({
   nome: "arquivos",
   descricao: [
-    "Sobe arquivos do computador para a mesa (mapa, token, retrato, aparência e símbolo da ficha, handout, som, compêndio) e usa os que já estão nela. Fluxo: chame `enviar`, rode no shell o comando que ela devolve (curl) e pronto: a resposta do curl diz o que foi feito.",
-    'O link de `enviar` vale 15 min, uma vez: `curl -sS -T "<caminho do arquivo>" "<link>"`. Sem shell, passe o arquivo em `base64` (até 2 MB). Formatos: imagem png, jpg, webp ou gif; som mp3, ogg ou wav; compêndio json.',
+    "Sobe arquivos do computador para a mesa (mapa, token, retrato, aparência e símbolo da ficha, handout, som, animação, compêndio) e usa os que já estão nela. Fluxo: chame `enviar`, rode no shell o comando que ela devolve (curl) e pronto: a resposta diz o que foi feito.",
+    'O link de `enviar` vale 15 min, uma vez: `curl -sS -T "<caminho do arquivo>" "<link>"`. Sem shell, passe `base64` (até 2 MB). Formatos: imagem png, jpg, webp ou gif; som mp3, ogg ou wav; animação gif, webp ou apng; compêndio json.',
     'Mapa do Dungeondraft (.dd2vtt, .uvtt, .df2vtt): `uso` "dungeondraft"; o navegador do mestre cria uma cena nova (mapa, paredes, portas, luzes) sem levar o grupo. Só o mestre.',
     "Alvos, pelo nome: mapa -> `cena` (padrão: a ativa); token -> `token` (e `cena`) ou `ficha` (token padrão); retrato, aparencia e simbolo -> `ficha`; handout -> `handout`; som -> entra na mesa (a ferramenta `som` o põe num lugar). No mapa, `quadrados` (45 = 45 x 45) ou `pxPorQuadrado` (padrão 70) ajusta o tamanho da cena.",
     "`estado` consulta um envio (`envio`: o id) e espera até 20 s. `listar` mostra os arquivos da mesa e onde são usados (só o mestre). `usar` põe na mesa um arquivo que já existe (`hash`: 6+ letras do `listar`, e o mesmo `uso` e alvo do `enviar`), sem reenviar. O que o Claude põe vale no lote do `desfazer`; o arquivo fica na pasta.",
@@ -266,7 +271,9 @@ export const arquivos = definir({
         ...lista.slice(0, 80).map((a) => {
           const usos = ondeEhUsado(estado, a.hash);
           const dim =
-            a.tipo === "som" || a.tipo === "compendio" ? "" : `, ${a.largura}x${a.altura}`;
+            a.tipo === "som" || a.tipo === "animacao" || a.tipo === "compendio"
+              ? ""
+              : `, ${a.largura}x${a.altura}`;
           return `- ${a.nomeOriginal} (${a.tipo}${dim}${a.bytes > 0 ? `, ${tamanho(a.bytes)}` : ""}) [hash ${a.hash.slice(0, 12)}] — ${usos.length > 0 ? `usado em: ${usos.join("; ")}` : "sem uso"}`;
         }),
         ...(lista.length > 80 ? [`...e mais ${lista.length - 80}.`] : []),
@@ -289,7 +296,7 @@ export const arquivos = definir({
 
     if (e.uso === undefined)
       throw new ErroDoMcp(
-        "Diga o `uso`: mapa, token, retrato, aparência, símbolo, handout, som, compêndio ou dungeondraft (mapa Universal VTT).",
+        "Diga o `uso`: mapa, token, retrato, aparência, símbolo, handout, som, animação, compêndio ou dungeondraft (mapa Universal VTT).",
       );
     const uso = usoDe(e.uso);
     const alvo = alvoDoPedido(estado, e);
@@ -316,9 +323,11 @@ export const arquivos = definir({
           ? meta.tipo === "mapa"
           : uso === "som"
             ? meta.tipo === "som"
-            : uso === "compendio"
-              ? meta.tipo === "compendio"
-              : meta.tipo === "token" || meta.tipo === "retrato";
+            : uso === "animacao"
+              ? meta.tipo === "animacao"
+              : uso === "compendio"
+                ? meta.tipo === "compendio"
+                : meta.tipo === "token" || meta.tipo === "retrato";
       if (!serve) {
         throw new ErroDoMcp(
           `O arquivo "${meta.nomeOriginal}" é do tipo ${meta.tipo} e não serve para ${ROTULO_DO_USO[uso]}.`,

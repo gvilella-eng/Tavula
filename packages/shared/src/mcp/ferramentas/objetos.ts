@@ -4,11 +4,27 @@ import { ErroDoMcp } from "../erros.ts";
 import { num } from "../formato.ts";
 import { achar, acharExato, novoId } from "../nomes.ts";
 import type { Lote } from "../tipos.ts";
+import { animacaoPorNome } from "./achados.ts";
 import { type Contexto, cadaItem, definir, passo, Relatorio } from "./base.ts";
 import { emMetros, ParSchema } from "./cenasUtil.ts";
 import { AjusteDeObjetoSchema, ajustar, TochaPedidaSchema, tocha } from "./objetosM2.ts";
 
 const Cor = z.string().regex(/^#[0-9a-fA-F]{6}$/);
+
+const ChamaSchema = z
+  .object({
+    larguraM: z.number().min(0.1).max(30),
+    alturaM: z.number().min(0.1).max(30),
+  })
+  .strict();
+
+const AnimacoesSchema = z
+  .object({
+    forte: z.string().min(1).max(200).optional(),
+    fraca: z.string().min(1).max(200).optional(),
+    morrendo: z.string().min(1).max(200).optional(),
+  })
+  .strict();
 
 const ModeloPedidoSchema = z
   .object({
@@ -30,6 +46,12 @@ const ModeloPedidoSchema = z
       .describe("Minutos até apagar; null = não se consome."),
     ocupaMao: z.boolean().optional(),
     tags: z.array(z.string().min(1).max(32)).max(12).optional().describe('Ex.: ["chama"].'),
+    chama: ChamaSchema.optional().describe(
+      "Tamanho padrão da chama no mapa, em metros (largura e altura, esticada como uma imagem).",
+    ),
+    animacoes: AnimacoesSchema.optional().describe(
+      'Animação da chama por estágio (forte, fraca, morrendo): o nome de um arquivo já enviado (ferramenta `arquivos`, uso `animacao`) ou "padrao" para a animação padrão da mesa. Estágio que você não cita fica como está.',
+    ),
     apagar: z.boolean().optional(),
   })
   .strict();
@@ -54,6 +76,11 @@ const PontoPedidoSchema = z
       .describe("Suporte: quantos objetos cabem."),
     modelo: z.string().optional().describe("Inflamável: nome do modelo que ele vira ao queimar."),
     segurarS: z.number().min(0).max(60).optional(),
+    chama: ChamaSchema.nullable()
+      .optional()
+      .describe(
+        "Inflamável: tamanho da chama dele, em metros (aceso ou não; esticada como uma imagem). null volta ao tamanho do modelo.",
+      ),
     visivelParaJogadores: z.boolean().optional().describe("Padrão sim."),
     apagar: z.boolean().optional(),
   })
@@ -88,6 +115,24 @@ function cenaDe(estado: Estado, nome: string) {
   return achar(estado.cenas, nome, { rotulo: "cena", nomeDe: (c) => c.nome, idDe: (c) => c.id });
 }
 
+/** FG1: as animações pedidas viram hashes; "padrao" tira a do estágio. Devolve o objeto inteiro que vale depois. */
+function animacoesPedidas(
+  pedidas: ModeloPedido["animacoes"],
+  estado: Estado,
+  atuais: ModeloDeObjeto["animacoes"],
+): Record<string, string> | undefined {
+  if (pedidas === undefined) return undefined;
+  const saida: Record<string, string> = {};
+  for (const [k, v] of Object.entries(atuais ?? {})) if (v) saida[k] = v;
+  for (const [estagio, nome] of Object.entries(pedidas)) {
+    if (nome === undefined) continue;
+    const n = nome.trim().toLowerCase();
+    if (n === "padrao" || n === "padrão") delete saida[estagio];
+    else saida[estagio] = animacaoPorNome(estado, nome).hash;
+  }
+  return saida;
+}
+
 async function modelo(p: ModeloPedido, ctx: Contexto, lote: Lote): Promise<string> {
   const estado = ctx.sala.estado();
   const existente = acharExato(estado.modelos, p.nome, (m) => m.nome);
@@ -102,6 +147,7 @@ async function modelo(p: ModeloPedido, ctx: Contexto, lote: Lote): Promise<strin
       : p.duracaoMin === null
         ? null
         : Math.round(p.duracaoMin * 60);
+  const animacoes = animacoesPedidas(p.animacoes, estado, existente?.animacoes);
   if (!existente) {
     if (p.claraM === undefined) {
       throw new ErroDoMcp(
@@ -120,6 +166,8 @@ async function modelo(p: ModeloPedido, ctx: Contexto, lote: Lote): Promise<strin
       duracaoS: duracaoS === undefined ? null : duracaoS,
       ocupaMao: p.ocupaMao ?? false,
       tags: p.tags ?? [],
+      ...(p.chama ? { chamaM: p.chama } : {}),
+      ...(animacoes && Object.keys(animacoes).length > 0 ? { animacoes } : {}),
     };
     await passo(ctx, lote, "modelo.criar", { modelo: novo });
     return `Criou o modelo "${p.nome}" (luz ${num(novo.luz.claraM)} m + ${num(novo.luz.penumbraM)} m)${" (rascunho: o mestre revisa e publica)"}.`;
@@ -134,6 +182,8 @@ async function modelo(p: ModeloPedido, ctx: Contexto, lote: Lote): Promise<strin
   if (duracaoS !== undefined) mudancas.duracaoS = duracaoS;
   if (p.ocupaMao !== undefined) mudancas.ocupaMao = p.ocupaMao;
   if (p.tags !== undefined) mudancas.tags = p.tags;
+  if (p.chama !== undefined) mudancas.chamaM = p.chama;
+  if (p.animacoes !== undefined) mudancas.animacoes = animacoes ?? {};
   if (Object.keys(mudancas).length === 0) return `O modelo "${existente.nome}" não mudou.`;
   await passo(ctx, lote, "modelo.editar", { id: existente.id, mudancas });
   return `Editou o modelo "${existente.nome}" (${Object.keys(mudancas).join(", ")}).`;
@@ -173,6 +223,7 @@ async function ponto(p: PontoPedido, ctx: Contexto, lote: Lote): Promise<string>
       ...(p.capacidade !== undefined ? { capacidade: p.capacidade } : {}),
       ...(modeloId ? { modeloId } : {}),
       ...(p.segurarS !== undefined ? { segurarS: p.segurarS } : {}),
+      ...(p.chama ? { chamaM: p.chama } : {}),
       visivelParaJogadores: p.visivelParaJogadores ?? true,
     };
     await passo(ctx, lote, "ponto.criar", { cenaId: cena.id, ponto: novo });
@@ -183,6 +234,7 @@ async function ponto(p: PontoPedido, ctx: Contexto, lote: Lote): Promise<string>
   if (p.capacidade !== undefined) mudancas.capacidade = p.capacidade;
   if (modeloId) mudancas.modeloId = modeloId;
   if (p.segurarS !== undefined) mudancas.segurarS = p.segurarS;
+  if (p.chama !== undefined) mudancas.chamaM = p.chama;
   if (p.visivelParaJogadores !== undefined) mudancas.visivelParaJogadores = p.visivelParaJogadores;
   if (Object.keys(mudancas).length === 0) return `O ponto "${existente.nome}" não mudou.`;
   await passo(ctx, lote, "ponto.editar", { id: existente.id, mudancas });

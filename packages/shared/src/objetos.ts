@@ -5,6 +5,7 @@ import type {
   Modificador,
   ObjetoDeLuz,
   PontoDeLuz,
+  TamanhoDaChama,
   Usuario,
 } from "./estado.ts";
 import { estagioDe, restanteDoObjeto, tempoDaSala } from "./relogio.ts";
@@ -231,4 +232,67 @@ export function pontoVisivelPara(
 ): boolean {
   if (usuario.papel === "mestre") return true;
   return ponto.cenaId === cenaAtivaId && ponto.visivelParaJogadores && !ponto.rascunho;
+}
+
+// ---------------------------------------------------------------------------------------------
+// FG1: a chama no mapa
+// ---------------------------------------------------------------------------------------------
+
+/** O estilo da chama padrão: a tocha (objeto que se segura) e a fogueira (o que não ocupa mão). */
+export type EstiloDaChama = "tocha" | "fogueira";
+
+/** Tamanho padrão da chama no mundo, em metros, por estilo (assumido). */
+export const CHAMA_PADRAO: Record<EstiloDaChama, TamanhoDaChama> = {
+  tocha: { larguraM: 0.6, alturaM: 0.8 },
+  fogueira: { larguraM: 1.2, alturaM: 1.2 },
+};
+
+/** O estilo da chama padrão de um modelo: quem se segura na mão é tocha; o resto, fogueira (assumido). */
+export function estiloDaChama(modelo: Pick<ModeloDeObjeto, "ocupaMao"> | undefined): EstiloDaChama {
+  return modelo && !modelo.ocupaMao ? "fogueira" : "tocha";
+}
+
+/** O tamanho da chama de um modelo: o do mestre ou o padrão do estilo. */
+export function chamaDoModelo(
+  modelo: Pick<ModeloDeObjeto, "ocupaMao" | "chamaM"> | undefined,
+): TamanhoDaChama {
+  return modelo?.chamaM ?? CHAMA_PADRAO[estiloDaChama(modelo)];
+}
+
+/** O tamanho da chama de um ponto: o próprio (se o mestre esticou) ou o do modelo dele. */
+export function chamaDoPonto(
+  ponto: Pick<PontoDeLuz, "chamaM">,
+  modelo: Pick<ModeloDeObjeto, "ocupaMao" | "chamaM"> | undefined,
+): TamanhoDaChama {
+  return ponto.chamaM ?? chamaDoModelo(modelo);
+}
+
+/**
+ * FG1: o objeto de um modelo depois que o mestre editou o modelo ("ao vivo"). Muda o que é do modelo (nome, luz,
+ * duração); o que é do objeto fica (estado, portador, intensidade, modificadores, histórico). O tempo que resta fica
+ * como está, limitado à duração nova; modelo que passa a ter duração dá o saldo cheio a quem não tinha.
+ */
+export function objetoComModeloNovo(
+  objeto: ObjetoDeLuz,
+  antigo: ModeloDeObjeto,
+  novo: ModeloDeObjeto,
+  salaMs: number,
+): ObjetoDeLuz {
+  const duracaoMs = novo.duracaoS === null ? null : novo.duracaoS * 1000;
+  const { duracaoMs: _antiga, ...semDuracao } = {
+    ...objeto,
+    nome: objeto.nome === antigo.nome ? novo.nome : objeto.nome,
+    luz: { ...novo.luz },
+  };
+  if (duracaoMs === null) return { ...semDuracao, saldoMs: null };
+  const restante = restanteDoObjeto(objeto, salaMs);
+  const recomeca = restante === null || restante > duracaoMs;
+  const acesa = objeto.estado === "acesa";
+  return {
+    ...semDuracao,
+    duracaoMs,
+    // O saldo só muda se estourou a duração nova (ou não existia); com a contagem em curso, ela recomeça agora.
+    saldoMs: recomeca ? duracaoMs : (objeto.saldoMs ?? duracaoMs),
+    ...(acesa ? { acesaDesdeSala: recomeca ? salaMs : (objeto.acesaDesdeSala ?? salaMs) } : {}),
+  };
 }

@@ -448,9 +448,12 @@ test("objeto de luz na linha do equipamento: vale o modelo da mesa (nome qualque
   await ficha.locator('[data-testid^="item-alternar-"]').click();
   await expect(usada).toContainText("em uso");
 
-  // o jogador que edita o Aldric vê o mesmo e não repõe (o + fica desabilitado)
+  // o jogador que edita o Aldric vê o mesmo e (FG1) também repõe: o + fica habilitado
   await m.getByTestId("janela-ficha-fechar").click();
   const doJogador = await abrirFicha(j1.pagina, "pers-aldric", "principal");
-  await expect(doJogador.getByTestId(`item-mais-${luz}`)).toHaveAttribute("aria-disabled", "true");
+  await expect(doJogador.getByTestId(`item-mais-${luz}`)).not.toHaveAttribute(
+    "aria-disabled",
+    "true",
+  );
   await expect(doJogador.locator('[data-testid^="item-usada-texto-"]')).toContainText("Brasa Viva");
 });

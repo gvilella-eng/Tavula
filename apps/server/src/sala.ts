@@ -1775,9 +1775,11 @@ export class Sala extends DurableObject<Env> {
         ? meta.tipo === "mapa"
         : e.uso === "som"
           ? meta.tipo === "som"
-          : e.uso === "compendio"
-            ? meta.tipo === "compendio"
-            : meta.tipo === "token" || meta.tipo === "retrato";
+          : e.uso === "animacao"
+            ? meta.tipo === "animacao"
+            : e.uso === "compendio"
+              ? meta.tipo === "compendio"
+              : meta.tipo === "token" || meta.tipo === "retrato";
     if (!tipoCerto) return falhar("O arquivo processado não é do tipo certo para este uso.");
 
     const aplicar = usoDoArquivo(e.uso, e.alvo, hash, meta, e.opcoes, {

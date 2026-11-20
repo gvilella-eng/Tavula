@@ -207,3 +207,9 @@ git).
 - **Subgrafos** (agrupar nós numa caixa com nome) e **notas** soltas na grade.
 - **Condições por NPC ou por jogador específico**, e uma porta de comparação (maior, menor) para contadores.
 - Mesa de eventos com **grupos de botões** (abas) e com **atalhos de teclado**.
+
+## Depois do FG1 (2026-11-20)
+
+- **A luz acompanha o tamanho da chama:** uma opção no modelo (ou no ponto) para os raios de luz crescerem e encolherem junto com o tamanho da chama que o mestre esticou. Hoje a chama é só visual; a luz é a do modelo.
+- **Login no portal Távola, não por mesa:** decisão do Vilella (2026-11-20): o login passa a ser no portal Távola, e não por mesa (a pensar depois).
+- **Chama animada no pino da tocha na mão** e prévia da animação no editor do modelo.

@@ -6,6 +6,7 @@ import { aplicarTema, CHAVE_TEMA, lerTema } from "../tema/temas";
 import { useSala } from "../useSala";
 import { anunciarFalando } from "./canalDaChamada";
 import { ControleDaChamada } from "./controlador";
+import { definirPessoasFalsas } from "./pessoasFalsas";
 import { TelaDaChamada } from "./TelaDaChamada";
 
 const semExportar = () => {};
@@ -43,8 +44,11 @@ export function ChamadaEmJanelaPropria({ mesa, aoPerderSessao }: Props) {
     setControle(c);
     void c.iniciar();
     const w = window as unknown as { __tabletopChamada?: unknown };
-    if (import.meta.env.MODE === "e2e")
+    if (import.meta.env.MODE === "e2e") {
       w.__tabletopChamada = { diagnostico: () => c.diagnostico() };
+      (window as unknown as { __tabletopChamadaFalsas?: unknown }).__tabletopChamadaFalsas =
+        definirPessoasFalsas;
+    }
     return () => {
       c.encerrar();
       setControle(null);

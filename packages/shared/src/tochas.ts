@@ -306,7 +306,11 @@ export function tocharAlternar(
   return {};
 }
 
-function podeCap(e: Estado, usuario: Usuario, cap: "tocha.acender" | "luz.apagar" | "ponto.usar") {
+function podeCap(
+  e: Estado,
+  usuario: Usuario,
+  cap: "tocha.acender" | "luz.apagar" | "ponto.usar" | "equipamento.dar",
+) {
   if (usuario.papel === "mestre") return true;
   if (usuario.papel !== "jogador") return false;
   const excecao = e.permissoes.porUsuario[usuario.id]?.[cap];
@@ -650,6 +654,13 @@ export function mochilaAjustar(
   const e = c.atual();
   const p = e.personagens.find((x) => x.id === d.personagemId);
   if (!p) return erro("personagem_inexistente", SEM_PERSONAGEM);
+  // FG1: o mestre ajusta qualquer mochila; o jogador, a de quem ele controla, se `equipamento.dar` estiver ligada.
+  if (!ehMestre(c)) {
+    if (!personagemVisivelDe(c, p.id)) return erro("personagem_inexistente", SEM_PERSONAGEM);
+    if (!controlaPersonagem(e, p, c.usuario) || !podeCap(e, c.usuario, "equipamento.dar")) {
+      return erro("sem_permissao", "Você não mexe no equipamento deste personagem.");
+    }
+  }
   const modelo = e.modelos.find((m) => m.id === d.modeloId);
   if (!modelo) return erro("modelo_inexistente", "Modelo de objeto não encontrado.");
   const ficha = ajustarNovas(p.ficha, modelo, d.delta);

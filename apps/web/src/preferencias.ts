@@ -193,3 +193,33 @@ export function gravarSecaoDePreferencias(id: string, aberta: boolean): void {
     // sem localStorage: vale só nesta sessão
   }
 }
+
+// --- itens de modelo recolhidos na ficha (FG1, só deste navegador) -------------------------------
+
+export const CHAVE_ITENS_RECOLHIDOS = "tabletop:pref:itensRecolhidos";
+
+/** Quais itens de modelo (tocha...) a pessoa recolheu: chave `personagem:modelo`; o que nunca mexeu fica aberto. */
+export function lerItensRecolhidos(): Record<string, boolean> {
+  try {
+    const bruto = localStorage.getItem(CHAVE_ITENS_RECOLHIDOS);
+    if (!bruto) return {};
+    const lido: unknown = JSON.parse(bruto);
+    if (typeof lido !== "object" || lido === null || Array.isArray(lido)) return {};
+    const saida: Record<string, boolean> = {};
+    for (const [id, v] of Object.entries(lido)) if (v === true) saida[id] = true;
+    return saida;
+  } catch {
+    return {};
+  }
+}
+
+export function gravarItemRecolhido(chave: string, recolhido: boolean): void {
+  try {
+    const todos = lerItensRecolhidos();
+    if (recolhido) todos[chave] = true;
+    else delete todos[chave];
+    localStorage.setItem(CHAVE_ITENS_RECOLHIDOS, JSON.stringify(todos));
+  } catch {
+    // sem localStorage: vale só nesta sessão
+  }
+}

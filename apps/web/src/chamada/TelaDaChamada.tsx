@@ -27,6 +27,8 @@ import { BotaoComDica } from "../BotaoComDica";
 import { abrirSomEmJanela, TEXTO_DO_POPUP_BLOQUEADO } from "../ficha/foraDaMesa";
 import { useMusicaAgora } from "../som/useMusicaAgora";
 import type { ControleDaChamada } from "./controlador";
+import { GradeDeQuadros, type MedidaDoQuadro } from "./GradeDeQuadros";
+import { usePessoasFalsas } from "./pessoasFalsas";
 import {
   ehEstreita,
   formatarTempo,
@@ -560,6 +562,7 @@ function useDadosDosQuadros(controle: ControleDaChamada, estadoSala: Estado, eu:
       conectando: !euSou && e.conexoes[u.id] !== "connected",
     });
   }
+  quadros.push(...usePessoasFalsas());
   return { e, quadros };
 }
 
@@ -623,16 +626,18 @@ function ListaDePessoas({
             {estaAberta && (
               <div className="chamada-volume" data-testid={`chamada-volume-${u.id}`}>
                 <label className="chamada-volume-linha">
-                  Volume para você
-                  <input
-                    type="range"
-                    min={VOLUME_MINIMO}
-                    max={VOLUME_MAXIMO}
-                    value={pref.volume}
-                    data-testid={`chamada-volume-faixa-${u.id}`}
-                    onChange={(ev) => controle.definirVolume(u.id, Number(ev.target.value))}
-                  />
-                  <span className="chamada-volume-valor">{pref.volume}%</span>
+                  <span className="chamada-volume-rotulo">Volume para você</span>
+                  <span className="chamada-volume-controle">
+                    <input
+                      type="range"
+                      min={VOLUME_MINIMO}
+                      max={VOLUME_MAXIMO}
+                      value={pref.volume}
+                      data-testid={`chamada-volume-faixa-${u.id}`}
+                      onChange={(ev) => controle.definirVolume(u.id, Number(ev.target.value))}
+                    />
+                    <span className="chamada-volume-valor">{pref.volume}%</span>
+                  </span>
                 </label>
                 <label className="chamada-marca">
                   <input
@@ -741,13 +746,14 @@ function DentroDaChamada(p: Dentro) {
   const tempo = e.entrouEmMs ? formatarTempo(agora - e.entrouEmMs) : "0:00";
   const resumo = `${p.mesaNome} · ${pessoas} ${pessoas === 1 ? "pessoa" : "pessoas"} · ${tempo}`;
 
-  const quadroTrilha = (pequeno: boolean) => (
+  const quadroTrilha = (pequeno: boolean, medida?: MedidaDoQuadro) => (
     <QuadroDaTrilha
       tocando={trilha.tocando}
       titulo={trilha.titulo}
       subtitulo={trilha.subtitulo}
       musica={trilha.musica}
       pequeno={pequeno}
+      medida={medida}
       euMestre={euMestre}
       aoAbrirSom={abrirSom}
       aoMusica={(acao) => p.enviar("musica.controle", { acao })}
@@ -838,18 +844,7 @@ function DentroDaChamada(p: Dentro) {
             </li>
           </ul>
         ) : (
-          <main
-            className="chamada-quadros"
-            data-testid="chamada-quadros"
-            style={{ "--n": Math.max(1, quadros.length) } as CSSProperties}
-          >
-            {quadros.map((q) => (
-              <div className="chamada-celula" key={q.usuario.id}>
-                <QuadroDaPessoa d={q} />
-              </div>
-            ))}
-            <div className="chamada-celula">{quadroTrilha(false)}</div>
-          </main>
+          <GradeDeQuadros quadros={quadros} trilha={(m) => quadroTrilha(false, m)} />
         )}
         {!estreita && lista && (
           <ListaDePessoas

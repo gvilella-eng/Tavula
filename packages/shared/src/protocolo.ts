@@ -400,6 +400,8 @@ const MudancasDoPontoSchema = z
     capacidade: PontoDeLuzSchema.shape.capacidade.unwrap().nullable(),
     modeloId: PontoDeLuzSchema.shape.modeloId.unwrap().nullable(),
     segurarS: PontoDeLuzSchema.shape.segurarS.unwrap().nullable(),
+    /** FG1: `null` volta ao tamanho do modelo. */
+    chamaM: PontoDeLuzSchema.shape.chamaM.unwrap().nullable(),
     visivelParaJogadores: z.boolean(),
   })
   .partial();
@@ -881,7 +883,7 @@ export const IntencaoSchema = z.discriminatedUnion("tipo", [
   intencao("ponto.acenderFim", z.object({ pontoId: IdSchema, objetoId: IdSchema })),
   /** Ajustes individuais do mestre num objeto de luz (tempo, modificador de raio, consumir). */
   intencao("objeto.ajustar", z.object({ id: IdSchema, ajuste: AjusteDoObjetoSchema })),
-  /** Mestre: muda a quantidade de objetos novos de um modelo na mochila. */
+  /** Muda a quantidade de objetos novos de um modelo na mochila (mestre; o jogador, só no personagem dele). */
   intencao(
     "mochila.ajustar",
     z.object({
@@ -1276,7 +1278,8 @@ export const capacidadeDaIntencao: Record<TipoIntencao, Capacidade | null> = {
   "ponto.acenderInicio": "ponto.usar",
   "ponto.acenderFim": "ponto.usar",
   "objeto.ajustar": "objeto.ajustar",
-  "mochila.ajustar": "objeto.ajustar",
+  // FG1: o mestre, ou o jogador no personagem dele com `equipamento.dar`; `processar` confere.
+  "mochila.ajustar": null,
   "memoria.esquecer": "mesa.configurar",
   "porta.alternar": "porta.abrir",
   // Todos falam, rolam e leem o próprio histórico; o oculto (`dado.rolarOculto`) é conferido dentro.
