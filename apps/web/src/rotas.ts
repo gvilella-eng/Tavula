@@ -14,6 +14,8 @@ export type Rota =
       bruto: string;
       fichaId?: string;
       painel?: "som" | "chamada";
+      /** AU1: `/m/<id>/automacao/<fluxoId>` (ou `/automacao/nova`) mostra só o editor da automação, na janela própria. */
+      automacaoId?: string;
     };
 
 const decodificar = (texto: string): string => {
@@ -25,7 +27,9 @@ const decodificar = (texto: string): string => {
 };
 
 export function lerRota(caminho: string): Rota {
-  const m = /^\/m\/([^/]+)(?:\/ficha\/([^/]+)|\/(som|chamada))?\/?$/.exec(caminho);
+  const m = /^\/m\/([^/]+)(?:\/ficha\/([^/]+)|\/(som|chamada)|\/automacao\/([^/]+))?\/?$/.exec(
+    caminho,
+  );
   if (!m) return { tipo: "inicio" };
   const bruto = decodificar(m[1] ?? "");
   const fichaId = m[2] === undefined ? undefined : decodificar(m[2]);
@@ -35,6 +39,7 @@ export function lerRota(caminho: string): Rota {
     bruto,
     ...(fichaId ? { fichaId } : {}),
     ...(m[3] === "som" || m[3] === "chamada" ? { painel: m[3] } : {}),
+    ...(m[4] === undefined ? {} : { automacaoId: decodificar(m[4]) }),
   };
 }
 
@@ -49,6 +54,10 @@ export const caminhoDoSom = (mesaId: string) => `/m/${mesaId}/som`;
 
 /** A rota da chamada da mesa na janela própria (CH1). */
 export const caminhoDaChamada = (mesaId: string) => `/m/${mesaId}/chamada`;
+
+/** A rota do editor de uma automação na janela própria (AU1): `nova` é uma automação nova. */
+export const caminhoDaAutomacao = (mesaId: string, fluxoId: string | null) =>
+  `/m/${mesaId}/automacao/${encodeURIComponent(fluxoId ?? "nova")}`;
 
 /** O link completo de uma mesa, para copiar e mandar. */
 export const linkDaMesa = (id: string) => `${location.origin}${caminhoDaMesa(id)}`;

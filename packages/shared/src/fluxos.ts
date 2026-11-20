@@ -1,0 +1,304 @@
+import { z } from "zod";
+import { HashSchema } from "./assets.ts";
+import { NomeDeEventoSchema } from "./automacoesLegado.ts";
+import { ParaQuemOSomSchema, VolumeSchema } from "./som.ts";
+
+// ---------------------------------------------------------------------------------------------
+// AU1: as automações por blocos (seção 4.11). Um FLUXO tem um gatilho (o "Quando") e uma ou mais trilhas; cada trilha é uma
+// lista de blocos que roda de cima para baixo: esperar, se, sortear, para cada, ação (o "Faça") e sinal. O fluxo é uma
+// árvore (nada de fio solto): "se" e "sortear" têm as saídas sim e não, "para cada" tem um corpo.
+//
+// Sigilo (regra 7): os fluxos moram em `Estado.automacoes`, que SÓ o mestre recebe.
+// ---------------------------------------------------------------------------------------------
+
+const Id = z.string().min(1).max(64);
+
+/** Limites (assumido). O corte vai ao registro do motor. */
+export const MAXIMO_DE_FLUXOS = 60;
+export const MAXIMO_DE_TRILHAS = 8;
+export const MAXIMO_DE_BLOCOS_POR_FLUXO = 80;
+export const PROFUNDIDADE_DA_ARVORE = 6;
+export const MAXIMO_DE_EXECUCOES_ESPERANDO = 200;
+export const MAXIMO_DE_PRAZO_S = 7 * 86400;
+/** Prazo de um efeito temporário quando a ação não diz quanto. */
+export const PRAZO_PADRAO_S = 30;
+
+const Segundos = z.number().positive().max(MAXIMO_DE_PRAZO_S);
+const Etiqueta = z.string().trim().min(1).max(32);
+
+// --- O gatilho: "Quando" ---------------------------------------------------------------------
+
+export const GatilhoSchema = z.discriminatedUnion("tipo", [
+  /** A cada `cadaS` segundos (tempo da sala). Dispara ao começar, ou depois de `primeiroS` (assumido: já). */
+  z.object({
+    tipo: z.literal("relogio"),
+    cadaS: Segundos,
+    primeiroS: z.number().min(0).max(MAXIMO_DE_PRAZO_S).optional(),
+  }),
+  /** Um botão do mestre (o `nome` é o rótulo), em todas as cenas ou só em `cena`. */
+  z.object({
+    tipo: z.literal("botao"),
+    nome: z.string().trim().min(1).max(40),
+    cena: Id.optional(),
+  }),
+  /** Ao receber um sinal mandado por outro fluxo. */
+  z.object({ tipo: z.literal("sinal"), nome: NomeDeEventoSchema }),
+  /** Uma tocha (objeto de luz) acendeu ou apagou; `modelo` e `etiqueta` filtram. */
+  z.object({
+    tipo: z.literal("tocha"),
+    muda: z.enum(["acende", "apaga"]),
+    modelo: Id.optional(),
+    etiqueta: Etiqueta.optional(),
+  }),
+  /** Um token entrou numa zona ou saiu dela. */
+  z.object({ tipo: z.literal("zona"), quando: z.enum(["entra", "sai"]), zona: Id.optional() }),
+  /** Começou o turno de alguém no combate. */
+  z.object({ tipo: z.literal("turno") }),
+  /** O grupo foi para outra cena (qualquer uma, ou só `cena`). */
+  z.object({ tipo: z.literal("cena"), cena: Id.optional() }),
+]);
+export type Gatilho = z.infer<typeof GatilhoSchema>;
+export type TipoDeGatilho = Gatilho["tipo"];
+
+// --- As condições do "se" --------------------------------------------------------------------
+
+export const CondicaoDoSeSchema = z.discriminatedUnion("condicao", [
+  /** O objeto da vez tem esta etiqueta (a do modelo dele). */
+  z.object({ condicao: z.literal("etiqueta"), etiqueta: Etiqueta }),
+  /** O objeto ou token da vez está dentro da zona. */
+  z.object({ condicao: z.literal("dentroDaZona"), zona: Id }),
+  /** O objeto da vez (ou a cena do fluxo) está numa destas cenas. Dentro do "sim", só elas valem. */
+  z.object({ condicao: z.literal("cena"), cenas: z.array(Id).min(1).max(100) }),
+  /** A zona está ligada. */
+  z.object({ condicao: z.literal("zonaLigada"), zona: Id }),
+]);
+export type CondicaoDoSe = z.infer<typeof CondicaoDoSeSchema>;
+
+// --- O "Faça": as ações ----------------------------------------------------------------------
+
+const Prazo = Segundos.optional();
+
+/** A lista FECHADA de ações (regra 1). O alvo vem do contexto: o objeto ou token da vez ("para cada", ou o do gatilho). */
+export const AcaoDeFluxoSchema = z.discriminatedUnion("acao", [
+  /** Multiplica (`raioX`) e/ou soma (`raioSomaM`) o raio da luz por um prazo: um modificador, nunca o valor base. */
+  z
+    .object({
+      acao: z.literal("luz.modificar"),
+      raioX: z.number().min(0.1).max(5).optional(),
+      raioSomaM: z.number().min(-100).max(100).optional(),
+      porS: Prazo,
+    })
+    .refine((a) => a.raioX !== undefined || a.raioSomaM !== undefined, {
+      message: "Diga quanto a luz muda (multiplicar ou somar).",
+    }),
+  /** Apaga o objeto aceso (com `chance`) e desconta `penalidadeS` do que sobra. */
+  z.object({
+    acao: z.literal("objeto.apagar"),
+    chance: z.number().min(0).max(1).optional(),
+    penalidadeS: z
+      .number()
+      .min(0)
+      .max(100 * 3600)
+      .optional(),
+  }),
+  /** Soma ou tira tempo do que sobra do objeto. */
+  z.object({
+    acao: z.literal("objeto.ajustarTempo"),
+    deltaS: z
+      .number()
+      .min(-100 * 3600)
+      .max(100 * 3600)
+      .refine((n) => n !== 0, "O ajuste não pode ser zero."),
+  }),
+  /** Limita o alcance de visão do token por um prazo (um efeito, nunca o valor base). */
+  z.object({
+    acao: z.literal("visao.limitar"),
+    alcanceM: z.number().min(0.5).max(1000),
+    porS: Prazo,
+  }),
+  /** Uma linha no chat da mesa, para todos ou só para o mestre. */
+  z.object({
+    acao: z.literal("chat.anunciar"),
+    texto: z.string().trim().min(1).max(300),
+    para: z.enum(["todos", "mestre"]).default("todos"),
+  }),
+  /** Toca um som uma vez (o asset `som` já registrado). O mestre ouve sempre. */
+  z.object({
+    acao: z.literal("som.tocar"),
+    hash: HashSchema,
+    nome: z.string().trim().min(1).max(200),
+    volume: VolumeSchema.default(0.8),
+    para: ParaQuemOSomSchema.default("todos"),
+  }),
+  z.object({ acao: z.literal("token.mostrar") }),
+  z.object({ acao: z.literal("token.ocultar") }),
+  /** Liga ou desliga uma zona. Desligada, nada fica preso nela. */
+  z.object({ acao: z.literal("zona.ativar"), zona: Id, ativa: z.boolean() }),
+]);
+export type AcaoDeFluxo = z.infer<typeof AcaoDeFluxoSchema>;
+export type TipoDeAcaoDeFluxo = AcaoDeFluxo["acao"];
+
+/** As ações que mexem num objeto de luz e as que mexem num token (o resto não precisa de alvo). */
+export const ACOES_DE_OBJETO: readonly TipoDeAcaoDeFluxo[] = [
+  "luz.modificar",
+  "objeto.apagar",
+  "objeto.ajustarTempo",
+];
+export const ACOES_DE_TOKEN: readonly TipoDeAcaoDeFluxo[] = [
+  "visao.limitar",
+  "token.mostrar",
+  "token.ocultar",
+];
+
+// --- O "para cada" ---------------------------------------------------------------------------
+
+export const AlvoDoParaCadaSchema = z.discriminatedUnion("tipo", [
+  /** Cada objeto de luz (nas cenas do fluxo) que passe nos filtros. */
+  z.object({
+    tipo: z.literal("objetos"),
+    modelo: Id.optional(),
+    etiqueta: Etiqueta.optional(),
+    /** Só os acesos. */
+    acesos: z.boolean().optional(),
+    naZona: Id.optional(),
+  }),
+  /** Cada token (nas cenas do fluxo) que passe nos filtros. */
+  z.object({
+    tipo: z.literal("tokens"),
+    naZona: Id.optional(),
+    naCena: Id.optional(),
+    ids: z.array(Id).min(1).max(50).optional(),
+  }),
+]);
+export type AlvoDoParaCada = z.infer<typeof AlvoDoParaCadaSchema>;
+
+// --- Os blocos -------------------------------------------------------------------------------
+
+export type Bloco =
+  | { bloco: "esperar"; s: number }
+  | { bloco: "se"; condicao: CondicaoDoSe; sim: Bloco[]; nao: Bloco[] }
+  | { bloco: "sortear"; chance: number; sim: Bloco[]; nao: Bloco[] }
+  | { bloco: "paraCada"; alvo: AlvoDoParaCada; corpo: Bloco[] }
+  | { bloco: "acao"; acao: AcaoDeFluxo }
+  | { bloco: "sinal"; nome: string; atrasoS?: number | undefined };
+
+export const TIPOS_DE_BLOCO = ["esperar", "se", "sortear", "paraCada", "acao", "sinal"] as const;
+export type TipoDeBloco = (typeof TIPOS_DE_BLOCO)[number];
+
+/**
+ * O esquema dos blocos, com o esquema da ação como parâmetro (o MCP troca o hash do som pelo nome do arquivo). Recursivo:
+ * "se" e "sortear" têm as saídas `sim` e `nao`, "para cada" tem um `corpo`.
+ */
+export function criarBlocoSchema(acao: z.ZodType): z.ZodType<Bloco, unknown> {
+  const bloco: z.ZodType<Bloco, unknown> = z.lazy(() =>
+    z.discriminatedUnion("bloco", [
+      z.object({ bloco: z.literal("esperar"), s: Segundos }),
+      z.object({
+        bloco: z.literal("se"),
+        condicao: CondicaoDoSeSchema,
+        sim: z.array(bloco).max(MAXIMO_DE_BLOCOS_POR_FLUXO),
+        nao: z.array(bloco).max(MAXIMO_DE_BLOCOS_POR_FLUXO).default([]),
+      }),
+      z.object({
+        bloco: z.literal("sortear"),
+        chance: z.number().min(0).max(1),
+        sim: z.array(bloco).max(MAXIMO_DE_BLOCOS_POR_FLUXO),
+        nao: z.array(bloco).max(MAXIMO_DE_BLOCOS_POR_FLUXO).default([]),
+      }),
+      z.object({
+        bloco: z.literal("paraCada"),
+        alvo: AlvoDoParaCadaSchema,
+        corpo: z.array(bloco).max(MAXIMO_DE_BLOCOS_POR_FLUXO),
+      }),
+      z.object({ bloco: z.literal("acao"), acao }),
+      z.object({
+        bloco: z.literal("sinal"),
+        nome: NomeDeEventoSchema,
+        atrasoS: z.number().min(0).max(MAXIMO_DE_PRAZO_S).optional(),
+      }),
+    ]),
+  ) as z.ZodType<Bloco, unknown>;
+  return bloco;
+}
+
+export const BlocoSchema: z.ZodType<Bloco, unknown> = criarBlocoSchema(AcaoDeFluxoSchema);
+
+// --- O fluxo ---------------------------------------------------------------------------------
+
+export const FluxoSchema = z.object({
+  id: Id,
+  nome: z.string().trim().min(1, "Dê um nome à automação.").max(64),
+  /** Desligado, não roda (nem o relógio anda). */
+  ligado: z.boolean().default(true),
+  /** As cenas onde o fluxo vale. `null` (ou vazio) = todas. */
+  cenas: z.array(Id).max(100).nullable().default(null),
+  /** O chip do fluxo fica na barra de cima do mestre (preferência dele; só relógio e botão). */
+  fixado: z.boolean().optional(),
+  /** O mestre libera o botão (gatilho "botão") ou os controles (gatilho "relógio") a todos os jogadores. */
+  liberadoParaJogadores: z.boolean().optional(),
+  /** 12-1: rascunho do Claude do mestre: não roda e o jogador não o recebe. */
+  rascunho: z.boolean().optional(),
+  gatilho: GatilhoSchema,
+  trilhas: z.array(z.array(BlocoSchema)).min(1).max(MAXIMO_DE_TRILHAS),
+});
+export type Fluxo = z.infer<typeof FluxoSchema>;
+
+/** Os campos que se mudam num `fluxo.editar` (todos opcionais; a sala junta e confere o fluxo inteiro de novo). */
+export const MudancasDoFluxoSchema = z
+  .object({
+    nome: FluxoSchema.shape.nome,
+    ligado: z.boolean(),
+    cenas: z.array(Id).max(100).nullable(),
+    fixado: z.boolean(),
+    liberadoParaJogadores: z.boolean(),
+    gatilho: GatilhoSchema,
+    trilhas: FluxoSchema.shape.trilhas,
+  })
+  .partial();
+export type MudancasDoFluxo = z.infer<typeof MudancasDoFluxoSchema>;
+
+// --- A execução ------------------------------------------------------------------------------
+
+/**
+ * O relógio de um fluxo de relógio, no TEMPO DA SALA (pausar a mesa o congela). O tempo do fluxo, τ, é `salaMs − baseSala`
+ * (ou `pausadoEmTau`, se está desligado). `proximoTau`: quando dispara de novo.
+ */
+export const ExecucaoDoFluxoSchema = z.object({
+  baseSala: z.number(),
+  pausadoEmTau: z.number().nonnegative().optional(),
+  proximoTau: z.number().nonnegative(),
+});
+export type ExecucaoDoFluxo = z.infer<typeof ExecucaoDoFluxoSchema>;
+
+/**
+ * O contexto de uma execução: o escopo de cenas e de quem o fluxo trata (o objeto, o token e a zona do evento, ou o alvo
+ * do "para cada" atual).
+ */
+export const ContextoDoFluxoSchema = z.object({
+  cenas: z.array(Id).max(100).nullable(),
+  objetoId: Id.optional(),
+  tokenId: Id.optional(),
+  zonaId: Id.optional(),
+  /** Quanto o gatilho disparou do que se espera: só serve para o registro. */
+  duracaoS: Segundos.optional(),
+});
+export type ContextoDoFluxo = z.infer<typeof ContextoDoFluxoSchema>;
+
+const CaminhoSchema = z.array(z.union([z.number().int().min(0), z.string().max(8)])).max(40);
+
+/**
+ * Uma execução esperando (um "esperar", ou um sinal com atraso), guardada no estado para sobreviver à hibernação. `caminho`:
+ * onde continuar na árvore: `[trilha, i, "sim", j, ..., k]`, em que `k` é o índice do próximo bloco da lista mais funda.
+ */
+export const EsperandoSchema = z.object({
+  id: Id,
+  ateSala: z.number().nonnegative(),
+  /** Quantos sinais encadeados já vieram antes (o atraso não zera a conta). */
+  profundidade: z.number().int().min(0).max(10),
+  fluxoId: Id.optional(),
+  caminho: CaminhoSchema.optional(),
+  /** Um sinal com atraso: o nome dele (o `fluxoId` é o de quem mandou). */
+  sinal: NomeDeEventoSchema.optional(),
+  contexto: ContextoDoFluxoSchema,
+});
+export type Esperando = z.infer<typeof EsperandoSchema>;

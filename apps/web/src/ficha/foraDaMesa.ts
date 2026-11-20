@@ -1,5 +1,5 @@
 import { useEffect, useSyncExternalStore } from "react";
-import { caminhoDaChamada, caminhoDaFicha, caminhoDoSom } from "../rotas";
+import { caminhoDaAutomacao, caminhoDaChamada, caminhoDaFicha, caminhoDoSom } from "../rotas";
 
 /**
  * A ficha numa janela própria do navegador (V9). A mesa (janela principal) e as janelas das fichas se falam só por
@@ -204,6 +204,25 @@ export const ID_DA_MESA_DE_SOM = "mesa-de-som";
 
 export function abrirSomEmJanela(mesaId: string, medidaPadrao: MedidaDaJanela): boolean {
   return abrirFichaEmJanela(mesaId, ID_DA_MESA_DE_SOM, medidaPadrao, caminhoDoSom(mesaId));
+}
+
+/**
+ * AU1: o editor de uma automação numa janela própria, pelo mesmo caminho da ficha (o lock, o canal e a medida lembrada), com
+ * `automacao-<id>` (ou `automacao-nova`) no lugar do id de uma ficha. `fluxoId` `null`: uma automação nova.
+ */
+export const idDaJanelaDaAutomacao = (fluxoId: string | null) => `automacao-${fluxoId ?? "nova"}`;
+
+export function abrirAutomacaoEmJanela(
+  mesaId: string,
+  fluxoId: string | null,
+  medidaPadrao: MedidaDaJanela,
+): boolean {
+  return abrirFichaEmJanela(
+    mesaId,
+    idDaJanelaDaAutomacao(fluxoId),
+    medidaPadrao,
+    caminhoDaAutomacao(mesaId, fluxoId),
+  );
 }
 
 /**

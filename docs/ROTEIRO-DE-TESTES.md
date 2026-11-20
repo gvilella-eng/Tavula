@@ -750,3 +750,15 @@ Precisa de câmera e microfone (ou os falsos do Chrome) e de duas pessoas de ver
 11. **Substituir.** Entre pela mesma conta numa segunda janela: a primeira mostra "Você entrou na chamada por outra janela" e "Entrar de novo".
 12. **Sair.** "Sair" volta para "antes de entrar" ("Entrar de novo"). Fechar a janela também sai: o quadro some nos outros e a contagem do botão do topo cai. Na mesa, o botão do topo mostra quantos estão na chamada e a presença ganha um ícone verde em quem está.
 13. **Cheia.** Com 8 pessoas na chamada, a 9ª vê "A chamada está cheia (8)" (só dá para testar com 8 janelas; está coberto por teste de unidade).
+
+## AU1 — automações por blocos
+
+Montar a Respiração da Montanha do zero (cena "Pulmão" com algumas tochas acesas e um token):
+1. Botão **Automações** → **+ Nova automação**. Nome "Respiração". O gatilho já é "A cada 60 s": mude para 180 s e marque a cena Pulmão em "Cenas onde vale".
+2. No "+" depois do gatilho, **Para cada (tochas, tokens)**: objetos, modelo Tocha, só os acesos. No "+" dentro dele: **Luz** (×0,5 por 20 s) e **Apagar a tocha** (chance 30%, perde 300 s). Confira a frase embaixo.
+3. **Trilha em paralelo**: **Esperar** 90 s, **Para cada** tokens, **Limitar a visão** 1,5 m por 30 s. **Salvar**. A lista mostra a frase e "próxima em …".
+4. Conferir no mapa: as tochas encolhem por 20 s e algumas apagam; 90 s depois a visão dos tokens cai e volta. Pausar a mesa congela tudo.
+5. Erro: numa automação nova, ponha **Luz** solta e **Salvar**: o bloco ganha contorno e a mensagem pede o "para cada".
+
+Armadilha de zona: desenhe a zona "Armadilha", abra o painel (ferramenta Zonas), **+ automação para esta zona**, ponha **Avisar no chat**, salve, e leve um token para dentro. Teste também **Testar agora**, **Desfazer** no editor, setas e Delete, **JSON**, **Janela própria**, liberar o botão aos jogadores (menu ⋯ da lista) e **Apagar** com **Desfazer**.
+Importe a Chama Primordial: 5 automações convertidas; a Respiração igual à de cima. Peça ao Claude: "como funciona a Respiração?" (ele chama `guia` e `explicar`).

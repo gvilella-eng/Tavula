@@ -2491,3 +2491,21 @@ O Vilella perguntou se o MCP sobe áudio, seta zonas e põe características nel
 
 **O que ficou para depois**
 - Nenhum.
+
+## AU1 — como ficou (2026-11-19)
+
+### O que foi feito
+Automações por blocos: dado (`fluxos.ts`), motor (`automacoesnucleo.ts`), conversão (`fluxosConversao.ts`), frase em português (`fluxosFrase.ts`), conferência (`fluxosValidar.ts`), MCP, lista e editor (`apps/web/src/automacoes/`).
+
+### Decisões (assumido)
+- Intenções `fluxo.criar|editar|apagar|ligar|disparar` no lugar das de ciclo, reação, botão e `evento.disparar`; `botao.usar` fica (os chips: `ciclo:<id>` relógio, `evento:<id>` botão).
+- Relógio dispara ao começar (ou depois de `primeiroS`) e a cada `cadaS`; desligar congela e cancela as esperas; ligar continua.
+- Ação sem alvo não faz nada e anota no registro; o editor avisa antes. Ação de token sem token usa quem carrega o objeto da vez.
+- Um "esperar" dentro de um "para cada" segura só aquele alvo.
+- Conversão: ciclo em fluxo de relógio com uma trilha por fase; reação embutida na trilha só quando o evento tem um único emissor e todas as que o ouvem estão ligadas e fora de rascunho; senão, sinal. Mesa em andamento: o relógio recomeça. Condição `cena` estreita o escopo dentro do "sim". Reação de zona em evento que não é de zona ganha "se a zona está ligada".
+- Frase: "na cena Pulmão" (o nome do exemplo do brief, "no Pulmão", dependeria do gênero do nome).
+- Janela própria do editor: sons só entre os que já estão na mesa.
+- "rodou há …" vem de `Automacoes.ultimaVez` (campo novo, sem migração SQL).
+
+### O que ficou para depois
+Arrastar com o teclado; zoom e arrastar o canvas; colar blocos entre automações; histórico de execuções além do "rodou há" e do registro de 30 avisos.

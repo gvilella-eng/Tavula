@@ -156,16 +156,16 @@ test("o botão Automações da barra abre a janela e dá para editar por ela; o 
   await expect(p.getByTestId("automacoes-janela")).toBeVisible();
   await expect(p.getByTestId("menu-automacoes")).toHaveAttribute("aria-pressed", "true");
 
-  // edita uma automação por ela: uma reação nova aparece na lista
-  await p.getByTestId("auto-nova-reacao").click();
-  await p.getByTestId("form-reacao-nome").fill("Treme");
-  await p.getByTestId("form-reacao-ao").selectOption("__outro");
-  await p.getByTestId("form-reacao-ao-outro").fill("inspiracao");
-  await p.getByTestId("form-acao-0-tipo").selectOption("luz.modificar");
-  await p.getByTestId("form-acao-0-raioX").fill("0,5");
-  await p.getByTestId("form-acao-0-raioX").press("Tab");
-  await p.getByTestId("form-reacao-salvar").click();
-  await expect(p.getByTestId("auto-reacao-treme")).toContainText("inspiracao");
+  // edita uma automação por ela: uma automação nova (um botão que avisa no chat) aparece na lista
+  await p.getByTestId("auto-nova").click();
+  await p.getByTestId("ed-nome").fill("Treme");
+  await p.getByTestId("ed-peca-botao").click();
+  await p.getByTestId("ed-campo-botao").fill("Tremer");
+  await p.getByTestId("ed-mais-t0-0").click();
+  await p.getByTestId("ed-menu-t0-0-chat").click();
+  await p.getByTestId("ed-campo-texto").fill("A montanha treme.");
+  await p.getByTestId("ed-salvar").click();
+  await expect(p.getByTestId("auto-item-treme")).toContainText("Tremer");
 
   // o botão fecha a janela; a aba Mesa abre de novo pela linha dela
   await p.getByTestId("menu-automacoes").click();
@@ -175,10 +175,10 @@ test("o botão Automações da barra abre a janela e dá para editar por ela; o 
   await expect(p.getByTestId("mesa-secao-automacoes")).toContainText(
     "As automações ficam no botão Automações da barra de cima.",
   );
-  await expect(p.getByTestId("automacoes-resumo")).toContainText("1 reação");
+  await expect(p.getByTestId("automacoes-resumo")).toContainText("1 automação");
   await p.getByTestId("automacoes-abrir").click();
   await expect(p.getByTestId("automacoes-janela")).toBeVisible();
-  await expect(p.getByTestId("auto-reacao-treme")).toBeVisible();
+  await expect(p.getByTestId("auto-item-treme")).toBeVisible();
 });
 
 test("a aba Mesa: cartões como nas Preferências, cada um abre e fecha e os campos continuam funcionando", async ({

@@ -216,23 +216,15 @@ export const PARIDADE_COM_O_MCP: Record<TipoIntencao, EntradaDeParidade> = {
   "musica.volume": via("musica", "volume"),
 
   // --- automações ---
-  "ciclo.criar": via("automacoes", "ciclos"),
-  "ciclo.editar": via("automacoes", "ciclos"),
-  "ciclo.apagar": via("automacoes", "ciclos", "apagar"),
-  "ciclo.disparar": via("automacoes", "acionar", "disparar"),
-  "ciclo.pausar": via("automacoes", "acionar", "pausar"),
-  "ciclo.retomar": via("automacoes", "acionar", "retomar"),
-  "reacao.criar": via("automacoes", "reacoes"),
-  "reacao.editar": via("automacoes", "reacoes"),
-  "reacao.apagar": via("automacoes", "reacoes", "apagar"),
+  "fluxo.criar": via("automacoes", "fluxos"),
+  "fluxo.editar": via("automacoes", "fluxos"),
+  "fluxo.apagar": via("automacoes", "fluxos", "apagar"),
+  "fluxo.ligar": via("automacoes", "acionar", "ligar"),
+  "fluxo.disparar": via("automacoes", "acionar", "disparar"),
   "zona.criar": via("automacoes", "zonas"),
   "zona.editar": via("automacoes", "zonas"),
   "zona.apagar": via("automacoes", "zonas", "apagar"),
-  "botao.criar": via("automacoes", "botoes"),
-  "botao.editar": via("automacoes", "botoes"),
-  "botao.apagar": via("automacoes", "botoes", "apagar"),
   "botao.usar": via("automacoes", "usarBotoes"),
-  "evento.disparar": via("automacoes", "eventos"),
 
   // --- rascunhos e desfazer ---
   "rascunho.publicar": via("rascunhos", "publicar"),

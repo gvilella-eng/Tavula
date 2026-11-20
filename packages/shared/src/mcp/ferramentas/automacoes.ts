@@ -1,17 +1,29 @@
 import { z } from "zod";
 import {
-  type Acao,
-  AcaoSchema,
+  AcaoDeFluxoSchema,
   automacoesDe,
-  type CondicaoDeReacao,
-  CondicaoDeReacaoSchema,
+  type Bloco,
+  BlocoSchema,
+  criarBlocoSchema,
   EfeitosDaZonaSchema,
   type Estado,
-  FaseSchema,
-  type Fica,
-  NomeDeEventoSchema,
+  type Fluxo,
+  FluxoSchema,
+  fraseDoFluxo,
+  GatilhoSchema,
+  MAXIMO_DE_BLOCOS_POR_FLUXO,
+  MAXIMO_DE_EXECUCOES_ESPERANDO,
+  MAXIMO_DE_FLUXOS,
+  MAXIMO_DE_TRILHAS,
+  nomesDaMesa,
   ParaQuemOSomSchema,
+  PRAZO_PADRAO_S,
+  PROFUNDIDADE_DA_ARVORE,
+  PROFUNDIDADE_MAXIMA,
   pode,
+  problemasDoFluxo,
+  referenciasDaMesa,
+  TETO_DE_ACOES,
   VolumeSchema,
 } from "../../index.ts";
 import { ErroDoMcp } from "../erros.ts";
@@ -21,7 +33,7 @@ import { somPorNome } from "./achados.ts";
 import { type Contexto, cadaItem, definir, passo, Relatorio } from "./base.ts";
 import { emMetros, ParSchema } from "./cenasUtil.ts";
 
-// Q16: o som de uma zona ou de uma reação, pelo NOME do arquivo (ou o começo do hash), como o resto do MCP.
+// Q16: o som de uma zona ou de uma ação, pelo NOME do arquivo (ou o começo do hash), como o resto do MCP.
 const SomPorNomeSchema = z
   .object({
     hash: z
@@ -53,79 +65,42 @@ const SomTocarDoMcpSchema = z.object({
   para: ParaQuemOSomSchema.default("todos"),
 });
 
-/** As ações das reações, com o som por nome no lugar do hash. */
+/** As ações dos blocos, com o som por nome no lugar do hash. */
 const AcaoDoMcpSchema = z.discriminatedUnion(
   "acao",
-  AcaoSchema.options.map((o) =>
+  AcaoDeFluxoSchema.options.map((o) =>
     o.shape.acao.value === "som.tocar" ? SomTocarDoMcpSchema : o,
-  ) as unknown as [typeof SomTocarDoMcpSchema, ...(typeof AcaoSchema.options)[number][]],
+  ) as unknown as [typeof SomTocarDoMcpSchema, ...(typeof AcaoDeFluxoSchema.options)[number][]],
 );
-type AcaoPedida = z.infer<typeof AcaoDoMcpSchema>;
 
-const CicloPedidoSchema = z
+/** O bloco como o Claude o manda: os mesmos tipos, mas com nomes de zona, modelo, cena, token e som no lugar dos ids. */
+const BlocoDoMcpSchema = criarBlocoSchema(AcaoDoMcpSchema);
+
+const FluxoPedidoSchema = z
   .object({
     nome: z
       .string()
       .min(1)
       .max(64)
-      .describe("Se já existe ciclo com o nome, ele é editado; senão, criado."),
-    periodoS: z
-      .number()
-      .positive()
-      .max(7 * 86400)
+      .describe("Se já existe automação com o nome, ela é editada; senão, criada."),
+    ligado: z.boolean().optional().describe("Padrão: ligada."),
+    cenas: z
+      .array(z.string())
+      .nullable()
       .optional()
-      .describe("Duração do ciclo, em segundos."),
-    cenas: z.array(z.string()).optional().describe("Nomes das cenas onde vale. Vazio = todas."),
-    fases: z
-      .array(FaseSchema)
-      .min(1)
-      .max(20)
-      .optional()
-      .describe(
-        '[{"emS":0,"evento":"vento.sopra","duracaoS":30}]: no segundo `emS` dispara o evento. `emS` precisa ser menor que `periodoS`.',
-      ),
+      .describe("Nomes das cenas onde vale. Vazio ou null = todas."),
+    fixado: z.boolean().optional().describe("O chip fica na barra de cima do mestre."),
     liberadoParaJogadores: z.boolean().optional(),
-    fixado: z.boolean().optional(),
-    pausado: z.boolean().optional().describe("Só criação: nasce parado."),
-    apagar: z.boolean().optional(),
-  })
-  .strict();
-
-const FicaPedidoSchema = z.discriminatedUnion("tipo", [
-  z.object({ tipo: z.literal("mesa") }).strict(),
-  z.object({ tipo: z.literal("cena"), nome: z.string() }).strict(),
-  z.object({ tipo: z.literal("modelo"), nome: z.string() }).strict(),
-  z.object({ tipo: z.literal("zona"), nome: z.string() }).strict(),
-]);
-
-const ReacaoPedidoSchema = z
-  .object({
-    nome: z
-      .string()
+    gatilho: GatilhoSchema.optional().describe(
+      'O "Quando", com NOMES (modelo, zona, cena): {"tipo":"relogio","cadaS":180}, {"tipo":"botao","nome":"Soprar"}, {"tipo":"sinal","nome":"vento"}, {"tipo":"tocha","muda":"acende","etiqueta":"chama"}, {"tipo":"zona","quando":"entra","zona":"Poça"}, {"tipo":"turno"}, {"tipo":"cena","cena":"Eclusa"}. Chame `guia` para a explicação.',
+    ),
+    trilhas: z
+      .array(z.array(BlocoDoMcpSchema))
       .min(1)
-      .max(64)
-      .describe("Se já existe reação com o nome, ela é editada; senão, criada."),
-    ativa: z.boolean().optional(),
-    fica: FicaPedidoSchema.optional().describe(
-      'A quem está presa: {"tipo":"mesa"} ou {"tipo":"cena","nome":"Eclusa"} (também modelo e zona).',
-    ),
-    ao: NomeDeEventoSchema.optional().describe(
-      'O evento que dispara, ex.: "objeto.apagou", "token.entrouNaZona", "vento.sopra".',
-    ),
-    se: z
-      .array(CondicaoDeReacaoSchema)
-      .max(8)
+      .max(MAXIMO_DE_TRILHAS)
       .optional()
       .describe(
-        'Condições. Nomes no lugar de ids: {"condicao":"cena","cenas":["Eclusa"]}, {"condicao":"dentroDaZona","zona":"Poça"}.',
-      ),
-    fazer: z
-      .array(AcaoDoMcpSchema)
-      .min(1)
-      .max(20)
-      .optional()
-      .describe(
-        "Ações. Nomes no lugar de ids: alvo.modeloId = nome do modelo; zona = nome da zona; alvo.ids = nomes de tokens; som.tocar: hash = nome do arquivo de som.",
+        'Cada trilha é uma lista de blocos: {"bloco":"esperar","s":90}, {"bloco":"se",...}, {"bloco":"sortear",...}, {"bloco":"paraCada",...}, {"bloco":"acao","acao":{...}}, {"bloco":"sinal","nome":"x"}. Nomes no lugar de ids; som.tocar: hash = nome do arquivo. Chame `guia`.',
       ),
     apagar: z.boolean().optional(),
   })
@@ -153,21 +128,8 @@ const ZonaPedidaSchema = z
   })
   .strict();
 
-const BotaoPedidoSchema = z
-  .object({
-    nome: z.string().min(1).max(40),
-    evento: NomeDeEventoSchema.optional(),
-    cena: z.string().nullable().optional().describe("Só nesta cena (nome); null = todas."),
-    fixado: z.boolean().optional(),
-    liberadoParaJogadores: z.boolean().optional(),
-    apagar: z.boolean().optional(),
-  })
-  .strict();
-
-type CicloPedido = z.infer<typeof CicloPedidoSchema>;
-type ReacaoPedido = z.infer<typeof ReacaoPedidoSchema>;
+type FluxoPedido = z.infer<typeof FluxoPedidoSchema>;
 type ZonaPedida = z.infer<typeof ZonaPedidaSchema>;
-type BotaoPedido = z.infer<typeof BotaoPedidoSchema>;
 
 const cenaDe = (estado: Estado, nome: string) =>
   achar(estado.cenas, nome, { rotulo: "cena", nomeDe: (c) => c.nome, idDe: (c) => c.id });
@@ -180,121 +142,152 @@ const modeloDe = (estado: Estado, nome: string) =>
     idDe: (m) => m.id,
   });
 
-/** Troca nomes por ids dentro de uma ação (modelo, zona e tokens). */
-export function traduzirAcao(a: AcaoPedida, estado: Estado): Acao {
-  const copia = JSON.parse(JSON.stringify(a)) as Record<string, unknown>;
-  if (a.acao === "som.tocar") {
-    const s = somPorNome(estado, a.hash);
-    copia.hash = s.hash;
-    copia.nome = a.nome ?? s.nomeOriginal;
-  }
-  const alvo = copia.alvo as Record<string, unknown> | undefined;
-  if (alvo && typeof alvo.modeloId === "string") alvo.modeloId = modeloDe(estado, alvo.modeloId).id;
-  if (alvo && Array.isArray(alvo.ids)) {
-    alvo.ids = (alvo.ids as string[]).map(
-      (n) =>
-        achar(estado.tokens, n, { rotulo: "token", nomeDe: (t) => t.nome, idDe: (t) => t.id }).id,
-    );
-  }
-  if (typeof copia.zona === "string") copia.zona = zonaDe(estado, copia.zona).id;
-  return copia as Acao;
+// --- Nomes no lugar de ids -------------------------------------------------------------------
+
+type Solto = Record<string, unknown>;
+
+/** Troca os nomes de um gatilho por ids. */
+function traduzirGatilho(g: Solto, estado: Estado): Solto {
+  const c = { ...g };
+  if (typeof c.cena === "string") c.cena = cenaDe(estado, c.cena).id;
+  if (typeof c.modelo === "string") c.modelo = modeloDe(estado, c.modelo).id;
+  if (typeof c.zona === "string") c.zona = zonaDe(estado, c.zona).id;
+  return c;
 }
 
-/** Troca nomes por ids dentro de uma condição (cenas e zona). */
-export function traduzirCondicao(c: CondicaoDeReacao, estado: Estado): CondicaoDeReacao {
-  const copia = JSON.parse(JSON.stringify(c)) as Record<string, unknown>;
-  if (Array.isArray(copia.cenas)) {
-    copia.cenas = (copia.cenas as string[]).map((n) => cenaDe(estado, n).id);
+/** Troca os nomes de um bloco (e dos blocos de dentro) por ids. */
+export function traduzirBloco(b: Bloco, estado: Estado): Bloco {
+  const c = JSON.parse(JSON.stringify(b)) as Solto;
+  const lista = (v: unknown): unknown =>
+    Array.isArray(v) ? v.map((x) => traduzirBloco(x as Bloco, estado)) : v;
+  if (c.bloco === "se") {
+    const cond = { ...(c.condicao as Solto) };
+    if (typeof cond.zona === "string") cond.zona = zonaDe(estado, cond.zona).id;
+    if (Array.isArray(cond.cenas))
+      cond.cenas = (cond.cenas as string[]).map((n) => cenaDe(estado, n).id);
+    c.condicao = cond;
   }
-  if (typeof copia.zona === "string") copia.zona = zonaDe(estado, copia.zona).id;
-  return copia as CondicaoDeReacao;
-}
-
-function traduzirFica(f: z.infer<typeof FicaPedidoSchema>, estado: Estado): Fica {
-  if (f.tipo === "mesa") return { tipo: "mesa" };
-  if (f.tipo === "cena") return { tipo: "cena", id: cenaDe(estado, f.nome).id };
-  if (f.tipo === "modelo") return { tipo: "modelo", id: modeloDe(estado, f.nome).id };
-  return { tipo: "zona", id: zonaDe(estado, f.nome).id };
-}
-
-async function ciclo(p: CicloPedido, ctx: Contexto, lote: Lote): Promise<string> {
-  const estado = ctx.sala.estado();
-  const existente = acharExato(automacoesDe(estado).ciclos, p.nome, (c) => c.nome);
-  if (p.apagar) {
-    if (!existente) throw new ErroDoMcp(`Não existe o ciclo "${p.nome}".`);
-    await passo(ctx, lote, "ciclo.apagar", { id: existente.id });
-    return `Apagou o ciclo "${existente.nome}".`;
+  if (c.bloco === "se" || c.bloco === "sortear") {
+    c.sim = lista(c.sim);
+    c.nao = lista(c.nao);
   }
-  const cenas = p.cenas?.map((n) => cenaDe(estado, n).id);
-  if (!existente) {
-    if (p.periodoS === undefined || p.fases === undefined) {
-      throw new ErroDoMcp("Para criar um ciclo, diga `periodoS` (segundos) e `fases`.");
+  if (c.bloco === "paraCada") {
+    const alvo = { ...(c.alvo as Solto) };
+    if (typeof alvo.modelo === "string") alvo.modelo = modeloDe(estado, alvo.modelo).id;
+    if (typeof alvo.naZona === "string") alvo.naZona = zonaDe(estado, alvo.naZona).id;
+    if (typeof alvo.naCena === "string") alvo.naCena = cenaDe(estado, alvo.naCena).id;
+    if (Array.isArray(alvo.ids)) {
+      alvo.ids = (alvo.ids as string[]).map(
+        (n) =>
+          achar(estado.tokens, n, { rotulo: "token", nomeDe: (t) => t.nome, idDe: (t) => t.id }).id,
+      );
     }
-    const novo = {
-      id: novoId("ciclo"),
+    c.alvo = alvo;
+    c.corpo = lista(c.corpo);
+  }
+  if (c.bloco === "acao") {
+    const a = { ...(c.acao as Solto) };
+    if (a.acao === "som.tocar") {
+      const s = somPorNome(estado, String(a.hash));
+      a.hash = s.hash;
+      a.nome = a.nome ?? s.nomeOriginal;
+    }
+    if (typeof a.zona === "string") a.zona = zonaDe(estado, a.zona).id;
+    c.acao = a;
+  }
+  return c as unknown as Bloco;
+}
+
+/** "trilha 2, bloco 3 (dentro de “sim”), bloco 1": o lugar de um problema, como o mestre o contaria. */
+function lugarDoProblema(caminho: string): string {
+  const partes = caminho.split(".");
+  if (partes[0] === "nome" || partes[0] === "gatilho" || partes[0] === "cenas") {
+    return { nome: "o nome", gatilho: "o gatilho", cenas: "as cenas" }[partes[0]] as string;
+  }
+  const saida: string[] = [];
+  const rotulo: Record<string, string> = {
+    sim: "no “sim”",
+    nao: "no “não”",
+    corpo: "no “para cada”",
+  };
+  for (const [i, p] of partes.entries()) {
+    if (i === 0) continue;
+    if (i === 1) saida.push(`trilha ${Number(p) + 1}`);
+    else if (/^\d+$/.test(p)) saida.push(`bloco ${Number(p) + 1}`);
+    else saida.push(rotulo[p] ?? p);
+  }
+  return saida.join(", ");
+}
+
+/** Confere o fluxo já traduzido; se houver problema, diz onde e o que fazer (o mesmo texto do editor). */
+function conferir(fluxo: Fluxo, estado: Estado): void {
+  const problemas = problemasDoFluxo(fluxo, referenciasDaMesa(estado));
+  if (problemas.length === 0) return;
+  throw new ErroDoMcp(
+    `A automação "${fluxo.nome}" tem ${problemas.length === 1 ? "um problema" : `${problemas.length} problemas`}: ${problemas
+      .slice(0, 6)
+      .map((p) => `${lugarDoProblema(p.caminho)}: ${p.mensagem}`)
+      .join(" | ")}`,
+  );
+}
+
+async function fluxo(p: FluxoPedido, ctx: Contexto, lote: Lote): Promise<string> {
+  const estado = ctx.sala.estado();
+  const existente = acharExato(automacoesDe(estado).fluxos, p.nome, (f) => f.nome);
+  if (p.apagar) {
+    if (!existente) throw new ErroDoMcp(`Não existe a automação "${p.nome}".`);
+    await passo(ctx, lote, "fluxo.apagar", { id: existente.id });
+    return `Apagou a automação "${existente.nome}".`;
+  }
+  const cenas =
+    p.cenas === undefined
+      ? undefined
+      : p.cenas === null
+        ? null
+        : p.cenas.map((n) => cenaDe(estado, n).id);
+  const gatilho = p.gatilho
+    ? (traduzirGatilho(p.gatilho as unknown as Solto, estado) as unknown as Fluxo["gatilho"])
+    : undefined;
+  const trilhas = p.trilhas?.map((t) => t.map((b) => traduzirBloco(b, estado)));
+  const nomes = nomesDaMesa(estado);
+  if (!existente) {
+    if (gatilho === undefined || trilhas === undefined) {
+      throw new ErroDoMcp(
+        "Para criar uma automação, diga `gatilho` (o Quando) e `trilhas` (os blocos). Chame `guia` se precisar.",
+      );
+    }
+    const nova = FluxoSchema.safeParse({
+      id: novoId("fluxo"),
       nome: p.nome,
-      periodoS: p.periodoS,
-      cenas: cenas ?? [],
-      fases: p.fases,
-      ...(p.liberadoParaJogadores !== undefined
-        ? { liberadoParaJogadores: p.liberadoParaJogadores }
-        : {}),
-      ...(p.fixado !== undefined ? { fixado: p.fixado } : {}),
-    };
-    await passo(ctx, lote, "ciclo.criar", {
-      ciclo: novo,
-      ...(p.pausado !== undefined ? { pausado: p.pausado } : {}),
+      ligado: p.ligado ?? true,
+      cenas: cenas ?? null,
+      ...(p.fixado === undefined ? {} : { fixado: p.fixado }),
+      ...(p.liberadoParaJogadores === undefined
+        ? {}
+        : { liberadoParaJogadores: p.liberadoParaJogadores }),
+      gatilho,
+      trilhas,
     });
-    return `Criou o ciclo "${p.nome}" (${p.fases.length} fases em ${p.periodoS} s) (rascunho: não roda até o mestre publicar).`;
+    if (!nova.success) throw new ErroDoMcp(nova.error.issues[0]?.message ?? "Automação inválida.");
+    conferir(nova.data, estado);
+    await passo(ctx, lote, "fluxo.criar", { fluxo: nova.data });
+    return `Criou a automação "${p.nome}" (rascunho: não roda até o mestre publicar). Em português: ${fraseDoFluxo(nova.data, nomes)}`;
   }
   const mudancas: Record<string, unknown> = {};
-  if (p.periodoS !== undefined) mudancas.periodoS = p.periodoS;
+  if (p.ligado !== undefined) mudancas.ligado = p.ligado;
   if (cenas !== undefined) mudancas.cenas = cenas;
-  if (p.fases !== undefined) mudancas.fases = p.fases;
+  if (p.fixado !== undefined) mudancas.fixado = p.fixado;
   if (p.liberadoParaJogadores !== undefined)
     mudancas.liberadoParaJogadores = p.liberadoParaJogadores;
-  if (p.fixado !== undefined) mudancas.fixado = p.fixado;
-  if (Object.keys(mudancas).length === 0) return `O ciclo "${existente.nome}" não mudou.`;
-  await passo(ctx, lote, "ciclo.editar", { id: existente.id, mudancas });
-  return `Editou o ciclo "${existente.nome}" (${Object.keys(mudancas).join(", ")}).`;
-}
-
-async function reacao(p: ReacaoPedido, ctx: Contexto, lote: Lote): Promise<string> {
-  const estado = ctx.sala.estado();
-  const existente = acharExato(automacoesDe(estado).reacoes, p.nome, (r) => r.nome ?? "");
-  if (p.apagar) {
-    if (!existente) throw new ErroDoMcp(`Não existe a reação "${p.nome}".`);
-    await passo(ctx, lote, "reacao.apagar", { id: existente.id });
-    return `Apagou a reação "${p.nome}".`;
-  }
-  const fica = p.fica ? traduzirFica(p.fica, estado) : undefined;
-  const se = p.se?.map((c) => traduzirCondicao(c, estado));
-  const fazer = p.fazer?.map((a) => traduzirAcao(a, estado));
-  if (!existente) {
-    if (p.ao === undefined || fazer === undefined) {
-      throw new ErroDoMcp("Para criar uma reação, diga `ao` (o evento) e `fazer` (as ações).");
-    }
-    const nova = {
-      id: novoId("reacao"),
-      nome: p.nome,
-      ativa: p.ativa ?? true,
-      fica: fica ?? { tipo: "mesa" as const },
-      ao: p.ao,
-      se: se ?? [],
-      fazer,
-    };
-    await passo(ctx, lote, "reacao.criar", { reacao: nova });
-    return `Criou a reação "${p.nome}" (ao evento ${p.ao}) (rascunho: não roda até o mestre publicar).`;
-  }
-  const mudancas: Record<string, unknown> = {};
-  if (p.ativa !== undefined) mudancas.ativa = p.ativa;
-  if (fica) mudancas.fica = fica;
-  if (p.ao !== undefined) mudancas.ao = p.ao;
-  if (se) mudancas.se = se;
-  if (fazer) mudancas.fazer = fazer;
-  if (Object.keys(mudancas).length === 0) return `A reação "${p.nome}" não mudou.`;
-  await passo(ctx, lote, "reacao.editar", { id: existente.id, mudancas });
-  return `Editou a reação "${p.nome}" (${Object.keys(mudancas).join(", ")}).`;
+  if (gatilho !== undefined) mudancas.gatilho = gatilho;
+  if (trilhas !== undefined) mudancas.trilhas = trilhas;
+  if (Object.keys(mudancas).length === 0) return `A automação "${existente.nome}" não mudou.`;
+  const juntado = FluxoSchema.safeParse({ ...existente, ...mudancas });
+  if (!juntado.success)
+    throw new ErroDoMcp(juntado.error.issues[0]?.message ?? "Automação inválida.");
+  conferir(juntado.data, estado);
+  await passo(ctx, lote, "fluxo.editar", { id: existente.id, mudancas });
+  return `Editou a automação "${existente.nome}" (${Object.keys(mudancas).join(", ")}). Em português: ${fraseDoFluxo(juntado.data, nomes)}`;
 }
 
 /** Os efeitos da zona com o som resolvido: o nome do arquivo vira o hash. */
@@ -346,69 +339,25 @@ async function zona(p: ZonaPedida, ctx: Contexto, lote: Lote): Promise<string> {
   return `Editou a zona "${existente.nome}" (${Object.keys(mudancas).join(", ")}).`;
 }
 
-async function botao(p: BotaoPedido, ctx: Contexto, lote: Lote): Promise<string> {
-  const estado = ctx.sala.estado();
-  const existente = acharExato(automacoesDe(estado).botoes, p.nome, (b) => b.nome);
-  if (p.apagar) {
-    if (!existente) throw new ErroDoMcp(`Não existe o botão "${p.nome}".`);
-    await passo(ctx, lote, "botao.apagar", { id: existente.id });
-    return `Apagou o botão "${existente.nome}".`;
-  }
-  const cenaId =
-    p.cena === undefined ? undefined : p.cena === null ? null : cenaDe(estado, p.cena).id;
-  if (!existente) {
-    if (p.evento === undefined)
-      throw new ErroDoMcp("Para criar um botão, diga o `evento` que ele dispara.");
-    const novo = {
-      id: novoId("botao"),
-      nome: p.nome,
-      evento: p.evento,
-      ...(cenaId ? { cenaId } : {}),
-      ...(p.fixado !== undefined ? { fixado: p.fixado } : {}),
-      ...(p.liberadoParaJogadores !== undefined
-        ? { liberadoParaJogadores: p.liberadoParaJogadores }
-        : {}),
-    };
-    await passo(ctx, lote, "botao.criar", { botao: novo });
-    return `Criou o botão "${p.nome}" (dispara ${p.evento}) (rascunho).`;
-  }
-  const mudancas: Record<string, unknown> = {};
-  if (p.evento !== undefined) mudancas.evento = p.evento;
-  if (cenaId !== undefined) mudancas.cenaId = cenaId;
-  if (p.fixado !== undefined) mudancas.fixado = p.fixado;
-  if (p.liberadoParaJogadores !== undefined)
-    mudancas.liberadoParaJogadores = p.liberadoParaJogadores;
-  if (Object.keys(mudancas).length === 0) return `O botão "${existente.nome}" não mudou.`;
-  await passo(ctx, lote, "botao.editar", { id: existente.id, mudancas });
-  return `Editou o botão "${existente.nome}".`;
-}
-
-// M2: o que o mestre faz com as automações DURANTE a sessão (disparar um ciclo, pausar, soltar um evento, apertar um botão).
+// M2: o que o mestre faz com as automações DURANTE a sessão (disparar agora, ligar, desligar, apertar um botão).
 const AcionarSchema = z
   .object({
-    ciclo: z.string().describe("Nome do ciclo."),
+    fluxo: z.string().describe("Nome da automação."),
     acao: z
-      .enum(["disparar", "pausar", "retomar"])
+      .enum(["disparar", "ligar", "desligar"])
       .describe(
-        "disparar pula para a fase seguinte agora; pausar/retomar só o ciclo (as tochas seguem).",
+        'disparar roda agora, uma vez (como o "Testar agora"); ligar e desligar (desligada, o relógio para e o que esperava é cancelado).',
       ),
-  })
-  .strict();
-
-const EventoPedidoSchema = z
-  .object({
-    evento: NomeDeEventoSchema.describe("O nome do evento, como as reações o escutam."),
-    cena: z.string().optional().describe("Só nesta cena (nome); sem isso, em todas."),
   })
   .strict();
 
 const UsarBotaoSchema = z
   .object({
-    botao: z.string().describe("Nome do botão de evento ou do ciclo fixado."),
+    botao: z.string().describe("Nome da automação de botão (ou de relógio fixada)."),
     acao: z
       .enum(["disparar", "pausar", "retomar"])
       .optional()
-      .describe("Só em ciclo (padrão: disparar)."),
+      .describe("Só em automação de relógio (padrão: disparar)."),
   })
   .strict();
 
@@ -417,30 +366,14 @@ async function acionar(
   ctx: Contexto,
   lote: Lote,
 ): Promise<string> {
-  const c = achar(automacoesDe(ctx.sala.estado()).ciclos, p.ciclo, {
-    rotulo: "ciclo",
+  const f = achar(automacoesDe(ctx.sala.estado()).fluxos, p.fluxo, {
+    rotulo: "automação",
     nomeDe: (x) => x.nome,
     idDe: (x) => x.id,
   });
-  const tipo = { disparar: "ciclo.disparar", pausar: "ciclo.pausar", retomar: "ciclo.retomar" }[
-    p.acao
-  ];
-  await passo(ctx, lote, tipo, { id: c.id });
-  return `Ciclo "${c.nome}": ${p.acao}.`;
-}
-
-async function soltarEvento(
-  p: z.infer<typeof EventoPedidoSchema>,
-  ctx: Contexto,
-  lote: Lote,
-): Promise<string> {
-  const estado = ctx.sala.estado();
-  const cena = p.cena === undefined ? undefined : cenaDe(estado, p.cena);
-  await passo(ctx, lote, "evento.disparar", {
-    evento: p.evento,
-    ...(cena ? { cenaId: cena.id } : {}),
-  });
-  return `Disparou o evento "${p.evento}"${cena ? ` na cena "${cena.nome}"` : " em todas as cenas"}.`;
+  if (p.acao === "disparar") await passo(ctx, lote, "fluxo.disparar", { id: f.id });
+  else await passo(ctx, lote, "fluxo.ligar", { id: f.id, ligado: p.acao === "ligar" });
+  return `Automação "${f.nome}": ${p.acao}.`;
 }
 
 async function usarBotao(
@@ -449,47 +382,145 @@ async function usarBotao(
   lote: Lote,
 ): Promise<string> {
   const a = automacoesDe(ctx.sala.estado());
-  const alvos = [
-    ...a.botoes.map((b) => ({ id: `evento:${b.id}`, nome: b.nome, ciclo: false })),
-    ...a.ciclos.map((c) => ({ id: `ciclo:${c.id}`, nome: c.nome, ciclo: true })),
-  ];
+  const alvos = a.fluxos
+    .filter((f) => f.gatilho.tipo === "botao" || f.gatilho.tipo === "relogio")
+    .map((f) => ({
+      id: f.gatilho.tipo === "relogio" ? `ciclo:${f.id}` : `evento:${f.id}`,
+      nome: f.nome,
+      relogio: f.gatilho.tipo === "relogio",
+    }));
   const b = achar(alvos, p.botao, { rotulo: "botão", nomeDe: (x) => x.nome, idDe: (x) => x.id });
-  if (p.acao && !b.ciclo) throw new ErroDoMcp("`acao` só vale para um botão de ciclo.");
+  if (p.acao && !b.relogio) throw new ErroDoMcp("`acao` só vale para uma automação de relógio.");
   await passo(ctx, lote, "botao.usar", { botaoId: b.id, ...(p.acao ? { acao: p.acao } : {}) });
   return `Apertou o botão "${b.nome}"${p.acao ? ` (${p.acao})` : ""}.`;
+}
+
+// --- O guia e o explicar ---------------------------------------------------------------------
+
+/**
+ * Como as peças funcionam, em texto curto e fiel ao motor. Um teste confere que todo tipo de bloco, de gatilho, de condição
+ * e de ação que existe aparece aqui: peça nova sem guia reprova.
+ */
+export const GUIA_DAS_AUTOMACOES = [
+  "AUTOMAÇÕES POR BLOCOS (como funcionam)",
+  'Uma automação tem um GATILHO (o "Quando"), as cenas onde vale (vazio = todas) e uma ou mais TRILHAS. Cada trilha é uma lista de blocos, que roda de cima para baixo. Quando o gatilho dispara, todas as trilhas começam juntas.',
+  "GATILHOS (campo `gatilho`): " +
+    '{"tipo":"relogio","cadaS":180,"primeiroS":0}: a cada tantos segundos, no tempo da mesa (começa na hora em que a mesa corre; `primeiroS` adia a primeira vez); ' +
+    '{"tipo":"botao","nome":"Soprar","cena":"Eclusa"}: um botão do mestre (o `nome` é o rótulo; `cena` opcional); ' +
+    '{"tipo":"sinal","nome":"vento"}: ao receber um sinal mandado por outra automação; ' +
+    '{"tipo":"tocha","muda":"acende"|"apaga","modelo":"Tocha","etiqueta":"chama"}: uma luz acendeu ou apagou (os filtros são opcionais); ' +
+    '{"tipo":"zona","quando":"entra"|"sai","zona":"Poça"}: um token entrou numa zona ou saiu dela; ' +
+    '{"tipo":"turno"}: começou o turno de alguém no combate; ' +
+    '{"tipo":"cena","cena":"Eclusa"}: o grupo foi para outra cena (qualquer uma, ou só a dita).',
+  "BLOCOS (dentro de `trilhas`, que é uma lista de listas): " +
+    '{"bloco":"esperar","s":90}: espera 90 s (no tempo da mesa: pausar a mesa pausa a espera) e só então segue; ' +
+    '{"bloco":"se","condicao":{...},"sim":[...],"nao":[...]}: roda o "sim" se a condição vale, senão o "não" (opcional); condições: {"condicao":"etiqueta","etiqueta":"chama"}, {"condicao":"dentroDaZona","zona":"Poça"}, {"condicao":"cena","cenas":["Eclusa"]}, {"condicao":"zonaLigada","zona":"Poça"}; ' +
+    '{"bloco":"sortear","chance":0.3,"sim":[...],"nao":[...]}: sorteia (0 a 1) a cada vez e roda o "sim" ou o "não"; ' +
+    '{"bloco":"paraCada","alvo":{...},"corpo":[...]}: repete o corpo para cada objeto ou token do alvo: {"tipo":"objetos","modelo":"Tocha","etiqueta":"chama","acesos":true,"naZona":"Poça"} ou {"tipo":"tokens","naZona":"Poça","naCena":"Eclusa","ids":["Brisa"]} (todos os filtros são opcionais); ' +
+    '{"bloco":"acao","acao":{...}}: faz uma coisa (lista abaixo); ' +
+    '{"bloco":"sinal","nome":"vento","atrasoS":10}: manda um sinal; as automações com gatilho "sinal" desse nome rodam (já, ou depois de `atrasoS`).',
+  "AÇÕES (dentro de um bloco acao): " +
+    '{"acao":"luz.modificar","raioX":0.5,"raioSomaM":2,"porS":20}: muda o raio da luz do objeto (multiplica e/ou soma) por um prazo; ' +
+    '{"acao":"objeto.apagar","chance":0.3,"penalidadeS":300}: apaga o objeto aceso (com chance) e tira tempo do que sobra; ' +
+    '{"acao":"objeto.ajustarTempo","deltaS":-300}: soma ou tira tempo do objeto; ' +
+    '{"acao":"visao.limitar","alcanceM":1.5,"porS":30}: limita a visão do token por um prazo; ' +
+    '{"acao":"chat.anunciar","texto":"...","para":"todos"|"mestre"}: uma linha no chat; ' +
+    '{"acao":"som.tocar","hash":"vento.mp3","volume":0.8,"para":"todos"|"cena"|"token"}: toca um som uma vez; ' +
+    '{"acao":"token.mostrar"} e {"acao":"token.ocultar"}: mostra ou esconde o token; ' +
+    '{"acao":"zona.ativar","zona":"Poça","ativa":true}: liga ou desliga uma zona.',
+  "QUEM SOFRE A AÇÃO: ações de luz (luz.modificar, objeto.apagar, objeto.ajustarTempo) mexem no OBJETO da vez; ações de token (visao.limitar, token.mostrar, token.ocultar) no TOKEN da vez, e sem token, em quem carrega o objeto da vez. A vez é o objeto ou token do gatilho (gatilho tocha: a tocha; gatilho zona: o token) ou o que o bloco paraCada está percorrendo. Fora disso a ação fica sem alvo (o editor avisa; o motor anota no registro). Por isso, ação de luz num relógio fica dentro de um paraCada de objetos, e ação de token dentro de um paraCada de tokens.",
+  `PRAZOS: efeitos com \`porS\` (luz.modificar, visao.limitar) voltam sozinhos quando o prazo acaba; sem \`porS\` valem ${PRAZO_PADRAO_S} s. Rodar de novo renova o prazo, não empilha. Nada fica preso: ao apagar ou desligar uma automação, o que ela já fez termina no prazo; os efeitos de zona ("enquanto dentro") saem quando o token sai, ou a zona é desligada ou apagada.`,
+  `LIMITES: ${MAXIMO_DE_FLUXOS} automações; ${MAXIMO_DE_TRILHAS} trilhas e ${MAXIMO_DE_BLOCOS_POR_FLUXO} blocos por automação; blocos aninhados até ${PROFUNDIDADE_DA_ARVORE} níveis; sinais encadeados até ${PROFUNDIDADE_MAXIMA} níveis (o resto é cortado); até ${TETO_DE_ACOES} ações por disparo; até ${MAXIMO_DE_EXECUCOES_ESPERANDO} esperas ao mesmo tempo. Quando o motor corta algo, anota no registro do mestre.`,
+  'TEMPO E SORTEIO: tudo corre no tempo da mesa; pausar a mesa pausa relógios e esperas. Desligar uma automação congela o relógio dela e cancela o que esperava. Um "esperar" dentro de um "para cada" segura só aquele alvo.',
+  'COMO USAR: `automacoes` com `fluxos` cria ou edita pelo NOME (nomes de zona, modelo, cena, token e som, nunca ids); tudo entra como rascunho até o mestre publicar. Confira com `explicar`. Zonas (`zonas`) têm os efeitos "enquanto dentro"; as automações cuidam do que acontece quando algo ENTRA, SAI ou passa o tempo.',
+  'EXEMPLO (a Respiração da Montanha, na cena "Pulmão"): {"nome":"Respiração do Pulmão","cenas":["Pulmão"],"gatilho":{"tipo":"relogio","cadaS":180},"trilhas":[[{"bloco":"paraCada","alvo":{"tipo":"objetos","modelo":"Tocha","acesos":true},"corpo":[{"bloco":"acao","acao":{"acao":"luz.modificar","raioX":0.5,"porS":20}},{"bloco":"acao","acao":{"acao":"objeto.apagar","chance":0.3,"penalidadeS":300}}]}],[{"bloco":"esperar","s":90},{"bloco":"paraCada","alvo":{"tipo":"tokens"},"corpo":[{"bloco":"acao","acao":{"acao":"visao.limitar","alcanceM":1.5,"porS":30}}]}]]}',
+].join("\n\n");
+
+function resumoDaLista(estado: Estado): string {
+  const a = automacoesDe(estado);
+  if (a.fluxos.length === 0) return "A mesa não tem nenhuma automação.";
+  const n = nomesDaMesa(estado);
+  return a.fluxos
+    .map((f) => {
+      const exec = a.execucao[f.id];
+      const estadoDele = f.rascunho ? "rascunho" : f.ligado ? "ligada" : "desligada";
+      const roda =
+        f.gatilho.tipo === "relogio" && f.ligado && !f.rascunho && exec === undefined
+          ? " (ainda não começou)"
+          : "";
+      return `- "${f.nome}" (${estadoDele}${roda}): ${fraseDoFluxo(f, n)}`;
+    })
+    .join("\n");
+}
+
+function explicarEsse(p: { fluxo?: string | undefined }, estado: Estado): string {
+  const a = automacoesDe(estado);
+  const n = nomesDaMesa(estado);
+  if (p.fluxo === undefined) {
+    if (a.fluxos.length === 0) return "A mesa não tem nenhuma automação.";
+    return a.fluxos
+      .map(
+        (f) =>
+          `"${f.nome}" (${f.rascunho ? "rascunho" : f.ligado ? "ligada" : "desligada"}): ${fraseDoFluxo(f, n)}`,
+      )
+      .join("\n");
+  }
+  const f = achar(a.fluxos, p.fluxo, {
+    rotulo: "automação",
+    nomeDe: (x) => x.nome,
+    idDe: (x) => x.id,
+  });
+  return `"${f.nome}" (${f.rascunho ? "rascunho" : f.ligado ? "ligada" : "desligada"}): ${fraseDoFluxo(f, n)}`;
 }
 
 export const automacoes = definir({
   nome: "automacoes",
   descricao:
-    'Só do mestre. Cria e edita automações em lote: ciclos (fases que disparam eventos), reações ("ao evento X, faça Y"), zonas (polígonos com efeitos) e botões de evento. Se já existe um com o nome, edita. Tudo entra como rascunho e não roda até o mestre publicar. Nomes no lugar de ids. Ordem: zonas, depois ciclos e reações que as usam. Durante a sessão: `acionar` ([{ciclo, acao: disparar|pausar|retomar}]), `eventos` ([{evento, cena}] dispara agora) e `usarBotoes` ([{botao}] aperta um botão de evento ou de ciclo); o que ainda é rascunho não roda. Exemplo: {"zonas":[{"cena":"Eclusa","nome":"Poça","pontos":[[4,4],[8,4],[8,7]],"efeitos":{"visaoMaxM":3}}],"ciclos":[{"nome":"Vento","periodoS":600,"fases":[{"emS":0,"evento":"vento.sopra","duracaoS":60}]}]}',
+    'Só do mestre. Automações por blocos (gatilho + trilhas de blocos: esperar, se, sortear, para cada, ações e sinais) e zonas (polígonos com efeitos). `fluxos` cria e edita pelo nome (nomes no lugar de ids); `zonas` também; tudo entra como rascunho e não roda até o mestre publicar. Ordem: zonas, depois as automações que as usam. Durante a sessão: `acionar` ([{fluxo, acao: disparar|ligar|desligar}]) e `usarBotoes` ([{botao}]). PERGUNTARAM COMO FUNCIONA, O QUE UMA AUTOMAÇÃO FAZ OU COMO MONTAR UMA? Chame `guia: true` (como as peças funcionam) e `explicar` (o que cada automação da mesa faz, em português) ANTES de responder; `listar: true` mostra todas. Exemplo: {"fluxos":[{"nome":"Vento","gatilho":{"tipo":"relogio","cadaS":600},"trilhas":[[{"bloco":"paraCada","alvo":{"tipo":"tokens"},"corpo":[{"bloco":"acao","acao":{"acao":"visao.limitar","alcanceM":3,"porS":60}}]}]]}]}',
   entrada: z
     .object({
       zonas: z.array(ZonaPedidaSchema).max(30).optional(),
-      ciclos: z.array(CicloPedidoSchema).max(20).optional(),
-      reacoes: z.array(ReacaoPedidoSchema).max(40).optional(),
-      botoes: z.array(BotaoPedidoSchema).max(20).optional(),
+      fluxos: z.array(FluxoPedidoSchema).max(20).optional(),
       acionar: z.array(AcionarSchema).max(20).optional(),
-      eventos: z.array(EventoPedidoSchema).max(20).optional(),
       usarBotoes: z.array(UsarBotaoSchema).max(20).optional(),
+      listar: z
+        .boolean()
+        .optional()
+        .describe("Lista as automações da mesa, cada uma com a frase em português."),
+      explicar: z
+        .object({
+          fluxo: z.string().optional().describe("Nome da automação; sem isso, explica todas."),
+        })
+        .strict()
+        .optional()
+        .describe("O que a automação faz, em português (a mesma frase do editor)."),
+      guia: z
+        .boolean()
+        .optional()
+        .describe(
+          "Como as peças funcionam: gatilhos, trilhas, blocos, ações, prazos, sinais e limites.",
+        ),
     })
     .strict(),
   visivel: (estado, eu) => pode(eu, "automacao.editar", estado.permissoes),
   async executar(e, ctx) {
+    const partes: string[] = [];
+    if (e.guia) partes.push(GUIA_DAS_AUTOMACOES);
+    if (e.listar) partes.push(resumoDaLista(ctx.sala.estado()));
+    if (e.explicar) partes.push(explicarEsse(e.explicar, ctx.sala.estado()));
     const total =
       (e.zonas?.length ?? 0) +
-      (e.ciclos?.length ?? 0) +
-      (e.reacoes?.length ?? 0) +
-      (e.botoes?.length ?? 0) +
+      (e.fluxos?.length ?? 0) +
       (e.acionar?.length ?? 0) +
-      (e.eventos?.length ?? 0) +
       (e.usarBotoes?.length ?? 0);
     if (total === 0) {
-      return "Nada a fazer: diga `zonas`, `ciclos`, `reacoes`, `botoes`, `acionar`, `eventos` ou `usarBotoes`.";
+      return partes.length > 0
+        ? partes.join("\n\n")
+        : "Nada a fazer: diga `fluxos`, `zonas`, `acionar`, `usarBotoes`, `listar`, `explicar` ou `guia`.";
     }
     const r = new Relatorio();
     const lote = ctx.novoLote(
-      `automações: ${e.zonas?.length ?? 0} zonas, ${e.ciclos?.length ?? 0} ciclos, ${e.reacoes?.length ?? 0} reações, ${e.botoes?.length ?? 0} botões`,
+      `automações: ${e.zonas?.length ?? 0} zonas, ${e.fluxos?.length ?? 0} automações`,
     );
     await cadaItem(
       e.zonas ?? [],
@@ -498,33 +529,15 @@ export const automacoes = definir({
       r,
     );
     await cadaItem(
-      e.ciclos ?? [],
-      (c) => `ciclo "${c.nome}"`,
-      (c) => ciclo(c, ctx, lote),
-      r,
-    );
-    await cadaItem(
-      e.reacoes ?? [],
-      (x) => `reação "${x.nome}"`,
-      (x) => reacao(x, ctx, lote),
-      r,
-    );
-    await cadaItem(
-      e.botoes ?? [],
-      (b) => `botão "${b.nome}"`,
-      (b) => botao(b, ctx, lote),
+      e.fluxos ?? [],
+      (f) => `automação "${f.nome}"`,
+      (f) => fluxo(f, ctx, lote),
       r,
     );
     await cadaItem(
       e.acionar ?? [],
-      (a) => `ciclo "${a.ciclo}"`,
+      (a) => `automação "${a.fluxo}"`,
       (a) => acionar(a, ctx, lote),
-      r,
-    );
-    await cadaItem(
-      e.eventos ?? [],
-      (x) => `evento "${x.evento}"`,
-      (x) => soltarEvento(x, ctx, lote),
       r,
     );
     await cadaItem(
@@ -533,6 +546,12 @@ export const automacoes = definir({
       (b) => usarBotao(b, ctx, lote),
       r,
     );
-    return r.saida();
+    const saida = r.saida();
+    return partes.length === 0
+      ? saida
+      : { ...saida, texto: `${partes.join("\n\n")}\n\n${saida.texto}` };
   },
 });
+
+// Para os testes e a paridade: o esquema dos blocos da automação como o MCP o recebe.
+export { BlocoDoMcpSchema, BlocoSchema as BlocoDeFluxoSchema };

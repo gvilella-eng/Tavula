@@ -408,14 +408,15 @@ describe("zona e reação com som pelo nome do arquivo (Q16)", () => {
           },
         },
       ],
-      reacoes: [
+      fluxos: [
         {
           nome: "Trovão na poça",
-          fica: { tipo: "zona", nome: "Poça" },
-          ao: "token.entrouNaZona",
-          fazer: [
-            { acao: "som.tocar", hash: "trovao", volume: 0.9 },
-            { acao: "chat.anunciar", texto: "Um trovão!" },
+          gatilho: { tipo: "zona", quando: "entra", zona: "Poça" },
+          trilhas: [
+            [
+              { bloco: "acao", acao: { acao: "som.tocar", hash: "trovao", volume: 0.9 } },
+              { bloco: "acao", acao: { acao: "chat.anunciar", texto: "Um trovão!" } },
+            ],
           ],
         },
       ],
@@ -428,14 +429,11 @@ describe("zona e reação com som pelo nome do arquivo (Q16)", () => {
       visaoMaxM: 3,
       som: { hash: HASH_VENTO, nome: "vento.mp3", volume: 0.4, laco: false },
     });
-    const reacao = sala.verdade.automacoes?.reacoes[0];
-    expect(reacao?.ao).toBe("token.entrouNaZona");
-    expect(reacao?.fica).toEqual({ tipo: "zona", id: z?.id });
-    expect(reacao?.fazer[0]).toMatchObject({
-      acao: "som.tocar",
-      hash: HASH_TROVAO,
-      nome: "trovao.mp3",
-      volume: 0.9,
+    const fluxo = sala.verdade.automacoes?.fluxos[0];
+    expect(fluxo?.gatilho).toEqual({ tipo: "zona", quando: "entra", zona: z?.id });
+    expect(fluxo?.trilhas[0]?.[0]).toMatchObject({
+      bloco: "acao",
+      acao: { acao: "som.tocar", hash: HASH_TROVAO, nome: "trovao.mp3", volume: 0.9 },
     });
   });
 
@@ -514,12 +512,18 @@ describe("a preparação completa só pelo MCP (Q16)", () => {
           },
         },
       ],
-      reacoes: [
+      fluxos: [
         {
           nome: "Aviso ao entrar",
-          fica: { tipo: "zona", nome: "Sala do vento" },
-          ao: "token.entrouNaZona",
-          fazer: [{ acao: "chat.anunciar", texto: "O vento uiva.", para: "mestre" }],
+          gatilho: { tipo: "zona", quando: "entra", zona: "Sala do vento" },
+          trilhas: [
+            [
+              {
+                bloco: "acao",
+                acao: { acao: "chat.anunciar", texto: "O vento uiva.", para: "mestre" },
+              },
+            ],
+          ],
         },
       ],
     });
@@ -536,11 +540,17 @@ describe("a preparação completa só pelo MCP (Q16)", () => {
       },
     });
     expect(zona?.pontos).toHaveLength(4);
-    const reacao = sala.verdade.automacoes?.reacoes.find((r) => r.nome === "Aviso ao entrar");
-    expect(reacao).toMatchObject({
-      ao: "token.entrouNaZona",
-      fica: { tipo: "zona", id: zona?.id },
-      fazer: [{ acao: "chat.anunciar", texto: "O vento uiva.", para: "mestre" }],
+    const fluxo = sala.verdade.automacoes?.fluxos.find((r) => r.nome === "Aviso ao entrar");
+    expect(fluxo).toMatchObject({
+      gatilho: { tipo: "zona", quando: "entra", zona: zona?.id },
+      trilhas: [
+        [
+          {
+            bloco: "acao",
+            acao: { acao: "chat.anunciar", texto: "O vento uiva.", para: "mestre" },
+          },
+        ],
+      ],
     });
 
     // 4) O som da zona também pelo `som` (troca por nome), e a trilha da cena.

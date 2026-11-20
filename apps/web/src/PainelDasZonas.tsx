@@ -1,4 +1,4 @@
-import type { EfeitosDaZona, Zona } from "@tabletop/shared";
+import type { EfeitosDaZona, Gatilho, Zona } from "@tabletop/shared";
 import { Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { Fontes } from "./assets/fontes";
@@ -14,8 +14,10 @@ type Props = {
   registrarSom: (arquivo: File) => Promise<SomEscolhido>;
   /** A zona selecionada, se houver. */
   selecionada: Zona | null;
-  /** Quantas reações a zona carrega (o editor delas é o das automações). */
-  reacoes: number;
+  /** As automações que usam esta zona (o editor delas é o das automações). */
+  automacoes: readonly { id: string; nome: string }[];
+  /** Abre o editor das automações: numa existente, ou numa nova (com o gatilho de entrar na zona já posto). */
+  aoAbrirAutomacao: (fluxoId: string | null, gatilho?: Gatilho) => void;
   enviar: (tipo: string, dados: object) => string | null;
   aoApagar: (id: string) => void;
   aoFechar: () => void;
@@ -32,8 +34,8 @@ const LIMITES: Record<EfeitoDaZona, { min: number; max: number }> = {
 
 /**
  * Painel pequeno da ferramenta Zonas (só do mestre, 7b-2): como desenhar e, com uma zona selecionada, o nome, se está
- * ligada, os efeitos enquanto algo está dentro e apagar. Cada mudança vai na hora. As reações da zona são editadas no
- * editor das automações; aqui só a contagem.
+ * ligada, os efeitos enquanto algo está dentro e apagar. Cada mudança vai na hora. As automações da zona são editadas no
+ * editor das automações; aqui a lista das que usam a zona e o atalho para criar uma.
  */
 export function PainelDasZonas(p: Props) {
   const z = p.selecionada;
@@ -220,13 +222,40 @@ export function PainelDasZonas(p: Props) {
               />
             )}
           </fieldset>
-          <p className="nota" data-testid="zona-reacoes">
-            {p.reacoes === 0
-              ? "Sem reações"
-              : p.reacoes === 1
-                ? "1 reação"
-                : `${p.reacoes} reações`}
-          </p>
+          <div className="zona-automacoes" data-testid="zona-reacoes">
+            <p className="nota" data-testid="zona-automacoes-titulo">
+              {p.automacoes.length === 0
+                ? "Nenhuma automação usa esta zona"
+                : p.automacoes.length === 1
+                  ? "1 automação usa esta zona"
+                  : `${p.automacoes.length} automações usam esta zona`}
+            </p>
+            {p.automacoes.length > 0 && (
+              <ul className="lista-simples">
+                {p.automacoes.map((a) => (
+                  <li key={a.id}>
+                    <button
+                      type="button"
+                      className="link-da-entrada"
+                      data-testid={`zona-auto-${a.id}`}
+                      onClick={() => p.aoAbrirAutomacao(a.id)}
+                    >
+                      {a.nome}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <button
+              type="button"
+              data-testid="zona-nova-automacao"
+              onClick={() =>
+                p.aoAbrirAutomacao(null, { tipo: "zona", quando: "entra", zona: z.id })
+              }
+            >
+              + automação para esta zona
+            </button>
+          </div>
           <p className="nota">Arraste as bolinhas para mexer nos cantos.</p>
           <button
             type="button"

@@ -1158,3 +1158,9 @@ Continua em aberto, por ser decisão e não erro de doc: `ficha.verOutras` (seç
 - Regra de interface: campos lado a lado alinham rótulo, caixa e ajuda. Está em `styles.css`, junto de `.linha-par` (subgrid de 3 trilhas). Campo novo em par: use `Campo`/`CampoDeDistancia`/`CampoDecimal` (`label.campo-coluna`) dentro de `.linha-par`.
 - Frágil: quem puser `display: flex` num `.campo-coluna` dentro de `.linha-par` desfaz o subgrid (o `.secao-mesa label.campo-coluna` foi rebaixado com `:where` por isso). O subgrid precisa de Chrome/Edge atuais.
 - Teste: `e2e/tests/a1.spec.ts`.
+
+## AU1 — automações por blocos
+
+- **Onde mexer:** `packages/shared/src/fluxos*.ts` (dado, conversão, frase, conferência, leitura), `automacoes.ts` (fatia, botões, relógio), `automacoesnucleo.ts` (motor e intenções), `mcp/ferramentas/automacoes.ts` (MCP, guia), `apps/web/src/automacoes/` (`EditorDeFluxo`, `PainelDoBloco`, `blocos.ts`, `ListaDeAutomacoes`, `AutomacaoEmJanelaPropria`). `automacoesLegado.ts` é o formato antigo, só leitura.
+- **Frágil:** (1) a conversão roda na leitura (`z.preprocess` do `AutomacoesSchema`): qualquer mudança nela muda os ids dos fluxos (`rx-<id>`, `botao-<id>`); o `ouro.test.ts` vigia. (2) O caminho de uma execução esperando (`[trilha, i, "sim", j…]`) depende da posição dos blocos: editar trilhas cancela as esperas do fluxo. (3) O guia do MCP tem de citar toda peça nova (teste). (4) Tabela de paridade por campo recursiva (`fluxo.trilhas[][].*`). (5) `enviar()` do cliente devolve o id do pedido, não erro. (6) O editor guarda a árvore num estado do React por cópia (`structuredClone`); fluxos de ~80 blocos ainda são rápidos.
+- **Suposições:** ver `REDESIGN.md`, "AU1 — como ficou".

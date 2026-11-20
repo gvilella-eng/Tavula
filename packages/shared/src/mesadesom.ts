@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { HashSchema } from "./assets.ts";
 import type { Estado } from "./estado.ts";
+import { acoesDoFluxo } from "./fluxosLeitura.ts";
 import { VolumeSchema } from "./som.ts";
 
 // ---------------------------------------------------------------------------------------------
@@ -265,9 +266,9 @@ export function usosDoSom(
     if (x?.hash === hash) lugares.push({ grupo: "ambiente", indice, nome: x.nome });
   });
   const zonas = (estado.zonas ?? []).filter((z) => z.efeitos.som?.hash === hash).map((z) => z.nome);
-  const automacoes = (estado.automacoes?.reacoes ?? [])
-    .filter((r) => r.fazer.some((a) => a.acao === "som.tocar" && a.hash === hash))
-    .map((r) => r.nome ?? r.id);
+  const automacoes = (estado.automacoes?.fluxos ?? [])
+    .filter((f) => acoesDoFluxo(f).some((a) => a.acao === "som.tocar" && a.hash === hash))
+    .map((f) => f.nome);
   return { lugares, zonas, automacoes };
 }
 

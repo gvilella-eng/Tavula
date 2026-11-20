@@ -194,18 +194,16 @@ describe("o Claude do jogador não alcança mais do que o jogador", () => {
 
   it("não mexe em automação, zona, cena, mesa, papéis nem permissões", () => {
     const e = criarEstado();
-    const ciclo = { id: "c", nome: "C", periodoS: 60, cenas: [], fases: [{ emS: 0, evento: "x" }] };
+    const fluxo = {
+      id: "c",
+      nome: "C",
+      gatilho: { tipo: "relogio", cadaS: 60 },
+      trilhas: [[{ bloco: "acao", acao: { acao: "chat.anunciar", texto: "oi" } }]],
+    };
     for (const i of [
-      intencao("ciclo.criar", { ciclo }),
-      intencao("botao.criar", { botao: { id: "b", nome: "B", evento: "x" } }),
-      intencao("reacao.criar", {
-        reacao: {
-          id: "r",
-          fica: { tipo: "mesa" },
-          ao: "x",
-          fazer: [{ acao: "chat.anunciar", texto: "oi" }],
-        },
-      }),
+      intencao("fluxo.criar", { fluxo }),
+      intencao("fluxo.ligar", { id: "c", ligado: false }),
+      intencao("fluxo.disparar", { id: "c" }),
       intencao("zona.criar", {
         zona: {
           id: "z",
@@ -218,7 +216,6 @@ describe("o Claude do jogador não alcança mais do que o jogador", () => {
           ],
         },
       }),
-      intencao("evento.disparar", { evento: "x" }),
       intencao("cena.criar", { id: "nova", nome: "Nova" }),
       intencao("token.criar", {
         token: {
@@ -473,16 +470,15 @@ describe("rascunhos do Claude do mestre", () => {
   const ciclo = {
     id: "cic",
     nome: "Ciclo",
-    periodoS: 60,
-    cenas: [],
-    fases: [{ emS: 0, evento: "pulso" }],
+    gatilho: { tipo: "relogio", cadaS: 60 },
+    trilhas: [[{ bloco: "acao", acao: { acao: "chat.anunciar", texto: "pulsou" } }]],
   };
-  const reacao = {
-    id: "rea",
-    nome: "Anuncia",
-    fica: { tipo: "mesa" },
-    ao: "pulso",
-    fazer: [{ acao: "chat.anunciar", texto: "pulsou" }],
+  const botao = {
+    id: "bot",
+    nome: "Soprar",
+    liberadoParaJogadores: true,
+    gatilho: { tipo: "botao", nome: "Soprar" },
+    trilhas: [[{ bloco: "acao", acao: { acao: "chat.anunciar", texto: "soprou" } }]],
   };
   const zona = {
     id: "zon",
@@ -540,29 +536,25 @@ describe("rascunhos do Claude do mestre", () => {
       },
     });
     c("zona.criar", { zona });
-    c("ciclo.criar", { ciclo });
-    c("reacao.criar", { reacao });
-    c("botao.criar", {
-      botao: { id: "bot", nome: "Soprar", evento: "pulso", liberadoParaJogadores: true },
-    });
+    c("fluxo.criar", { fluxo: ciclo });
+    c("fluxo.criar", { fluxo: botao });
     return e;
   }
 
-  it("cenas, fichas, handouts, pastas, modelos, pontos, luzes, tokens, zonas, ciclos, reações e botões nascem como rascunho", () => {
+  it("cenas, fichas, handouts, pastas, modelos, pontos, luzes, tokens, zonas e automações nascem como rascunho", () => {
     const e = claudeCriaTudo();
     const tipos = listarRascunhos(e).map((r) => r.tipo);
     expect(tipos.sort()).toEqual(
       [
-        "botao",
         "cena",
-        "ciclo",
+        "fluxo",
+        "fluxo",
         "handout",
         "luz",
         "modelo",
         "pasta",
         "personagem",
         "ponto",
-        "reacao",
         "token",
         "zona",
       ].sort(),
@@ -580,7 +572,7 @@ describe("rascunhos do Claude do mestre", () => {
       intencao("personagem.criar", { personagem: personagem("p", { rascunho: true }) }),
     ).estado;
     e = ok(e, "m", intencao("handout.criar", { handout: handout("h", { rascunho: true }) })).estado;
-    e = ok(e, "m", intencao("ciclo.criar", { ciclo: { ...ciclo, rascunho: true } })).estado;
+    e = ok(e, "m", intencao("fluxo.criar", { fluxo: { ...ciclo, rascunho: true } })).estado;
     expect(listarRascunhos(e)).toEqual([]);
     expect(JSON.stringify(e)).not.toContain("rascunho");
   });
@@ -654,10 +646,8 @@ describe("rascunhos do Claude do mestre", () => {
           estado: "acesa",
         },
       }),
-      intencao("ciclo.criar", { ciclo: { ...ciclo, liberadoParaJogadores: true } }),
-      intencao("botao.criar", {
-        botao: { id: "bot", nome: "Soprar", evento: "pulso", liberadoParaJogadores: true },
-      }),
+      intencao("fluxo.criar", { fluxo: { ...ciclo, liberadoParaJogadores: true } }),
+      intencao("fluxo.criar", { fluxo: botao }),
     ];
     for (const i of passos) {
       const r = ok(ultimo, "m", i, CLAUDE);
@@ -706,13 +696,15 @@ describe("rascunhos do Claude do mestre", () => {
     expect(erro(e, "m", intencao("grupo.moverPara", { cenaId: "nova" }))).toBeNull();
   });
 
-  it("ciclo e reação em rascunho não rodam; publicados, rodam; botão em rascunho não aparece nem vale para o jogador", () => {
+  it("automação em rascunho não roda; publicada, roda; botão em rascunho não aparece nem vale para o jogador", () => {
     let e = claudeCriaTudo();
     e = {
       ...e,
       automacoes: AutomacoesSchema.parse({
         ...e.automacoes,
-        ciclos: [{ ...(e.automacoes?.ciclos[0] as object), liberadoParaJogadores: true }],
+        fluxos: (e.automacoes?.fluxos ?? []).map((f) =>
+          f.id === "cic" ? { ...f, liberadoParaJogadores: true } : f,
+        ),
       }),
     };
     const anuncios = (x: Estado) => (x.chat ?? []).filter((m) => m.tipo === "aviso").length;
@@ -722,13 +714,10 @@ describe("rascunhos do Claude do mestre", () => {
     t = processarSistema(t.estado, iso(200), [], fonteComSemente(1));
     if (!t.ok) throw new Error("sistema");
     expect(anuncios(t.estado)).toBe(0);
-    // botão e ciclo liberados, mas em rascunho: o jogador não os recebe nem usa
+    // botão e relógio liberados, mas em rascunho: o jogador não os recebe nem usa
     expect(visaoPara(e, J("j1"), T0).botoes ?? []).toEqual([]);
     expect(erro(e, "j1", intencao("botao.usar", { botaoId: "evento:bot" }))).toBe("sem_permissao");
     expect(erro(e, "j1", intencao("botao.usar", { botaoId: "ciclo:cic" }))).toBe("sem_permissao");
-    // o evento manual também ignora a reação em rascunho
-    const d = ok(e, "m", intencao("evento.disparar", { evento: "pulso" }));
-    expect(anuncios(d.estado)).toBe(0);
 
     // publicados: rodam
     const p = ok(
@@ -736,13 +725,12 @@ describe("rascunhos do Claude do mestre", () => {
       "m",
       intencao("rascunho.publicar", {
         itens: [
-          { tipo: "ciclo", id: "cic" },
-          { tipo: "reacao", id: "rea" },
-          { tipo: "botao", id: "bot" },
+          { tipo: "fluxo", id: "cic" },
+          { tipo: "fluxo", id: "bot" },
         ],
       }),
     );
-    expect(listarRascunhos(p.estado).map((r) => r.tipo)).not.toContain("ciclo");
+    expect(listarRascunhos(p.estado).map((r) => r.tipo)).not.toContain("fluxo");
     t = processarSistema(p.estado, iso(5), [], fonteComSemente(1)) as typeof t;
     if (!t.ok) throw new Error("sistema");
     expect(anuncios(t.estado)).toBeGreaterThan(0);
@@ -795,14 +783,13 @@ describe("rascunhos do Claude do mestre", () => {
       intencao("rascunho.descartar", {
         itens: [
           { tipo: "token", id: "tok" },
-          { tipo: "ciclo", id: "cic" },
-          { tipo: "reacao", id: "rea" },
+          { tipo: "fluxo", id: "cic" },
           { tipo: "zona", id: "zon" },
         ],
       }),
     );
     expect(dc.estado.tokens).toEqual([]);
-    expect(dc.estado.automacoes?.ciclos).toEqual([]);
+    expect(dc.estado.automacoes?.fluxos.map((f) => f.id)).toEqual(["bot"]);
     expect(dc.estado.zonas ?? []).toEqual([]);
     expect(
       erro(

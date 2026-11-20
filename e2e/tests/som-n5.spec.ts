@@ -137,7 +137,7 @@ test("a zona toca um som para quem está dentro, com o sigilo da zona intacto; o
   expect(j2.frames.join("\n")).not.toContain('"som.zona"');
 });
 
-test("a automação som.tocar: o editor monta a reação e o evento toca o som para todos; o jogador nunca recebe a definição", async ({
+test("a automação som.tocar: o editor monta o bloco e o botão toca o som para todos; o jogador nunca recebe a definição", async ({
   mesa,
 }) => {
   const mestre = await entrarNoMapa(mesa, "mestre");
@@ -146,28 +146,29 @@ test("a automação som.tocar: o editor monta a reação e o evento toca o som p
   await abrirAba(p, "mesa");
   await p.getByTestId("automacoes-abrir").click();
   await expect(p.getByTestId("automacoes-janela")).toBeVisible();
-  await p.getByTestId("auto-nova-reacao").click();
-  await p.getByTestId("form-reacao-nome").fill("Sopro");
-  await p.getByTestId("form-reacao-ao").selectOption("__outro");
-  await p.getByTestId("form-reacao-ao-outro").fill("inspiracao");
-  await p.getByTestId("form-acao-0-tipo").selectOption("som.tocar");
-  await p.getByTestId("form-acao-0-adicionar-som").locator("summary").click();
+  await p.getByTestId("auto-nova").click();
+  await p.getByTestId("ed-nome").fill("Sopro");
+  await p.getByTestId("ed-peca-botao").click();
+  await p.getByTestId("ed-campo-botao").fill("Soprar");
+  await p.getByTestId("ed-mais-t0-0").click();
+  await p.getByTestId("ed-menu-t0-0-som").click();
+  await p.getByTestId("ed-adicionar-som").locator("summary").click();
   await p
-    .getByTestId("form-acao-0-escolher-arquivo")
+    .getByTestId("ed-escolher-som-arquivo")
     .setInputFiles(arquivoWav("sopro-do-pulmao.wav", 1));
   const hash = await esperarHashDoSom(p, "sopro-do-pulmao.wav");
-  await expect(p.getByTestId("form-acao-0-som")).toHaveValue(hash ?? "sem-hash");
-  await p.getByTestId("form-acao-0-volume").fill("50");
-  await p.getByTestId("form-acao-0-para").selectOption("todos");
-  await p.getByTestId("form-reacao-salvar").click();
-  await expect(p.getByTestId("auto-reacao-sopro")).toContainText("inspiracao");
+  await expect(p.getByTestId("ed-campo-som")).toHaveValue(hash ?? "sem-hash");
+  await p.getByTestId("ed-campo-volume").fill("50");
+  await p.getByTestId("ed-campo-para").selectOption("todos");
+  await p.getByTestId("ed-salvar").click();
+  await expect(p.getByTestId("auto-item-sopro")).toContainText("Soprar");
   expect(
-    mestre.enviados.filter((f) => f.includes('"reacao.criar"') && f.includes("som.tocar")).length,
+    mestre.enviados.filter((f) => f.includes('"fluxo.criar"') && f.includes("som.tocar")).length,
   ).toBe(1);
 
-  // o evento (um botão, um ciclo ou o próprio sistema) toca o efeito uma vez, para todos
+  // o botão (ou o relógio, ou o próprio sistema) toca o efeito uma vez, para todos
   expect((await somDe(j1.pagina)).efeitos).toEqual([]);
-  await ok(p, "evento.disparar", { evento: "inspiracao" });
+  await p.getByTestId("auto-disparar-sopro").click();
   for (const s of [mestre.pagina, j1.pagina]) {
     await expect.poll(async () => (await somDe(s)).efeitos.length).toBe(1);
     expect((await somDe(s)).efeitos[0]?.hash).toBe(hash);
@@ -176,7 +177,7 @@ test("a automação som.tocar: o editor monta a reação e o evento toca o som p
   // a definição da reação é segredo do mestre: o jogador recebeu o efeito, não a reação
   const doJogador = j1.frames.join("\n");
   expect(doJogador).toContain("som.efeitoTocado");
-  for (const proibido of ["som.tocar", "reacao.criar", "automacoes", "inspiracao"]) {
+  for (const proibido of ["som.tocar", "fluxo.criar", "automacoes", "trilhas"]) {
     expect(doJogador, `o frame do jogador trouxe "${proibido}"`).not.toContain(proibido);
   }
 });

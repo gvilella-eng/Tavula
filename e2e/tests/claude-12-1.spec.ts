@@ -172,8 +172,15 @@ test("a conexão do Claude é uma conexão comum: mesmas recusas do usuário, a 
     ],
     ["personagem.editar", { id: "ficha-do-j2", mudancas: { nome: "x" } }, "personagem_inexistente"],
     [
-      "ciclo.criar",
-      { ciclo: { id: "c", nome: "C", periodoS: 60, cenas: [], fases: [{ emS: 0, evento: "x" }] } },
+      "fluxo.criar",
+      {
+        fluxo: {
+          id: "c",
+          nome: "C",
+          gatilho: { tipo: "relogio", cadaS: 60 },
+          trilhas: [[{ bloco: "acao", acao: { acao: "chat.anunciar", texto: "x" } }]],
+        },
+      },
       "sem_permissao",
     ],
     ["cena.criar", { id: "cena-x", nome: "X" }, "sem_permissao"],
@@ -295,15 +302,14 @@ test("o Claude do mestre cria como rascunho: o jogador não vê até o mestre pu
     { loteId: "L1" },
   );
   await claude.mandar(
-    "ciclo.criar",
+    "fluxo.criar",
     {
-      ciclo: {
+      fluxo: {
         id: "ciclo-rascunho",
         nome: "CICLO-RASCUNHO",
-        periodoS: 30,
-        cenas: [],
         liberadoParaJogadores: true,
-        fases: [{ emS: 0, evento: "pulso" }],
+        gatilho: { tipo: "relogio", cadaS: 30 },
+        trilhas: [[{ bloco: "acao", acao: { acao: "chat.anunciar", texto: "pulso" } }]],
       },
     },
     { loteId: "L1" },

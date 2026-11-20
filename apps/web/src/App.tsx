@@ -49,6 +49,7 @@ function useModulo<M>(p: Pedaco<M>): M | null {
 }
 
 const pedacoDaEntrada = pedaco(() => import("./contas/EntradaDaMesa"));
+const pedacoDaAutomacao = pedaco(() => import("./automacoes/AutomacaoEmJanelaPropria"));
 const pedacoDaChamada = pedaco(() => import("./chamada/ChamadaEmJanelaPropria"));
 const pedacoDaFicha = pedaco(() => import("./ficha/FichaEmJanelaPropria"));
 const pedacoDaMesa = pedaco(() => import("./Mesa"));
@@ -74,9 +75,11 @@ function adiantarRota(rota: Rota): void {
       ? pedacoDoSom
       : rota.painel === "chamada"
         ? pedacoDaChamada
-        : rota.fichaId
-          ? pedacoDaFicha
-          : pedacoDaMesa
+        : rota.automacaoId
+          ? pedacoDaAutomacao
+          : rota.fichaId
+            ? pedacoDaFicha
+            : pedacoDaMesa
   ).baixar();
 }
 
@@ -94,11 +97,13 @@ function MesaEncontrada({
   mesa,
   fichaId,
   painel,
+  automacaoId,
   aoRenomear,
 }: {
   mesa: DadosDaMesa;
   fichaId?: string | undefined;
   painel?: "som" | "chamada" | undefined;
+  automacaoId?: string | undefined;
   aoRenomear: (n: string) => void;
 }) {
   // `undefined` = ainda perguntando à sala; `null` = ninguém entrou nesta mesa.
@@ -143,6 +148,20 @@ function MesaEncontrada({
       <ComPedaco key="som" de={pedacoDoSom}>
         {(m) => (
           <m.SomEmJanelaPropria key={usuario.id} mesa={mesa} aoPerderSessao={aoPerderSessao} />
+        )}
+      </ComPedaco>
+    );
+  }
+  if (automacaoId) {
+    return (
+      <ComPedaco key="automacao" de={pedacoDaAutomacao}>
+        {(m) => (
+          <m.AutomacaoEmJanelaPropria
+            key={usuario.id}
+            mesa={mesa}
+            automacaoId={automacaoId}
+            aoPerderSessao={aoPerderSessao}
+          />
         )}
       </ComPedaco>
     );
@@ -207,11 +226,13 @@ function RotaDaMesa({
   bruto,
   fichaId,
   painel,
+  automacaoId,
 }: {
   id: string | null;
   bruto: string;
   fichaId?: string | undefined;
   painel?: "som" | "chamada" | undefined;
+  automacaoId?: string | undefined;
 }) {
   // `undefined`: consultando; `null`: não existe.
   const [mesa, setMesa] = useState<DadosDaMesa | null | undefined>(undefined);
@@ -238,12 +259,12 @@ function RotaDaMesa({
   // O título da aba é o nome da mesa (a janela própria da ficha põe o dela).
   const nome = mesa?.nome;
   useEffect(() => {
-    if (fichaId || painel) return;
+    if (fichaId || painel || automacaoId) return;
     document.title = tituloDaMesa(nome);
     return () => {
       document.title = tituloDaMesa();
     };
-  }, [nome, fichaId, painel]);
+  }, [nome, fichaId, painel, automacaoId]);
 
   const aoRenomear = useCallback((novo: string) => {
     setMesa((atual) => {
@@ -271,6 +292,7 @@ function RotaDaMesa({
       mesa={mesa}
       fichaId={fichaId}
       painel={painel}
+      automacaoId={automacaoId}
       aoRenomear={aoRenomear}
     />
   );
@@ -289,11 +311,12 @@ export function App() {
   }
   return (
     <RotaDaMesa
-      key={`${rota.id ?? rota.bruto}/${rota.fichaId ?? ""}/${rota.painel ?? ""}`}
+      key={`${rota.id ?? rota.bruto}/${rota.fichaId ?? ""}/${rota.painel ?? ""}/${rota.automacaoId ?? ""}`}
       id={rota.id}
       bruto={rota.bruto}
       fichaId={rota.fichaId}
       painel={rota.painel}
+      automacaoId={rota.automacaoId}
     />
   );
 }

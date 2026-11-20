@@ -1,352 +1,88 @@
 import { z } from "zod";
-import { HashSchema } from "./assets.ts";
+import {
+  BotaoDeEventoSchema,
+  CicloSchema,
+  EVENTOS_DO_SISTEMA,
+  MAXIMO_DE_BOTOES,
+  MAXIMO_DO_REGISTRO,
+  ReacaoSchema,
+} from "./automacoesLegado.ts";
 import type { Estado, Token } from "./estado.ts";
-import { ParaQuemOSomSchema, VolumeSchema } from "./som.ts";
+import {
+  EsperandoSchema,
+  ExecucaoDoFluxoSchema,
+  FluxoSchema,
+  MAXIMO_DE_EXECUCOES_ESPERANDO,
+  MAXIMO_DE_FLUXOS,
+} from "./fluxos.ts";
+import { migrarAutomacoes } from "./fluxosConversao.ts";
+
+export * from "./automacoesLegado.ts";
+export * from "./fluxos.ts";
+export * from "./fluxosConversao.ts";
+export * from "./fluxosFrase.ts";
+export * from "./fluxosLeitura.ts";
+export * from "./fluxosValidar.ts";
 
 // ---------------------------------------------------------------------------------------------
-// Automações da mesa (Lote 7b-1, seção 4.11). Este arquivo só tem os DADOS: schemas zod, constantes e
-// funções puras de leitura. O motor que os executa fica em `automacoesnucleo.ts`.
+// Automações da mesa (seção 4.11), desde o AU1 por blocos (fluxos). Este arquivo tem a fatia do estado e as funções puras
+// de leitura; o motor que as executa fica em `automacoesnucleo.ts`, o que fala em português em `fluxosFrase.ts`.
 //
-// Sigilo (regra 7): as definições (ciclos, reações, a execução dos ciclos, os eventos pendentes e o
-// registro) moram na fatia `Estado.automacoes`, que SÓ o mestre recebe. O jogador recebe apenas os
-// efeitos: a luz que mudou (`fonte.editada`), o anúncio no chat, o token mostrado e o limite de visão
-// (`Estado.efeitos`, sem a origem).
+// Sigilo (regra 7): as definições (fluxos, a execução do relógio, as execuções esperando e o registro) moram na fatia
+// `Estado.automacoes`, que SÓ o mestre recebe. O jogador recebe apenas os efeitos: a luz que mudou (`fonte.editada`), o
+// anúncio no chat, o token mostrado e o limite de visão (`Estado.efeitos`, sem a origem).
 // ---------------------------------------------------------------------------------------------
 
 const Id = z.string().min(1).max(64);
-
-/** Quantos níveis de reação-que-dispara-evento valem antes de o motor cortar (regra 5; assumido). */
-export const PROFUNDIDADE_MAXIMA = 5;
-/** Teto de ações aplicadas (ação × alvo) por disparo, contando o encadeamento inteiro (assumido). */
-export const TETO_DE_ACOES = 500;
-/** Prazo de um efeito temporário quando nem a ação nem a fase dizem quanto (assumido). */
-export const DURACAO_PADRAO_S = 30;
-/** Quantas fases perdidas o motor recupera de uma vez (o resto é pulado e anotado). */
-export const MAXIMO_DE_FASES_ATRASADAS = 50;
-export const MAXIMO_DO_REGISTRO = 30;
-
-/** Os eventos que a própria sala produz (4.11). Os da zona (7b-2) levam a zona e o token. */
-export const EVENTOS_DO_SISTEMA = [
-  "objeto.acendeu",
-  "objeto.apagou",
-  "turno.inicio",
-  "cena.ativada",
-  "token.entrouNaZona",
-  "token.saiuDaZona",
-] as const;
-
-/** Nome de evento: letras, números, ponto, hífen e sublinhado ("inspiracao", "objeto.apagou"). */
-export const NomeDeEventoSchema = z
-  .string()
-  .min(1)
-  .max(48)
-  .regex(/^[\p{L}\p{N}._-]+$/u, "Use só letras, números, ponto, hífen e sublinhado.");
-
-const Segundos = z
-  .number()
-  .positive()
-  .max(7 * 86400);
-
-// --- Ciclos ----------------------------------------------------------------------------------
-
-/** Uma fase: no segundo `emS` do período dispara o evento (`duracaoS` é o prazo padrão dos efeitos dele). */
-export const FaseSchema = z.object({
-  emS: z
-    .number()
-    .min(0)
-    .max(7 * 86400),
-  evento: NomeDeEventoSchema,
-  duracaoS: Segundos.optional(),
-});
-export type Fase = z.infer<typeof FaseSchema>;
-
-/** Os campos de um ciclo, sem a conferência cruzada (as mudanças parciais do `ciclo.editar` partem daqui). */
-export const CicloCamposSchema = z.object({
-  id: Id,
-  nome: z.string().min(1).max(64),
-  periodoS: Segundos,
-  /** As cenas onde o ciclo vale (regra 4). Vazia = todas (assumido). */
-  cenas: z.array(Id).max(100).default([]),
-  fases: z.array(FaseSchema).min(1).max(20),
-  /** 7b-3: o mestre pode liberar os botões do ciclo (disparar, pausar, retomar) a todos os jogadores. */
-  liberadoParaJogadores: z.boolean().optional(),
-  /** 7b-3: o chip do ciclo fica na barra de cima do mestre (preferência dele, guardada com a campanha; assumido). */
-  fixado: z.boolean().optional(),
-  /** 12-1: rascunho do Claude do mestre: não roda e o jogador não o recebe. */
-  rascunho: z.boolean().optional(),
-});
-export const CicloSchema = CicloCamposSchema.superRefine((c, ctx) => {
-  const vistos = new Set<number>();
-  for (const [i, f] of c.fases.entries()) {
-    if (f.emS >= c.periodoS) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["fases", i, "emS"],
-        message: "A fase precisa cair antes do fim do período.",
-      });
-    }
-    if (vistos.has(f.emS)) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["fases", i, "emS"],
-        message: "Duas fases no mesmo segundo: use uma só e encadeie com evento.disparar.",
-      });
-    }
-    vistos.add(f.emS);
-  }
-});
-export type Ciclo = z.infer<typeof CicloSchema>;
-
-/**
- * O estado de execução de um ciclo, medido no TEMPO DA SALA (então pausar a mesa o congela sem conta
- * extra). O tempo do ciclo, τ, é `salaMs − baseSala` enquanto roda e `pausadoEmTau` quando pausado.
- * `disparadoAteTau`: as fases até este τ (inclusive) já dispararam; −1 = nenhuma ainda.
- */
-export const ExecucaoDoCicloSchema = z.object({
-  baseSala: z.number(),
-  pausadoEmTau: z.number().nonnegative().optional(),
-  disparadoAteTau: z.number().min(-1),
-});
-export type ExecucaoDoCiclo = z.infer<typeof ExecucaoDoCicloSchema>;
-
-// --- Eventos ---------------------------------------------------------------------------------
-
-/**
- * Um evento em andamento. `cenas`: o escopo (regra 4), `null` = qualquer cena. `objetoId` e `tokenId`
- * dizem de quem o evento trata (o objeto que acendeu, o token da vez).
- */
-export const EventoDeAutomacaoSchema = z.object({
-  nome: NomeDeEventoSchema,
-  cenas: z.array(Id).max(100).nullable(),
-  origem: z.enum(["ciclo", "manual", "sistema", "reacao"]),
-  objetoId: Id.optional(),
-  modeloId: Id.optional(),
-  tokenId: Id.optional(),
-  /** 7b-2: a zona de que o evento trata (`token.entrouNaZona` e `token.saiuDaZona`). */
-  zonaId: Id.optional(),
-  /** O prazo padrão dos efeitos (vem da fase do ciclo). */
-  duracaoS: Segundos.optional(),
-});
-export type EventoDeAutomacao = z.infer<typeof EventoDeAutomacaoSchema>;
-
-/** Um evento marcado para daqui a pouco (`evento.disparar` com `atrasoS`), no tempo da sala. */
-export const PendenteSchema = z.object({
-  id: Id,
-  ateSala: z.number().nonnegative(),
-  evento: EventoDeAutomacaoSchema,
-  /** Em que nível do encadeamento ele vai rodar (o atraso não zera a conta). */
-  profundidade: z
-    .number()
-    .int()
-    .min(0)
-    .max(PROFUNDIDADE_MAXIMA + 1),
-});
-export type Pendente = z.infer<typeof PendenteSchema>;
-
-// --- Condições e ações -----------------------------------------------------------------------
-
-/** "Se...": a reação só segue se todas valem para o alvo dela. */
-export const CondicaoDeReacaoSchema = z.discriminatedUnion("condicao", [
-  /** Sorteio no RNG da sala (0 a 1). */
-  z.object({ condicao: z.literal("chance"), valor: z.number().min(0).max(1) }),
-  /** O objeto alvo tem esta tag (a do modelo dele). */
-  z.object({ condicao: z.literal("tag"), tag: z.string().min(1).max(32) }),
-  /** O alvo está numa destas cenas. */
-  z.object({ condicao: z.literal("cena"), cenas: z.array(Id).min(1).max(100) }),
-  /**
-   * 7b-2: o alvo (o objeto, ou o token do evento) está dentro da zona. Sem `zona` vale a zona da própria
-   * reação (assumido). Zona desligada ou inexistente: não passa.
-   */
-  z.object({ condicao: z.literal("dentroDaZona"), zona: Id.optional() }),
-]);
-export type CondicaoDeReacao = z.infer<typeof CondicaoDeReacaoSchema>;
-
-/**
- * Quais objetos de luz uma ação atinge. Sem `alvo`, a ação vale para o objeto da reação (reação de
- * modelo) ou para o do evento (`objeto.acendeu`); sem nenhum dos dois, para todos os objetos das cenas
- * do evento. Com `alvo`, filtra os objetos das cenas do evento por modelo e/ou tag.
- */
-export const AlvoDeObjetoSchema = z.object({
-  modeloId: Id.optional(),
-  tag: z.string().min(1).max(32).optional(),
-});
-export type AlvoDeObjeto = z.infer<typeof AlvoDeObjetoSchema>;
-
-/**
- * Quais tokens uma ação atinge. Sem `alvo`: quem carrega o objeto da reação (token da luz ou dono da
- * tocha na mão) ou, sem objeto, todos os tokens das cenas do evento. Com `ids`, só esses.
- */
-export const AlvoDeTokenSchema = z.object({ ids: z.array(Id).min(1).max(50).optional() });
-export type AlvoDeToken = z.infer<typeof AlvoDeTokenSchema>;
-
-const Prazo = Segundos.optional();
-
-/** A lista FECHADA de ações (regra 1). `som.tocar` entrou no N5 (efeito de som, uma vez). */
-export const AcaoSchema = z.discriminatedUnion("acao", [
-  /** Multiplica (`raioX`) e/ou soma (`raioSomaM`) o raio da luz por um prazo: um modificador, nunca o valor base. */
-  z
-    .object({
-      acao: z.literal("luz.modificar"),
-      raioX: z.number().min(0.1).max(5).optional(),
-      raioSomaM: z.number().min(-100).max(100).optional(),
-      porS: Prazo,
-      alvo: AlvoDeObjetoSchema.optional(),
-    })
-    .refine((a) => a.raioX !== undefined || a.raioSomaM !== undefined, {
-      message: "Diga o raioX, o raioSomaM ou os dois.",
-    }),
-  /** Apaga o objeto aceso (com `chance`) e desconta `penalidadeS` do que sobra. */
-  z.object({
-    acao: z.literal("objeto.apagar"),
-    chance: z.number().min(0).max(1).optional(),
-    penalidadeS: z
-      .number()
-      .min(0)
-      .max(100 * 3600)
-      .optional(),
-    alvo: AlvoDeObjetoSchema.optional(),
-  }),
-  /** Soma ou tira tempo do que sobra do objeto. */
-  z.object({
-    acao: z.literal("objeto.ajustarTempo"),
-    deltaS: z
-      .number()
-      .min(-100 * 3600)
-      .max(100 * 3600)
-      .refine((n) => n !== 0, "O ajuste não pode ser zero."),
-    alvo: AlvoDeObjetoSchema.optional(),
-  }),
-  /** Limita o alcance de visão do token por um prazo (um efeito, nunca o valor base). */
-  z.object({
-    acao: z.literal("visao.limitar"),
-    alcanceM: z.number().min(0.5).max(1000),
-    porS: Prazo,
-    alvo: AlvoDeTokenSchema.optional(),
-  }),
-  /** Uma linha no chat da mesa, para todos ou só para o mestre. */
-  z.object({
-    acao: z.literal("chat.anunciar"),
-    texto: z.string().trim().min(1).max(300),
-    para: z.enum(["todos", "mestre"]).default("todos"),
-  }),
-  /**
-   * N5: toca um som uma vez (o asset `som` já registrado), para todos, para quem vê a cena do evento ou para quem
-   * controla o token do evento. O mestre ouve sempre.
-   */
-  z.object({
-    acao: z.literal("som.tocar"),
-    hash: HashSchema,
-    nome: z.string().trim().min(1).max(200),
-    volume: VolumeSchema.default(0.8),
-    para: ParaQuemOSomSchema.default("todos"),
-  }),
-  z.object({ acao: z.literal("token.mostrar"), alvo: AlvoDeTokenSchema.optional() }),
-  z.object({ acao: z.literal("token.ocultar"), alvo: AlvoDeTokenSchema.optional() }),
-  /** 7b-2: liga ou desliga uma zona (sem `zona`, a da própria reação). Desligada, nada fica preso nela. */
-  z.object({ acao: z.literal("zona.ativar"), zona: Id.optional(), ativa: z.boolean() }),
-  /** Dispara outro evento, já ou depois de `atrasoS` (no tempo da sala). Conta no limite de encadeamento. */
-  z.object({
-    acao: z.literal("evento.disparar"),
-    evento: NomeDeEventoSchema,
-    atrasoS: z
-      .number()
-      .min(0)
-      .max(7 * 86400)
-      .optional(),
-  }),
-]);
-export type Acao = z.infer<typeof AcaoSchema>;
-export type TipoDeAcaoDeAutomacao = Acao["acao"];
-
-// --- Reações ---------------------------------------------------------------------------------
-
-/**
- * A quem a reação está presa: a um modelo de objeto (toda instância herda), a uma cena, a uma zona (7b-2) ou
- * à mesa toda.
- */
-export const FicaSchema = z.discriminatedUnion("tipo", [
-  z.object({ tipo: z.literal("modelo"), id: Id }),
-  z.object({ tipo: z.literal("cena"), id: Id }),
-  z.object({ tipo: z.literal("zona"), id: Id }),
-  z.object({ tipo: z.literal("mesa") }),
-]);
-export type Fica = z.infer<typeof FicaSchema>;
-
-export const ReacaoSchema = z.object({
-  id: Id,
-  nome: z.string().min(1).max(64).optional(),
-  /** Desligada, não roda (o editor do 7b-3 liga e desliga sem apagar). */
-  ativa: z.boolean().default(true),
-  fica: FicaSchema,
-  /** "Ao receber o evento X". */
-  ao: NomeDeEventoSchema,
-  se: z.array(CondicaoDeReacaoSchema).max(8).default([]),
-  fazer: z.array(AcaoSchema).min(1).max(20),
-  /** 12-1: rascunho do Claude do mestre: não roda e o jogador não o recebe. */
-  rascunho: z.boolean().optional(),
-});
-export type Reacao = z.infer<typeof ReacaoSchema>;
-
-// --- A fatia do estado -----------------------------------------------------------------------
-
-// --- Botões de evento (7b-3) -----------------------------------------------------------------
-
-/**
- * Um botão do mestre que dispara um evento ("Soprar o vento"): o nome é o rótulo do botão, `evento` o que ele dispara
- * (em todas as cenas ou só em `cenaId`). `fixado`: o chip fica na barra de cima do mestre; `liberadoParaJogadores`: os
- * jogadores veem o chip (só o rótulo) e podem dispará-lo.
- */
-export const BotaoDeEventoSchema = z.object({
-  id: Id,
-  nome: z.string().trim().min(1).max(40),
-  evento: NomeDeEventoSchema,
-  cenaId: Id.optional(),
-  fixado: z.boolean().optional(),
-  liberadoParaJogadores: z.boolean().optional(),
-  /** 12-1: rascunho do Claude do mestre: não roda e o jogador não o recebe. */
-  rascunho: z.boolean().optional(),
-});
-export type BotaoDeEvento = z.infer<typeof BotaoDeEventoSchema>;
-export const MAXIMO_DE_BOTOES = 30;
 
 export const ItemDoRegistroSchema = z.object({
   emSala: z.number().nonnegative(),
   texto: z.string().max(200),
 });
 
-/**
- * Tudo o que é definição ou controle de automação: SÓ o mestre recebe (nunca o jogador, nem num
- * snapshot nem num evento). Não vai a um navegador de jogador por nenhum caminho.
- */
-export const AutomacoesSchema = z.object({
-  ciclos: z.array(CicloSchema).max(50).default([]),
-  reacoes: z.array(ReacaoSchema).max(300).default([]),
-  /** Por id de ciclo. Ciclo sem execução ainda não começou: o motor a cria no primeiro instante com a mesa rodando. */
-  execucao: z.record(Id, ExecucaoDoCicloSchema).default({}),
-  pendentes: z.array(PendenteSchema).max(200).default([]),
-  /** O que o motor quis dizer ao mestre (encadeamento cortado, fases puladas). Só as últimas. */
-  registro: z.array(ItemDoRegistroSchema).max(MAXIMO_DO_REGISTRO).default([]),
-  /** 7b-3: os botões de evento do mestre (os dos ciclos moram no próprio ciclo). */
-  botoes: z.array(BotaoDeEventoSchema).max(MAXIMO_DE_BOTOES).default([]),
+/** O formato antigo, guardado só para leitura (não roda). */
+export const LegadoSchema = z.object({
+  ciclos: z.array(CicloSchema).max(100).default([]),
+  reacoes: z.array(ReacaoSchema).max(600).default([]),
+  botoes: z.array(BotaoDeEventoSchema).max(100).default([]),
 });
-export type Automacoes = z.infer<typeof AutomacoesSchema>;
+export type Legado = z.infer<typeof LegadoSchema>;
+
+const AutomacoesCorpoSchema = z.object({
+  fluxos: z.array(FluxoSchema).max(MAXIMO_DE_FLUXOS).default([]),
+  /** Por id de fluxo de relógio. Fluxo sem execução ainda não começou: o motor a cria no primeiro instante com a mesa rodando. */
+  execucao: z.record(Id, ExecucaoDoFluxoSchema).default({}),
+  esperando: z.array(EsperandoSchema).max(MAXIMO_DE_EXECUCOES_ESPERANDO).default([]),
+  /** Quando cada fluxo rodou por último, no tempo da sala (a lista mostra "rodou há 4 min"). */
+  ultimaVez: z.record(Id, z.number()).default({}),
+  /** O que o motor quis dizer ao mestre (encadeamento cortado, ações sem alvo). Só as últimas. */
+  registro: z.array(ItemDoRegistroSchema).max(MAXIMO_DO_REGISTRO).default([]),
+  /** Ciclos, reações e botões do formato antigo, de antes da conversão em fluxos. Só leitura. */
+  legado: LegadoSchema.optional(),
+});
+
+/**
+ * Tudo o que é definição ou controle de automação: SÓ o mestre recebe. Lê o formato antigo (ciclos, reações, botões) e o
+ * converte em fluxos (`migrarAutomacoes`).
+ */
+export const AutomacoesSchema = z.preprocess(migrarAutomacoes, AutomacoesCorpoSchema);
+export type Automacoes = z.infer<typeof AutomacoesCorpoSchema>;
 
 export const AUTOMACOES_VAZIAS: Automacoes = {
-  ciclos: [],
-  reacoes: [],
+  fluxos: [],
   execucao: {},
-  pendentes: [],
+  esperando: [],
+  ultimaVez: {},
   registro: [],
-  botoes: [],
 };
 
 export function automacoesDe(estado: Pick<Estado, "automacoes">): Automacoes {
   return estado.automacoes ?? AUTOMACOES_VAZIAS;
 }
 
-// --- Os botões na barra (7b-3) ---------------------------------------------------------------
+// --- Os nomes dos eventos do sistema ---------------------------------------------------------
 
-/** Os eventos do sistema com o nome que o mestre lê no editor. */
+/** Os eventos do sistema com o nome que o mestre lê. */
 export const NOME_AMIGAVEL_DO_EVENTO: Record<(typeof EVENTOS_DO_SISTEMA)[number], string> = {
   "objeto.acendeu": "Uma luz acendeu",
   "objeto.apagou": "Uma luz apagou",
@@ -365,6 +101,8 @@ export function nomeDoEvento(nome: string): string {
   return ehEventoDoSistema(nome) ? NOME_AMIGAVEL_DO_EVENTO[nome] : nome;
 }
 
+// --- Os botões na barra (7b-3) ---------------------------------------------------------------
+
 /** Um disparo por usuário a cada tanto (o limite de frequência dos botões liberados; assumido). */
 export const INTERVALO_MINIMO_DO_BOTAO_MS = 2000;
 
@@ -374,9 +112,8 @@ export function botaoDentroDoLimite(ultimo: number | undefined, agora: number): 
 }
 
 /**
- * O botão como o JOGADOR o recebe: só o id (do ciclo ou do botão de evento, com o tipo na frente), o tipo e o rótulo.
- * Nada da definição (fases, cenas, reações, o evento que ele dispara). Num ciclo vai também se está pausado, para o
- * chip mostrar "Pausar" ou "Retomar".
+ * O botão como o JOGADOR o recebe: só o id (do fluxo, com o tipo na frente), o tipo e o rótulo. Nada da definição (trilhas,
+ * cenas, o que o fluxo faz). Num fluxo de relógio vai também se está desligado, para o chip mostrar "Pausar" ou "Retomar".
  */
 export const BotaoParaJogadorSchema = z.object({
   id: z.string().min(1).max(80),
@@ -387,58 +124,49 @@ export const BotaoParaJogadorSchema = z.object({
 export type BotaoParaJogador = z.infer<typeof BotaoParaJogadorSchema>;
 export const MAXIMO_DE_BOTOES_DO_JOGADOR = MAXIMO_DE_BOTOES + 50;
 
-export const idDoBotaoDeCiclo = (cicloId: string) => `ciclo:${cicloId}`;
-export const idDoBotaoDeEvento = (botaoId: string) => `evento:${botaoId}`;
+/** O id do botão de um fluxo de relógio (`ciclo:`) ou de botão (`evento:`), como o chip e o `botao.usar` o conhecem. */
+export const idDoBotaoDeCiclo = (fluxoId: string) => `ciclo:${fluxoId}`;
+export const idDoBotaoDeEvento = (fluxoId: string) => `evento:${fluxoId}`;
 
-/** Os botões liberados, na ordem: ciclos e depois eventos. Vazio quando não há automação. */
-export function botoesParaJogador(
-  automacoes: Pick<Automacoes, "ciclos" | "execucao"> & { botoes?: Automacoes["botoes"] },
-): BotaoParaJogador[] {
-  const doCiclo = automacoes.ciclos
-    .filter((c) => c.liberadoParaJogadores === true && c.rascunho !== true)
-    .map(
-      (c): BotaoParaJogador => ({
-        id: idDoBotaoDeCiclo(c.id),
-        tipo: "ciclo",
-        nome: c.nome,
-        pausado: !cicloRodando(automacoes.execucao[c.id]),
-      }),
-    );
-  const doEvento = (automacoes.botoes ?? [])
-    .filter((b) => b.liberadoParaJogadores === true && b.rascunho !== true)
-    .map((b): BotaoParaJogador => ({ id: idDoBotaoDeEvento(b.id), tipo: "evento", nome: b.nome }));
-  return [...doCiclo, ...doEvento];
+/** Os botões liberados, na ordem dos fluxos. Vazio quando não há automação. */
+export function botoesParaJogador(automacoes: Pick<Automacoes, "fluxos">): BotaoParaJogador[] {
+  const saida: BotaoParaJogador[] = [];
+  for (const f of automacoes.fluxos) {
+    if (f.liberadoParaJogadores !== true || f.rascunho === true) continue;
+    if (f.gatilho.tipo === "relogio") {
+      saida.push({ id: idDoBotaoDeCiclo(f.id), tipo: "ciclo", nome: f.nome, pausado: !f.ligado });
+    } else if (f.gatilho.tipo === "botao" && f.ligado) {
+      saida.push({ id: idDoBotaoDeEvento(f.id), tipo: "evento", nome: f.nome });
+    }
+  }
+  return saida.slice(0, MAXIMO_DE_BOTOES_DO_JOGADOR);
+}
+
+// --- O relógio dos fluxos --------------------------------------------------------------------
+
+/** O tempo do fluxo (τ, em ms) no instante `salaMs`. */
+export function tauDoFluxo(
+  exec: { baseSala: number; pausadoEmTau?: number | undefined },
+  salaMs: number,
+): number {
+  return exec.pausadoEmTau ?? Math.max(0, salaMs - exec.baseSala);
 }
 
 /**
- * Onde o ciclo está agora, para o editor e o chip da barra: a fase atual (a última que já disparou neste período; `null`
- * antes da primeira), a próxima e em quantos ms ela chega. Ciclo pausado não anda; ciclo que ainda não começou está no
- * instante 0.
+ * Onde o fluxo de relógio está agora, para a lista e o chip: se corre, e em quantos ms ele dispara de novo (`null` quando
+ * não anda: desligado, rascunho, ou outro gatilho). Fluxo que ainda não começou dispara no primeiro instante com a mesa
+ * correndo.
  */
-export function situacaoDoCiclo(
-  ciclo: Pick<Ciclo, "periodoS" | "fases">,
-  exec: ExecucaoDoCiclo | undefined,
+export function situacaoDoFluxo(
+  fluxo: Pick<z.infer<typeof FluxoSchema>, "gatilho" | "ligado" | "rascunho">,
+  exec: z.infer<typeof ExecucaoDoFluxoSchema> | undefined,
   salaMs: number,
-): { pausado: boolean; atual: Fase | null; proxima: Fase | null; proximaEmMs: number | null } {
-  const tau = exec ? tauDoCiclo(exec, salaMs) : 0;
-  const periodo = ciclo.periodoS * 1000;
-  const dentro = tau % periodo;
-  let atual: Fase | null = null;
-  // Ciclo que ainda não começou (a mesa está pausada, ou veio de um arquivo) não está em fase nenhuma.
-  for (const f of exec === undefined ? [] : ciclo.fases) {
-    if (f.emS * 1000 <= dentro && (atual === null || f.emS > atual.emS)) atual = f;
-  }
-  // Ainda antes da primeira fase do período: vale a última do período anterior, se já houve um.
-  if (atual === null && tau >= periodo) {
-    for (const f of ciclo.fases) if (atual === null || f.emS > atual.emS) atual = f;
-  }
-  const proxima = proximaFaseDoCiclo(ciclo, exec?.disparadoAteTau ?? -1);
-  return {
-    pausado: !cicloRodando(exec),
-    atual,
-    proxima: proxima?.fase ?? null,
-    proximaEmMs: proxima ? Math.max(0, proxima.tauMs - tau) : null,
-  };
+): { rodando: boolean; proximaEmMs: number | null } {
+  if (fluxo.gatilho.tipo !== "relogio") return { rodando: fluxo.ligado, proximaEmMs: null };
+  const rodando = fluxo.ligado && fluxo.rascunho !== true;
+  if (!rodando) return { rodando: false, proximaEmMs: null };
+  if (exec === undefined) return { rodando, proximaEmMs: 0 };
+  return { rodando, proximaEmMs: Math.max(0, exec.proximoTau - tauDoFluxo(exec, salaMs)) };
 }
 
 // --- Efeitos temporários em tokens ----------------------------------------------------------
@@ -517,45 +245,10 @@ export function efeitosParaJogador(
   }
   return saida;
 }
-
-// --- O tempo dos ciclos ----------------------------------------------------------------------
-
 /**
- * O ciclo está rodando (não pausado)? Ciclo sem execução ainda não começou e conta como rodando: o motor
- * o inicia no primeiro instante com a mesa correndo (é o caso do ciclo que veio de um arquivo de campanha).
- */
-export function cicloRodando(exec: ExecucaoDoCiclo | undefined): boolean {
-  return exec === undefined || exec.pausadoEmTau === undefined;
-}
-
-/** O tempo do ciclo (τ, em ms) no instante `salaMs`. */
-export function tauDoCiclo(exec: ExecucaoDoCiclo, salaMs: number): number {
-  return exec.pausadoEmTau ?? Math.max(0, salaMs - exec.baseSala);
-}
-
-/**
- * A próxima fase depois de `disparadoAteTau`: o instante dela no tempo do ciclo (ms), a fase e o índice.
- * Contando os períodos que se repetem. Fase com o mesmo instante: a de menor índice primeiro.
- */
-export function proximaFaseDoCiclo(
-  ciclo: Pick<Ciclo, "periodoS" | "fases">,
-  disparadoAteTau: number,
-): { tauMs: number; fase: Fase; indice: number } | null {
-  const periodo = ciclo.periodoS * 1000;
-  let melhor: { tauMs: number; fase: Fase; indice: number } | null = null;
-  for (const [indice, fase] of ciclo.fases.entries()) {
-    const base = fase.emS * 1000;
-    const k = disparadoAteTau < base ? 0 : Math.floor((disparadoAteTau - base) / periodo) + 1;
-    const tauMs = base + k * periodo;
-    if (melhor === null || tauMs < melhor.tauMs) melhor = { tauMs, fase, indice };
-  }
-  return melhor;
-}
-
-/**
- * Em quantos ms (do tempo da sala) acontece o próximo marco das automações: uma fase de ciclo que roda,
- * um evento pendente ou o fim de um efeito. `null` quando nada vai acontecer sozinho. Mesa pausada: nada
- * (o chamador já não agenda). O que já venceu conta como 0.
+ * Em quantos ms (do tempo da sala) acontece o próximo marco das automações: o disparo de um fluxo de relógio que roda, uma
+ * execução esperando ou o fim de um efeito. `null` quando nada vai acontecer sozinho. Mesa pausada: nada (o chamador já
+ * não agenda). O que já venceu conta como 0.
  */
 export function proximoMarcoDasAutomacoes(
   estado: Pick<Estado, "automacoes" | "efeitos">,
@@ -563,18 +256,14 @@ export function proximoMarcoDasAutomacoes(
 ): number | null {
   const a = automacoesDe(estado);
   const candidatos: number[] = [];
-  for (const c of a.ciclos) {
-    if (c.rascunho) continue;
-    const exec = a.execucao[c.id];
-    if (!cicloRodando(exec)) continue;
-    if (exec === undefined) {
-      candidatos.push(0);
-      continue;
-    }
-    const proxima = proximaFaseDoCiclo(c, exec.disparadoAteTau);
-    if (proxima) candidatos.push(proxima.tauMs - tauDoCiclo(exec, salaMs));
+  for (const f of a.fluxos) {
+    if (f.rascunho || !f.ligado || f.gatilho.tipo !== "relogio") continue;
+    const exec = a.execucao[f.id];
+    if (exec === undefined) candidatos.push(0);
+    else if (exec.pausadoEmTau === undefined)
+      candidatos.push(exec.proximoTau - tauDoFluxo(exec, salaMs));
   }
-  for (const p of a.pendentes) candidatos.push(p.ateSala - salaMs);
+  for (const p of a.esperando) candidatos.push(p.ateSala - salaMs);
   for (const e of estado.efeitos ?? []) {
     if (e.ateSala !== undefined) candidatos.push(e.ateSala - salaMs);
   }

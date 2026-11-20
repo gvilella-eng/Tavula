@@ -2,15 +2,12 @@ import { z } from "zod";
 import { AssetMetaSchema, HashSchema, LIMITES_DE_ASSET, MetaNovaSchema } from "./assets.ts";
 import {
   AutomacoesSchema,
-  BotaoDeEventoSchema,
   BotaoParaJogadorSchema,
-  CicloCamposSchema,
-  CicloSchema,
   EfeitoSchema,
+  FluxoSchema,
   MAXIMO_DE_BOTOES_DO_JOGADOR,
   MAXIMO_DE_EFEITOS,
-  NomeDeEventoSchema,
-  ReacaoSchema,
+  MudancasDoFluxoSchema,
 } from "./automacoes.ts";
 import {
   CAPACIDADES_DELEGAVEIS,
@@ -439,39 +436,6 @@ const AjusteDoObjetoSchema = z.discriminatedUnion("acao", [
   /** Extingue de vez (a lixeira): o objeto sai da coleção, como quando o tempo acaba. */
   z.object({ acao: z.literal("consumir") }),
 ]);
-
-/** `ciclo.editar`: só o que vier muda; a sala junta e confere o ciclo inteiro de novo. */
-// Sem os padrões dos campos (`cenas`, `ativa`, `se`): no zod o `.partial()` ainda aplica o padrão do campo ausente, e editar só o
-// nome apagaria as cenas do ciclo, as condições da reação e religaria a reação (7b-2).
-const MudancasDoCicloSchema = z
-  .object({
-    nome: CicloCamposSchema.shape.nome,
-    periodoS: CicloCamposSchema.shape.periodoS,
-    cenas: CicloCamposSchema.shape.cenas.unwrap(),
-    fases: CicloCamposSchema.shape.fases,
-    liberadoParaJogadores: CicloCamposSchema.shape.liberadoParaJogadores,
-    fixado: CicloCamposSchema.shape.fixado,
-  })
-  .partial();
-const MudancasDoBotaoSchema = z
-  .object({
-    nome: BotaoDeEventoSchema.shape.nome,
-    evento: BotaoDeEventoSchema.shape.evento,
-    cenaId: BotaoDeEventoSchema.shape.cenaId.nullable(),
-    fixado: BotaoDeEventoSchema.shape.fixado,
-    liberadoParaJogadores: BotaoDeEventoSchema.shape.liberadoParaJogadores,
-  })
-  .partial();
-const MudancasDaReacaoSchema = z
-  .object({
-    nome: ReacaoSchema.shape.nome,
-    ativa: ReacaoSchema.shape.ativa.unwrap(),
-    fica: ReacaoSchema.shape.fica,
-    ao: ReacaoSchema.shape.ao,
-    se: ReacaoSchema.shape.se.unwrap(),
-    fazer: ReacaoSchema.shape.fazer,
-  })
-  .partial();
 
 const MudancasDoHandoutSchema = z
   .object({
@@ -1153,21 +1117,16 @@ export const IntencaoSchema = z.discriminatedUnion("tipo", [
   ),
   intencao("musica.volume", z.object({ volume: VolumeSchema })),
   /**
-   * Automações (7b-1, seção 4.11). Todas só do mestre (`automacao.editar`). `ciclo.criar` com `pausado`
-   * cria o ciclo parado no começo (sem ele, roda assim que a mesa corre). Editar o período ou as fases
-   * reinicia o ciclo (mantendo-o pausado, se estava).
+   * Automações (AU1, seção 4.11): fluxos por blocos. Todas só do mestre (`automacao.editar`). `fluxo.editar` junta o que vier
+   * ao fluxo e confere o conjunto de novo; mudar o gatilho ou as trilhas reinicia o relógio e cancela o que estava esperando.
+   * `fluxo.ligar` liga ou desliga (desligado, o relógio congela). `fluxo.disparar` roda o fluxo agora, uma vez (o "Testar
+   * agora", o botão).
    */
-  intencao("ciclo.criar", z.object({ ciclo: CicloSchema, pausado: z.boolean().optional() })),
-  intencao("ciclo.editar", z.object({ id: IdSchema, mudancas: MudancasDoCicloSchema })),
-  intencao("ciclo.apagar", z.object({ id: IdSchema })),
-  /** Dispara a fase seguinte agora e continua dali (o ciclo pulou para o começo dela). */
-  intencao("ciclo.disparar", z.object({ id: IdSchema })),
-  /** Pausa só o ciclo: as tochas continuam queimando. Pausar a mesa (`mesa.pausar`) congela os dois. */
-  intencao("ciclo.pausar", z.object({ id: IdSchema })),
-  intencao("ciclo.retomar", z.object({ id: IdSchema })),
-  intencao("reacao.criar", z.object({ reacao: ReacaoSchema })),
-  intencao("reacao.editar", z.object({ id: IdSchema, mudancas: MudancasDaReacaoSchema })),
-  intencao("reacao.apagar", z.object({ id: IdSchema })),
+  intencao("fluxo.criar", z.object({ fluxo: FluxoSchema })),
+  intencao("fluxo.editar", z.object({ id: IdSchema, mudancas: MudancasDoFluxoSchema })),
+  intencao("fluxo.apagar", z.object({ id: IdSchema })),
+  intencao("fluxo.ligar", z.object({ id: IdSchema, ligado: z.boolean() })),
+  intencao("fluxo.disparar", z.object({ id: IdSchema })),
   /**
    * Zonas (7b-2): polígonos de uma cena com efeitos "enquanto dentro". Só do mestre (`automacao.editar`); a
    * zona nunca chega ao jogador. `zona.criar` serve também para o Desfazer (o mesmo id volta).
@@ -1175,13 +1134,6 @@ export const IntencaoSchema = z.discriminatedUnion("tipo", [
   intencao("zona.criar", z.object({ zona: ZonaNovaSchema })),
   intencao("zona.editar", z.object({ id: IdSchema, mudancas: MudancasDaZonaSchema })),
   intencao("zona.apagar", z.object({ id: IdSchema })),
-  /**
-   * 7b-3: os botões de evento do mestre (o botão de um ciclo é o próprio ciclo: `ciclo.editar` com `fixado` e
-   * `liberadoParaJogadores`). Só do mestre (`automacao.editar`).
-   */
-  intencao("botao.criar", z.object({ botao: BotaoDeEventoSchema })),
-  intencao("botao.editar", z.object({ id: IdSchema, mudancas: MudancasDoBotaoSchema })),
-  intencao("botao.apagar", z.object({ id: IdSchema })),
   /**
    * 7b-3: usa um botão (`ciclo:<id>` ou `evento:<id>`, como o jogador o recebe). Sem capacidade: o mestre usa qualquer
    * um; o jogador só os que o mestre liberou, conferido a cada clique, e no máximo um a cada 2 s (a sala limita).
@@ -1193,11 +1145,6 @@ export const IntencaoSchema = z.discriminatedUnion("tipo", [
       botaoId: z.string().min(1).max(80),
       acao: z.enum(["disparar", "pausar", "retomar"]).optional(),
     }),
-  ),
-  /** Dispara um evento agora, em todas as cenas ou só em `cenaId`. */
-  intencao(
-    "evento.disparar",
-    z.object({ evento: NomeDeEventoSchema, cenaId: IdSchema.optional() }),
   ),
   /**
    * 12-1: rascunhos do Claude do mestre (só o mestre, `mesa.configurar`). `publicar` sem `itens` publica todos; `descartar`
@@ -1381,22 +1328,14 @@ export const capacidadeDaIntencao: Record<TipoIntencao, Capacidade | null> = {
   "musica.controle": "som.controlar",
   "musica.volume": "som.controlar",
   // 7b-1: automações são dado do mestre (regra 7): nenhuma é delegável.
-  "ciclo.criar": "automacao.editar",
-  "ciclo.editar": "automacao.editar",
-  "ciclo.apagar": "automacao.editar",
-  "ciclo.disparar": "automacao.editar",
-  "ciclo.pausar": "automacao.editar",
-  "ciclo.retomar": "automacao.editar",
-  "reacao.criar": "automacao.editar",
-  "reacao.editar": "automacao.editar",
-  "reacao.apagar": "automacao.editar",
+  "fluxo.criar": "automacao.editar",
+  "fluxo.editar": "automacao.editar",
+  "fluxo.apagar": "automacao.editar",
+  "fluxo.ligar": "automacao.editar",
+  "fluxo.disparar": "automacao.editar",
   "zona.criar": "automacao.editar",
   "zona.editar": "automacao.editar",
   "zona.apagar": "automacao.editar",
-  "evento.disparar": "automacao.editar",
-  "botao.criar": "automacao.editar",
-  "botao.editar": "automacao.editar",
-  "botao.apagar": "automacao.editar",
   // O jogador usa os botões que o mestre liberou: a conferência é feita na sala, a cada clique.
   "botao.usar": null,
   "rascunho.publicar": "mesa.configurar",
@@ -1654,8 +1593,7 @@ export const CODIGOS_DE_ERRO = [
   "muitas_mensagens",
   "desenho_inexistente",
   "limite_de_desenhos",
-  "ciclo_inexistente",
-  "reacao_inexistente",
+  "fluxo_inexistente",
   "zona_inexistente",
   "limite_de_criacao",
   "lote_inexistente",

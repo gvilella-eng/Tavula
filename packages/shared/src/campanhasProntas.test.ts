@@ -81,9 +81,7 @@ describe("as campanhas prontas passam pelo schema da importação", () => {
     if (!lida.ok) return;
     const d = lida.exportacao.dados;
     const a = automacoesDe(d);
-    expect(a.ciclos).toEqual([]);
-    expect(a.reacoes).toEqual([]);
-    expect(a.botoes).toEqual([]);
+    expect(a.fluxos).toEqual([]);
     expect(d.zonas ?? []).toEqual([]);
     expect(d.modelos.map((m) => m.nome)).toEqual(["Tocha 5e", "Lanterna", "Fogueira"]);
   });
@@ -96,26 +94,40 @@ describe("as campanhas prontas passam pelo schema da importação", () => {
     const tochaModelo = d.modelos.find((m) => m.id === "modelo-tocha");
     expect(tochaModelo).toMatchObject({ nome: "Tocha", duracaoS: 1800, tags: ["chama"] });
     expect(d.config.penalidadeAoApagarS).toBe(60);
+    // AU1: o arquivo é da forma antiga (ciclos, reações e botões) e a importação o converte em fluxos
     const a = automacoesDe(d);
-    expect(a.ciclos).toHaveLength(1);
-    expect(a.ciclos[0]).toMatchObject({
-      periodoS: 180,
-      cenas: ["pulmao"],
-      fases: [
-        { emS: 0, evento: "inspiracao" },
-        { emS: 90, evento: "expiracao" },
-      ],
+    expect(a.legado?.ciclos).toHaveLength(1);
+    expect(a.legado?.reacoes).toHaveLength(4);
+    expect(a.legado?.botoes).toHaveLength(1);
+    const porNome = (n: string) => a.fluxos.find((f) => f.nome === n);
+    // o ciclo vira um fluxo de relógio com uma trilha por fase; a expiração só liga ao ciclo e fica dentro dele
+    const respiracao = porNome("Respiração do Pulmão");
+    expect(respiracao?.gatilho).toEqual({ tipo: "relogio", cadaS: 180 });
+    expect(respiracao?.cenas).toEqual(["pulmao"]);
+    expect(respiracao?.trilhas).toHaveLength(2);
+    expect(JSON.stringify(respiracao?.trilhas[1])).toContain('"visao.limitar"');
+    expect(respiracao?.trilhas[1]?.[0]).toEqual({ bloco: "esperar", s: 90 });
+    // a inspiração também sai de um botão: fica como sinal, e a tocha ouve o sinal
+    expect(JSON.stringify(respiracao?.trilhas[0])).toContain('"sinal"');
+    const tocha = porNome("A rajada encolhe e pode apagar a tocha");
+    expect(tocha?.gatilho).toEqual({ tipo: "sinal", nome: "inspiracao" });
+    expect(JSON.stringify(tocha?.trilhas)).toContain('"modelo":"modelo-tocha"');
+    expect(JSON.stringify(tocha?.trilhas)).toContain('"chance":0.3');
+    expect(porNome("Rajada de vento")?.gatilho).toEqual({
+      tipo: "botao",
+      nome: "Rajada de vento",
+      cena: "pulmao",
     });
-    const reacao = a.reacoes.find((r) => r.id === "tocha-inspiracao");
-    expect(reacao?.fazer).toEqual([
-      { acao: "luz.modificar", raioX: 0.5, porS: 20 },
-      { acao: "objeto.apagar", chance: 0.3, penalidadeS: 300 },
-    ]);
-    expect(a.reacoes.find((r) => r.ao === "expiracao")?.fazer[0]).toMatchObject({
-      acao: "visao.limitar",
-      alcanceM: 1.5,
+    expect(porNome("Aviso: uma tocha foi reacesa")?.gatilho).toEqual({
+      tipo: "tocha",
+      muda: "acende",
+      etiqueta: "chama",
     });
-    expect(a.reacoes.some((r) => r.ao === "objeto.acendeu")).toBe(true);
+    expect(porNome("Aviso: alguém entrou no Ar Morto")?.gatilho).toEqual({
+      tipo: "zona",
+      quando: "entra",
+      zona: "zona-ar-morto",
+    });
     expect(d.zonas?.map((z) => z.nome)).toEqual(["Ar Morto", "Câmara do Ar Rarefeito"]);
     expect(d.pontos.filter((p) => p.cenaId === "farol" && p.tipo === "suporte")).toHaveLength(2);
     // as cenas não levam imagem (a importação aceita sem)
@@ -210,7 +222,7 @@ describe("a Chama Primordial rodando", () => {
     const e = importar("5e-padrao.json");
     const r = processarSistema(e, iso(500), [], fonteComSemente(1));
     if (!r.ok) throw new Error(r.erro.mensagem);
-    expect(automacoesDe(r.estado).ciclos).toEqual([]);
+    expect(automacoesDe(r.estado).fluxos).toEqual([]);
     expect(r.eventos).toEqual([]);
   });
 });
@@ -225,7 +237,6 @@ describe("Q1: a mesa nova nasce no padrão 5e", () => {
     expect(nova.config).toEqual(padrao.config);
     expect(nova.pastas).toEqual(padrao.pastas);
     expect(nova.luzes).toEqual([]);
-    expect(automacoesDe(nova).ciclos).toEqual([]);
-    expect(automacoesDe(nova).reacoes).toEqual([]);
+    expect(automacoesDe(nova).fluxos).toEqual([]);
   });
 });

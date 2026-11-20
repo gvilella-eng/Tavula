@@ -21,9 +21,7 @@ export const COLECOES_DESFAZIVEIS = [
   "luzes",
   "paredes",
   "zonas",
-  "ciclos",
-  "reacoes",
-  "botoes",
+  "fluxos",
 ] as const;
 export type ColecaoDesfazivel = (typeof COLECOES_DESFAZIVEIS)[number];
 
@@ -39,9 +37,7 @@ const ROTULO_DA_COLECAO: Record<ColecaoDesfazivel, string> = {
   luzes: "luz",
   paredes: "parede",
   zonas: "zona",
-  ciclos: "ciclo",
-  reacoes: "reação",
-  botoes: "botão",
+  fluxos: "automação",
 };
 
 /** O que mudou num item: `antes` nulo = foi criado; `depois` nulo = foi apagado. */
@@ -81,12 +77,8 @@ function itensDe(e: Estado, c: ColecaoDesfazivel): readonly ComId[] {
       return e.paredes;
     case "zonas":
       return e.zonas ?? [];
-    case "ciclos":
-      return a.ciclos;
-    case "reacoes":
-      return a.reacoes;
-    case "botoes":
-      return a.botoes;
+    case "fluxos":
+      return a.fluxos;
   }
 }
 
@@ -231,21 +223,18 @@ export function desfazerPassos(
       case "zonas":
         emitir({ tipo: "zona.apagada", dados: { id } });
         return true;
-      case "ciclos":
-      case "reacoes":
-      case "botoes": {
+      case "fluxos": {
         const a = automacoesDe(proximo);
         const execucao = { ...a.execucao };
-        if (c === "ciclos") delete execucao[id];
+        delete execucao[id];
         emitir({
           tipo: "automacoes.alterado",
           dados: {
             automacoes: {
               ...a,
               execucao,
-              ciclos: c === "ciclos" ? a.ciclos.filter((i) => i.id !== id) : a.ciclos,
-              reacoes: c === "reacoes" ? a.reacoes.filter((i) => i.id !== id) : a.reacoes,
-              botoes: c === "botoes" ? a.botoes.filter((i) => i.id !== id) : a.botoes,
+              esperando: a.esperando.filter((x) => x.fluxoId !== id),
+              fluxos: a.fluxos.filter((i) => i.id !== id),
             },
           },
         });
@@ -295,22 +284,13 @@ export function desfazerPassos(
       case "zonas":
         emitir({ tipo: "zona.alterada", dados: { zona: item } });
         return;
-      case "ciclos":
-      case "reacoes":
-      case "botoes": {
+      case "fluxos": {
         const a = automacoesDe(proximo);
         const troca = <T extends ComId>(lista: readonly T[]): T[] =>
           existe ? lista.map((i) => (i.id === id ? (item as T) : i)) : [...lista, item as T];
         emitir({
           tipo: "automacoes.alterado",
-          dados: {
-            automacoes: {
-              ...a,
-              ciclos: c === "ciclos" ? troca(a.ciclos) : a.ciclos,
-              reacoes: c === "reacoes" ? troca(a.reacoes) : a.reacoes,
-              botoes: c === "botoes" ? troca(a.botoes) : a.botoes,
-            },
-          },
+          dados: { automacoes: { ...a, fluxos: troca(a.fluxos) } },
         });
         return;
       }

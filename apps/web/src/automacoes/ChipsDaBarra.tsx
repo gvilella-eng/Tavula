@@ -1,10 +1,9 @@
 import {
   automacoesDe,
   type BotaoParaJogador,
-  type Ciclo,
   type Estado,
-  nomeDoEvento,
-  situacaoDoCiclo,
+  type Fluxo,
+  situacaoDoFluxo,
 } from "@tabletop/shared";
 import { Pause, Play, SkipForward, Zap } from "lucide-react";
 import { BotaoComDica } from "../BotaoComDica";
@@ -17,53 +16,53 @@ type Props = {
   estado: Estado;
   euMestre: boolean;
   enviar: Enviar;
-  /** O relógio da sala em ms (só o mestre o recebe; sem ele o tempo da fase não aparece). */
+  /** O relógio da sala em ms (só o mestre o recebe; sem ele o tempo do próximo disparo não aparece). */
   salaMs: () => number | undefined;
 };
 
 /**
- * Os botões das automações na barra de cima (7b-3). O mestre vê os que fixou (ciclos e botões de evento); o jogador vê
- * só os que o mestre liberou, com o nome e a ação e nada da definição. Cada chip é pequeno: nome, fase (no mestre) e
- * os botões de disparar e de pausar ou retomar.
+ * Os botões das automações na barra de cima (7b-3; AU1: com os fluxos). O mestre vê os que fixou (automações de relógio e de
+ * botão); o jogador vê só os que o mestre liberou, com o nome e a ação e nada da definição. Cada chip é pequeno: nome,
+ * quando dispara de novo (no mestre) e os botões de disparar e de pausar ou retomar.
  */
 export function BotoesDaBarra({ estado, euMestre, enviar, salaMs }: Props) {
   if (euMestre) {
     const a = automacoesDe(estado);
-    const ciclos = a.ciclos.filter((c) => c.fixado === true && !c.rascunho);
-    const botoes = a.botoes.filter((b) => b.fixado === true && !b.rascunho);
-    if (ciclos.length === 0 && botoes.length === 0) return null;
+    const fixados = a.fluxos.filter(
+      (f) =>
+        f.fixado === true &&
+        !f.rascunho &&
+        (f.gatilho.tipo === "relogio" || f.gatilho.tipo === "botao"),
+    );
+    if (fixados.length === 0) return null;
     return (
       <div className="botoes-da-barra" data-testid="botoes-da-barra">
         <span className="so-leitor">Automações fixadas</span>
-        {ciclos.map((c) => (
-          <ChipDoCicloDoMestre
-            key={c.id}
-            ciclo={c}
-            execucao={a.execucao[c.id]}
-            enviar={enviar}
-            salaMs={salaMs}
-          />
-        ))}
-        {botoes.map((b) => (
-          <div className="chip-da-barra" key={b.id} data-testid={`chip-evento-${b.id}`}>
-            <span className="chip-nome" title={b.nome}>
-              {b.nome}
-            </span>
-            <BotaoComDica
-              className="botao-icone pequeno icone-do-chip"
-              testid={`chip-evento-${b.id}-disparar`}
-              nome={`Disparar “${b.nome}”`}
-              onClick={() =>
-                enviar("evento.disparar", {
-                  evento: b.evento,
-                  ...(b.cenaId === undefined ? {} : { cenaId: b.cenaId }),
-                })
-              }
-            >
-              <Zap size={14} />
-            </BotaoComDica>
-          </div>
-        ))}
+        {fixados.map((f) =>
+          f.gatilho.tipo === "relogio" ? (
+            <ChipDoRelogioDoMestre
+              key={f.id}
+              fluxo={f}
+              execucao={a.execucao[f.id]}
+              enviar={enviar}
+              salaMs={salaMs}
+            />
+          ) : (
+            <div className="chip-da-barra" key={f.id} data-testid={`chip-evento-${f.id}`}>
+              <span className="chip-nome" title={f.nome}>
+                {f.nome}
+              </span>
+              <BotaoComDica
+                className="botao-icone pequeno icone-do-chip"
+                testid={`chip-evento-${f.id}-disparar`}
+                nome={`Disparar “${f.nome}”`}
+                onClick={() => enviar("fluxo.disparar", { id: f.id })}
+              >
+                <Zap size={14} />
+              </BotaoComDica>
+            </div>
+          ),
+        )}
       </div>
     );
   }
@@ -79,45 +78,44 @@ export function BotoesDaBarra({ estado, euMestre, enviar, salaMs }: Props) {
   );
 }
 
-function ChipDoCicloDoMestre(p: {
-  ciclo: Ciclo;
+function ChipDoRelogioDoMestre(p: {
+  fluxo: Fluxo;
   execucao: ReturnType<typeof automacoesDe>["execucao"][string] | undefined;
   enviar: Enviar;
   salaMs: () => number | undefined;
 }) {
-  const { ciclo: c } = p;
+  const { fluxo: f } = p;
   useTic(true);
   const sala = p.salaMs();
-  const s = situacaoDoCiclo(c, p.execucao, sala ?? 0);
-  const fase = s.atual ? nomeDoEvento(s.atual.evento) : "no começo";
+  const s = situacaoDoFluxo(f, p.execucao, sala ?? 0);
+  const parado = !f.ligado;
   const proxima =
-    s.pausado || p.execucao === undefined || sala === undefined || s.proximaEmMs === null
+    parado || sala === undefined || s.proximaEmMs === null
       ? ""
-      : ` · ${duracaoCurta(s.proximaEmMs)}`;
+      : `próxima em ${duracaoCurta(s.proximaEmMs)}`;
   return (
-    <div className="chip-da-barra" data-testid={`chip-ciclo-${c.id}`} data-pausado={s.pausado}>
-      <span className="chip-nome" title={c.nome}>
-        {c.nome}
+    <div className="chip-da-barra" data-testid={`chip-ciclo-${f.id}`} data-pausado={parado}>
+      <span className="chip-nome" title={f.nome}>
+        {f.nome}
       </span>
-      <span className="chip-fase" data-testid={`chip-ciclo-${c.id}-fase`}>
-        {s.pausado ? "pausado" : fase}
-        {proxima}
+      <span className="chip-fase" data-testid={`chip-ciclo-${f.id}-fase`}>
+        {parado ? "pausado" : proxima}
       </span>
       <BotaoComDica
         className="botao-icone pequeno icone-do-chip"
-        testid={`chip-ciclo-${c.id}-disparar`}
-        nome={`Disparar a próxima fase de “${c.nome}”`}
-        onClick={() => p.enviar("ciclo.disparar", { id: c.id })}
+        testid={`chip-ciclo-${f.id}-disparar`}
+        nome={`Disparar “${f.nome}” agora`}
+        onClick={() => p.enviar("fluxo.disparar", { id: f.id })}
       >
         <SkipForward size={14} />
       </BotaoComDica>
       <BotaoComDica
         className="botao-icone pequeno icone-do-chip"
-        testid={`chip-ciclo-${c.id}-pausa`}
-        nome={s.pausado ? `Retomar “${c.nome}”` : `Pausar “${c.nome}”`}
-        onClick={() => p.enviar(s.pausado ? "ciclo.retomar" : "ciclo.pausar", { id: c.id })}
+        testid={`chip-ciclo-${f.id}-pausa`}
+        nome={parado ? `Retomar “${f.nome}”` : `Pausar “${f.nome}”`}
+        onClick={() => p.enviar("fluxo.ligar", { id: f.id, ligado: parado })}
       >
-        {s.pausado ? <Play size={14} /> : <Pause size={14} />}
+        {parado ? <Play size={14} /> : <Pause size={14} />}
       </BotaoComDica>
     </div>
   );
@@ -141,9 +139,7 @@ function ChipDoJogador(p: { botao: BotaoParaJogador; enviar: Enviar }) {
       <BotaoComDica
         className="botao-icone pequeno icone-do-chip"
         testid={`chip-botao-${bruto}-disparar`}
-        nome={
-          b.tipo === "ciclo" ? `Disparar a próxima fase de “${b.nome}”` : `Disparar “${b.nome}”`
-        }
+        nome={b.tipo === "ciclo" ? `Disparar “${b.nome}” agora` : `Disparar “${b.nome}”`}
         onClick={() => p.enviar("botao.usar", { botaoId: b.id, acao: "disparar" })}
       >
         {b.tipo === "ciclo" ? <SkipForward size={14} /> : <Zap size={14} />}

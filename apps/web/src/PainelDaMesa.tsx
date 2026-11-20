@@ -1,6 +1,8 @@
 import {
+  automacoesDe,
   type ConfigDaMesa,
   type Estado,
+  fluxoUsa,
   formatarDistancia,
   type ModeloDeObjeto,
   TEMPOS_PARA_JOGADORES,
@@ -119,7 +121,16 @@ export function SecaoMesa({ config, enviar }: { config: ConfigDaMesa; enviar: En
   );
 }
 
-function LinhaDoModelo({ modelo: m, enviar }: { modelo: ModeloDeObjeto; enviar: Enviar }) {
+function LinhaDoModelo({
+  modelo: m,
+  enviar,
+  automacoes,
+}: {
+  modelo: ModeloDeObjeto;
+  enviar: Enviar;
+  /** AU1: os nomes das automações que mexem neste modelo. */
+  automacoes: readonly string[];
+}) {
   const editar = (mudancas: object) => enviar("modelo.editar", { id: m.id, mudancas });
   const unidade = useUnidade();
   const infinito = m.duracaoS === null;
@@ -231,6 +242,11 @@ function LinhaDoModelo({ modelo: m, enviar }: { modelo: ModeloDeObjeto; enviar: 
             })
           }
         />
+        <p className="nota" data-testid={`modelo-automacoes-${m.id}`}>
+          {automacoes.length === 0
+            ? "Nenhuma automação mexe neste modelo."
+            : `Automações que mexem neste modelo: ${automacoes.join(", ")}.`}
+        </p>
         <button
           type="button"
           className="perigo"
@@ -252,7 +268,7 @@ export function SecaoObjetosDeLuz({
   estado,
   enviar,
 }: {
-  estado: Pick<Estado, "modelos">;
+  estado: Pick<Estado, "modelos" | "automacoes">;
   enviar: Enviar;
 }) {
   function novoModelo() {
@@ -274,7 +290,14 @@ export function SecaoObjetosDeLuz({
         pontos do mapa acendem. Mudar o modelo não muda os objetos que já existem.
       </p>
       {estado.modelos.map((m) => (
-        <LinhaDoModelo key={m.id} modelo={m} enviar={enviar} />
+        <LinhaDoModelo
+          key={m.id}
+          modelo={m}
+          enviar={enviar}
+          automacoes={automacoesDe(estado)
+            .fluxos.filter((f) => fluxoUsa(f, "modelo", m.id))
+            .map((f) => f.nome)}
+        />
       ))}
       <button type="button" data-testid="modelo-novo" onClick={novoModelo}>
         <Plus size={16} /> Novo modelo

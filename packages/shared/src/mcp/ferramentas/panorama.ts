@@ -93,10 +93,10 @@ export const panorama = definir({
     if (mestre) {
       const a = automacoesDe(estado);
       linhas.push(
-        `Automações: ${a.ciclos.length} ciclos (${listar(
-          a.ciclos.map((c) => `"${c.nome}"`),
+        `Automações: ${a.fluxos.length} (${listar(
+          a.fluxos.map((f) => `"${f.nome}"${f.ligado ? "" : " (desligada)"}`),
           10,
-        )}), ${a.reacoes.length} reações, ${(estado.zonas ?? []).length} zonas, ${a.botoes.length} botões.`,
+        )}), ${(estado.zonas ?? []).length} zonas. Perguntaram como funcionam? Chame \`automacoes\` com \`guia\` e \`explicar\`.`,
       );
       const rascunhos = listarRascunhos(estado);
       linhas.push(

@@ -221,7 +221,7 @@ Códigos de erro: `mensagem_invalida`, `sem_permissao`, `ultimo_mestre`, `usuari
 | `personagem.apagado` | `{ id }` | mestres; jogador que o via |
 | `asset.registrado` | `{ meta }` | **só mestres** (as metas dos jogadores chegam por `asset.meta`, sob demanda) |
 | `compendio.alterado` | `{ compendio: { hash, nomeOriginal, magias } \| null }` | todos (é só a referência ao asset; ver "Compêndio de magias (Lote 14)") |
-| `automacoes.alterado` | `{ automacoes }` (a fatia inteira: ciclos, reações, execução, pendentes e registro) | **só mestres**. O filtro o derruba para qualquer outro (7b-1) |
+| `automacoes.alterado` | `{ automacoes }` (a fatia inteira: fluxos, execução, esperando, ultimaVez, registro e legado) | **só mestres**. O filtro o derruba para qualquer outro (7b-1) |
 | `efeitos.alterados` | `{ efeitos }` (a lista inteira) | mestres: tudo, com prazo e origem; jogador: só os dos tokens que controla, resumidos, sem prazo nem origem (7b-1) |
 
 #### Sigilo de cena e de personagem (Lote 4)
@@ -822,43 +822,30 @@ Limites: arquivo **8 MB** (`LIMITES_DE_ASSET.bytesDoCompendio`), **2000 magias**
 
 **Intenções novas**: `compendio.definir`, `chat.magia`. (V4a, 2026-11-11: `chat.caracteristica { caracteristica: { nome (1 a 80), descricao (até 12000), origem? (até 80) }, como }`: publica uma mensagem `tipo: "caracteristica"` pública com a característica da ficha; `como` é obrigatório e é um personagem que quem fala edita (o mestre: qualquer um); sem capacidade; passa pelo mesmo limite de 10 mensagens por segundo. A `ficha.alterar` passou a recusar `aparenciaHash` e `simboloHash` sem meta registrada, com `dados_invalidos`.) **Evento novo**: `compendio.alterado`. **Tipo de asset novo**: `compendio`. **Tipo de mensagem novo**: `magia`. Sem capacidade nem código de erro novos.
 
-### Automações (Lote 7b-1)
+### Automações e fluxos (7b-1; por blocos desde o AU1)
 
-Ciclos, reações e o controle deles são **dado do mestre** (4.11, regra 7). Toda intenção abaixo exige `automacao.editar`, que não é
-delegável: o jogador que a mande recebe `sem_permissao`.
+As automações por blocos (fluxos) são **dado do mestre** (4.11, regra 7). Toda intenção abaixo exige `automacao.editar`, que não é
+delegável: o jogador que a mande recebe `sem_permissao`. (AU1, assumido: `ciclo.*`, `reacao.*`, `botao.criar|editar|apagar` e `evento.disparar` deram lugar a `fluxo.*`.)
 
 | Intenção | `dados` | Efeito |
 |---|---|---|
-| `ciclo.criar` | `{ ciclo, pausado? }` | Cria o ciclo (`id`, `nome`, `periodoS`, `cenas` — vazio vale todas —, `fases[{ emS, evento, duracaoS? }]`, `liberadoParaJogadores?`). Roda assim que a mesa corre; com `pausado`, nasce parado no começo. Recusa: id repetido, cena inexistente, fase fora do período ou duas no mesmo segundo |
-| `ciclo.editar` | `{ id, mudancas }` | Junta e confere o ciclo inteiro. Mudar o período ou as fases **reinicia** a execução (continua pausado, se estava) |
-| `ciclo.apagar` | `{ id }` | Tira o ciclo e a execução |
-| `ciclo.disparar` | `{ id }` | Dispara a **fase seguinte** agora e o ciclo continua dali (pula para o começo dela; pausado, fica pausado nela) |
-| `ciclo.pausar` / `ciclo.retomar` | `{ id }` | Pausa só o ciclo: **as tochas continuam queimando**. Retomar volta de onde parou. Pausar a mesa (`mesa.pausar`) congela os dois |
-| `reacao.criar` | `{ reacao }` | `{ id, nome?, ativa, fica, ao, se[], fazer[] }`. `fica`: `{ tipo: "modelo", id }`, `{ tipo: "cena", id }`, `{ tipo: "zona", id }` (7b-2) ou `{ tipo: "mesa" }` (o modelo, a cena e a zona precisam existir; zona inexistente é `zona_inexistente`) |
-| `reacao.editar` | `{ id, mudancas }` | Junta e confere a reação inteira |
-| `reacao.apagar` | `{ id }` | |
-| `evento.disparar` | `{ evento, cenaId? }` | Dispara um evento agora (manual), em todas as cenas ou só em `cenaId` |
+| `fluxo.criar` | `{ fluxo }` | `fluxo`: `{ id, nome, ligado, cenas (null = todas), fixado?, liberadoParaJogadores?, gatilho, trilhas[][] }`. Confere o fluxo (`problemasDoFluxo`): zona, modelo, cena e som que existem, ação de luz ou de token com alvo, blocos vazios, limites. Recusa: id repetido, automações demais, `dados_invalidos` com a mensagem em português |
+| `fluxo.editar` | `{ id, mudancas }` | Junta o que veio (`nome`, `ligado`, `cenas`, `fixado`, `liberadoParaJogadores`, `gatilho`, `trilhas`) e confere o fluxo inteiro. Mudar o gatilho ou as trilhas **reinicia** o relógio e cancela o que esperava |
+| `fluxo.apagar` | `{ id }` | Tira o fluxo, o relógio, o que esperava e o "rodou há" |
+| `fluxo.ligar` | `{ id, ligado }` | Desligar congela o relógio (`pausadoEmTau`) e cancela o que esperava; ligar continua de onde parou. **As tochas não são afetadas** |
+| `fluxo.disparar` | `{ id }` | Roda o fluxo agora, uma vez (o "Testar agora", "Disparar agora" e o botão), mesmo desligado; erro `fluxo_inexistente` se não há |
 
-**Ações** (lista fechada, `acao` + campos; qualquer outra é recusada pelo schema, **antes** de chegar ao motor): `luz.modificar`
-(`raioX?`, `raioSomaM?`, `porS?`, `alvo?`), `objeto.apagar` (`chance?`, `penalidadeS?`, `alvo?`), `objeto.ajustarTempo` (`deltaS`, `alvo?`),
-`visao.limitar` (`alcanceM`, `porS?`, `alvo?`), `chat.anunciar` (`texto`, `para`: `todos` ou `mestre`), `token.mostrar`,
-`token.ocultar` (`alvo?`), `zona.ativar` (`zona?`, `ativa`; 7b-2) e `evento.disparar` (`evento`, `atrasoS?`). **Condições** (`condicao`): `chance`
-(`valor`), `tag` (`tag`), `cena` (`cenas`) e `dentroDaZona` (`zona?`; 7b-2). Sem `porS`, o prazo é o `duracaoS` da fase do ciclo; sem ele, 30 s.
-`som.tocar` (N5): `hash`, `nome`, `volume?` (0 a 1, padrão 0,8) e `para?` (`todos`, `cena` ou `token`; padrão `todos`), toca um efeito uma vez (ver "Som ambiente (N5)").
+**Gatilhos** (`gatilho.tipo`): `relogio` (`cadaS`, `primeiroS?`), `botao` (`nome`, `cena?`), `sinal` (`nome`), `tocha` (`muda`: `acende`|`apaga`, `modelo?`, `etiqueta?`), `zona` (`quando`: `entra`|`sai`, `zona?`), `turno`, `cena` (`cena?`).
+**Blocos** (`bloco`): `esperar` (`s`), `se` (`condicao`, `sim`, `nao`; condições `etiqueta`, `dentroDaZona`, `cena`, `zonaLigada`), `sortear` (`chance`, `sim`, `nao`), `paraCada` (`alvo`: `{ tipo: "objetos", modelo?, etiqueta?, acesos?, naZona? }` ou `{ tipo: "tokens", naZona?, naCena?, ids? }`; `corpo`), `acao` e `sinal` (`nome`, `atrasoS?`).
+**Ações** (lista fechada; qualquer outra é recusada pelo schema, **antes** de chegar ao motor): `luz.modificar` (`raioX?`, `raioSomaM?`, `porS?`), `objeto.apagar` (`chance?`, `penalidadeS?`), `objeto.ajustarTempo` (`deltaS`), `visao.limitar` (`alcanceM`, `porS?`), `chat.anunciar` (`texto`, `para`), `som.tocar` (`hash`, `nome`, `volume?`, `para?`), `token.mostrar`, `token.ocultar` e `zona.ativar` (`zona`, `ativa`). Sem `porS`, o prazo é 30 s. O alvo é o objeto ou o token **da vez** (do gatilho, ou do "para cada").
 
-**Eventos** que as reações ouvem: os das fases dos ciclos (nome livre), o manual, e os do sistema `objeto.acendeu`,
-`objeto.apagou`, `turno.inicio`, `cena.ativada`, `token.entrouNaZona` e `token.saiuDaZona` (7b-2). Tudo roda **na sala**: depois de cada intenção que mudou algo e quando o alarme
-acorda (`processarSistema`). O encadeamento (reação que dispara evento) corta na profundidade 5.
+**Tempo e execução.** Tudo no tempo da sala. `Automacoes.execucao[fluxoId]` = `{ baseSala, pausadoEmTau?, proximoTau }` (relógio); `esperando[]` = `{ id, ateSala, profundidade, fluxoId?, caminho?, sinal?, contexto }` (cada "esperar" e cada sinal com atraso, guardados no estado e no SQLite: sobrevivem à hibernação); `ultimaVez[fluxoId]` (para "rodou há …"); `registro[]` (avisos do motor, só mestre); `legado?` (o formato antigo, só leitura). Os eventos do sistema (`objeto.acendeu`, `objeto.apagou`, `turno.inicio`, `cena.ativada`, `token.entrouNaZona`, `token.saiuDaZona`) saem da diferença entre estados. Os sinais mandados correm depois dos fluxos do evento; o encadeamento corta na profundidade 5.
 
-**Sigilo (nota de segurança).** A definição de uma automação nunca chega a um jogador, nem em snapshot nem em evento: `visaoPara`
-tira `automacoes` e `eventoPara` derruba `automacoes.alterado`. O jogador recebe **só os efeitos**: a luz que mudou
-(`fonte.editada`, com `fatorDeRaio` e `somaDeRaioM` e sem a lista de modificadores nem o histórico), o anúncio no chat
-(`chat.mensagem` com `tipo: "aviso"`; o de `para: "mestre"` não chega a ele), o token mostrado ou oculto e o limite de visão do
-token que controla (`efeitos.alterados`, sem prazo nem origem). Um teste confere que nenhum frame do jogador traz a definição.
+**Botões.** `botao.usar { botaoId, acao? }` vira `fluxo.disparar` ou `fluxo.ligar`: `ciclo:<id>` é um fluxo de relógio (acao `disparar`, `pausar`, `retomar`), `evento:<id>` um de botão. O mestre usa qualquer um; o jogador só os `liberadoParaJogadores` (e ligados), conferido a cada clique, no máximo um a cada 2 s. `Estado.botoes` e o evento `botoes.alterados` seguem como no 7b-3.
 
-**Guardar.** No SQLite, as chaves `automacoes` e `efeitos` da tabela `meta` (sem migração). A exportação leva `automacoes` e
-`efeitos` (campos opcionais; a versão do arquivo continua 13); a importação aceita ainda a forma enxuta (`ciclos` no topo,
-`reacoes` dentro do modelo) e o arquivo antigo carrega sem automação.
+**Sigilo (nota de segurança).** A definição de uma automação nunca chega a um jogador, nem em snapshot nem em evento: `visaoPara` tira `automacoes` e `eventoPara` derruba `automacoes.alterado`. O jogador recebe **só os efeitos**: a luz que mudou (`fonte.editada`, com `fatorDeRaio` e `somaDeRaioM` e sem a lista de modificadores nem o histórico), o anúncio no chat (`chat.mensagem` com `tipo: "aviso"`; o de `para: "mestre"` não chega a ele), o token mostrado ou oculto e o limite de visão do token que controla (`efeitos.alterados`, sem prazo nem origem). Testes (`automacoes.test.ts`, `automacoes.spec.ts`) conferem que nenhum frame do jogador traz a definição.
+
+**Guardar e converter.** No SQLite, as chaves `automacoes` e `efeitos` da tabela `meta` (sem migração SQL). Ao ler (carga da mesa, importação, `AutomacoesSchema`), o formato antigo (`ciclos`, `reacoes`, `botoes`, `execucao` e `pendentes` antigos) é **convertido em fluxos** (`migrarAutomacoes`/`converterParaFluxos`) e o original vai para `legado`; o banco só é reescrito quando a fatia muda. A exportação leva `automacoes` na forma nova (a versão do arquivo continua 13); a importação aceita a forma antiga, a enxuta (`ciclos` no topo, `reacoes` dentro do modelo) e a nova.
 
 ### Zonas (Lote 7b-2)
 

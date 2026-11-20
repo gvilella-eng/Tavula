@@ -3,6 +3,7 @@ import {
   type AssetMeta,
   type Automacoes,
   AutomacoesSchema,
+  acoesDoFluxo,
   ambientesLigados,
   assetVisivelPara,
   criarExportacao,
@@ -12,6 +13,7 @@ import {
   efeitoChegaPara,
   estadoInicial,
   eventoPara,
+  type Fluxo,
   fonteComSemente,
   hashesUsados,
   type Intencao,
@@ -473,8 +475,8 @@ describe("apagar um som da mesa (Q4)", () => {
     expect(lugaresDe(depois.mesaDeSom).ambientes[5]?.nome).toBe("Taverna");
     expect(ambientesLigados(depois).map((a) => a.indice)).toEqual([5]);
     expect(depois.zonas?.[0]?.efeitos.som).toBeUndefined();
-    expect(depois.automacoes?.reacoes.map((x) => x.id)).toEqual(["misto", "outro"]);
-    expect(depois.automacoes?.reacoes[0]?.fazer).toHaveLength(1);
+    expect(depois.automacoes?.fluxos.map((x) => x.id)).toEqual(["rx-misto", "rx-outro"]);
+    expect(acoesDoFluxo(depois.automacoes?.fluxos[0] as Fluxo)).toHaveLength(1);
     expect(usosDoSom(depois, HASH_SUSSURROS)).toEqual({ lugares: [], zonas: [], automacoes: [] });
     // o jogador nunca recebe o evento do lugar nem o da meta
     for (const ev of r.eventos) {
@@ -723,7 +725,7 @@ describe("a ação som.tocar das automações", () => {
     });
   const comReacao = (r: Reacao, e = criarEstado()): Estado => ({
     ...e,
-    automacoes: AutomacoesSchema.parse({ reacoes: [r] } satisfies Partial<Automacoes>),
+    automacoes: AutomacoesSchema.parse({ reacoes: [r] }),
   });
 
   it("entra na lista fechada, com som, volume e para quem (o resto é recusado)", () => {
@@ -761,7 +763,7 @@ describe("a ação som.tocar das automações", () => {
   it("a reação toca o som uma vez para todos e a lista de usados leva o hash", () => {
     const e = comReacao(reacaoSom("todos"));
     expect(hashesUsados(e).has(HASH_SOPRO)).toBe(true);
-    const r = ok(e, "m", intencao("evento.disparar", { evento: "turno.inicio" }));
+    const r = ok(e, "m", intencao("fluxo.disparar", { id: "rx-r-som" }));
     const sons = r.eventos.filter((x) => x.tipo === "som.efeitoTocado");
     expect(sons).toHaveLength(1);
     expect(sons[0]).toMatchObject({
@@ -771,7 +773,7 @@ describe("a ação som.tocar das automações", () => {
 
   it("para a cena e para o token do evento chega só a quem deve", () => {
     const e = comReacao(reacaoSom("cena"));
-    const r = ok(e, "m", intencao("evento.disparar", { evento: "turno.inicio" }));
+    const r = ok(e, "m", intencao("fluxo.disparar", { id: "rx-r-som" }));
     const ev = r.eventos.find((x) => x.tipo === "som.efeitoTocado") as EventoSala;
     expect(ev).toMatchObject({ dados: { alvo: { tipo: "cena", cenaId: "pulmao" } } });
     expect(eventoPara(ev, { id: "j1", papel: "jogador" }, e, r.estado, T0)).not.toBeNull();
@@ -782,16 +784,16 @@ describe("a ação som.tocar das automações", () => {
 
   it("um som que saiu da mesa não toca e o motor anota no registro", () => {
     const e = comReacao(reacaoSom("todos"), criarEstado({ assets: [] }));
-    const r = ok(e, "m", intencao("evento.disparar", { evento: "turno.inicio" }));
+    const r = ok(e, "m", intencao("fluxo.disparar", { id: "rx-r-som" }));
     expect(r.eventos.some((x) => x.tipo === "som.efeitoTocado")).toBe(false);
     expect(JSON.stringify(r.estado.automacoes?.registro)).toContain("não está mais na mesa");
   });
 
   it("para o token do evento sem token no evento: não toca e anota", () => {
     const e = comReacao(reacaoSom("token"));
-    const r = ok(e, "m", intencao("evento.disparar", { evento: "turno.inicio" }));
+    const r = ok(e, "m", intencao("fluxo.disparar", { id: "rx-r-som" }));
     expect(r.eventos.some((x) => x.tipo === "som.efeitoTocado")).toBe(false);
-    expect(JSON.stringify(r.estado.automacoes?.registro)).toContain("não tem token");
+    expect(JSON.stringify(r.estado.automacoes?.registro)).toContain("não há token");
   });
 });
 

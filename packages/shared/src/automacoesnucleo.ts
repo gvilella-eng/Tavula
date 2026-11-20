@@ -1,29 +1,30 @@
 import {
-  type Acao,
+  type AcaoDeFluxo,
+  type AlvoDoParaCada,
   type Automacoes,
   automacoesDe,
-  BotaoDeEventoSchema,
-  type Ciclo,
-  CicloSchema,
-  cicloRodando,
-  DURACAO_PADRAO_S,
+  type Bloco,
+  type CondicaoDoSe,
+  type ContextoDoFluxo,
   type Efeito,
+  type Esperando,
   type EventoDeAutomacao,
+  type Fluxo,
+  FluxoSchema,
   idDoBotaoDeCiclo,
   idDoBotaoDeEvento,
-  MAXIMO_DE_BOTOES,
   MAXIMO_DE_EFEITOS,
-  MAXIMO_DE_FASES_ATRASADAS,
+  MAXIMO_DE_EXECUCOES_ESPERANDO,
+  MAXIMO_DE_FLUXOS,
   MAXIMO_DO_REGISTRO,
+  PRAZO_PADRAO_S,
   PROFUNDIDADE_MAXIMA,
-  proximaFaseDoCiclo,
-  type Reacao,
-  ReacaoSchema,
   TETO_DE_ACOES,
-  tauDoCiclo,
+  tauDoFluxo,
 } from "./automacoes.ts";
 import type { FonteDeAleatoriedade } from "./dados.ts";
 import type { Estado, Modificador, ObjetoDeLuz, Token } from "./estado.ts";
+import { problemasDoFluxo, type ReferenciasDaMesa } from "./fluxosValidar.ts";
 import { cenaDoObjeto, tokenDoPersonagem } from "./luz.ts";
 import { volumeGeralDe } from "./mesadesom.ts";
 import { cenaEhCartao } from "./paredes.ts";
@@ -41,12 +42,15 @@ import {
 } from "./zonas.ts";
 
 // ---------------------------------------------------------------------------------------------
-// O motor das automações (Lote 7b-1, seção 4.11). Puro: não grava nem envia nada. Recebe o estado vivo e
-// uma forma de emitir eventos (como as tochas), e tudo o que sorteia usa a fonte de aleatoriedade que
-// quem chama passa (a sala usa `crypto`; os testes, uma semente fixa).
+// O motor das automações (seção 4.11; por blocos desde o AU1). Puro: não grava nem envia nada. Recebe o estado vivo e uma
+// forma de emitir eventos (como as tochas), e tudo o que sorteia usa a fonte de aleatoriedade que quem chama passa (a
+// sala usa `crypto`; os testes, uma semente fixa).
 //
-// Regras: ações de uma lista fechada (`AcaoSchema`); efeito temporário é MODIFICADOR com prazo no tempo da
-// sala, nunca o valor base; escopo por cena; encadeamento com limite (`PROFUNDIDADE_MAXIMA`) e teto de ações.
+// Regras: ações de uma lista fechada (`AcaoDeFluxoSchema`); efeito temporário é MODIFICADOR com prazo no tempo da sala,
+// nunca o valor base; escopo por cena; encadeamento de sinais com limite (`PROFUNDIDADE_MAXIMA`) e teto de ações.
+//
+// Um "esperar" vira uma execução esperando (`Automacoes.esperando`: fluxo, ponto da árvore e contexto), guardada no estado
+// para sobreviver à hibernação. O tempo é o da sala: pausar a mesa pausa tudo.
 // ---------------------------------------------------------------------------------------------
 
 export type ContextoDoMotor = {
@@ -67,29 +71,36 @@ const erro = (codigo: CodigoDeErro, mensagem: string): { erro: ErroDaSala } => (
 const TOLERANCIA_DO_FIM_MS = 50;
 const MAXIMO_DO_SALDO_MS = 1000 * 3600_000;
 const MAXIMO_DE_MODIFICADORES = 20;
+/** Quantos disparos atrasados de um fluxo de relógio o motor recupera de uma vez (o resto é pulado e anotado). */
+const MAXIMO_DE_DISPAROS_ATRASADOS = 50;
 
-/** O objeto de luz da automação: a cena que ele ocupa, ou `null` (guardado na mochila). */
 type Escopo = readonly string[] | null;
-/**
- * De quem a reação trata: o objeto do evento ou da instância (`id`); `null`: não há objeto. Reação de zona
- * (7b-2) traz a zona (as ações só atingem o que está dentro dela) e, nos eventos `token.entrouNaZona` e
- * `token.saiuDaZona`, o token do evento.
- */
-type AlvoDaReacao = { objetoId: string | null; zonaId?: string; tokenId?: string };
+type Caminho = (number | string)[];
+
+const arred = (n: number) => String(Math.round(n * 100) / 100).replace(".", ",");
 
 function zonaDe(m: Motor, id: string | undefined): Zona | undefined {
   return id === undefined ? undefined : zonasDe(m.ctx.atual()).find((z) => z.id === id);
 }
 
-const arred = (n: number) => String(Math.round(n * 100) / 100).replace(".", ",");
+/** O que cada rodada junta para depois: os sinais mandados (rodam quando os fluxos do evento terminam, como as reações antigas). */
+type Encadeado = { nome: string; atrasoS: number; contexto: ContextoDoFluxo };
+
+/** Uma rodada: de que fluxo, em que nível de encadeamento, e o instante de que os "esperar" contam. */
+type Rodada = {
+  fluxo: Fluxo;
+  profundidade: number;
+  referenciaSala: number;
+  encadeados: Encadeado[];
+};
 
 // ---------------------------------------------------------------------------------------------
 // O motor
 // ---------------------------------------------------------------------------------------------
 
 /**
- * Uma rodada do motor: guarda a fatia de automações e os efeitos num rascunho e só emite o evento
- * `automacoes.alterado` e `efeitos.alterados` no `fechar()`, se mudaram.
+ * Uma passada do motor: guarda a fatia de automações e os efeitos num rascunho e só emite o evento `automacoes.alterado` e
+ * `efeitos.alterados` no `fechar()`, se mudaram.
  */
 class Motor {
   acoes = 0;
@@ -104,7 +115,6 @@ class Motor {
     this.ctx = ctx;
     const e = ctx.atual();
     this.slice = structuredClone(automacoesDe(e));
-    this.slice.botoes ??= [];
     this.efeitos = structuredClone(e.efeitos ?? []);
   }
 
@@ -112,8 +122,10 @@ class Motor {
     return tempoDaSala(this.ctx.atual().relogio, this.ctx.agoraMs);
   }
 
-  /** Uma frase para o mestre (só as últimas ficam). */
+  /** Uma frase para o mestre (só as últimas ficam; a mesma de seguida não se repete). */
   anotar(texto: string): void {
+    const ultimo = this.slice.registro.at(-1);
+    if (ultimo?.texto === texto) return;
     this.slice.registro = [...this.slice.registro, { emSala: this.sala, texto }].slice(
       -MAXIMO_DO_REGISTRO,
     );
@@ -131,7 +143,7 @@ class Motor {
     return true;
   }
 
-  /** Um id novo e estável o bastante para um evento pendente. */
+  /** Um id novo e estável o bastante para uma execução esperando. */
   novoId(prefixo: string): string {
     this.n++;
     return `${prefixo}-${this.ctx.atual().seq}-${this.n}`;
@@ -176,127 +188,62 @@ function tagsDe(m: Motor, o: Pick<ObjetoDeLuz, "modeloId">): readonly string[] {
 }
 
 /**
- * O escopo de cenas em que a reação vale para este evento (regra 4), ou `"nunca"` quando a reação, presa
- * a uma cena, não está entre as do evento.
+ * O escopo de cenas em que o fluxo vale para este evento (regra 4), ou `"nunca"` quando o fluxo, preso a umas cenas, não
+ * está entre as do evento. Fluxo sem cenas (ou com a lista vazia) vale em todas.
  */
-function escopoDaReacao(m: Motor, r: Reacao, ev: EventoDeAutomacao): Escopo | "nunca" {
-  let id: string;
-  if (r.fica.tipo === "cena") id = r.fica.id;
-  else if (r.fica.tipo === "zona") {
-    // A reação de uma zona não responde ao evento de outra zona (o nome do evento é o mesmo).
-    if (ev.zonaId !== undefined && ev.zonaId !== r.fica.id) return "nunca";
-    const zona = zonaDe(m, r.fica.id);
-    if (!zona?.ativa) return "nunca";
-    id = zona.cenaId;
-  } else return ev.cenas;
-  return ev.cenas === null || ev.cenas.includes(id) ? [id] : "nunca";
+function escopoDoFluxo(f: Fluxo, evCenas: Escopo): Escopo | "nunca" {
+  const a = f.cenas === null || f.cenas.length === 0 ? null : f.cenas;
+  if (a === null) return evCenas;
+  if (evCenas === null) return a;
+  const comum = a.filter((c) => evCenas.includes(c));
+  return comum.length === 0 ? "nunca" : comum;
 }
 
-/**
- * De quem a reação trata. Reação de modelo: cada objeto do modelo nas cenas do evento (ou só o objeto do
- * evento, se ele é desse modelo). Reação de cena ou da mesa: o objeto do evento, se houver; senão, ninguém
- * em especial (as ações dizem o alvo).
- */
-function alvosDaReacao(m: Motor, r: Reacao, ev: EventoDeAutomacao, cenas: Escopo): AlvoDaReacao[] {
-  const luzes = m.ctx.atual().luzes;
-  if (r.fica.tipo === "modelo") {
-    const modeloId = r.fica.id;
-    return luzes
-      .filter(
-        (l) =>
-          l.modeloId === modeloId &&
-          (ev.objetoId === undefined || l.id === ev.objetoId) &&
-          naEscopo(m, l, cenas),
-      )
-      .map((l) => ({ objetoId: l.id }));
-  }
-  const doEvento = {
-    objetoId: ev.objetoId ?? null,
-    ...(ev.tokenId !== undefined && ev.zonaId !== undefined ? { tokenId: ev.tokenId } : {}),
-  };
-  if (r.fica.tipo === "zona") return [{ ...doEvento, zonaId: r.fica.id }];
-  return [doEvento];
-}
-
-function condicoesValem(
+function objetosDoParaCada(
   m: Motor,
-  r: Reacao,
-  alvo: AlvoDaReacao,
-  cenas: Escopo,
-  ev: EventoDeAutomacao,
-): boolean {
-  const e = m.ctx.atual();
-  const objeto = alvo.objetoId === null ? undefined : e.luzes.find((l) => l.id === alvo.objetoId);
-  for (const c of r.se) {
-    if (c.condicao === "chance") {
-      if (!m.sortear(c.valor)) return false;
-    } else if (c.condicao === "tag") {
-      if (!objeto || !tagsDe(m, objeto).includes(c.tag)) return false;
-    } else if (c.condicao === "dentroDaZona") {
-      const zona = zonaDe(m, c.zona ?? (r.fica.tipo === "zona" ? r.fica.id : undefined));
-      if (!zona?.ativa) return false;
-      if (objeto) {
-        if (!objetoNaZona(objeto, zona, e)) return false;
-      } else {
-        const tokenId = alvo.tokenId ?? ev.tokenId;
-        const token = tokenId === undefined ? undefined : e.tokens.find((t) => t.id === tokenId);
-        if (!token || !tokenNaZona(token, zona)) return false;
-      }
-    } else {
-      const cena = objeto ? cenaDe(m, objeto) : cenas?.length === 1 ? cenas[0] : undefined;
-      if (cena === undefined || !c.cenas.includes(cena)) return false;
-    }
-  }
-  return true;
-}
-
-function objetosAlvo(
-  m: Motor,
-  alvo: { modeloId?: string | undefined; tag?: string | undefined } | undefined,
-  ctx: AlvoDaReacao,
+  a: Extract<AlvoDoParaCada, { tipo: "objetos" }>,
   cenas: Escopo,
 ): ObjetoDeLuz[] {
   const e = m.ctx.atual();
-  const luzes = e.luzes;
-  // Reação de zona: só o que está dentro dela.
-  const zona = zonaDe(m, ctx.zonaId);
-  const dentro = (l: ObjetoDeLuz) => zona === undefined || objetoNaZona(l, zona, e);
-  if (alvo !== undefined) {
-    return luzes.filter(
-      (l) =>
-        naEscopo(m, l, cenas) &&
-        dentro(l) &&
-        (alvo.modeloId === undefined || l.modeloId === alvo.modeloId) &&
-        (alvo.tag === undefined || tagsDe(m, l).includes(alvo.tag)),
-    );
-  }
-  if (ctx.objetoId !== null) {
-    const o = luzes.find((l) => l.id === ctx.objetoId);
-    return o ? [o] : [];
-  }
-  return luzes.filter((l) => naEscopo(m, l, cenas) && dentro(l));
+  const zona = a.naZona === undefined ? undefined : zonaDe(m, a.naZona);
+  if (a.naZona !== undefined && !zona?.ativa) return [];
+  return e.luzes.filter(
+    (l) =>
+      naEscopo(m, l, cenas) &&
+      (a.modelo === undefined || l.modeloId === a.modelo) &&
+      (a.etiqueta === undefined || tagsDe(m, l).includes(a.etiqueta)) &&
+      (a.acesos !== true || l.estado === "acesa") &&
+      (zona === undefined || objetoNaZona(l, zona, e)),
+  );
 }
 
-function tokensAlvo(
+function tokensDoParaCada(
   m: Motor,
-  alvo: { ids?: string[] | undefined } | undefined,
-  ctx: AlvoDaReacao,
+  a: Extract<AlvoDoParaCada, { tipo: "tokens" }>,
   cenas: Escopo,
 ): Token[] {
   const e = m.ctx.atual();
-  const zona = zonaDe(m, ctx.zonaId);
-  const nasCenas = (t: Token) =>
-    (cenas === null || cenas.includes(t.cenaId)) && (zona === undefined || tokenNaZona(t, zona));
-  if (alvo?.ids !== undefined) {
-    const ids = alvo.ids;
-    return e.tokens.filter((t) => ids.includes(t.id) && nasCenas(t));
-  }
+  const zona = a.naZona === undefined ? undefined : zonaDe(m, a.naZona);
+  if (a.naZona !== undefined && !zona?.ativa) return [];
+  return e.tokens.filter(
+    (t) =>
+      (cenas === null || cenas.includes(t.cenaId)) &&
+      (zona === undefined || tokenNaZona(t, zona)) &&
+      (a.naCena === undefined || t.cenaId === a.naCena) &&
+      (a.ids === undefined || a.ids.includes(t.id)),
+  );
+}
+
+/** Os tokens que uma ação de token atinge: o da vez; sem ele, quem carrega o objeto da vez. */
+function tokensDaAcao(m: Motor, ctx: ContextoDoFluxo): Token[] {
+  const e = m.ctx.atual();
   if (ctx.tokenId !== undefined) {
-    // O token do evento (entrou ou saiu): para quem saiu, a zona já não o tem dentro; vale mesmo assim.
     const id = ctx.tokenId;
-    return e.tokens.filter((t) => t.id === id && (cenas === null || cenas.includes(t.cenaId)));
+    return e.tokens.filter(
+      (t) => t.id === id && (ctx.cenas === null || ctx.cenas.includes(t.cenaId)),
+    );
   }
-  if (ctx.objetoId !== null) {
+  if (ctx.objetoId !== undefined) {
     const o = e.luzes.find((l) => l.id === ctx.objetoId);
     if (!o) return [];
     const p = o.portador;
@@ -308,14 +255,47 @@ function tokensAlvo(
       const t = tokenDoPersonagem(e.tokens, p.personagemId, cenaDe(m, o));
       return t ? [t] : [];
     }
-    return [];
   }
-  return e.tokens.filter(nasCenas);
+  return [];
+}
+
+function avaliar(m: Motor, c: CondicaoDoSe, ctx: ContextoDoFluxo): boolean {
+  const e = m.ctx.atual();
+  const objeto =
+    ctx.objetoId === undefined ? undefined : e.luzes.find((l) => l.id === ctx.objetoId);
+  switch (c.condicao) {
+    case "etiqueta":
+      return objeto !== undefined && tagsDe(m, objeto).includes(c.etiqueta);
+    case "zonaLigada":
+      return zonaDe(m, c.zona)?.ativa === true;
+    case "dentroDaZona": {
+      const zona = zonaDe(m, c.zona);
+      if (!zona?.ativa) return false;
+      if (objeto) return objetoNaZona(objeto, zona, e);
+      const token =
+        ctx.tokenId === undefined ? undefined : e.tokens.find((t) => t.id === ctx.tokenId);
+      return token !== undefined && tokenNaZona(token, zona);
+    }
+    case "cena": {
+      if (objeto) {
+        const cena = cenaDe(m, objeto);
+        return cena !== undefined && c.cenas.includes(cena);
+      }
+      return ctx.cenas === null || ctx.cenas.some((x) => c.cenas.includes(x));
+    }
+  }
+}
+
+/** Dentro do "sim" de um "se na cena X", só X vale. */
+function estreitar(ctx: ContextoDoFluxo, c: CondicaoDoSe): ContextoDoFluxo {
+  if (c.condicao !== "cena") return ctx;
+  return {
+    ...ctx,
+    cenas: ctx.cenas === null ? [...c.cenas] : ctx.cenas.filter((x) => c.cenas.includes(x)),
+  };
 }
 
 // --- Aplicar as ações ------------------------------------------------------------------------
-
-type Encadeado = { evento: EventoDeAutomacao; atrasoS: number };
 
 function semDesde(o: ObjetoDeLuz): ObjetoDeLuz {
   const { acesaDesdeSala: _desde, ...resto } = o;
@@ -326,125 +306,138 @@ function gravarObjeto(m: Motor, o: ObjetoDeLuz): void {
   m.ctx.emitir({ tipo: "fonte.editada", dados: { fonte: o } });
 }
 
+function semAlvo(m: Motor, rd: Rodada, o: string): void {
+  m.anotar(`${rd.fluxo.nome}: a ação "${o}" ficou sem alvo (ponha-a dentro de um "para cada").`);
+}
+
 function aplicarAcao(
   m: Motor,
-  r: Reacao,
-  indice: number,
-  acao: Acao,
-  alvo: AlvoDaReacao,
-  ev: EventoDeAutomacao,
-  cenas: Escopo,
-  encadeados: Encadeado[],
+  rd: Rodada,
+  caminho: Caminho,
+  acao: AcaoDeFluxo,
+  ctx: ContextoDoFluxo,
 ): void {
   const sala = m.sala;
+  const f = rd.fluxo;
+  const idDaAcao = `auto:${f.id}:${caminho.join(".")}`;
+  const objetoDaVez = (): ObjetoDeLuz | undefined =>
+    ctx.objetoId === undefined ? undefined : m.ctx.atual().luzes.find((l) => l.id === ctx.objetoId);
   switch (acao.acao) {
     case "luz.modificar": {
-      const prazoMs = (acao.porS ?? ev.duracaoS ?? DURACAO_PADRAO_S) * 1000;
-      const id = `auto:${r.id}:${indice}`;
-      for (const o of objetosAlvo(m, acao.alvo, alvo, cenas)) {
-        if (!m.contar()) return;
-        // O mesmo efeito de novo renova o prazo (não empilha): o refresh nunca deixa nada preso.
-        const outros = o.modificadores.filter((x) => x.id !== id);
-        if (outros.length >= MAXIMO_DE_MODIFICADORES) {
-          m.anotar(`Modificadores demais em "${o.nome}": ${r.nome ?? r.id} não entrou.`);
-          continue;
-        }
-        const novo: Modificador = {
-          id,
-          raioX: acao.raioX ?? 1,
-          ...(acao.raioSomaM === undefined ? {} : { raioSomaM: acao.raioSomaM }),
-          ateSala: sala + prazoMs,
-          origem: "automacao",
-        };
-        const partes = [
-          acao.raioX === undefined ? "" : `×${arred(acao.raioX)}`,
-          acao.raioSomaM === undefined
-            ? ""
-            : `${acao.raioSomaM >= 0 ? "+" : "−"}${arred(Math.abs(acao.raioSomaM))} m`,
-        ].filter(Boolean);
-        gravarObjeto(
-          m,
-          comHistorico(
-            { ...o, modificadores: [...outros, novo] },
-            sala,
-            `Raio ${partes.join(" ")} por ${formatarDuracaoCurta(prazoMs)} (automação)`,
-          ),
-        );
+      const o = objetoDaVez();
+      if (!o) {
+        semAlvo(m, rd, "mudar a luz");
+        return;
       }
+      const prazoMs = (acao.porS ?? PRAZO_PADRAO_S) * 1000;
+      if (!m.contar()) return;
+      // O mesmo efeito de novo renova o prazo (não empilha): o refresh nunca deixa nada preso.
+      const outros = o.modificadores.filter((x) => x.id !== idDaAcao);
+      if (outros.length >= MAXIMO_DE_MODIFICADORES) {
+        m.anotar(`Modificadores demais em "${o.nome}": ${f.nome} não entrou.`);
+        return;
+      }
+      const novo: Modificador = {
+        id: idDaAcao,
+        raioX: acao.raioX ?? 1,
+        ...(acao.raioSomaM === undefined ? {} : { raioSomaM: acao.raioSomaM }),
+        ateSala: sala + prazoMs,
+        origem: "automacao",
+      };
+      const partes = [
+        acao.raioX === undefined ? "" : `×${arred(acao.raioX)}`,
+        acao.raioSomaM === undefined
+          ? ""
+          : `${acao.raioSomaM >= 0 ? "+" : "−"}${arred(Math.abs(acao.raioSomaM))} m`,
+      ].filter(Boolean);
+      gravarObjeto(
+        m,
+        comHistorico(
+          { ...o, modificadores: [...outros, novo] },
+          sala,
+          `Raio ${partes.join(" ")} por ${formatarDuracaoCurta(prazoMs)} (automação)`,
+        ),
+      );
       return;
     }
     case "objeto.apagar": {
-      for (const o of objetosAlvo(m, acao.alvo, alvo, cenas)) {
-        if (o.estado !== "acesa") continue;
-        if (!m.contar()) return;
-        if (!m.sortear(acao.chance ?? 1)) continue;
-        const restante = restanteDoObjeto(o, sala);
-        if (restante === null) {
-          gravarObjeto(
-            m,
-            comHistorico(semDesde({ ...o, estado: "apagada" }), sala, "Apagada (automação)"),
-          );
-          continue;
-        }
-        const penalidade = (acao.penalidadeS ?? 0) * 1000;
-        const novo = restante - penalidade;
-        if (novo <= TOLERANCIA_DO_FIM_MS) {
-          m.ctx.emitir({ tipo: "fonte.apagada", dados: { id: o.id } });
-          continue;
-        }
-        const base = semDesde({ ...o, estado: "apagada", saldoMs: novo });
+      const o = objetoDaVez();
+      if (!o) {
+        semAlvo(m, rd, "apagar a tocha");
+        return;
+      }
+      if (o.estado !== "acesa") return;
+      if (!m.contar()) return;
+      if (!m.sortear(acao.chance ?? 1)) return;
+      const restante = restanteDoObjeto(o, sala);
+      if (restante === null) {
         gravarObjeto(
           m,
-          penalidade > 0
-            ? comHistorico(
-                base,
-                sala,
-                `Apagada (−${formatarDuracaoCurta(penalidade)} de penalidade, automação)`,
-                -penalidade,
-              )
-            : comHistorico(base, sala, "Apagada (automação)"),
+          comHistorico(semDesde({ ...o, estado: "apagada" }), sala, "Apagada (automação)"),
         );
+        return;
       }
+      const penalidade = (acao.penalidadeS ?? 0) * 1000;
+      const novo = restante - penalidade;
+      if (novo <= TOLERANCIA_DO_FIM_MS) {
+        m.ctx.emitir({ tipo: "fonte.apagada", dados: { id: o.id } });
+        return;
+      }
+      const base = semDesde({ ...o, estado: "apagada", saldoMs: novo });
+      gravarObjeto(
+        m,
+        penalidade > 0
+          ? comHistorico(
+              base,
+              sala,
+              `Apagada (−${formatarDuracaoCurta(penalidade)} de penalidade, automação)`,
+              -penalidade,
+            )
+          : comHistorico(base, sala, "Apagada (automação)"),
+      );
       return;
     }
     case "objeto.ajustarTempo": {
-      const deltaMs = acao.deltaS * 1000;
-      for (const o of objetosAlvo(m, acao.alvo, alvo, cenas)) {
-        const restante = restanteDoObjeto(o, sala);
-        if (restante === null) continue;
-        if (!m.contar()) return;
-        const novo = Math.min(restante + deltaMs, MAXIMO_DO_SALDO_MS);
-        if (novo <= TOLERANCIA_DO_FIM_MS) {
-          m.ctx.emitir({ tipo: "fonte.apagada", dados: { id: o.id } });
-          continue;
-        }
-        const sinal = deltaMs < 0 ? "−" : "+";
-        const base: ObjetoDeLuz = { ...o, saldoMs: novo };
-        // Acesa: a contagem recomeça agora, do que sobrou mais o ajuste (como o ajuste do mestre).
-        const rebase: ObjetoDeLuz = o.estado === "acesa" ? { ...base, acesaDesdeSala: sala } : base;
-        gravarObjeto(
-          m,
-          comHistorico(
-            rebase,
-            sala,
-            `${sinal}${formatarDuracaoCurta(deltaMs)} (automação)`,
-            deltaMs,
-          ),
-        );
+      const o = objetoDaVez();
+      if (!o) {
+        semAlvo(m, rd, "ajustar o tempo da tocha");
+        return;
       }
+      const deltaMs = acao.deltaS * 1000;
+      const restante = restanteDoObjeto(o, sala);
+      if (restante === null) return;
+      if (!m.contar()) return;
+      const novo = Math.min(restante + deltaMs, MAXIMO_DO_SALDO_MS);
+      if (novo <= TOLERANCIA_DO_FIM_MS) {
+        m.ctx.emitir({ tipo: "fonte.apagada", dados: { id: o.id } });
+        return;
+      }
+      const sinal = deltaMs < 0 ? "−" : "+";
+      const base: ObjetoDeLuz = { ...o, saldoMs: novo };
+      // Acesa: a contagem recomeça agora, do que sobrou mais o ajuste (como o ajuste do mestre).
+      const rebase: ObjetoDeLuz = o.estado === "acesa" ? { ...base, acesaDesdeSala: sala } : base;
+      gravarObjeto(
+        m,
+        comHistorico(rebase, sala, `${sinal}${formatarDuracaoCurta(deltaMs)} (automação)`, deltaMs),
+      );
       return;
     }
     case "visao.limitar": {
-      const prazoMs = (acao.porS ?? ev.duracaoS ?? DURACAO_PADRAO_S) * 1000;
-      for (const t of tokensAlvo(m, acao.alvo, alvo, cenas)) {
+      const alvos = tokensDaAcao(m, ctx);
+      if (alvos.length === 0 && ctx.tokenId === undefined && ctx.objetoId === undefined) {
+        semAlvo(m, rd, "limitar a visão");
+        return;
+      }
+      const prazoMs = (acao.porS ?? PRAZO_PADRAO_S) * 1000;
+      for (const t of alvos) {
         if (!m.contar()) return;
-        const id = `auto:${r.id}:${indice}:${t.id}`;
+        const id = `${idDaAcao}:${t.id}`;
         const novo: Efeito = {
           id,
           alvo: { tipo: "token", id: t.id },
           efeito: { visaoMaxM: acao.alcanceM },
           ateSala: sala + prazoMs,
-          origem: (r.nome ?? r.id).slice(0, 80),
+          origem: f.nome.slice(0, 80),
         };
         const outros = m.efeitos.filter((x) => x.id !== id);
         if (outros.length >= MAXIMO_DE_EFEITOS) {
@@ -479,20 +472,18 @@ function aplicarAcao(
     case "som.tocar": {
       const e = m.ctx.atual();
       if (e.assets?.find((a) => a.hash === acao.hash)?.tipo !== "som") {
-        m.anotar(`${r.nome ?? r.id}: o som "${acao.nome}" não está mais na mesa.`);
+        m.anotar(`${f.nome}: o som "${acao.nome}" não está mais na mesa.`);
         return;
       }
       let destino: AlvoDoEfeito;
       if (acao.para === "token") {
-        const tokenId = alvo.tokenId ?? ev.tokenId;
-        if (tokenId === undefined) {
-          m.anotar(
-            `${r.nome ?? r.id}: o som é "para o token do evento", e este evento não tem token.`,
-          );
+        if (ctx.tokenId === undefined) {
+          m.anotar(`${f.nome}: o som é "para o token da vez", e aqui não há token.`);
           return;
         }
-        destino = { tipo: "token", tokenId };
+        destino = { tipo: "token", tokenId: ctx.tokenId };
       } else if (acao.para === "cena") {
+        const cenas = ctx.cenas;
         const cenaId =
           cenas === null || cenas.includes(e.cenaAtivaId)
             ? e.cenaAtivaId
@@ -512,7 +503,12 @@ function aplicarAcao(
     case "token.mostrar":
     case "token.ocultar": {
       const oculto = acao.acao === "token.ocultar";
-      for (const t of tokensAlvo(m, acao.alvo, alvo, cenas)) {
+      const alvos = tokensDaAcao(m, ctx);
+      if (alvos.length === 0 && ctx.tokenId === undefined && ctx.objetoId === undefined) {
+        semAlvo(m, rd, oculto ? "ocultar o token" : "mostrar o token");
+        return;
+      }
+      for (const t of alvos) {
         if (t.oculto === oculto) continue;
         if (!m.contar()) return;
         m.ctx.emitir({ tipo: "token.editado", dados: { token: { ...t, oculto } } });
@@ -520,9 +516,9 @@ function aplicarAcao(
       return;
     }
     case "zona.ativar": {
-      const zona = zonaDe(m, acao.zona ?? alvo.zonaId);
+      const zona = zonaDe(m, acao.zona);
       if (!zona) {
-        m.anotar(`${r.nome ?? r.id}: a zona da ação não existe mais.`);
+        m.anotar(`${f.nome}: a zona da ação não existe mais.`);
         return;
       }
       if (zona.ativa === acao.ativa) return;
@@ -530,61 +526,289 @@ function aplicarAcao(
       m.ctx.emitir({ tipo: "zona.alterada", dados: { zona: { ...zona, ativa: acao.ativa } } });
       return;
     }
-    case "evento.disparar": {
-      if (!m.contar()) return;
-      encadeados.push({
-        atrasoS: acao.atrasoS ?? 0,
-        evento: {
-          nome: acao.evento,
-          cenas: cenas === null ? null : [...cenas],
-          origem: "reacao",
-          ...(alvo.objetoId === null ? {} : { objetoId: alvo.objetoId }),
-        },
-      });
-      return;
-    }
   }
 }
 
-// --- Rodar um evento -------------------------------------------------------------------------
+// --- Rodar as listas de blocos ---------------------------------------------------------------
 
-function executar(m: Motor, ev: EventoDeAutomacao, profundidade: number): void {
+type Fim = "fim" | "espera";
+
+/** Roda a lista de `desde` até o fim. Devolve "espera" se um "esperar" segurou a execução (a continuação foi guardada). */
+function rodarLista(
+  m: Motor,
+  rd: Rodada,
+  prefixo: Caminho,
+  lista: readonly Bloco[],
+  desde: number,
+  ctx: ContextoDoFluxo,
+): Fim {
+  for (let i = desde; i < lista.length; i++) {
+    if (m.cortado) return "fim";
+    const b = lista[i];
+    if (b === undefined) continue;
+    const caminho = [...prefixo, i];
+    switch (b.bloco) {
+      case "esperar": {
+        if (m.slice.esperando.length >= MAXIMO_DE_EXECUCOES_ESPERANDO) {
+          m.anotar(`${rd.fluxo.nome}: execuções esperando demais, esta foi cortada.`);
+          return "fim";
+        }
+        m.slice.esperando = [
+          ...m.slice.esperando,
+          {
+            id: m.novoId("esp"),
+            ateSala: rd.referenciaSala + b.s * 1000,
+            profundidade: rd.profundidade,
+            fluxoId: rd.fluxo.id,
+            caminho: [...prefixo, i + 1],
+            contexto: ctx,
+          },
+        ];
+        return "espera";
+      }
+      case "acao":
+        aplicarAcao(m, rd, caminho, b.acao, ctx);
+        break;
+      case "sinal":
+        if (!m.contar()) return "fim";
+        rd.encadeados.push({ nome: b.nome, atrasoS: b.atrasoS ?? 0, contexto: ctx });
+        break;
+      case "se": {
+        const vale = avaliar(m, b.condicao, ctx);
+        const r = rodarLista(
+          m,
+          rd,
+          [...caminho, vale ? "sim" : "nao"],
+          vale ? b.sim : b.nao,
+          0,
+          vale ? estreitar(ctx, b.condicao) : ctx,
+        );
+        if (r === "espera") return "espera";
+        break;
+      }
+      case "sortear": {
+        const vale = m.sortear(b.chance);
+        const r = rodarLista(
+          m,
+          rd,
+          [...caminho, vale ? "sim" : "nao"],
+          vale ? b.sim : b.nao,
+          0,
+          ctx,
+        );
+        if (r === "espera") return "espera";
+        break;
+      }
+      case "paraCada": {
+        const alvos =
+          b.alvo.tipo === "objetos"
+            ? objetosDoParaCada(m, b.alvo, ctx.cenas).map(
+                (o): ContextoDoFluxo => ({
+                  cenas: ctx.cenas,
+                  objetoId: o.id,
+                  ...(ctx.zonaId === undefined ? {} : { zonaId: ctx.zonaId }),
+                }),
+              )
+            : tokensDoParaCada(m, b.alvo, ctx.cenas).map(
+                (t): ContextoDoFluxo => ({
+                  cenas: ctx.cenas,
+                  tokenId: t.id,
+                  ...(ctx.zonaId === undefined ? {} : { zonaId: ctx.zonaId }),
+                }),
+              );
+        // Um "esperar" no corpo segura só aquele alvo: o que vem depois do "para cada" não espera por ele.
+        for (const c of alvos) {
+          if (m.cortado) return "fim";
+          rodarLista(m, rd, [...caminho, "corpo"], b.corpo, 0, c);
+        }
+        break;
+      }
+    }
+  }
+  return "fim";
+}
+
+/** Retoma uma execução esperando: desce pelo caminho e roda o resto, subindo (menos além de um "para cada"). */
+function retomarLista(
+  m: Motor,
+  rd: Rodada,
+  prefixo: Caminho,
+  lista: readonly Bloco[],
+  restante: Caminho,
+  ctx: ContextoDoFluxo,
+): Fim {
+  const primeiro = restante[0];
+  if (restante.length <= 1)
+    return rodarLista(m, rd, prefixo, lista, typeof primeiro === "number" ? primeiro : 0, ctx);
+  const ramo = restante[1];
+  const b = typeof primeiro === "number" ? lista[primeiro] : undefined;
+  if (b === undefined || typeof primeiro !== "number") return "fim";
+  let sub: readonly Bloco[] = [];
+  if ((b.bloco === "se" || b.bloco === "sortear") && (ramo === "sim" || ramo === "nao"))
+    sub = ramo === "sim" ? b.sim : b.nao;
+  else if (b.bloco === "paraCada" && ramo === "corpo") sub = b.corpo;
+  else return "fim";
+  const r = retomarLista(
+    m,
+    rd,
+    [...prefixo, primeiro, ramo as string],
+    sub,
+    restante.slice(2),
+    ctx,
+  );
+  if (r === "espera" || ramo === "corpo") return r;
+  return rodarLista(m, rd, prefixo, lista, primeiro + 1, ctx);
+}
+
+// --- Rodar um disparo ------------------------------------------------------------------------
+
+function contextoDoEvento(ev: EventoDeAutomacao, cenas: Escopo): ContextoDoFluxo {
+  return {
+    cenas: cenas === null ? null : [...cenas],
+    ...(ev.objetoId === undefined ? {} : { objetoId: ev.objetoId }),
+    ...(ev.tokenId === undefined ? {} : { tokenId: ev.tokenId }),
+    ...(ev.zonaId === undefined ? {} : { zonaId: ev.zonaId }),
+  };
+}
+
+/** O fluxo responde a este evento? (O gatilho, não as cenas.) */
+function gatilhoCasa(m: Motor, f: Fluxo, ev: EventoDeAutomacao): boolean {
+  const g = f.gatilho;
+  if (ev.origem === "sistema") {
+    switch (ev.nome) {
+      case "objeto.acendeu":
+      case "objeto.apagou": {
+        if (g.tipo !== "tocha" || g.muda !== (ev.nome === "objeto.acendeu" ? "acende" : "apaga"))
+          return false;
+        if (g.modelo !== undefined && ev.modeloId !== g.modelo) return false;
+        if (g.etiqueta !== undefined) {
+          const tags =
+            ev.modeloId === undefined
+              ? []
+              : (m.ctx.atual().modelos.find((x) => x.id === ev.modeloId)?.tags ?? []);
+          if (!tags.includes(g.etiqueta)) return false;
+        }
+        return true;
+      }
+      case "token.entrouNaZona":
+      case "token.saiuDaZona":
+        return (
+          g.tipo === "zona" &&
+          g.quando === (ev.nome === "token.entrouNaZona" ? "entra" : "sai") &&
+          (g.zona === undefined || g.zona === ev.zonaId)
+        );
+      case "turno.inicio":
+        return g.tipo === "turno";
+      case "cena.ativada":
+        return g.tipo === "cena" && (g.cena === undefined || ev.cenas?.includes(g.cena) === true);
+      default:
+        return false;
+    }
+  }
+  return g.tipo === "sinal" && g.nome === ev.nome;
+}
+
+/** Roda um fluxo (todas as trilhas) com este contexto. */
+function dispararFluxo(
+  m: Motor,
+  f: Fluxo,
+  ctx: ContextoDoFluxo,
+  profundidade: number,
+  referenciaSala: number,
+): Encadeado[] {
+  const rd: Rodada = { fluxo: f, profundidade, referenciaSala, encadeados: [] };
+  m.slice.ultimaVez[f.id] = m.sala;
+  for (const [t, trilha] of f.trilhas.entries()) {
+    if (m.cortado) break;
+    rodarLista(m, rd, [t], trilha, 0, ctx);
+  }
+  return rd.encadeados;
+}
+
+/**
+ * Depois de rodar o que o evento chamou: os sinais mandados (já, ou marcados para depois) e o que as ações mudaram no jogo
+ * (uma tocha que apagou), que também é evento, um nível abaixo.
+ */
+function fecharDisparo(
+  m: Motor,
+  antes: Estado,
+  encadeados: Encadeado[],
+  profundidade: number,
+  de: Fluxo[],
+): void {
+  for (const c of encadeados) {
+    if (c.atrasoS > 0) {
+      if (m.slice.esperando.length >= MAXIMO_DE_EXECUCOES_ESPERANDO) {
+        m.anotar(`Sinal "${c.nome}": execuções esperando demais, este foi cortado.`);
+        continue;
+      }
+      m.slice.esperando = [
+        ...m.slice.esperando,
+        {
+          id: m.novoId("sin"),
+          ateSala: m.sala + c.atrasoS * 1000,
+          profundidade: profundidade + 1,
+          sinal: c.nome,
+          ...(de[0] === undefined ? {} : { fluxoId: de[0].id }),
+          contexto: c.contexto,
+        },
+      ];
+    } else {
+      executarEvento(
+        m,
+        { nome: c.nome, cenas: c.contexto.cenas, origem: "reacao", ...ctxParaEvento(c.contexto) },
+        profundidade + 1,
+      );
+    }
+  }
+  for (const s of eventosDoSistema(antes, m.ctx.atual())) executarEvento(m, s, profundidade + 1);
+}
+
+function ctxParaEvento(c: ContextoDoFluxo): Partial<EventoDeAutomacao> {
+  return {
+    ...(c.objetoId === undefined ? {} : { objetoId: c.objetoId }),
+    ...(c.tokenId === undefined ? {} : { tokenId: c.tokenId }),
+    ...(c.zonaId === undefined ? {} : { zonaId: c.zonaId }),
+  };
+}
+
+/** Um evento aconteceu (do sistema, ou um sinal): roda os fluxos que o esperam e o que eles encadeiam. */
+function executarEvento(m: Motor, ev: EventoDeAutomacao, profundidade: number): void {
   if (m.cortado) return;
   if (profundidade > PROFUNDIDADE_MAXIMA) {
     m.anotar(
-      `Encadeamento cortado: "${ev.nome}" passou de ${PROFUNDIDADE_MAXIMA} níveis de reação.`,
+      `Encadeamento cortado: "${ev.nome}" passou de ${PROFUNDIDADE_MAXIMA} níveis de sinais.`,
     );
     return;
   }
   const antes = m.ctx.atual();
   const encadeados: Encadeado[] = [];
-  for (const r of m.slice.reacoes) {
-    if (!r.ativa || r.rascunho || r.ao !== ev.nome) continue;
-    const cenas = escopoDaReacao(m, r, ev);
+  const rodados: Fluxo[] = [];
+  for (const f of m.slice.fluxos) {
+    if (!f.ligado || f.rascunho || !gatilhoCasa(m, f, ev)) continue;
+    const cenas = escopoDoFluxo(f, ev.cenas);
     if (cenas === "nunca") continue;
-    for (const alvo of alvosDaReacao(m, r, ev, cenas)) {
-      if (m.cortado) return;
-      if (!condicoesValem(m, r, alvo, cenas, ev)) continue;
-      for (const [i, acao] of r.fazer.entries()) {
-        aplicarAcao(m, r, i, acao, alvo, ev, cenas, encadeados);
-      }
-    }
+    if (m.cortado) return;
+    rodados.push(f);
+    encadeados.push(...dispararFluxo(m, f, contextoDoEvento(ev, cenas), profundidade, m.sala));
   }
-  for (const c of encadeados) {
-    if (c.atrasoS > 0) {
-      m.slice.pendentes = [
-        ...m.slice.pendentes,
-        {
-          id: m.novoId("pend"),
-          ateSala: m.sala + c.atrasoS * 1000,
-          evento: c.evento,
-          profundidade: profundidade + 1,
-        },
-      ].slice(-200);
-    } else executar(m, c.evento, profundidade + 1);
-  }
-  // O que as ações mudaram no jogo (uma tocha que apagou) também é evento, um nível abaixo.
-  for (const s of eventosDoSistema(antes, m.ctx.atual())) executar(m, s, profundidade + 1);
+  fecharDisparo(m, antes, encadeados, profundidade, rodados);
+}
+
+/** Roda um fluxo já, sem esperar o gatilho (o relógio, o botão, o "Testar agora"). */
+function executarFluxoDireto(
+  m: Motor,
+  f: Fluxo,
+  ev: EventoDeAutomacao,
+  profundidade: number,
+  referenciaSala: number,
+): void {
+  if (m.cortado) return;
+  const antes = m.ctx.atual();
+  const cenas = escopoDoFluxo(f, ev.cenas);
+  if (cenas === "nunca") return;
+  const encadeados = dispararFluxo(m, f, contextoDoEvento(ev, cenas), profundidade, referenciaSala);
+  fecharDisparo(m, antes, encadeados, profundidade, [f]);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -592,14 +816,14 @@ function executar(m: Motor, ev: EventoDeAutomacao, profundidade: number): void {
 // ---------------------------------------------------------------------------------------------
 
 /**
- * Os eventos que a própria sala produz, achados pela diferença entre o estado de antes e o de depois
- * (assim valem para qualquer intenção, para o tempo que passa e para as ações das próprias reações):
+ * Os eventos que a própria sala produz, achados pela diferença entre o estado de antes e o de depois (assim valem para
+ * qualquer intenção, para o tempo que passa e para as ações dos próprios fluxos):
  * - `objeto.acendeu`: o objeto passou a estar aceso (inclusive o que nasceu aceso);
  * - `objeto.apagou`: o objeto aceso apagou, foi consumido ou sumiu;
  * - `cena.ativada`: o grupo foi para outra cena;
  * - `turno.inicio`: a vez passou para outra entrada (ou a rodada virou);
- * - `token.entrouNaZona` e `token.saiuDaZona` (7b-2): o centro do token passou a estar (ou deixou de estar) dentro
- *   de uma zona ligada; vale para mover, colocar, apagar, trocar de cena e tudo o mais, uma vez só por mudança.
+ * - `token.entrouNaZona` e `token.saiuDaZona` (7b-2): o centro do token passou a estar (ou deixou de estar) dentro de uma
+ *   zona ligada; vale para mover, colocar, apagar, trocar de cena e tudo o mais, uma vez só por mudança.
  * O escopo é a cena do objeto, da cena nova ou do token da vez.
  */
 export function eventosDoSistema(antes: Estado, depois: Estado): EventoDeAutomacao[] {
@@ -670,11 +894,10 @@ export function eventosDoSistema(antes: Estado, depois: Estado): EventoDeAutomac
 const porId = (a: { id: string }, b: { id: string }) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 
 /**
- * Põe o estado em dia com as zonas: cada luz dentro de uma zona ligada leva o modificador dela
- * (`zona:<zona>`, sem prazo), cada token dentro leva o limite de visão (`zona:<zona>:<token>`). Quem saiu, ou
- * cuja zona foi desligada, apagada ou de outra cena, perde o efeito. É uma RECONCILIAÇÃO (compara o que deve
- * valer com o que está lá), então rodar duas vezes não muda nada e nada fica preso. Cena-cartão não leva
- * os efeitos de visão (não há visão limitada nela).
+ * Põe o estado em dia com as zonas: cada luz dentro de uma zona ligada leva o modificador dela (`zona:<zona>`, sem prazo),
+ * cada token dentro leva o limite de visão (`zona:<zona>:<token>`). Quem saiu, ou cuja zona foi desligada, apagada ou de
+ * outra cena, perde o efeito. É uma RECONCILIAÇÃO (compara o que deve valer com o que está lá), então rodar duas vezes não
+ * muda nada e nada fica preso. Cena-cartão não leva os efeitos de visão (não há visão limitada nela).
  */
 function sincronizarZonas(m: Motor): void {
   const e = m.ctx.atual();
@@ -741,35 +964,35 @@ function sincronizarZonas(m: Motor): void {
 // O que quem chama usa
 // ---------------------------------------------------------------------------------------------
 
-/** Roda um evento (e tudo o que ele encadeia) e emite o que mudou. */
+/** Roda um evento (um sinal, ou um do sistema) e tudo o que ele encadeia, e emite o que mudou. */
 export function rodarEvento(
   ctx: ContextoDoMotor,
   evento: EventoDeAutomacao,
   profundidade = 0,
 ): void {
   const m = new Motor(ctx);
-  executar(m, evento, profundidade);
+  executarEvento(m, evento, profundidade);
   m.fechar();
 }
 
 /**
- * O tempo passou ou algo aconteceu (chamada pelo `processar` e pelo alarme): reage aos eventos do sistema
- * achados entre `antes` e agora (se `antes` vier) e, com a mesa rodando, avança os ciclos, tira os efeitos
- * vencidos e dispara os eventos pendentes que chegaram na hora. Mesa pausada: só os eventos do sistema.
+ * O tempo passou ou algo aconteceu (chamada pelo `processar` e pelo alarme): reage aos eventos do sistema achados entre
+ * `antes` e agora (se `antes` vier) e, com a mesa rodando, avança os relógios dos fluxos, tira os efeitos vencidos e
+ * retoma as execuções esperando que chegaram na hora. Mesa pausada: só os eventos do sistema.
  */
 export function rodarAutomacoes(ctx: ContextoDoMotor, antes?: Estado): void {
   const inicial = ctx.atual();
   if (antes === undefined && inicial.relogio.pausada) return;
   const m = new Motor(ctx);
   if (antes !== undefined) {
-    for (const s of eventosDoSistema(antes, inicial)) executar(m, s, 0);
+    for (const s of eventosDoSistema(antes, inicial)) executarEvento(m, s, 0);
   }
   if (!ctx.atual().relogio.pausada) avancar(m);
   sincronizarZonas(m);
   m.fechar();
 }
 
-/** Só avança o tempo (ciclos, pendentes, efeitos vencidos): o que o alarme faz. Mesa pausada: nada. */
+/** Só avança o tempo (relógios, execuções esperando, efeitos vencidos): o que o alarme faz. Mesa pausada: nada. */
 export function avancarAutomacoes(ctx: ContextoDoMotor): void {
   rodarAutomacoes(ctx);
 }
@@ -777,72 +1000,89 @@ export function avancarAutomacoes(ctx: ContextoDoMotor): void {
 /** Só reage ao que mudou entre `antes` e agora (os eventos do sistema), sem avançar o tempo. */
 export function reagirAoSistema(ctx: ContextoDoMotor, antes: Estado): void {
   const m = new Motor(ctx);
-  for (const s of eventosDoSistema(antes, ctx.atual())) executar(m, s, 0);
+  for (const s of eventosDoSistema(antes, ctx.atual())) executarEvento(m, s, 0);
   sincronizarZonas(m);
   m.fechar();
+}
+
+function retomar(m: Motor, p: Esperando): void {
+  if (p.sinal !== undefined) {
+    const c = p.contexto;
+    executarEvento(
+      m,
+      { nome: p.sinal, cenas: c.cenas, origem: "reacao", ...ctxParaEvento(c) },
+      p.profundidade,
+    );
+    return;
+  }
+  const f = m.slice.fluxos.find((x) => x.id === p.fluxoId);
+  const caminho = p.caminho;
+  if (!f?.ligado || f.rascunho || caminho === undefined) return;
+  const trilha = typeof caminho[0] === "number" ? f.trilhas[caminho[0]] : undefined;
+  if (trilha === undefined) return;
+  const antes = m.ctx.atual();
+  const rd: Rodada = {
+    fluxo: f,
+    profundidade: p.profundidade,
+    referenciaSala: p.ateSala,
+    encadeados: [],
+  };
+  retomarLista(m, rd, [caminho[0] as number], trilha, caminho.slice(1), p.contexto);
+  fecharDisparo(m, antes, rd.encadeados, p.profundidade, [f]);
 }
 
 function avancar(m: Motor): void {
   const sala = m.sala;
   // 1. Os efeitos que venceram saem (o agendador acorda a sala no instante do primeiro).
   m.efeitos = m.efeitos.filter((e) => e.ateSala === undefined || e.ateSala > sala);
-  // 2. Os eventos marcados para esta hora.
-  const vencidos = m.slice.pendentes
+  // 2. As execuções esperando que chegaram na hora.
+  const vencidos = m.slice.esperando
     .filter((p) => p.ateSala <= sala)
     .sort((a, b) => a.ateSala - b.ateSala);
   if (vencidos.length > 0) {
-    m.slice.pendentes = m.slice.pendentes.filter((p) => p.ateSala > sala);
-    for (const p of vencidos) executar(m, p.evento, p.profundidade);
-  }
-  // 3. As fases dos ciclos que rodam.
-  for (const c of m.slice.ciclos) {
-    // 12-1: o ciclo em rascunho não roda (e nem ganha execução: ao publicar, ele começa dali).
-    if (c.rascunho) continue;
-    let exec = m.slice.execucao[c.id];
-    if (exec === undefined) {
-      // Ciclo que ainda não começou (veio de um arquivo, ou foi criado com a mesa pausada): começa agora.
-      exec = { baseSala: sala, disparadoAteTau: -1 };
-      m.slice.execucao[c.id] = exec;
+    m.slice.esperando = m.slice.esperando.filter((p) => p.ateSala > sala);
+    for (const p of vencidos) {
+      retomar(m, p);
+      if (m.cortado) return;
     }
-    if (!cicloRodando(exec)) continue;
-    const tau = tauDoCiclo(exec, sala);
-    let disparadas = 0;
-    for (;;) {
-      const proxima = proximaFaseDoCiclo(c, exec.disparadoAteTau);
-      if (!proxima || proxima.tauMs > tau) break;
-      if (++disparadas > MAXIMO_DE_FASES_ATRASADAS) {
-        exec.disparadoAteTau = tau;
-        m.anotar(`Ciclo "${c.nome}": fases demais atrasadas, o resto foi pulado.`);
+  }
+  // 3. Os fluxos de relógio que rodam.
+  for (const f of m.slice.fluxos) {
+    if (f.rascunho || !f.ligado || f.gatilho.tipo !== "relogio") continue;
+    const g = f.gatilho;
+    let exec = m.slice.execucao[f.id];
+    if (exec === undefined) {
+      // Fluxo que ainda não começou (veio de um arquivo, ou foi criado com a mesa pausada): começa agora.
+      exec = { baseSala: sala, proximoTau: (g.primeiroS ?? 0) * 1000 };
+      m.slice.execucao[f.id] = exec;
+    }
+    if (exec.pausadoEmTau !== undefined) continue;
+    const tau = tauDoFluxo(exec, sala);
+    let disparos = 0;
+    while (exec.proximoTau <= tau) {
+      const planejado = exec.baseSala + exec.proximoTau;
+      exec.proximoTau += g.cadaS * 1000;
+      if (++disparos > MAXIMO_DE_DISPAROS_ATRASADOS) {
+        exec.proximoTau = (Math.floor(tau / (g.cadaS * 1000)) + 1) * g.cadaS * 1000;
+        m.anotar(`${f.nome}: disparos demais atrasados, o resto foi pulado.`);
         break;
       }
-      exec.disparadoAteTau = proxima.tauMs;
-      executar(m, eventoDaFase(c, proxima.fase), 0);
+      executarFluxoDireto(m, f, { nome: f.id, cenas: null, origem: "ciclo" }, 0, planejado);
       if (m.cortado) return;
     }
   }
 }
 
-function eventoDaFase(c: Ciclo, fase: Ciclo["fases"][number]): EventoDeAutomacao {
-  return {
-    nome: fase.evento,
-    cenas: c.cenas.length === 0 ? null : [...c.cenas],
-    origem: "ciclo",
-    ...(fase.duracaoS === undefined ? {} : { duracaoS: fase.duracaoS }),
-  };
-}
-
 // ---------------------------------------------------------------------------------------------
-// As intenções de automação (CRUD, controle dos ciclos e o evento manual)
+// As intenções de automação (CRUD dos fluxos, ligar e desligar, disparar)
 // ---------------------------------------------------------------------------------------------
 
-const SEM_CICLO = "Ciclo não encontrado.";
-const SEM_REACAO = "Reação não encontrada.";
-const SEM_BOTAO = "Botão não encontrado.";
+const SEM_FLUXO = "Automação não encontrada.";
 
 /**
- * `botao.usar` vira a intenção de verdade (`ciclo.disparar`, `ciclo.pausar`, `ciclo.retomar` ou `evento.disparar`). O
- * mestre usa qualquer botão; o jogador só os liberados, e a conferência é feita aqui, a cada clique. Botão que não existe
- * ou não está liberado dá o mesmo erro (o jogador não descobre o que há por trás).
+ * `botao.usar` vira a intenção de verdade (`fluxo.disparar` ou `fluxo.ligar`). O mestre usa qualquer botão; o jogador só os
+ * liberados, e a conferência é feita aqui, a cada clique. Botão que não existe ou não está liberado dá o mesmo erro (o
+ * jogador não descobre o que há por trás).
  */
 export function intencaoDoBotao(
   e: Estado,
@@ -852,209 +1092,129 @@ export function intencaoDoBotao(
   const recusa = erro("sem_permissao", "Este botão não está liberado.");
   const { botaoId, acao } = intencao.dados;
   const a = automacoesDe(e);
-  const ciclo = a.ciclos.find((c) => idDoBotaoDeCiclo(c.id) === botaoId);
-  if (ciclo) {
-    if (!mestre && (ciclo.liberadoParaJogadores !== true || ciclo.rascunho === true)) return recusa;
-    const tipo = { disparar: "ciclo.disparar", pausar: "ciclo.pausar", retomar: "ciclo.retomar" }[
-      acao ?? "disparar"
-    ] as "ciclo.disparar";
-    return { intencao: { ...intencao, tipo, dados: { id: ciclo.id } } as Intencao };
-  }
-  const botao = (a.botoes ?? []).find((b) => idDoBotaoDeEvento(b.id) === botaoId);
-  if (botao) {
-    if (!mestre && (botao.liberadoParaJogadores !== true || botao.rascunho === true)) return recusa;
+  const naoLibera = (f: Fluxo) =>
+    !mestre && (f.liberadoParaJogadores !== true || f.rascunho === true);
+  const relogio = a.fluxos.find(
+    (f) => f.gatilho.tipo === "relogio" && idDoBotaoDeCiclo(f.id) === botaoId,
+  );
+  if (relogio) {
+    if (naoLibera(relogio)) return recusa;
+    const quer = acao ?? "disparar";
+    if (quer === "disparar") {
+      return {
+        intencao: { ...intencao, tipo: "fluxo.disparar", dados: { id: relogio.id } } as Intencao,
+      };
+    }
     return {
       intencao: {
         ...intencao,
-        tipo: "evento.disparar",
-        dados: {
-          evento: botao.evento,
-          ...(botao.cenaId === undefined ? {} : { cenaId: botao.cenaId }),
-        },
+        tipo: "fluxo.ligar",
+        dados: { id: relogio.id, ligado: quer === "retomar" },
       } as Intencao,
+    };
+  }
+  const botao = a.fluxos.find(
+    (f) => f.gatilho.tipo === "botao" && idDoBotaoDeEvento(f.id) === botaoId,
+  );
+  if (botao) {
+    if (naoLibera(botao) || (!mestre && !botao.ligado)) return recusa;
+    return {
+      intencao: { ...intencao, tipo: "fluxo.disparar", dados: { id: botao.id } } as Intencao,
     };
   }
   return recusa;
 }
 
-function cenasExistem(e: Estado, ids: readonly string[]): boolean {
-  return ids.every((id) => e.cenas.some((c) => c.id === id));
+/** O que existe na mesa, para conferir as referências de um fluxo. */
+export function referenciasDaMesa(e: Estado): ReferenciasDaMesa {
+  return {
+    cenas: new Set(e.cenas.map((c) => c.id)),
+    modelos: new Set(e.modelos.map((x) => x.id)),
+    zonas: new Set(zonasDe(e).map((z) => z.id)),
+    sons: new Set((e.assets ?? []).filter((x) => x.tipo === "som").map((x) => x.hash)),
+  };
 }
 
-/** O ciclo mudou de período ou de fases: a execução recomeça (mantendo o ciclo pausado, se estava). */
-function reiniciar(m: Motor, id: string): void {
-  const antiga = m.slice.execucao[id];
-  delete m.slice.execucao[id];
-  if (antiga !== undefined && !cicloRodando(antiga)) {
-    m.slice.execucao[id] = { baseSala: m.sala, pausadoEmTau: 0, disparadoAteTau: -1 };
-  }
+function semIndefinidos<T extends object>(o: T): Partial<T> {
+  return Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as Partial<T>;
 }
 
 export function tratarAutomacao(ctx: ContextoDoMotor, intencao: Intencao): SaidaDeAutomacao {
   const e = ctx.atual();
   const m = new Motor(ctx);
   const sala = m.sala;
-  const cicloDe = (id: string) => m.slice.ciclos.find((c) => c.id === id);
+  const fluxoDe = (id: string) => m.slice.fluxos.find((f) => f.id === id);
+  const conferir = (f: Fluxo): { erro: ErroDaSala } | null => {
+    const p = problemasDoFluxo(f, referenciasDaMesa(e))[0];
+    return p ? erro("dados_invalidos", p.mensagem) : null;
+  };
+  const esquecer = (id: string) => {
+    delete m.slice.execucao[id];
+    m.slice.esperando = m.slice.esperando.filter((x) => x.fluxoId !== id || x.sinal !== undefined);
+  };
 
   switch (intencao.tipo) {
-    case "ciclo.criar": {
-      const { ciclo, pausado } = intencao.dados;
-      if (cicloDe(ciclo.id)) return erro("dados_invalidos", "Já existe um ciclo com esse id.");
-      if (m.slice.ciclos.length >= 50) return erro("dados_invalidos", "Ciclos demais.");
-      if (!cenasExistem(e, ciclo.cenas)) return erro("cena_inexistente", "Cena não encontrada.");
-      m.slice.ciclos = [...m.slice.ciclos, ciclo];
-      if (pausado) {
-        m.slice.execucao[ciclo.id] = { baseSala: sala, pausadoEmTau: 0, disparadoAteTau: -1 };
-      }
+    case "fluxo.criar": {
+      const { fluxo } = intencao.dados;
+      if (fluxoDe(fluxo.id)) return erro("dados_invalidos", "Já existe uma automação com esse id.");
+      if (m.slice.fluxos.length >= MAXIMO_DE_FLUXOS)
+        return erro("dados_invalidos", "Automações demais.");
+      const problema = conferir(fluxo);
+      if (problema) return problema;
+      m.slice.fluxos = [...m.slice.fluxos, fluxo];
       break;
     }
-    case "ciclo.editar": {
+    case "fluxo.editar": {
       const { id, mudancas } = intencao.dados;
-      const atual = cicloDe(id);
-      if (!atual) return erro("ciclo_inexistente", SEM_CICLO);
-      const juntado = CicloSchema.safeParse({ ...atual, ...mudancas, id });
+      const atual = fluxoDe(id);
+      if (!atual) return erro("fluxo_inexistente", SEM_FLUXO);
+      const juntado = FluxoSchema.safeParse({ ...atual, ...semIndefinidos(mudancas), id });
       if (!juntado.success) {
-        return erro("dados_invalidos", juntado.error.issues[0]?.message ?? "Ciclo inválido.");
+        return erro("dados_invalidos", juntado.error.issues[0]?.message ?? "Automação inválida.");
       }
       const novo = juntado.data;
-      if (!cenasExistem(e, novo.cenas)) return erro("cena_inexistente", "Cena não encontrada.");
-      m.slice.ciclos = m.slice.ciclos.map((c) => (c.id === id ? novo : c));
+      const problema = conferir(novo);
+      if (problema) return problema;
+      m.slice.fluxos = m.slice.fluxos.map((f) => (f.id === id ? novo : f));
       if (
-        novo.periodoS !== atual.periodoS ||
-        JSON.stringify(novo.fases) !== JSON.stringify(atual.fases)
+        JSON.stringify(novo.gatilho) !== JSON.stringify(atual.gatilho) ||
+        JSON.stringify(novo.trilhas) !== JSON.stringify(atual.trilhas)
       ) {
-        reiniciar(m, id);
+        esquecer(id);
+      } else if (novo.ligado !== atual.ligado) {
+        ligarOuDesligar(m, novo, sala);
       }
       break;
     }
-    case "ciclo.apagar": {
+    case "fluxo.apagar": {
       const { id } = intencao.dados;
-      if (!cicloDe(id)) return erro("ciclo_inexistente", SEM_CICLO);
-      m.slice.ciclos = m.slice.ciclos.filter((c) => c.id !== id);
-      delete m.slice.execucao[id];
+      if (!fluxoDe(id)) return erro("fluxo_inexistente", SEM_FLUXO);
+      m.slice.fluxos = m.slice.fluxos.filter((f) => f.id !== id);
+      delete m.slice.ultimaVez[id];
+      esquecer(id);
       break;
     }
-    case "ciclo.pausar": {
+    case "fluxo.ligar": {
+      const { id, ligado } = intencao.dados;
+      const f = fluxoDe(id);
+      if (!f) return erro("fluxo_inexistente", SEM_FLUXO);
+      if (f.ligado === ligado) break;
+      const novo = { ...f, ligado };
+      m.slice.fluxos = m.slice.fluxos.map((x) => (x.id === id ? novo : x));
+      ligarOuDesligar(m, novo, sala);
+      break;
+    }
+    case "fluxo.disparar": {
       const { id } = intencao.dados;
-      if (!cicloDe(id)) return erro("ciclo_inexistente", SEM_CICLO);
-      const exec = m.slice.execucao[id] ?? { baseSala: sala, disparadoAteTau: -1 };
-      if (cicloRodando(exec)) {
-        m.slice.execucao[id] = { ...exec, pausadoEmTau: tauDoCiclo(exec, sala) };
-      }
-      break;
-    }
-    case "ciclo.retomar": {
-      const { id } = intencao.dados;
-      if (!cicloDe(id)) return erro("ciclo_inexistente", SEM_CICLO);
-      const exec = m.slice.execucao[id];
-      if (exec?.pausadoEmTau !== undefined) {
-        // O ciclo volta de onde parou: o tempo dele não andou enquanto esteve pausado.
-        m.slice.execucao[id] = {
-          baseSala: sala - exec.pausadoEmTau,
-          disparadoAteTau: exec.disparadoAteTau,
-        };
-      }
-      break;
-    }
-    case "ciclo.disparar": {
-      const { id } = intencao.dados;
-      const ciclo = cicloDe(id);
-      if (!ciclo) return erro("ciclo_inexistente", SEM_CICLO);
-      const exec = m.slice.execucao[id] ?? { baseSala: sala, disparadoAteTau: -1 };
-      const proxima = proximaFaseDoCiclo(ciclo, exec.disparadoAteTau);
-      if (!proxima) return {};
-      // O ciclo pula para o começo da fase (ou fica onde está, se já passou dele) e a dispara agora.
-      const tau = Math.max(tauDoCiclo(exec, sala), proxima.tauMs);
-      m.slice.execucao[id] =
-        exec.pausadoEmTau === undefined
-          ? { baseSala: sala - tau, disparadoAteTau: proxima.tauMs }
-          : { ...exec, pausadoEmTau: tau, disparadoAteTau: proxima.tauMs };
-      executar(m, eventoDaFase(ciclo, proxima.fase), 0);
-      break;
-    }
-    case "reacao.criar": {
-      const { reacao } = intencao.dados;
-      if (m.slice.reacoes.some((r) => r.id === reacao.id)) {
-        return erro("dados_invalidos", "Já existe uma reação com esse id.");
-      }
-      if (m.slice.reacoes.length >= 300) return erro("dados_invalidos", "Reações demais.");
-      const problema = problemaDaFica(e, reacao);
-      if (problema) return problema;
-      m.slice.reacoes = [...m.slice.reacoes, reacao];
-      break;
-    }
-    case "reacao.editar": {
-      const { id, mudancas } = intencao.dados;
-      const atual = m.slice.reacoes.find((r) => r.id === id);
-      if (!atual) return erro("reacao_inexistente", SEM_REACAO);
-      const juntada = ReacaoSchema.safeParse({ ...atual, ...semIndefinidos(mudancas), id });
-      if (!juntada.success) {
-        return erro("dados_invalidos", juntada.error.issues[0]?.message ?? "Reação inválida.");
-      }
-      const novo = juntada.data;
-      const problema = problemaDaFica(e, novo);
-      if (problema) return problema;
-      m.slice.reacoes = m.slice.reacoes.map((r) => (r.id === id ? novo : r));
-      break;
-    }
-    case "reacao.apagar": {
-      const { id } = intencao.dados;
-      if (!m.slice.reacoes.some((r) => r.id === id)) return erro("reacao_inexistente", SEM_REACAO);
-      m.slice.reacoes = m.slice.reacoes.filter((r) => r.id !== id);
-      break;
-    }
-    case "botao.criar": {
-      const { botao } = intencao.dados;
-      if (m.slice.botoes.some((b) => b.id === botao.id)) {
-        return erro("dados_invalidos", "Já existe um botão com esse id.");
-      }
-      if (m.slice.botoes.length >= MAXIMO_DE_BOTOES)
-        return erro("dados_invalidos", "Botões demais.");
-      if (botao.cenaId !== undefined && !e.cenas.some((c) => c.id === botao.cenaId)) {
-        return erro("cena_inexistente", "Cena não encontrada.");
-      }
-      m.slice.botoes = [...m.slice.botoes, botao];
-      break;
-    }
-    case "botao.editar": {
-      const { id, mudancas } = intencao.dados;
-      const atual = m.slice.botoes.find((b) => b.id === id);
-      if (!atual) return erro("dados_invalidos", SEM_BOTAO);
-      const { cenaId, ...resto } = semIndefinidos(mudancas);
-      const { cenaId: cenaAntiga, ...base } = atual;
-      // `cenaId: null` tira a cena do botão (volta a valer em todas); sem o campo, ela fica como estava.
-      const cenaNova = mudancas.cenaId === null ? undefined : (cenaId ?? cenaAntiga);
-      const juntado = BotaoDeEventoSchema.safeParse({
-        ...base,
-        ...resto,
-        ...(cenaNova === undefined ? {} : { cenaId: cenaNova }),
-        id,
-      });
-      if (!juntado.success) {
-        return erro("dados_invalidos", juntado.error.issues[0]?.message ?? "Botão inválido.");
-      }
-      const novo = juntado.data;
-      if (novo.cenaId !== undefined && !e.cenas.some((c) => c.id === novo.cenaId)) {
-        return erro("cena_inexistente", "Cena não encontrada.");
-      }
-      m.slice.botoes = m.slice.botoes.map((b) => (b.id === id ? novo : b));
-      break;
-    }
-    case "botao.apagar": {
-      const { id } = intencao.dados;
-      if (!m.slice.botoes.some((b) => b.id === id)) return erro("dados_invalidos", SEM_BOTAO);
-      m.slice.botoes = m.slice.botoes.filter((b) => b.id !== id);
-      break;
-    }
-    case "evento.disparar": {
-      const { evento, cenaId } = intencao.dados;
-      if (cenaId !== undefined && !e.cenas.some((c) => c.id === cenaId)) {
-        return erro("cena_inexistente", "Cena não encontrada.");
-      }
-      executar(
+      const f = fluxoDe(id);
+      if (!f) return erro("fluxo_inexistente", SEM_FLUXO);
+      const cena = f.gatilho.tipo === "botao" ? f.gatilho.cena : undefined;
+      executarFluxoDireto(
         m,
-        { nome: evento, cenas: cenaId === undefined ? null : [cenaId], origem: "manual" },
+        f,
+        { nome: f.id, cenas: cena === undefined ? null : [cena], origem: "manual" },
         0,
+        m.sala,
       );
       break;
     }
@@ -1065,25 +1225,19 @@ export function tratarAutomacao(ctx: ContextoDoMotor, intencao: Intencao): Saida
   return {};
 }
 
-function semIndefinidos<T extends object>(o: T): Partial<T> {
-  return Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as Partial<T>;
-}
-
-/** A reação aponta para um modelo ou uma cena que existe? */
-function problemaDaFica(e: Estado, r: Reacao): { erro: ErroDaSala } | null {
-  if (r.fica.tipo === "modelo") {
-    const id = r.fica.id;
-    if (!e.modelos.some((x) => x.id === id)) {
-      return erro("modelo_inexistente", "Modelo de objeto não encontrado.");
+/** Desligar congela o relógio e cancela o que estava esperando; ligar volta de onde parou. */
+function ligarOuDesligar(m: Motor, f: Fluxo, sala: number): void {
+  const exec = m.slice.execucao[f.id];
+  if (!f.ligado) {
+    m.slice.esperando = m.slice.esperando.filter(
+      (x) => x.fluxoId !== f.id || x.sinal !== undefined,
+    );
+    if (exec !== undefined && exec.pausadoEmTau === undefined) {
+      m.slice.execucao[f.id] = { ...exec, pausadoEmTau: tauDoFluxo(exec, sala) };
     }
-  } else if (r.fica.tipo === "cena") {
-    const id = r.fica.id;
-    if (!e.cenas.some((x) => x.id === id)) return erro("cena_inexistente", "Cena não encontrada.");
-  } else if (r.fica.tipo === "zona") {
-    const id = r.fica.id;
-    if (!zonasDe(e).some((x) => x.id === id)) {
-      return erro("zona_inexistente", "Zona não encontrada.");
-    }
+    return;
   }
-  return null;
+  if (exec?.pausadoEmTau !== undefined) {
+    m.slice.execucao[f.id] = { baseSala: sala - exec.pausadoEmTau, proximoTau: exec.proximoTau };
+  }
 }

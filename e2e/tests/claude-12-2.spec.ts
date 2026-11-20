@@ -169,7 +169,7 @@ test("o jogador monta o personagem pelo Claude: magias do compêndio, 4d6 pelo C
   }
 });
 
-test("o mestre monta uma cena pelo Claude (paredes, NPC, ciclo): rascunho invisível ao jogador até publicar; Desfazer apaga tudo", async ({
+test("o mestre monta uma cena pelo Claude (paredes, NPC, automação): rascunho invisível ao jogador até publicar; Desfazer apaga tudo", async ({
   mesa,
 }) => {
   const mestre = await entrarNoMapa(mesa, "mestre");
@@ -199,7 +199,7 @@ test("o mestre monta uma cena pelo Claude (paredes, NPC, ciclo): rascunho invis�
     "desfazer",
   ]);
 
-  // 1. O NPC, a cena com paredes (reta, porta e arco "de a até b passando por c"), 4 goblins ocultos, um ciclo e uma nota.
+  // 1. O NPC, a cena com paredes (reta, porta e arco "de a até b passando por c"), 4 goblins ocultos, uma automação e uma nota.
   const npc = await mcp.chamar("fichas", {
     fichas: [
       {
@@ -244,12 +244,20 @@ test("o mestre monta uma cena pelo Claude (paredes, NPC, ciclo): rascunho invis�
   expect(cena.texto).toContain("4 tokens");
 
   const auto = await mcp.chamar("automacoes", {
-    ciclos: [
+    fluxos: [
       {
         nome: "Vento da eclusa",
-        periodoS: 600,
         cenas: ["Eclusa"],
-        fases: [{ emS: 0, evento: "vento.sopra", duracaoS: 60 }],
+        gatilho: { tipo: "relogio", cadaS: 600 },
+        trilhas: [
+          [
+            {
+              bloco: "paraCada",
+              alvo: { tipo: "tokens" },
+              corpo: [{ bloco: "acao", acao: { acao: "visao.limitar", alcanceM: 3, porS: 60 } }],
+            },
+          ],
+        ],
       },
     ],
   });
@@ -282,7 +290,7 @@ test("o mestre monta uma cena pelo Claude (paredes, NPC, ciclo): rascunho invis�
   await expect(j1.pagina.getByText("A Eclusa antiga")).toHaveCount(0);
   const rascunhos = await mcp.chamar("rascunhos", { acao: "listar" });
   expect(rascunhos.texto).toContain("cena: Eclusa");
-  expect(rascunhos.texto).toContain("ciclo: Vento da eclusa");
+  expect(rascunhos.texto).toContain("automação: Vento da eclusa");
   expect(rascunhos.texto).toContain("handout: A Eclusa antiga");
 
   // 3. Publicar: o jogador passa a ver a nota (o que é visível a ele).
@@ -309,7 +317,7 @@ test("o mestre monta uma cena pelo Claude (paredes, NPC, ciclo): rascunho invis�
   const depois = await mcp.chamar("panorama");
   expect(depois.texto).not.toContain("Eclusa");
   expect(depois.texto).not.toContain("Goblin");
-  expect(depois.texto).toContain("0 ciclos");
+  expect(depois.texto).toContain("Automações: 0");
   expect(depois.texto).toContain("Rascunhos do Claude: nenhum");
 
   // O token nunca saiu do processo do MCP.

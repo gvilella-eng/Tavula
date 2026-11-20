@@ -51,13 +51,14 @@ describe("paridade campo a campo com o MCP (Q16)", () => {
     (i) => !estaFora(PARIDADE_COM_O_MCP[i.tipo]) && i.campos.length > 0,
   );
 
-  it("o `camposDoEsquema` enxerga os objetos de dentro (zona, reação, token)", () => {
+  it("o `camposDoEsquema` enxerga os objetos de dentro (zona, fluxo, token)", () => {
     const zona = intencoes.find((i) => i.tipo === "zona.criar")?.campos ?? [];
     expect(zona).toContain("zona.efeitos.som.volume");
     expect(zona).toContain("zona.pontos[].x");
-    const reacao = intencoes.find((i) => i.tipo === "reacao.criar")?.campos ?? [];
-    expect(reacao).toContain("reacao.fazer[].raioX");
-    expect(reacao).toContain("reacao.se[].zona");
+    const fluxo = intencoes.find((i) => i.tipo === "fluxo.criar")?.campos ?? [];
+    expect(fluxo).toContain("fluxo.gatilho.quando");
+    expect(fluxo).toContain("fluxo.trilhas[][].condicao.zona");
+    expect(fluxo).toContain("fluxo.trilhas[][].acao.raioX");
     const token = intencoes.find((i) => i.tipo === "token.editar")?.campos ?? [];
     expect(token).toContain("mudancas.borda");
   });

@@ -8,10 +8,14 @@ import {
   validarMeta,
 } from "./assets.ts";
 import {
+  acoesDoFluxo,
   botoesParaJogador,
+  comZonasTrocadas,
   converterAutomacoesDoArquivo,
   type EventoDeAutomacao,
   efeitosParaJogador,
+  MAXIMO_DE_FLUXOS,
+  trilhasSem,
 } from "./automacoes.ts";
 import {
   type ContextoDoMotor,
@@ -679,11 +683,8 @@ export function lerExportacao(
     }
   }
   if (automacoes) {
-    if (new Set(automacoes.ciclos.map((c) => c.id)).size !== automacoes.ciclos.length) {
-      return { ok: false, motivo: "ids de ciclo repetidos" };
-    }
-    if (new Set(automacoes.reacoes.map((x) => x.id)).size !== automacoes.reacoes.length) {
-      return { ok: false, motivo: "ids de reação repetidos" };
+    if (new Set(automacoes.fluxos.map((f) => f.id)).size !== automacoes.fluxos.length) {
+      return { ok: false, motivo: "ids de automação repetidos" };
     }
   }
   if (zonas) {
@@ -1044,12 +1045,12 @@ export function reduzir(estado: Estado, evento: EventoSala): Estado {
       const { id } = evento.dados;
       const zonas = (base.zonas ?? []).filter((z) => z.id !== id);
       const { zonas: _antigas, ...semZonas } = base;
-      // As reações da zona vão com ela.
+      // As automações que só existem por causa da zona (o gatilho é entrar ou sair dela) vão com ela.
       const automacoes = base.automacoes
         ? {
             ...base.automacoes,
-            reacoes: base.automacoes.reacoes.filter(
-              (r) => !(r.fica.tipo === "zona" && r.fica.id === id),
+            fluxos: base.automacoes.fluxos.filter(
+              (f) => !(f.gatilho.tipo === "zona" && f.gatilho.zona === id),
             ),
           }
         : undefined;
@@ -2384,7 +2385,7 @@ function processarIntencao(
           const parede: Parede = { ...p, id: `${novoId.slice(0, 50)}-p${i + 1}`, cenaId: novoId };
           emitir({ tipo: "parede.criada", dados: { parede } });
         });
-      // 7b-2 (assumido): as zonas da cena vão para a cópia, com as reações que carregam.
+      // 7b-2 (assumido): as zonas da cena vão para a cópia, com as automações cujo gatilho é a zona.
       const copiaDeZona = new Map<string, string>();
       zonasDe(estado)
         .filter((z) => z.cenaId === cenaId)
@@ -2394,25 +2395,24 @@ function processarIntencao(
           emitir({ tipo: "zona.alterada", dados: { zona } });
         });
       if (copiaDeZona.size > 0 && estado.automacoes) {
-        const reacoes = estado.automacoes.reacoes.flatMap((r, i) => {
-          const novaZona = r.fica.tipo === "zona" ? copiaDeZona.get(r.fica.id) : undefined;
-          return novaZona === undefined
-            ? []
-            : [
-                {
-                  ...r,
-                  id: `${novoId.slice(0, 40)}-r${i + 1}`,
-                  fica: { tipo: "zona" as const, id: novaZona },
-                },
-              ];
+        const copias = estado.automacoes.fluxos.flatMap((f, i) => {
+          const g = f.gatilho;
+          if (g.tipo !== "zona" || g.zona === undefined || !copiaDeZona.has(g.zona)) return [];
+          return [
+            {
+              ...comZonasTrocadas(f, copiaDeZona),
+              id: `${novoId.slice(0, 40)}-f${i + 1}`,
+              cenas: [novoId],
+            },
+          ];
         });
-        if (reacoes.length > 0) {
+        if (copias.length > 0) {
           emitir({
             tipo: "automacoes.alterado",
             dados: {
               automacoes: {
                 ...estado.automacoes,
-                reacoes: [...estado.automacoes.reacoes, ...reacoes].slice(0, 300),
+                fluxos: [...estado.automacoes.fluxos, ...copias].slice(0, MAXIMO_DE_FLUXOS),
               },
             },
           });
@@ -3060,19 +3060,11 @@ function processarIntencao(
     case "desenho.rascunho":
       return doDesenho(desenhoRascunho(contextoDeDesenho, intencao.dados));
 
-    case "ciclo.criar":
-    case "ciclo.editar":
-    case "ciclo.apagar":
-    case "ciclo.disparar":
-    case "ciclo.pausar":
-    case "ciclo.retomar":
-    case "reacao.criar":
-    case "reacao.editar":
-    case "reacao.apagar":
-    case "botao.criar":
-    case "botao.editar":
-    case "botao.apagar":
-    case "evento.disparar": {
+    case "fluxo.criar":
+    case "fluxo.editar":
+    case "fluxo.apagar":
+    case "fluxo.ligar":
+    case "fluxo.disparar": {
       const saida = tratarAutomacao(contextoDoMotor, intencao);
       return "erro" in saida ? { ok: false, erro: saida.erro } : aplicado(saida.snapshotPara ?? []);
     }
@@ -3511,13 +3503,13 @@ function processarIntencao(
       }
       const automacoes = proximo.automacoes;
       if (automacoes && usos.automacoes.length > 0) {
-        const reacoes = automacoes.reacoes.flatMap((x) => {
-          if (!x.fazer.some((a) => a.acao === "som.tocar" && a.hash === hash)) return [x];
-          const fazer = x.fazer.filter((a) => !(a.acao === "som.tocar" && a.hash === hash));
-          // Sem mais nenhuma ação a reação não tem o que fazer: sai junto.
-          return fazer.length === 0 ? [] : [{ ...x, fazer }];
+        const fluxos = automacoes.fluxos.flatMap((f) => {
+          if (!acoesDoFluxo(f).some((a) => a.acao === "som.tocar" && a.hash === hash)) return [f];
+          const trilhas = trilhasSem(f.trilhas, (a) => a.acao === "som.tocar" && a.hash === hash);
+          // Sem mais nenhuma ação o fluxo não tem o que fazer: sai junto.
+          return trilhas.every((x) => x.length === 0) ? [] : [{ ...f, trilhas }];
         });
-        emitir({ tipo: "automacoes.alterado", dados: { automacoes: { ...automacoes, reacoes } } });
+        emitir({ tipo: "automacoes.alterado", dados: { automacoes: { ...automacoes, fluxos } } });
       }
       // MU1: a música com este arquivo sai da biblioteca e, se tocava, a música para.
       if (estado.musica?.faixas.some((f) => f.hash === hash)) {

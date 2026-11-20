@@ -724,87 +724,94 @@ Raça, tendência, antecedente e idiomas em inglês da ficha impressa passam por
 
 ### 4.11 Automações da mesa
 
-"Funções customizadas" que o mestre monta por campanha. Três peças:
+"Funções customizadas" que o mestre monta por campanha, **programadas por blocos** (AU1, 2026-11-19; o formato antigo de ciclos, fases
+e reações foi substituído, e o que existia é convertido sozinho: ver "Como era, e como converte"). Uma **automação** (no código, um
+`Fluxo`) tem:
 
-- **Ciclos:** timer com período e fases; cada fase dispara um evento com nome num ponto do ciclo. Cada
-  ciclo vale para as cenas escolhidas e tem botões **disparar agora**, **pausar** e **retomar**, que o
-  mestre pode fixar na barra dele (e, se quiser, liberar algum para os jogadores por capacidade).
-- **Eventos:** vêm das fases dos ciclos, de botões do mestre (`evento.disparar`) ou do próprio sistema
-  (`objeto.acendeu`, `objeto.apagou`, `token.entrouNaZona`, `turno.inicio`, `cena.ativada`).
-- **Reações:** "ao receber o evento X, [se condição], faça Y". Ficam no **modelo do objeto** (toda tocha
-  nova já herda), em zonas do mapa ou na cena.
+- **Um gatilho, o "Quando":** `relogio` (a cada tantos segundos), `botao` (um botão do mestre, em todas as cenas ou numa), `sinal` (ao
+  receber um sinal de outra automação), `tocha` (uma luz acende ou apaga, com filtro de modelo e de etiqueta), `zona` (um token entra
+  ou sai de uma zona), `turno` (começa o turno de alguém) e `cena` (o grupo vai para uma cena).
+- **Cenas onde vale** (vazio = todas), `ligado`, `fixado` (o chip na barra de cima) e `liberadoParaJogadores` (o botão do gatilho de botão
+  e os controles do de relógio, para os jogadores).
+- **Uma ou mais trilhas.** Cada trilha é uma lista de blocos que roda de cima para baixo; ao disparar, as trilhas começam juntas.
+  O fluxo é uma **árvore, arrumada sozinha** (sem fio solto): "se" e "sortear" têm as saídas **sim** e **não** (o "não" é opcional); "para
+  cada" tem um **corpo**.
 
-Exemplo (respiração da montanha, da campanha de referência):
+Os blocos: **esperar** `{ s }` (segura a trilha; no tempo da sala, então pausar a mesa pausa a espera); **se** `{ condicao, sim, nao }`
+(condições: `etiqueta`, `dentroDaZona`, `cena` e `zonaLigada`); **sortear** `{ chance, sim, nao }` (a cada vez, no RNG da sala); **para cada**
+`{ alvo, corpo }` (alvo: objetos de luz, com modelo, etiqueta, só os acesos e dentro de uma zona; ou tokens, dentro de uma zona, numa cena ou
+por id); **ação** (a lista fechada abaixo, com o prazo "por N s" explícito na própria ação) e **sinal** `{ nome, atrasoS? }`.
+
+Exemplo, a respiração da montanha (a mesma da campanha de referência, já convertida):
 
 ```json
-"ciclos": [{ "id": "respiracao", "nome": "Respiração da Montanha", "periodoS": 180, "cenas": ["pulmao"],
-  "fases": [{ "emS": 0,  "evento": "inspiracao", "duracaoS": 20 },
-            { "emS": 90, "evento": "expiracao",  "duracaoS": 30 }] }],
-"modelos": [{ "id": "tocha", "nome": "Tocha", "duracaoS": 1800, "tags": ["chama"],
-  "reacoes": [{ "ao": "inspiracao", "fazer": [
-    { "acao": "luz.modificar", "raioX": 0.5, "porS": 20 },
-    { "acao": "objeto.apagar", "chance": 0.3, "penalidadeS": 300 } ] }] }]
+{ "id": "respiracao", "nome": "Respiração da Montanha", "cenas": ["pulmao"],
+  "gatilho": { "tipo": "relogio", "cadaS": 180 },
+  "trilhas": [
+    [{ "bloco": "paraCada", "alvo": { "tipo": "objetos", "modelo": "tocha", "acesos": true }, "corpo": [
+       { "bloco": "acao", "acao": { "acao": "luz.modificar", "raioX": 0.5, "porS": 20 } },
+       { "bloco": "acao", "acao": { "acao": "objeto.apagar", "chance": 0.3, "penalidadeS": 300 } } ] }],
+    [{ "bloco": "esperar", "s": 90 },
+     { "bloco": "paraCada", "alvo": { "tipo": "tokens" }, "corpo": [
+       { "bloco": "acao", "acao": { "acao": "visao.limitar", "alcanceM": 1.5, "porS": 30 } } ] }] ] }
 ```
 
-Regras do motor:
-1. **Ações de uma lista fechada, descritas em JSON e validadas com zod**, nunca código livre:
-   `luz.modificar`, `objeto.apagar` (chance, penalidade), `objeto.ajustarTempo`, `visao.limitar`,
-   `chat.anunciar`, `som.tocar` (N5), `token.mostrar`/`token.ocultar`, `zona.ativar`, `evento.disparar`.
-   Condições: `chance`, `tag`, `dentroDaZona`, `cena`. Seguro, testável com semente fixa e fácil de a IA
-   gerar.
-2. **Efeito temporário é modificador com prazo**, nunca alteração do valor base. O valor final é base +
-   modificadores ativos; efeitos sobrepostos, refresh e reconexão não deixam nada preso.
-3. Tudo roda **na sala**, pelo agendador único (seção 4.8), com sorteios no RNG do servidor. Pausar a
-   mesa pausa os ciclos.
-4. **Escopo por cena:** o evento de um ciclo só atinge o que está nas cenas dele.
-5. **Limite de encadeamento:** reação que dispara evento que dispara reação para numa profundidade
-   máxima.
-6. **Zonas:** polígonos do mapa com reações e efeitos enquanto um token ou objeto está dentro (gás que
-   enfraquece chamas, ar rarefeito). Entregues no 7b-2 (ver "Zonas (7b-2)" abaixo).
-7. Automações são dados do mestre: nunca chegam ao navegador do jogador, só os efeitos delas.
+Em português, gerada dos blocos: "A cada 3 min, na cena Pulmão: cada tocha acesa fica com metade da luz por 20 s e tem 30% de chance de
+apagar (perde 5 min). 90 s depois, a visão de cada token na cena Pulmão cai para 1,5 m por 30 s."
 
-**Desenho final do motor (7b-1, 2026-11-13).** O que o 7b-2 (zonas), o 7b-3 (editor e campanhas) e o MCP vão usar.
-- **Onde ficam.** Numa fatia própria do estado, `Estado.automacoes` = `{ ciclos, reacoes, execucao, pendentes, registro }`
-  (`packages/shared/src/automacoes.ts`), **só do mestre**: `visaoPara` a tira do jogador e `eventoPara` derruba o evento
-  `automacoes.alterado` (a fatia inteira, sem valor para o jogador). O modelo de objeto **não** carrega reação: a reação aponta
-  para ele (`fica: { tipo: "modelo" | "cena" | "mesa", id? }`), então `modelos` continua indo ao jogador sem nada de automação.
-  Guardada no SQLite na chave `automacoes` da tabela `meta` (e `efeitos`), **sem migração**: o banco antigo não a tem e
-  carrega igual. Entra na exportação como campo opcional (a versão do arquivo continua 13); o arquivo antigo carrega sem ela.
-  O arquivo de campanha aceita a forma enxuta do exemplo acima (`ciclos` no topo e `reacoes` dentro do modelo, sem `id` nem
-  `fica`): `converterAutomacoesDoArquivo` a converte na importação (a reação do modelo ganha `id` `reacao-<modelo>-<n>`).
-- **Eventos.** `{ nome, cenas | null, origem, objetoId?, tokenId?, duracaoS? }`. `cenas` é o escopo (regra 4): o evento de um
-  ciclo leva as cenas dele (vazio = todas = `null`); o do sistema leva a cena do objeto, a cena nova ou a do token da vez.
-  Os do sistema (`objeto.acendeu`, `objeto.apagou`, `turno.inicio`, `cena.ativada`) saem da **diferença entre o estado de antes
-  e o de depois** de qualquer intenção, do tempo que passa e das próprias ações das reações (`eventosDoSistema`): vale para
-  todo jeito de acender e apagar, sem tocar nas tochas.
-- **Alvo das ações.** Reação de **modelo**: cada objeto daquele modelo nas cenas do evento (ou só o objeto do evento, se ele é
-  do modelo). Reação de **cena** ou da **mesa**: o objeto do evento, se houver. Cada ação pode ter `alvo`: nas ações de luz,
-  `{ modeloId?, tag? }`; nas de token, `{ ids? }`. Sem `alvo`, a ação vale para o objeto da reação (e, em `visao.limitar` e
-  `token.mostrar/ocultar`, para quem o carrega: o token da luz ou o dono da tocha na mão); sem objeto, para tudo o que está nas
-  cenas do evento. A reação presa a uma cena só roda se a cena está entre as do evento. As condições (`chance`, `tag`, `cena`)
-  valem para o alvo, uma vez por alvo.
-- **Modificadores.** Nunca mexem no valor base. Na luz, o modificador mora no próprio objeto (`ObjetoDeLuz.modificadores`, que
-  já existia): `{ id, raioX, raioSomaM?, ateSala, origem: "automacao" }`, com o prazo em tempo da sala; o valor final é
-  `base × Πraiox + Σsoma` (`raiosEfetivos`). O id é `auto:<reação>:<ação>`: o mesmo efeito de novo **renova** o prazo, não
-  empilha; efeitos de reações diferentes multiplicam. No token, o limite de visão é um **efeito** em `Estado.efeitos`:
-  `{ id, alvo: { tipo: "token", id }, efeito: { visaoMaxM }, ateSala, origem }`; vale o menor, e o alcance final é o menor entre a
-  visão base e o limite. O agendador tira os vencidos. O jogador recebe só o resultado: na luz, `fatorDeRaio` e `somaDeRaioM`; no
-  token, os efeitos **dos tokens que ele controla**, resumidos (um por token, id opaco, sem prazo nem origem).
-- **Tempo.** O ciclo é medido no tempo da sala (`baseSala`, `disparadoAteTau`, `pausadoEmTau`): pausar a mesa o congela sem
-  conta extra; pausar o ciclo só o congela. Ciclo sem execução (veio de um arquivo) começa quando a mesa corre. O agendador tem
-  um vencimento só, `automacao.marco`, para a próxima fase, evento pendente ou fim de efeito. `evento.disparar` com `atrasoS`
-  vira um pendente (tempo da sala) que guarda o nível de encadeamento.
-- **Limites.** Profundidade máxima 5 (níveis 0 a 5 rodam; o seguinte é cortado), no máximo 500 ações (ação × alvo) por disparo e
-  50 fases atrasadas recuperadas de uma vez. O corte é anotado em `automacoes.registro` (só o mestre). O sorteio usa o RNG da
-  sala (`crypto`; semente fixa nos testes).
-- **Intenções** (todas `automacao.editar`, só do mestre): `ciclo.criar|editar|apagar|disparar|pausar|retomar`,
-  `reacao.criar|editar|apagar` e `evento.disparar`. Ver `docs/protocolo.md`, "Automações (Lote 7b-1)".
+Regras do motor:
+1. **Ações de uma lista fechada, descritas em JSON e validadas com zod**, nunca código livre: `luz.modificar`, `objeto.apagar` (chance,
+   penalidade), `objeto.ajustarTempo`, `visao.limitar`, `chat.anunciar`, `som.tocar` (N5), `token.mostrar`/`token.ocultar` e `zona.ativar`. Mandar um
+   sinal é um bloco, não uma ação. Seguro, testável com semente fixa e fácil de a IA gerar.
+2. **Efeito temporário é modificador com prazo**, nunca alteração do valor base. O valor final é base + modificadores ativos; efeitos
+   sobrepostos, refresh e reconexão não deixam nada preso.
+3. Tudo roda **na sala**, pelo agendador único (seção 4.8), com sorteios no RNG da sala. Pausar a mesa pausa os relógios e as esperas.
+4. **Escopo por cena:** a automação só atinge o que está nas cenas dela, cruzadas com as do evento que a disparou.
+5. **Limite de encadeamento:** sinal que dispara automação que manda sinal para numa profundidade máxima (5), e há teto de ações por
+   disparo, de blocos por automação, de profundidade da árvore e de esperas ao mesmo tempo. O corte vai ao registro do motor.
+6. **Zonas:** polígonos do mapa com efeitos enquanto um token ou objeto está dentro (gás que enfraquece chamas, ar rarefeito). Entregues
+   no 7b-2 (ver "Zonas (7b-2)" abaixo); as automações cuidam do que acontece quando algo entra, sai ou o tempo passa.
+7. Automações são dados do mestre: nunca chegam ao navegador do jogador, só os efeitos delas.
+8. **Quem sofre a ação** (decisão do AU1): o alvo padrão de uma ação é o objeto ou o token **da vez**: o do gatilho (tocha acende: a tocha; token
+   entra na zona: o token) ou o que o bloco "para cada" está percorrendo. Ação de luz mexe no objeto da vez; ação de token, no token da vez e, sem
+   token, em quem carrega o objeto da vez. Sem alvo, a ação não faz nada e o motor anota no registro; o editor avisa antes, no bloco.
+
+**Desenho do motor de fluxos (AU1, 2026-11-19).**
+- **Onde ficam.** `Estado.automacoes` = `{ fluxos, execucao, esperando, ultimaVez, registro, legado? }` (`packages/shared/src/automacoes.ts`, com
+  `fluxos.ts`, `fluxosValidar.ts`, `fluxosFrase.ts`, `fluxosConversao.ts` e o motor em `automacoesnucleo.ts`), **só do mestre**: `visaoPara` a tira do jogador e
+  `eventoPara` derruba o evento `automacoes.alterado`. Guardada no SQLite na chave `automacoes` da tabela `meta`, **sem migração SQL**: a conversão é feita
+  na leitura (ver abaixo). Entra na exportação como campo opcional (a versão do arquivo continua 13).
+- **Execução.** `execucao[fluxoId]` é o relógio de um fluxo de relógio, no tempo da sala (`baseSala`, `pausadoEmTau`, `proximoTau`): dispara ao começar
+  (ou depois de `primeiroS`) e a cada `cadaS`; desligar congela, ligar continua de onde parou. `esperando` guarda cada **execução parada num "esperar"** (ou num sinal
+  com atraso): o fluxo, o caminho na árvore (`[trilha, i, "sim", j, …]`), o contexto (cenas, objeto, token e zona da vez) e o instante (tempo da sala). Vai no estado
+  e no SQLite, então **sobrevive à hibernação**. Um "esperar" dentro de um "para cada" segura só aquele alvo.
+- **Gatilhos do sistema** saem, como antes, da **diferença entre o estado de antes e o de depois** de qualquer intenção, do tempo e das próprias ações
+  (`eventosDoSistema`): luz acendeu ou apagou, cena do grupo, turno, token entrou ou saiu de zona. Os sinais mandados correm depois que os fluxos do evento terminam,
+  um nível abaixo (limite 5).
+- **Modificadores** como antes: na luz, em `ObjetoDeLuz.modificadores` (`id` `auto:<fluxo>:<caminho do bloco>`, o mesmo efeito de novo **renova** o prazo); no token, em `Estado.efeitos`
+  (limite de visão, vale o menor). O jogador recebe só o resultado.
+- **Limites:** 60 automações, 8 trilhas e 80 blocos por automação, 6 níveis de árvore, sinais encadeados até 5, 500 ações por disparo, 200 esperas, 50 disparos
+  atrasados recuperados de uma vez. Sorteio no RNG da sala (`crypto`; semente fixa nos testes).
+- **A frase em português** é uma função pura em `shared` (`fraseDoFluxo`, com os nomes de cena, modelo e zona, nunca ids), usada pela lista, pelo editor e pelo MCP.
+  **A conferência** também (`problemasDoFluxo`): erros em português, presos ao bloco (o editor desenha o contorno), recusa na sala e no MCP.
+- **Intenções** (todas `automacao.editar`, só do mestre): `fluxo.criar|editar|apagar|ligar|disparar` (assumido; as de ciclo e de reação deram lugar a elas). `botao.usar`
+  continua (os chips da barra: `ciclo:<id>` é o fluxo de relógio, `evento:<id>` o de botão). Ver `docs/protocolo.md`, "Automações e fluxos".
 - **Chat.** `chat.anunciar` cria uma mensagem `tipo: "aviso"` sem autor real (`autorId: "sistema"`), mostrada como "A mesa".
+
+**Como era, e como converte.** Antes do AU1 a mesa tinha **ciclos** (período e fases que disparam eventos com nome), **reações** ("ao receber o evento X, se Y, faça Z", presas a um
+modelo, cena, zona ou à mesa) e **botões de evento**. Ao carregar a mesa e ao importar um arquivo antigo, `converterParaFluxos` os transforma em fluxos, sem perder nada: um **ciclo**
+vira um fluxo de relógio com **uma trilha por fase** ("esperar" o instante da fase, e o que a fase faz); o "dura" da fase vira o prazo ("por N s") das ações que não tinham prazo; o
+**botão de evento** vira um fluxo de botão que manda o sinal; a **reação** vira blocos explícitos (o modelo vira "para cada objeto do modelo"; a zona, o filtro do gatilho e "só quem está
+dentro"; a cena, as cenas do fluxo) e fica **dentro da trilha da fase** quando o nome do evento só liga aquele ciclo a ela (sem botão nem outro emissor); com mais de um uso do nome, fica
+como "mandar sinal" e "ao receber sinal". As reações que escutam eventos do sistema viram o gatilho correspondente. O formato antigo fica guardado em `Automacoes.legado`, **só para
+leitura** (não roda). O arquivo de campanha aceita a forma antiga (convertida) e a nova; a exportação sai na nova. Numa mesa em andamento, o relógio dos fluxos recomeça (o que faltava do
+período em curso e os eventos pendentes não são recuperados). A campanha de referência (`chama-primordial.json`) rodou 10 minutos simulados no motor antigo e o resultado ficou guardado
+(`fixtures/ouro/`): o motor novo, com a conversão, tem de chegar ao mesmo (teste `ouro.test.ts`).
 
 **Zonas (7b-2, 2026-11-13).** Polígonos de uma cena, só do mestre, com efeitos "enquanto dentro" e reações.
 - **O dado.** `Estado.zonas` (opcional) = `[{ id, cenaId, nome, pontos[3..64], ativa, efeitos: { luzRaioX?, luzSomaM?, visaoMaxM? } }]`
   (`packages/shared/src/zonas.ts`). Guardada na coleção `zonas` da tabela `entidades` (sem migração SQL), na exportação (campo opcional, versão 13) e
-  copiada por "Duplicar a cena". As **reações** da zona moram na fatia `automacoes` com `fica: { tipo: "zona", id }` e vão embora com ela.
+  copiada por "Duplicar a cena" (com as automações cujo gatilho é a zona). Quem escolhe a zona num bloco usa o id; ao apagar a zona, vão embora as automações cujo gatilho é entrar ou sair dela.
 - **Dentro** (assumido). O centro do token dentro do polígono, na cena da zona; a borda e os vértices contam. Para a luz: a posição de quem a carrega
   (o token, ou o dono da tocha na mão) ou a do ponto onde está; na mochila não está em zona. Zona desligada não tem ninguém dentro.
 - **Efeito enquanto dentro.** Sem prazo, e **reconciliado**: depois de toda intenção que mudou algo, a sala compara o que deve valer (zonas ligadas × posições) com o
@@ -813,19 +820,21 @@ Regras do motor:
   cena-cartão não leva o limite de visão.
 - **Eventos.** `token.entrouNaZona` e `token.saiuDaZona` (com `zonaId` e `tokenId` no evento) saem da diferença entre os estados, como os outros do sistema:
   soltar, setas, "Levar grupo", colocar, apagar e restaurar token, trocar de cena. Uma vez por mudança. Ligar, desligar, criar e apagar a zona não contam.
-- **Ação e condição.** `zona.ativar` (`zona?`, `ativa`) liga e desliga uma zona; `dentroDaZona` (`zona?`) vale para o objeto da reação ou o token do evento. Sem `zona`,
-  as duas usam a zona da própria reação. A reação de uma zona só atinge o que está dentro dela e só responde ao evento dela.
+- **Ação e condição.** `zona.ativar` (`zona`, `ativa`) liga e desliga uma zona; `dentroDaZona` e `zonaLigada` (`zona`) são condições do bloco "se"; o "para cada" aceita `naZona`. O gatilho "token entra ou sai" aceita uma zona só (ou qualquer).
 - **Intenções** (`automacao.editar`): `zona.criar`, `zona.editar`, `zona.apagar`; eventos `zona.alterada` e `zona.apagada` (só o mestre). Ver `docs/protocolo.md`, "Zonas (Lote 7b-2)".
-- **Sigilo.** A forma, o nome, os efeitos e as reações nunca chegam ao jogador (`visaoPara` tira `zonas`; `eventoPara` derruba os dois eventos). Ele vê só a luz menor e a visão limitada.
+- **Sigilo.** A forma, o nome, os efeitos e as automações nunca chegam ao jogador (`visaoPara` tira `zonas`; `eventoPara` derruba os dois eventos). Ele vê só a luz menor e a visão limitada.
 - **A ferramenta.** "Zonas" na barra do mestre (ícone de quadrado tracejado, tecla **Z**): clique a clique, meia célula do grid (Alt solta), duplo clique ou Enter fecha, Esc
-  cancela, Backspace tira o último ponto. Painel com nome, ligada, os três efeitos e a contagem de reações; as bolinhas movem os vértices; Delete apaga, com Desfazer no aviso.
+  cancela, Backspace tira o último ponto. Painel com nome, ligada, os três efeitos e a lista das automações que usam a zona, com "+ automação para esta zona" (que já cria o gatilho de entrar); as bolinhas movem os vértices; Delete apaga, com Desfazer no aviso.
   A zona aparece só para o mestre (polígono violeta translúcido, contorno tracejado, nome no meio; a desligada esmaecida).
 
-**O editor e os botões (7b-3, 2026-11-13).** A janela "Automações" (botão "Automações" da barra de cima, desde o Q8, ou aba Mesa → "Abrir as automações"), só do mestre, e os botões na barra.
-- **A janela.** Lista os ciclos (fase atual e tempo até a próxima ao vivo; disparar, pausar, retomar; "Fixar na barra"; "Liberar aos jogadores"), as reações agrupadas por onde ficam (modelo, cena, zona, mesa; ligar e desligar sem apagar), os botões de evento, os eventos em uso (nomes amigáveis dos do sistema, texto livre com sugestão nos do mestre) e, numa linha discreta, os "Avisos do motor" (`automacoes.registro`). Apagar pede confirmação na própria janela.
-- **Formulário e JSON.** Cada peça tem um formulário (ciclo: nome, período, cenas, fases; reação: evento, condições e ações de listas fechadas, cada ação com os campos dela e a unidade metros ou pés nas distâncias; botão de evento: nome, evento, cena) e, ao lado, o mesmo rascunho como "Ver como JSON", editável. A validação usa os mesmos schemas zod da sala e mostra o erro **em português**, no campo e na lista do JSON; com erro, nada é enviado.
-- **Fixar e liberar.** `fixado` e `liberadoParaJogadores` moram **com a campanha**, no ciclo e no botão de evento (`Automacoes.botoes`, peça nova: nome, evento, cena, fixado, liberado). Um chip na barra de cima por item fixado: no ciclo, nome, fase, tempo até a próxima, disparar e pausar ou retomar; no evento, nome e disparar. O jogador vê **só o chip dos liberados**, com o nome e a ação (`Estado.botoes` e o evento `botoes.alterados`, nascidos da filtragem de `automacoes.alterado`; nada da definição). `botao.usar` (`ciclo:<id>` ou `evento:<id>`) não tem capacidade: a sala confere a liberação **a cada clique** e limita a 1 disparo aceito a cada 2 s por jogador (`muitas_mensagens`). Ver `docs/protocolo.md`, "Botões das automações (Lote 7b-3)".
-- **Campanhas prontas.** `fixtures/campanhas/chama-primordial.json` (a tabela de `docs/IDEIAS.md`: Tocha de 1800 s com penalidade de 60 s ao apagar, a respiração do Pulmão de 180 s, a rajada que encolhe e pode apagar, a expiração com visão de 1,5 m, as zonas Ar Morto e Câmara do Ar Rarefeito, o aviso ao mestre ao reacender, os suportes do Farol da Eclusa; sem imagens e sem nada da história secreta em texto que o jogador veja) e `5e-padrao.json` (mesa limpa, sem automação). Carregam pela importação de campanha (aba Mesa → Campanha → "Campanhas de exemplo", com a confirmação "Importar e substituir"); a lista troca os usuários e as permissões do arquivo pelos da mesa de agora.
+**O editor por blocos e a lista (AU1, 2026-11-19).** O botão "Automações" da barra de cima (desde o Q8; ou aba Mesa → "Abrir as automações"), só do mestre, abre a **lista**; "+ Nova automação" e "Editar" abrem o **editor por blocos**.
+- **A lista.** Filtros Todas, Ligadas, Desligadas e Desta cena, e busca. Cada automação: a chave de ligar e desligar, o nome, o gatilho em destaque, a **frase em português** gerada dos blocos, a situação ("próxima em 1:12", "rodou há 4 min", "nunca rodou"), "Disparar agora" e "Editar". O menu de cada uma: Duplicar (nasce desligada), Fixar na barra, Liberar aos jogadores (nos gatilhos de relógio e de botão) e Apagar (o aviso embaixo tem Desfazer). No rodapé, os avisos do motor.
+- **O editor.** Barra de cima: voltar à lista, nome, Ligada, **Janela própria**, **JSON** (num menu: "Ver como JSON", com os mesmos erros em português), **Testar agora (dispara de verdade)** (salva e roda uma vez), Desfazer (as edições da sessão do editor) e Salvar. À esquerda as peças em três cores (**Quando**, **Fluxo**, **Faça**); no meio o fluxo, do gatilho para a direita, uma fileira por trilha, ramos empilhados, um "+" entre os blocos e no fim (abre o menu das peças; também se arrasta a peça da esquerda ou um bloco já posto); à direita os campos do bloco escolhido (os lado a lado alinham rótulo, caixa e ajuda, pela regra do A1); embaixo "Em português:" com a frase do fluxo inteiro.
+- **Validação.** Erros em português no próprio bloco (contorno e mensagem) depois de "Salvar"; nada salva com erro. **Teclado:** setas navegam os blocos, Delete apaga, Desfazer volta.
+- **Janela própria.** O editor também abre numa janela do navegador (`/m/<id>/automacao/<fluxoId>`, o padrão da ficha e da mesa de som: própria conexão, aviso e lock para a mesa, medida lembrada). Lá se escolhe o som entre os que já estão na mesa; adicionar um som novo é na janela da mesa (assumido).
+- **Ligações.** O painel da zona mostra as automações que usam a zona e "+ automação para esta zona" (cria o gatilho "entra na zona"). O editor de modelo de objeto (aba Mesa → Luz) mostra as automações que mexem nele.
+- **Fixar e liberar.** Os chips na barra de cima: o do mestre (relógio: nome, "próxima em …", disparar e pausar ou retomar; botão: nome e disparar) e o do jogador (só o rótulo, e só dos liberados). A conferência da liberação é feita a cada clique, na sala.
+- **Campanhas prontas.** `fixtures/campanhas/chama-primordial.json` (a tabela de `docs/IDEIAS.md`: Tocha de 1800 s com penalidade de 60 s ao apagar, a respiração do Pulmão de 180 s, a rajada que encolhe e pode apagar, a expiração com visão de 1,5 m, as zonas "Ar Morto" e "Câmara do Ar Rarefeito" e o farol) e `5e-padrao.json`. Estão em forma antiga e entram convertidas.
 
 - **Som ambiente e `som.tocar`** (N5, 2026-11-14). Os arquivos de áudio (mp3, ogg e wav, até 20 MB) ficam no computador do mestre, como as imagens, e viajam por pedaços como assets do tipo `som`; a sala guarda só a referência (hash, nome, volume). **(Q4, 2026-11-16: a trilha única, a trilha da cena e o painel do N5 foram trocados pela mesa de som, logo abaixo.)** Os ambientes ligados levam o início no relógio real da sala (`Estado.somLigado`), então todos ouvem alinhados e quem entra no meio ouve do ponto em que está. A zona ganha **"Som enquanto dentro"** (`efeitos.som`: som, volume e laço): o jogador cujo token está dentro ouve, com fade; a sala manda a cada jogador só a mensagem `som.zona` com hash, volume e laço, e a zona continua secreta (forma, nome e regras nunca chegam). A ação **`som.tocar`** (`hash`, `nome`, `volume`, `para`: todos, quem vê a cena ou quem controla o token do evento) entra na lista fechada, com o formulário no editor do 7b-3. Tocar é do mestre (capacidade `som.controlar`, não delegável). Cada pessoa tem em Preferências o cartão **Som** (volume geral, da trilha e dos efeitos, silenciar tudo; só neste navegador) e, no primeiro som que o navegador bloqueia, o aviso "Clique para ativar o som da mesa". Exportar e importar levam as referências (metas), nunca os arquivos; sem migração de banco. Detalhes em `docs/protocolo.md` ("Som ambiente (N5)"). **(Q4b, 2026-11-16: os ambientes passam a ser MARCADOS e só tocam com o transporte tocando: `Estado.somLigado.tocando` e a intenção `som.transporte`; a mesa de som abre numa janela própria do navegador (`/m/<id>/som`), a faixa no pé tem altura ajustável e a configuração abre por cima de tudo. A busca do compêndio é por palavra, sem acento, com começo de palavra e erro de digitação (Q2b).)**
 - **Importar mapas do Dungeondraft** (Q3, 2026-11-16). O painel de cenas tem o card "Importar mapa (Dungeondraft / Universal VTT)…" (só o mestre; também se arrasta o arquivo para a mesa). Um `.dd2vtt`, `.uvtt` ou `.df2vtt` (JSON com a imagem em base64, paredes, portas e luzes em quadrados) vira **uma cena nova** com o nome do arquivo: a imagem entra como mapa pelo mesmo caminho do botão de subir (tiles, cifra, cópia na pasta da mesa), a grade bate (`pixels_per_grid` = px por quadrado; quadrado de 1,5 m), as paredes (`line_of_sight` e `objects_line_of_sight`) e as portas (fechadas como no arquivo) viram paredes e portas da Távola, e as luzes viram fontes fixas (alcance em metros = quadrados x 1,5; cor e intensidade do arquivo). Luz "cozida" (`baked_lighting`) é dia. Limites: 3000 paredes e portas, 200 luzes, arquivo de até 64 MB; o que passa não entra e o aviso diz. Um resumo no fim ("Cena criada: 1 mapa, 142 paredes, 6 portas, 9 luzes."). A leitura roda num worker. A intenção `cena.importarMapa` cria a cena inteira num pedido só (um passo do Desfazer; `cena.editar`); o Claude importa pelo `arquivos.enviar` (uso `dungeondraft`), na caixa da M1, e o `desfazer` apaga a cena. Sem migração de banco.
@@ -834,7 +843,7 @@ Regras do motor:
 ### 4.12 MCP (configurar a mesa com IA)
 
 Servidor MCP (por HTTP, na própria sala; e local em stdio em `apps/mcp`, para o Claude Desktop), usado pelo Claude (Code ou Desktop) para construir o mundo:
-criar cenas, notas do mestre, modelos de objeto, pontos, zonas, ciclos, reações e NPCs.
+criar cenas, notas do mestre, modelos de objeto, pontos, zonas, automações por blocos e NPCs.
 
 **Revisto pelo Vilella (2026-11-13): o MCP é de todos, não só do mestre.**
 - **Usos:**
@@ -900,13 +909,14 @@ Regras que continuam:
 - **Regra que manda em tudo**: o Claude entra como o próprio usuário. As mesmas capacidades, a mesma visão e os mesmos eventos; `processar` recebe `{ claude: true }` e só acrescenta a lista de proibidos, a marca "pelo Claude" e, para o mestre, o rascunho. **Proibidos** (mesmo para o mestre, `sem_permissao`: "O Claude não pode ... só a pessoa, pela mesa"): `papel.alterar`, `permissao.alterar`, `campanha.exportar`, `campanha.importar` e, para o Claude não virar provedor de arquivos, `asset.pedir`, `asset.inventario`, `asset.tenho` e `asset.naoTenho` (assumido). Contas, pedidos, redefinições, chave da pasta, código de recuperação, apagar a mesa e tokens são rotas HTTP que o token nunca abre. Lista num lugar só: `packages/shared/src/claude.ts`.
 - **Limite** de 20 pedidos por segundo por token, rajada de 40 (assumido); o excesso responde `muitas_mensagens`. **Presença**: o Claude não conta como a pessoa online; a bolinha ganha uma marca "Claude conectado". **Chat**: mensagem e rolagem da conexão do Claude levam `peloClaude`, visível para todos; quem rola é a sala e a rolagem oculta segue `dado.rolarOculto`.
 - **O jogador cria as próprias fichas e handouts**: capacidade `personagem.criarProprio` ("Criar fichas e notas próprias"), delegável, ligada por padrão. A ficha nasce com `editores` só ele e o handout com a visibilidade que ele escolher, os dois numa **pasta própria** (`pasta-de-<id>`, que a sala cria; só ele e o mestre a veem; assumido) e com `criadoPor`. Ele edita e apaga o que criou; o mestre sempre vê, edita e apaga. Teto de 20 fichas e 20 handouts por jogador (`limite_de_criacao`).
-- **Rascunhos**: o que o Claude **do mestre** cria entra com `rascunho: true` (cenas, fichas e NPCs, handouts, pastas, modelos, pontos, luzes, tokens, zonas, ciclos, reações e botões). O jogador não o recebe (snapshot e evento); ciclo e reação em rascunho não rodam; a cena em rascunho não vira a do grupo. Para o mestre: selo "Rascunho" e o chip "Rascunhos do Claude (N)", com Publicar (por item ou tudo) e Descartar (`rascunho.publicar` e `rascunho.descartar`, `mesa.configurar`). O Claude do mestre também pode publicar (assumido).
+- **Rascunhos**: o que o Claude **do mestre** cria entra com `rascunho: true` (cenas, fichas e NPCs, handouts, pastas, modelos, pontos, luzes, tokens, zonas e automações). O jogador não o recebe (snapshot e evento); automação em rascunho não roda; a cena em rascunho não vira a do grupo. Para o mestre: selo "Rascunho" e o chip "Rascunhos do Claude (N)", com Publicar (por item ou tudo) e Descartar (`rascunho.publicar` e `rascunho.descartar`, `mesa.configurar`). O Claude do mestre também pode publicar (assumido).
 - **Desfazer**: a sala anota o inverso de cada mudança do Claude num diário (`claude_lotes`, migração 14, 50 lotes por usuário, fora da exportação), agrupado pelo `loteId` do envelope (cada chamada de ferramenta do MCP manda o seu e uma descrição curta). Preferências lista os lotes ("Claude: criou 6 NPCs, há 5 min") com Desfazer e há "Desfazer tudo o que o Claude fez". Desfaz na ordem inversa; o item que outra pessoa mudou depois é pulado e o aviso diz qual (publicar não conta como mudança). O jogador só desfaz o que o Claude dele fez.
 
 **12-2: como ficou** (2026-11-13; o servidor MCP em `apps/mcp`; detalhes em `docs/REDESIGN.md` e o passo a passo em `docs/MCP.md`)
 
 - **O programa**: servidor MCP em stdio, em Node (`@modelcontextprotocol/sdk` 1.32.2; WebSocket nativo). `pnpm --filter @tabletop/mcp build` gera `apps/mcp/dist/tavola-mcp.mjs`. Variáveis: `TAVOLA_URL` (a origem da página, ou o endereço do WebSocket; padrão `http://127.0.0.1:8787`), `TAVOLA_MESA`, `TAVOLA_TOKEN` (nunca vai para log nem resposta) e, opcional, `TAVOLA_COMPENDIO`. Abre `ws(s)://<host>/api/m/<id>/ws` com `Authorization: Bearer`, mantém o estado com o `reduzir` do `shared`, reconecta sozinho e, com o token recusado (401 ou close 4001), responde "Token inválido ou revogado: gere outro em Preferências → Conectar o Claude." sem tentar de novo. Nada da internet em execução.
 - **As 11 ferramentas** (nenhuma genérica; o MCP não tem permissão própria): `panorama`, `ler`, `fichas`, `compendio`, `notas`, `objetos`, `cenas`, `automacoes`, `rolar`, `rascunhos`, `desfazer`. A lista de cada usuário sai das capacidades do snapshot: o jogador não vê `objetos`, `cenas`, `automacoes` nem `rascunhos`. Nomes no lugar de ids, lote numa chamada só, resumo por padrão, erro que diz o que corrigir, e um `loteId` por chamada (com a descrição) em toda intenção que ela manda.
+- **Automações por blocos e o MCP que explica** (AU1, 2026-11-19). A ferramenta `automacoes` cria e edita automações **pelo nome**, com o JSON da árvore de blocos (gatilho + trilhas) e **nomes** de zona, modelo, cena, token e som, nunca ids; confere o fluxo com a mesma validação do editor e diz, em português, em que trilha e bloco está o erro. Também: `acionar` (disparar, ligar, desligar), `usarBotoes`, `listar`, **`explicar`** (a frase em português de uma automação, ou de todas: a mesma função pura `fraseDoFluxo` da lista e do editor) e **`guia`** (um texto curto e fiel de como as peças funcionam: gatilhos, trilhas, esperar, se e sortear, para cada, ações, prazos, sinais, limites e o que "nada fica preso" quer dizer). As **instruções do servidor** ganharam uma linha: perguntaram sobre automações, chame `guia` e `explicar` antes de responder; o `panorama` repete a dica. Um teste falha se existir tipo de bloco, de gatilho, de condição ou de ação que o guia não cita. Paridade: `fluxo.criar|editar` → `automacoes.fluxos`, `fluxo.apagar` → `fluxos[].apagar`, `fluxo.ligar|disparar` → `acionar`; a trava por campo (`paridadeCampos`) cobre o gatilho e os blocos.
 - **Cenas em células** (a partir do canto de cima à esquerda, com meias células): as paredes usam `encaixarMeiaCelula`, o arco "de a até b passando por c" vira `meio` (e há o arco tangente, `meioDoArcoTangente`). Os tokens de NPC saem da ficha.
 - **Compêndio local**: os arquivos da pasta `compendio/` do computador (ou o exemplo do SRD embutido), com magias, armas, itens, monstros e itens mágicos (N3a). **Fora do MCP**: levar o grupo, disparar eventos, botões, mapa e imagens, combate, desenhos, relógio e configuração.
 - O texto de "Conectar o Claude" na mesa é o comando final (`claude mcp add tavola --env TAVOLA_URL=... --env TAVOLA_MESA=... --env TAVOLA_TOKEN=... -- node apps/mcp/dist/tavola-mcp.mjs`).

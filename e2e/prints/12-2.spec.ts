@@ -116,11 +116,21 @@ for (const c of COMBINACOES) {
       });
       expect(cena.erro, cena.texto).toBe(false);
       const auto = await doMestre.chamar("automacoes", {
-        ciclos: [
+        fluxos: [
           {
             nome: "Vento da eclusa",
-            periodoS: 600,
-            fases: [{ emS: 0, evento: "vento.sopra", duracaoS: 60 }],
+            gatilho: { tipo: "relogio", cadaS: 600 },
+            trilhas: [
+              [
+                {
+                  bloco: "paraCada",
+                  alvo: { tipo: "tokens" },
+                  corpo: [
+                    { bloco: "acao", acao: { acao: "visao.limitar", alcanceM: 3, porS: 60 } },
+                  ],
+                },
+              ],
+            ],
           },
         ],
       });

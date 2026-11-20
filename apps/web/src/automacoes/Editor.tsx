@@ -1,5 +1,4 @@
-import { ArrowLeft } from "lucide-react";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { type ErroDeCampo, erroDeSintaxeDoJson } from "./erros";
 
 const bonito = (v: unknown) => JSON.stringify(v, null, 2);
@@ -74,90 +73,5 @@ export function VistaJson(p: {
         </p>
       )}
     </div>
-  );
-}
-
-/**
- * A moldura de uma peça em edição (ciclo, reação, botão): o voltar, os campos (`children`), o "Ver como JSON", o
- * resumo dos erros e Salvar e Cancelar. Salvar com erro não envia nada: mostra os erros nos campos e na lista.
- */
-export function EditorDaPeca(p: {
-  testid: string;
-  titulo: string;
-  rascunho: unknown;
-  aoMudarRascunho: (v: unknown) => void;
-  erros: readonly ErroDeCampo[];
-  aoSalvar: () => void;
-  aoCancelar: () => void;
-  /** Os campos; recebe se já é para mostrar os erros ao lado deles (depois de uma tentativa de salvar). */
-  children: (mostrarErros: boolean) => ReactNode;
-}) {
-  const [tentou, setTentou] = useState(false);
-  function salvar() {
-    if (p.erros.length > 0) {
-      setTentou(true);
-      return;
-    }
-    p.aoSalvar();
-  }
-  return (
-    <form
-      className="editor-da-peca"
-      data-testid={p.testid}
-      noValidate
-      onSubmit={(e) => {
-        e.preventDefault();
-        salvar();
-      }}
-      // Enter dentro de um campo só confirma o campo; quem salva é o botão Salvar.
-      onKeyDown={(e) => {
-        if (e.key === "Enter" && e.target instanceof HTMLInputElement) e.preventDefault();
-      }}
-    >
-      <header className="cabecalho-da-peca">
-        <button
-          type="button"
-          className="botao-icone pequeno"
-          data-testid={`${p.testid}-voltar`}
-          aria-label="Voltar para a lista"
-          onClick={p.aoCancelar}
-        >
-          <ArrowLeft size={16} />
-        </button>
-        <strong>{p.titulo}</strong>
-      </header>
-      <div className="corpo-da-peca">{p.children(tentou)}</div>
-      <details className="avancado json-da-peca-aberto" data-testid={`${p.testid}-json`}>
-        <summary>Ver como JSON</summary>
-        <VistaJson
-          testid={`${p.testid}-json`}
-          valor={p.rascunho}
-          aoMudar={p.aoMudarRascunho}
-          erros={p.erros}
-        />
-      </details>
-      {tentou && p.erros.length > 0 && (
-        <div className="resumo-de-erros" role="alert" data-testid={`${p.testid}-resumo`}>
-          <p>
-            {p.erros.length === 1
-              ? "Corrija este ponto para salvar:"
-              : `Corrija estes ${p.erros.length} pontos para salvar:`}
-          </p>
-          <ul>
-            {p.erros.map((e) => (
-              <li key={`${e.caminho}|${e.mensagem}`}>{e.texto}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-      <div className="linha-botoes fim">
-        <button type="button" data-testid={`${p.testid}-cancelar`} onClick={p.aoCancelar}>
-          Cancelar
-        </button>
-        <button type="submit" className="primario" data-testid={`${p.testid}-salvar`}>
-          Salvar
-        </button>
-      </div>
-    </form>
   );
 }

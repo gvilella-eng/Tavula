@@ -4400,4 +4400,27 @@ Ver `PASSAGEM.md`, "A1".
 ### Roteiro manual
 Abrir Mesa → Regras e Luz, e as janelas de luz, token e reação, em larguras estreitas: as caixas do par têm o mesmo topo.
 
-## Próximo: o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b, N4, N5, M1, M2, Q1 a Q16, CH1, MU1, A1 e das otimizações O1–O4
+## Ajustes AU1 — automações por blocos (entregue, aguardando o roteiro manual)
+
+### O que foi entregue
+O pedido do Vilella: "programação por blocos (algo tipo um n8n)". Uma automação = gatilho + trilhas de blocos (esperar, se, sortear, para cada, ação, sinal); o fluxo é uma árvore arrumada sozinha. Motor de fluxos na sala (relógio, esperas no estado, sinais, limites), conversão automática do que existia (ciclos, reações, botões), lista nova ("Automações") e editor por blocos (peças em três cores, "+" nos encaixes, arrastar, campos do bloco, "Em português", erros no bloco, Testar agora, Desfazer, JSON, janela própria, teclado), ligações com o painel da zona e o editor de modelo, e o MCP que usa e explica (`fluxos`, `explicar`, `guia`, `listar`, `acionar`). Antes de trocar o motor foi gravado o "ouro" (`fixtures/ouro/chama-primordial-10min.json`): a Chama Primordial por 10 minutos simulados; o motor novo chega ao mesmo resultado (`ouro.test.ts`).
+
+### Como rodar
+`pnpm dev`; botão Automações da barra de cima. Importar `fixtures/campanhas/chama-primordial.json` mostra as 5 automações convertidas. E2E: `pnpm --filter @tabletop/e2e test tests/au1.spec.ts tests/automacoes.spec.ts`.
+
+### Verificação
+Ver o relatório do lote (typecheck, lint, unidade, E2E em duas metades). Prints em `scratchpad\prints-au1`.
+
+### Decisões
+Ver `REDESIGN.md`, "AU1 — como ficou", e `PROJETO.md` 4.11 e 4.12.
+
+### Desvios
+E2E: `automacoes.spec.ts` reescrito para fluxos; `automacoes-editor.spec.ts` removido (testava os formulários antigos; o `au1.spec.ts` cobre a tela nova); `q8`, `som-n5`, `zonas`, `claude-12-1`, `12-2` e `12-3` trocaram as intenções e os testids antigos pelos novos. Print `7b3.spec.ts` removido (tela antiga).
+
+### Frágil
+Ver `PASSAGEM.md`, "AU1".
+
+### Roteiro manual
+Ver `docs/ROTEIRO-DE-TESTES.md`, "AU1".
+
+## Próximo: o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b, N4, N5, M1, M2, Q1 a Q16, CH1, MU1, A1, AU1 e das otimizações O1–O4

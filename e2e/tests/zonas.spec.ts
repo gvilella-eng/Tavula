@@ -76,7 +76,9 @@ test("o mestre desenha a zona com a ferramenta, edita o painel e Delete e Desfaz
   await p.getByTestId("zona-luz-fator").press("Enter");
   await p.getByTestId("zona-visao").fill("3");
   await p.getByTestId("zona-visao").press("Enter");
-  await expect(p.getByTestId("zona-reacoes")).toHaveText("Sem reações");
+  await expect(p.getByTestId("zona-automacoes-titulo")).toHaveText(
+    "Nenhuma automação usa esta zona",
+  );
   await expect.poll(async () => (await zonasDe(p))[0]?.nome).toBe("Gás");
   // duas edições seguidas dos efeitos não se pisam: o último pedido leva o fator e a visão juntos
   const editadas = () =>

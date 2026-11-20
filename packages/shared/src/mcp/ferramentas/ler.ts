@@ -3,7 +3,9 @@ import {
   automacoesDe,
   type Estado,
   fichaVisivelPara,
+  fraseDoFluxo,
   type Handout,
+  nomesDaMesa,
   type Usuario,
 } from "../../index.ts";
 import { ErroDoMcp } from "../erros.ts";
@@ -128,25 +130,16 @@ function automacaoDe(estado: Estado, nome: string): string {
   const a = automacoesDe(estado);
   const cenaNome = (id: string) => estado.cenas.find((c) => c.id === id)?.nome ?? id;
   const alvo = nome.trim().toLowerCase();
-  const ciclo = a.ciclos.find((c) => c.nome.toLowerCase() === alvo || c.id === nome);
-  if (ciclo) {
-    return `Ciclo "${ciclo.nome}" (id ${ciclo.id}${ciclo.rascunho ? "; RASCUNHO" : ""}): período ${num(ciclo.periodoS)} s; cenas: ${ciclo.cenas.map(cenaNome).join(", ") || "todas"}; fases: ${ciclo.fases.map((f) => `${num(f.emS)} s -> ${f.evento}${f.duracaoS ? ` (por ${num(f.duracaoS)} s)` : ""}`).join("; ")}; liberado aos jogadores: ${ciclo.liberadoParaJogadores ? "sim" : "não"}.`;
+  const fluxo = a.fluxos.find((f) => f.nome.toLowerCase() === alvo || f.id === nome);
+  if (fluxo) {
+    const frase = fraseDoFluxo(fluxo, nomesDaMesa(estado));
+    return `Automação "${fluxo.nome}" (id ${fluxo.id}${fluxo.rascunho ? "; RASCUNHO" : ""}; ${fluxo.ligado ? "ligada" : "desligada"}): ${frase} Liberada aos jogadores: ${fluxo.liberadoParaJogadores ? "sim" : "não"}. Para o JSON dos blocos, use a ferramenta \`automacoes\` (explicar).`;
   }
   const zona = (estado.zonas ?? []).find((z2) => z2.nome.toLowerCase() === alvo || z2.id === nome);
   if (zona) {
     return `Zona "${zona.nome}" (id ${zona.id}${zona.rascunho ? "; RASCUNHO" : ""}) na cena "${cenaNome(zona.cenaId)}": ${zona.ativa ? "ativa" : "desligada"}; efeitos ${JSON.stringify(zona.efeitos)}; ${zona.pontos.length} pontos.`;
   }
-  const reacao = a.reacoes.find((r) => (r.nome ?? "").toLowerCase() === alvo || r.id === nome);
-  if (reacao) return `Reação (id ${reacao.id}): ${JSON.stringify(reacao)}`;
-  const botao = a.botoes.find((b) => b.nome.toLowerCase() === alvo || b.id === nome);
-  if (botao)
-    return `Botão "${botao.nome}" (id ${botao.id}): dispara o evento "${botao.evento}"${botao.cenaId ? ` na cena "${cenaNome(botao.cenaId)}"` : ""}.`;
-  const nomes = [
-    ...a.ciclos.map((c) => c.nome),
-    ...(estado.zonas ?? []).map((z2) => z2.nome),
-    ...a.reacoes.map((r) => r.nome ?? r.ao),
-    ...a.botoes.map((b) => b.nome),
-  ];
+  const nomes = [...a.fluxos.map((f) => f.nome), ...(estado.zonas ?? []).map((z2) => z2.nome)];
   throw new ErroDoMcp(
     `Não achei a automação "${nome}". Existem: ${nomes.slice(0, 15).join(", ") || "nenhuma"}.`,
   );

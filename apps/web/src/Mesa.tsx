@@ -12,6 +12,8 @@ import {
   ehPersonagemDeJogador,
   encaixarNoGrid,
   type FonteDeLuz,
+  fluxoUsa,
+  type Gatilho,
   hashesPreparaveis,
   iluminacaoDinamicaLigada,
   jogadoresDaMesa,
@@ -73,7 +75,7 @@ import { ganchosDoTeste, instalarGanchoDeAssets } from "./assets/ganchoE2E";
 import { type Canal, GerenteDeAssets } from "./assets/gerente";
 import { Processador } from "./assets/processador";
 import { BotoesDaBarra } from "./automacoes/ChipsDaBarra";
-import { JanelaDasAutomacoes } from "./automacoes/JanelaDasAutomacoes";
+import { JanelaDasAutomacoes, type PedidoDeAutomacao } from "./automacoes/JanelaDasAutomacoes";
 import { BarraDeFerramentas } from "./BarraDeFerramentas";
 import { BarraLateral, type PedidoDeAba } from "./BarraLateral";
 import { BotaoComDica } from "./BotaoComDica";
@@ -88,6 +90,7 @@ import { ATRASO_DA_DICA } from "./Dica";
 import { EstadoDaMesa } from "./EstadoDaMesa";
 import { FaixaDeCenas, type PedirImagem } from "./FaixaDeCenas";
 import {
+  abrirAutomacaoEmJanela,
   abrirChamadaEmJanela,
   abrirFichaEmJanela,
   abrirSomEmJanela,
@@ -327,6 +330,8 @@ export function Mesa({
   const [configAberta, setConfigAberta] = useState(false);
   // 7b-3: o editor das automações (janela aberta pela aba Mesa; só do mestre).
   const [automacoesAbertas, setAutomacoesAbertas] = useState(false);
+  // AU1: um pedido para a janela abrir direto no editor (o painel da zona: "+ automação para esta zona").
+  const [pedidoDeAutomacao, setPedidoDeAutomacao] = useState<PedidoDeAutomacao | null>(null);
   // N5: o painel de Som do mestre.
   const [somAberto, setSomAberto] = useState(false);
   const [luzSelecionadaId, setLuzSelecionadaId] = useState<string | null>(null);
@@ -438,6 +443,19 @@ export function Mesa({
     // O tamanho da primeira vez (depois a janela lembra o dela): estreita e alta, como o painel do som.
     if (!abrirSomEmJanela(mesa.id, { largura: 460, altura: 720 })) avisar(TEXTO_DO_POPUP_BLOQUEADO);
   }, [mesa.id, avisar]);
+
+  // AU1: o editor de uma automação numa janela própria do navegador (o mesmo padrão da ficha e do som).
+  const abrirAutomacaoEmOutraJanela = useCallback(
+    (fluxoId: string | null) => {
+      if (!abrirAutomacaoEmJanela(mesa.id, fluxoId, { largura: 1280, altura: 760 }))
+        avisar(TEXTO_DO_POPUP_BLOQUEADO);
+    },
+    [mesa.id, avisar],
+  );
+  const abrirAutomacao = useCallback((fluxoId: string | null, gatilho?: Gatilho) => {
+    setPedidoDeAutomacao({ chave: Date.now(), fluxoId, gatilho });
+    setAutomacoesAbertas(true);
+  }, []);
 
   // CH1: a chamada da mesa mora numa janela própria; aqui só se abre (ou traz para a frente) e se vê quem está nela.
   const abrirChamada = useCallback(() => {
@@ -1260,11 +1278,11 @@ export function Mesa({
     estado?.paredes.find((x) => x.id === paredeSelecionadaId && x.cenaId === cena?.id) ?? null;
   const zonaSelecionada =
     estado?.zonas?.find((x) => x.id === zonaSelecionadaId && x.cenaId === cena?.id) ?? null;
-  const reacoesDaZona = zonaSelecionada
-    ? (estado?.automacoes?.reacoes ?? []).filter(
-        (r) => r.fica.tipo === "zona" && r.fica.id === zonaSelecionada.id,
-      ).length
-    : 0;
+  const automacoesDaZona = zonaSelecionada
+    ? (estado?.automacoes?.fluxos ?? [])
+        .filter((f) => fluxoUsa(f, "zona", zonaSelecionada.id))
+        .map((f) => ({ id: f.id, nome: f.nome }))
+    : [];
   const pronto = status === "conectado" && estado !== null;
   // O pincel: quem tem `desenho.criar` (o mestre sempre); o mestre "vendo como" um jogador só olha.
   const podeDesenhar =
@@ -1738,12 +1756,12 @@ export function Mesa({
   modoMestreAtual.current = modoMestre;
 
   // Apagar a zona (Delete ou o botão do painel): a sala a guarda só no estado, então o "Desfazer" a recria com o
-  // mesmo id e as reações que ela levava (o mesmo caminho do `zona.criar`).
+  // mesmo id e as automações que ela levava (as de gatilho "entra ou sai da zona"; o mesmo caminho do `zona.criar`).
   apagarZonaAtual.current = (id) => {
     const zona = estadoAtual.current?.zonas?.find((z) => z.id === id);
     if (!zona) return;
-    const reacoes = (estadoAtual.current?.automacoes?.reacoes ?? []).filter(
-      (r) => r.fica.tipo === "zona" && r.fica.id === id,
+    const fluxos = (estadoAtual.current?.automacoes?.fluxos ?? []).filter(
+      (f) => f.gatilho.tipo === "zona" && f.gatilho.zona === id,
     );
     enviar("zona.apagar", { id });
     setZonaSelecionadaId(null);
@@ -1751,7 +1769,7 @@ export function Mesa({
       rotulo: "Desfazer",
       aoClicar: () => {
         enviar("zona.criar", { zona });
-        for (const reacao of reacoes) enviar("reacao.criar", { reacao });
+        for (const fluxo of fluxos) enviar("fluxo.criar", { fluxo });
         setZonaSelecionadaId(id);
       },
     });
@@ -2574,7 +2592,8 @@ export function Mesa({
                 fontes={fontes}
                 registrarSom={registrarSom}
                 selecionada={zonaSelecionada}
-                reacoes={reacoesDaZona}
+                automacoes={automacoesDaZona}
+                aoAbrirAutomacao={abrirAutomacao}
                 enviar={enviar}
                 aoApagar={(id) => apagarZonaAtual.current(id)}
                 aoFechar={alternarZonas}
@@ -2611,7 +2630,12 @@ export function Mesa({
                 salaMs={tempo.salaMs}
                 fontes={fontes}
                 registrarSom={registrarSom}
-                aoFechar={() => setAutomacoesAbertas(false)}
+                pedido={pedidoDeAutomacao}
+                aoAbrirEmJanela={abrirAutomacaoEmOutraJanela}
+                aoFechar={() => {
+                  setAutomacoesAbertas(false);
+                  setPedidoDeAutomacao(null);
+                }}
               />
             )}
             {modoMestre && configAberta && (

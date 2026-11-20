@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { Estado, Usuario } from "./estado.ts";
+import { acoesDoFluxo } from "./fluxosLeitura.ts";
 import {
   fichaVisivelPara,
   handoutVisivelPara,
@@ -416,8 +417,8 @@ export function hashesUsados(
   // MU1: os arquivos da biblioteca de música.
   for (const f of estado.musica?.faixas ?? []) usar(f.hash);
   for (const z of estado.zonas ?? []) usar(z.efeitos.som?.hash);
-  for (const r of estado.automacoes?.reacoes ?? []) {
-    for (const a of r.fazer) if (a.acao === "som.tocar") usar(a.hash);
+  for (const f of estado.automacoes?.fluxos ?? []) {
+    for (const a of acoesDoFluxo(f)) if (a.acao === "som.tocar") usar(a.hash);
   }
   return usados;
 }

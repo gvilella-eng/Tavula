@@ -46,6 +46,22 @@ const ROTULO: Record<string, string> = {
   ids: "Tokens",
   hash: "Som",
   volume: "Volume",
+  trilhas: "Trilhas",
+  bloco: "Bloco",
+  s: "Esperar (segundos)",
+  cadaS: "A cada (segundos)",
+  primeiroS: "Primeira vez depois de (segundos)",
+  gatilho: "Quando",
+  sim: "Saída “sim”",
+  nao: "Saída “não”",
+  corpo: "Dentro do “para cada”",
+  etiqueta: "Etiqueta",
+  modelo: "Modelo",
+  naZona: "Dentro da zona",
+  naCena: "Na cena",
+  acesos: "Só os acesos",
+  muda: "A tocha",
+  quando: "O token",
 };
 
 const NOME_DO_TIPO: Record<string, string> = {

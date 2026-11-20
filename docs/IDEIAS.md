@@ -190,3 +190,10 @@ git).
 - **Mais de 8 pessoas** pediria um servidor de mídia (SFU) em vez da malha ponto a ponto; só vale a pena se a mesa crescer.
 - **Servidor TURN próprio** para jogar pela internet atrás de roteadores difíceis (STUN/TURN já são configuráveis por `VITE_CHAMADA_ICE_SERVERS`).
 - **Desfoque com imagem de fundo** (trocar o fundo por uma imagem da cena) usa a mesma segmentação.
+
+## Depois das automações por blocos (AU1, 2026-11-19)
+
+- **Mais peças:** "mudar o tempo da sala", "escolher um ao acaso entre vários", "repetir N vezes", variáveis simples (um contador por mesa).
+- **Modelos de automação** prontos (vento, gás, armadilha, respiração) para colar e ajustar.
+- **Canvas melhor:** arrastar e dar zoom, minimapa, colar blocos entre automações, arrastar pelo teclado.
+- **Histórico de execuções** (a lista guarda só o "rodou há"): quando rodou, o que mudou.

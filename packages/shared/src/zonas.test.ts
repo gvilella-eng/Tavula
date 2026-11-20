@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  type Automacoes,
   AutomacoesSchema,
   criarExportacao,
   type Estado,
@@ -18,6 +17,8 @@ import {
   objetoNaZona,
   pontoNaZona,
   processar,
+  processarEvento,
+  processarSistema,
   ReacaoSchema,
   raiosEfetivos,
   reagirAoSistema,
@@ -119,7 +120,18 @@ function criarEstado(extra: Partial<Estado> = {}): Estado {
 }
 
 const reacao = (r: object) => ReacaoSchema.parse(r);
-const comZona = (e: Estado, z: Zona = zona(), automacoes?: Partial<Automacoes>): Estado => ({
+/** Manda um sinal pelo nome (o que o "evento manual" fazia): roda as automações que o escutam. */
+const emitir = (e: Estado, nome: string, cenaId?: string) => {
+  const r = processarEvento(
+    e,
+    { nome, cenas: cenaId === undefined ? null : [cenaId], origem: "manual" },
+    fonteComSemente(1),
+  );
+  // e a passada seguinte da sala, que põe os efeitos das zonas em dia
+  const depois = processarSistema(r.estado, iso(0), [], fonteComSemente(1));
+  return { estado: depois.ok ? depois.estado : r.estado };
+};
+const comZona = (e: Estado, z: Zona = zona(), automacoes?: Record<string, unknown>): Estado => ({
   ...e,
   zonas: [...(e.zonas ?? []), z],
   ...(automacoes ? { automacoes: AutomacoesSchema.parse(automacoes) } : {}),
@@ -415,7 +427,7 @@ describe("o efeito enquanto dentro entra, sai e nunca fica preso", () => {
     expect(modZona(e, "o1")).toHaveLength(1);
   });
 
-  it("apagar a cena da zona leva a zona, as reações dela e o efeito", () => {
+  it("apagar a cena da zona leva a zona, as automações dela e o efeito", () => {
     // a zona fica na cena "fora"; o token e a luz também; a cena ativa é "pulmao"
     const base = criarEstado();
     let e: Estado = {
@@ -428,7 +440,7 @@ describe("o efeito enquanto dentro entra, sai e nunca fica preso", () => {
         reacao({
           id: "rz",
           fica: { tipo: "zona", id: "z1" },
-          ao: "x",
+          ao: "token.entrouNaZona",
           fazer: [{ acao: "chat.anunciar", texto: "oi" }],
         }),
       ],
@@ -437,7 +449,7 @@ describe("o efeito enquanto dentro entra, sai e nunca fica preso", () => {
     expect(modZona(e, "o1")).toHaveLength(1);
     e = ok(e, "m", intencao("cena.apagar", { cenaId: "fora" })).estado;
     expect(e.zonas ?? []).toHaveLength(0);
-    expect(e.automacoes?.reacoes ?? []).toHaveLength(0);
+    expect(e.automacoes?.fluxos ?? []).toHaveLength(0);
     expect(efeitoDe(e, "t1")).toBeUndefined();
   });
 });
@@ -461,11 +473,11 @@ describe("zona.ativar e dentroDaZona", () => {
     let e = comZona(criarEstado(), zona(), { reacoes });
     e = mover(e, "t1", 15, 15).estado;
     expect(modZona(e, "o1")).toHaveLength(1);
-    e = ok(e, "m", intencao("evento.disparar", { evento: "ventilar" })).estado;
+    e = emitir(e, "ventilar").estado;
     expect(e.zonas?.[0]?.ativa).toBe(false);
     expect(modZona(e, "o1")).toHaveLength(0);
     expect(efeitoDe(e, "t1")).toBeUndefined();
-    e = ok(e, "m", intencao("evento.disparar", { evento: "fechar" })).estado;
+    e = emitir(e, "fechar").estado;
     expect(e.zonas?.[0]?.ativa).toBe(true);
     expect(modZona(e, "o1")).toHaveLength(1);
   });
@@ -512,7 +524,7 @@ describe("zona.ativar e dentroDaZona", () => {
         ],
       },
     );
-    const e = ok(e0, "m", intencao("evento.disparar", { evento: "sopro" })).estado;
+    const e = emitir(e0, "sopro").estado;
     expect(objeto(e, "dentro").modificadores).toHaveLength(1);
     expect(objeto(e, "fora").modificadores).toHaveLength(0);
   });
@@ -548,7 +560,7 @@ describe("zona.ativar e dentroDaZona", () => {
       tokens: [token("t1", 15, 15)],
     };
     const desligada = comZona(e0, zona({ ativa: false, efeitos: {} }), { reacoes });
-    const e1 = ok(desligada, "m", intencao("evento.disparar", { evento: "x", cenaId: "pulmao" }));
+    const e1 = emitir(desligada, "x", "pulmao");
     expect(anuncios(e1.estado)).toEqual([]);
   });
 });
@@ -581,31 +593,32 @@ describe("as intenções da zona", () => {
     expect(e.zonas).toHaveLength(1);
   });
 
-  it("a reação de zona precisa de uma zona que existe", () => {
+  it("a automação de zona precisa de uma zona que existe", () => {
     const e = criarEstado();
     const r = processar(
       e,
       "m",
-      intencao("reacao.criar", {
-        reacao: {
+      intencao("fluxo.criar", {
+        fluxo: {
           id: "r",
-          fica: { tipo: "zona", id: "nada" },
-          ao: "x",
-          fazer: [{ acao: "chat.anunciar", texto: "a" }],
+          nome: "r",
+          gatilho: { tipo: "zona", quando: "entra", zona: "nada" },
+          trilhas: [[{ bloco: "acao", acao: { acao: "chat.anunciar", texto: "a" } }]],
         },
       }),
       iso(0),
     );
     expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.erro.mensagem).toContain("zona não existe");
   });
 
-  it("duplicar a cena leva as zonas (e as reações delas)", () => {
+  it("duplicar a cena leva as zonas (e as automações delas)", () => {
     let e = comZona(criarEstado(), zona(), {
       reacoes: [
         reacao({
           id: "rz",
           fica: { tipo: "zona", id: "z1" },
-          ao: "x",
+          ao: "token.entrouNaZona",
           fazer: [{ acao: "chat.anunciar", texto: "oi" }],
         }),
       ],
@@ -616,9 +629,9 @@ describe("as intenções da zona", () => {
     expect(copia?.id).not.toBe("z1");
     expect(copia?.pontos).toEqual(QUADRADO);
     expect(e.zonas).toHaveLength(2);
-    expect(e.automacoes?.reacoes.filter((r) => r.fica.tipo === "zona")).toHaveLength(2);
+    expect(e.automacoes?.fluxos.filter((f) => f.gatilho.tipo === "zona")).toHaveLength(2);
     expect(
-      e.automacoes?.reacoes.some((r) => r.fica.tipo === "zona" && r.fica.id === copia?.id),
+      e.automacoes?.fluxos.some((f) => f.gatilho.tipo === "zona" && f.gatilho.zona === copia?.id),
     ).toBe(true);
   });
 });
@@ -739,8 +752,8 @@ describe("exportar e importar levam as zonas", () => {
   });
 });
 
-describe("editar só um campo não zera os outros (ciclo, reação e zona)", () => {
-  it("reacao.editar e ciclo.editar com só o nome mantêm as condições, o ligado e as cenas", () => {
+describe("editar só um campo não zera os outros (automação e zona)", () => {
+  it("fluxo.editar com só o nome mantém o ligado, as cenas e os blocos", () => {
     const r = reacao({
       id: "r1",
       ativa: false,
@@ -761,14 +774,17 @@ describe("editar só um campo não zera os outros (ciclo, reação e zona)", () 
         },
       ],
     });
-    e = ok(e, "m", intencao("reacao.editar", { id: "r1", mudancas: { nome: "Nova" } })).estado;
-    expect(e.automacoes?.reacoes[0]).toMatchObject({
+    e = ok(e, "m", intencao("fluxo.editar", { id: "rx-r1", mudancas: { nome: "Nova" } })).estado;
+    expect(e.automacoes?.fluxos.find((f) => f.id === "rx-r1")).toMatchObject({
       nome: "Nova",
-      ativa: false,
-      se: [{ condicao: "chance", valor: 0.5 }],
+      ligado: false,
+      trilhas: [[{ bloco: "sortear", chance: 0.5 }]],
     });
-    e = ok(e, "m", intencao("ciclo.editar", { id: "c1", mudancas: { nome: "Outro" } })).estado;
-    expect(e.automacoes?.ciclos[0]).toMatchObject({ nome: "Outro", cenas: ["pulmao"] });
+    e = ok(e, "m", intencao("fluxo.editar", { id: "c1", mudancas: { nome: "Outro" } })).estado;
+    expect(e.automacoes?.fluxos.find((f) => f.id === "c1")).toMatchObject({
+      nome: "Outro",
+      cenas: ["pulmao"],
+    });
   });
 
   it("zona.editar só com o nome mantém ligada e efeitos", () => {

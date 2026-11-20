@@ -28,9 +28,7 @@ export const TIPOS_DE_RASCUNHO = [
   "luz",
   "token",
   "zona",
-  "ciclo",
-  "reacao",
-  "botao",
+  "fluxo",
 ] as const;
 export type TipoDeRascunho = (typeof TIPOS_DE_RASCUNHO)[number];
 
@@ -51,9 +49,7 @@ export const ROTULO_DO_TIPO_DE_RASCUNHO: Record<TipoDeRascunho, string> = {
   luz: "Luz",
   token: "Token",
   zona: "Zona",
-  ciclo: "Ciclo",
-  reacao: "Reação",
-  botao: "Botão",
+  fluxo: "Automação",
 };
 
 export type RascunhoListado = ItemDeRascunho & { nome: string };
@@ -80,9 +76,7 @@ export function listarRascunhos(e: Estado): RascunhoListado[] {
   pegar("ponto", e.pontos, (i) => i.nome);
   pegar("luz", e.luzes, (i) => i.nome);
   pegar("zona", e.zonas ?? [], (i) => i.nome);
-  pegar("ciclo", a?.ciclos ?? [], (i) => i.nome);
-  pegar("reacao", a?.reacoes ?? [], (i) => i.nome ?? `Reação ao evento ${i.ao}`);
-  pegar("botao", a?.botoes ?? [], (i) => i.nome);
+  pegar("fluxo", a?.fluxos ?? [], (i) => i.nome);
   return saida;
 }
 
@@ -161,9 +155,7 @@ export function eventosDePublicacao(
       lista.map((i) => (i.rascunho && quer(tipo, i.id) ? semMarca(i) : i));
     const novo = {
       ...a,
-      ciclos: tira("ciclo", a.ciclos),
-      reacoes: tira("reacao", a.reacoes),
-      botoes: tira("botao", a.botoes),
+      fluxos: tira("fluxo", a.fluxos),
     };
     if (JSON.stringify(novo) !== JSON.stringify(a)) {
       saida.push({ tipo: "automacoes.alterado", dados: { automacoes: novo } });
@@ -196,12 +188,8 @@ export function intencaoDeDescarte(item: ItemDeRascunho): {
       return { tipo: "token.apagar", dados: { id: item.id } };
     case "zona":
       return { tipo: "zona.apagar", dados: { id: item.id } };
-    case "ciclo":
-      return { tipo: "ciclo.apagar", dados: { id: item.id } };
-    case "reacao":
-      return { tipo: "reacao.apagar", dados: { id: item.id } };
-    case "botao":
-      return { tipo: "botao.apagar", dados: { id: item.id } };
+    case "fluxo":
+      return { tipo: "fluxo.apagar", dados: { id: item.id } };
   }
 }
 
@@ -339,9 +327,7 @@ export function carimbarRascunho<E extends { tipo: string; dados: unknown }>(
       return trocar({
         automacoes: {
           ...a,
-          ciclos: por(a.ciclos, antes?.ciclos),
-          reacoes: por(a.reacoes, antes?.reacoes),
-          botoes: por(a.botoes, antes?.botoes),
+          fluxos: por(a.fluxos, antes?.fluxos),
         },
       });
     }

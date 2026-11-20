@@ -293,7 +293,7 @@ describe("o lote leva o loteId", () => {
 });
 
 describe("o mestre monta o mundo (rascunho até publicar)", () => {
-  it("cena com paredes, arco, NPC e ciclo: tudo em rascunho, invisível ao jogador até publicar", async () => {
+  it("cena com paredes, arco, NPC e automação: tudo em rascunho, invisível ao jogador até publicar", async () => {
     const sala = new SalaSimulada(MESTRE);
     await rodar(sala, "fichas", { fichas: [{ nome: "Goblin", pv: { max: 7 } }] });
     const r = await rodar(sala, "cenas", {
@@ -325,12 +325,24 @@ describe("o mestre monta o mundo (rascunho até publicar)", () => {
     expect(tokens.every((t) => t.oculto && t.personagemId)).toBe(true);
 
     await rodar(sala, "automacoes", {
-      ciclos: [
-        { nome: "Vento", periodoS: 600, fases: [{ emS: 0, evento: "vento.sopra", duracaoS: 60 }] },
+      fluxos: [
+        {
+          nome: "Vento",
+          gatilho: { tipo: "relogio", cadaS: 600 },
+          trilhas: [
+            [
+              {
+                bloco: "paraCada",
+                alvo: { tipo: "tokens" },
+                corpo: [{ bloco: "acao", acao: { acao: "visao.limitar", alcanceM: 3, porS: 60 } }],
+              },
+            ],
+          ],
+        },
       ],
     });
-    expect(sala.visaoDe(MESTRE).automacoes?.ciclos.map((c) => c.nome)).toEqual(["Vento"]);
-    expect(sala.visaoDe(MESTRE).automacoes?.ciclos[0]?.rascunho).toBe(true);
+    expect(sala.visaoDe(MESTRE).automacoes?.fluxos.map((c) => c.nome)).toEqual(["Vento"]);
+    expect(sala.visaoDe(MESTRE).automacoes?.fluxos[0]?.rascunho).toBe(true);
 
     // O jogador não vê nada até publicar.
     const ana = sala.visaoDe(ANA);
@@ -341,7 +353,7 @@ describe("o mestre monta o mundo (rascunho até publicar)", () => {
 
     const lista = await rodar(sala, "rascunhos", { acao: "listar" });
     expect(lista.texto).toMatch(/cena: Eclusa/);
-    expect(lista.texto).toMatch(/ciclo: Vento/);
+    expect(lista.texto).toMatch(/automação: Vento/);
     expect(listarRascunhos(sala.verdade).length).toBeGreaterThanOrEqual(3);
 
     const pub = await rodar(sala, "rascunhos", { acao: "publicar" });

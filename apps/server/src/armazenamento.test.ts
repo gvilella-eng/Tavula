@@ -711,7 +711,7 @@ describe("Armazenamento: automações (7b-1)", () => {
     ).toEqual([]);
   });
 
-  it("a fatia guardada antes do 7b-3 (sem `botoes` nem `fixado`) carrega com a lista vazia e nada é reescrito", async () => {
+  it("a fatia guardada no formato antigo (ciclos e reações) carrega convertida em fluxos e nada é reescrito (AU1)", async () => {
     const { sql } = await abrirBanco();
     const banco = new Armazenamento(sql as never);
     banco.migrar();
@@ -726,10 +726,15 @@ describe("Armazenamento: automações (7b-1)", () => {
     };
     banco.gravarMeta("automacoes", JSON.stringify(antiga));
     const carregado = banco.carregar();
-    expect(carregado?.automacoes?.botoes).toEqual([]);
-    expect(carregado?.automacoes?.ciclos[0]?.fixado).toBeUndefined();
-    expect(carregado?.automacoes?.ciclos[0]?.liberadoParaJogadores).toBeUndefined();
-    // abrir de novo não muda o que está guardado (a migração é só o padrão na leitura)
+    // o ciclo virou um fluxo de relógio; o original fica em `legado`, só para leitura
+    expect(carregado?.automacoes?.fluxos).toHaveLength(1);
+    expect(carregado?.automacoes?.fluxos[0]).toMatchObject({
+      id: "c",
+      nome: "C",
+      gatilho: { tipo: "relogio", cadaS: 60 },
+    });
+    expect(carregado?.automacoes?.legado?.ciclos).toHaveLength(1);
+    // abrir de novo não muda o que está guardado (a conversão é só na leitura)
     expect(JSON.parse(banco.lerMeta("automacoes") ?? "{}")).toEqual(antiga);
     expect(banco.carregar()?.automacoes).toEqual(carregado?.automacoes);
   });
@@ -790,7 +795,7 @@ describe("Armazenamento: zonas (7b-2)", () => {
     reaberto.migrar();
     expect(reaberto.carregar()?.zonas).toEqual([editada]);
     // apagar a zona leva as reações dela (o estado já vem sem elas)
-    const automacoes = AutomacoesSchema.parse({ reacoes: [] });
+    const automacoes = AutomacoesSchema.parse({ fluxos: [] });
     reaberto.salvarEventos({ ...base, seq: 3, automacoes }, [
       { seq: 3, origem, tipo: "zona.apagada", dados: { id: "z1" } },
     ]);
