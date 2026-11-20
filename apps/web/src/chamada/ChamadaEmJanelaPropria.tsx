@@ -6,6 +6,7 @@ import { aplicarTema, CHAVE_TEMA, lerTema } from "../tema/temas";
 import { useSala } from "../useSala";
 import { anunciarFalando } from "./canalDaChamada";
 import { ControleDaChamada } from "./controlador";
+import { useGravacao } from "./gravacao/useGravacao";
 import { definirPessoasFalsas } from "./pessoasFalsas";
 import { TelaDaChamada } from "./TelaDaChamada";
 
@@ -36,6 +37,16 @@ export function ChamadaEmJanelaPropria({ mesa, aoPerderSessao }: Props) {
   } = useSala({ mesaId: mesa.id, aoExportar: semExportar, aoPerderSessao });
   const euId = eu?.id;
   const [controle, setControle] = useState<ControleDaChamada | null>(null);
+  // CH3: a gravação para a transcrição (só o mestre grava; todos veem o aviso).
+  const gravacao = useGravacao({
+    mesaId: mesa.id,
+    mesaNome: mesa.nome,
+    legada: mesa.legada,
+    controle,
+    estadoSala: estado,
+    eu,
+    ouvir,
+  });
 
   // O controlador nasce quando sei quem sou e morre com a janela (a StrictMode monta duas vezes: cada uma cria o seu).
   useEffect(() => {
@@ -157,6 +168,7 @@ export function ChamadaEmJanelaPropria({ mesa, aoPerderSessao }: Props) {
           presenca={presenca}
           enviar={enviar}
           avisar={avisar}
+          gravacao={gravacao}
         />
       ) : (
         <p className="carregando">Carregando a chamada…</p>

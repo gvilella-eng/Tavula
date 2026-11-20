@@ -90,6 +90,8 @@ export type GanchoDoMapa = {
   /** O que o jogador vê no ponto (luz ∩ visão, ou visão no escuro): nenhuma, cinza, penumbra ou plena. */
   visaoNoPonto(x: number, y: number): "nenhuma" | "cinza" | "penumbra" | "plena";
   nivelNoPonto(x: number, y: number): number;
+  /** FG2: a cor (RGB, 0 a 255) que a camada de luz multiplica no ponto (metros), ou `null` sem luz dinâmica. */
+  corDaLuzNoPonto(x: number, y: number): [number, number, number] | null;
   /** As luzes que valem agora, com os raios já multiplicados (intensidade × fator geral). */
   luzes(): { id: string; x: number; y: number; claraM: number; totalM: number }[];
   memoria(): {
@@ -135,11 +137,17 @@ export type GanchoDoMapa = {
     larguraPx: number;
     alturaPx: number;
     estagio: "forte" | "fraca" | "morrendo";
+    /** FG2: é o pino da tocha na mão do token (a chama pequena dentro dele). */
+    naMao: boolean;
     origem: "padrao" | "arquivo" | null;
     quadros: number;
     indice: number;
     rotuloVisivel: boolean;
   }[];
+  /** FG2: as chamas dos pinos das tochas na mão, com os mesmos campos de `chamas()`. */
+  chamasDaMao(): ReturnType<GanchoDoMapa["chamas"]>;
+  /** FG2: em cada quadro da chama padrão, em quantas regiões conexas ela se divide (tem de ser 1). */
+  regioesDaChama(estilo: "tocha" | "fogueira", estagio: "forte" | "fraca" | "morrendo"): number[];
   /** FG1: o alvo da tocha arrastada (id do ponto ou do token), ou `null`. */
   alvoDaTocha(): string | null;
   /** A contagem de acender (0 a 1) enquanto se segura a tocha sobre um inflamável. */

@@ -105,7 +105,6 @@ export class CamadaDeLuz {
   private readonly gLuzes = new Graphics();
   private readonly gEscuro = new Graphics();
   private readonly gCinzaApagar = new Graphics();
-  private readonly gSaidaFundo = new Graphics();
   private readonly passoNaoVisto = new Container();
   private readonly passoNaoLuz = new Container();
   private readonly passoLuz = new Container();
@@ -114,6 +113,15 @@ export class CamadaDeLuz {
   private readonly passoCinza2 = new Container();
   private readonly passoApagarLuz = new Container();
   private readonly passoUniao = new Container();
+  // FG2: a luz do mestre onde nenhum jogador vê (cor e alcance de toda luz, com as paredes).
+  private extras: { visto: RenderTexture; luzGm: RenderTexture } | null = null;
+  private readonly gVistoFundo = new Graphics();
+  private readonly gLuzesGm = new Graphics();
+  private readonly spriteNaoVistoApaga = new Sprite();
+  private readonly spriteVisto = new Sprite();
+  private readonly spriteLuzGm = new Sprite();
+  private readonly passoVisto = new Container();
+  private readonly passoLuzGm = new Container();
   private readonly spriteNaoLuz = new Sprite();
   private readonly spriteNaoVisto = new Sprite();
   private readonly spriteLuz = new Sprite();
@@ -158,6 +166,17 @@ export class CamadaDeLuz {
     this.passoCinza2.addChild(this.spriteDvNoCinza, this.gCinzaApagar);
     this.passoApagarLuz.addChild(this.spriteNaoVisto);
     this.passoUniao.addChild(this.spriteNaoLuz);
+    this.gLuzesGm.blendMode = "add";
+    this.spriteNaoVistoApaga.blendMode = "erase";
+    this.spriteVisto.blendMode = "erase";
+    this.spriteLuzGm.blendMode = "add";
+    this.spriteLuzGm.tint = numero(
+      255 * (1 - FATOR_APAGADO),
+      255 * (1 - FATOR_APAGADO),
+      255 * (1 - FATOR_APAGADO),
+    );
+    this.passoVisto.addChild(this.gVistoFundo, this.spriteNaoVistoApaga);
+    this.passoLuzGm.addChild(this.gLuzesGm, this.spriteVisto);
   }
 
   /** Esconde a camada (sem luz dinâmica: a cena fica toda clara). */
@@ -178,6 +197,11 @@ export class CamadaDeLuz {
     if (!this.texturas) return;
     for (const t of Object.values(this.texturas)) t.destroy(true);
     this.texturas = null;
+    if (this.extras) {
+      this.extras.visto.destroy(true);
+      this.extras.luzGm.destroy(true);
+      this.extras = null;
+    }
   }
 
   private garantirTexturas(w: number, h: number): NonNullable<CamadaDeLuz["texturas"]> {
@@ -194,6 +218,35 @@ export class CamadaDeLuz {
     };
     this.tamanho = { w, h };
     return this.texturas;
+  }
+
+  /**
+   * FG2: só no mestre. A luz de TODAS as fontes (cor tingida como a do jogador, sem tremular, limitada pelas paredes) apenas
+   * onde nenhum jogador vê: o resto da textura fica transparente. Soma-se por cima do cinza apagado da visão do mestre.
+   */
+  private prepararLuzDoMestre(
+    w: number,
+    h: number,
+    t: NonNullable<CamadaDeLuz["texturas"]>,
+    modelo: ModeloDeLuz,
+  ): void {
+    if (!this.extras) {
+      const resolution = Math.min(1, LADO_MAXIMO / Math.max(w, h));
+      const criar = () => RenderTexture.create({ width: w, height: h, resolution });
+      this.extras = { visto: criar(), luzGm: criar() };
+    }
+    // onde algum jogador vê = o contrário do "não visto"
+    this.gVistoFundo.clear().rect(0, 0, w, h).fill(0xffffff);
+    this.spriteNaoVistoApaga.texture = t.naoVisto;
+    this.desenhar(this.passoVisto, this.extras.visto, true);
+    this.gLuzesGm.clear();
+    for (const l of modelo.luzes) {
+      const cor = corDoPasso(l.luz.cor, 1);
+      if (l.total.length >= 3) this.gLuzesGm.poly(plano(l.total)).fill(cor);
+      if (l.clara.length >= 3) this.gLuzesGm.poly(plano(l.clara)).fill(cor);
+    }
+    this.spriteVisto.texture = this.extras.visto;
+    this.desenhar(this.passoLuzGm, this.extras.luzGm, true, PRETO);
   }
 
   private desenhar(container: Container, alvo: RenderTexture, limpar: boolean, cor = CLARO): void {
@@ -227,7 +280,7 @@ export class CamadaDeLuz {
     const w = Math.ceil(entrada.larguraM * PX_POR_M);
     const h = Math.ceil(entrada.alturaM * PX_POR_M);
     const t = this.garantirTexturas(w, h);
-    const { modelo, modo } = entrada;
+    const { modelo } = entrada;
     const escuroNaCena = modelo.ambiente < NIVEL_PENUMBRA;
 
     // 1. Onde o jogador NÃO vê: tudo, menos a união dos polígonos de visão (blend erase, como no véu do
@@ -253,21 +306,6 @@ export class CamadaDeLuz {
       this.desenhar(this.passoUniao, t.naoVisto, false);
     }
 
-    if (modo === "noturna") {
-      // Visão noturna do mestre: o que algum jogador vê fica normal; o resto, mais apagado.
-      this.gSaidaFundo.clear().rect(0, 0, w, h).fill(0xffffff);
-      this.spriteSaidaNaoVisto.texture = t.naoVisto;
-      this.passoSaida.removeChildren();
-      this.passoSaida.addChild(this.gSaidaFundo, this.spriteSaidaNaoVisto);
-      this.desenhar(this.passoSaida, t.saida, true, PRETO);
-      this.multiplicar.texture = t.saida;
-      this.dimensionar(w, h);
-      this.multiplicar.visible = true;
-      this.brilho.visible = false;
-      this.cinza.visible = false;
-      return;
-    }
-
     // 2. A visão no escuro: a união dos polígonos dela (soma meia luz) e, onde nenhuma luz chega, o cinza.
     this.gEscuro.clear();
     for (const p of modelo.escuro) {
@@ -278,10 +316,7 @@ export class CamadaDeLuz {
     // de qualquer uso, então nunca se vê textura velha.
     const temEscuro = modelo.escuro.length > 0;
     if (temEscuro) this.desenhar(this.passoCinza1, t.dv, true);
-    this.spriteCinzaNaLuz.texture = t.dv;
     this.spriteDvNoCinza.texture = t.dv;
-    this.dimensionar(w, h);
-    this.desenharLuz(agora);
     // O cinza é a visão no escuro menos o que alguma luz alcança (e nada, se a cena já tem luz de sobra).
     this.gCinzaApagar.clear();
     if (escuroNaCena) {
@@ -293,15 +328,22 @@ export class CamadaDeLuz {
     }
     if (temEscuro) this.desenhar(this.passoCinza2, t.cinza, true);
     this.cinza.texture = t.cinza;
+    // FG2: o jogador com visão no escuro soma meia luz em toda a sua visão; o mestre soma só onde nenhuma luz chega,
+    // senão a visão no escuro de um jogador lava a cor da tocha (clara de branco) e ele não consegue ajustá-la.
+    this.spriteCinzaNaLuz.texture = entrada.modo === "noturna" ? t.cinza : t.dv;
+    this.dimensionar(w, h);
+    this.desenharLuz(agora);
     this.multiplicar.visible = true;
     this.brilho.visible = true;
     this.cinza.visible = modelo.escuro.length > 0;
+    if (entrada.modo === "noturna") this.prepararLuzDoMestre(w, h, t, modelo);
     this.compor(w, h);
   }
 
   /** Só o brilho: a luz tremula sem recalcular polígono. */
   atualizarBrilho(agora: number): void {
     const e = this.entrada;
+    // FG2: o mestre vê a cor e o alcance, mas não a tremulação (refazer a luz de dezenas de chamas a cada instante só para ele custava o dobro).
     if (e?.modo !== "jogador" || !this.texturas) return;
     this.desenharLuz(agora);
     this.compor(this.tamanho.w, this.tamanho.h);
@@ -315,9 +357,24 @@ export class CamadaDeLuz {
     this.compor(this.tamanho.w, this.tamanho.h);
   }
 
+  /**
+   * Só para teste (o gancho do modo e2e): a cor (0 a 255) que a luz multiplica na cena no ponto, em metros, lida da
+   * textura já composta; é o que o jogador, ou o mestre na visão de mestre, vê ali.
+   */
+  corNoPonto(xM: number, yM: number): [number, number, number] | null {
+    const t = this.texturas;
+    if (!t || !this.multiplicar.visible) return null;
+    const x = Math.max(0, Math.min(this.tamanho.w - 1, Math.floor(xM * PX_POR_M)));
+    const y = Math.max(0, Math.min(this.tamanho.h - 1, Math.floor(yM * PX_POR_M)));
+    const r = this.renderer.extract.pixels(t.saida);
+    const res = r.width / this.tamanho.w;
+    const i = (Math.floor(y * res) * r.width + Math.floor(x * res)) * 4;
+    return [r.pixels[i] ?? 0, r.pixels[i + 1] ?? 0, r.pixels[i + 2] ?? 0];
+  }
+
   /** Há alguma luz que tremula (para a tela saber se precisa chamar `atualizarBrilho`)? */
   temTremula(): boolean {
-    return this.entrada?.modelo.luzes.some((l) => l.luz.tremula) ?? false;
+    return this.entrada?.modo === "jogador" && this.entrada.modelo.luzes.some((l) => l.luz.tremula);
   }
 
   private dimensionar(w: number, h: number): void {
@@ -378,6 +435,22 @@ export class CamadaDeLuz {
     const t = this.texturas;
     if (!e || !t) return;
     this.passoSaida.removeChildren();
+    if (e.modo === "noturna") {
+      // FG2: o mestre vê a MESMA luz que o jogador (cor, alcance, tremulação) onde algum jogador vê; o resto fica
+      // mais apagado (o cinza do fator) com a cor de toda luz por cima. Nada some para ele.
+      this.spriteLuz.texture = t.luz;
+      this.spriteSaidaNaoVisto.texture = t.naoVisto;
+      this.passoSaida.addChild(this.spriteLuz, this.spriteSaidaNaoVisto);
+      if (this.extras) {
+        this.spriteLuzGm.texture = this.extras.luzGm;
+        this.passoSaida.addChild(this.spriteLuzGm);
+      }
+      this.desenhar(this.passoSaida, t.saida, true, PRETO);
+      this.multiplicar.texture = t.saida;
+      this.brilho.texture = t.saida;
+      this.passoSaida.removeChildren();
+      return;
+    }
     if (e.memoria) {
       this.spriteMemoria.texture = this.texturaDaMemoria(e.memoria);
       this.spriteMemoria.position.set(0, 0);

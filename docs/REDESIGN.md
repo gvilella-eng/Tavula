@@ -2679,3 +2679,55 @@ O Vilella testou o AU2: "as portas lógicas estão um pouco diferentes do que eu
 
 ### O que ficou para depois
 Minimapa do editor (continua em `IDEIAS.md`); copiar uma caixa com o que tem dentro entre automações; arrastar uma condição direto para o "Se"; reabrir o tour num editor "nova" que já estava aberto.
+
+## CH3 — como ficou (2026-11-20): tela de entrar enxuta, desfoque em três níveis, gravar e transcrever
+
+O Vilella pediu: os botões de entrar largos demais (a coluna inteira esticada), a prévia da câmera maior, o desfoque com "o pouco" (só havia o forte) e "cadê a opção do mestre gravar pro whisper?". Os prints dele mostraram os botões na largura toda e a barra de baixo da chamada.
+
+**O que foi feito**
+- **A tela de entrar** virou um bloco só, centrado (máx. 720 px), com a prévia 16:9 como maior elemento; câmera, microfone e fundo na mesma linha, alinhados; "Entrar na chamada" e "Entrar só ouvindo" com a largura do texto.
+- **O desfoque**: Desligado, Leve e Forte. `SeletorSegmentado` antes de entrar; na chamada, o botão do fundo abre um menu com os três e mostra a letra do nível no ícone; o B passa ao próximo.
+- **A gravação** (parte B): o mestre liga pelo botão da chamada (com confirmação), todos veem o aviso (também antes de entrar), cada um tira a própria voz, o navegador do mestre grava só a fala em WAV de 16 kHz na pasta da mesa, mais `gravacao.json`, `nomes.txt` e `eventos.jsonl`. `pnpm transcrever` junta, roda o whisper.cpp e escreve `transcricao.md` e `transcricao.json`. A aba Mesa lista as gravações, traz a transcrição para uma nota só do mestre e pergunta se apaga o áudio. `docs/WHISPER.md` é o passo a passo de instalação.
+
+**Decisões (assumido)**
+- Os níveis do desfoque: **Leve 2,5 px e Forte 7 px**. "Forte é o de hoje" foi lido como o que o botão da barra dava (7 px); o antigo "Desfocar forte" de 16 px saiu. O protocolo e as preferências guardam `desfocar` (Leve) e `forte`, sem mudança de formato.
+- A largura máxima do bloco de entrar é de 720 px; a prévia tem a largura que a altura da janela deixa (`100dvh - 388px`), no máximo a do bloco.
+- A pessoa que **marca "Não gravar a minha voz" antes de entrar** já entra de fora (o `chamada.entrar` leva `naoGravar`): o brief diz que quem entra depois começa gravado, mas sem isso haveria um instante em que a voz de quem quis ficar de fora seria gravada. Quem não marcou começa gravado.
+- A fala mínima de 0,5 s conta a **fala**, sem as folgas (com 300 ms de cada lado o trecho nunca teria menos que 0,6 s).
+- O início do trecho no nome do arquivo conta desde que a gravação começou, a partir de quando a voz dessa pessoa foi ligada (o detector de cada voz nasce quando ela entra).
+- Um arquivo WAV por pessoa para o whisper, com 1 s de silêncio entre os trechos (e o mapa de deslocamentos), e não vários `-f` numa execução: o whisper gasta o mesmo tempo num trecho de 2 s e num de 30 s, então emendar é bem mais rápido. A volta à hora da sessão fica presa ao trecho de onde o segmento começa.
+- A nota da transcrição é só do mestre (`visivel: mestre`); o "rascunho" do pedido é isto: a sala só carimba `rascunho` o que o Claude cria. Uma sessão acima dos 20 mil caracteres da nota vira partes.
+- O Claude **lê a nota pelo `ler`** (tipo handout) e escreve o resumo pelo `notas`; o brief dizia "lida pelo `notas`", mas a leitura do texto inteiro é do `ler`. As instruções do servidor e a descrição de `notas` dizem isso.
+- A gravação para quando o mestre sai da chamada (fechar a janela, recarregar, sair, ou ser substituído por outra janela): o aviso some para todos.
+- O estado da gravação é o `gravando` do mestre mais o `naoGravar` de cada um nos `participantes` de `chamada.quem`; não há campo novo no estado nem migração.
+- `gravacoes/` fica fora da biblioteca de sons e de imagens da pasta.
+
+**O que ficou para depois**
+- Testar com o whisper.cpp de verdade e com fala de verdade (ver o roteiro do CH3).
+- Legendas ao vivo, e gravar a chamada de vídeo (só o áudio é gravado, e só a fala).
+- Escolher, antes de gravar, quem entra na gravação (hoje é cada um que sai).
+- Gravar quando o mestre usa a chamada em duas janelas ao mesmo tempo (a última que liga vale).
+
+## FG2 — como ficou (2026-11-20): fogo melhor, tocha na mão, cor da luz do mestre e som solto
+
+O Vilella usou o FG1 e pediu: a fogueira sem gravetos e como um fogo só; a tocha no suporte sem "se dividir em dois"; a tocha do jogador com os 3 estágios; o mestre vendo a mesma cor de luz que o jogador; o token do Vashta que o mestre não conseguia mexer; e som arrastado para a mesa indo para a biblioteca de música.
+
+**O que foi feito**
+- **Fogueira.** `montarQuadro` (`chamas.ts`) separa a geometria do desenho. A fogueira é uma massa: cama de brasas larga e brilhante, um corpo e línguas que se sobrepõem (cada uma cobre mais que o espaço até a vizinha, então esticada continua uma massa), núcleo claro e brasas que sobem por dentro. Sem achas, gravetos ou pedras (são itens da camada de mapa). O halo do chão não passa mais do quadro (antes deixava uma borda reta fraca embaixo).
+- **Tocha "dividida".** A causa: cada língua tinha o próprio balanço (sinal contrário nos dois lados) e a do meio era mais baixa; no quadro certo as pontas de fora se afastavam e a silhueta virava dois bicos. Agora há um corpo e duas ou três línguas coladas nele, com um vento só, e as brasas ficam por dentro do corpo. Teste de unidade: em cada um dos 16 quadros, de cada estilo e estágio, a silhueta (união dos contornos) é uma região conexa e toda brasa está dentro dela; teste E2E: o mesmo conferido nos pixels reais das folhas (alfa acima de 90), pelo gancho `regioesDaChama`.
+- **Tocha na mão.** O pino do token mostra a chama animada (sprite da `ChamasDoMapa`, no tamanho do pino, passando um pouco do alto dele) nos três estágios, com o gif próprio do estágio quando há. Só a fonte com fogo (a que tremula: tocha; lanterna não) e acesa; apagada ou sem fogo, o ícone de antes. O estágio do jogador no tempo "exato" não vinha da sala (só `restanteMs`): agora a tela calcula pelo tempo restante e pela configuração dos estágios (opção nova `estagioDe`); o objeto num ponto passou a usar o mesmo estágio (antes ficava sempre "forte" para o jogador no tempo exato).
+- **Cor da luz do mestre.** A causa: a Visão do mestre (`noturna`) só pintava "visto claro, resto apagado" e nunca desenhava as luzes. Agora o `noturna` roda o mesmo caminho do jogador (luz, cor, penumbra) e só a composição muda; a tremulação fica só com o jogador (no mestre custava o dobro com 48 chamas): onde algum jogador vê, a luz dele; no resto, o cinza apagado de antes. A visão no escuro soma meia luz só onde nenhuma luz chega (senão a de um jogador lavava a cor do mestre).
+- **O token que o mestre não movia.** A causa **era o pino da tocha cobrindo o token com o mapa afastado**, e não o modelo ao vivo: o pino tem tamanho mínimo de tela (9 px) e fica a 90% do raio do token; com o token pequeno (zoom baixo) ele cobria o meio, o clique no token virava o arrasto da tocha (que não leva a lugar nenhum) e o token não andava. Recarregar a página funcionou porque a vista voltava a um zoom maior. Agora o pino fica sempre fora do miolo (metade do raio na tela) do token. Reproduzido antes de corrigir (E2E, `fg2.spec.ts`: falhava no primeiro arrasto com zoom 0,3).
+- **Som arrastado.** Mp3, ogg e wav soltos em qualquer lugar da mesa entram na biblioteca de música (nome do arquivo, sem etiquetas; até 50 por vez), com o aviso e o botão "Abrir a biblioteca"; o jogador recebe "Só o mestre põe música na mesa." Da lista "Assets da mesa", arrastar um som para o mapa também põe na biblioteca (o botão "Pôr na mesa de som" ficou). Regra pura em `som/soltarSom.ts`.
+
+**Decisões (assumido)**
+- A chama da mão só aparece para fonte que tremula (assumido: a lanterna, que não tremula, não tem fogo e mantém o ícone).
+- A chama da mão fica dentro do pino do token (que é o clique do menu e o arrasto da tocha); ela passa um pouco do alto do pino. O tamanho segue o pino (que segue o token entre 9 e 15 px de raio na tela).
+- Na Visão do mestre, onde nenhum jogador vê o mapa fica apagado (45%) com a cor de toda luz somada por cima (0,55 da luz tingida); onde um jogador vê, vale a luz dele. A Visão do mestre vale também sem jogador na cena.
+- A fogueira esticada muito (por exemplo 4,5 × 2,4 m) fica achatada e larga, como um monte de fogo; é a mesma imagem esticada.
+- A decisão do E2E de cor: a Brisa (sem visão no escuro) é a jogadora comparada, porque a visão no escuro da outra "lava" o tom também para ela.
+- O som solto vale em qualquer lugar da janela (não só no mapa); o jogador que solta é avisado em vez de ficar sem resposta.
+
+**O que ficou para depois**
+- A fogueira desenhada na proporção da chama esticada (hoje é uma imagem esticada).
+- Prévia da chama no editor do modelo.

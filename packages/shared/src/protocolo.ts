@@ -598,6 +598,12 @@ export const IntencaoSchema = z.discriminatedUnion("tipo", [
   intencao("chamada.sair", SemDados),
   intencao("chamada.sinal", DadosDeSinalSchema),
   intencao("chamada.chamar", z.object({ para: z.string().min(1).max(64) })),
+  /**
+   * CH3: a gravação para a transcrição. `gravar`: só o mestre, de dentro da chamada (a sala confere o papel). `naoGravar`: cada
+   * um tira só a própria voz. O estado vai a todos nos `participantes` de `chamada.quem` (nada grava, nada vai ao estado).
+   */
+  intencao("chamada.gravar", z.object({ ligada: z.boolean() })),
+  intencao("chamada.naoGravar", z.object({ fora: z.boolean() })),
   intencao(
     "cena.configurarGrid",
     z.object({
@@ -1277,6 +1283,9 @@ export const capacidadeDaIntencao: Record<TipoIntencao, Capacidade | null> = {
   "chamada.sair": null,
   "chamada.sinal": null,
   "chamada.chamar": null,
+  // CH3: só o mestre liga a gravação (a sala confere o papel); cada um só tira a própria voz.
+  "chamada.gravar": "mesa.configurar",
+  "chamada.naoGravar": null,
   "cena.configurarGrid": "cena.editar",
   "token.mover": "token.moverProprio",
   "token.soltar": "token.moverProprio",

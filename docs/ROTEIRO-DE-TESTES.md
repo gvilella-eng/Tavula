@@ -795,6 +795,29 @@ Mesa de eventos: crie duas automações com gatilho de botão (escolha cor e íc
 3. Com 9 quadros ou mais (peça a mais gente ou use o teste): a segunda página aparece com setas e "1/2"; as setas do teclado trocam quando a grade tem o foco. Quem fala numa página escondida acende um ponto verde na seta.
 4. A barra de baixo está mais baixa, a lista de pessoas mais estreita e "Volume para você" cabe numa linha acima do controle.
 
+## CH3 — tela de entrar, desfoque em três níveis, gravar e transcrever
+
+**A tela de entrar e o desfoque**
+1. Abra a chamada (botão "Chamada" do topo): a câmera aparece grande no meio, numa coluna estreita (uns 720 px), com Câmera, Microfone e Fundo na mesma linha, as caixas alinhadas. "Entrar na chamada" e "Entrar só ouvindo" têm a largura do texto, lado a lado. Não há barra de rolagem na janela grande. Estreite a janela (menos de 560 px): vira uma coluna, com os botões um embaixo do outro.
+2. Em "Fundo da câmera" escolha **Leve** e depois **Forte**: o Leve deixa o rosto e o ambiente ainda reconhecíveis; o Forte borra bem mais. "Desligado" volta à câmera crua.
+3. Entre na chamada. O botão do fundo (ícone de pessoa) mostra um **L** ou **F** no canto; clique nele: abre um menu pequeno com Desligado, Leve e Forte. Escolha um. A tecla **B** passa ao próximo nível (Desligado, Leve, Forte, Desligado). Feche o menu com Esc.
+
+**Instalar o whisper.cpp (uma vez)**
+4. Siga `docs/WHISPER.md`: baixe o pacote com CUDA e o modelo `large-v3-turbo`, ponha `WHISPER_EXE` e `WHISPER_MODELO` (ou o `transcrever.config.json`). Rode `whisper-cli.exe -h` para conferir.
+
+**Gravar 5 minutos com alguém**
+5. Escolha a pasta da mesa (aba Preferências, "Ajuda e arquivos"). Como mestre, entre na chamada com um jogador. Clique em **Gravar para transcrição** (o círculo na barra de baixo): a confirmação diz o que é gravado e onde; "Começar a gravar".
+6. Nos dois lados aparece "● Gravando para transcrição" no topo. O jogador, que ainda não entrou, também vê isso na tela de antes de entrar. Fale uns 5 minutos, role um dado, mande uma mensagem no chat e leve o grupo para outra cena.
+7. Peça ao jogador para marcar **"Não gravar a minha voz"**: você, como mestre, vê "Fora da gravação: <nome>". Fale um pouco mais: a pasta dele para de crescer. Desmarque e marque de novo, se quiser.
+8. Pare pelo mesmo botão (ou saia da chamada, ou feche a janela): o aviso some. Abra `gravacoes/<data_hora>/`: uma pasta por pessoa com os `.wav` curtos (só a fala), mais `gravacao.json`, `nomes.txt` e `eventos.jsonl`. Ouça um trecho: deve ter só a fala, com um pouco de folga antes e depois.
+
+**Transcrever, trazer e pedir o resumo**
+9. No terminal, na raiz do repositório: `pnpm transcrever "C:\caminho\da\pasta-da-mesa\gravacoes\<data_hora>"`. O terminal mostra a pessoa, o trecho e o tempo que falta. Abra `transcricao.md`: a linha do tempo com horário, nome e fala, misturada com as rolagens, o chat e a troca de cena.
+10. Na aba **Mesa**, seção **Gravações da sessão**: a gravação aparece como "transcrita". **Trazer a transcrição**: vira a nota "Sessão de DD/MM — transcrição", só sua (veja em Fichas; o jogador não a vê). A mesa pergunta **"Apagar o áudio da gravação?"**: apagar é o padrão; a transcrição fica. O estado vira "trazida".
+11. Peça ao Claude: "resuma a sessão de hoje". Ele deve ler a nota da transcrição e escrever o resumo como rascunho de nota (o que aconteceu, NPCs, pistas e pendências).
+
+**O que conferir com o whisper de verdade**: se a placa foi usada (a saída do whisper diz); quantos minutos levou para 5 minutos de fala; se os nomes (Thorin, a Torre Negra...) saíram certos; se a hora das falas bate com o relógio da sessão (compare uma fala com o chat do mesmo instante).
+
 ## AS1 — assets da mesa e segurança dos arquivos
 
 1. **Soltar na cena.** Como mestre, arraste um png (ou jpg, webp) do computador para o mapa: a imagem aparece onde você soltou, na camada de trabalho (veja a camada no menu do topo). Faça o mesmo com um gif: ele anima em laço. Entre como jogador: vê as duas, e a mesma animação.
@@ -817,3 +840,11 @@ Mesa de eventos: crie duas automações com gatilho de botão (escolha cor e íc
 6. **Teclado.** Escolha uma peça e use o botão **Caixa…** acima dela: "Tirar da caixa", "Pôr em … espaço N" (os que não aceitam aparecem esmaecidos com o motivo), "Subir um espaço" e "Descer um espaço"; Alt + seta para cima ou para baixo faz o mesmo; o rótulo E/OU, o "+" e o "×" também se alcançam pelo teclado.
 7. **Automações antigas.** Abra uma automação feita no AU2 com portas E, OU e NÃO ligadas por fios (ou com dois gatilhos no mesmo bloco, ou uma porta com três entradas): o editor mostra caixas com as peças nos espaços (a de três entradas vira uma caixa com 3 espaços), e ela faz o mesmo que antes.
 8. **O tour.** Num navegador novo (ou apagando a marca `tabletop:pref:tourDasAutomacoes`), entre com uma conta e abra **Automações**: o tour abre sozinho (centro, mesa de eventos, e o último passo abre o editor). Pule em qualquer passo (Pular ou Esc): na segunda vez não abre. O botão **Conhecer as automações** (no centro e no editor) abre de novo. No editor, passe pelas peças (Quando, Fluxo, Condições, Caixas lógicas, um passo que mostra uma caixa, Faça, mesa de eventos e "Liberar aos jogadores") e monte "as tochas têm 30% de chance de apagar a cada 3 minutos", arrastando e ligando (ou com "Fazer este passo por mim"): a frase vai se completando. No fim a automação fica desligada: **Ligar agora**, **Apagar o exemplo** ou **Concluir**. Com tochas acesas e a automação ligada, ao fim de uns minutos (use "Testar agora") algumas tochas apagam.
+
+### FG2 — fogo melhor, tocha na mão, cor da luz do mestre e som solto
+1. **Fogueira.** Acenda um inflamável (fogueira): é um fogo só, com a base brilhante, as línguas juntas e as brasas subindo, sem lenha nem gravetos embaixo. Estique a chama (palha, barril, uma fogueira bem larga): continua uma massa, nunca uma fileira de chamas de tocha.
+2. **Tocha no suporte.** Olhe a tocha no suporte por alguns segundos, em zoom alto: a chama treme, mas é uma só em todos os momentos (nunca se divide em duas). Veja nos três estágios (adiante o relógio da mesa).
+3. **Tocha na mão.** No token com uma tocha acesa, o pino do canto é uma chama animada pequena (e não mais o selo laranja). Com o tempo ela vira a chama fraca e depois a que está morrendo, igual à do mapa. Uma lanterna acesa continua com o ícone; apagada, o pino volta ao contorno cinza. Se o modelo tiver um gif para o estágio, é ele que aparece.
+4. **Cor da luz para o mestre.** Em Mesa, Luz, mude a cor e a luz plena da tocha: o mestre vê, na hora, o mesmo tom e o mesmo alcance que o jogador vê (e continua enxergando o que está no escuro, mais apagado). Pendure uma tocha numa sala que nenhum jogador vê: o mestre vê a cor e o alcance dela sobre o mapa apagado. Mude de novo e confira nos dois.
+5. **Token que o mestre não movia.** Com o mapa bem afastado (zoom baixo) e um token com tocha na mão, arraste o token pelo meio: ele anda. O pino da tocha só pega no canto, fora do miolo do token; o arrasto da tocha para o suporte ou para outro token continua igual.
+6. **Som arrastado.** Arraste um mp3 (ou vários) do computador para qualquer lugar da mesa: o aviso diz "Adicionada à biblioteca de música" e o botão "Abrir a biblioteca" abre a lista com a faixa (nome do arquivo, sem etiquetas). Como jogador, o mesmo gesto só mostra "Só o mestre põe música na mesa." Na lista "Assets da mesa", arraste um som para o mapa: ele entra na biblioteca; o botão "Pôr na mesa de som" continua pondo como ambiente.

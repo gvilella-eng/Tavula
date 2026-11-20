@@ -55,6 +55,8 @@ type Props = {
   efeitosEmAndamento: EfeitoTocando[];
   /** Ouve um som só aqui (a prévia da configuração): nada vai para a sala. */
   ouvir: (hash: string, volume: number) => void;
+  /** FG2: um número que cresce a cada pedido de "Abrir a biblioteca" (o aviso depois de soltar um som). */
+  abrirBiblioteca?: number | undefined;
   aoFechar: () => void;
   /** Q4b: leva a mesa de som para uma janela própria do navegador (some na própria janela). */
   aoAbrirEmJanela?: (() => void) | undefined;
@@ -88,6 +90,10 @@ export function PainelDoSom(p: Props) {
     aba?: "lugares" | "musica";
   } | null>(null);
   const { aba, mudarAba } = useAbaDoSom();
+  const pedidoDaBiblioteca = p.abrirBiblioteca ?? 0;
+  useEffect(() => {
+    if (pedidoDaBiblioteca > 0) setConfigurando({ grupo: "efeito", indice: 0, aba: "musica" });
+  }, [pedidoDaBiblioteca]);
   const [alturaDaFaixa, setAlturaDaFaixa] = useState<number | null>(lerAlturaDaFaixa);
   const [dicaDoTransporte, setDicaDoTransporte] = useState(false);
   const faixaRef = useRef<HTMLElement>(null);

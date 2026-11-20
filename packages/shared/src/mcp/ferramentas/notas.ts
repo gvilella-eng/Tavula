@@ -139,7 +139,7 @@ async function editar(
 export const notas = definir({
   nome: "notas",
   descricao:
-    'Cria, edita e apaga handouts (notas) em lote. Se já existe nota com o título, edita; senão, cria. O mestre mexe em todas (as que cria entram como rascunho); o jogador, nas dele (teto de 20), escolhendo quem vê. `acrescentar` soma ao fim do texto. Exemplo: {"notas":[{"titulo":"A Eclusa","texto":"Uma comporta antiga...","visivel":"todos"}]}',
+    'Cria, edita e apaga handouts (notas) em lote. Se já existe nota com o título, edita; senão, cria. O mestre mexe em todas (as que cria entram como rascunho); o jogador, nas dele (teto de 20), escolhendo quem vê. `acrescentar` soma ao fim do texto. PARA RESUMIR UMA SESSÃO GRAVADA: leia a nota de transcrição (`ler`, tipo handout, `completo: true`) e escreva o resumo como rascunho de nota: o que aconteceu, NPCs, pistas e pendências. Exemplo: {"notas":[{"titulo":"A Eclusa","texto":"Uma comporta antiga...","visivel":"todos"}]}',
   entrada: z.object({ notas: z.array(PedidoDeNotaSchema).min(1).max(30) }).strict(),
   visivel(estado, eu) {
     if (ehMestre(eu)) return true;

@@ -39,6 +39,8 @@ function montar(e: Estado): DadosDoQuadro[] {
         fundo: "nenhum",
         surdo: false,
         soOuvindo: false,
+        gravando: false,
+        naoGravar: false,
       },
       euSou: false,
       papel: "Jogador",

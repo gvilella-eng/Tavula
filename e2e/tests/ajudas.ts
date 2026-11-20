@@ -73,6 +73,7 @@ export type SecaoDaMesa =
   | "regras"
   | "luz"
   | "assets"
+  | "gravacoes"
   | "automacoes"
   | "pessoas"
   | "campanha"

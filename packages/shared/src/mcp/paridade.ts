@@ -62,6 +62,11 @@ export const PARIDADE_COM_O_MCP: Record<TipoIntencao, EntradaDeParidade> = {
   "chamada.estado": fora("gesto ao vivo", POR_PESSOA_NA_CHAMADA),
   "chamada.sair": fora("gesto ao vivo", POR_PESSOA_NA_CHAMADA),
   "chamada.chamar": fora("gesto ao vivo", POR_PESSOA_NA_CHAMADA),
+  "chamada.gravar": fora(
+    "gesto ao vivo",
+    "Gravar a voz da chamada é gesto do mestre na janela da chamada (o áudio está no navegador dele). O Claude lê a transcrição pronta pela nota.",
+  ),
+  "chamada.naoGravar": fora("gesto ao vivo", POR_PESSOA_NA_CHAMADA),
   "chamada.sinal": fora(
     "transporte",
     "O aperto de mão do WebRTC entre dois navegadores; a sala só repassa e esquece.",

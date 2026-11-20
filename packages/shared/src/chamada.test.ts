@@ -56,6 +56,8 @@ describe("chamada: entrar", () => {
         fundo: "nenhum",
         surdo: false,
         soOuvindo: false,
+        gravando: false,
+        naoGravar: false,
       },
       {
         usuarioId: "b",
@@ -64,6 +66,8 @@ describe("chamada: entrar", () => {
         fundo: "nenhum",
         surdo: false,
         soOuvindo: false,
+        gravando: false,
+        naoGravar: false,
       },
     ]);
     expect(JSON.stringify(visaoDaChamada(e))).not.toContain("conexaoId");

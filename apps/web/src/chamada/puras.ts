@@ -226,8 +226,25 @@ export class AvaliadorDeFala {
 
 // --- desfoque ---------------------------------------------------------------------------------------------------
 
-/** O raio do desfoque do fundo, em pixels de um quadro 640x360. */
-export const RAIO_DO_DESFOQUE = { nenhum: 0, desfocar: 7, forte: 16 } as const;
+/**
+ * O raio do desfoque do fundo, em pixels de um quadro 640x360. CH3: três níveis. "desfocar" é o **Leve** (o rosto e o
+ * ambiente ainda se reconhecem) e "forte" é o **Forte**, o desfoque que o botão dava até o CH2 (assumido: 7 px; o
+ * antigo "Desfocar forte" de 16 px deixou de existir).
+ */
+export const RAIO_DO_DESFOQUE = { nenhum: 0, desfocar: 2.5, forte: 7 } as const;
+
+export type NivelDoFundo = keyof typeof RAIO_DO_DESFOQUE;
+export const NIVEIS_DO_FUNDO: readonly NivelDoFundo[] = ["nenhum", "desfocar", "forte"];
+export const NOME_DO_NIVEL_DO_FUNDO: Record<NivelDoFundo, string> = {
+  nenhum: "Desligado",
+  desfocar: "Leve",
+  forte: "Forte",
+};
+/** O atalho B: Desligado, Leve, Forte e de volta ao Desligado. */
+export function proximoNivelDoFundo(atual: NivelDoFundo): NivelDoFundo {
+  const i = NIVEIS_DO_FUNDO.indexOf(atual);
+  return NIVEIS_DO_FUNDO[(i + 1) % NIVEIS_DO_FUNDO.length] ?? "nenhum";
+}
 
 export const FPS_MINIMO_DO_DESFOQUE = 12;
 export const JANELA_DO_FPS_MS = 5_000;

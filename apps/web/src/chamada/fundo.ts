@@ -34,6 +34,15 @@ async function criarSegmentador(): Promise<ImageSegmenter> {
   }
 }
 
+/** Só nos testes e2e: o computador do teste (vários navegadores, sem placa de vídeo) não precisa dar 12 quadros por segundo. */
+function semVigiaNoTeste(): boolean {
+  return (
+    import.meta.env.MODE === "e2e" &&
+    (window as unknown as { __tabletopE2E?: { semVigiaDoDesfoque?: boolean } }).__tabletopE2E
+      ?.semVigiaDoDesfoque === true
+  );
+}
+
 function novoCanvas(l: number, a: number): HTMLCanvasElement {
   const c = document.createElement("canvas");
   c.width = l;
@@ -51,6 +60,10 @@ export class FundoDesfocado {
   private readonly ctxPessoa = this.pessoa.getContext("2d");
   private readonly ctxMascara = this.mascara.getContext("2d");
   private readonly pequeno = novoCanvas(LARGURA_DO_QUADRO / 8, ALTURA_DO_QUADRO / 8);
+  private readonly medio = novoCanvas(
+    Math.round(LARGURA_DO_QUADRO / 3),
+    Math.round(ALTURA_DO_QUADRO / 3),
+  );
   private readonly vigia = new VigiaDeFps();
   private readonly temFiltro =
     typeof CanvasRenderingContext2D !== "undefined" &&
@@ -136,7 +149,7 @@ export class FundoDesfocado {
       this.compor(dados, m.width, m.height);
     });
     this.quadros++;
-    if (this.vigia.quadro(agora)) this.desistir("lento");
+    if (!semVigiaNoTeste() && this.vigia.quadro(agora)) this.desistir("lento");
   }
 
   private compor(dados: Float32Array, l: number, a: number): void {
@@ -178,21 +191,12 @@ export class FundoDesfocado {
       ctx.filter = "none";
     } else {
       // Sem `filter` no canvas (Safari): encolhe e estica, que também borra.
-      const pc = this.pequeno.getContext("2d");
-      const fator = this.modo === "forte" ? 1 : 0.6;
-      pc?.drawImage(this.video, 0, 0, this.pequeno.width * fator, this.pequeno.height * fator);
+      // CH3: o Leve encolhe só até 1/3 do quadro (ainda reconhecível); o Forte, até 1/8.
+      const leve = this.modo === "desfocar";
+      const alvo = leve ? this.medio : this.pequeno;
+      alvo.getContext("2d")?.drawImage(this.video, 0, 0, alvo.width, alvo.height);
       ctx.imageSmoothingEnabled = true;
-      ctx.drawImage(
-        this.pequeno,
-        0,
-        0,
-        this.pequeno.width * fator,
-        this.pequeno.height * fator,
-        0,
-        0,
-        W,
-        H,
-      );
+      ctx.drawImage(alvo, 0, 0, alvo.width, alvo.height, 0, 0, W, H);
     }
     ctx.drawImage(this.pessoa, 0, 0);
   }

@@ -156,7 +156,9 @@ test("microfone, câmera e desfoque aparecem nos outros; sair e fechar a janela 
 
   // desfoque: a faixa enviada passa a ser a do canvas, o selo aparece nos outros e o vídeo segue tocando
   expect((await diagnostico(a.janela)).enviaCameraCrua).toBe(true);
+  // CH3: o botão do fundo abre um menu com os três níveis (antes ligava e desligava direto)
   await a.janela.getByTestId("chamada-fundo").click();
+  await a.janela.getByTestId("chamada-fundo-nivel-desfocar").click();
   await expect
     .poll(async () => (await diagnostico(a.janela)).enviaTrilhaDoCanvas, { timeout: 60_000 })
     .toBe(true);
@@ -166,7 +168,10 @@ test("microfone, câmera e desfoque aparecem nos outros; sair e fechar a janela 
   await expect
     .poll(() => videoTocando(m.janela, "jogador-1"), { timeout: 30_000 })
     .toBeGreaterThan(0);
-  // desligar o desfoque volta à câmera crua
+  // CH3: o B passa ao próximo nível (Leve, Forte, Desligado); desligar volta à câmera crua
+  await a.janela.keyboard.press("b");
+  await expect(quadro(m.janela, "jogador-1")).toHaveAttribute("data-fundo", "forte");
+  await expect(a.janela.getByTestId("chamada-fundo-letra")).toHaveText("F");
   await a.janela.keyboard.press("b");
   await expect
     .poll(async () => (await diagnostico(a.janela)).enviaCameraCrua, { timeout: 15_000 })
