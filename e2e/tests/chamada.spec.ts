@@ -1,4 +1,5 @@
 import type { Page } from "@playwright/test";
+import { argsDeMidiaFalsa } from "../midiaFalsa";
 import {
   abrirPreferencia,
   CAMINHO_DA_MESA,
@@ -16,7 +17,7 @@ import { entrarNoMapa } from "./ajudasMapa";
 
 test.use({
   launchOptions: {
-    args: ["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream"],
+    args: argsDeMidiaFalsa(),
   },
 });
 test.describe.configure({ timeout: 180_000 });

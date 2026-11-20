@@ -4654,4 +4654,24 @@ Ver `PASSAGEM.md`, "FG2".
 ### Roteiro manual
 Ver `ROTEIRO-DE-TESTES.md`, "FG2".
 
-## Próximo: o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b, N4, N5, M1, M2, Q1 a Q16, CH1, CH2, CH3, MU1, MU2, MU3, A1, AU1, AU2, AU3, FG1, FG2, AS1 e das otimizações O1–O4
+## Ajustes CH4 — a prévia preta nos E2E da chamada (entregue)
+
+### O que foi entregue
+A causa era a câmera falsa embutida do Chromium, que some do navegador em metade das aberturas neste computador (provado sem o app). Os E2E da chamada e os prints passam a usar a câmera falsa lendo um Y4M gerado em `e2e/midiaFalsa.ts`. No app, `ControleDaChamada` não pede câmera nem microfone depois de encerrado (StrictMode).
+
+### Como rodar
+`pnpm --filter @tabletop/e2e test tests/ch3.spec.ts tests/chamada.spec.ts` (portas por `E2E_PORTA_SALA` e `E2E_PORTA_WEB`).
+
+### Verificação
+`ch3` e `chamada` sozinhos, 3 vezes seguidas cada, verdes e sem flaky. Os dois juntos com o `sala.spec` em paralelo (8792/5178): uma rodada com 1 flaky no `chamada` ("Entrar na chamada" sem abrir em 10 s, com a máquina saturada; a própria `sala.spec` reprovou várias vezes nessa rodada) e outra verde. Typecheck, lint e unidade da web (372) verdes.
+
+### Desvios
+Nenhum E2E mudou de asserção; só a origem da câmera falsa.
+
+### Frágil
+Ver `PASSAGEM.md`, "CH4".
+
+### Roteiro manual
+Nada novo: o comportamento do app não mudou.
+
+## Próximo: o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b, N4, N5, M1, M2, Q1 a Q16, CH1, CH2, CH3, CH4, MU1, MU2, MU3, A1, AU1, AU2, AU3, FG1, FG2, AS1 e das otimizações O1–O4

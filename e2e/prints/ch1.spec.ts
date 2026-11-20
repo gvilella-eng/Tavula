@@ -1,6 +1,7 @@
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import type { Page } from "@playwright/test";
+import { argsDeMidiaFalsa } from "../midiaFalsa";
 import { abrirPreferencia, test as base, expect, Mesa } from "../tests/ajudas";
 import { entrarNoMapa } from "../tests/ajudasMapa";
 
@@ -14,7 +15,7 @@ mkdirSync(PASTA, { recursive: true });
 
 base.use({
   launchOptions: {
-    args: ["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream"],
+    args: argsDeMidiaFalsa(),
   },
 });
 

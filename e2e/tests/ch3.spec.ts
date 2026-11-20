@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Page } from "@playwright/test";
+import { argsDeMidiaFalsa } from "../midiaFalsa";
 import { abrirSecaoDaMesa, CAMINHO_DA_MESA, expect, type Mesa, type Sessao, test } from "./ajudas";
 import { entrarNoMapa } from "./ajudasMapa";
 
@@ -12,7 +13,7 @@ import { entrarNoMapa } from "./ajudasMapa";
 
 test.use({
   launchOptions: {
-    args: ["--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream"],
+    args: argsDeMidiaFalsa(),
   },
 });
 test.describe.configure({ timeout: 180_000 });

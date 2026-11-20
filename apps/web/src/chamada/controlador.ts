@@ -153,6 +153,11 @@ export class ControleDaChamada {
 
   /** Abre a janela: pede a câmera e o microfone para a prévia e começa a medir o nível. */
   async iniciar(): Promise<void> {
+    // O StrictMode monta, desmonta e monta de novo no mesmo instante: o controlador que já nasceu morto não pode pedir
+    // câmera nem microfone (deixaria um microfone aberto e um contexto de áudio sem dono, e o pedido dele atropelaria
+    // o do controlador de verdade).
+    await Promise.resolve();
+    if (this.encerrado) return;
     navigator.mediaDevices?.addEventListener?.("devicechange", this.aoMudarDeAparelho);
     this.relogio = setInterval(() => this.medir(), 100);
     await this.adquirirPrevia();
@@ -178,6 +183,7 @@ export class ControleDaChamada {
     const antes = this.estado;
     let erro: string | null = null;
     if (!(await this.pedirMicrofone())) erro = TEXTO_SEM_PERMISSAO;
+    if (this.encerrado) return;
     if (antes.camera) {
       if (!(await this.pedirCamera())) erro = TEXTO_SEM_PERMISSAO;
     }
@@ -200,6 +206,10 @@ export class ControleDaChamada {
       } catch (e) {
         if ((e as DOMException).name === "NotAllowedError") throw e;
         fluxo = await navigator.mediaDevices.getUserMedia({ audio: base });
+      }
+      if (this.encerrado) {
+        pararFluxo(fluxo);
+        return false;
       }
       pararFluxo(this.streamMic);
       this.streamMic = fluxo;
