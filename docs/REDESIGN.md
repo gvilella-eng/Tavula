@@ -2578,3 +2578,16 @@ O Vilella usou a mesa e pediu: o modelo de luz ao vivo, uma área de soltar a to
 - "A luz acompanha o tamanho da chama" (`IDEIAS.md`).
 - Chama animada no pino da tocha na mão.
 - Prévia da animação no editor do modelo.
+
+## CH2 — como ficou (2026-11-20)
+
+**O que foi feito**
+- A grade da chamada passou a caber sempre, sem rolagem: o tamanho de cada quadro 16:9 vem de `calcularGrade` (`chamada/grade.ts`) e é medido em `GradeDeQuadros.tsx`. Mais de 9 quadros viram páginas.
+- Barra de baixo, lista lateral e rótulos do volume mais enxutos; o quadro da trilha se adapta à medida.
+
+**Decisões (assumido)**
+- A trilha conta como um quadro e fica por último. O aviso de quem fala numa página escondida é um ponto verde na seta.
+- Barra de baixo de 56 px com botões de 42 px; lista lateral de 232 px.
+
+**O que ficou para depois**
+- A lista lateral de pessoas rola por dentro com mais de uns 10 nomes.

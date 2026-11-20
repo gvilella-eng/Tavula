@@ -4494,4 +4494,32 @@ Ver `PASSAGEM.md`, "FG1".
 ### Roteiro manual
 Ver `docs/ROTEIRO-DE-TESTES.md`, "FG1".
 
-## Próximo: o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b, N4, N5, M1, M2, Q1 a Q16, CH1, MU1, MU2, MU3, A1, AU1, FG1 e das otimizações O1–O4
+## Ajustes CH2 — a grade da chamada que sempre cabe (entregue, aguardando o roteiro manual)
+
+### O que foi entregue
+- Grade sem rolagem: `apps/web/src/chamada/grade.ts` (função pura `calcularGrade`, 16:9, escolhe colunas e linhas de quadro maior) e `GradeDeQuadros.tsx` (mede o espaço, centraliza, recalcula ao redimensionar, ao entrar ou sair alguém e ao abrir ou fechar a lista).
+- Até 9 quadros por página, com setas, "1/2", setas do teclado quando a grade tem o foco e ponto verde na seta quando alguém fala numa página escondida. A trilha conta como um quadro e fica por último (assumido).
+- Barra de baixo 76 para 56 px (botões de 42 px), lista lateral 272 para 232 px, "Volume para você" numa linha acima do controle, "Silenciar só para mim" numa linha.
+- Quadro da trilha se ajusta à medida: pequeno vira botões só com ícone (`BotaoComDica`) e some a linha de apoio; muito baixo some o equalizador.
+- Gancho de teste só no modo e2e: `window.__tabletopChamadaFalsas(n, quemFala?)` (`pessoasFalsas.ts`).
+
+### Como rodar
+`pnpm --filter @tabletop/e2e test tests/chamada.spec.ts` (portas por `E2E_PORTA_SALA` e `E2E_PORTA_WEB`).
+
+### Verificação
+Typecheck, lint e unidade da web (`grade.test.ts`, 1 a 12 quadros em vários tamanhos); `chamada.spec.ts` (teste novo: 2, 5 e 9 pessoas a 1280×720 e 1920×1000 sem rolagem; 11 pessoas em 2 páginas).
+
+### Decisões (assumido)
+- Com 9 pessoas há 10 quadros (a trilha conta): 2 páginas.
+- A lista lateral de pessoas ainda rola por dentro quando há muita gente (a grade é que nunca rola).
+
+### Desvios
+- Nenhum E2E antigo mudou. `chamada.spec.ts` já era instável na primeira tentativa (vídeo recebido a 0) antes do lote; confirmado no código sem as mudanças.
+
+### Frágil
+Ver `PASSAGEM.md`, "CH2".
+
+### Roteiro manual
+Ver `ROTEIRO-DE-TESTES.md`, "CH2".
+
+## Próximo: o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b, N4, N5, M1, M2, Q1 a Q16, CH1, CH2, MU1, MU2, MU3, A1, AU1, FG1 e das otimizações O1–O4

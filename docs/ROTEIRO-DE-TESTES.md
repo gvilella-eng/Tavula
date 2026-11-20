@@ -775,3 +775,9 @@ Importe a Chama Primordial: 5 automações convertidas; a Respiração igual à 
 7. **Jogador dá equipamento.** O jogador abre a ficha do próprio personagem e usa o "+" do item "Tocha": a quantidade sobe. No personagem de outro, nada. O mestre desliga "Dar e tirar equipamentos de luz dos próprios personagens" nas Permissões: o "+" do jogador fica desabilitado.
 8. **Setinha.** Na ficha, a setinha ao lado do item de modelo (tocha) recolhe e expande o peso, a nota e as tochas usadas. O estado fica lembrado neste navegador, por item. Funciona com Enter e Espaço.
 9. **Claude.** Peça ao Claude: "mude o tamanho da chama da Fogueira para 2 por 2 metros", "use o arquivo fogo.gif no estágio forte da Tocha" (depois de enviar) e "dê 3 tochas à minha ficha" (como jogador).
+
+### CH2 — a grade da chamada
+1. Abra a chamada sozinho e com mais uma pessoa: os quadros e a trilha cabem, sem barra de rolagem, centralizados. O botão "Abrir a mesa de som" aparece inteiro.
+2. Arraste a janela até ficar bem pequena e bem grande: a grade se refaz e nunca rola. Abra e feche a lista de pessoas (botão do topo): o mesmo.
+3. Com 9 quadros ou mais (peça a mais gente ou use o teste): a segunda página aparece com setas e "1/2"; as setas do teclado trocam quando a grade tem o foco. Quem fala numa página escondida acende um ponto verde na seta.
+4. A barra de baixo está mais baixa, a lista de pessoas mais estreita e "Volume para você" cabe numa linha acima do controle.

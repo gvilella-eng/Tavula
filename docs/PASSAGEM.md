@@ -1117,6 +1117,17 @@ Continua em aberto, por ser decisão e não erro de doc: `ficha.verOutras` (seç
 
 **Suposições**: ver `docs/REDESIGN.md`, "Q16 — como ficou".
 
+## CH2 (2026-11-20): a grade da chamada
+
+**Onde mexer**
+- `apps/web/src/chamada/grade.ts` (`calcularGrade`, páginas; teste em `grade.test.ts`) e `GradeDeQuadros.tsx` (mede com `ResizeObserver`, tamanho de cada célula inline, setas e ponto de quem fala). O CSS está em `.chamada-grade`, `.chamada-quadros`, `.chamada-paginas` e, no fim do `styles.css`, `.chamada-trilha[data-compacto]`.
+- `pessoasFalsas.ts`: gancho de teste (`window.__tabletopChamadaFalsas`) só no modo e2e.
+
+**Frágil**
+- O respiro de 12 px e o vão de 12 px estão em `GradeDeQuadros.tsx` e em `.chamada-quadros`/`.chamada-quadros-miolo`: mudar um sem o outro faz o quadro passar do espaço.
+- O quadro da trilha decide ficar compacto pela medida (420 x 236 px) passada pela grade, não por CSS.
+- `chamada.spec.ts` falha na primeira tentativa dos testes com vídeo recebido (já falhava antes do CH2).
+
 ## CH1 (2026-11-19): a chamada da mesa
 
 **Onde mexer**
