@@ -271,3 +271,118 @@ test("quem não é da mesa não recebe nada, e o aperto de mão só vai a quem e
   expect(abriu).toBe("recusou");
   await expect(m.janela.getByTestId("chamada-resumo")).toContainText("3 pessoas");
 });
+
+// CH2: a grade da chamada sempre cabe (sem rolagem em nenhum tamanho), com no máximo 9 quadros por página.
+type Medida = {
+  rolagemArea: boolean;
+  rolagemGrade: boolean;
+  rolagemPagina: boolean;
+  celulaFora: boolean;
+  botaoCortado: boolean;
+  quadros: number;
+};
+const medirGrade = (j: Page) =>
+  j.evaluate((): Medida => {
+    const grade = document.querySelector<HTMLElement>('[data-testid="chamada-quadros"]');
+    const area = document.querySelector<HTMLElement>('[data-testid="chamada-area-da-grade"]');
+    if (!grade || !area) throw new Error("sem grade");
+    const caixa = area.getBoundingClientRect();
+    const celulas = [...area.querySelectorAll<HTMLElement>(".chamada-celula")];
+    const celulaFora = celulas.some((c) => {
+      const r = c.getBoundingClientRect();
+      return (
+        r.left < caixa.left - 1 ||
+        r.right > caixa.right + 1 ||
+        r.top < caixa.top - 1 ||
+        r.bottom > caixa.bottom + 1
+      );
+    });
+    const trilha = area.querySelector<HTMLElement>('[data-testid="chamada-trilha"]');
+    const botaoCortado = trilha
+      ? [...trilha.querySelectorAll<HTMLElement>("button")].some((b) => {
+          const t = trilha.getBoundingClientRect();
+          const r = b.getBoundingClientRect();
+          return r.bottom > t.bottom + 0.5 || r.right > t.right + 0.5 || r.top < t.top - 0.5;
+        })
+      : false;
+    return {
+      rolagemArea: area.scrollHeight > area.clientHeight || area.scrollWidth > area.clientWidth,
+      rolagemGrade:
+        grade.scrollHeight > grade.clientHeight || grade.scrollWidth > grade.clientWidth,
+      rolagemPagina:
+        document.documentElement.scrollHeight > window.innerHeight ||
+        document.documentElement.scrollWidth > window.innerWidth,
+      celulaFora,
+      botaoCortado,
+      quadros: celulas.length,
+    };
+  });
+
+const fingir = (j: Page, falsas: number, quemFala: number | null = null) =>
+  j.evaluate(
+    ([n, q]) =>
+      (
+        window as unknown as { __tabletopChamadaFalsas: (n: number, q: number | null) => void }
+      ).__tabletopChamadaFalsas(n as number, q as number | null),
+    [falsas, quemFala],
+  );
+
+test("a grade da chamada cabe sem rolagem com 2, 5 e 9 pessoas e passa por páginas de até 9 quadros", async ({
+  mesa,
+}) => {
+  const m = await entrarNaChamada(mesa, "mestre");
+  const j = m.janela;
+  await expect(j.getByTestId("chamada-trilha")).toBeVisible();
+  for (const tela of [
+    { width: 1280, height: 720 },
+    { width: 1920, height: 1000 },
+  ]) {
+    await j.setViewportSize(tela);
+    // (pessoas, quadros na página: a trilha conta como um quadro e as páginas têm até 9)
+    for (const [pessoas, quadros] of [
+      [2, 3],
+      [5, 6],
+      [9, 9],
+    ] as const) {
+      await fingir(j, pessoas - 1);
+      await expect(j.getByTestId("chamada-resumo")).toContainText(`${pessoas} pessoas`);
+      await expect.poll(async () => (await medirGrade(j)).quadros).toBe(quadros);
+      const med = await medirGrade(j);
+      expect(med, `${pessoas} pessoas a ${tela.width}×${tela.height}`).toMatchObject({
+        rolagemArea: false,
+        rolagemGrade: false,
+        rolagemPagina: false,
+        celulaFora: false,
+        botaoCortado: false,
+      });
+    }
+  }
+
+  // 11 pessoas + a trilha = 12 quadros: duas páginas (9 e 3); as setas e o teclado trocam
+  await fingir(j, 10, 7);
+  await expect(j.getByTestId("chamada-pagina-numero")).toHaveText("1/2");
+  await expect.poll(async () => (await medirGrade(j)).quadros).toBe(9);
+  expect(await medirGrade(j)).toMatchObject({ rolagemArea: false, celulaFora: false });
+  // quem fala na página 1 não gera aviso; quem fala na página 2 acende o ponto na seta de avançar
+  await expect(j.getByTestId("chamada-ponto-depois")).toHaveCount(0);
+  await fingir(j, 10, 9);
+  await expect(j.getByTestId("chamada-ponto-depois")).toBeVisible();
+  await j.getByTestId("chamada-pagina-proxima").click();
+  await expect(j.getByTestId("chamada-pagina-numero")).toHaveText("2/2");
+  await expect.poll(async () => (await medirGrade(j)).quadros).toBe(3);
+  await expect(j.getByTestId("chamada-trilha")).toBeVisible();
+  expect(await medirGrade(j)).toMatchObject({ rolagemArea: false, celulaFora: false });
+  await fingir(j, 10, 0);
+  await expect(j.getByTestId("chamada-ponto-antes")).toBeVisible();
+  await j.getByTestId("chamada-quadros").focus();
+  await j.keyboard.press("ArrowLeft");
+  await expect(j.getByTestId("chamada-pagina-numero")).toHaveText("1/2");
+  await j.keyboard.press("ArrowRight");
+  await expect(j.getByTestId("chamada-pagina-numero")).toHaveText("2/2");
+
+  // fechar e abrir a lista lateral recalcula sem rolar
+  await j.getByTestId("chamada-alternar-lista").click();
+  expect(await medirGrade(j)).toMatchObject({ rolagemArea: false, celulaFora: false });
+  await j.getByTestId("chamada-alternar-lista").click();
+  expect(await medirGrade(j)).toMatchObject({ rolagemArea: false, celulaFora: false });
+});

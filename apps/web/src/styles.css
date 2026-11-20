@@ -7933,29 +7933,84 @@ button.inicio-botao-largo {
     0 0 0 2px var(--sucesso),
     0 0 0 6px color-mix(in srgb, var(--sucesso) 18%, transparent);
 }
-.chamada-quadros {
-  display: grid;
+/* CH2: a grade nunca rola. O tamanho de cada quadro vem de `grade.ts` (medido no JS); aqui só se centraliza. */
+.chamada-grade {
+  display: flex;
   flex: 1;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-  align-content: center;
+  flex-direction: column;
   min-width: 0;
-  padding: 16px;
-  overflow: auto;
+  min-height: 0;
+  overflow: hidden;
 }
-.chamada-dentro[data-disposicao="grade"]
-  .chamada-quadros:has(.chamada-celula:nth-child(-n + 4):last-child) {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+.chamada-grade:focus-visible {
+  outline-offset: -3px;
 }
-.chamada-dentro[data-disposicao="grade"]
-  .chamada-quadros:has(.chamada-celula:nth-child(2):last-child) {
-  grid-template-columns: minmax(0, 1fr);
-  width: 100%;
-  max-width: 640px;
-  margin: 0 auto;
+.chamada-quadros {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: 0;
+  padding: 12px;
+  overflow: hidden;
+}
+.chamada-quadros-miolo {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  align-content: center;
+  justify-content: center;
+  gap: 12px;
 }
 .chamada-celula {
+  flex: 0 0 auto;
   min-width: 0;
+}
+.chamada-celula > .chamada-quadro {
+  width: 100%;
+  height: 100%;
+  aspect-ratio: auto;
+}
+.chamada-paginas {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 30px;
+  font-size: 12px;
+  color: var(--texto-suave);
+}
+.chamada-seta {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 24px;
+  padding: 0;
+  color: var(--texto-suave);
+  background: transparent;
+  border: 1px solid var(--borda);
+  border-radius: 7px;
+}
+.chamada-seta:hover:not([aria-disabled="true"]) {
+  color: var(--texto);
+  background: var(--cabecalho);
+}
+.chamada-seta[aria-disabled="true"] {
+  opacity: 0.45;
+}
+.chamada-seta-ponto {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 9px;
+  height: 9px;
+  background: var(--sucesso);
+  border: 2px solid var(--fundo);
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px var(--sucesso);
 }
 .chamada-video {
   position: absolute;
@@ -8097,6 +8152,15 @@ button.inicio-botao-largo {
   align-items: flex-end;
   justify-content: space-between;
   gap: 8px;
+  min-height: 0;
+}
+.chamada-trilha-fim .chamada-trilha-musica {
+  flex-wrap: nowrap;
+  margin-left: auto;
+}
+.chamada-trilha {
+  min-height: 0;
+  overflow: hidden;
 }
 .chamada-eq {
   display: flex;
@@ -8143,7 +8207,7 @@ button.inicio-botao-largo {
 /* --- a lista de pessoas ---------------------------------------------------------------------- */
 .chamada-lista {
   display: flex;
-  flex: 0 0 272px;
+  flex: 0 0 232px;
   flex-direction: column;
   gap: 2px;
   padding: 14px 10px;
@@ -8233,10 +8297,18 @@ button.chamada-linha:hover {
 }
 .chamada-volume-linha {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  flex-direction: column;
+  gap: 4px;
   font-size: 12px;
   color: var(--texto-suave);
+}
+.chamada-volume-rotulo {
+  white-space: nowrap;
+}
+.chamada-volume-controle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 .chamada-volume-linha input[type="range"] {
   flex: 1;
@@ -8254,8 +8326,8 @@ button.chamada-linha:hover {
   flex: 0 0 auto;
   align-items: center;
   gap: 12px;
-  min-height: 76px;
-  padding: 0 20px;
+  min-height: 56px;
+  padding: 0 16px;
   background: var(--barra);
   border-top: 1px solid var(--borda-barra);
 }
@@ -8309,8 +8381,8 @@ button.chamada-linha:hover {
   display: grid;
   flex: 0 0 auto;
   place-items: center;
-  width: 48px;
-  height: 48px;
+  width: 42px;
+  height: 42px;
   padding: 0;
   color: var(--texto);
   background: var(--cabecalho);
@@ -8340,7 +8412,7 @@ button.chamada-linha:hover {
   display: flex;
   align-items: center;
   gap: 8px;
-  height: 44px;
+  height: 42px;
   padding: 0 18px;
   font: 600 14px var(--fonte-interface);
   color: var(--perigo-texto);
@@ -8738,4 +8810,29 @@ button.chamada-linha:hover {
   box-shadow:
     0 0 0 2px var(--sucesso),
     0 0 0 5px color-mix(in srgb, var(--sucesso) 22%, transparent);
+}
+
+/* CH2: o quadro da trilha pequeno (no fim por causa da ordem de especificidade). */
+.chamada-trilha[data-compacto="sim"] {
+  gap: 3px;
+  padding: 8px 10px;
+  --tamanho-do-titulo: 15px;
+}
+.chamada-trilha[data-compacto="sim"] .chamada-botao-texto {
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+}
+.chamada-trilha[data-compacto="sim"] .chamada-eq {
+  height: 18px;
+  overflow: hidden;
+}
+.chamada-trilha[data-baixo="sim"] .chamada-eq {
+  display: none;
+}
+.chamada-volume .chamada-marca {
+  gap: 8px;
+  font-size: 13px;
+  white-space: nowrap;
 }

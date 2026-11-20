@@ -763,3 +763,9 @@ Montar a Respiração da Montanha do zero (cena "Pulmão" com algumas tochas ace
 
 Armadilha de zona: desenhe a zona "Armadilha", abra o painel (ferramenta Zonas), **+ automação para esta zona**, ponha **Avisar no chat**, salve, e leve um token para dentro. Teste também **Testar agora**, **Desfazer** no editor, setas e Delete, **JSON**, **Janela própria**, liberar o botão aos jogadores (menu ⋯ da lista) e **Apagar** com **Desfazer**.
 Importe a Chama Primordial: 5 automações convertidas; a Respiração igual à de cima. Peça ao Claude: "como funciona a Respiração?" (ele chama `guia` e `explicar`).
+
+### CH2 — a grade da chamada
+1. Abra a chamada sozinho e com mais uma pessoa: os quadros e a trilha cabem, sem barra de rolagem, centralizados. O botão "Abrir a mesa de som" aparece inteiro.
+2. Arraste a janela até ficar bem pequena e bem grande: a grade se refaz e nunca rola. Abra e feche a lista de pessoas (botão do topo): o mesmo.
+3. Com 9 quadros ou mais (peça a mais gente ou use o teste): a segunda página aparece com setas e "1/2"; as setas do teclado trocam quando a grade tem o foco. Quem fala numa página escondida acende um ponto verde na seta.
+4. A barra de baixo está mais baixa, a lista de pessoas mais estreita e "Volume para você" cabe numa linha acima do controle.
