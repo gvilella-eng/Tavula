@@ -1,5 +1,6 @@
 import type { Papel } from "@tabletop/shared";
 import {
+  Boxes,
   FolderOpen,
   Map as IconeDoMapa,
   Keyboard,
@@ -12,6 +13,7 @@ import {
   Volume2,
 } from "lucide-react";
 import { memo, useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import { AssetsDaMesa, type PropsDosAssetsDaMesa } from "./AssetsDaMesa";
 import { type ArquivoDaFonte, temSeletorDePasta } from "./assets/fonte";
 import type { Fontes } from "./assets/fontes";
 import type { GerenteDeAssets, StatusDeAsset } from "./assets/gerente";
@@ -57,6 +59,8 @@ type PropsPreferencias = {
   /** N5: o navegador está bloqueando o som até alguém clicar (o cartão Som mostra o botão para ativar). */
   somBloqueado: boolean;
   aoAtivarSom: () => void;
+  /** AS1: os arquivos da mesa que o jogador vê (estável entre renders; o mestre usa a seção da aba Mesa). */
+  assets?: PropsDosAssetsDaMesa | undefined;
 };
 
 /** A pasta local de imagens: escolher, reautorizar e ver o que há nela. */
@@ -191,6 +195,7 @@ function AbaPreferenciasBase({
   claudeConectado,
   somBloqueado,
   aoAtivarSom,
+  assets,
 }: PropsPreferencias) {
   const dicas = useDicasLigadas();
   const prefsDeSom = usePrefsDeSom();
@@ -323,6 +328,16 @@ function AbaPreferenciasBase({
           Dicas ao passar o mouse (o nome e o atalho dos botões só de ícone)
         </label>
       </SecaoDePreferencias>
+      {assets && papel !== "mestre" && (
+        <SecaoDePreferencias
+          id="assets"
+          titulo="Arquivos da mesa"
+          icone={<Boxes size={16} />}
+          resumo="O que você vê e o que enviou"
+        >
+          <AssetsDaMesa {...assets} />
+        </SecaoDePreferencias>
+      )}
       <SecaoDePreferencias
         id="ajuda"
         titulo="Ajuda e arquivos"

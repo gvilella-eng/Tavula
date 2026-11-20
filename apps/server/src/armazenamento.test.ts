@@ -951,6 +951,46 @@ describe("Armazenamento: a mesa de som (Q4) e a conversão do som do N5", () => 
     expect(JSON.stringify(denovo?.cenas)).not.toContain('"trilha"');
   });
 
+  it("AS1: renomear um arquivo grava o nome de exibição; a imagem solta (token com imagem) volta ao abrir a mesa", async () => {
+    const { banco, base, reabrir } = await aberto();
+    const meta = {
+      hash: H1,
+      tipo: "imagem",
+      mime: "image/webp",
+      bytes: 10,
+      largura: 100,
+      altura: 50,
+      donoId: "mestre",
+      nomeOriginal: "estatua.png",
+      pedacos: ["e".repeat(64)],
+    } satisfies AssetMeta;
+    banco.salvarEventos({ ...base, seq: 1, assets: [meta] }, [
+      { seq: 1, origem, tipo: "asset.registrado", dados: { meta } },
+    ] as EventoSala[]);
+    const renomeada = { ...meta, nomeExibicao: "Estátua da praça" };
+    const token = {
+      id: "img-1",
+      cenaId: base.cenaAtivaId,
+      nome: "Estátua",
+      cor: "#8a94a3",
+      tamanhoQuadrados: 1,
+      x: 3,
+      y: 4,
+      camada: "mapa" as const,
+      oculto: false,
+      controladoPor: [] as string[],
+      assetHash: H1,
+      imagem: { larguraM: 3, alturaM: 1.5, rotacao: 30, por: "mestre" },
+    };
+    banco.salvarEventos({ ...base, seq: 3, assets: [renomeada], tokens: [token] }, [
+      { seq: 2, origem, tipo: "asset.renomeado", dados: { hash: H1, nome: "Estátua da praça" } },
+      { seq: 3, origem, tipo: "token.criado", dados: { token } },
+    ] as EventoSala[]);
+    const lido = reabrir().carregar();
+    expect(lido?.assets?.find((a) => a.hash === H1)?.nomeExibicao).toBe("Estátua da praça");
+    expect(lido?.tokens.find((t) => t.id === "img-1")?.imagem).toEqual(token.imagem);
+  });
+
   it("apagar um som tira a meta do banco", async () => {
     const { banco, base, reabrir } = await aberto();
     const meta = {

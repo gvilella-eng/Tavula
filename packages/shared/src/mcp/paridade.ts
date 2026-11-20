@@ -117,6 +117,20 @@ export const PARIDADE_COM_O_MCP: Record<TipoIntencao, EntradaDeParidade> = {
   "token.soltar": via("tokens", "tokens", "mover"),
   "token.condicoes": via("tokens", "tokens", "condicoes"),
   "token.definirImagem": via("arquivos", "enviar", "uso token"),
+  // AS1: assets da mesa (a lista, a imagem solta na cena, renomear e apagar).
+  "imagem.colocar": via(
+    "arquivos",
+    "usar",
+    "uso imagem: põe na cena um arquivo que já está na mesa",
+  ),
+  "imagem.ajustar": via("arquivos", "ajustar", "move, estica, gira, muda a camada ou esconde"),
+  "asset.renomear": via("arquivos", "renomear"),
+  "asset.apagar": via("arquivos", "apagar"),
+  "assets.listar": via("arquivos", "listar"),
+  "asset.restaurar": fora(
+    "transporte",
+    "É o desfazer do apagar na tela do mestre (os bytes continuam no computador dele); o Claude refaz o envio com `arquivos`.",
+  ),
   "personagem.colocar": via("tokens", "colocar"),
   "personagem.colocarVarios": via(
     "tokens",

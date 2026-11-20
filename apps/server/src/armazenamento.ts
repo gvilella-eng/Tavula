@@ -860,6 +860,11 @@ export class Armazenamento {
         case "asset.registrado":
           this.gravarEntidade("assets", ev.dados.meta.hash, ev.dados.meta);
           break;
+        case "asset.renomeado": {
+          const meta = estado.assets?.find((a) => a.hash === ev.dados.hash);
+          if (meta) this.gravarEntidade("assets", meta.hash, meta);
+          break;
+        }
         case "personagem.alterado":
           this.gravarEntidade("personagens", ev.dados.personagem.id, ev.dados.personagem);
           break;

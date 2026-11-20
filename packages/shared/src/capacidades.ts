@@ -17,6 +17,7 @@ export const CAPACIDADES_DELEGAVEIS = [
   "mapa.pingar",
   "personagem.criarProprio",
   "equipamento.dar",
+  "imagem.colocar",
 ] as const;
 
 /** Capacidades só do mestre: nunca delegáveis. */
@@ -66,6 +67,8 @@ export const PERMISSOES_PADRAO: Record<CapacidadeDelegavel, boolean> = {
   "personagem.criarProprio": true,
   // FG1: o jogador dá e tira equipamentos de modelo (tochas, lanternas) dos personagens que controla: o recurso é dele.
   "equipamento.dar": true,
+  // AS1: pôr imagem solta na cena (soltar um arquivo no mapa): desligada por padrão; o mestre liga para quem quiser.
+  "imagem.colocar": false,
 };
 
 /** Rótulos em pt-BR para o painel do mestre. */
@@ -85,6 +88,7 @@ export const ROTULO_DA_CAPACIDADE: Record<CapacidadeDelegavel, string> = {
   "mapa.pingar": "Pingar o mapa e centralizar a tela de todos",
   "personagem.criarProprio": "Criar fichas e notas próprias",
   "equipamento.dar": "Dar e tirar equipamentos de luz dos próprios personagens",
+  "imagem.colocar": "Pôr imagens soltas na cena (soltar um arquivo no mapa)",
 };
 
 type ComPapel = Pick<Usuario, "id" | "papel">;

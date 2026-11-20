@@ -79,7 +79,13 @@ import type { ConfigDoPincel } from "../pincel";
 import { CamadaDeDesenho, type DesenhoNaTela } from "./camadaDeDesenho";
 import { CamadaDeLuz } from "./camadaDeLuz";
 import { CamadaDaNevoa } from "./camadaDeNevoa";
-import { ChamasDoMapa, faseDoId, indiceDoQuadro, type Quadros } from "./chamas";
+import {
+  ChamasDoMapa,
+  decodificarAnimacao,
+  faseDoId,
+  indiceDoQuadro,
+  type Quadros,
+} from "./chamas";
 import {
   ArmazemDeMemoria,
   chaveAntigaDaMemoria,
@@ -391,6 +397,11 @@ export type MedicaoFixa = {
 
 export type RetornosDoMapa = {
   mover: (id: string, x: number, y: number) => void;
+  /** AS1: esticou ou girou uma imagem solta (metros e graus; só o que mudou). */
+  ajustarImagem: (
+    id: string,
+    mudancas: { larguraM?: number; alturaM?: number; rotacao?: number },
+  ) => void;
   soltar: (id: string, x: number, y: number) => void;
   /** O mestre arrastou a bandeira do ponto de chegada (da cena que ele está vendo). */
   chegada: (cenaId: string, x: number, y: number) => void;
@@ -506,6 +517,8 @@ type Visual = {
   marcas: MarcaVisual[];
   /** A imagem do token já apareceu (senão vale o círculo gerado). */
   temImagem: boolean;
+  /** AS1: o token é uma imagem solta na cena: a figura (parada ou animada) e o que ela mostra agora. */
+  imagem?: { figura: Sprite; quadros: Quadros | null; indice: number; fase: number };
   x: number;
   y: number;
   alvoX: number;
@@ -596,6 +609,13 @@ type Gesto =
       inicial: { larguraM: number; alturaM: number };
     }
   | { tipo: "regua" }
+  | {
+      /** AS1: uma alça da imagem solta selecionada: esticar (canto) ou girar. */
+      tipo: "imagemAlca";
+      id: string;
+      modo: "tamanho" | "giro";
+      inicial: { x: number; y: number; larguraM: number; alturaM: number; rotacao: number };
+    }
   | {
       tipo: "traco";
       id: string;
@@ -690,6 +710,14 @@ export class MapaPixi {
   /** FG1: o tamanho da chama que o mestre está esticando (ao vivo, antes de a sala confirmar). */
   private chamaArrastada: { id: string; tam: { larguraM: number; alturaM: number } } | null = null;
   private reduzirCache: { em: number; valor: boolean } = { em: -1e9, valor: false };
+  /** AS1: as animações (gif, apng, webp animado) das imagens soltas, decodificadas em segundo plano (`null`: não deu). */
+  private readonly animadasDasImagens = new Map<string, Quadros | null>();
+  private readonly decodificandoImagens = new Set<string>();
+  /** AS1: as alças (cantos e giro) da imagem solta selecionada, e o tamanho e giro ao vivo enquanto se arrasta. */
+  private readonly alcasDaImagem = new Graphics();
+  private chaveDasAlcasDaImagem = "";
+  private imagemPrevia: { id: string; larguraM: number; alturaM: number; rotacao: number } | null =
+    null;
   // Memória do mapa (só de tela; IndexedDB por usuário e cena).
   private readonly armazem = new ArmazemDeMemoria();
   private gradeDaMemoria: GradeDeMemoria | null = null;
@@ -884,6 +912,7 @@ export class MapaPixi {
       this.nevoaPrevia,
       this.marcasDeLuz,
       this.desenhoDosPontos,
+      this.alcasDaImagem,
       this.camadaDeAlcas,
       this.areaDaBandeira,
       this.bandeira,
@@ -1545,13 +1574,258 @@ export class MapaPixi {
   }
 
   private chaveDe(t: Token): string {
+    if (t.imagem) {
+      const i = t.imagem;
+      const tipo = t.assetHash ? this.imagens?.meta(t.assetHash)?.tipo : undefined;
+      const pronta = t.assetHash
+        ? tipo === "animacao"
+          ? this.animadasDasImagens.has(t.assetHash)
+          : this.texturas.has(t.assetHash)
+        : false;
+      return `img|${t.nome}|${i.larguraM}|${i.alturaM}|${i.rotacao}|${t.camada}|${t.oculto}|${tipo}|${pronta}`;
+    }
     const imagem = t.assetHash && this.texturas.has(t.assetHash) ? t.assetHash : "";
     const marcas = `${(t.condicoes ?? []).join(",")}|${t.exaustao ?? ""}|${t.concentracao ?? ""}`;
     // Q11: a borda e se há barra de vida (ela empurra o nome para baixo) refazem o token; a vida em si não.
     return `${t.nome}|${t.cor}|${t.tamanhoQuadrados}|${t.oculto}|${t.camada}|${imagem}|${marcas}|${t.morto === true}|${t.borda ?? ""}|${this.opcoes.vidaDaBarra(t) !== null}`;
   }
 
+  /** AS1: a animação decodificada da imagem solta; pede a decodificação (uma vez) e refaz as imagens quando chega. */
+  private quadrosDaImagem(hash: string): Quadros | null {
+    const pronta = this.animadasDasImagens.get(hash);
+    if (pronta !== undefined) return pronta;
+    if (this.decodificandoImagens.has(hash)) return null;
+    this.decodificandoImagens.add(hash);
+    void (async () => {
+      let quadros: Quadros | null = null;
+      try {
+        const blob = await this.imagens?.blob(hash);
+        if (blob && !this.destruido) {
+          quadros = await decodificarAnimacao(blob, { ladoMax: 384, quadrosMax: 40 });
+        }
+      } catch (e) {
+        console.warn("Não consegui decodificar a imagem animada", e);
+      }
+      this.decodificandoImagens.delete(hash);
+      if (this.destruido) return;
+      if (quadros === null && !this.imagens?.pronto(hash)) return; // ainda não chegou: tenta de novo depois
+      this.animadasDasImagens.set(hash, quadros);
+      if (this.pronto) this.sincronizarTokens();
+    })();
+    return null;
+  }
+
+  /** AS1: uma imagem solta na cena: a figura (parada ou animada) no tamanho e no giro dela, sem rótulo nem borda de token. */
+  private criarVisualDeImagem(token: Token, x: number, y: number): Visual {
+    const img = token.imagem as NonNullable<Token["imagem"]>;
+    const w = img.larguraM * PX_POR_M;
+    const h = img.alturaM * PX_POR_M;
+    const container = new Container();
+    const hash = token.assetHash;
+    const animada = hash !== undefined && this.imagens?.meta(hash)?.tipo === "animacao";
+    const quadros = hash !== undefined && animada ? this.quadrosDaImagem(hash) : null;
+    const textura =
+      hash === undefined ? undefined : animada ? quadros?.texturas[0] : this.texturas.get(hash);
+    const figura = new Sprite(textura ?? Texture.EMPTY);
+    figura.anchor.set(0.5);
+    if (textura) {
+      figura.width = w;
+      figura.height = h;
+    } else {
+      // Enquanto o arquivo não chega: um retângulo apagado do tamanho da imagem.
+      figura.visible = false;
+      container.addChild(
+        new Graphics()
+          .rect(-w / 2, -h / 2, w, h)
+          .fill({ color: 0x8a94a3, alpha: 0.25 })
+          .stroke({ width: 2, color: 0x8a94a3, alpha: 0.6 }),
+      );
+    }
+    const anel = new Graphics().rect(-w / 2 - 4, -h / 2 - 4, w + 8, h + 8).stroke({
+      width: 3,
+      color: ACENTO,
+    });
+    anel.visible = false;
+    container.addChild(anel, figura);
+    container.rotation = (img.rotacao * Math.PI) / 180;
+    container.position.set(x * PX_POR_M, y * PX_POR_M);
+    this.camadaDe(token).addChild(container);
+    return {
+      token,
+      chave: this.chaveDe(token),
+      container,
+      anel,
+      anelVez: new Graphics(),
+      barra: new Graphics(),
+      barraDesenhada: null,
+      marcas: [],
+      temImagem: textura !== undefined,
+      imagem: { figura, quadros: quadros ?? null, indice: 0, fase: faseDoId(token.id) },
+      x,
+      y,
+      alvoX: x,
+      alvoY: y,
+    };
+  }
+
+  /** AS1: troca o quadro das imagens animadas (cada uma defasada das outras); "reduzir movimento" deixa no primeiro. */
+  private animarImagens(agora: number): void {
+    const parado = this.movimentoReduzido(agora);
+    for (const v of this.visuais.values()) {
+      const im = v.imagem;
+      if (!im?.quadros || !v.container.visible) continue;
+      const indice = parado ? 0 : indiceDoQuadro(im.quadros, agora, im.fase);
+      if (indice === im.indice) continue;
+      im.indice = indice;
+      const w = im.figura.width;
+      const h = im.figura.height;
+      im.figura.texture = im.quadros.texturas[indice] as Texture;
+      im.figura.width = w;
+      im.figura.height = h;
+      this.sujo = true;
+    }
+  }
+
+  /** AS1: o tamanho e o giro que a imagem mostra (os da prévia, se a pessoa a está esticando ou girando). */
+  private medidaDaImagem(t: Token): { larguraM: number; alturaM: number; rotacao: number } {
+    const i = t.imagem as NonNullable<Token["imagem"]>;
+    const p = this.imagemPrevia;
+    return p && p.id === t.id
+      ? { larguraM: p.larguraM, alturaM: p.alturaM, rotacao: p.rotacao }
+      : { larguraM: i.larguraM, alturaM: i.alturaM, rotacao: i.rotacao };
+  }
+
+  /** AS1: a imagem solta selecionada que esta pessoa pode esticar e girar (a das alças). */
+  private imagemComAlcas(): Visual | null {
+    if (this.opcoes.ferramenta !== "selecionar") return null;
+    const id = this.opcoes.selecionadoId;
+    if (id === null) return null;
+    const v = this.visuais.get(id);
+    if (!v?.token.imagem || !v.container.visible) return null;
+    if (!this.selecionavel(v.token) || !this.opcoes.podeMover(v.token)) return null;
+    return v;
+  }
+
+  /** AS1: as alças da imagem em metros (o canto de baixo à direita é o de esticar, o de cima é o de girar). */
+  private pontosDasAlcasDaImagem(v: Visual): {
+    cantos: Ponto[];
+    giro: Ponto;
+    giroBase: Ponto;
+  } {
+    const m = this.medidaDaImagem(v.token);
+    const a = (m.rotacao * Math.PI) / 180;
+    const c = Math.cos(a);
+    const s = Math.sin(a);
+    const girar = (lx: number, ly: number): Ponto => ({
+      x: v.x + lx * c - ly * s,
+      y: v.y + lx * s + ly * c,
+    });
+    const hw = m.larguraM / 2;
+    const hh = m.alturaM / 2;
+    const folga = 26 / (this.vista.zoom * PX_POR_M);
+    return {
+      cantos: [girar(-hw, -hh), girar(hw, -hh), girar(hw, hh), girar(-hw, hh)],
+      giro: girar(0, -hh - folga),
+      giroBase: girar(0, -hh),
+    };
+  }
+
+  /** AS1: desenha as alças da imagem selecionada (só refaz quando algo mudou). */
+  private desenharAlcasDaImagem(): void {
+    const v = this.imagemComAlcas();
+    const z = this.vista.zoom;
+    const chave = v ? JSON.stringify([v.token.id, v.x, v.y, this.medidaDaImagem(v.token), z]) : "";
+    if (chave === this.chaveDasAlcasDaImagem) return;
+    this.chaveDasAlcasDaImagem = chave;
+    this.sujo = true;
+    const g = this.alcasDaImagem;
+    g.clear();
+    if (!v) return;
+    const { cantos, giro, giroBase } = this.pontosDasAlcasDaImagem(v);
+    const px = (p: Ponto) => ({ x: p.x * PX_POR_M, y: p.y * PX_POR_M });
+    const [c0, c1, c2, c3] = cantos.map(px) as [Ponto, Ponto, Ponto, Ponto];
+    g.moveTo(c0.x, c0.y).lineTo(c1.x, c1.y).lineTo(c2.x, c2.y).lineTo(c3.x, c3.y).closePath();
+    g.stroke({ width: 1.5 / z, color: ACENTO, alpha: 0.9 });
+    const gb = px(giroBase);
+    const gr = px(giro);
+    g.moveTo(gb.x, gb.y)
+      .lineTo(gr.x, gr.y)
+      .stroke({ width: 1.5 / z, color: ACENTO, alpha: 0.9 });
+    const l = 9 / z;
+    for (const c of [c0, c1, c3]) {
+      g.rect(c.x - l / 2, c.y - l / 2, l, l)
+        .fill(0xffffff)
+        .stroke({ width: 1.5 / z, color: ACENTO });
+    }
+    // O canto de baixo à direita é a alça de esticar (cheia), o círculo de cima gira.
+    g.rect(c2.x - l / 2, c2.y - l / 2, l, l)
+      .fill(ACENTO)
+      .stroke({ width: 1.5 / z, color: 0xffffff });
+    g.circle(gr.x, gr.y, 5.5 / z)
+      .fill(0xffffff)
+      .stroke({ width: 1.5 / z, color: ACENTO });
+  }
+
+  /** AS1: a alça de esticar ou de girar sob o ponto da tela (só na imagem selecionada). */
+  private alcaDaImagemEm(p: Ponto): { v: Visual; modo: "tamanho" | "giro" } | null {
+    const v = this.imagemComAlcas();
+    if (!v) return null;
+    const { cantos, giro } = this.pontosDasAlcasDaImagem(v);
+    const perto = (q: Ponto) => {
+      const t = this.paraTela(q.x, q.y);
+      return Math.hypot(p.x - t.x, p.y - t.y) <= 10;
+    };
+    if (perto(giro)) return { v, modo: "giro" };
+    for (const c of cantos) if (perto(c)) return { v, modo: "tamanho" };
+    return null;
+  }
+
+  /** AS1: o gesto de uma alça: calcula o tamanho (proporcional; Shift solta) ou o giro (Shift: de 15 em 15 graus). */
+  private moverAlcaDaImagem(
+    g: Extract<Gesto, { tipo: "imagemAlca" }>,
+    p: Ponto,
+    e: PointerEvent,
+  ): void {
+    const v = this.visuais.get(g.id);
+    if (!v?.token.imagem) return;
+    const m = this.paraMundo(p);
+    const i = g.inicial;
+    let larguraM = i.larguraM;
+    let alturaM = i.alturaM;
+    let rotacao = i.rotacao;
+    if (g.modo === "giro") {
+      let graus = (Math.atan2(m.y - i.y, m.x - i.x) * 180) / Math.PI + 90;
+      if (e.shiftKey) graus = Math.round(graus / 15) * 15;
+      graus = ((((graus + 180) % 360) + 360) % 360) - 180;
+      rotacao = Math.round(graus * 10) / 10;
+    } else {
+      const a = (-i.rotacao * Math.PI) / 180;
+      const dx = m.x - i.x;
+      const dy = m.y - i.y;
+      const lx = Math.abs(dx * Math.cos(a) - dy * Math.sin(a));
+      const ly = Math.abs(dx * Math.sin(a) + dy * Math.cos(a));
+      let nl = Math.max(0.2, lx * 2);
+      let na = Math.max(0.2, ly * 2);
+      if (!e.shiftKey) {
+        const k = Math.max(nl / i.larguraM, na / i.alturaM);
+        nl = i.larguraM * k;
+        na = i.alturaM * k;
+      }
+      larguraM = Math.round(Math.min(1000, Math.max(0.2, nl)) * 100) / 100;
+      alturaM = Math.round(Math.min(1000, Math.max(0.2, na)) * 100) / 100;
+    }
+    this.imagemPrevia = { id: g.id, larguraM, alturaM, rotacao };
+    const im = v.imagem;
+    if (im) {
+      im.figura.width = larguraM * PX_POR_M;
+      im.figura.height = alturaM * PX_POR_M;
+    }
+    v.container.rotation = (rotacao * Math.PI) / 180;
+    this.sujo = true;
+  }
+
   private criarVisual(token: Token, x: number, y: number): Visual {
+    if (token.imagem) return this.criarVisualDeImagem(token, x, y);
     const raio = (token.tamanhoQuadrados * this.quadradoM() * PX_POR_M) / 2 - 3;
     const container = new Container();
     // Com imagem local: recortada em círculo. Senão (ou enquanto não chega): círculo gerado com a
@@ -2034,6 +2308,8 @@ export class MapaPixi {
     if (this.seguidoId) this.seguirOToken(dt);
     this.passoDaContagem();
     this.ajustarMarcasAoZoom();
+    this.animarImagens(agora);
+    this.desenharAlcasDaImagem();
     this.desenharAlcas();
     if (this.visaoPorMovimento && agora - this.ultimaVisaoPorMovimento >= this.esperaDaVisao) {
       this.visaoPorMovimento = false;
@@ -4232,6 +4508,23 @@ export class MapaPixi {
       if (!v.container.visible || !this.selecionavel(v.token)) continue;
       const pesoDele = peso(v);
       if (pesoDele < pesoAchado) continue;
+      if (v.token.imagem) {
+        // AS1: a imagem solta é um retângulo girado: leva o ponto para o referencial dela.
+        const med = this.medidaDaImagem(v.token);
+        const a = (-med.rotacao * Math.PI) / 180;
+        const dx = m.x - v.x;
+        const dy = m.y - v.y;
+        const lx = dx * Math.cos(a) - dy * Math.sin(a);
+        const ly = dx * Math.sin(a) + dy * Math.cos(a);
+        if (
+          Math.abs(lx) <= Math.max(med.larguraM / 2, minimo) &&
+          Math.abs(ly) <= Math.max(med.alturaM / 2, minimo)
+        ) {
+          achado = v;
+          pesoAchado = pesoDele;
+        }
+        continue;
+      }
       const raio = Math.max((v.token.tamanhoQuadrados * this.quadradoM()) / 2, minimo);
       if (Math.hypot(m.x - v.x, m.y - v.y) <= raio) {
         achado = v;
@@ -4376,6 +4669,21 @@ export class MapaPixi {
       return;
     }
 
+    // AS1: as alças de esticar e girar a imagem solta selecionada.
+    const daImagem = this.alcaDaImagemEm(p);
+    if (daImagem) {
+      const med = this.medidaDaImagem(daImagem.v.token);
+      this.gesto = {
+        tipo: "imagemAlca",
+        id: daImagem.v.token.id,
+        modo: daImagem.modo,
+        inicial: { x: daImagem.v.x, y: daImagem.v.y, ...med },
+      };
+      this.cancelarEsperaDoPing();
+      this.app.canvas.setPointerCapture(e.pointerId);
+      this.atualizarCursor();
+      return;
+    }
     // A alça da tocha: só o dono (ou o mestre) a arrasta; a dos outros ignora o clique.
     // FG1: as alças de esticar a chama do inflamável selecionado vêm antes de tudo.
     const esticar = this.alcaDeTamanhoEm(p);
@@ -4480,7 +4788,11 @@ export class MapaPixi {
     const naSelecao = this.opcoes.euMestre && selecao.length > 1 && selecao.includes(v.token.id);
     if (!naSelecao) {
       this.retornos().selecionar(
-        this.opcoes.euMestre || this.opcoes.controla(v.token) ? v.token.id : null,
+        this.opcoes.euMestre ||
+          this.opcoes.controla(v.token) ||
+          (v.token.imagem !== undefined && this.opcoes.podeMover(v.token))
+          ? v.token.id
+          : null,
       );
     }
     if (!this.opcoes.podeMover(v.token)) return;
@@ -4703,6 +5015,10 @@ export class MapaPixi {
       }
       return;
     }
+    if (g.tipo === "imagemAlca") {
+      this.moverAlcaDaImagem(g, p, e);
+      return;
+    }
     if (g.tipo === "chama") {
       const ponto = this.pontosDaTela().find((x) => x.id === g.id);
       if (!ponto) return;
@@ -4813,13 +5129,18 @@ export class MapaPixi {
     if (!v || !this.cena) return;
     const m = this.paraMundo(p);
     let alvo: Ponto = { x: m.x + g.deslocamento.x, y: m.y + g.deslocamento.y };
-    if (this.encaixaAgora(g.copia ? false : e.altKey)) {
+    // AS1: a imagem solta anda livre (sem encaixe no grid e sem esbarrar em parede).
+    if (!v.token.imagem && this.encaixaAgora(g.copia ? false : e.altKey)) {
       alvo = encaixarNoGrid(alvo, v.token.tamanhoQuadrados, this.quadradoM());
     }
     alvo = limitarNaCena(alvo, this.cena);
     // O jogador não atravessa parede, porta fechada, janela nem parede invisível: o token fica onde
     // ainda podia estar (a sala confere de novo ao soltar; o mestre ignora).
-    if (!this.opcoes.euMestre && trajetoBloqueado(g.origem, alvo, this.paredesDaCena())) {
+    if (
+      !this.opcoes.euMestre &&
+      !v.token.imagem &&
+      trajetoBloqueado(g.origem, alvo, this.paredesDaCena())
+    ) {
       return;
     }
     if (g.junto.length > 0) {
@@ -4921,6 +5242,28 @@ export class MapaPixi {
         if (alvo?.tipo === "token") this.retornos().entregarTocha(luz.id, alvo.tokenId);
         else if (alvo?.tipo === "suporte") this.retornos().posarTocha(luz.id, alvo.ponto.id);
       }
+      this.atualizarCursor();
+      return;
+    }
+    if (g.tipo === "imagemAlca") {
+      const previa = this.imagemPrevia;
+      if (previa && previa.id === g.id) {
+        const i = g.inicial;
+        const mudancas: { larguraM?: number; alturaM?: number; rotacao?: number } = {};
+        if (g.modo === "tamanho") {
+          if (previa.larguraM !== i.larguraM) mudancas.larguraM = previa.larguraM;
+          if (previa.alturaM !== i.alturaM) mudancas.alturaM = previa.alturaM;
+        } else if (previa.rotacao !== i.rotacao) mudancas.rotacao = previa.rotacao;
+        if (Object.keys(mudancas).length > 0) this.retornos().ajustarImagem(g.id, mudancas);
+      }
+      // A imagem fica no tamanho e no giro soltos até a sala confirmar (o evento chega em seguida).
+      setTimeout(() => {
+        this.imagemPrevia = null;
+        if (this.pronto) {
+          this.chaveDasAlcasDaImagem = "";
+          this.recriarVisuais();
+        }
+      }, 700);
       this.atualizarCursor();
       return;
     }
@@ -5264,6 +5607,10 @@ export class MapaPixi {
     } else if (g.tipo === "chama") {
       this.chamaArrastada = null;
       this.chaveDosPontos = "";
+    } else if (g.tipo === "imagemAlca") {
+      this.imagemPrevia = null;
+      this.chaveDasAlcasDaImagem = "";
+      this.recriarVisuais();
     } else if (g.tipo !== "regua") {
       return;
     }
@@ -5294,6 +5641,7 @@ export class MapaPixi {
       g?.tipo === "ponto" ||
       g?.tipo === "desenhoMover" ||
       g?.tipo === "chama" ||
+      g?.tipo === "imagemAlca" ||
       g?.tipo === "alca"
     )
       cursor = "grabbing";
@@ -5824,7 +6172,25 @@ export class MapaPixi {
           morto: v.token.morto === true,
           /** Os marcadores de condição desenhados na borda. */
           marcas: v.marcas.map((m) => m.titulo),
+          /** AS1: a imagem solta: o tamanho e o giro desenhados, a figura já apareceu e o quadro da animação (se animada). */
+          imagem: v.token.imagem
+            ? {
+                ...this.medidaDaImagem(v.token),
+                figura: v.temImagem,
+                quadros: v.imagem?.quadros?.texturas.length ?? 0,
+                indice: v.imagem?.indice ?? 0,
+                camada: v.token.camada,
+              }
+            : null,
         })),
+      /** AS1: o ponto do mapa (metros) sob um ponto da página. */
+      metrosDaPagina: (x: number, y: number) => this.pontoDaPaginaEmMetros(x, y),
+      /** AS1: onde fica na página o ponto (metros) do mapa, para soltar um arquivo ali. */
+      paginaDoPonto: (x: number, y: number) => {
+        const r = this.app.canvas.getBoundingClientRect();
+        const t = this.paraTela(x, y);
+        return { x: r.left + t.x, y: r.top + t.y };
+      },
       /** A prévia do modo "pôr token": onde está (metros) ou `null` se não aparece. */
       previaDoToken: () =>
         this.previaDoToken.visible

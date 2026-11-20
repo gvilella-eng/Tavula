@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { AssetMetaSchema, HashSchema, LIMITES_DE_ASSET, MetaNovaSchema } from "./assets.ts";
+import { CATEGORIAS_DE_ASSET } from "./assetsDaMesa.ts";
 import {
   AutomacoesSchema,
   BotaoParaJogadorSchema,
@@ -122,6 +123,24 @@ export const VERSAO_EXPORTACAO = 13 as const;
 const CapacidadeSchema = z.enum(TODAS_AS_CAPACIDADES as [Capacidade, ...Capacidade[]]);
 const Texto = z.string().max(TAMANHO_MAXIMO_NOTA);
 const SemDados = z.object({});
+
+/** AS1: uma linha da lista "Assets da mesa" (ver `listarAssetsDaMesa`). */
+export const LinhaDeAssetSchema = z.object({
+  hash: HashSchema,
+  nome: z.string().max(200),
+  nomeOriginal: z.string().max(200),
+  tipo: AssetMetaSchema.shape.tipo,
+  categoria: z.enum(CATEGORIAS_DE_ASSET),
+  mime: z.string().max(64),
+  bytes: z.number().int().nonnegative(),
+  largura: z.number().int().positive(),
+  altura: z.number().int().positive(),
+  donoId: z.string().max(64),
+  donoNome: z.string().max(64),
+  animado: z.boolean(),
+  usos: z.array(z.string().max(200)).max(200),
+  usosRemoviveis: z.boolean(),
+});
 
 // ---------------------------------------------------------------------------------------------
 // Exportação da campanha
@@ -347,7 +366,7 @@ export type Exportacao = z.infer<typeof ExportacaoSchema>;
 const IdSchema = z.string().min(1).max(64);
 const MAXIMO_DE_PAREDES_POR_MENSAGEM = 200;
 const ParedeNovaSchema = ParedeSchema.omit({ cenaId: true });
-const TokenNovoSchema = TokenSchema.omit({ cenaId: true });
+const TokenNovoSchema = TokenSchema.omit({ cenaId: true, imagem: true });
 const MudancasDoTokenSchema = TokenSchema.pick({
   nome: true,
   cor: true,
@@ -616,6 +635,60 @@ export const IntencaoSchema = z.discriminatedUnion("tipo", [
     }),
   ),
   intencao("token.definirImagem", z.object({ id: IdSchema, assetHash: HashSchema.nullable() })),
+  /**
+   * AS1: pôr uma imagem solta na cena (soltar um arquivo no mapa, ou arrastar um asset da lista). Vira um token sem ficha, com
+   * tamanho em metros e giro. O mestre pode tudo; o jogador precisa de `imagem.colocar`, só na cena ativa e só nas camadas
+   * `mapa` e `tokens`. `larguraM` omitida: a sala escolhe pela proporção do arquivo. Mover, esticar, girar e apagar:
+   * `imagem.ajustar` e `token.apagar` (o desfazer do apagar é o `token.restaurar`).
+   */
+  intencao(
+    "imagem.colocar",
+    z.object({
+      id: IdSchema,
+      assetHash: HashSchema,
+      x: z.number(),
+      y: z.number(),
+      cenaId: IdSchema.optional(),
+      camada: TokenSchema.shape.camada.optional(),
+      larguraM: z.number().min(0.1).max(1000).optional(),
+      nome: TokenSchema.shape.nome.optional(),
+    }),
+  ),
+  intencao(
+    "imagem.ajustar",
+    z.object({
+      id: IdSchema,
+      mudancas: z
+        .object({
+          x: z.number(),
+          y: z.number(),
+          larguraM: z.number().min(0.1).max(1000),
+          alturaM: z.number().min(0.1).max(1000),
+          rotacao: z.number().min(-360).max(360),
+          camada: TokenSchema.shape.camada,
+          oculto: z.boolean(),
+          nome: TokenSchema.shape.nome,
+        })
+        .partial(),
+    }),
+  ),
+  /** AS1, só o mestre: o nome que a mesa mostra do arquivo (o arquivo não muda). */
+  intencao(
+    "asset.renomear",
+    z.object({ hash: HashSchema, nome: AssetMetaSchema.shape.nomeOriginal }),
+  ),
+  /**
+   * AS1, só o mestre: tira o arquivo da mesa. Em uso: recusa e diz onde; com `removerUsos` (depois do aviso) a mesa tira a
+   * imagem de onde estava (objetos soltos somem, mapas e retratos ficam sem imagem). Os bytes continuam no disco do mestre.
+   */
+  intencao("asset.apagar", z.object({ hash: HashSchema, removerUsos: z.boolean().optional() })),
+  /** AS1, só o mestre: o desfazer do apagar (volta a meta, com o mesmo dono e nome). */
+  intencao(
+    "asset.restaurar",
+    z.object({ metas: z.array(AssetMetaSchema).min(1).max(LIMITES_DE_ASSET.metasPorRegistro) }),
+  ),
+  /** AS1: pede a lista de assets que a pessoa pode ver (a sala responde com `assets.lista`). */
+  intencao("assets.listar", SemDados),
   intencao("personagem.criar", z.object({ personagem: PersonagemSchema })),
   intencao("pasta.criar", z.object({ pasta: PastaSchema })),
   intencao(
@@ -1214,6 +1287,13 @@ export const capacidadeDaIntencao: Record<TipoIntencao, Capacidade | null> = {
   "asset.naoTenho": null,
   "cena.definirMapa": "cena.editar",
   "token.definirImagem": "asset.subir",
+  // AS1: o jogador com `imagem.colocar`; o ajuste confere (`processar`) se a imagem é dele; o resto é do mestre.
+  "imagem.colocar": "imagem.colocar",
+  "imagem.ajustar": null,
+  "asset.renomear": "mesa.configurar",
+  "asset.apagar": "mesa.configurar",
+  "asset.restaurar": "mesa.configurar",
+  "assets.listar": null,
   // 12-1: o mestre, ou o jogador com `personagem.criarProprio` (a própria ficha, com teto); `processar` confere.
   "personagem.criar": null,
   // Quem edita o personagem (só as imagens), o jogador na ficha que ele criou, ou o mestre: `processar` confere.
@@ -1534,6 +1614,11 @@ export const EventoSalaSchema = z.discriminatedUnion("tipo", [
   eventoDe("som.efeitoParado", z.object({ lugar: IndiceDoLugarSchema.optional() })),
   /** Q4: o som saiu da mesa (só a referência; o arquivo fica no computador do mestre). Só mestres recebem. */
   eventoDe("asset.removido", z.object({ hash: HashSchema })),
+  /** AS1: o mestre renomeou o arquivo (`nome: null` volta ao nome do arquivo). Só mestres recebem. */
+  eventoDe(
+    "asset.renomeado",
+    z.object({ hash: HashSchema, nome: AssetMetaSchema.shape.nomeExibicao.unwrap().nullable() }),
+  ),
   /** Uma mensagem do chat, filtrada: quem não pode vê-la nunca a recebe. */
   eventoDe("chat.mensagem", z.object({ mensagem: MensagemSchema })),
   /** O mestre limpou o chat: todos esvaziam a conversa. */
@@ -1578,6 +1663,7 @@ export const CODIGOS_DE_ERRO = [
   "token_inexistente",
   "dados_invalidos",
   "asset_inexistente",
+  "asset_em_uso",
   "personagem_inexistente",
   "cena_inexistente",
   "pasta_inexistente",
@@ -1724,6 +1810,11 @@ export const MensagemDaSalaSchema = z.discriminatedUnion("tipo", [
   mensagemDaSala("desenho.rascunhando", z.object({ desenho: DesenhoSchema })),
   /** O autor soltou, cancelou ou saiu: o rascunho some. */
   mensagemDaSala("desenho.rascunhoFim", z.object({ id: IdSchema })),
+  /** AS1: a lista de assets que a pessoa pode ver (resposta de `assets.listar`; nunca em broadcast). */
+  mensagemDaSala(
+    "assets.lista",
+    z.object({ linhas: z.array(LinhaDeAssetSchema).max(LIMITES_DE_ASSET.assetsNaSala) }),
+  ),
   /** Meta de um asset que o cliente pediu e pode ver (sob demanda; nunca em broadcast). */
   mensagemDaSala("asset.meta", z.object({ meta: AssetMetaSchema })),
   /** Pedido da sala ao provedor: mande estes pedaços (frames binários) de `hash`. */

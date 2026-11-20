@@ -8,6 +8,7 @@ import {
   type Exportacao,
   IntencaoSchema,
   LIMITES_DO_CHAT,
+  type LinhaDeAsset,
   lerMensagemDaSala,
   type MensagemDaSala,
   type ParticipanteDaChamada,
@@ -186,6 +187,8 @@ export function useSala(opcoes: Opcoes) {
   const [avisoDeContas, setAvisoDeContas] = useState<AvisoDeContas | null>(null);
   // M1, só o mestre recebe: os arquivos que o Claude mandou e esperam o navegador processar (a sala reenvia a lista inteira a cada mudança).
   const [pendentesDaCaixa, setPendentesDaCaixa] = useState<EnvioPendente[]>([]);
+  // AS1: a lista de assets que a sala montou para este jogador (resposta de `assets.listar`).
+  const [linhasDeAssets, setLinhasDeAssets] = useState<LinhaDeAsset[] | null>(null);
   const socket = useRef<WebSocket | null>(null);
   const ouvintes = useRef(new Set<(o: Ocorrencia) => void>());
   const opcoesAtuais = useRef(opcoes);
@@ -335,6 +338,9 @@ export function useSala(opcoes: Opcoes) {
           break;
         case "caixa.pendentes":
           setPendentesDaCaixa(m.dados.envios);
+          break;
+        case "assets.lista":
+          setLinhasDeAssets(m.dados.linhas);
           break;
         case "mesa.renomeada":
           opcoesAtuais.current.aoRenomear?.(m.dados.nome);
@@ -487,6 +493,7 @@ export function useSala(opcoes: Opcoes) {
     chatTemMais,
     avisoDeContas,
     pendentesDaCaixa,
+    linhasDeAssets,
     claudeConectado,
     lotesDoClaude,
     enviar,

@@ -240,7 +240,7 @@ test("refresh no meio de uma transferência: retoma do que já estava no cache e
   expect(depois).toBeGreaterThanOrEqual(1);
 });
 
-test("o jogador põe imagem no próprio token: aparece para todos e chega a recebidos/<jogador> do mestre", async ({
+test("o jogador põe imagem no próprio token: aparece para todos e chega à pasta organizada do mestre (assets/<jogador>/tokens)", async ({
   mesa,
 }) => {
   test.setTimeout(90_000);
@@ -269,15 +269,17 @@ test("o jogador põe imagem no próprio token: aparece para todos e chega a rece
   // o jogador 2 recebeu o arquivo do dono (jogador 1) e conferiu o hash
   expect((await assets(j2.pagina, "verificarCache")).every((c) => c.ok)).toBe(true);
 
-  // o navegador do mestre gravou a cópia em recebidos/Jogador 1/ (a Memoria faz o papel da pasta)
+  // AS1: o navegador do mestre gravou a cópia na pasta organizada, assets/<quem enviou>/<tipo>/ (a Memoria faz o papel da pasta)
   await expect
     .poll(async () => (await assets(mestre.pagina, "gravados")).length, { timeout: 20_000 })
     .toBe(1);
   const [copia] = await assets(mestre.pagina, "gravados");
-  expect(copia?.caminho.startsWith("recebidos/Jogador 1/aldric-")).toBe(true);
+  expect(copia?.caminho.startsWith("assets/Jogador 1/tokens/aldric-")).toBe(true);
   expect(copia?.caminho.endsWith(".webp")).toBe(true);
-  expect(copia?.sha256).toBe(meta.hash);
-  expect(copia?.bytes).toBe(meta.bytes);
+  // AS1: a imagem de outra pessoa é decodificada e gravada de novo pelo navegador do mestre: é um WebP válido do mesmo
+  // tamanho em pixels, mas os bytes são os do mestre (o hash do arquivo original não vale para a cópia).
+  expect(copia?.bytes).toBeGreaterThan(0);
+  expect(copia?.sha256).not.toBe(meta.hash);
 });
 
 /** O mestre põe uma imagem no goblin oculto e outra no ogro (visível); devolve os dois hashes. */

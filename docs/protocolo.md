@@ -1098,9 +1098,26 @@ Duas rotas HTTP, duas intenções e uma mensagem da sala; o vaivém de pedaços 
 
 **Mensagem da sala** `caixa.pendentes` `{ envios: [{ id, uso, nome, bytes, mime }] }`: só os navegadores de mestre (nunca o Claude nem o jogador), ao conectar e a cada mudança. Sem caminho do computador de ninguém.
 
-**Aplicação por uso**: `mapa` → `cena.definirMapa` (com `pxPorQuadrado`, calculado de `quadrados` pelo lado maior da imagem); `token` → `token.definirImagem` (token da cena) ou `personagem.editar { assetHash }` (token padrão da ficha); `retrato` → `personagem.editar { retratoHash }`; `handout` → `handout.editar { imagemHash }`; `som` → `cena.editar { trilha }` (com `cena`; sem ela só fica registrado); `compendio` → `compendio.definir`.
+**Aplicação por uso**: `mapa` → `cena.definirMapa` (com `pxPorQuadrado`, calculado de `quadrados` pelo lado maior da imagem); `token` → `token.definirImagem` (token da cena) ou `personagem.editar { assetHash }` (token padrão da ficha); `retrato` → `personagem.editar { retratoHash }`; `handout` → `handout.editar { imagemHash }`; `som` → `cena.editar { trilha }` (com `cena`; sem ela só fica registrado); `compendio` → `compendio.definir`; `imagem` (AS1) → `imagem.colocar` (`opcoes.xM`, `yM`, `camada` e `larguraM`; sem ponto, o centro da cena).
 
 **Banco**: migração 16 (`claude_envios` e `claude_envios_pedacos`); fora da exportação; os envios com mais de 24 h somem com os bytes.
+
+### Assets da mesa e imagens soltas (AS1)
+
+Intenções novas (todas na tabela de paridade e em `capacidadeDaIntencao`):
+
+| Intenção | Dados | Capacidade | O que faz |
+|---|---|---|---|
+| `imagem.colocar` | `{ id, assetHash, x, y, cenaId?, camada?, larguraM?, nome? }` | `imagem.colocar` (mestre sempre) | põe uma imagem solta na cena: um token sem ficha com `imagem: { larguraM, alturaM, rotacao: 0, por }`. O arquivo é um asset `imagem`, `animacao`, `token`, `retrato` ou (só o mestre) `mapa` sem pedaços. Sem `larguraM` a sala usa o tamanho natural do arquivo (px ÷ px por quadrado), entre 1 e 8 quadrados no lado maior, com a proporção do arquivo. Jogador: só na cena ativa, camadas `mapa` e `tokens`, 20 por cena, só arquivo que ele vê (`asset_inexistente` se não); `limite_de_criacao` no teto |
+| `imagem.ajustar` | `{ id, mudancas: { x?, y?, larguraM?, alturaM?, rotacao?, camada?, oculto?, nome? } }` | confere dentro (`processar`) | o mestre mexe em qualquer imagem; o jogador só nas dele, com a capacidade, e sem `oculto` nem camada `mestre` (`sem_permissao`). Imagem que ele não vê: `token_inexistente` |
+| `asset.renomear` | `{ hash, nome }` | `mesa.configurar` | muda o nome de exibição (`AssetMeta.nomeExibicao`; o nome original do arquivo, o hash e os bytes não mudam). Evento `asset.renomeado { hash, nome \| null }`, só mestres |
+| `asset.apagar` | `{ hash, removerUsos? }` | `mesa.configurar` | tira o arquivo (e os pedaços do mapa fatiado) da mesa. Em uso num lugar que se arruma sozinho (imagem solta, mapa, retrato, token, aparência, símbolo, handout): recusa com `asset_em_uso` e a lista de onde; com `removerUsos: true` tira a imagem desses lugares (apaga as imagens soltas, tira o mapa e as imagens dos outros). Em uso onde não se arruma (zona, automação, luz, música, compêndio): `asset_em_uso`. Evento `asset.removido` |
+| `asset.restaurar` | `{ metas: AssetMeta[] }` (1 a 65) | `mesa.configurar` | o desfazer do apagar: volta as metas (mesmo dono e nome). Não restaura os usos |
+| `assets.listar` | `{}` | — | pede a lista de assets que a pessoa pode ver. A sala responde só a quem pediu: `assets.lista { linhas }` (cada linha: `hash`, `nome`, `nomeOriginal`, `tipo`, `categoria`, `mime`, `bytes`, `largura`, `altura`, `donoId`, `donoNome`, `animado`, `usos[]`, `usosRemoviveis`). Mestre: tudo (menos tile e cifrado). Jogador: o que ele enviou e o que está em uso numa coisa que ele vê (`listarAssetsDaMesa`); nada de mapa escondido, som, zona, automação, música ou luz |
+
+Outras mudanças: `Token.imagem` (opcional); `AssetMeta.nomeExibicao` (opcional); tipo de asset `imagem`; capacidade delegável `imagem.colocar` (padrão: desligada; o jogador com ela também registra assets `animacao`); código de erro `asset_em_uso`. `token.criar` não aceita `imagem` (use `imagem.colocar`). `podeMoverToken` e `token.apagar` valem para o dono da imagem solta com a capacidade (e `token.soltar` dele não esbarra em parede).
+
+**Segurança do registro.** `asset.registrar` confere (`validarMeta`) que o `mime` de imagem esteja na lista fechada (webp, png, jpeg, gif; nunca svg ou html), que o compêndio seja json e que a imagem solta tenha no máximo 2048 px; o `nomeExibicao` que o cliente mandar é descartado. O navegador que recebe os pedaços confere os bytes contra o tipo declarado (`conferirArquivoRecebido`).
 
 ### Contador de uso
 

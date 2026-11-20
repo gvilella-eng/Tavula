@@ -203,3 +203,12 @@ git).
 - **A luz acompanha o tamanho da chama:** uma opção no modelo (ou no ponto) para os raios de luz crescerem e encolherem junto com o tamanho da chama que o mestre esticou. Hoje a chama é só visual; a luz é a do modelo.
 - **Login no portal Távola, não por mesa:** decisão do Vilella (2026-11-20): o login passa a ser no portal Távola, e não por mesa (a pensar depois).
 - **Chama animada no pino da tocha na mão** e prévia da animação no editor do modelo.
+
+## Depois do AS1 (2026-11-20)
+
+- **Arrastar um som da lista direto para a biblioteca de música** (hoje há o botão; arrastar para o mapa põe no primeiro ambiente livre da mesa de som).
+- **Mover os arquivos antigos de `recebidos/<jogador>/` para `assets/`** (hoje só se copia; nada é movido nem apagado).
+- **O Claude de um jogador** listar os assets dele (hoje só o mestre lista, renomeia e apaga).
+- **Miniatura de mapa em pedaços e de som** (hoje o ícone do tipo).
+- **Encaixe opcional da imagem solta no grid** (hoje ela anda livre) e **rótulo da imagem** no mapa.
+- **Reabrir o arquivo original do disco** ("subi, ainda está aqui") só valeria com o File System Access API guardando o arquivo de verdade: o ganho sobre o cache é pequeno, ver `PROJETO.md` 4.17.

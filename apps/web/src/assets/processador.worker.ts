@@ -14,7 +14,13 @@ import {
   retangulosDeTiles,
   sha256Hex,
 } from "@tabletop/shared";
-import type { PedidoDoWorker, RespostaDoWorker, Resultado, UvttLido } from "./processador";
+import type {
+  PedidoDoWorker,
+  RespostaDoWorker,
+  Resultado,
+  TipoProcessado,
+  UvttLido,
+} from "./processador";
 
 // Processamento pesado fora da thread da página: decodifica a imagem, redimensiona, converte para
 // WebP (OffscreenCanvas), fatia o mapa grande em tiles e calcula os hashes.
@@ -71,7 +77,7 @@ async function descrever(
 
 async function processar(
   arquivo: Blob,
-  tipo: "mapa" | "token" | "retrato",
+  tipo: TipoProcessado,
   limite: number,
   nome: string,
 ): Promise<Resultado> {
@@ -79,7 +85,10 @@ async function processar(
   try {
     const { width, height } = imagem;
     if (tipo !== "mapa") {
-      const lado = LIMITES_DE_ASSET.ladoMaximoDoToken;
+      const lado =
+        tipo === "imagem"
+          ? LIMITES_DE_ASSET.ladoMaximoDaImagem
+          : LIMITES_DE_ASSET.ladoMaximoDoToken;
       const escala = Math.min(1, lado / Math.max(width, height));
       const l = Math.max(1, Math.round(width * escala));
       const a = Math.max(1, Math.round(height * escala));
@@ -133,6 +142,27 @@ async function processar(
       })),
     });
     return { principal: manifesto.hash, itens, manifesto };
+  } finally {
+    imagem.close();
+  }
+}
+
+/** AS1: decodifica e grava de novo como WebP (a imagem de outra pessoa, antes de ir para a pasta do mestre). */
+async function regravar(
+  arquivo: Blob,
+  lado: number,
+): Promise<{ bytes: Uint8Array; largura: number; altura: number }> {
+  const imagem = await createImageBitmap(arquivo);
+  try {
+    const escala = Math.min(1, lado / Math.max(imagem.width, imagem.height));
+    const largura = Math.max(1, Math.round(imagem.width * escala));
+    const altura = Math.max(1, Math.round(imagem.height * escala));
+    const bytes = await codificar(
+      imagem,
+      { x: 0, y: 0, largura: imagem.width, altura: imagem.height },
+      { largura, altura },
+    );
+    return { bytes, largura, altura };
   } finally {
     imagem.close();
   }
@@ -195,6 +225,23 @@ escopo.onmessage = async (e: MessageEvent<PedidoDoWorker>) => {
     if (p.tipo === "hash") {
       const hash = await sha256Hex(new Uint8Array(await p.arquivo.arrayBuffer()));
       resposta = { id: p.id, ok: true, tipo: "hash", hash };
+    } else if (p.tipo === "regravar") {
+      const r = await regravar(p.arquivo, p.lado);
+      escopo.postMessage(
+        { id: p.id, ok: true, tipo: "regravar", ...r } satisfies RespostaDoWorker,
+        [r.bytes.buffer as ArrayBuffer],
+      );
+      return;
+    } else if (p.tipo === "medir") {
+      const imagem = await createImageBitmap(p.arquivo);
+      resposta = {
+        id: p.id,
+        ok: true,
+        tipo: "medir",
+        largura: imagem.width,
+        altura: imagem.height,
+      };
+      imagem.close();
     } else if (p.tipo === "uvtt") {
       resposta = { id: p.id, ok: true, tipo: "uvtt", lido: await lerUvtt(p) };
     } else if (p.tipo === "miniatura") {

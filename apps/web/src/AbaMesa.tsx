@@ -13,6 +13,7 @@ import {
 import {
   Activity,
   Archive,
+  Boxes,
   Download,
   Flame,
   House,
@@ -22,6 +23,7 @@ import {
   Workflow,
 } from "lucide-react";
 import { type ChangeEvent, memo, useEffect, useRef, useState } from "react";
+import { AssetsDaMesa, type PropsDosAssetsDaMesa } from "./AssetsDaMesa";
 import { type DadosDaMesa, renomearMesa } from "./api";
 import { resumoDasAutomacoes } from "./automacoes/resumo";
 import { SecaoDeContas } from "./contas/SecaoDeContas";
@@ -55,6 +57,8 @@ type Props = {
   aoAbrirAutomacoes: () => void;
   /** FG1: envia uma animação de chama (gif, webp animado ou apng) para a mesa. */
   registrarAnimacao?: ((arquivo: File) => Promise<{ hash: string; nome: string }>) | undefined;
+  /** AS1: o que a seção "Assets da mesa" precisa (estável entre renders; sem ele a seção não aparece). */
+  assets?: PropsDosAssetsDaMesa | undefined;
 };
 
 /**
@@ -62,6 +66,12 @@ type Props = {
  * diagnostico) e as partes de dentro de "Pessoas" (papeis, contas, permissoes) usam o mesmo padrão.
  */
 export const testidDaSecaoDaMesa = (id: string) => `mesa-secao-${id}`;
+
+/** AS1: o resumo da seção (quantos arquivos a mesa guarda, sem contar os pedaços internos). */
+function resumoDosAssets(assets: EstadoDaMesa["assets"]): string {
+  const n = (assets ?? []).filter((a) => a.tipo !== "tile" && a.tipo !== "cifrado").length;
+  return n === 0 ? "Nenhum arquivo" : `${n} ${n === 1 ? "arquivo" : "arquivos"}`;
+}
 
 function formatarPercentual(valor: number): string {
   return `${valor.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 3 })}%`;
@@ -148,6 +158,7 @@ function AbaMesaBase({
   enviar,
   aoAbrirAutomacoes,
   registrarAnimacao,
+  assets,
 }: Props) {
   const jogadores = jogadoresDaMesa(estado);
   const [alvo, setAlvo] = useState<string>("");
@@ -234,6 +245,18 @@ function AbaMesaBase({
       >
         <SecaoObjetosDeLuz estado={estado} enviar={enviar} registrarAnimacao={registrarAnimacao} />
       </SecaoDePreferencias>
+
+      {assets && (
+        <SecaoDePreferencias
+          prefixo="mesa"
+          id="assets"
+          titulo="Assets da mesa"
+          icone={<Boxes size={16} />}
+          resumo={resumoDosAssets(estado.assets)}
+        >
+          <AssetsDaMesa {...assets} />
+        </SecaoDePreferencias>
+      )}
 
       <SecaoDePreferencias
         prefixo="mesa"

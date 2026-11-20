@@ -223,3 +223,7 @@ Sem pergunta nova para o Vilella: ele aprovou o plano do MCP. As suposições do
 ## N5: som ambiente (2026-11-14)
 
 Sem pergunta nova para o Vilella: ele aprovou o plano do som. As suposições do lote estão em `docs/REDESIGN.md`, "N5 — como ficou" (todas com "(assumido)"). A mais visível: os efeitos e os sons de zona só baixam na primeira vez que tocam (a zona é secreta, então não dá para adiantar sem dizer que ela existe).
+
+## AS1: assets da mesa e segurança dos arquivos (2026-11-20)
+
+Sem pergunta nova para o Vilella: ele pediu o lote com as palavras do brief. As suposições do lote estão em `docs/REDESIGN.md`, "AS1 — como ficou" (todas com "(assumido)"). A mais importante: a capacidade de pôr imagem solta na cena (`imagem.colocar`) nasce **desligada** para os jogadores; o mestre a liga na aba Mesa, Pessoas.

@@ -143,6 +143,19 @@ export const NOMES_DE_BORDA = [
 export const BordaSchema = z.enum(NOMES_DE_BORDA);
 export type Borda = z.infer<typeof BordaSchema>;
 
+/**
+ * AS1: uma imagem solta na cena (png, jpg, webp ou gif). É um token sem ficha: mora na camada que o mestre escolheu (`mapa`, `tokens`
+ * ou `mestre`), com tamanho em metros (largura e altura, que o mestre estica) e giro em graus. `por` é quem a pôs (o jogador
+ * que tem a capacidade `imagem.colocar` mexe só nas dele). O `assetHash` do token é o arquivo (tipo `imagem` ou `animacao`).
+ */
+export const ImagemSoltaSchema = z.object({
+  larguraM: z.number().min(0.1).max(1000),
+  alturaM: z.number().min(0.1).max(1000),
+  rotacao: z.number().min(-360).max(360),
+  por: z.string().min(1).max(64),
+});
+export type ImagemSolta = z.infer<typeof ImagemSoltaSchema>;
+
 export const TokenSchema = z.object({
   id: z.string().min(1).max(64),
   cenaId: z.string().min(1).max(64),
@@ -197,6 +210,8 @@ export const TokenSchema = z.object({
   barraDeVida: z.boolean().optional(),
   /** Q11: o anel colorido na borda do token (uma de 8 cores fixas), para separar grupos. Todos que veem o token o veem. */
   borda: BordaSchema.optional(),
+  /** AS1: o token é uma imagem solta na cena (ver `ImagemSoltaSchema`). Sem o campo, é um token comum. */
+  imagem: ImagemSoltaSchema.optional(),
 });
 export type Token = z.infer<typeof TokenSchema>;
 

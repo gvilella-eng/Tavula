@@ -45,9 +45,11 @@ export function negarEnvio(
           ? "som"
           : uso === "animacao"
             ? "animacao"
-            : uso === "compendio"
-              ? "compendio"
-              : "retrato",
+            : uso === "imagem"
+              ? "imagem"
+              : uso === "compendio"
+                ? "compendio"
+                : "retrato",
     mime: "image/webp",
     bytes: 1,
     largura: 1000,

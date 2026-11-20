@@ -1,13 +1,17 @@
 import {
   type AssetMeta,
   arquivoConfere,
+  caminhoNaPastaOrganizada,
   cifrar,
+  conferirArquivoRecebido,
   decifrarEConferir,
+  descreverIntruso,
   detectarFormato,
   dividirEmPedacos,
   hashesDosPedacos,
   type ImportacaoDeMapa,
   LIMITES_DE_ASSET,
+  LIMITES_DO_ENVIO,
   lerFrameDePedaco,
   limiteDeTextura,
   type MensagemDaSala,
@@ -27,7 +31,7 @@ import {
 import { indiceLocal } from "./armazem";
 import type { CacheOpfs } from "./cache";
 import type { FonteDeAssets } from "./fonte";
-import { maxTextureSize, type Processador } from "./processador";
+import { maxTextureSize, type Processador, type TipoProcessado } from "./processador";
 
 export type EstadoDaTransferencia = "pedindo" | "baixando" | "pronto" | "indisponivel" | "erro";
 
@@ -73,6 +77,14 @@ type Dependencias = {
 
 type Entrada = StatusDeAsset & { ultimoPedaco: number; ultimaPergunta: number };
 
+/** AS1: de onde veio um arquivo e quanto levou (para medir se ler do próprio computador compensa). */
+export type MedidaDeCarga = {
+  hash: string;
+  origem: "cache" | "pasta" | "rede";
+  ms: number;
+  bytes: number;
+};
+
 /** Folga do `bufferedAmount` do socket antes de mandar o próximo pedaço (não inundar). */
 const BUFFER_MAXIMO = 1024 * 1024;
 const TENTATIVAS_POR_PEDACO = 5;
@@ -85,11 +97,6 @@ export const PASTA_DOS_ARQUIVOS_DA_MESA = "arquivos-da-mesa";
 
 const dormir = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 const semDono = ({ donoId: _d, ...resto }: AssetMeta): MetaNova => resto;
-
-function nomeSeguro(nome: string): string {
-  // biome-ignore lint/suspicious/noControlCharactersInRegex: tira caracteres de controle de nomes de arquivo
-  return nome.replace(/[\\/:*?"<>|\u0000-\u001f]/g, "_").trim() || "sem-nome";
-}
 
 /**
  * Tudo o que o navegador faz com arquivos da campanha: processar e registrar o que o usuário usa,
@@ -106,6 +113,11 @@ export class GerenteDeAssets {
   private readonly filas = new Map<string, Promise<void>>();
   private readonly pedidos = new Map<string, string>();
   private readonly copiados = new Set<string>();
+  /** AS1: arquivos que este navegador recusou ao conferir os bytes (hash -> motivo): nunca vão para a pasta. */
+  private readonly recusados = new Map<string, string>();
+  /** AS1: quando a rede começou a trazer cada arquivo, e o que já foi medido. */
+  private readonly inicios = new Map<string, number>();
+  private readonly medidas: MedidaDeCarga[] = [];
   private readonly corrompidosEnviados = new Map<string, number>();
   /** Originais que estão sendo decifrados agora: ninguém pede esses pela rede (PROJETO.md, Lote 4). */
   private readonly decifrando = new Set<string>();
@@ -200,6 +212,39 @@ export class GerenteDeAssets {
 
   inventario(): string[] {
     return [...this.completos];
+  }
+
+  /** AS1: o arquivo está neste computador (no cache, ou no meu disco, se sou o mestre com a pasta)? */
+  estaNesteComputador(hash: string): boolean {
+    const m = this.metas.get(hash);
+    if (m?.tiles) return m.tiles.every((t) => this.completos.has(t.hash));
+    return this.completos.has(hash);
+  }
+
+  /** AS1: o motivo de um arquivo ter sido recusado ao conferir os bytes (ou `undefined`). */
+  motivoDaRecusa(hash: string): string | undefined {
+    return this.recusados.get(hash);
+  }
+
+  /** AS1: as medidas de carga (pasta e rede), para o diagnóstico e os testes. */
+  medidasDeCarga(): readonly MedidaDeCarga[] {
+    return this.medidas;
+  }
+
+  private medir(hash: string, origem: MedidaDeCarga["origem"], inicioMs: number, bytes: number) {
+    this.medidas.push({ hash, origem, ms: performance.now() - inicioMs, bytes });
+    if (this.medidas.length > 200) this.medidas.shift();
+  }
+
+  /** AS1: lê o arquivo do cache e diz quanto levou (só para medir). */
+  async lerDoCacheMedindo(hash: string): Promise<MedidaDeCarga | null> {
+    const inicio = performance.now();
+    const arquivo = await this.d.cache.lerArquivo(hash);
+    if (!arquivo) return null;
+    const bytes = new Uint8Array(await arquivo.arrayBuffer());
+    if (!(await arquivoConfere({ hash, bytes: bytes.length }, bytes))) return null;
+    this.medir(hash, "cache", inicio, bytes.length);
+    return this.medidas[this.medidas.length - 1] ?? null;
   }
 
   async blobDe(hash: string): Promise<Blob | null> {
@@ -349,7 +394,10 @@ export class GerenteDeAssets {
         return;
       }
       if (ja.size > 0) st.estado = "baixando";
+      // AS1: o mestre com a pasta da mesa lê dela (conferindo o hash) antes de incomodar a rede.
+      if (ja.size === 0 && (await this.tentarDaPasta(meta))) return;
     }
+    if (!this.inicios.has(hash)) this.inicios.set(hash, performance.now());
     st.ultimaPergunta = Date.now();
     const id = canal.enviar("asset.pedir", faltam ? { hash, faltam } : { hash });
     if (id) this.pedidos.set(id, hash);
@@ -442,10 +490,25 @@ export class GerenteDeAssets {
       await this.perguntar(hash);
       return;
     }
+    // AS1: quem RECEBE confere de novo os bytes (o tipo vem deles, nunca do que o remetente declarou).
+    const conferencia = conferirArquivoRecebido(bytes, meta);
+    if (!conferencia.ok) {
+      await this.d.cache.apagarPedacos(hash);
+      this.presentes.set(hash, new Set());
+      this.recusados.set(hash, conferencia.motivo);
+      st.estado = "erro";
+      st.mensagem = `Arquivo recusado: ${conferencia.motivo}`;
+      console.warn("Arquivo recusado ao receber", hash, conferencia.motivo);
+      this.mudou();
+      return;
+    }
     await this.d.cache.gravarArquivo(hash, bytes as BufferSource);
     await this.d.cache.apagarPedacos(hash);
     this.presentes.delete(hash);
     this.completos.add(hash);
+    const inicio = this.inicios.get(hash);
+    if (inicio !== undefined) this.medir(hash, "rede", inicio, bytes.length);
+    this.inicios.delete(hash);
     st.estado = "pronto";
     st.recebidos = st.total = meta.pedacos.length;
     this.d.canal()?.enviar("asset.tenho", { hash });
@@ -617,7 +680,7 @@ export class GerenteDeAssets {
    * processado antes é reconhecido pelo hash do original (índice local), mesmo se foi renomeado.
    * Devolve o hash que a cena ou o token vão usar.
    */
-  async usarArquivo(arquivo: File, tipo: "mapa" | "token" | "retrato"): Promise<string> {
+  async usarArquivo(arquivo: File, tipo: TipoProcessado): Promise<string> {
     const canal = this.d.canal();
     if (!canal?.conectado()) throw new Error("Sem conexão com a sala.");
     const limite = this.limiteDeTile();
@@ -756,8 +819,10 @@ export class GerenteDeAssets {
   }
 
   /**
-   * FG1, só no mestre: registra uma animação de chama (gif, webp animado ou apng) como asset `animacao`, sem processar
-   * (o arquivo vai como veio, até 4 MB). Mesmo caminho do som: cache, pasta da mesa, meta na sala e bytes sob demanda.
+   * Registra uma animação (gif, webp animado ou apng) como asset `animacao`, sem processar (o arquivo vai como veio, até
+   * 4 MB). FG1: a chama de um modelo de luz (só o mestre). AS1: também a imagem animada solta na cena (quem tem a
+   * capacidade). Os bytes decidem o formato (nunca o nome nem o que o navegador diz) e as dimensões reais do primeiro quadro
+   * vão na meta. Mesmo caminho do som: cache, pasta da mesa, meta na sala e bytes sob demanda.
    */
   async registrarAnimacao(arquivo: File): Promise<{ hash: string; nome: string }> {
     const canal = this.d.canal();
@@ -766,17 +831,29 @@ export class GerenteDeAssets {
     if (arquivo.size > LIMITES_DE_ASSET.bytesDaAnimacao)
       throw new Error("Animação grande demais (até 4 MB).");
     const bytes = new Uint8Array(await arquivo.arrayBuffer());
-    const mime = detectarFormato(bytes)?.mime;
+    const formato = detectarFormato(bytes);
+    const mime = formato?.mime;
     if (mime === undefined || !mimeDeAnimacaoValido(mime)) throw new Error("Só gif, webp ou apng.");
+    const conferido = conferirArquivoRecebido(bytes, { tipo: "animacao", mime });
+    if (!conferido.ok) throw new Error(conferido.motivo);
     const hash = await sha256Hex(bytes);
     const nome = arquivo.name.replace(/\.[^.]+$/, "").slice(0, 200) || "Animação";
+    let largura = 1;
+    let altura = 1;
+    try {
+      const d = await this.d.processador.medir(arquivo);
+      largura = Math.min(65_536, Math.max(1, d.largura));
+      altura = Math.min(65_536, Math.max(1, d.altura));
+    } catch {
+      // sem as dimensões a sala escolhe um tamanho padrão para a imagem solta
+    }
     const meta: MetaNova = {
       hash,
       tipo: "animacao",
       mime,
       bytes: bytes.length,
-      largura: 1,
-      altura: 1,
+      largura,
+      altura,
       nomeOriginal: arquivo.name.slice(0, 200) || "animacao",
       pedacos: await hashesDosPedacos(dividirEmPedacos(bytes)),
     };
@@ -796,6 +873,37 @@ export class GerenteDeAssets {
     return { hash, nome };
   }
 
+  /**
+   * AS1: registra um arquivo de imagem solto na cena (soltar no mapa, ou o botão de enviar). Os bytes dizem o que é: gif, apng
+   * ou webp animado vão como animação (até 4 MB, como vieram, depois de conferida a assinatura); png, jpg e webp parados são
+   * decodificados e regravados como WebP de até 2048 px (assim nada escondido no arquivo sobrevive). Nunca svg nem programas.
+   */
+  async registrarImagemSolta(
+    arquivo: File,
+  ): Promise<{ hash: string; nome: string; animado: boolean }> {
+    if (arquivo.size <= 0) throw new Error("O arquivo está vazio.");
+    if (arquivo.size > LIMITES_DO_ENVIO.bytesDaImagem) {
+      throw new Error("Imagem grande demais (até 20 MB).");
+    }
+    const cabeca = new Uint8Array(await arquivo.slice(0, 64 * 1024).arrayBuffer());
+    const formato = detectarFormato(cabeca);
+    if (formato?.familia !== "imagem") {
+      const intruso = descreverIntruso(cabeca);
+      throw new Error(
+        intruso
+          ? `Isto é ${intruso}: só entram imagens png, jpg, webp e gif.`
+          : "Só entram imagens png, jpg, webp e gif.",
+      );
+    }
+    const nome = arquivo.name.replace(/\.[^.]+$/, "").slice(0, 200) || "Imagem";
+    if (formato.animado === true) {
+      const r = await this.registrarAnimacao(arquivo);
+      return { hash: r.hash, nome, animado: true };
+    }
+    const hash = await this.usarArquivo(arquivo, "imagem");
+    return { hash, nome, animado: false };
+  }
+
   // --- a cópia na pasta da mesa (Q1) ---------------------------------------------------------
 
   private readonly naPasta = new Set<string>();
@@ -813,8 +921,20 @@ export class GerenteDeAssets {
     try {
       const arquivo = await this.d.cache.lerArquivo(hash);
       if (!arquivo) return;
+      const meta = this.metas.get(hash);
+      // AS1: o mestre confere a assinatura de novo antes de pôr qualquer coisa de outra pessoa no disco dele.
+      if (meta) {
+        const c = conferirArquivoRecebido(new Uint8Array(await arquivo.arrayBuffer()), meta);
+        if (!c.ok) {
+          this.recusados.set(hash, c.motivo);
+          console.warn("Arquivo recusado ao guardar na pasta", hash, c.motivo);
+          this.mudou();
+          return;
+        }
+      }
       await pasta.gravar([PASTA_DOS_ARQUIVOS_DA_MESA], hash, arquivo);
       this.naPasta.add(hash);
+      if (meta) void this.copiarSePreciso(meta);
     } catch (e) {
       console.warn("Não consegui guardar o arquivo na pasta da mesa", e);
     }
@@ -840,15 +960,19 @@ export class GerenteDeAssets {
     if (!pasta) return;
     for (const meta of metas) {
       if (this.completos.has(meta.hash) || meta.tiles) continue;
+      const inicio = performance.now();
       const arquivo = await pasta.abrirPorCaminho([PASTA_DOS_ARQUIVOS_DA_MESA, meta.hash]);
       if (!arquivo) continue;
       const bytes = new Uint8Array(await arquivo.arrayBuffer());
       if (!(await arquivoConfere(meta, bytes))) continue; // arquivo estranho na pasta: ignora
+      // AS1: a assinatura também vale para o que a pasta traz (outra pessoa pode ter posto lá).
+      if (!conferirArquivoRecebido(bytes, meta).ok) continue;
       this.metas.set(meta.hash, meta);
       await this.d.cache.gravarMeta(meta);
       await this.d.cache.gravarArquivo(meta.hash, bytes as BufferSource);
       this.completos.add(meta.hash);
       this.naPasta.add(meta.hash);
+      this.medir(meta.hash, "pasta", inicio, bytes.length);
       const st = this.status.get(meta.hash);
       if (st) {
         st.estado = "pronto";
@@ -879,6 +1003,8 @@ export class GerenteDeAssets {
   private async guardarMeta(meta: AssetMeta): Promise<void> {
     this.metas.set(meta.hash, meta);
     await this.d.cache.gravarMeta(meta);
+    // AS1: o que este navegador acabou de registrar também vai para a pasta organizada do mestre.
+    if (this.completos.has(meta.hash)) void this.copiarSePreciso(meta);
   }
 
   /** Pede ao navegador para não apagar o cache quando faltar espaço (ao adicionar o primeiro asset). */
@@ -890,27 +1016,94 @@ export class GerenteDeAssets {
 
   // --- cópia para o mestre --------------------------------------------------------------------
 
-  /** No mestre: grava em `recebidos/<jogador>/` da pasta o que um jogador subiu (se há pasta com escrita). */
+  /**
+   * Só no mestre, com pasta (ou a pasta dos testes): guarda o arquivo na pasta ORGANIZADA, `assets/<quem enviou>/<tipo>/<nome>-<hash>.<ext>`.
+   * O que veio de OUTRA pessoa passa por duas conferências antes de chegar ao disco: os bytes têm de bater com o tipo
+   * declarado (lista fechada: nunca svg nem programa) e a imagem parada é decodificada e regravada como WebP gerado aqui
+   * (nada escondido no arquivo original sobrevive); gif e apng animados ficam como vieram, já conferidos. O nome no disco é
+   * montado aqui (nome limpo, extensão do tipo detectado). O mesmo arquivo sempre cai no mesmo lugar (o hash está no nome).
+   */
   async copiarSePreciso(meta: AssetMeta): Promise<void> {
-    if (!this.d.euMestre() || meta.donoId === this.d.meuId || meta.tiles) return;
-    // O compêndio de magias (texto) não é imagem de jogador: não vai para recebidos/.
+    if (!this.d.euMestre() || meta.tiles || meta.tipo === "tile" || meta.tipo === "cifrado") return;
+    // O compêndio já mora em `compendio/` da pasta (e não é arquivo de ninguém): fica fora da organizada.
     if (meta.tipo === "compendio") return;
     if (this.copiados.has(meta.hash) || !this.completos.has(meta.hash)) return;
     const destino = this.d.destinoDeCopia();
     if (!destino?.podeGravar) return;
     const arquivo = await this.d.cache.lerArquivo(meta.hash);
     if (!arquivo) return;
-    const jogador = nomeSeguro(this.d.nomeDoUsuario(meta.donoId) ?? meta.donoId);
-    const base = nomeSeguro(meta.nomeOriginal.replace(/\.[^.]+$/, ""));
-    try {
-      await destino.gravar(
-        ["recebidos", jogador],
-        `${base}-${meta.hash.slice(0, 8)}.webp`,
-        arquivo,
+    const original = new Uint8Array(await arquivo.arrayBuffer());
+    const conferido = conferirArquivoRecebido(original, meta);
+    if (!conferido.ok) {
+      this.recusados.set(meta.hash, conferido.motivo);
+      console.warn(
+        "Arquivo recusado ao copiar para a pasta organizada",
+        meta.hash,
+        conferido.motivo,
       );
+      this.mudou();
+      return;
+    }
+    let dados: Blob = arquivo;
+    let formato = conferido.formato;
+    const deOutraPessoa = meta.donoId !== this.d.meuId;
+    if (deOutraPessoa && formato.familia === "imagem" && formato.animado !== true) {
+      try {
+        const lado =
+          meta.tipo === "imagem"
+            ? LIMITES_DE_ASSET.ladoMaximoDaImagem
+            : LIMITES_DE_ASSET.ladoMaximoDoToken;
+        const r = await this.d.processador.regravar(arquivo, lado);
+        dados = new Blob([r.bytes as BlobPart], { type: "image/webp" });
+        formato = { familia: "imagem", mime: "image/webp", extensao: "webp" };
+      } catch (e) {
+        this.recusados.set(meta.hash, "A imagem não pôde ser decodificada.");
+        console.warn("Não consegui regravar a imagem de outra pessoa", e);
+        this.mudou();
+        return;
+      }
+    }
+    const pessoa = this.d.nomeDoUsuario(meta.donoId) ?? meta.donoId;
+    const lugar = caminhoNaPastaOrganizada(meta, pessoa, formato);
+    if (!lugar) return;
+    try {
+      await destino.gravar(lugar.pasta, lugar.nome, dados);
       this.copiados.add(meta.hash);
     } catch (e) {
-      console.warn("Não consegui copiar para recebidos/", e);
+      console.warn("Não consegui copiar para a pasta organizada", e);
+    }
+  }
+
+  /**
+   * AS1: o mestre com a pasta da mesa vê se o arquivo já está nela (em `arquivos-da-mesa/<hash>`, o mesmo lugar de onde
+   * outro navegador do mesmo computador carrega) e, se o hash e a assinatura conferem, lê de lá em vez de pedir à rede.
+   */
+  private async tentarDaPasta(meta: AssetMeta): Promise<boolean> {
+    if (!this.d.euMestre()) return false;
+    const pasta = this.d.pastaDosArquivos();
+    if (!pasta) return false;
+    const inicio = performance.now();
+    try {
+      const arquivo = await pasta.abrirPorCaminho([PASTA_DOS_ARQUIVOS_DA_MESA, meta.hash]);
+      if (!arquivo) return false;
+      const bytes = new Uint8Array(await arquivo.arrayBuffer());
+      if (!(await arquivoConfere(meta, bytes))) return false;
+      if (!conferirArquivoRecebido(bytes, meta).ok) return false;
+      await this.d.cache.gravarArquivo(meta.hash, bytes as BufferSource);
+      this.completos.add(meta.hash);
+      this.naPasta.add(meta.hash);
+      this.medir(meta.hash, "pasta", inicio, bytes.length);
+      const st = this.status.get(meta.hash);
+      if (st) {
+        st.estado = "pronto";
+        delete st.mensagem;
+        st.recebidos = st.total = meta.pedacos.length;
+      }
+      this.d.canal()?.enviar("asset.tenho", { hash: meta.hash });
+      this.aoFicarPronto(meta.hash);
+      return true;
+    } catch {
+      return false;
     }
   }
 }

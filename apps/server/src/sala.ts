@@ -43,12 +43,14 @@ import {
   INTERVALO_MINIMO_DO_BOTAO_MS,
   type Intencao,
   idDoPedido,
+  LIMITES_DE_ASSET,
   LIMITES_DO_CHAT,
   LIMITES_DO_ENVIO,
   lerFrameDePedaco,
   lerIntencao,
   limitarPing,
   limiteDoUso,
+  listarAssetsDaMesa,
   type Mensagem,
   MestreDaMesaNovaSchema,
   mensagem,
@@ -1777,9 +1779,11 @@ export class Sala extends DurableObject<Env> {
           ? meta.tipo === "som"
           : e.uso === "animacao"
             ? meta.tipo === "animacao"
-            : e.uso === "compendio"
-              ? meta.tipo === "compendio"
-              : meta.tipo === "token" || meta.tipo === "retrato";
+            : e.uso === "imagem"
+              ? meta.tipo === "imagem" || meta.tipo === "animacao"
+              : e.uso === "compendio"
+                ? meta.tipo === "compendio"
+                : meta.tipo === "token" || meta.tipo === "retrato";
     if (!tipoCerto) return falhar("O arquivo processado não é do tipo certo para este uso.");
 
     const aplicar = usoDoArquivo(e.uso, e.alvo, hash, meta, e.opcoes, {
@@ -2089,6 +2093,17 @@ export class Sala extends DurableObject<Env> {
           LIMITES_DO_CHAT.porPagina,
         );
         this.enviar(ws, mensagem({ tipo: "chat.anteriores", dados: pagina }));
+      }
+      return { ok: true };
+    }
+    // AS1: a lista de assets que esta pessoa pode ver (a regra de visão é a de `listarAssetsDaMesa`).
+    if (intencao.tipo === "assets.listar") {
+      if (ws) {
+        const linhas = listarAssetsDaMesa(this.estado, usuario).slice(
+          0,
+          LIMITES_DE_ASSET.assetsNaSala,
+        );
+        this.enviar(ws, mensagem({ tipo: "assets.lista", dados: { linhas } }));
       }
       return { ok: true };
     }

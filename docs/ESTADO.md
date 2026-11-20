@@ -4522,4 +4522,30 @@ Ver `PASSAGEM.md`, "CH2".
 ### Roteiro manual
 Ver `ROTEIRO-DE-TESTES.md`, "CH2".
 
-## Próximo: o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b, N4, N5, M1, M2, Q1 a Q16, CH1, CH2, MU1, MU2, MU3, A1, AU1, FG1 e das otimizações O1–O4
+## Ajustes AS1 — assets da mesa e segurança dos arquivos (entregue, aguardando o roteiro manual)
+
+### O que foi entregue
+Soltar imagem ou gif no mapa vira imagem solta na camada ativa (mover, esticar, girar, apagar, desfazer); seção "Assets da mesa" (aba Mesa; "Arquivos da mesa" nas Preferências do jogador) com todos os arquivos, filtros, busca, ordem, miniatura, uso, renomear, baixar, apagar com aviso e desfazer, arrastar para o mapa; upload do jogador na lista; pasta organizada `assets/<pessoa>/<tipo>/`; leitura local primeiro (cache, pasta); segurança dos arquivos de outra pessoa (tipo pelos bytes, lista fechada, nome montado pelo Távola, imagem regravada, limites); MCP (`arquivos`: listar, imagem, ajustar, renomear, apagar). Ver `PROJETO.md` 4.17.
+
+### Como rodar
+`pnpm dev`; solte uma imagem no mapa; aba Mesa, "Assets da mesa". E2E: `pnpm --filter @tabletop/e2e test tests/as1.spec.ts` (portas por `E2E_PORTA_SALA` e `E2E_PORTA_WEB`).
+
+### Verificação
+Typecheck, lint, unidade (shared 1447, server 141, web 305, mcp 19) e E2E inteiro em duas metades, uma depois da outra (8792/5178): 1ª metade 283 passaram e 1 reprovou (`envio-m1`, a frase de "onde é usado" mudou de propósito; corrigida e passou); 2ª metade 263 passaram, 2 instáveis (`q5` e `chamada`) e 1 reprovada (`chamada.spec.ts:98`, WebRTC, já instável antes do lote). Rodados de novo só os que falharam: `envio-m1` e `q5` passaram; `chamada.spec.ts:98` segue reprovando neste computador (vídeo recebido, sem relação com o lote). `as1.spec.ts` (12 testes) passa. Prints: Grimório 1600×900 e 1280×720 e Pergaminho 1600×900, conferidos.
+
+**Medida de "de onde carregar"** (E2E, imagem de 3,3 KB): da rede (o mestre serve em pedaços) 59,8 ms; do cache do navegador 1,1 ms; de outro navegador do mestre pela pasta 24,1 ms (inclui conferir hash e assinatura). Conclusão: ler do próprio computador é sempre mais rápido, e o cache já cobre o "eu subi, ainda está aqui". A ideia de reabrir o arquivo original do disco do jogador não foi feita (pior em todos os casos: pede permissão a cada visita e o arquivo da mesa é o processado, então seria preciso reprocessar). O ganho real da pasta é para o mestre num segundo navegador.
+
+### Decisões
+Ver `REDESIGN.md`, "AS1 — como ficou".
+
+### Desvios
+- E2E antigos alterados: `assets.spec.ts` (a cópia do jogador agora está em `assets/Jogador 1/tokens/` e é regravada: o hash dela difere do original, de propósito) e `envio-m1.spec.ts` (a frase da lista de assets: "token Aldric" em vez de "imagem do token Aldric").
+- O compêndio não entra na pasta organizada (já mora em `compendio/`).
+
+### Frágil
+Ver `PASSAGEM.md`, "AS1".
+
+### Roteiro manual
+Ver `ROTEIRO-DE-TESTES.md`, "AS1".
+
+## Próximo: o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b, N4, N5, M1, M2, Q1 a Q16, CH1, CH2, MU1, MU2, MU3, A1, AU1, FG1 AS1 e das otimizações O1–O4

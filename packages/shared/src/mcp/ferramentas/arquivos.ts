@@ -9,17 +9,19 @@ import {
   type Estado,
   LIMITES_DO_ENVIO,
   limparNomeDoEnvio,
-  lugaresDe,
+  listarAssetsDaMesa,
   motivoDoFormato,
   negarEnvio,
   type OpcoesDoEnvio,
   ROTULO_DO_USO,
   type UsoDeEnvio,
   usoDoArquivo,
+  usosDoAsset,
 } from "../../index.ts";
 import { ErroDoMcp } from "../erros.ts";
 import { achar } from "../nomes.ts";
 import { type Contexto, definir, passo } from "./base.ts";
+import { emMetros } from "./cenasUtil.ts";
 
 const FORMAS_DO_USO = [
   "mapa",
@@ -36,6 +38,9 @@ const FORMAS_DO_USO = [
   "som",
   "animacao",
   "animação",
+  "imagem",
+  "imagem solta",
+  "imagem na cena",
   "compendio",
   "compêndio",
   "mapa universal vtt",
@@ -64,6 +69,10 @@ function usoDe(forma: (typeof FORMAS_DO_USO)[number]): UsoDeEnvio {
     case "animacao":
     case "animação":
       return "animacao";
+    case "imagem":
+    case "imagem solta":
+    case "imagem na cena":
+      return "imagem";
     case "compendio":
     case "compêndio":
       return "compendio";
@@ -78,28 +87,7 @@ function usoDe(forma: (typeof FORMAS_DO_USO)[number]): UsoDeEnvio {
 
 /** Onde o asset é usado agora, em frases curtas (para a lista). */
 function ondeEhUsado(estado: Estado, hash: string): string[] {
-  const usos: string[] = [];
-  for (const c of estado.cenas) {
-    if (c.mapa?.assetHash === hash) usos.push(`mapa da cena ${c.nome}`);
-  }
-  const lugares = lugaresDe(estado.mesaDeSom);
-  lugares.efeitos.forEach((l, i) => {
-    if (l?.hash === hash) usos.push(`efeito ${i + 1} da mesa de som`);
-  });
-  lugares.ambientes.forEach((l, i) => {
-    if (l?.hash === hash) usos.push(`ambiente ${i + 1} da mesa de som`);
-  });
-  for (const t of estado.tokens) if (t.assetHash === hash) usos.push(`imagem do token ${t.nome}`);
-  for (const p of estado.personagens) {
-    if (p.retratoHash === hash) usos.push(`retrato de ${p.nome}`);
-    if (p.ficha?.aparenciaHash === hash) usos.push(`aparência de ${p.nome}`);
-    if (p.ficha?.simboloHash === hash) usos.push(`símbolo de ${p.nome}`);
-    if (p.tokenPadrao.assetHash === hash) usos.push(`token padrão de ${p.nome}`);
-  }
-  for (const h of estado.handouts)
-    if (h.imagemHash === hash) usos.push(`imagem do handout ${h.titulo}`);
-  if (estado.compendio?.hash === hash) usos.push("compêndio da mesa");
-  return usos;
+  return usosDoAsset(estado, hash).map((u) => u.rotulo);
 }
 
 function tamanho(bytes: number): string {
@@ -203,16 +191,19 @@ function pedidoDe(
 export const arquivos = definir({
   nome: "arquivos",
   descricao: [
-    "Sobe arquivos do computador para a mesa (mapa, token, retrato, aparência e símbolo da ficha, handout, som, animação, compêndio) e usa os que já estão nela. Fluxo: chame `enviar`, rode no shell o comando que ela devolve (curl) e pronto: a resposta diz o que foi feito.",
-    'O link de `enviar` vale 15 min, uma vez: `curl -sS -T "<caminho do arquivo>" "<link>"`. Sem shell, passe `base64` (até 2 MB). Formatos: imagem png, jpg, webp ou gif; som mp3, ogg ou wav; animação gif, webp ou apng; compêndio json.',
-    'Mapa do Dungeondraft (.dd2vtt, .uvtt, .df2vtt): `uso` "dungeondraft"; o navegador do mestre cria uma cena nova (mapa, paredes, portas, luzes) sem levar o grupo. Só o mestre.',
-    "Alvos, pelo nome: mapa -> `cena` (padrão: a ativa); token -> `token` (e `cena`) ou `ficha` (token padrão); retrato, aparencia e simbolo -> `ficha`; handout -> `handout`; som -> entra na mesa (a ferramenta `som` o põe num lugar). No mapa, `quadrados` (45 = 45 x 45) ou `pxPorQuadrado` (padrão 70) ajusta o tamanho da cena.",
-    "`estado` consulta um envio (`envio`: o id) e espera até 20 s. `listar` mostra os arquivos da mesa e onde são usados (só o mestre). `usar` põe na mesa um arquivo que já existe (`hash`: 6+ letras do `listar`, e o mesmo `uso` e alvo do `enviar`), sem reenviar. O que o Claude põe vale no lote do `desfazer`; o arquivo fica na pasta.",
-    'Exemplos: {"acao":"enviar","uso":"mapa","nome":"cripta.png","cena":"Cripta","quadrados":45}; {"acao":"enviar","uso":"retrato","nome":"goblin.png","ficha":"Goblin"}; {"acao":"estado","envio":"env-..."}; {"acao":"usar","uso":"mapa","hash":"a1b2c3d4","cena":"Cripta"}.',
+    "Sobe arquivos do computador para a mesa (mapa, token, retrato, aparência, símbolo, handout, som, animação, imagem solta na cena, compêndio) e usa os que já estão nela. Fluxo: `enviar`, rode no shell o comando devolvido (curl) e a resposta diz o que foi feito.",
+    'O link vale 15 min, uma vez: `curl -sS -T "<caminho do arquivo>" "<link>"`. Sem shell, passe `base64` (até 2 MB). Formatos: imagem png, jpg, webp ou gif; som mp3, ogg ou wav; animação gif, webp ou apng; compêndio json.',
+    'Mapa do Dungeondraft (.dd2vtt, .uvtt, .df2vtt): `uso` "dungeondraft" cria uma cena nova. Só o mestre.',
+    'Alvos, pelo nome: mapa -> `cena` (padrão: a ativa); token -> `token` ou `ficha`; retrato, aparencia, simbolo -> `ficha`; handout -> `handout`; som -> entra na mesa. No mapa, `quadrados` ou `pxPorQuadrado` ajusta o tamanho. Imagem solta: `uso` "imagem" põe o arquivo na cena (`x`, `y` e `larguraQuadrados` em quadrados, `camada`).',
+    "`estado` consulta um envio. `listar` mostra os Assets da mesa (tipo, quem enviou, onde é usado; só o mestre). `usar` põe na mesa um arquivo que já existe (`hash`: 6+ letras do `listar`). `renomear` (`hash`, `novoNome`). `apagar` (`hash`): em uso a mesa recusa e diz onde; `confirmar: true` tira a imagem desses lugares. `ajustar` move, estica, gira ou esconde uma imagem solta (`token`: o nome dela).",
+    'Exemplos: {"acao":"enviar","uso":"mapa","nome":"cripta.png","cena":"Cripta","quadrados":45}; {"acao":"usar","uso":"imagem","hash":"a1b2c3d4","x":12,"y":8,"camada":"mapa"}; {"acao":"ajustar","token":"estatua","larguraQuadrados":3,"rotacao":45}; {"acao":"apagar","hash":"a1b2c3d4"}.',
   ].join(" "),
   entrada: z
     .object({
-      acao: z.enum(["enviar", "estado", "listar", "usar"]).optional().describe("Padrão: enviar."),
+      acao: z
+        .enum(["enviar", "estado", "listar", "usar", "renomear", "apagar", "ajustar"])
+        .optional()
+        .describe("Padrão: enviar."),
       uso: z.enum(FORMAS_DO_USO).optional().describe("Para que serve o arquivo (enviar e usar)."),
       nome: z
         .string()
@@ -253,7 +244,44 @@ export const arquivos = definir({
         .optional()
         .describe("O arquivo em base64, para quem não tem shell (até 2 MB)."),
       envio: z.string().optional().describe("Só no `estado`: o id do envio."),
-      hash: z.string().optional().describe("Só no `usar`: o hash (6+ letras) do arquivo da mesa."),
+      hash: z
+        .string()
+        .optional()
+        .describe("`usar`, `renomear` e `apagar`: o hash (6+ letras) do arquivo da mesa."),
+      x: z
+        .number()
+        .min(0)
+        .optional()
+        .describe("Imagem solta: o ponto em quadrados (x) onde fica o centro dela."),
+      y: z.number().min(0).optional().describe("Imagem solta: o ponto em quadrados (y)."),
+      camada: z
+        .enum(["mapa", "tokens", "mestre"])
+        .optional()
+        .describe("Imagem solta: a camada (padrão mapa para o mestre)."),
+      larguraQuadrados: z
+        .number()
+        .min(0.1)
+        .max(500)
+        .optional()
+        .describe("Imagem solta: a largura, em quadrados (a altura segue a proporção)."),
+      alturaQuadrados: z
+        .number()
+        .min(0.1)
+        .max(500)
+        .optional()
+        .describe("`ajustar`: a altura, em quadrados."),
+      rotacao: z.number().min(-360).max(360).optional().describe("`ajustar`: o giro, em graus."),
+      oculto: z.boolean().optional().describe("`ajustar`: esconde a imagem dos jogadores."),
+      novoNome: z
+        .string()
+        .min(1)
+        .max(120)
+        .optional()
+        .describe("`renomear`: o nome novo. `ajustar`: o novo nome da imagem na cena."),
+      confirmar: z
+        .boolean()
+        .optional()
+        .describe("`apagar`: confirma, mesmo em uso (a mesa tira a imagem de onde estava)."),
     })
     .strict(),
   visivel: () => true,
@@ -264,20 +292,86 @@ export const arquivos = definir({
 
     if (acao === "listar") {
       if (eu.papel !== "mestre") throw new ErroDoMcp("Só o mestre lista os arquivos da mesa.");
-      const lista = assetsDaLista(estado);
+      const lista = listarAssetsDaMesa(estado, eu);
       if (lista.length === 0) return "A mesa ainda não tem arquivos.";
       return [
-        `Arquivos da mesa (${lista.length}):`,
+        `Assets da mesa (${lista.length}):`,
         ...lista.slice(0, 80).map((a) => {
-          const usos = ondeEhUsado(estado, a.hash);
           const dim =
-            a.tipo === "som" || a.tipo === "animacao" || a.tipo === "compendio"
-              ? ""
-              : `, ${a.largura}x${a.altura}`;
-          return `- ${a.nomeOriginal} (${a.tipo}${dim}${a.bytes > 0 ? `, ${tamanho(a.bytes)}` : ""}) [hash ${a.hash.slice(0, 12)}] — ${usos.length > 0 ? `usado em: ${usos.join("; ")}` : "sem uso"}`;
+            a.tipo === "som" || a.tipo === "compendio" ? "" : `, ${a.largura}x${a.altura}`;
+          return `- ${a.nome} (${a.tipo}${a.animado ? " animado" : ""}${dim}${a.bytes > 0 ? `, ${tamanho(a.bytes)}` : ""}) enviado por ${a.donoNome} [hash ${a.hash.slice(0, 12)}] — ${a.usos.length > 0 ? `usado em: ${a.usos.join("; ")}` : "sem uso"}`;
         }),
         ...(lista.length > 80 ? [`...e mais ${lista.length - 80}.`] : []),
       ].join("\n");
+    }
+
+    if (acao === "renomear" || acao === "apagar") {
+      if (eu.papel !== "mestre") {
+        throw new ErroDoMcp(
+          `Só o mestre ${acao === "renomear" ? "renomeia" : "apaga"} os arquivos da mesa.`,
+        );
+      }
+      if (e.hash === undefined) throw new ErroDoMcp("Diga o `hash` do arquivo (veja `listar`).");
+      const meta = acharAsset(estado, e.hash);
+      if (acao === "renomear") {
+        if (e.novoNome === undefined) throw new ErroDoMcp("Diga o `novoNome`.");
+        await passo(
+          ctx,
+          ctx.novoLote(`Renomeou o arquivo ${meta.nomeOriginal}`),
+          "asset.renomear",
+          {
+            hash: meta.hash,
+            nome: e.novoNome,
+          },
+        );
+        return `Feito: o arquivo agora se chama "${e.novoNome}".`;
+      }
+      const usos = ondeEhUsado(estado, meta.hash);
+      await passo(ctx, ctx.novoLote(`Apagou o arquivo ${meta.nomeOriginal}`), "asset.apagar", {
+        hash: meta.hash,
+        ...(e.confirmar === true ? { removerUsos: true } : {}),
+      });
+      return usos.length > 0
+        ? `Feito: o arquivo "${meta.nomeOriginal}" saiu da mesa, e a imagem saiu de: ${usos.join("; ")}. O arquivo continua no computador do mestre.`
+        : `Feito: o arquivo "${meta.nomeOriginal}" saiu da mesa. Ele continua no computador do mestre.`;
+    }
+
+    if (acao === "ajustar") {
+      if (e.token === undefined) throw new ErroDoMcp("Diga o nome da imagem (`token`).");
+      const cena = e.cena
+        ? achar(estado.cenas, e.cena, { rotulo: "cena", nomeDe: (c) => c.nome, idDe: (c) => c.id })
+        : (estado.cenas.find((c) => c.id === estado.cenaAtivaId) ?? estado.cenas[0]);
+      if (!cena) throw new ErroDoMcp("A mesa não tem cena.");
+      const imagens = estado.tokens.filter((t) => t.cenaId === cena.id && t.imagem !== undefined);
+      const alvo = achar(imagens, e.token, {
+        rotulo: "imagem solta",
+        nomeDe: (t) => t.nome,
+        idDe: (t) => t.id,
+      });
+      const q = cena.grid.quadradoM;
+      const lugar =
+        e.x !== undefined || e.y !== undefined
+          ? emMetros([e.x ?? alvo.x / q, e.y ?? alvo.y / q], q)
+          : undefined;
+      const mudancas = {
+        ...(lugar ? { x: lugar.x, y: lugar.y } : {}),
+        ...(e.larguraQuadrados !== undefined ? { larguraM: e.larguraQuadrados * q } : {}),
+        ...(e.alturaQuadrados !== undefined ? { alturaM: e.alturaQuadrados * q } : {}),
+        ...(e.rotacao !== undefined ? { rotacao: e.rotacao } : {}),
+        ...(e.camada !== undefined ? { camada: e.camada } : {}),
+        ...(e.oculto !== undefined ? { oculto: e.oculto } : {}),
+        ...(e.novoNome !== undefined ? { nome: e.novoNome.slice(0, 64) } : {}),
+      };
+      if (Object.keys(mudancas).length === 0) {
+        throw new ErroDoMcp(
+          "Diga o que mudar: x, y, larguraQuadrados, alturaQuadrados, rotacao, camada ou oculto.",
+        );
+      }
+      await passo(ctx, ctx.novoLote(`Ajustou a imagem ${alvo.nome}`), "imagem.ajustar", {
+        id: alvo.id,
+        mudancas,
+      });
+      return `Feito: a imagem "${alvo.nome}" foi ajustada.`;
     }
 
     if (acao === "estado") {
@@ -296,11 +390,31 @@ export const arquivos = definir({
 
     if (e.uso === undefined)
       throw new ErroDoMcp(
-        "Diga o `uso`: mapa, token, retrato, aparência, símbolo, handout, som, animação, compêndio ou dungeondraft (mapa Universal VTT).",
+        "Diga o `uso`: mapa, token, retrato, aparência, símbolo, handout, som, animação, imagem (solta na cena), compêndio ou dungeondraft (mapa Universal VTT).",
       );
     const uso = usoDe(e.uso);
     const alvo = alvoDoPedido(estado, e);
+    // Imagem solta: o Claude fala em quadrados da cena; a mesa guarda metros. Sem `x` e `y`, o centro da cena.
+    const cenaDaImagem =
+      uso === "imagem"
+        ? ((alvo.cenaId ? estado.cenas.find((c) => c.id === alvo.cenaId) : undefined) ??
+          estado.cenas.find((c) => c.id === estado.cenaAtivaId) ??
+          estado.cenas[0])
+        : undefined;
+    if (uso === "imagem" && cenaDaImagem && alvo.cenaId === undefined)
+      alvo.cenaId = cenaDaImagem.id;
+    const quadradoDaImagem = cenaDaImagem?.grid.quadradoM ?? 1.5;
     const opcoes: OpcoesDoEnvio = {
+      ...(uso === "imagem" && cenaDaImagem
+        ? {
+            xM: (e.x ?? cenaDaImagem.larguraM / quadradoDaImagem / 2) * quadradoDaImagem,
+            yM: (e.y ?? cenaDaImagem.alturaM / quadradoDaImagem / 2) * quadradoDaImagem,
+            ...(e.camada !== undefined ? { camada: e.camada } : {}),
+            ...(e.larguraQuadrados !== undefined
+              ? { larguraM: e.larguraQuadrados * quadradoDaImagem }
+              : {}),
+          }
+        : {}),
       ...(e.pxPorQuadrado !== undefined ? { pxPorQuadrado: e.pxPorQuadrado } : {}),
       ...(e.quadrados !== undefined ? { quadrados: e.quadrados } : {}),
       ...(e.volume !== undefined ? { volume: e.volume } : {}),
@@ -325,9 +439,11 @@ export const arquivos = definir({
             ? meta.tipo === "som"
             : uso === "animacao"
               ? meta.tipo === "animacao"
-              : uso === "compendio"
-                ? meta.tipo === "compendio"
-                : meta.tipo === "token" || meta.tipo === "retrato";
+              : uso === "imagem"
+                ? meta.tipo === "imagem" || meta.tipo === "animacao"
+                : uso === "compendio"
+                  ? meta.tipo === "compendio"
+                  : meta.tipo === "token" || meta.tipo === "retrato";
       if (!serve) {
         throw new ErroDoMcp(
           `O arquivo "${meta.nomeOriginal}" é do tipo ${meta.tipo} e não serve para ${ROTULO_DO_USO[uso]}.`,

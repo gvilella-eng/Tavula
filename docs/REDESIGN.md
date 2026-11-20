@@ -2591,3 +2591,34 @@ O Vilella usou a mesa e pediu: o modelo de luz ao vivo, uma área de soltar a to
 
 **O que ficou para depois**
 - A lista lateral de pessoas rola por dentro com mais de uns 10 nomes.
+
+## AS1 — como ficou (2026-11-20): assets da mesa e segurança dos arquivos
+
+O Vilella pediu: soltar imagem ou gif na cena, uma lista "Assets da mesa", o upload do jogador indo para ela, a pasta do mestre organizada e o carregar do próprio computador. E perguntou se um jogador consegue pôr vírus no PC do mestre por um png.
+
+**O que foi feito**
+- **Soltar no mapa.** Imagem (png, jpg, webp, gif, apng) solta no mapa vira uma **imagem solta na cena**, no ponto do soltar e na camada ativa (mestre: a de trabalho; jogador: tokens). Até 10 por vez. É um token sem ficha (`Token.imagem`: largura e altura em metros, giro em graus, `por`), então herda camadas, ocultar, o filtro do jogador, copiar, apagar com desfazer e a exportação, sem coleção nova nem migração.
+- **Mover, esticar, girar, apagar.** Arrastar move (livre, sem encaixe nem parede). Alças na imagem selecionada: canto de baixo estica (proporcional; Shift solta), círculo de cima gira (Shift: de 15 em 15 graus). O painel do mestre tem largura e altura em quadrados, "manter proporção", giro, camada, ocultar e apagar. O gif, apng e webp animado tocam em laço (parados com "reduzir movimento").
+- **Regra de "soltei, o que acontece".** Dungeondraft (`.dd2vtt`...) em qualquer lugar da mesa: importa o mapa, como antes. Imagem ou animação no mapa: imagem solta. Outro arquivo no mapa: recusado com aviso. Fora do mapa: nada. A caixa do Claude não recebe arrasto (o Claude manda pelo `arquivos`).
+- **Assets da mesa.** Seção nova na aba Mesa (para o jogador, "Arquivos da mesa" em Preferências): todos os arquivos, miniatura, tipo, tamanho, quem enviou, onde é usado e se está neste computador; filtro por tipo e por quem enviou, busca, ordem por nome, mais novos ou tamanho; arrastar para o mapa; pôr na cena, renomear (nome de exibição), baixar, apagar (em uso avisa o que sai, com desfazer) e, nos sons, "pôr na mesa de som" e "adicionar à biblioteca de música".
+- **Visão do jogador.** A sala monta a lista dele (`assets.listar`): só o que ele enviou e o que está em uso numa coisa que ele vê. Nada de mapa escondido, som do mestre, zona, automação ou luz.
+- **Pasta organizada.** `assets/<quem enviou>/<tipo>/<nome>-<hash8>.<ext>`; migração leve (copia, não move); `arquivos-da-mesa/<hash>` e `recebidos/` ficam como estão. Os novos de jogador não vão mais para `recebidos/`.
+- **De onde carregar.** Cache, depois a pasta (só o mestre), depois a rede. Medido (ver `ESTADO.md`). Não reabre o arquivo original do disco do jogador (motivos em `PROJETO.md` 4.17).
+- **Segurança.** Tipo pelos bytes (lista fechada, apng incluído), conferência de novo por quem recebe, nome no disco montado pelo Távola (extensão do tipo detectado, nome limpo, nunca extensão executável), imagem de outra pessoa decodificada e regravada pelo navegador do mestre, limites por tipo. Testes de unidade para cada regra.
+- **MCP.** `arquivos`: `listar` (tipo, quem enviou, onde é usado), `uso: "imagem"` em `enviar` e `usar`, `ajustar`, `renomear` e `apagar`. Paridade e paridade por campo passam.
+
+**Decisões (assumido)**
+- A imagem solta é um token (e não uma coleção nova): menos código, nenhuma migração, e tudo o que já vale para token vale para ela. Custo: ela entra na contagem de tokens da cena; o botão direito do mestre nela abre o painel da imagem (nada de iniciativa, vida ou condições).
+- Capacidade nova `imagem.colocar`, **desligada por padrão**: o jogador não põe imagem na cena sem o mestre liberar. Teto de 20 imagens por jogador por cena.
+- Tamanho inicial: o natural do arquivo (px ÷ px por quadrado da cena), entre 1 e 8 quadrados no lado maior.
+- Imagem parada entra como asset `imagem` (WebP de até 2048 px); gif, apng e webp animado entram como `animacao` (como vieram, até 4 MB). Animada solta na cena: no máximo 40 quadros e 384 px (o resto é reduzido na tela, não no arquivo).
+- Nome de exibição do asset mora em `AssetMeta.nomeExibicao` (só o mestre muda); o nome original e o hash não mudam.
+- Apagar em uso tira a imagem dos lugares (imagens soltas somem; mapas, retratos e handouts ficam sem imagem). Os bytes nunca são apagados do disco do mestre. O desfazer traz o arquivo, não os usos.
+- Gif e apng animados de outra pessoa ficam como vieram na pasta (só a assinatura é conferida); imagem parada é regravada.
+- A cópia crua em `arquivos-da-mesa/<hash>` continua (é o que outro navegador do mesmo computador lê), mas só depois de conferida a assinatura.
+
+**O que ficou para depois**
+- Arrastar um som da lista direto para a biblioteca de música (hoje há o botão; arrastar para o mapa põe no primeiro ambiente livre).
+- O Claude de um jogador listar os assets dele (hoje só o mestre lista, renomeia e apaga).
+- Mover os arquivos antigos de `recebidos/` para `assets/` (hoje só se copia).
+- Miniaturas de mapas em pedaços e de sons (ícone do tipo).

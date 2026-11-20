@@ -147,7 +147,7 @@ test("imagem de token e retrato pelo mesmo caminho, e o `estado` consulta o envi
 
   // `listar` mostra o que a mesa tem e onde é usado; `usar` põe um arquivo que já existe, sem reenviar.
   const lista = await mcp.chamar("arquivos", { acao: "listar" });
-  expect(lista.texto).toMatch(/aldric\.png \(token.*usado em: imagem do token Aldric/);
+  expect(lista.texto).toMatch(/aldric\.png \(token.*usado em: token Aldric/);
   expect(lista.texto).toMatch(/darion\.png \(retrato.*usado em: retrato de Darion/);
   const usar = await mcp.chamar("arquivos", {
     acao: "usar",

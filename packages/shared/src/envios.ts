@@ -24,6 +24,7 @@ export const USOS_DE_ENVIO = [
   "handout",
   "som",
   "animacao",
+  "imagem",
   "compendio",
   "mapa-uvtt",
 ] as const;
@@ -40,6 +41,7 @@ export const ROTULO_DO_USO: Record<UsoDeEnvio, string> = {
   handout: "imagem do handout",
   som: "som",
   animacao: "animação da chama",
+  imagem: "imagem solta na cena",
   compendio: "compêndio",
   "mapa-uvtt": "mapa Universal VTT (Dungeondraft)",
 };
@@ -55,6 +57,7 @@ export const FAMILIA_DO_USO: Record<UsoDeEnvio, FamiliaDeFormato> = {
   handout: "imagem",
   som: "som",
   animacao: "imagem",
+  imagem: "imagem",
   compendio: "json",
   "mapa-uvtt": "json",
 };
@@ -108,12 +111,35 @@ export function limiteDoUso(uso: UsoDeEnvio): number {
 
 // --- O formato, pelos primeiros bytes ---------------------------------------------------------
 
-export type FormatoDetectado = { familia: FamiliaDeFormato; mime: string; extensao: string };
+export type FormatoDetectado = {
+  familia: FamiliaDeFormato;
+  mime: string;
+  extensao: string;
+  /** AS1: imagem com vários quadros (gif, apng, webp animado). Só vale para imagem. */
+  animado?: boolean;
+};
 
 const comeca = (b: Uint8Array, assinatura: readonly number[], de = 0) =>
   b.length >= de + assinatura.length && assinatura.every((v, i) => b[de + i] === v);
 const texto = (b: Uint8Array, de: number, s: string) =>
   b.length >= de + s.length && [...s].every((c, i) => b[de + i] === c.charCodeAt(0));
+
+/** AS1: o png tem o pedaço `acTL` antes do primeiro `IDAT` (apng)? Lê só os cabeçalhos dos pedaços. */
+export function ehApng(bytes: Uint8Array): boolean {
+  let i = 8;
+  while (i + 8 <= bytes.length) {
+    const tamanho =
+      (((bytes[i] ?? 0) << 24) |
+        ((bytes[i + 1] ?? 0) << 16) |
+        ((bytes[i + 2] ?? 0) << 8) |
+        (bytes[i + 3] ?? 0)) >>>
+      0;
+    if (texto(bytes, i + 4, "acTL")) return true;
+    if (texto(bytes, i + 4, "IDAT") || texto(bytes, i + 4, "IEND")) return false;
+    i += 12 + tamanho;
+  }
+  return false;
+}
 
 /**
  * O formato real do arquivo, lido dos primeiros bytes (o nome e o `Content-Type` não valem): png, jpg, webp, gif; mp3, ogg,
@@ -121,16 +147,20 @@ const texto = (b: Uint8Array, de: number, s: string) =>
  */
 export function detectarFormato(bytes: Uint8Array): FormatoDetectado | null {
   if (comeca(bytes, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) {
-    return { familia: "imagem", mime: "image/png", extensao: "png" };
+    // AS1: o apng é um png com o pedaço `acTL` antes dos dados da imagem (`IDAT`).
+    return { familia: "imagem", mime: "image/png", extensao: "png", animado: ehApng(bytes) };
   }
   if (comeca(bytes, [0xff, 0xd8, 0xff])) {
     return { familia: "imagem", mime: "image/jpeg", extensao: "jpg" };
   }
   if (texto(bytes, 0, "GIF87a") || texto(bytes, 0, "GIF89a")) {
-    return { familia: "imagem", mime: "image/gif", extensao: "gif" };
+    return { familia: "imagem", mime: "image/gif", extensao: "gif", animado: true };
   }
   if (texto(bytes, 0, "RIFF") && texto(bytes, 8, "WEBP")) {
-    return { familia: "imagem", mime: "image/webp", extensao: "webp" };
+    // AS1: o webp animado tem o bit de animação (0x02) no byte de opções do pedaço `VP8X`.
+    const animado =
+      texto(bytes, 12, "VP8X") && bytes.length > 20 && ((bytes[20] ?? 0) & 0x02) !== 0;
+    return { familia: "imagem", mime: "image/webp", extensao: "webp", animado };
   }
   if (texto(bytes, 0, "RIFF") && texto(bytes, 8, "WAVE")) {
     return { familia: "som", mime: "audio/wav", extensao: "wav" };
@@ -235,6 +265,12 @@ export const OpcoesDoEnvioSchema = z
     quadrados: z.number().int().min(1).max(500).optional(),
     /** Só no som da cena: 0 a 1. */
     volume: z.number().min(0).max(1).optional(),
+    /** AS1, só na imagem solta: onde pôr (em metros, a partir do canto de cima à esquerda; sem eles, o centro da cena). */
+    xM: z.number().optional(),
+    yM: z.number().optional(),
+    /** AS1, só na imagem solta: a camada (padrão: `mapa` para o mestre, `tokens` para o jogador) e a largura em metros. */
+    camada: z.enum(["mapa", "tokens", "mestre"]).optional(),
+    larguraM: z.number().min(0.1).max(1000).optional(),
   })
   .strict();
 export type OpcoesDoEnvio = z.infer<typeof OpcoesDoEnvioSchema>;
@@ -383,6 +419,27 @@ export function usoDoArquivo(
         tipo: null,
         frase: "a animação ficou na mesa (escolha-a num estágio do modelo de luz)",
       };
+    case "imagem": {
+      // AS1: o arquivo (imagem parada ou animada) é posto solto na cena, no ponto pedido (ou no centro), na camada pedida.
+      const id = `img-${(globalThis as unknown as { crypto: { randomUUID(): string } }).crypto.randomUUID().slice(0, 8)}`;
+      return {
+        ok: true,
+        tipo: "imagem.colocar",
+        dados: {
+          id,
+          assetHash: hash,
+          ...(alvo.cenaId ? { cenaId: alvo.cenaId } : {}),
+          x: opcoes.xM ?? 0,
+          y: opcoes.yM ?? 0,
+          ...(opcoes.camada ? { camada: opcoes.camada } : {}),
+          ...(opcoes.larguraM !== undefined ? { larguraM: opcoes.larguraM } : {}),
+          ...(meta?.nomeOriginal
+            ? { nome: meta.nomeOriginal.replace(/\.[^.]+$/, "").slice(0, 64) || "Imagem" }
+            : {}),
+        },
+        frase: "a imagem foi posta na cena",
+      };
+    }
     case "compendio": {
       const nome = (meta?.nomeOriginal ?? "compendio.json").slice(0, 200);
       return {

@@ -32,6 +32,12 @@ export function instalarGanchoDeAssets(gerente: GerenteDeAssets, fontes: Fontes)
       }
       return saida;
     },
+    /** AS1: de onde cada arquivo veio (pasta ou rede) e quanto levou. */
+    medidasDeCarga: () => gerente.medidasDeCarga().map((m) => ({ ...m })),
+    /** AS1: lê o arquivo do cache, confere o hash e diz quanto levou (a leitura local). */
+    lerDoCacheMedindo: (hash: string) => gerente.lerDoCacheMedindo(hash),
+    /** AS1: o motivo de um arquivo ter sido recusado ao conferir os bytes. */
+    recusado: (hash: string) => gerente.motivoDaRecusa(hash) ?? null,
     /** Conteúdo (hex) dos primeiros `n` bytes do arquivo: o teste procura isso nos frames alheios. */
     inicioDe: async (hash: string, n = 64) => {
       const arquivo = await gerente.blobDe(hash);

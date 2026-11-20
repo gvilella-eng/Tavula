@@ -332,7 +332,12 @@ function tipoDoArquivo(bytes: Uint8Array, dito: string): string {
  * Decodifica um gif, webp animado ou apng nos quadros de uma folha. Usa o `ImageDecoder` do navegador; sem ele (ou
  * se falhar) fica um quadro só, parado, pela decodificação comum de imagem.
  */
-export async function decodificarAnimacao(blob: Blob): Promise<Quadros> {
+export async function decodificarAnimacao(
+  blob: Blob,
+  limites: { ladoMax?: number; quadrosMax?: number } = {},
+): Promise<Quadros> {
+  const quadrosMax = limites.quadrosMax ?? MAX_QUADROS_DO_ARQUIVO;
+  const ladoMax = limites.ladoMax ?? LADO_MAX_DO_ARQUIVO;
   const bytes = new Uint8Array(await blob.arrayBuffer());
   const tipo = tipoDoArquivo(bytes, blob.type);
   const Decoder = (
@@ -352,7 +357,7 @@ export async function decodificarAnimacao(blob: Blob): Promise<Quadros> {
       const dec = new Decoder({ data: bytes.buffer.slice(0) as ArrayBuffer, type: tipo });
       await dec.tracks.ready;
       const total = dec.tracks.selectedTrack?.frameCount ?? 1;
-      const passo = Math.max(1, Math.ceil(total / MAX_QUADROS_DO_ARQUIVO));
+      const passo = Math.max(1, Math.ceil(total / quadrosMax));
       for (let i = 0; i < total; i += passo) {
         const { image } = await dec.decode({ frameIndex: i });
         imagens.push({
@@ -374,7 +379,7 @@ export async function decodificarAnimacao(blob: Blob): Promise<Quadros> {
     imagens.push({ fonte: bmp, ms: 1000, w: bmp.width, h: bmp.height, fechar: () => bmp.close() });
   }
   const primeira = imagens[0] as (typeof imagens)[number];
-  const k = Math.min(1, LADO_MAX_DO_ARQUIVO / Math.max(primeira.w, primeira.h));
+  const k = Math.min(1, ladoMax / Math.max(primeira.w, primeira.h));
   const larg = Math.max(1, Math.round(primeira.w * k));
   const alt = Math.max(1, Math.round(primeira.h * k));
   const colunas = Math.min(imagens.length, 8);

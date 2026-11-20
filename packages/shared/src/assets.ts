@@ -42,6 +42,8 @@ export const LIMITES_DE_ASSET = {
   bytesDoSom: 20 * 1024 * 1024,
   /** FG1: uma animação de chama (gif, webp animado ou apng): 4 MB (assumido). */
   bytesDaAnimacao: 4 * 1024 * 1024,
+  /** AS1: a imagem solta na cena é reduzida a no máximo isto de lado (assumido: 2048 px). */
+  ladoMaximoDaImagem: 2048,
 } as const;
 
 /** Os formatos de som aceitos (N5: mp3, ogg e wav), pelo tipo MIME que o navegador diz. */
@@ -57,6 +59,14 @@ export const MIMES_DE_SOM = [
 export function mimeDeSomValido(mime: string): boolean {
   return (MIMES_DE_SOM as readonly string[]).includes(mime.toLowerCase());
 }
+
+/** AS1: os formatos de imagem aceitos (a lista fechada; nunca svg), pelo tipo MIME. */
+export const MIMES_DE_IMAGEM: readonly string[] = [
+  "image/webp",
+  "image/png",
+  "image/jpeg",
+  "image/gif",
+];
 
 /** FG1: os formatos de animação aceitos (gif, webp, png/apng), pelo tipo MIME. */
 export const MIMES_DE_ANIMACAO = ["image/gif", "image/webp", "image/png"] as const;
@@ -81,7 +91,8 @@ export const ACRESCIMO_DA_CIFRA = 12 + 16;
  * que a mesa definiu (`Estado.compendio`) é baixável por todos; os demais seguem a regra comum.
  * `som` (N5): arquivo de áudio (mp3, ogg ou wav), sem dimensões reais (1 x 1). Todo jogador pode baixá-lo (a sala só
  * diz qual tocar); a zona que o usa continua secreta, porque o hash não diz de onde veio.
- * `animacao` (FG1): gif, webp animado ou apng da chama de um modelo de luz (sem dimensões reais: 1 x 1). Todo jogador pode baixá-lo.
+ * `animacao` (FG1): gif, webp animado ou apng (sem dimensões reais: 1 x 1; a da chama de um modelo de luz ou a imagem animada solta na cena). Todo jogador pode baixá-lo.
+ * `imagem` (AS1): imagem parada solta na cena (webp de até 2048 px de lado). Segue a regra do token: quem vê o objeto vê o arquivo.
  */
 export const TIPOS_DE_ASSET = [
   "mapa",
@@ -92,6 +103,7 @@ export const TIPOS_DE_ASSET = [
   "compendio",
   "som",
   "animacao",
+  "imagem",
 ] as const;
 export const TipoDeAssetSchema = z.enum(TIPOS_DE_ASSET);
 export type TipoDeAsset = z.infer<typeof TipoDeAssetSchema>;
@@ -119,6 +131,8 @@ export const AssetMetaSchema = z.object({
   altura: z.number().int().positive().max(65_536),
   donoId: z.string().min(1).max(64),
   nomeOriginal: z.string().min(1).max(200),
+  /** AS1: o nome que a mesa mostra (o mestre renomeia sem mexer no arquivo). Sem ele vale o `nomeOriginal`. */
+  nomeExibicao: z.string().trim().min(1).max(120).optional(),
   /** SHA-256 de cada pedaço de 256 KB. Vazio no manifesto. */
   pedacos: z
     .array(HashSchema)
@@ -170,6 +184,27 @@ export function validarMeta(meta: MetaNova | AssetMeta): string | null {
     return "tile grande demais";
   }
   if (meta.bytes <= 0) return "arquivo vazio";
+  // AS1: lista fechada de formatos (nunca svg, html nem outro texto): o tipo declarado tem de ser um destes.
+  if (
+    (meta.tipo === "mapa" ||
+      meta.tipo === "token" ||
+      meta.tipo === "retrato" ||
+      meta.tipo === "tile" ||
+      meta.tipo === "imagem") &&
+    !MIMES_DE_IMAGEM.includes(meta.mime.toLowerCase().trim())
+  ) {
+    return "só png, jpg, webp ou gif";
+  }
+  if (meta.tipo === "compendio" && meta.mime.toLowerCase() !== "application/json") {
+    return "o compêndio é json";
+  }
+  if (
+    meta.tipo === "imagem" &&
+    (meta.largura > LIMITES_DE_ASSET.ladoMaximoDaImagem ||
+      meta.altura > LIMITES_DE_ASSET.ladoMaximoDaImagem)
+  ) {
+    return "imagem grande demais";
+  }
   if (meta.tipo === "compendio" && meta.bytes > LIMITES_DE_ASSET.bytesDoCompendio) {
     return "compêndio grande demais";
   }

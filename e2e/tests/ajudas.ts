@@ -72,6 +72,7 @@ export type SecaoDaMesa =
   | "esta-mesa"
   | "regras"
   | "luz"
+  | "assets"
   | "automacoes"
   | "pessoas"
   | "campanha"
@@ -91,6 +92,7 @@ export async function abrirTodasAsSecoesDaMesa(pagina: Page): Promise<void> {
     "esta-mesa",
     "regras",
     "luz",
+    "assets",
     "automacoes",
     "pessoas",
     "campanha",
@@ -106,6 +108,7 @@ export type SecaoDePreferencias =
   | "aparencia"
   | "som"
   | "mapa"
+  | "assets"
   | "ajuda"
   | "claude"
   | "seguranca"

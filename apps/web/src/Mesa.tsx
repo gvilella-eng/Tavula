@@ -21,10 +21,12 @@ import {
   lerEntradaArrastada,
   limitarAlcance,
   limiteDeVisaoDoToken,
+  lugaresDe,
   MAXIMO_DE_TOKENS_POR_VEZ,
   membrosDaMesa,
   modInteligenciaDe,
   nevoaCobreAlgo,
+  nomeDoAsset,
   PASTA_NPCS_ID,
   personagemDoMonstro,
   pode,
@@ -62,6 +64,7 @@ import { AbaChat, FATIA_DO_CHAT } from "./AbaChat";
 import { AbaCompendio, FATIA_DO_COMPENDIO } from "./AbaCompendio";
 import { AbaFichas, FATIA_DAS_FICHAS } from "./AbaFichas";
 import { AbaMesa, FATIA_DA_MESA, testidDaSecaoDaMesa } from "./AbaMesa";
+import { FATIA_DOS_ASSETS, type PropsDosAssetsDaMesa } from "./AssetsDaMesa";
 import { AvisoDaImportacao, type EstadoDaImportacao } from "./AvisoDaImportacao";
 import { AvisoDaPasta } from "./AvisoDaPasta";
 import { AvisoPerto } from "./AvisoPerto";
@@ -259,6 +262,7 @@ export function Mesa({
     chatTemMais,
     avisoDeContas,
     pendentesDaCaixa,
+    linhasDeAssets,
     claudeConectado,
     enviar,
     enviarBinario,
@@ -397,6 +401,8 @@ export function Mesa({
   // A cena que o mestre olha (e edita) sem mover o grupo: estado local da tela dele. `null` = a do grupo.
   const [cenaVistaId, setCenaVistaId] = useState<string | null>(null);
   const mapa = useRef<MapaPixi | null>(null);
+  /** AS1: a cena que esta tela mostra agora (lida na hora de soltar um arquivo no mapa). */
+  const cenaDaTelaRef = useRef<string | undefined>(undefined);
   const colocarTokenAtual = useRef<((x: number, y: number) => void) | null>(null);
   // Q10: Alt+arrastar soltou uma cópia (a função de cada render, para o retorno do mapa não ficar velho).
   const copiarArrastadoAtual = useRef<((id: string, x: number, y: number) => void) | null>(null);
@@ -680,6 +686,113 @@ export function Mesa({
     },
     [gerente],
   );
+  /**
+   * AS1: pôr um asset (imagem, animação, token, retrato ou mapa inteiro) solto na cena, no ponto (metros) e na camada ativa. O
+   * mestre usa a camada de trabalho; o jogador, a dos tokens. A sala confere a capacidade, a cena e o arquivo.
+   */
+  const colocarImagemNaCena = useCallback(
+    (hash: string, x: number, y: number) => {
+      const c = estadoAtual.current;
+      const quem = c?.usuarios.find((u) => u.id === euId);
+      if (!c || !quem) return;
+      const cenaAlvo = c.cenas.find((k) => k.id === cenaDaTelaRef.current) ?? c.cenas[0];
+      if (!cenaAlvo) return;
+      const camada = quem.papel === "mestre" ? camadaDoNovoToken(camadaTrabalho) : "tokens";
+      if (
+        enviar("imagem.colocar", {
+          id: `img-${crypto.randomUUID().slice(0, 8)}`,
+          assetHash: hash,
+          x,
+          y,
+          cenaId: cenaAlvo.id,
+          camada,
+        }) === null
+      ) {
+        avisar("Sem conexão com a sala.");
+      }
+    },
+    [enviar, avisar, euId, camadaTrabalho],
+  );
+  /** AS1: arquivos do computador soltos no mapa: cada imagem ou gif vira uma imagem solta na camada ativa, onde se soltou. */
+  const soltarArquivosNoMapa = useCallback(
+    async (arquivos: File[], x: number, y: number) => {
+      const c = estadoAtual.current;
+      const quem = c?.usuarios.find((u) => u.id === euId);
+      if (!c || !quem || !gerente) return;
+      // O mapa do Dungeondraft solto continua indo para a importação (o ouvinte da janela cuida dele).
+      const candidatos = arquivos.filter((f) => !ehArquivoUniversalVtt(f.name));
+      if (candidatos.length === 0) return;
+      if (quem.papel !== "mestre" && !pode(quem, "imagem.colocar", c.permissoes)) {
+        avisar("Você não pode pôr imagens soltas na cena. Peça ao mestre para liberar.");
+        return;
+      }
+      const passo =
+        (c.cenas.find((k) => k.id === cenaDaTelaRef.current)?.grid.quadradoM ?? 1.5) * 0.6;
+      let i = 0;
+      for (const arquivo of candidatos.slice(0, 10)) {
+        try {
+          const r = await gerente.registrarImagemSolta(arquivo);
+          colocarImagemNaCena(r.hash, x + i * passo, y + i * passo);
+          i++;
+        } catch (e) {
+          avisar(
+            `${arquivo.name}: ${e instanceof Error ? e.message : "não deu para pôr no mapa."}`,
+          );
+        }
+      }
+      if (candidatos.length > 10)
+        avisar("Só as 10 primeiras imagens entraram; solte o resto de novo.");
+    },
+    [gerente, euId, avisar, colocarImagemNaCena],
+  );
+  /** AS1: um asset da lista foi arrastado para o mapa: imagens vão para a cena; sons, para a mesa de som. */
+  const soltarAssetNoMapa = useCallback(
+    (hash: string, x: number, y: number) => {
+      const c = estadoAtual.current;
+      const quem = c?.usuarios.find((u) => u.id === euId);
+      if (!c || !quem) return;
+      const meta = gerente?.meta(hash) ?? c.assets?.find((a) => a.hash === hash);
+      if (meta?.tipo === "som") {
+        if (quem.papel !== "mestre") return;
+        const livre = lugaresDe(c.mesaDeSom).ambientes.indexOf(null);
+        if (livre < 0) {
+          avisar("A mesa de som está cheia: os 8 ambientes já têm som.");
+          return;
+        }
+        enviar("som.lugar", {
+          grupo: "ambiente",
+          indice: livre,
+          lugar: {
+            hash,
+            nome:
+              nomeDoAsset(meta)
+                .replace(/\.[^.]+$/, "")
+                .slice(0, 12) || "Som",
+            icone: "musica",
+            cor: "ambar",
+            volume: 0.6,
+          },
+        });
+        avisar(`"${nomeDoAsset(meta)}" entrou na mesa de som (ambiente ${livre + 1}).`);
+        return;
+      }
+      if (quem.papel !== "mestre" && !pode(quem, "imagem.colocar", c.permissoes)) {
+        avisar("Você não pode pôr imagens soltas na cena. Peça ao mestre para liberar.");
+        return;
+      }
+      colocarImagemNaCena(hash, x, y);
+    },
+    [gerente, euId, enviar, avisar, colocarImagemNaCena],
+  );
+  /** AS1: o botão "Pôr na cena" da lista de assets: no centro do que se vê. */
+  const porAssetNoCentro = useCallback(
+    (hash: string) => {
+      const centro = mapa.current?.centroDaTelaEmMetros();
+      soltarAssetNoMapa(hash, centro?.x ?? 0, centro?.y ?? 0);
+    },
+    [soltarAssetNoMapa],
+  );
+
   // Q3: importar um mapa do Dungeondraft (Universal VTT) pelo botão do painel de cenas ou arrastando o arquivo para a mesa.
   const [importacao, setImportacao] = useState<EstadoDaImportacao | null>(null);
   const importarMapaUvtt = useCallback(
@@ -765,7 +878,11 @@ export function Mesa({
           // em token nenhum; a de um arrasto (ou de um pedido sem tipo) volta todos, como antes.
           const doPasso = o.idPedido === null ? undefined : pedidosDeSeta.current.get(o.idPedido);
           if (doPasso) mapa.current?.ressincronizar(doPasso);
-          else if (o.tipoDoPedido === undefined || o.tipoDoPedido.startsWith("token")) {
+          else if (
+            o.tipoDoPedido === undefined ||
+            o.tipoDoPedido.startsWith("token") ||
+            o.tipoDoPedido.startsWith("imagem")
+          ) {
             mapa.current?.ressincronizar();
           }
         }
@@ -988,8 +1105,14 @@ export function Mesa({
     if (ehApagar) {
       e.preventDefault();
       if (e.repeat) return;
+      // AS1: o jogador também tira a imagem solta que ele mesmo pôs (com a capacidade de pôr imagens).
+      const imagemDele =
+        selecionado.imagem?.por === quem.id &&
+        selecionado.camada !== "mestre" &&
+        pode(quem, "imagem.colocar", sala.permissoes);
       const meu =
         quem.papel === "mestre" ||
+        imagemDele ||
         (selecionado.camada === "tokens" && controlaToken(selecionado, quem, sala.personagens));
       if (!meu) {
         avisar("Você só pode tirar do mapa os tokens que controla.");
@@ -1001,7 +1124,11 @@ export function Mesa({
       setSelecionadoId(null);
       // A sala guarda o token por uns segundos: o "Desfazer" o traz de volta (a ficha nunca foi tocada).
       avisar(
-        ids.length === 1 ? "Token removido do mapa." : `${ids.length} tokens removidos do mapa.`,
+        ids.length === 1
+          ? selecionado.imagem
+            ? "Imagem removida do mapa."
+            : "Token removido do mapa."
+          : `${ids.length} tokens removidos do mapa.`,
         {
           rotulo: "Desfazer",
           aoClicar: () => {
@@ -1413,6 +1540,7 @@ export function Mesa({
     () => ({
       mover: (id, x, y) => enviar("token.mover", { id, x, y }),
       soltar: (id, x, y) => enviar("token.soltar", { id, x, y }),
+      ajustarImagem: (id, mudancas) => enviar("imagem.ajustar", { id, mudancas }),
       chegada: (cenaId, x, y) => enviar("cena.editar", { cenaId, chegada: { x, y } }),
       selecionar: setSelecionadoId,
       parouDeSeguir: () => desligarSeguirAtual.current(),
@@ -1557,6 +1685,14 @@ export function Mesa({
         const eu = euAtual.current;
         const t = e?.tokens.find((k) => k.id === tokenId);
         if (!e || !eu || !t) return;
+        // AS1: a imagem solta não tem ficha, vida nem condições: o botão direito do mestre abre o painel dela.
+        if (t.imagem) {
+          if (eu.papel === "mestre") {
+            setSelecionadoId(tokenId);
+            setPainelDoTokenAberto(true);
+          }
+          return;
+        }
         if (eu.papel === "mestre" || controlaToken(t, eu, e.personagens)) {
           setMenuDoToken({ tokenId, x, y });
         }
@@ -1789,6 +1925,7 @@ export function Mesa({
   const hashDoMapa = cena?.mapa?.assetHash;
   const tokensDaMesaTodos = estado?.tokens;
   const cenaDoPedidoId = cena?.id;
+  cenaDaTelaRef.current = cenaDoPedidoId;
   // Memoizado: o efeito abaixo (um `garantir` por arquivo) só roda quando os tokens da cena mudam, não a cada render.
   const tokensDoEstado = useMemo(
     () => tokensDaMesaTodos?.filter((t) => t.cenaId === cenaDoPedidoId),
@@ -2046,6 +2183,23 @@ export function Mesa({
   const fatiaDasFichas = useFatia(estado, FATIA_DAS_FICHAS);
   const fatiaDoCompendio = useFatia(estado, FATIA_DO_COMPENDIO);
   const fatiaDaMesa = useFatia(estado, FATIA_DA_MESA);
+  const fatiaDosAssets = useFatia(estado, FATIA_DOS_ASSETS);
+  // AS1: tudo o que a lista "Assets da mesa" precisa, com identidade estável enquanto nada disso muda.
+  const propsDosAssets = useMemo<PropsDosAssetsDaMesa | undefined>(
+    () =>
+      fatiaDosAssets && eu
+        ? {
+            estado: fatiaDosAssets,
+            eu,
+            enviar,
+            avisar,
+            gerente,
+            aoPorNaCena: porAssetNoCentro,
+            linhasDoJogador: linhasDeAssets,
+          }
+        : undefined,
+    [fatiaDosAssets, eu, enviar, avisar, gerente, porAssetNoCentro, linhasDeAssets],
+  );
   const pedirAnteriores = useCallback(() => {
     // O primeiro `seq` de agora, lido na hora do clique (o chat inteiro não vira dependência da aba).
     const primeiro = estadoAtual.current?.chat?.[0]?.seq;
@@ -2136,6 +2290,7 @@ export function Mesa({
                 claudeConectado={claudeConectado.includes(eu.id)}
                 somBloqueado={som.bloqueado}
                 aoAtivarSom={aoAtivarSom}
+                assets={propsDosAssets}
               />
             ),
           },
@@ -2157,6 +2312,7 @@ export function Mesa({
                       enviar={enviar}
                       aoAbrirAutomacoes={aoAbrirAutomacoes}
                       registrarAnimacao={registrarAnimacao}
+                      assets={propsDosAssets}
                     />
                   ),
                 },
@@ -2324,6 +2480,8 @@ export function Mesa({
               versaoDasImagens={versaoDosProntos}
               aoSoltarItem={soltarItemNoMapa}
               aoSoltarDoCompendio={euMestre ? soltarDoCompendioNoMapa : undefined}
+              aoSoltarArquivos={soltarArquivosNoMapa}
+              aoSoltarAsset={soltarAssetNoMapa}
               aoCriar={(m) => {
                 mapa.current = m;
                 if (m) setMapaVersao((v) => v + 1);
@@ -2665,6 +2823,7 @@ export function Mesa({
             )}
             {modoMestre && ferramenta !== "paredes" && selecionado && painelDoTokenAberto && (
               <PainelDoToken
+                quadradoM={cena.grid.quadradoM}
                 token={selecionado}
                 idsDaSelecao={[selecionado.id, ...tambemSelecionadosIds]}
                 jogadores={jogadoresDaMesa(estado)}

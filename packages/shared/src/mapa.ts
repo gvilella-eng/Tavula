@@ -159,6 +159,15 @@ export function podeMoverToken(
   estado: Pick<Estado, "permissoes" | "cenaAtivaId" | "personagens">,
 ): boolean {
   if (usuario.papel === "mestre") return true;
+  // AS1: a imagem solta é de quem a pôs (e só enquanto ele tem a capacidade de pôr imagens); nunca na camada do mestre.
+  if (token.imagem) {
+    return (
+      token.imagem.por === usuario.id &&
+      token.camada !== "mestre" &&
+      pode(usuario, "imagem.colocar", estado.permissoes) &&
+      tokenVisivelPara(token, usuario, estado.cenaAtivaId)
+    );
+  }
   return (
     token.camada === "tokens" &&
     pode(usuario, "token.moverProprio", estado.permissoes) &&

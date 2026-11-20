@@ -25,6 +25,8 @@ const SUBPASTA_DO_USO: Record<UsoDeEnvio, string | null> = {
   handout: "handouts",
   som: "sons",
   animacao: null,
+  // AS1: a imagem solta tem a pasta organizada do mestre (`assets/<quem enviou>/<tipo>/`), que o gerente cuida.
+  imagem: null,
   // Fora da pasta: o compêndio da pasta vale por cima do que a mesa guarda, e não se sobrescreve o arquivo do mestre.
   compendio: null,
 };
@@ -75,6 +77,9 @@ async function processar(
       return { hash: (await gerente.registrarSom(arquivo)).hash };
     case "animacao":
       return { hash: (await gerente.registrarAnimacao(arquivo)).hash };
+    case "imagem":
+      // AS1: o navegador do mestre decide pelos bytes: gif, apng e webp animado ficam como animação; o resto é regravado em WebP.
+      return { hash: (await gerente.registrarImagemSolta(arquivo)).hash };
     case "compendio": {
       const bytes = new Uint8Array(await arquivo.arrayBuffer());
       const lido = lerCompendio(new TextDecoder().decode(bytes));

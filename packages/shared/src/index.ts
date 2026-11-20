@@ -1,4 +1,5 @@
 export * from "./assets.ts";
+export * from "./assetsDaMesa.ts";
 export * from "./ataques.ts";
 export * from "./automacoes.ts";
 export * from "./automacoesnucleo.ts";
@@ -52,6 +53,7 @@ export * from "./recuperacao.ts";
 export * from "./relogio.ts";
 export * from "./reordenar.ts";
 export * from "./rolagens.ts";
+export * from "./seguranca.ts";
 export * from "./semente.ts";
 export * from "./som.ts";
 export * from "./somnucleo.ts";

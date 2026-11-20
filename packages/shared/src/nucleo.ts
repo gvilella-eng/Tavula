@@ -1,5 +1,6 @@
 import {
   type AssetMeta,
+  assetVisivelPara,
   hashesPreparaveis,
   hashesUsados,
   LIMITES_DE_ASSET,
@@ -7,6 +8,7 @@ import {
   tamanhoDaCenaComMapa,
   validarMeta,
 } from "./assets.ts";
+import { categoriaDoAsset, nomeDoAsset, verificarApagar } from "./assetsDaMesa.ts";
 import {
   acoesDoFluxo,
   botoesParaJogador,
@@ -361,6 +363,31 @@ function faixaEditada(
     ...(descricao === undefined ? {} : { descricao }),
     ...(energia === undefined ? {} : { energia }),
   };
+}
+
+/** AS1: quantas imagens soltas cada jogador pode ter numa cena (assumido: 20). */
+export const MAXIMO_DE_IMAGENS_DO_JOGADOR = 20;
+
+/**
+ * O tamanho de uma imagem recém-posta, em metros: o que foi pedido, ou o tamanho natural do arquivo (px do arquivo ÷ px por quadrado
+ * da cena), entre 1 e 8 quadrados no lado maior. A altura segue a proporção do arquivo.
+ */
+export function tamanhoInicialDaImagem(
+  meta: Pick<AssetMeta, "largura" | "altura">,
+  cena: Pick<Cena, "grid" | "mapa" | "larguraM" | "alturaM">,
+  larguraPedidaM?: number,
+): { larguraM: number; alturaM: number } {
+  const q = cena.grid.quadradoM;
+  const proporcao = meta.altura / Math.max(1, meta.largura);
+  let larguraM = larguraPedidaM;
+  if (larguraM === undefined) {
+    const natural = (meta.largura / (cena.mapa?.pxPorQuadrado ?? PX_POR_QUADRADO_PADRAO)) * q;
+    const ladoMaior = Math.max(natural, natural * proporcao);
+    const k = Math.min(8 * q, Math.max(q, ladoMaior)) / Math.max(ladoMaior, 0.001);
+    larguraM = natural * k;
+  }
+  larguraM = Math.min(1000, Math.max(0.1, larguraM));
+  return { larguraM, alturaM: Math.min(1000, Math.max(0.1, larguraM * proporcao)) };
 }
 
 function imagemDeTokenExiste(estado: Estado, hash: string): boolean {
@@ -1098,6 +1125,17 @@ export function reduzir(estado: Estado, evento: EventoSala): Estado {
       return base;
     case "asset.removido":
       return { ...base, assets: (base.assets ?? []).filter((a) => a.hash !== evento.dados.hash) };
+    case "asset.renomeado": {
+      const { hash, nome } = evento.dados;
+      return {
+        ...base,
+        assets: (base.assets ?? []).map((a) => {
+          if (a.hash !== hash) return a;
+          const { nomeExibicao: _antigo, ...resto } = a;
+          return nome === null ? resto : { ...resto, nomeExibicao: nome };
+        }),
+      };
+    }
     case "asset.registrado": {
       const { meta } = evento.dados;
       const atuais = base.assets ?? [];
@@ -1436,8 +1474,14 @@ function processarIntencao(
         return recusa("token_inexistente", "Token não encontrado.");
       }
       // V10: o mestre tira qualquer token do mapa; o jogador, só os que controla (e nunca o cenário).
+      // AS1: o jogador também tira a imagem solta que ele mesmo pôs (enquanto tem a capacidade).
+      const propriaImagem =
+        token.imagem?.por === usuario.id &&
+        token.camada !== "mestre" &&
+        pode(usuario, "imagem.colocar", estado.permissoes);
       if (
         usuario.papel !== "mestre" &&
+        !propriaImagem &&
         !(token.camada === "tokens" && controlaToken(token, usuario, estado.personagens))
       ) {
         return recusa("sem_permissao", "Você só pode tirar do mapa os tokens que controla.");
@@ -1550,6 +1594,217 @@ function processarIntencao(
       return aplicado();
     }
 
+    // AS1: imagem solta na cena (um token sem ficha, com tamanho em metros e giro).
+    case "imagem.colocar": {
+      const d = intencao.dados;
+      const cena = cenaDoPedido(estado, d.cenaId);
+      if (!cena) return recusa("cena_inexistente", SEM_CENA);
+      const mestre = usuario.papel === "mestre";
+      if (!mestre) {
+        if (cena.id !== estado.cenaAtivaId) {
+          return recusa("sem_permissao", "Só dá para pôr imagem na cena que o grupo está vendo.");
+        }
+        if (d.camada === "mestre") {
+          return recusa("sem_permissao", "Só o mestre põe coisas na camada do mestre.");
+        }
+        const minhas = estado.tokens.filter(
+          (t) => t.cenaId === cena.id && t.imagem?.por === usuario.id,
+        ).length;
+        if (minhas >= MAXIMO_DE_IMAGENS_DO_JOGADOR) {
+          return recusa(
+            "limite_de_criacao",
+            "Você já pôs imagens demais nesta cena. Apague alguma.",
+          );
+        }
+      }
+      if (estado.tokens.some((t) => t.id === d.id)) {
+        return recusa("dados_invalidos", "Já existe um objeto com esse id.");
+      }
+      const meta = metaDoAsset(estado, d.assetHash);
+      // Qualquer arquivo de imagem da mesa pode ir para a cena (o mapa inteiro, só o mestre e só o que não é fatiado).
+      const serve =
+        meta !== undefined &&
+        (meta.tipo === "imagem" ||
+          meta.tipo === "animacao" ||
+          meta.tipo === "token" ||
+          meta.tipo === "retrato" ||
+          (meta.tipo === "mapa" && meta.tiles === undefined && mestre));
+      if (!meta || !serve) {
+        return recusa("asset_inexistente", "Imagem não encontrada.");
+      }
+      if (!mestre && !assetVisivelPara(d.assetHash, estado, usuario)) {
+        return recusa("asset_inexistente", "Imagem não encontrada.");
+      }
+      const tamanho = tamanhoInicialDaImagem(meta, cena, d.larguraM);
+      const posicao = limitarNaCena({ x: d.x, y: d.y }, cena);
+      const nome = (d.nome ?? nomeDoAsset(meta).replace(/\.[^.]+$/, "")).slice(0, 64) || "Imagem";
+      const token: Token = {
+        id: d.id,
+        cenaId: cena.id,
+        nome,
+        cor: "#8a94a3",
+        tamanhoQuadrados: 1,
+        x: posicao.x,
+        y: posicao.y,
+        camada: d.camada ?? (mestre ? "mapa" : "tokens"),
+        oculto: false,
+        controladoPor: [],
+        assetHash: d.assetHash,
+        barraDeVida: false,
+        imagem: { ...tamanho, rotacao: 0, por: usuario.id },
+      };
+      emitir({ tipo: "token.criado", dados: { token } });
+      return aplicado();
+    }
+
+    case "imagem.ajustar": {
+      const { id, mudancas } = intencao.dados;
+      const atual = estado.tokens.find((t) => t.id === id);
+      // Quem não vê o objeto recebe a mesma resposta de quem pergunta por um que não existe.
+      if (!atual?.imagem || !tokenVisivelPara(atual, usuario, estado.cenaAtivaId)) {
+        return recusa("token_inexistente", "Imagem não encontrada.");
+      }
+      if (usuario.papel !== "mestre") {
+        if (
+          atual.imagem.por !== usuario.id ||
+          !pode(usuario, "imagem.colocar", estado.permissoes)
+        ) {
+          return recusa("sem_permissao", "Só o mestre mexe nas imagens dos outros.");
+        }
+        if (mudancas.oculto !== undefined || mudancas.camada === "mestre") {
+          return recusa("sem_permissao", "Só o mestre esconde imagens ou as põe na camada dele.");
+        }
+      }
+      const cena = estado.cenas.find((c) => c.id === atual.cenaId) ?? cenaAtiva(estado);
+      const { x, y, larguraM, alturaM, rotacao, camada, oculto, nome } = mudancas;
+      const lugar =
+        x !== undefined || y !== undefined
+          ? limitarNaCena({ x: x ?? atual.x, y: y ?? atual.y }, cena)
+          : { x: atual.x, y: atual.y };
+      const token: Token = {
+        ...atual,
+        ...lugar,
+        ...(camada !== undefined ? { camada } : {}),
+        ...(oculto !== undefined ? { oculto } : {}),
+        ...(nome !== undefined ? { nome } : {}),
+        imagem: {
+          ...atual.imagem,
+          larguraM: larguraM ?? atual.imagem.larguraM,
+          alturaM: alturaM ?? atual.imagem.alturaM,
+          rotacao: rotacao ?? atual.imagem.rotacao,
+        },
+      };
+      if (JSON.stringify(token) === JSON.stringify(atual)) return aplicado();
+      emitir({ tipo: "token.editado", dados: { token } });
+      return aplicado();
+    }
+
+    case "asset.renomear": {
+      const { hash, nome } = intencao.dados;
+      const meta = metaDoAsset(estado, hash);
+      if (!meta || categoriaDoAsset(meta.tipo) === null) {
+        return recusa("asset_inexistente", "Arquivo não encontrado.");
+      }
+      const novo = nome.trim().slice(0, 120);
+      if (novo === "") return recusa("dados_invalidos", "Escreva um nome.");
+      if (novo === nomeDoAsset(meta)) return aplicado();
+      emitir({
+        tipo: "asset.renomeado",
+        dados: { hash, nome: novo === meta.nomeOriginal ? null : novo },
+      });
+      return aplicado();
+    }
+
+    case "asset.apagar": {
+      const { hash, removerUsos } = intencao.dados;
+      const v = verificarApagar(estado, hash);
+      if (!v.ok) {
+        return recusa(v.usos.length > 0 ? "asset_em_uso" : "asset_inexistente", v.motivo);
+      }
+      if (!v.semUso && removerUsos !== true) {
+        return recusa(
+          "asset_em_uso",
+          `Está em uso em: ${v.usos.join("; ")}. Confirme para apagar e tirar a imagem desses lugares.`,
+        );
+      }
+      const meta = metaDoAsset(estado, hash) as AssetMeta;
+      if (!v.semUso) {
+        for (const c of estado.cenas) {
+          if (c.mapa?.assetHash !== hash) continue;
+          emitir({
+            tipo: "cena.mapaAlterado",
+            dados: { cenaId: c.id, mapa: null, larguraM: c.larguraM, alturaM: c.alturaM },
+          });
+        }
+        for (const t of estado.tokens) {
+          if (t.assetHash !== hash) continue;
+          if (t.imagem) {
+            for (const l of luzesDoToken(estado, t.id)) {
+              emitir({ tipo: "fonte.apagada", dados: { id: l.id } });
+            }
+            emitir({ tipo: "token.apagado", dados: { id: t.id } });
+          } else {
+            const { assetHash: _a, ...semImagem } = t;
+            emitir({ tipo: "token.editado", dados: { token: semImagem } });
+          }
+        }
+        for (const p of estado.personagens) {
+          const f = p.ficha;
+          const usa =
+            p.retratoHash === hash ||
+            p.tokenPadrao.assetHash === hash ||
+            f?.aparenciaHash === hash ||
+            f?.simboloHash === hash;
+          if (!usa) continue;
+          const { retratoHash, ...resto } = p;
+          const { assetHash: _t, ...tokenPadrao } = p.tokenPadrao;
+          const ficha = f
+            ? (JSON.parse(
+                JSON.stringify({
+                  ...f,
+                  aparenciaHash: f.aparenciaHash === hash ? undefined : f.aparenciaHash,
+                  simboloHash: f.simboloHash === hash ? undefined : f.simboloHash,
+                }),
+              ) as NonNullable<Personagem["ficha"]>)
+            : undefined;
+          const personagem: Personagem = {
+            ...resto,
+            ...(retratoHash !== undefined && retratoHash !== hash ? { retratoHash } : {}),
+            tokenPadrao: p.tokenPadrao.assetHash === hash ? tokenPadrao : p.tokenPadrao,
+            ...(ficha ? { ficha } : {}),
+          };
+          emitir({ tipo: "personagem.alterado", dados: { personagem } });
+        }
+        for (const h of estado.handouts ?? []) {
+          if (h.imagemHash !== hash) continue;
+          const { imagemHash: _i, ...semImagem } = h;
+          emitir({ tipo: "handout.alterado", dados: { handout: semImagem } });
+        }
+      }
+      // O mapa fatiado leva os tiles junto (o manifesto não tem bytes; os tiles são o arquivo de verdade).
+      for (const t of meta.tiles ?? []) emitir({ tipo: "asset.removido", dados: { hash: t.hash } });
+      emitir({ tipo: "asset.removido", dados: { hash } });
+      return aplicado();
+    }
+
+    case "asset.restaurar": {
+      const existentes = estado.assets ?? [];
+      const novas = intencao.dados.metas.filter((m) => !existentes.some((a) => a.hash === m.hash));
+      for (const m of novas) {
+        const problema = validarMeta(m);
+        if (problema) return recusa("dados_invalidos", `Arquivo recusado: ${problema}.`);
+      }
+      if (existentes.length + novas.length > LIMITES_DE_ASSET.assetsNaSala) {
+        return recusa("dados_invalidos", "Arquivos demais registrados na sala.");
+      }
+      for (const meta of novas) emitir({ tipo: "asset.registrado", dados: { meta } });
+      return aplicado();
+    }
+
+    // AS1: a lista é montada pela sala para quem pediu (a resposta é uma mensagem, não um evento).
+    case "assets.listar":
+      return aplicado();
+
     case "asset.registrar": {
       const { metas } = intencao.dados;
       const noLote = new Map(metas.map((m) => [m.hash, m]));
@@ -1564,7 +1819,7 @@ function processarIntencao(
             m.tipo === "cifrado" ||
             m.tipo === "compendio" ||
             m.tipo === "som" ||
-            m.tipo === "animacao")
+            (m.tipo === "animacao" && !pode(usuario, "imagem.colocar", estado.permissoes)))
         ) {
           return recusa(
             "sem_permissao",
@@ -1591,7 +1846,9 @@ function processarIntencao(
       }
       // Quem registra um hash que já existe não muda o dono nem o que a sala sabe dele.
       for (const m of novas) {
-        emitir({ tipo: "asset.registrado", dados: { meta: { ...m, donoId: usuarioId } } });
+        // O nome de exibição é do mestre (`asset.renomear`): quem registra não o define.
+        const { nomeExibicao: _nome, ...semNome } = m;
+        emitir({ tipo: "asset.registrado", dados: { meta: { ...semNome, donoId: usuarioId } } });
       }
       return aplicado();
     }
@@ -1620,6 +1877,7 @@ function processarIntencao(
       if (
         intencao.tipo === "token.soltar" &&
         usuario.papel !== "mestre" &&
+        !token.imagem &&
         !cenaEhCartao(cena) &&
         trajetoBloqueado(
           { x: token.x, y: token.y },
@@ -3858,6 +4116,7 @@ export function eventoPara(
   };
   switch (evento.tipo) {
     case "asset.registrado":
+    case "asset.renomeado":
     case "cena.criada":
     case "cena.apagada":
     case "grupo.movido":

@@ -11,6 +11,7 @@ import {
 } from "@tabletop/shared";
 import { useEffect, useRef } from "react";
 import { TIPO_DE_ARRASTO_DA_FICHA } from "../arrasto";
+import { TIPO_DE_ARRASTO_DE_ASSET } from "../assets/arrastoDeAsset";
 import { type ImagensDoMapa, MapaPixi, type OpcoesDoMapa, type RetornosDoMapa } from "./mapaPixi";
 
 type Props = {
@@ -35,6 +36,10 @@ type Props = {
   aoSoltarItem?: (dados: string, x: number, y: number) => void;
   /** N3a: uma entrada do Compêndio (um monstro) foi solta no mapa: o texto do arrasto e a posição em metros. */
   aoSoltarDoCompendio?: ((dados: string, x: number, y: number) => void) | undefined;
+  /** AS1: arquivos do computador soltos no mapa (a posição em metros): viram imagens soltas na camada ativa. */
+  aoSoltarArquivos?: ((arquivos: File[], x: number, y: number) => void) | undefined;
+  /** AS1: um asset da lista "Assets da mesa" foi arrastado para o mapa (o hash e a posição em metros). */
+  aoSoltarAsset?: ((hash: string, x: number, y: number) => void) | undefined;
 };
 
 /** Ponte React ↔ Pixi: cria o controlador uma vez e empurra dados e opções para ele. */
@@ -54,6 +59,8 @@ export function Mapa({
   aoCriar,
   aoSoltarItem,
   aoSoltarDoCompendio,
+  aoSoltarArquivos,
+  aoSoltarAsset,
 }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const mapa = useRef<MapaPixi | null>(null);
@@ -158,6 +165,11 @@ export function Mapa({
         else if (aoSoltarDoCompendio && tipos.includes(TIPO_DO_ARRASTO_DO_COMPENDIO)) {
           e.preventDefault();
           e.dataTransfer.dropEffect = "copy";
+        } else if (tipos.includes("Files") || tipos.includes(TIPO_DE_ARRASTO_DE_ASSET)) {
+          // AS1: arquivo do computador ou asset da lista. Sempre aceita o soltar (o navegador não pode abrir o arquivo no lugar
+          // da mesa); quem não pode pôr imagem recebe o aviso.
+          e.preventDefault();
+          e.dataTransfer.dropEffect = "copy";
         }
       }}
       onDrop={(e) => {
@@ -166,6 +178,21 @@ export function Mapa({
           e.preventDefault();
           const p = mapa.current?.pontoDaPaginaEmMetros(e.clientX, e.clientY);
           if (p) aoSoltarItem?.(dados, p.x, p.y);
+          return;
+        }
+        // AS1: um asset da lista de assets da mesa.
+        const doAsset = e.dataTransfer.getData(TIPO_DE_ARRASTO_DE_ASSET);
+        if (doAsset) {
+          e.preventDefault();
+          const q = mapa.current?.pontoDaPaginaEmMetros(e.clientX, e.clientY);
+          if (q) aoSoltarAsset?.(doAsset, q.x, q.y);
+          return;
+        }
+        // AS1: arquivos do computador soltos no mapa.
+        if (e.dataTransfer.files.length > 0) {
+          e.preventDefault();
+          const q = mapa.current?.pontoDaPaginaEmMetros(e.clientX, e.clientY);
+          if (q) aoSoltarArquivos?.([...e.dataTransfer.files], q.x, q.y);
           return;
         }
         const doCompendio = e.dataTransfer.getData(TIPO_DO_ARRASTO_DO_COMPENDIO);

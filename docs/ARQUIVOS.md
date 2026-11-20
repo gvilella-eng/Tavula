@@ -25,3 +25,8 @@ O segundo navegador não tinha o cache do primeiro nem a pasta escolhida. Como o
 - A pasta `arquivos-da-mesa/` pode ser apagada: a mesa a refaz do cache na próxima vez que abrir (se o cache ainda tiver os arquivos).
 - Sem pasta liberada, o cache continua valendo. Recarregar a página não apaga nada; limpar os dados do site, sim.
 - Os jogadores não copiam nada para a pasta. Eles recebem do mestre (ou de outro jogador online) e guardam no cache.
+
+## A pasta organizada e a segurança (AS1)
+- Além de `arquivos-da-mesa/<hash>`, o mestre ganha a pasta **`assets/<quem enviou>/<tipo>/<nome>-<hash>.<extensão>`** (tipos: `mapas`, `tokens`, `retratos`, `imagens`, `animacoes`, `sons`, `json`). É a que serve para você achar as coisas. Os arquivos antigos (`recebidos/<jogador>/` e `arquivos-da-mesa/`) não saem do lugar; a organizada é refeita a partir do que a mesa já tem na próxima vez que a pasta abre.
+- **Um jogador não consegue pôr vírus no seu computador por uma imagem**: o tipo do arquivo vem dos bytes (não do nome nem do que o navegador dele diz), só entram png, jpg, webp, gif, mp3, ogg, wav e json (nunca SVG, página, programa ou script), o nome no disco é montado pela mesa (a extensão sai do tipo verdadeiro, nome limpo, nada de `.exe`, `.bat`, `.ps1`, `.lnk`...), e a imagem de outra pessoa é decodificada e gravada de novo pelo seu navegador antes de ir para a pasta. Quem recebe confere de novo.
+- A mesa lê **primeiro do próprio computador** (o cache, e a pasta, se você é o mestre) e só pede aos outros o que falta. Não reabrimos o arquivo original do seu disco: o navegador não deixa sem pedir permissão a cada visita e o arquivo da mesa é o reduzido.

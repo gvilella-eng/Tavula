@@ -124,7 +124,7 @@ chamada só. Se um nome for repetido ou não existir, a resposta diz o que corri
 | `chat` | todos | M2. Narrar, falar como uma ficha, sussurrar, emote, mostrar handout, cartão de característica ou magia, limpar o histórico. Sai "pelo Claude". |
 | `rolar` | todos | Rola dados (expressão, teste ou ataque da ficha) e conjura (`conjurar`: gasta o espaço, o pacto ou o uso da inata e rola a magia); o chat marca "pelo Claude". |
 | `rascunhos` | mestre | Lista, publica e descarta o que o Claude criou. |
-| `arquivos` | todos (jogador: só o que é dele) | Sobe um arquivo do computador para a mesa (mapa da cena, mapa do Dungeondraft / Universal VTT, token, retrato, aparência e símbolo da ficha, imagem de handout, som, animação de chama, compêndio) e usa um arquivo que já está na mesa (M1). |
+| `arquivos` | todos (jogador: só o que é dele) | Sobe um arquivo do computador para a mesa (mapa da cena, mapa do Dungeondraft / Universal VTT, token, retrato, aparência e símbolo da ficha, imagem de handout, som, animação de chama, imagem solta na cena, compêndio), usa um arquivo que já está na mesa, lista, renomeia e apaga os assets e ajusta as imagens soltas (M1, AS1). |
 | `desfazer` | todos | Lista o que o Claude fez e desfaz um lote inteiro. |
 
 `cenas` (M2) também duplica uma cena (`duplicarDe`) e leva o grupo (`levarGrupo`); `fichas` apaga, gasta dado de vida e ajusta a mochila; `objetos` acende, passa e guarda tochas e ajusta tempo e raio dos objetos de luz.
@@ -169,7 +169,9 @@ Coordenadas de cena são em **células**, a partir do canto de cima à esquerda 
 
 **Mapa do Dungeondraft (Q3):** `uso: "dungeondraft"` (ou `uvtt`, `mapa universal vtt`) com um `.dd2vtt`, `.uvtt` ou `.df2vtt`. O navegador do mestre lê o arquivo (no worker) e cria uma **cena nova** com o nome do arquivo: o mapa na grade do arquivo, as paredes, as portas (fechadas como no arquivo) e as luzes; não leva o grupo para a cena. A resposta do curl traz o resumo ("Cena criada: 1 mapa, 142 paredes, 6 portas, 9 luzes."). Só o mestre; sem alvo nem `quadrados`; `usar` não vale para ele. O `desfazer` apaga a cena criada. Exemplo: *"Importe este .dd2vtt"*.
 
-Outras ações: `estado` (consulta um envio, espera até 20 s), `listar` (os arquivos da mesa e onde são usados; só o mestre) e `usar` (põe na mesa um arquivo que já existe, pelo hash, sem reenviar). O jogador só põe imagem no que é dele (o próprio token, o retrato da própria ficha, o próprio handout); mapa, som e compêndio são do mestre.
+Outras ações: `estado` (consulta um envio, espera até 20 s), `listar` (os Assets da mesa: cada arquivo com tipo, quem enviou e onde é usado; só o mestre) e `usar` (põe na mesa um arquivo que já existe, pelo hash, sem reenviar).
+
+**Assets da mesa e imagens soltas (AS1).** `uso: "imagem"` (png, jpg, webp ou gif, parado ou animado) põe o arquivo **solto na cena**, no ponto `x`, `y` (em quadrados; sem eles, o centro), na `camada` (`mapa`, `tokens` ou `mestre`; padrão `mapa` para o mestre) e com `larguraQuadrados` de largura (a altura segue a proporção). Vale em `enviar` e em `usar`. `ajustar` mexe numa imagem que já está na cena, pelo nome (`token`): `x`, `y`, `larguraQuadrados`, `alturaQuadrados`, `rotacao` (graus), `camada`, `oculto` e `novoNome`. `renomear` (`hash`, `novoNome`) muda o nome que a mesa mostra do arquivo. `apagar` (`hash`) tira o arquivo da mesa: se estiver em uso a mesa recusa e diz onde; com `confirmar: true` ela tira a imagem desses lugares (o arquivo continua no computador do mestre). Só o mestre lista, renomeia e apaga; o jogador com a capacidade "Pôr imagens soltas na cena" usa `enviar` e `usar` com `uso: "imagem"` nas imagens que ele vê. A mesa confere os bytes: svg, programas e arquivos que não são o que dizem são recusados. O jogador só põe imagem no que é dele (o próprio token, o retrato da própria ficha, o próprio handout); mapa, som e compêndio são do mestre.
 
 ## Desfazer e segurança
 

@@ -423,7 +423,7 @@ a pasta a cada vez. Como tudo vai para o cache depois de enviado, a pasta só im
 adicionar ou trocar arquivo.
 
 Estrutura sugerida:
-- mestre: `mapas/`, `tokens/`, `sons/`, `handouts/`, `recebidos/<jogador>/`, `backup/`
+- mestre: `mapas/`, `tokens/`, `sons/`, `handouts/`, `recebidos/<jogador>/` (só o que veio antes do AS1; os novos vão para `assets/`, ver 4.17), `assets/<pessoa>/<tipo>/` (AS1), `backup/`
 - jogador: `tokens/`, `retratos/`, `fichas/`
 
 **Cópia dos arquivos da mesa na pasta (Q1, 2026-11-16).** O mestre, com a pasta liberada para escrita, guarda
@@ -453,8 +453,8 @@ Se o arquivo for movido ou renomeado, o app reescaneia a pasta e encontra pelo h
 6. Se a conexão cair no meio, retoma do último pedaço recebido.
 
 **Garantias:**
-- o navegador do mestre guarda cópia de tudo que os jogadores sobem em `recebidos/<jogador>/`
-  (backup completo da campanha);
+- o navegador do mestre guarda cópia de tudo que os jogadores sobem (backup completo da campanha); desde o
+  AS1 em `assets/<pessoa>/<tipo>/` e com a imagem regravada (4.17);
 - `navigator.storage.persist()` para o navegador não limpar o cache quando faltar espaço;
 - o servidor não tem limite de armazenamento porque não armazena imagens.
 
@@ -1220,6 +1220,75 @@ O Vilella pediu uma **biblioteca de música com etiquetas e botões de filtro**,
 - **Nada custa**: sem API paga, sem IA, sem transcrição, nada buscado da internet.
 - **Fora, por ora**: ver `docs/IDEIAS.md` (arrastar para mudar o ponto da música, tocar música por zona ou cena, importar a pasta toda em segundo plano, playlist fixa).
 
+
+### 4.17 Assets da mesa e segurança dos arquivos (AS1, 2026-11-20)
+
+O Vilella pediu: arrastar uma imagem ou gif para a cena e ele ficar na camada ativa (o mestre e o Claude), um espaço "Assets da mesa" no
+menu Mesa com TODOS os arquivos, o upload do jogador indo para esses assets, a pasta do mestre organizada por pessoa e tipo, e carregar do
+próprio computador quando der. E perguntou se um jogador consegue pôr vírus no PC do mestre por um png.
+
+**Soltar na cena (a regra de "soltei, o que acontece").**
+- **Arquivo do Dungeondraft** (`.dd2vtt`, `.uvtt`, `.df2vtt`) solto em qualquer lugar da mesa (só o mestre): importa o mapa e cria uma cena nova, como antes.
+- **Imagem ou animação** (png, jpg, webp, gif, apng) solta **no mapa**: vira uma **imagem solta na cena**, no ponto onde soltou e na camada ativa
+  (o mestre usa a camada de trabalho; o jogador, a dos tokens). Até 10 por vez; a segunda e as seguintes ficam escalonadas.
+- **Outro arquivo** solto no mapa (campanha, json, texto, exe, svg): recusado com um aviso que diz o que é. O navegador nunca o abre no lugar da mesa.
+- **Imagem solta fora do mapa**: nada acontece.
+- **Caixa do Claude**: não aceita arrastar; o Claude manda pelo `arquivos` e a caixa processa (`uso: "imagem"`).
+- **Um asset arrastado da lista** para o mapa: o mesmo que soltar o arquivo (imagem, animação, token, retrato ou mapa inteiro sem pedaços); **som** arrastado para
+  o mapa entra no primeiro ambiente livre da mesa de som (a biblioteca de música tem botão próprio na lista).
+
+**A imagem solta é um token sem ficha** (`Token.imagem`: `larguraM`, `alturaM`, `rotacao` em graus e `por`, quem a pôs). Assim herda camadas
+(`mapa`, `tokens`, `mestre`), ocultar, visão por camada e o filtro dos frames do jogador, arrastar, copiar, duplicar, apagar e o desfazer do apagar
+(`token.restaurar`), a exportação da mesa e o MCP, sem coleção nova no banco nem migração (a entidade é o JSON do token). Mover é o arrasto de sempre (livre,
+sem encaixe no grid e sem esbarrar em parede); **esticar** e **girar** têm alças no canto de baixo (proporcional; Shift solta) e acima (Shift gira de 15 em 15
+graus) da imagem selecionada, e campos no painel (largura e altura em quadrados, proporção, giro, camada, ocultar, apagar). O gif, apng e webp animado tocam em
+laço, cada um defasado dos outros, e ficam parados com "reduzir movimento". O arquivo é um asset novo `imagem` (parada, WebP de até 2048 px) ou `animacao` (como veio,
+até 4 MB, com as dimensões reais do primeiro quadro). Intenções: `imagem.colocar`, `imagem.ajustar` (e `token.apagar`/`token.soltar`). Capacidade nova
+`imagem.colocar` (delegável, **desligada por padrão**): o jogador com ela põe na cena ativa, nas camadas `mapa` e `tokens`, até 20 por cena; mexe e apaga só nas dele,
+nunca esconde nem põe na camada do mestre.
+
+**Lista "Assets da mesa"** (aba Mesa, seção nova; para o jogador, "Arquivos da mesa" em Preferências). Lista tudo: mapas, imagens, animações, tokens, retratos, sons e
+músicas, json (os tiles e os arquivos cifrados do pré-envio são pedaços internos e ficam fora). Cada linha: miniatura (ou o ícone do tipo), nome, tipo, tamanho, quem enviou,
+onde é usado ("mapa da cena Cripta", "imagem solta Estátua (cena X)", "efeito 2 da mesa de som", "automação Combate") e se está neste computador. Filtros por tipo e por quem
+enviou, busca (sem acento nem caixa; acha também pelo uso), ordem por nome, mais novos ou tamanho. Ações: pôr na cena, renomear (só o nome de exibição, `AssetMeta.nomeExibicao`;
+o arquivo e o hash não mudam), baixar, apagar, e nos sons "pôr na mesa de som" e "adicionar à biblioteca de música". **Apagar** (só o mestre): sem uso, uma confirmação; em uso
+num lugar que se arruma sozinho (imagens, mapas, retratos, handouts), o aviso lista onde e, confirmado, a mesa tira a imagem desses lugares (`asset.apagar` com `removerUsos`);
+em uso onde não se arruma (zona, automação, luz, compêndio), recusa e diz onde (o som usa o `som.apagar`, que já limpa tudo). Os bytes continuam na pasta do mestre. O aviso
+tem "Desfazer" (`asset.restaurar`: volta a meta, com o mesmo dono e nome).
+- **Visão**: o mestre vê tudo; o jogador só o que enviou e o que está em uso numa coisa que ele vê (o mapa da cena ativa, tokens e imagens visíveis, fichas e handouts liberados).
+  A sala monta a lista dele (`assets.listar` → `assets.lista`; ver `docs/protocolo.md`), então nada que ele não vê chega ao navegador: nem o mapa escondido, nem os sons do mestre,
+  nem onde algo é usado fora da vista dele.
+- **Upload do jogador** (retrato, token, handout, imagem solta) já era registrado com `donoId`; agora aparece na lista, "enviado por <nome dele>".
+
+**Pasta do mestre organizada.** Com a pasta liberada, cada asset (menos tile, cifrado e manifesto) ganha uma cópia em
+`assets/<quem enviou>/<tipo>/<nome>-<8 letras do hash>.<extensão do tipo detectado>` (tipos: `mapas`, `tokens`, `retratos`, `imagens`, `animacoes`, `sons`, `json`). O hash no
+nome evita repetir (o mesmo arquivo cai sempre no mesmo lugar; dois de mesmo nome não se sobrescrevem). **Migração leve, sem mover nada:** a cópia
+organizada de tudo o que a mesa já tem é feita na próxima vez que a pasta é aberta; `recebidos/<jogador>/` e `arquivos-da-mesa/<hash>` ficam como estão (o segundo
+continua sendo o que outro navegador do mesmo computador lê). Os arquivos novos de jogador **não vão mais** para `recebidos/`.
+
+**De onde carregar** (a ideia dele: "eu subi esse arquivo? ele ainda está aqui?"). Ordem (`ordemDeOrigem`): (1) o cache do navegador, que já guarda tudo o que a pessoa
+subiu e baixou, conferido pelo hash; (2) só o mestre: a pasta da mesa (`arquivos-da-mesa/<hash>`, hash e assinatura conferidos); (3) a rede, como sempre (o dono online, depois o
+mestre, depois qualquer um). Decidido: **não** reabrir o arquivo original do disco do jogador. O navegador não guarda o caminho nem deixa reabrir sem pedir permissão de novo
+a cada visita, e o arquivo que a mesa usa é o *processado* (WebP reduzido), então seria preciso reprocessar o original (mais lento e não garante o mesmo hash). O cache cobre o
+"subi e ainda está aqui" sem nada disso. Medida: ver `docs/ESTADO.md`, AS1.
+
+**Segurança dos arquivos vindos de outra pessoa.** Um png de jogador não executa nada no PC do mestre (o navegador só o decodifica), mas o Távola não confia em nome nem em
+tipo declarado. Regras (`packages/shared/src/seguranca.ts`, testadas):
+- **O tipo vem dos bytes**, nunca do nome nem do que o cliente diz (`detectarFormato`, que agora reconhece apng e webp animado). Lista **fechada**: png, jpg, gif, webp, mp3, ogg, wav, json.
+  Nunca SVG, HTML, executável nem script. O formato tem de servir ao tipo do asset e **bater com o tipo que o remetente declarou** (`conferirArquivoRecebido`).
+- **Quem recebe confere de novo**: o navegador que baixa (`finalizar`), o mestre ao guardar na pasta e ao trazer da pasta, a sala ao registrar (o `mime` da meta tem de estar na lista; `validarMeta`).
+  Arquivo que não passa é recusado, não vai para o cache nem para o disco, e a lista mostra o motivo.
+- **No disco o nome é montado pelo Távola** (`nomeDeArquivoNoDisco`): extensão do tipo detectado (nunca a do original), nome limpo (sem `..`, barras, controle, `:*?"<>|`, nomes
+  reservados do Windows como `CON` e `NUL`, pontos ou espaços no fim; ponto dentro do nome vira hífen) e nenhuma extensão executável (`.exe`, `.bat`, `.cmd`, `.ps1`, `.lnk`, `.scr`, `.hta`, `.js`, `.vbs`, `.svg`, `.html`...).
+  O nome da pessoa e o do tipo na pasta passam pela mesma limpeza.
+- **Imagem de outra pessoa é decodificada e regravada** pelo navegador do mestre antes de ir para a pasta organizada (WebP gerado pelo próprio Távola): nada escondido no arquivo original
+  (metadados, bytes depois do fim, script) sobrevive. Gif e apng animados ficam como estão, depois de conferida a assinatura (assumido).
+- **Limites por tipo**, conferidos de novo por quem recebe (30 MB por arquivo, 4 MB por animação, 20 MB por som, 20 MB a imagem original, 2048 px a imagem solta).
+- O arquivo cru continua em `arquivos-da-mesa/<hash>` (endereçado por hash, sem nome do remetente) só para outro navegador do mesmo computador; ele nunca é aberto nem executado pelo Távola.
+
+**Paridade com o Claude** (regra do Q16): `arquivos` ganhou `listar` (todos os assets, com tipo, quem enviou e onde é usado), `usar`/`enviar` com `uso: "imagem"` (põe o arquivo na cena, por nome e em
+quadrados: `x`, `y`, `camada`, `larguraQuadrados`), `ajustar` (move, estica, gira, esconde uma imagem solta, pelo nome), `renomear` e `apagar` (com `confirmar`). Só o mestre lista, renomeia e apaga.
+`paridade.ts` e `paridadeCampos.ts` cobrem as intenções novas (`asset.restaurar` fica de fora como o desfazer da tela).
 
 ## 5. Estrutura do repositório
 
