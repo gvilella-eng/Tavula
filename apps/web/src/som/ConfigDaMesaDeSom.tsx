@@ -17,6 +17,7 @@ import { type CSSProperties, useEffect, useRef, useState } from "react";
 import { BotaoComDica } from "../BotaoComDica";
 import { noTopoAoCentro } from "../janelas/geometria";
 import { Janela } from "../janelas/Janela";
+import { SeletorSegmentado } from "../SeletorSegmentado";
 import { BibliotecaDeMusica } from "./BibliotecaDeMusica";
 import { Deslizante } from "./Deslizante";
 import { EscolherSom, type SomEscolhido } from "./EscolherSom";
@@ -201,25 +202,17 @@ export function ConfigDaMesaDeSom(p: Props) {
       testidDoFechar="som-config-fechar"
     >
       <div className="som-config">
-        <div className="som-config-abas" role="tablist" aria-label="Partes da configuração">
-          {(
-            [
-              ["lugares", "Efeitos e ambientes"],
-              ["musica", "Música"],
-            ] as const
-          ).map(([id, nome]) => (
-            <button
-              key={id}
-              type="button"
-              role="tab"
-              className="som-config-aba"
-              data-testid={`som-config-aba-${id}`}
-              aria-selected={aba === id}
-              onClick={() => setAba(id)}
-            >
-              {nome}
-            </button>
-          ))}
+        <div className="som-config-abas">
+          <SeletorSegmentado<"lugares" | "musica">
+            modo="abas"
+            rotulo="Partes da configuração"
+            valor={aba}
+            aoMudar={setAba}
+            itens={[
+              { id: "lugares", nome: "Efeitos e ambientes", testid: "som-config-aba-lugares" },
+              { id: "musica", nome: "Música", testid: "som-config-aba-musica" },
+            ]}
+          />
         </div>
         {aba === "musica" && (
           <BibliotecaDeMusica

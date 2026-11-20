@@ -264,7 +264,7 @@ test("a mesa de som tem duas abas: troca por clique e teclado, diz o que toca em
   await expect(m.getByTestId("musica-corpo")).toBeVisible();
   await expect(m.getByTestId("som-efeitos")).toHaveCount(0);
   await botaoDeMusica(m, "Combate").click();
-  await expect(m.getByTestId("som-aba-musica-estado")).toContainText("Combate");
+  await expect(m.getByTestId("som-aba-musica-estado")).toHaveCount(0); // MU3: sem subtítulo
   await expect(m.getByTestId("som-aba-musica")).toHaveAttribute("aria-label", /Combate/);
   await expect.poll(async () => (await somDe(m)).musica?.nome).toBeTruthy();
 
@@ -275,7 +275,7 @@ test("a mesa de som tem duas abas: troca por clique e teclado, diz o que toca em
   expect((await somDe(m)).musica?.nome).toBeTruthy();
   await m.getByTestId("som-ambiente-ligar-0").click();
   await m.getByTestId("som-transporte").click();
-  await expect(m.getByTestId("som-aba-efeitos-estado")).toContainText("1 ambiente ligado");
+  await expect(m.getByTestId("som-aba-efeitos")).toHaveAttribute("aria-label", /1 ambiente ligado/);
   await expect.poll(async () => (await somDe(j)).ambientes.length).toBe(1);
   await abrirAba(m, "musica");
   await expect(m.getByTestId("som-aba-efeitos-ponto")).toBeVisible();

@@ -4425,4 +4425,27 @@ Ver `PASSAGEM.md`, "MU1" (a nota do MU2 sobre a barra de abas de 40 px).
 ### Roteiro manual
 Ver `docs/ROTEIRO-DE-TESTES.md`, "MU1" (itens 10 e 11, agora das abas e dos textos).
 
-## Próximo: o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b, N4, N5, M1, M2, Q1 a Q16, CH1, MU1, MU2, A1 e das otimizações O1–O4
+## Ajustes MU3 — abas no seletor da ficha e o zoom acima da faixa (entregue, aguardando o roteiro manual)
+
+### O que foi entregue
+O seletor segmentado da ficha ("Personagem | NPC") virou componente (`SeletorSegmentado`) e passou a valer nas abas da mesa de som e da configuração dela, sem subtítulo. O zoom (e o selo de modo, o aviso do som e o aviso da importação) sobe para ficar acima da faixa da mesa de som.
+
+### Como rodar
+`pnpm dev`; abrir a mesa de som em faixa, arrastar a alça e recolher. E2E: `pnpm --filter @tabletop/e2e test tests/zoom-faixa-mu3.spec.ts`.
+
+### Verificação
+Typecheck, lint, unidade da web e os specs musica, zoom-faixa-mu3, som-q4, som-q4b, ficha (npc, v4b2, v8, n2, q11), a1, organizacao e sala, um por vez (portas 8792 e 5178). Prints em `scratchpad\prints-mu3`.
+
+### Decisões
+Ver `REDESIGN.md`, "MU3 — como ficou".
+
+### Desvios
+- `musica.spec.ts`: as asserções do subtítulo das abas viraram "não existe" e a checagem do estado passou para o `aria-label`.
+
+### Frágil
+Ver `PASSAGEM.md`, "MU3" (`--faixa-do-som` e os 46 px).
+
+### Roteiro manual
+Abrir a mesa de som em faixa, arrastar a alça e recolher: o zoom acompanha. Soltar em janela: o zoom volta ao pé.
+
+## Próximo: o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b, N4, N5, M1, M2, Q1 a Q16, CH1, MU1, MU2, MU3, A1 e das otimizações O1–O4

@@ -115,7 +115,7 @@ export function gravarAlturaDaFaixa(altura: number | null): void {
 export const ALTURA_DO_TOPO_DA_FAIXA = 42;
 export const ESPACO_DO_CORPO_DA_FAIXA = 20;
 /** MU2: a barra de abas entre o cabeçalho e o corpo (o CSS usa a mesma altura, com a borda de baixo). */
-export const ALTURA_DAS_ABAS_DA_FAIXA = 40;
+export const ALTURA_DAS_ABAS_DA_FAIXA = 46;
 /** A altura do conteúdo do corpo da faixa na escala 1 (medida; o E2E confere). */
 export const ALTURA_NATURAL_DO_CORPO = 190;
 /** O quanto tudo pode encolher antes de aparecer a barra de rolagem. */

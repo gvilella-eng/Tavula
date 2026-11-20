@@ -733,6 +733,7 @@ Use uma pasta de teste com subpastas e uns mp3 (de 2 a 5 minutos, para dar tempo
 12. **Chamada.** Com a chamada aberta, o quadro "Trilha da mesa" mostra o **nome da música** e o do botão para todos; o mestre tem **Pausar** e **Próxima** ali. Pausada, o quadro volta a mostrar os ambientes.
 13. **O jogador não vê a biblioteca.** O jogador não tem a mesa de som nem a lista de músicas; só vê o nome do que toca.
 14. **Claude.** Com o Claude conectado: "etiquete as músicas de combate com 'Luta' e dê energia 4 à 'Lâminas no Vau'", "crie um botão 'Chefe' crescente com as de energia 4 e 5 e toque", "pause e volte ao que tocava antes".
+15. **Abas e zoom (MU3).** As abas da mesa de som (faixa e janelas) e as da configuração têm o desenho do "Personagem | NPC" da ficha, sem a linha de estado; a aba escondida com algo tocando mostra um ponto. Com a mesa de som em faixa, o zoom fica logo acima dela; arraste a alça, recolha e abra: ele acompanha. Solte em janela: o zoom volta ao pé.
 
 ## CH1 — a chamada da mesa (voz e vídeo, com fundo desfocado)
 

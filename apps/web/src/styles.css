@@ -529,7 +529,7 @@ textarea {
   position: absolute;
   z-index: 22;
   right: 12px;
-  bottom: 12px;
+  bottom: calc(12px + var(--faixa-do-som, 0px));
   display: flex;
   flex-direction: row;
   align-items: center;
@@ -1519,7 +1519,7 @@ button[aria-disabled="true"]:hover {
 /* O aviso da importação fica no canto de baixo, à esquerda, para não cobrir a faixa de cenas. */
 .aviso-caixa.aviso-importacao {
   top: auto;
-  bottom: 16px;
+  bottom: calc(16px + var(--faixa-do-som, 0px));
   left: 68px;
   transform: none;
 }
@@ -2100,7 +2100,7 @@ button[aria-disabled="true"]:hover {
 .selo-modo,
 .selo-ver-como {
   position: absolute;
-  bottom: 12px;
+  bottom: calc(12px + var(--faixa-do-som, 0px));
   left: 50%;
   transform: translateX(-50%);
   z-index: 28;
@@ -5987,7 +5987,7 @@ button.inicio-botao-largo {
 .aviso-do-som {
   position: absolute;
   left: 50%;
-  bottom: 16px;
+  bottom: calc(16px + var(--faixa-do-som, 0px));
   transform: translateX(-50%);
   z-index: 40;
   display: flex;
@@ -6487,6 +6487,7 @@ button.inicio-botao-largo {
 
 /* A faixa no pé da tela (dentro da área do mapa). */
 .som-faixa {
+  container: faixa-som / inline-size;
   position: absolute;
   left: 8px;
   right: 8px;
@@ -6545,19 +6546,32 @@ button.inicio-botao-largo {
   color: var(--acento-forte);
 }
 .som-resumo {
+  min-width: 0;
+  overflow: hidden;
   font-size: 12px;
   color: var(--texto-suave);
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 .som-faixa-espaco {
   flex: 1;
 }
 .som-faixa-topo .som-pe {
-  flex: none;
+  flex: 0 1 auto;
+  min-width: 0;
 }
 .som-faixa-topo .som-pe-vol {
-  flex: none;
-  width: 200px;
+  flex: 0 1 200px;
+  width: auto;
+  min-width: 90px;
+}
+/* Faixa estreita (ex.: 1280 px com o painel aberto): o cabeçalho tira o resumo e o rótulo do volume, para os botões
+   caberem inteiros. */
+@container faixa-som (max-width: 900px) {
+  .som-faixa-topo .som-resumo,
+  .som-faixa-topo .som-pe-rotulo {
+    display: none;
+  }
 }
 .som-faixa-corpo {
   flex: 1 1 auto;
@@ -6643,73 +6657,61 @@ button.inicio-botao-largo {
   flex: 1;
 }
 
-/* MU2: as duas abas da mesa de som ("Efeitos e ambientes" e "Música"), logo abaixo do cabeçalho. */
-.som-abas {
+/* MU3: o seletor segmentado do app (o desenho do "Personagem | NPC" da ficha). A ficha usa as classes dela (`fl-modos`, `fl-seg`) e fica como estava. */
+.seg-grupo:not(.fl-modos) {
   display: flex;
-  flex: none;
-  gap: 4px;
-  box-sizing: border-box;
-  height: 40px;
-  padding: 4px 12px 0;
-  border-bottom: 1px solid var(--borda);
-}
-.som-aba {
-  position: relative;
-  display: flex;
-  flex: 0 1 280px;
-  flex-direction: column;
-  align-items: flex-start;
-  justify-content: center;
-  gap: 1px;
   min-width: 0;
-  padding: 2px 14px;
-  background: transparent;
-  border: 1px solid transparent;
-  border-bottom: 0;
-  border-radius: 8px 8px 0 0;
-  color: var(--texto-suave);
-  text-align: left;
-}
-.som-aba[aria-selected="true"] {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
   background: var(--campo);
-  border-color: var(--borda);
-  box-shadow: inset 0 -2px 0 var(--acento-forte);
-  color: var(--texto);
+  border: 1px solid var(--borda);
+  border-radius: 8px;
 }
-.som-aba-nome {
-  font-size: 13px;
-  font-weight: 600;
-  line-height: 1.2;
-  white-space: nowrap;
-}
-.som-aba-estado {
+.seg-grupo:not(.fl-modos) > .seg-item {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  max-width: 100%;
-  font-size: 11px;
-  line-height: 1.2;
-}
-.som-aba-estado svg {
-  flex: none;
-}
-.som-aba-estado-texto {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  justify-content: center;
+  height: 32px;
+  padding: 0 14px;
+  color: var(--texto-suave);
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
   white-space: nowrap;
 }
-.som-aba[data-toca="sim"] .som-aba-estado {
-  color: var(--acento-forte);
+.seg-grupo:not(.fl-modos) > .seg-item:hover {
+  background: var(--acento-suave);
 }
-.som-aba-ponto {
+.seg-grupo:not(.fl-modos) > .seg-item[aria-selected="true"],
+.seg-grupo:not(.fl-modos) > .seg-item[aria-pressed="true"] {
+  color: var(--acento-texto);
+  background: var(--acento);
+}
+.seg-nome {
+  display: inline-flex;
+  align-items: center;
+}
+.seg-ponto {
   display: inline-block;
   margin-left: 7px;
-  vertical-align: middle;
   width: 7px;
   height: 7px;
   background: var(--acento-forte);
   border-radius: 50%;
+}
+/* A barra de abas da mesa de som, logo abaixo do cabeçalho (a altura é `ALTURA_DAS_ABAS_DA_FAIXA`, com a borda de baixo). */
+.som-abas {
+  display: flex;
+  flex: none;
+  box-sizing: border-box;
+  height: 46px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--borda);
 }
 .painel-som > .som-abas {
   margin: 0 -12px;
@@ -6728,10 +6730,6 @@ button.inicio-botao-largo {
 }
 .som-painel-efeitos > .som-vazio-geral {
   margin: 0;
-}
-.som-propria-corpo > .som-abas,
-.painel-som > .som-abas {
-  padding-top: 2px;
 }
 /* Botões da mesa de som com ícone e texto: o espaço entre os dois. */
 .som-transporte,
@@ -6885,23 +6883,8 @@ button.inicio-botao-largo {
 }
 .som-config-abas {
   display: flex;
-  gap: 4px;
-  padding: 8px 12px 0;
+  padding: 8px 12px;
   border-bottom: 1px solid var(--borda);
-}
-.som-config-aba {
-  padding: 6px 14px;
-  background: transparent;
-  border: 1px solid transparent;
-  border-bottom: 0;
-  border-radius: 8px 8px 0 0;
-  color: var(--texto-suave);
-  font-weight: 500;
-}
-.som-config-aba[aria-selected="true"] {
-  background: var(--painel);
-  border-color: var(--borda);
-  color: var(--texto);
 }
 .musica-biblioteca {
   display: flex;

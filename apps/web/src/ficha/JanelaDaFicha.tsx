@@ -40,6 +40,7 @@ import { EditorDoItem } from "../EditorDoItem";
 import type { PedirImagem } from "../FaixaDeCenas";
 import { Janela } from "../janelas/Janela";
 import type { ImagensDoMapa } from "../mapa/mapaPixi";
+import { SeletorSegmentado } from "../SeletorSegmentado";
 import type { TempoDaTela } from "../tempo";
 import { useCompendio } from "../useCompendio";
 import { useFuncaoEstavel } from "../useFuncaoEstavel";
@@ -652,21 +653,20 @@ export function JanelaDaFicha({
                 <Caixa moldura className="fl-conf-caixa" testid="ficha-apresentacao-escolha">
                   <Secao>Ficha de</Secao>
                   <div className="fl-conf-linha">
-                    <fieldset className="fl-modos" aria-label="Ficha de">
-                      {APRESENTACOES.map((a: Apresentacao) => (
-                        <button
-                          key={a}
-                          type="button"
-                          className="fl-seg fl-seg-grande"
-                          data-testid={`apresentacao-${a}`}
-                          aria-pressed={(npc ? "npc" : "personagem") === a}
-                          disabled={!editar}
-                          onClick={() => alterar([{ caminho: "apresentacao", valor: a }])}
-                        >
-                          {a === "npc" ? "NPC" : "Personagem"}
-                        </button>
-                      ))}
-                    </fieldset>
+                    <SeletorSegmentado<Apresentacao>
+                      modo="escolha"
+                      rotulo="Ficha de"
+                      classeDoGrupo="fl-modos"
+                      classeDoItem="fl-seg fl-seg-grande"
+                      desabilitado={!editar}
+                      valor={npc ? "npc" : "personagem"}
+                      aoMudar={(a) => alterar([{ caminho: "apresentacao", valor: a }])}
+                      itens={APRESENTACOES.map((a) => ({
+                        id: a,
+                        nome: a === "npc" ? "NPC" : "Personagem",
+                        testid: `apresentacao-${a}`,
+                      }))}
+                    />
                     <span className="fl-dica fl-conf-dica">
                       Só muda como a ficha se mostra: o bloco de monstro ou a ficha de personagem.
                       Os dados são os mesmos.

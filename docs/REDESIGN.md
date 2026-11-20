@@ -2513,3 +2513,19 @@ O Vilella testou o divisor do MU1 a ~1360 px: "o espaço ficou muito pequeno e o
 
 **O que ficou para depois**
 - Nenhum.
+
+## MU3 — como ficou (2026-11-19): abas no seletor da ficha e o zoom acima da faixa
+
+**O que foi feito**
+- Um seletor segmentado só (`SeletorSegmentado`), no desenho do "Personagem | NPC" da ficha: grupo com borda e cantos arredondados, o escolhido cheio na cor de destaque, os outros em texto suave. Usado na ficha (idêntica), nas abas da mesa de som (faixa, janela flutuante e janela própria) e nas abas da janela "Mesa de som · configuração". As abas mantêm `tablist` e `tab`, setas, Home, End e a aba lembrada.
+- Sem subtítulo nas abas da mesa de som: saiu a linha de estado. O estado continua no rótulo acessível.
+- A barra de abas da faixa passou de 40 para 46 px (`ALTURA_DAS_ABAS_DA_FAIXA` e o CSS); a faixa ficou 6 px mais alta.
+- O zoom sobe para ficar acima da faixa (aberta, recolhida e durante o arrasto da alça) e volta ao pé quando a mesa de som vira janela, janela própria ou fecha. A mesma regra vale para o selo de modo ("ver como"), o aviso do som e o aviso da importação.
+
+**Decisões (assumido)**
+- O ponto ao lado do nome da aba escondida que tem algo tocando ficou.
+- Fora da ficha o seletor usa Space Grotesk 600 (a fonte da ficha vem do tema da ficha).
+- O aviso perto do ponto (`AvisoPerto`) e a dica da barra de ferramentas não mudam: não ficam no pé do mapa sob a faixa.
+
+**O que ficou para depois**
+- Nenhum.

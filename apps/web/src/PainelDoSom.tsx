@@ -21,7 +21,7 @@ import {
   X,
 } from "lucide-react";
 import type { CSSProperties, PointerEvent, KeyboardEvent as TecladoReact } from "react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Fontes } from "./assets/fontes";
 import { BotaoComDica } from "./BotaoComDica";
 import { noCanto } from "./janelas/geometria";
@@ -90,6 +90,25 @@ export function PainelDoSom(p: Props) {
   const { aba, mudarAba } = useAbaDoSom();
   const [alturaDaFaixa, setAlturaDaFaixa] = useState<number | null>(lerAlturaDaFaixa);
   const [dicaDoTransporte, setDicaDoTransporte] = useState(false);
+  const faixaRef = useRef<HTMLElement>(null);
+  // MU3: a faixa embaixo diz ao mapa quanto do pé ela ocupa (a variável `--faixa-do-som`), para o zoom e os avisos subirem.
+  useEffect(() => {
+    const faixa = faixaRef.current;
+    const pai = faixa?.parentElement;
+    if (modo !== "faixa" || !faixa || !pai) return;
+    const atualizar = () =>
+      pai.style.setProperty(
+        "--faixa-do-som",
+        `${Math.ceil(faixa.getBoundingClientRect().height) + 8}px`,
+      );
+    atualizar();
+    const olho = new ResizeObserver(atualizar);
+    olho.observe(faixa);
+    return () => {
+      olho.disconnect();
+      pai.style.removeProperty("--faixa-do-som");
+    };
+  }, [modo]);
   const adiar = useEnvioAdiado();
   const lugares = lugaresDe(p.estado.mesaDeSom);
   const ligados = p.estado.somLigado?.ambientes ?? [];
@@ -507,6 +526,7 @@ export function PainelDoSom(p: Props) {
     return (
       <>
         <section
+          ref={faixaRef}
           className="som-faixa"
           data-testid="som-faixa"
           data-recolhida={recolhida ? "sim" : "nao"}
