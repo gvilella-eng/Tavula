@@ -14,6 +14,7 @@ import {
   Activity,
   Archive,
   Boxes,
+  Disc,
   Download,
   Flame,
   House,
@@ -26,6 +27,11 @@ import { type ChangeEvent, memo, useEffect, useRef, useState } from "react";
 import { AssetsDaMesa, type PropsDosAssetsDaMesa } from "./AssetsDaMesa";
 import { type DadosDaMesa, renomearMesa } from "./api";
 import { resumoDasAutomacoes } from "./automacoes/resumo";
+import {
+  type PropsDasGravacoes,
+  RESUMO_DAS_GRAVACOES,
+  SecaoDasGravacoes,
+} from "./chamada/gravacao/SecaoDasGravacoes";
 import { SecaoDeContas } from "./contas/SecaoDeContas";
 import { IdDaMesa } from "./IdDaMesa";
 import { SecaoMesa, SecaoObjetosDeLuz } from "./PainelDaMesa";
@@ -59,6 +65,8 @@ type Props = {
   registrarAnimacao?: ((arquivo: File) => Promise<{ hash: string; nome: string }>) | undefined;
   /** AS1: o que a seção "Assets da mesa" precisa (estável entre renders; sem ele a seção não aparece). */
   assets?: PropsDosAssetsDaMesa | undefined;
+  /** CH3: o que a seção "Gravações da sessão" precisa (sem ele a seção não aparece). */
+  gravacoes?: PropsDasGravacoes | undefined;
 };
 
 /**
@@ -159,6 +167,7 @@ function AbaMesaBase({
   aoAbrirAutomacoes,
   registrarAnimacao,
   assets,
+  gravacoes,
 }: Props) {
   const jogadores = jogadoresDaMesa(estado);
   const [alvo, setAlvo] = useState<string>("");
@@ -255,6 +264,18 @@ function AbaMesaBase({
           resumo={resumoDosAssets(estado.assets)}
         >
           <AssetsDaMesa {...assets} />
+        </SecaoDePreferencias>
+      )}
+
+      {gravacoes && (
+        <SecaoDePreferencias
+          prefixo="mesa"
+          id="gravacoes"
+          titulo="Gravações da sessão"
+          icone={<Disc size={16} />}
+          resumo={RESUMO_DAS_GRAVACOES}
+        >
+          <SecaoDasGravacoes {...gravacoes} />
         </SecaoDePreferencias>
       )}
 

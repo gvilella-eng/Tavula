@@ -33,6 +33,8 @@ export const DadosDeEntrarNaChamadaSchema = z.object({
   camera: z.boolean(),
   /** Entrou "só ouvindo": sem enviar nada (a pessoa vê e ouve os outros). */
   soOuvindo: z.boolean(),
+  /** CH3: "Não gravar a minha voz" já marcado na tela de antes de entrar (sem isto a voz começaria gravada). */
+  naoGravar: z.boolean().optional(),
 });
 export type DadosDeEntrarNaChamada = z.infer<typeof DadosDeEntrarNaChamadaSchema>;
 
@@ -62,6 +64,13 @@ export type DadosDeSinal = z.infer<typeof DadosDeSinalSchema>;
 export const ParticipanteDaChamadaSchema = EstadoNaChamadaSchema.extend({
   usuarioId: z.string().min(1).max(64),
   soOuvindo: z.boolean(),
+  /**
+   * CH3: o mestre desta conexão está gravando a sessão para a transcrição. Só vale para o mestre; a gravação existe
+   * enquanto o mestre está na chamada com isto ligado (fechar a janela, sair ou recarregar a página a encerra).
+   */
+  gravando: z.boolean(),
+  /** CH3: "Não gravar a minha voz": cada um tira só a própria voz da gravação. */
+  naoGravar: z.boolean(),
 });
 export type ParticipanteDaChamada = z.infer<typeof ParticipanteDaChamadaSchema>;
 
@@ -111,6 +120,9 @@ export function entrarNaChamada(
     fundo: "nenhum",
     surdo: false,
     soOuvindo: dados.soOuvindo,
+    // Quem entra começa gravado (se a gravação está ligada), a menos que já tenha marcado "Não gravar" na tela de antes de entrar.
+    gravando: false,
+    naoGravar: dados.naoGravar === true,
   };
   const novas = jaEstava
     ? restantes.map((e) => (e.conexaoId === quem.conexaoId ? nova : e))
@@ -135,6 +147,58 @@ export function mudarEstadoNaChamada(
           : { ...e, ...estado }
         : e,
     ),
+  };
+}
+
+// --- a gravação para a transcrição (CH3) -------------------------------------------------------------------------
+
+/** A gravação está ligada? (O mestre na chamada com `gravando`.) Quem não está na chamada, ou entrou depois, também vê. */
+export function gravacaoLigada(
+  participantes: readonly Pick<ParticipanteDaChamada, "gravando">[],
+): boolean {
+  return participantes.some((p) => p.gravando);
+}
+
+/** Os ids de quem ficou de fora da gravação (não tem a voz gravada). */
+export function quemFicouDeFora(
+  participantes: readonly Pick<ParticipanteDaChamada, "usuarioId" | "naoGravar">[],
+): string[] {
+  return participantes.filter((p) => p.naoGravar).map((p) => p.usuarioId);
+}
+
+/**
+ * Ligar ou desligar a gravação: **só o mestre**, e só de dentro da chamada. A sala confere o papel (`ehMestre`); o cliente
+ * nunca decide. Só uma conexão grava por vez: ligar numa conexão desliga a de outra (a mesma pessoa em duas janelas).
+ */
+export function ligarGravacao(
+  entradas: readonly EntradaNaChamada[],
+  conexaoId: string,
+  ehMestre: boolean,
+  ligada: boolean,
+): SaidaDaChamada<{ entradas: EntradaNaChamada[] }> {
+  if (!entradas.some((e) => e.conexaoId === conexaoId)) {
+    return erro("fora_da_chamada", "Você não está na chamada.");
+  }
+  if (!ehMestre) return erro("sem_permissao", "Só o mestre liga a gravação.");
+  return {
+    entradas: entradas.map((e) => ({
+      ...e,
+      gravando: e.conexaoId === conexaoId ? ligada : false,
+    })),
+  };
+}
+
+/** "Não gravar a minha voz": cada um muda só a própria marca (a da conexão que pediu). */
+export function tirarMinhaVoz(
+  entradas: readonly EntradaNaChamada[],
+  conexaoId: string,
+  fora: boolean,
+): SaidaDaChamada<{ entradas: EntradaNaChamada[] }> {
+  if (!entradas.some((e) => e.conexaoId === conexaoId)) {
+    return erro("fora_da_chamada", "Você não está na chamada.");
+  }
+  return {
+    entradas: entradas.map((e) => (e.conexaoId === conexaoId ? { ...e, naoGravar: fora } : e)),
   };
 }
 

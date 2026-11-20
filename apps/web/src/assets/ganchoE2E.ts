@@ -12,6 +12,43 @@ export function ganchosDoTeste(): GanchosE2E | undefined {
   return (window as unknown as { __tabletopE2E?: GanchosE2E }).__tabletopE2E;
 }
 
+/**
+ * CH3: o gancho da "pasta" dos testes (`window.__tabletopPasta`) nas janelas que têm só as fontes (a da chamada): escolher a
+ * pasta simulada, levar o que foi gravado nela a outro navegador (e trazer de lá), e listar o que foi gravado.
+ */
+export function instalarGanchoDaPasta(fontes: Fontes): () => void {
+  if (import.meta.env.MODE !== "e2e") return () => {};
+  const w = window as unknown as { __tabletopPasta?: unknown };
+  w.__tabletopPasta = {
+    simularPasta: (estado: EstadoDaPasta | null) => fontes.simularPasta(estado),
+    exportarPasta: () =>
+      (fontes.memoria?.gravados() ?? []).map((g) => ({
+        caminho: g.caminho,
+        base64: btoa(Array.from(g.bytes, (b) => String.fromCharCode(b)).join("")),
+      })),
+    importarPasta: (lista: { caminho: string; base64: string }[]) => {
+      for (const l of lista) {
+        fontes.memoria?.importarBytes(
+          l.caminho,
+          Uint8Array.from(atob(l.base64), (c) => c.charCodeAt(0)),
+        );
+      }
+      fontes.notificar();
+    },
+    gravados: async () =>
+      Promise.all(
+        (fontes.memoria?.gravados() ?? []).map(async (g) => ({
+          caminho: g.caminho,
+          bytes: g.bytes.length,
+          sha256: await sha256Hex(g.bytes),
+        })),
+      ),
+  };
+  return () => {
+    w.__tabletopPasta = undefined;
+  };
+}
+
 export function instalarGanchoDeAssets(gerente: GerenteDeAssets, fontes: Fontes): () => void {
   if (import.meta.env.MODE !== "e2e") return () => {};
   const w = window as unknown as { __tabletopAssets?: unknown };

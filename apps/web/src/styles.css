@@ -8536,6 +8536,7 @@ button.chamada-linha:hover {
   background: var(--borda);
 }
 .chamada-botao-redondo {
+  position: relative;
   display: grid;
   flex: 0 0 auto;
   place-items: center;
@@ -8565,6 +8566,180 @@ button.chamada-linha:hover {
   color: var(--acento-forte);
   background: var(--acento-suave);
   border-color: var(--acento);
+}
+/* CH3: a seção "Gravações da sessão" da aba Mesa. */
+.gravacoes-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.gravacao-linha {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  background: var(--campo);
+  border: 1px solid var(--borda);
+  border-radius: 8px;
+}
+.gravacao-titulo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.gravacao-estado {
+  padding: 1px 8px;
+  font-size: 12px;
+  color: var(--texto-suave);
+  border: 1px solid var(--borda);
+  border-radius: 10px;
+}
+.gravacao-estado[data-estado="transcrita"] {
+  color: var(--acento-forte);
+  border-color: var(--acento);
+}
+.gravacao-estado[data-estado="trazida"] {
+  color: var(--sucesso);
+  border-color: var(--sucesso);
+}
+.gravacoes-sem-pasta {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+}
+/* CH3: o aviso de gravação no topo da janela (para todo mundo), o botão do mestre e a confirmação. */
+.chamada-gravando {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 16px;
+  padding: 7px 18px;
+  font-size: 13px;
+  color: var(--texto);
+  background: var(--perigo-fundo);
+  border-bottom: 1px solid var(--perigo);
+}
+.chamada-gravando-texto {
+  font-weight: 600;
+}
+.chamada-gravando-ponto {
+  color: var(--perigo);
+}
+.chamada-gravando-dica {
+  flex: 1 1 220px;
+  min-width: 0;
+  color: var(--texto-suave);
+}
+.chamada-gravando-marca {
+  font-size: 13px;
+}
+.chamada-gravando-mestre {
+  flex: 1 1 100%;
+  color: var(--texto-suave);
+}
+.chamada-gravando-erro {
+  flex: 1 1 100%;
+  color: var(--perigo);
+}
+.chamada-gravou {
+  flex: 0 0 auto;
+  padding: 7px 18px;
+  font-size: 13px;
+  color: var(--texto-suave);
+  background: var(--cabecalho);
+  border-bottom: 1px solid var(--borda);
+}
+.chamada-gravou code {
+  font-size: 12px;
+  color: var(--texto);
+  overflow-wrap: anywhere;
+}
+.chamada-botao-redondo[data-gravando="sim"] {
+  color: var(--perigo);
+  background: var(--perigo-fundo);
+  border-color: var(--perigo);
+}
+.chamada-confirma-lista {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+  color: var(--texto-suave);
+}
+.chamada-confirma-lista li + li {
+  margin-top: 4px;
+}
+.chamada-confirma-pasta {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+}
+.chamada-confirma-gravacao {
+  width: 400px;
+}
+/* CH3: o botão do fundo com o menu dos três níveis (Desligado, Leve, Forte) e a letra do nível no canto do ícone. */
+.chamada-fundo-caixa {
+  position: relative;
+  display: inline-flex;
+}
+.chamada-fundo-letra {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  display: grid;
+  place-items: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 3px;
+  font: 700 10px var(--fonte-interface);
+  color: var(--acento-texto);
+  background: var(--acento);
+  border: 2px solid var(--barra);
+  border-radius: 8px;
+  box-sizing: content-box;
+}
+.chamada-fundo-menu {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 50%;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  min-width: 150px;
+  padding: 4px;
+  transform: translateX(-50%);
+  background: var(--painel);
+  border: 1px solid var(--borda);
+  border-radius: 10px;
+  box-shadow: var(--sombra);
+}
+.chamada-fundo-opcao {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  height: 34px;
+  padding: 0 12px;
+  font: 500 13px var(--fonte-interface);
+  color: var(--texto);
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-radius: 7px;
+}
+.chamada-fundo-opcao:hover {
+  background: var(--acento-suave);
+}
+.chamada-fundo-opcao[aria-checked="true"] {
+  color: var(--acento-texto);
+  background: var(--acento);
+}
+.chamada-fundo-opcao-letra {
+  font: 700 11px var(--fonte-interface);
+  opacity: 0.8;
 }
 .chamada-sair {
   display: flex;
@@ -8644,6 +8819,12 @@ button.chamada-linha:hover {
   flex-direction: column;
   gap: 14px;
 }
+.chamada-marcas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  min-width: 0;
+}
 .chamada-aparelhos-janela {
   flex: 0 0 auto;
   padding: 14px 20px;
@@ -8655,26 +8836,37 @@ button.chamada-linha:hover {
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 12px;
 }
+.chamada-aparelhos-janela .chamada-marcas {
+  grid-column: 1 / -1;
+}
 
 /* --- antes de entrar -------------------------------------------------------------------------- */
+/* CH3: o bloco de antes de entrar é um só, centrado e com largura máxima; a prévia da câmera é o maior elemento (16:9, a mais
+   larga que a altura da janela deixa) e os botões têm a largura do texto, nunca a da coluna. */
 .chamada-antes-corpo {
   display: flex;
   flex: 1;
-  gap: 28px;
   min-height: 0;
-  padding: 24px 28px;
+  padding: 14px 28px;
   overflow: auto;
+}
+.chamada-antes-bloco {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  max-width: 720px;
+  margin: auto;
 }
 .chamada-antes-previa {
   display: flex;
-  flex: 0 1 540px;
-  flex-direction: column;
-  gap: 14px;
+  justify-content: center;
   min-width: 0;
 }
 .chamada-previa {
   position: relative;
-  width: 100%;
+  width: min(100%, calc((100dvh - 388px) * 16 / 9));
+  min-width: min(100%, 320px);
   aspect-ratio: 16 / 9;
   overflow: hidden;
   background: var(--painel);
@@ -8713,19 +8905,6 @@ button.chamada-linha:hover {
 }
 .chamada-nivel .chamada-nivel-barra.aceso {
   background: var(--sucesso);
-}
-.chamada-antes-lado {
-  display: flex;
-  flex: 1 1 260px;
-  flex-direction: column;
-  gap: 14px;
-  min-width: 0;
-}
-.chamada-antes-fim {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-top: auto;
 }
 .chamada-grupo-campo {
   display: flex;
@@ -8779,8 +8958,9 @@ button.chamada-linha:hover {
   border-radius: 8px;
 }
 .chamada-principal {
+  white-space: nowrap;
   height: 48px;
-  padding: 0 18px;
+  padding: 0 22px;
   font: 600 15px var(--fonte-interface);
   color: var(--acento-texto);
   background: var(--acento);
@@ -8788,7 +8968,9 @@ button.chamada-linha:hover {
   border-radius: 10px;
 }
 .chamada-secundario {
-  height: 44px;
+  padding: 0 20px;
+  white-space: nowrap;
+  height: 48px;
   font: 500 14px var(--fonte-interface);
   color: var(--texto);
   background: var(--cabecalho);
@@ -8839,13 +9021,70 @@ button.chamada-linha:hover {
   padding: 24px;
   text-align: center;
 }
-.chamada-antes[data-estreita="true"] .chamada-antes-corpo {
+.chamada-antes-lado {
+  display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 10px;
+  min-width: 0;
+}
+/* Câmera, microfone e fundo na mesma linha, caixas alinhadas embaixo mesmo se um rótulo quebrar (regra do A1). */
+.chamada-antes-lado .chamada-aparelhos-campos {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px 14px;
+  align-items: end;
+}
+.chamada-antes-lado .chamada-aparelhos-campos > .chamada-rotulo-campo {
+  justify-content: flex-end;
+}
+.chamada-antes-lado .chamada-marcas {
+  grid-column: 2 / -1;
+}
+.chamada-seg-fundo {
+  width: 100%;
+}
+.seg-grupo.chamada-seg-fundo:not(.fl-modos) > .seg-item {
+  flex: 1;
+  height: 38px;
+  padding: 0 6px;
+}
+.seg-grupo.chamada-seg-fundo:not(.fl-modos) > .seg-item:disabled {
+  opacity: 0.5;
+}
+.chamada-antes-fim {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+  margin-top: 2px;
+}
+.chamada-antes-fim > .chamada-erro {
+  flex: 1 1 100%;
+}
+.chamada-entrar-botoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-left: auto;
+}
+.chamada-antes[data-estreita="true"] .chamada-antes-corpo {
   padding: 16px;
 }
-.chamada-antes[data-estreita="true"] .chamada-antes-previa {
-  flex: 0 0 auto;
+.chamada-antes[data-estreita="true"] .chamada-previa {
+  width: 100%;
+  min-width: 0;
+}
+.chamada-antes[data-estreita="true"] .chamada-aparelhos-campos {
+  grid-template-columns: minmax(0, 1fr);
+}
+.chamada-antes[data-estreita="true"] .chamada-marcas {
+  grid-column: 1 / -1;
+}
+.chamada-antes[data-estreita="true"] .chamada-entrar-botoes {
+  flex-direction: column;
+  align-items: flex-start;
+  margin-left: 0;
 }
 .chamada-antes[data-estreita="true"] .chamada-privacidade {
   padding: 8px 16px 12px;

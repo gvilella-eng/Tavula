@@ -795,6 +795,29 @@ Mesa de eventos: crie duas automações com gatilho de botão (escolha cor e íc
 3. Com 9 quadros ou mais (peça a mais gente ou use o teste): a segunda página aparece com setas e "1/2"; as setas do teclado trocam quando a grade tem o foco. Quem fala numa página escondida acende um ponto verde na seta.
 4. A barra de baixo está mais baixa, a lista de pessoas mais estreita e "Volume para você" cabe numa linha acima do controle.
 
+## CH3 — tela de entrar, desfoque em três níveis, gravar e transcrever
+
+**A tela de entrar e o desfoque**
+1. Abra a chamada (botão "Chamada" do topo): a câmera aparece grande no meio, numa coluna estreita (uns 720 px), com Câmera, Microfone e Fundo na mesma linha, as caixas alinhadas. "Entrar na chamada" e "Entrar só ouvindo" têm a largura do texto, lado a lado. Não há barra de rolagem na janela grande. Estreite a janela (menos de 560 px): vira uma coluna, com os botões um embaixo do outro.
+2. Em "Fundo da câmera" escolha **Leve** e depois **Forte**: o Leve deixa o rosto e o ambiente ainda reconhecíveis; o Forte borra bem mais. "Desligado" volta à câmera crua.
+3. Entre na chamada. O botão do fundo (ícone de pessoa) mostra um **L** ou **F** no canto; clique nele: abre um menu pequeno com Desligado, Leve e Forte. Escolha um. A tecla **B** passa ao próximo nível (Desligado, Leve, Forte, Desligado). Feche o menu com Esc.
+
+**Instalar o whisper.cpp (uma vez)**
+4. Siga `docs/WHISPER.md`: baixe o pacote com CUDA e o modelo `large-v3-turbo`, ponha `WHISPER_EXE` e `WHISPER_MODELO` (ou o `transcrever.config.json`). Rode `whisper-cli.exe -h` para conferir.
+
+**Gravar 5 minutos com alguém**
+5. Escolha a pasta da mesa (aba Preferências, "Ajuda e arquivos"). Como mestre, entre na chamada com um jogador. Clique em **Gravar para transcrição** (o círculo na barra de baixo): a confirmação diz o que é gravado e onde; "Começar a gravar".
+6. Nos dois lados aparece "● Gravando para transcrição" no topo. O jogador, que ainda não entrou, também vê isso na tela de antes de entrar. Fale uns 5 minutos, role um dado, mande uma mensagem no chat e leve o grupo para outra cena.
+7. Peça ao jogador para marcar **"Não gravar a minha voz"**: você, como mestre, vê "Fora da gravação: <nome>". Fale um pouco mais: a pasta dele para de crescer. Desmarque e marque de novo, se quiser.
+8. Pare pelo mesmo botão (ou saia da chamada, ou feche a janela): o aviso some. Abra `gravacoes/<data_hora>/`: uma pasta por pessoa com os `.wav` curtos (só a fala), mais `gravacao.json`, `nomes.txt` e `eventos.jsonl`. Ouça um trecho: deve ter só a fala, com um pouco de folga antes e depois.
+
+**Transcrever, trazer e pedir o resumo**
+9. No terminal, na raiz do repositório: `pnpm transcrever "C:\caminho\da\pasta-da-mesa\gravacoes\<data_hora>"`. O terminal mostra a pessoa, o trecho e o tempo que falta. Abra `transcricao.md`: a linha do tempo com horário, nome e fala, misturada com as rolagens, o chat e a troca de cena.
+10. Na aba **Mesa**, seção **Gravações da sessão**: a gravação aparece como "transcrita". **Trazer a transcrição**: vira a nota "Sessão de DD/MM — transcrição", só sua (veja em Fichas; o jogador não a vê). A mesa pergunta **"Apagar o áudio da gravação?"**: apagar é o padrão; a transcrição fica. O estado vira "trazida".
+11. Peça ao Claude: "resuma a sessão de hoje". Ele deve ler a nota da transcrição e escrever o resumo como rascunho de nota (o que aconteceu, NPCs, pistas e pendências).
+
+**O que conferir com o whisper de verdade**: se a placa foi usada (a saída do whisper diz); quantos minutos levou para 5 minutos de fala; se os nomes (Thorin, a Torre Negra...) saíram certos; se a hora das falas bate com o relógio da sessão (compare uma fala com o chat do mesmo instante).
+
 ## AS1 — assets da mesa e segurança dos arquivos
 
 1. **Soltar na cena.** Como mestre, arraste um png (ou jpg, webp) do computador para o mapa: a imagem aparece onde você soltou, na camada de trabalho (veja a camada no menu do topo). Faça o mesmo com um gif: ele anima em laço. Entre como jogador: vê as duas, e a mesma animação.

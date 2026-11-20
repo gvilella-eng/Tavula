@@ -1375,6 +1375,8 @@ function processarIntencao(
     case "chamada.sair":
     case "chamada.sinal":
     case "chamada.chamar":
+    case "chamada.gravar":
+    case "chamada.naoGravar":
       return recusa("sem_permissao", "A chamada só vale pela janela da chamada da mesa.");
 
     case "papel.alterar": {

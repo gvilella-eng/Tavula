@@ -28,6 +28,10 @@ export interface FonteDeAssets {
    * `substituir` grava sempre (a ficha exportada, que muda sem mudar de tamanho).
    */
   gravar(pasta: string[], nome: string, dados: Blob, substituir?: boolean): Promise<boolean>;
+  /** CH3: o que há dentro de uma pasta (só o primeiro nível). Pasta que não existe: lista vazia. */
+  listarPasta(caminho: readonly string[]): Promise<{ nome: string; tipo: "arquivo" | "pasta" }[]>;
+  /** CH3: apaga um arquivo ou uma pasta inteira. `false` se não existia (ou não deu). */
+  apagar(caminho: readonly string[]): Promise<boolean>;
 }
 
 const EXTENSOES = /\.(png|jpe?g|webp|gif|avif|bmp)$/i;
@@ -67,6 +71,14 @@ export class ArquivosSoltos implements FonteDeAssets {
 
   async gravar(): Promise<boolean> {
     throw new Error("Arquivos soltos não aceitam gravação.");
+  }
+
+  async listarPasta(): Promise<{ nome: string; tipo: "arquivo" | "pasta" }[]> {
+    return [];
+  }
+
+  async apagar(): Promise<boolean> {
+    return false;
   }
 }
 
@@ -127,6 +139,36 @@ export class Memoria implements FonteDeAssets {
     return true;
   }
 
+  async listarPasta(
+    caminho: readonly string[],
+  ): Promise<{ nome: string; tipo: "arquivo" | "pasta" }[]> {
+    const prefixo = caminho.length === 0 ? "" : `${caminho.join("/")}/`;
+    const achados = new Map<string, "arquivo" | "pasta">();
+    for (const chave of [...this.gravadosEm.keys(), ...this.outros.keys()]) {
+      if (!chave.startsWith(prefixo)) continue;
+      const resto = chave.slice(prefixo.length);
+      const [primeiro, ...mais] = resto.split("/");
+      if (!primeiro) continue;
+      if (mais.length > 0) achados.set(primeiro, "pasta");
+      else if (!achados.has(primeiro)) achados.set(primeiro, "arquivo");
+    }
+    return [...achados].map(([nome, tipo]) => ({ nome, tipo }));
+  }
+
+  async apagar(caminho: readonly string[]): Promise<boolean> {
+    const alvo = caminho.join("/");
+    let apagou = false;
+    for (const mapa of [this.gravadosEm, this.outros] as Map<string, unknown>[]) {
+      for (const chave of [...mapa.keys()]) {
+        if (chave === alvo || chave.startsWith(`${alvo}/`)) {
+          mapa.delete(chave);
+          apagou = true;
+        }
+      }
+    }
+    return apagou;
+  }
+
   /** O que foi gravado (caminho e bytes), para o gancho de teste. */
   gravados(): { caminho: string; bytes: Uint8Array }[] {
     return [...this.gravadosEm].map(([caminho, bytes]) => ({ caminho, bytes }));
@@ -154,6 +196,8 @@ const PASTAS_IGNORADAS = new Set([
   ".git",
   // Q1: a cópia dos arquivos da mesa, com o hash por nome: não é biblioteca de imagens nem de sons
   "arquivos-da-mesa",
+  // CH3: os trechos de voz da gravação da sessão (WAV) não são biblioteca de sons
+  "gravacoes",
 ]);
 const PROFUNDIDADE_MAXIMA = 4;
 
@@ -309,5 +353,44 @@ export class PastaLocal implements FonteDeAssets {
     await saida.write(dados);
     await saida.close();
     return true;
+  }
+
+  private async pastaDe(caminho: readonly string[]): Promise<PastaComPermissao | null> {
+    try {
+      let dir: FileSystemDirectoryHandle = this.pasta;
+      for (const parte of caminho) dir = await dir.getDirectoryHandle(parte);
+      return dir as PastaComPermissao;
+    } catch {
+      return null;
+    }
+  }
+
+  async listarPasta(
+    caminho: readonly string[],
+  ): Promise<{ nome: string; tipo: "arquivo" | "pasta" }[]> {
+    const dir = await this.pastaDe(caminho);
+    if (!dir) return [];
+    const lista: { nome: string; tipo: "arquivo" | "pasta" }[] = [];
+    try {
+      for await (const e of dir.values()) {
+        lista.push({ nome: e.name, tipo: e.kind === "directory" ? "pasta" : "arquivo" });
+      }
+    } catch {
+      // a permissão acabou no meio
+    }
+    return lista;
+  }
+
+  async apagar(caminho: readonly string[]): Promise<boolean> {
+    const nome = caminho[caminho.length - 1];
+    if (!nome) return false;
+    const pai = await this.pastaDe(caminho.slice(0, -1));
+    if (!pai) return false;
+    try {
+      await pai.removeEntry(nome, { recursive: true });
+      return true;
+    } catch {
+      return false;
+    }
   }
 }

@@ -25,15 +25,25 @@ import {
 import { createPortal } from "react-dom";
 import { BotaoComDica } from "../BotaoComDica";
 import { abrirSomEmJanela, TEXTO_DO_POPUP_BLOQUEADO } from "../ficha/foraDaMesa";
+import { SeletorSegmentado } from "../SeletorSegmentado";
 import { useMusicaAgora } from "../som/useMusicaAgora";
 import type { ControleDaChamada } from "./controlador";
 import { GradeDeQuadros, type MedidaDoQuadro } from "./GradeDeQuadros";
+import {
+  AvisoDeGravacao,
+  AvisoDeGravacaoPronta,
+  BotaoDeGravar,
+  ConfirmarGravacao,
+} from "./gravacao/PecasDaGravacao";
+import type { GravacaoDaTela } from "./gravacao/useGravacao";
 import { usePessoasFalsas } from "./pessoasFalsas";
 import {
   ehEstreita,
   formatarTempo,
   inicialDe,
   listaDeNomes,
+  NIVEIS_DO_FUNDO,
+  NOME_DO_NIVEL_DO_FUNDO,
   VOLUME_MAXIMO,
   VOLUME_MINIMO,
 } from "./puras";
@@ -53,6 +63,8 @@ type Props = {
   presenca: Record<string, Presenca>;
   enviar: (tipo: string, dados: object) => string | null;
   avisar: (texto: string) => void;
+  /** CH3: a gravação para a transcrição (o aviso, o botão do mestre e a confirmação). */
+  gravacao: GravacaoDaTela;
 };
 
 type EstadoPip = { janela: Window };
@@ -87,7 +99,16 @@ function useControle(controle: ControleDaChamada) {
 
 // --- aparelhos ------------------------------------------------------------------------------------------------------
 
-function Aparelhos({ controle }: { controle: ControleDaChamada }) {
+function Aparelhos({
+  controle,
+  fundo,
+  marcasExtras,
+}: {
+  controle: ControleDaChamada;
+  /** CH3: na tela de antes de entrar, o seletor do fundo entra na mesma grade (câmera, microfone e fundo alinhados). */
+  fundo?: ReactNode;
+  marcasExtras?: ReactNode;
+}) {
   const e = useControle(controle);
   const { aparelhos, prefs } = e;
   const seletor = (
@@ -116,7 +137,7 @@ function Aparelhos({ controle }: { controle: ControleDaChamada }) {
     </label>
   );
   return (
-    <div className="chamada-aparelhos-campos">
+    <div className="chamada-aparelhos-campos" data-com-fundo={fundo ? "sim" : undefined}>
       {seletor(
         "Câmera",
         "chamada-aparelho-camera",
@@ -131,6 +152,7 @@ function Aparelhos({ controle }: { controle: ControleDaChamada }) {
         prefs.microfoneId,
         (id) => void controle.trocarAparelho("microfone", id),
       )}
+      {fundo}
       {e.suportaSaida ? (
         seletor(
           "Saída de som",
@@ -145,24 +167,27 @@ function Aparelhos({ controle }: { controle: ControleDaChamada }) {
           sistema.
         </p>
       )}
-      <label className="chamada-marca">
-        <input
-          type="checkbox"
-          data-testid="chamada-reduzir-ruido"
-          checked={prefs.reduzirRuido}
-          onChange={(ev) => void controle.definirReduzirRuido(ev.target.checked)}
-        />
-        Reduzir ruído e eco
-      </label>
-      <label className="chamada-marca">
-        <input
-          type="checkbox"
-          data-testid="chamada-sons"
-          checked={prefs.sons}
-          onChange={(ev) => controle.definirSons(ev.target.checked)}
-        />
-        Tocar um som quando alguém entra ou sai
-      </label>
+      <div className="chamada-marcas">
+        <label className="chamada-marca">
+          <input
+            type="checkbox"
+            data-testid="chamada-reduzir-ruido"
+            checked={prefs.reduzirRuido}
+            onChange={(ev) => void controle.definirReduzirRuido(ev.target.checked)}
+          />
+          Reduzir ruído e eco
+        </label>
+        <label className="chamada-marca">
+          <input
+            type="checkbox"
+            data-testid="chamada-sons"
+            checked={prefs.sons}
+            onChange={(ev) => controle.definirSons(ev.target.checked)}
+          />
+          Tocar um som quando alguém entra ou sai
+        </label>
+        {marcasExtras}
+      </div>
     </div>
   );
 }
@@ -171,24 +196,20 @@ function Aparelhos({ controle }: { controle: ControleDaChamada }) {
 
 const BARRAS_DO_NIVEL = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l"] as const;
 
-const FUNDOS = [
-  { id: "nenhum", nome: "Sem efeito" },
-  { id: "desfocar", nome: "Desfocar" },
-  { id: "forte", nome: "Desfocar forte" },
-] as const;
-
 function AntesDeEntrar({
   controle,
   mesaNome,
   estadoSala,
   eu,
   estreita,
+  gravacao,
 }: {
   controle: ControleDaChamada;
   mesaNome: string;
   estadoSala: Estado;
   eu: Usuario;
   estreita: boolean;
+  gravacao: GravacaoDaTela;
 }) {
   const e = useControle(controle);
   const quem = e.participantes
@@ -200,167 +221,175 @@ function AntesDeEntrar({
     : (e.fundoIndisponivel ?? null);
   return (
     <div className="chamada-antes" data-testid="chamada-antes" data-estreita={estreita}>
+      <AvisoDeGravacao gravacao={gravacao} estadoSala={estadoSala} />
       <header className="chamada-topo">
         <h1 className="chamada-titulo">Entrar na chamada</h1>
         <span className="chamada-sub">{mesaNome}</span>
       </header>
       <div className="chamada-antes-corpo">
-        <section className="chamada-antes-previa" aria-label="Sua câmera">
-          <div className="chamada-previa" data-testid="chamada-previa">
-            {e.camera && e.fluxoLocal ? (
-              <VideoDoFluxo fluxo={e.fluxoLocal} espelhar testid="chamada-previa-video" />
-            ) : (
-              <div className="chamada-sem-video">
-                <span
-                  className="chamada-inicial chamada-inicial-grande"
-                  style={{ "--cor-da-pessoa": eu.cor } as CSSProperties}
-                >
-                  {inicialDe(eu.nome)}
-                </span>
-                <span className="chamada-dica">Câmera desligada: os outros veem sua inicial</span>
-              </div>
-            )}
-            <div className="chamada-previa-botoes">
-              <BotaoComDica
-                testid="chamada-previa-microfone"
-                className="chamada-botao-redondo pequeno"
-                nome="Microfone"
-                aria-pressed={e.microfone}
-                data-desligado={e.microfone ? undefined : "sim"}
-                onClick={() => void controle.alternarMicrofone()}
-              >
-                {e.microfone ? (
-                  <Mic size={18} aria-hidden="true" />
-                ) : (
-                  <MicOff size={18} aria-hidden="true" />
-                )}
-              </BotaoComDica>
-              <BotaoComDica
-                testid="chamada-previa-camera"
-                className="chamada-botao-redondo pequeno"
-                nome="Câmera"
-                aria-pressed={e.camera}
-                data-desligado={e.camera ? undefined : "sim"}
-                onClick={() => void controle.alternarCamera()}
-              >
-                {e.camera ? (
-                  <Video size={18} aria-hidden="true" />
-                ) : (
-                  <VideoOff size={18} aria-hidden="true" />
-                )}
-              </BotaoComDica>
-            </div>
-            <div className="chamada-nivel-caixa">
-              <Mic size={14} aria-hidden="true" />
-              <div
-                className="chamada-nivel"
-                data-testid="chamada-nivel"
-                role="img"
-                aria-label="Nível do microfone"
-              >
-                {BARRAS_DO_NIVEL.map((id, i) => (
+        <div className="chamada-antes-bloco" data-testid="chamada-antes-bloco">
+          <section className="chamada-antes-previa" aria-label="Sua câmera">
+            <div className="chamada-previa" data-testid="chamada-previa">
+              {e.camera && e.fluxoLocal ? (
+                <VideoDoFluxo fluxo={e.fluxoLocal} espelhar testid="chamada-previa-video" />
+              ) : (
+                <div className="chamada-sem-video">
                   <span
-                    key={id}
-                    className={i < aceso ? "chamada-nivel-barra aceso" : "chamada-nivel-barra"}
-                  />
-                ))}
+                    className="chamada-inicial chamada-inicial-grande"
+                    style={{ "--cor-da-pessoa": eu.cor } as CSSProperties}
+                  >
+                    {inicialDe(eu.nome)}
+                  </span>
+                  <span className="chamada-dica">Câmera desligada: os outros veem sua inicial</span>
+                </div>
+              )}
+              <div className="chamada-previa-botoes">
+                <BotaoComDica
+                  testid="chamada-previa-microfone"
+                  className="chamada-botao-redondo pequeno"
+                  nome="Microfone"
+                  aria-pressed={e.microfone}
+                  data-desligado={e.microfone ? undefined : "sim"}
+                  onClick={() => void controle.alternarMicrofone()}
+                >
+                  {e.microfone ? (
+                    <Mic size={18} aria-hidden="true" />
+                  ) : (
+                    <MicOff size={18} aria-hidden="true" />
+                  )}
+                </BotaoComDica>
+                <BotaoComDica
+                  testid="chamada-previa-camera"
+                  className="chamada-botao-redondo pequeno"
+                  nome="Câmera"
+                  aria-pressed={e.camera}
+                  data-desligado={e.camera ? undefined : "sim"}
+                  onClick={() => void controle.alternarCamera()}
+                >
+                  {e.camera ? (
+                    <Video size={18} aria-hidden="true" />
+                  ) : (
+                    <VideoOff size={18} aria-hidden="true" />
+                  )}
+                </BotaoComDica>
+              </div>
+              <div className="chamada-nivel-caixa">
+                <Mic size={14} aria-hidden="true" />
+                <div
+                  className="chamada-nivel"
+                  data-testid="chamada-nivel"
+                  role="img"
+                  aria-label="Nível do microfone"
+                >
+                  {BARRAS_DO_NIVEL.map((id, i) => (
+                    <span
+                      key={id}
+                      className={i < aceso ? "chamada-nivel-barra aceso" : "chamada-nivel-barra"}
+                    />
+                  ))}
+                </div>
               </div>
             </div>
-          </div>
-          <div className="chamada-grupo-campo">
-            <span className="chamada-rotulo-campo" id="chamada-fundo-rotulo">
-              Fundo da câmera
-            </span>
-            {/* biome-ignore lint/a11y/useSemanticElements: grupo de botões com nome; o fieldset é de formulário */}
-            <div className="chamada-segmentos" role="group" aria-labelledby="chamada-fundo-rotulo">
-              {FUNDOS.map((f) => (
-                <BotaoComDica
-                  key={f.id}
-                  testid={`chamada-fundo-${f.id}`}
-                  className="chamada-segmento"
-                  nomeVisivel
-                  aria-pressed={e.fundo === f.id}
-                  motivo={f.id === "nenhum" ? null : motivoDoFundo}
-                  onClick={() => void controle.definirFundo(f.id)}
-                >
-                  {f.nome}
-                </BotaoComDica>
-              ))}
-            </div>
+          </section>
+          <section className="chamada-antes-lado" aria-label="Aparelhos">
+            <Aparelhos
+              controle={controle}
+              fundo={
+                <div className="chamada-rotulo-campo chamada-campo-fundo">
+                  <span id="chamada-fundo-rotulo">Fundo da câmera</span>
+                  <SeletorSegmentado
+                    modo="escolha"
+                    rotulo="Fundo da câmera"
+                    testid="chamada-fundo-seletor"
+                    classeDoGrupo="chamada-seg-fundo"
+                    valor={e.fundo}
+                    aoMudar={(id) => void controle.definirFundo(id)}
+                    itens={NIVEIS_DO_FUNDO.map((id) => ({
+                      id,
+                      nome: NOME_DO_NIVEL_DO_FUNDO[id],
+                      testid: `chamada-fundo-${id}`,
+                      desabilitado: id !== "nenhum" && motivoDoFundo !== null,
+                    }))}
+                  />
+                </div>
+              }
+              marcasExtras={
+                <label className="chamada-marca">
+                  <input
+                    type="checkbox"
+                    data-testid="chamada-entrar-mudo"
+                    checked={e.prefs.entrarMudo}
+                    onChange={(ev) => controle.definirEntrarMudo(ev.target.checked)}
+                  />
+                  Entrar com o microfone desligado
+                </label>
+              }
+            />
             <span className="chamada-dica" data-testid="chamada-fundo-nota">
               {e.fundoCarregando
                 ? "Carregando o desfoque…"
-                : (e.fundoIndisponivel ??
+                : (motivoDoFundo ??
                   "O desfoque roda no seu computador; os outros recebem a imagem já desfocada.")}
             </span>
-          </div>
-        </section>
-        <section className="chamada-antes-lado" aria-label="Aparelhos">
-          <Aparelhos controle={controle} />
-          <label className="chamada-marca">
-            <input
-              type="checkbox"
-              data-testid="chamada-entrar-mudo"
-              checked={e.prefs.entrarMudo}
-              onChange={(ev) => controle.definirEntrarMudo(ev.target.checked)}
-            />
-            Entrar com o microfone desligado
-          </label>
-          {e.erroDeMidia && (
-            <p className="chamada-erro" role="alert" data-testid="chamada-erro-midia">
-              {e.erroDeMidia}
-            </p>
-          )}
-          <div className="chamada-antes-fim">
-            {quem.length > 0 ? (
-              <div className="chamada-quem" data-testid="chamada-quem-ja-esta">
-                <span className="chamada-pilha">
-                  {quem.slice(0, 5).map((u) => (
-                    <span
-                      key={u.id}
-                      className="chamada-mini-avatar"
-                      style={{ "--cor-da-pessoa": u.cor } as CSSProperties}
-                    >
-                      {inicialDe(u.nome)}
-                    </span>
-                  ))}
-                </span>
-                <span>
-                  {listaDeNomes(quem.map((u) => u.nome))}{" "}
-                  {quem.length === 1 ? "já está" : "já estão"} na chamada
-                </span>
-              </div>
-            ) : (
-              <span className="chamada-dica">Ninguém está na chamada ainda.</span>
-            )}
-            {e.aviso && (
-              <p className="chamada-erro" role="alert" data-testid="chamada-aviso">
-                {e.aviso}
+            {e.erroDeMidia && (
+              <p className="chamada-erro" role="alert" data-testid="chamada-erro-midia">
+                {e.erroDeMidia}
               </p>
             )}
-            <button
-              type="button"
-              className="chamada-principal"
-              data-testid="chamada-entrar"
-              onClick={() => void controle.entrar(false)}
-            >
-              Entrar na chamada
-            </button>
-            <button
-              type="button"
-              className="chamada-secundario"
-              data-testid="chamada-so-ouvindo"
-              onClick={() => void controle.entrar(true)}
-            >
-              Entrar só ouvindo
-            </button>
-          </div>
-        </section>
+            <div className="chamada-antes-fim">
+              {quem.length > 0 ? (
+                <div className="chamada-quem" data-testid="chamada-quem-ja-esta">
+                  <span className="chamada-pilha">
+                    {quem.slice(0, 5).map((u) => (
+                      <span
+                        key={u.id}
+                        className="chamada-mini-avatar"
+                        style={{ "--cor-da-pessoa": u.cor } as CSSProperties}
+                      >
+                        {inicialDe(u.nome)}
+                      </span>
+                    ))}
+                  </span>
+                  <span>
+                    {listaDeNomes(quem.map((u) => u.nome))}{" "}
+                    {quem.length === 1 ? "já está" : "já estão"} na chamada
+                  </span>
+                </div>
+              ) : (
+                <span className="chamada-dica">Ninguém está na chamada ainda.</span>
+              )}
+              {e.aviso && (
+                <p className="chamada-erro" role="alert" data-testid="chamada-aviso">
+                  {e.aviso}
+                </p>
+              )}
+              <div className="chamada-entrar-botoes">
+                <button
+                  type="button"
+                  className="chamada-principal"
+                  data-testid="chamada-entrar"
+                  onClick={() => void controle.entrar(false)}
+                >
+                  Entrar na chamada
+                </button>
+                <button
+                  type="button"
+                  className="chamada-secundario"
+                  data-testid="chamada-so-ouvindo"
+                  onClick={() => void controle.entrar(true)}
+                >
+                  Entrar só ouvindo
+                </button>
+              </div>
+            </div>
+          </section>
+        </div>
       </div>
       <footer className="chamada-privacidade">
         <Lock size={14} aria-hidden="true" />
-        Só quem é da mesa entra. O vídeo e a voz vão direto entre os computadores, criptografados;
-        nada é gravado.
+        {gravacao.ligada
+          ? "Só quem é da mesa entra. O vídeo e a voz vão direto entre os computadores, criptografados. O mestre está gravando a fala para a transcrição: você pode ficar de fora."
+          : "Só quem é da mesa entra. O vídeo e a voz vão direto entre os computadores, criptografados; nada é gravado, a menos que o mestre ligue a gravação (você sempre vê o aviso)."}
       </footer>
     </div>
   );
@@ -401,6 +430,7 @@ function useAgora(ligado: boolean): number {
 }
 
 type OpcoesDosBotoes = {
+  gravacao: GravacaoDaTela;
   controle: ControleDaChamada;
   estreita: boolean;
   aoAparelhos: () => void;
@@ -408,8 +438,127 @@ type OpcoesDosBotoes = {
   aoSair: () => void;
 };
 
+const LETRA_DO_NIVEL = { nenhum: "", desfocar: "L", forte: "F" } as const;
+
+/**
+ * CH3: o botão do fundo na barra de baixo abre um menu pequeno com os três níveis (Desligado, Leve e Forte) e mostra o
+ * nível no ícone (uma letra no canto). O atalho B passa para o próximo nível, sem abrir o menu.
+ */
+function BotaoDoFundo({
+  controle,
+  motivo,
+}: {
+  controle: ControleDaChamada;
+  motivo: string | null;
+}) {
+  const e = useControle(controle);
+  const [aberto, setAberto] = useState(false);
+  const caixa = useRef<HTMLSpanElement>(null);
+  const nome = NOME_DO_NIVEL_DO_FUNDO[e.fundo];
+
+  useEffect(() => {
+    if (!aberto) return;
+    const doc = caixa.current?.ownerDocument ?? document;
+    const aoClicarFora = (ev: Event) => {
+      if (!caixa.current?.contains(ev.target as Node)) setAberto(false);
+    };
+    const aoTecla = (ev: KeyboardEvent) => {
+      if (ev.key === "Escape") {
+        setAberto(false);
+        caixa.current?.querySelector<HTMLButtonElement>("[data-gatilho]")?.focus();
+      }
+    };
+    doc.addEventListener("pointerdown", aoClicarFora, true);
+    doc.addEventListener("keydown", aoTecla);
+    // o foco vai ao nível escolhido
+    caixa.current
+      ?.querySelector<HTMLButtonElement>('[role="menuitemradio"][aria-checked="true"]')
+      ?.focus();
+    return () => {
+      doc.removeEventListener("pointerdown", aoClicarFora, true);
+      doc.removeEventListener("keydown", aoTecla);
+    };
+  }, [aberto]);
+  useEffect(() => {
+    if (motivo !== null) setAberto(false);
+  }, [motivo]);
+
+  function navegar(ev: React.KeyboardEvent<HTMLDivElement>) {
+    if (ev.key !== "ArrowDown" && ev.key !== "ArrowUp") return;
+    const itens = [
+      ...ev.currentTarget.querySelectorAll<HTMLButtonElement>('[role="menuitemradio"]'),
+    ];
+    const i = itens.indexOf(ev.currentTarget.ownerDocument.activeElement as HTMLButtonElement);
+    const passo = ev.key === "ArrowDown" ? 1 : -1;
+    itens[(i + passo + itens.length) % itens.length]?.focus();
+    ev.preventDefault();
+  }
+
+  return (
+    <span className="chamada-fundo-caixa" ref={caixa}>
+      <BotaoComDica
+        testid="chamada-fundo"
+        className="chamada-botao-redondo"
+        nome={`Fundo da câmera: ${nome}`}
+        data-gatilho=""
+        aria-haspopup="menu"
+        aria-expanded={aberto}
+        aria-pressed={e.fundo !== "nenhum"}
+        data-acento={e.fundo !== "nenhum" ? "sim" : undefined}
+        data-fundo={e.fundo}
+        motivo={motivo}
+        semDica={aberto}
+        onClick={() => setAberto((a) => !a)}
+      >
+        <UserRound size={21} aria-hidden="true" />
+        {e.fundo !== "nenhum" && (
+          <span
+            className="chamada-fundo-letra"
+            data-testid="chamada-fundo-letra"
+            aria-hidden="true"
+          >
+            {LETRA_DO_NIVEL[e.fundo]}
+          </span>
+        )}
+      </BotaoComDica>
+      {aberto && (
+        <div
+          className="chamada-fundo-menu"
+          role="menu"
+          aria-label="Fundo da câmera"
+          data-testid="chamada-fundo-menu"
+          tabIndex={-1}
+          onKeyDown={navegar}
+        >
+          {NIVEIS_DO_FUNDO.map((id) => (
+            <button
+              key={id}
+              type="button"
+              role="menuitemradio"
+              aria-checked={e.fundo === id}
+              className="chamada-fundo-opcao"
+              data-testid={`chamada-fundo-nivel-${id}`}
+              onClick={() => {
+                void controle.definirFundo(id);
+                setAberto(false);
+                caixa.current?.querySelector<HTMLButtonElement>("[data-gatilho]")?.focus();
+              }}
+            >
+              <span className="chamada-fundo-opcao-nome">{NOME_DO_NIVEL_DO_FUNDO[id]}</span>
+              {id !== "nenhum" && (
+                <span className="chamada-fundo-opcao-letra">{LETRA_DO_NIVEL[id]}</span>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+    </span>
+  );
+}
+
 function BarraDeBaixo({
   controle,
+  gravacao,
   estreita,
   aoAparelhos,
   aparelhosAbertos,
@@ -480,12 +629,7 @@ function BarraDeBaixo({
             aoClicar: () => void controle.alternarCamera(),
           },
         )}
-        {botao("chamada-fundo", "Desfocar o fundo", <UserRound size={21} aria-hidden="true" />, {
-          pressionado: e.fundo !== "nenhum",
-          acento: e.fundo !== "nenhum",
-          motivo: motivoDoFundo,
-          aoClicar: () => controle.alternarFundo(),
-        })}
+        <BotaoDoFundo controle={controle} motivo={motivoDoFundo} />
         {botao(
           "chamada-surdo",
           "Parar de ouvir a chamada",
@@ -496,6 +640,7 @@ function BarraDeBaixo({
           ),
           { pressionado: e.surdo, desligado: e.surdo, aoClicar: controle.alternarSurdo },
         )}
+        <BotaoDeGravar gravacao={gravacao} motivo={null} />
         <span className="chamada-separador" aria-hidden="true" />
         {botao(
           "chamada-aparelhos-botao",
@@ -519,6 +664,7 @@ function BarraDeBaixo({
 }
 
 type Dentro = {
+  gravacao: GravacaoDaTela;
   controle: ControleDaChamada;
   estadoSala: Estado;
   eu: Usuario;
@@ -545,6 +691,8 @@ function useDadosDosQuadros(controle: ControleDaChamada, estadoSala: Estado, eu:
     fundo: e.fundo,
     surdo: e.surdo,
     soOuvindo: e.soOuvindo,
+    gravando: doEu?.gravando ?? false,
+    naoGravar: e.naoGravar,
   };
   const ordem = e.participantes.filter((p) => p.usuarioId !== eu.id);
   const todos = [doEu ? { ...doEu, ...meu } : meu, ...ordem];
@@ -767,6 +915,8 @@ function DentroDaChamada(p: Dentro) {
       data-estreita={estreita}
       data-disposicao={estreita ? "estreita" : "grade"}
     >
+      <AvisoDeGravacao gravacao={p.gravacao} estadoSala={estadoSala} />
+      <AvisoDeGravacaoPronta gravacao={p.gravacao} />
       <header className="chamada-topo">
         <span className="chamada-ponto" aria-hidden="true" />
         <h1 className="chamada-titulo">Chamada da mesa</h1>
@@ -866,8 +1016,10 @@ function DentroDaChamada(p: Dentro) {
           <Aparelhos controle={controle} />
         </section>
       )}
+      <ConfirmarGravacao gravacao={p.gravacao} />
       <BarraDeBaixo
         controle={controle}
+        gravacao={p.gravacao}
         estreita={estreita}
         aparelhosAbertos={aparelhosAbertos}
         aoAparelhos={() => setAparelhosAbertos((a) => !a)}
@@ -949,6 +1101,7 @@ export function TelaDaChamada(props: Props) {
     e.fase === "dentro" ? (
       <DentroDaChamada
         controle={controle}
+        gravacao={props.gravacao}
         estadoSala={estadoSala}
         eu={eu}
         presenca={props.presenca}
@@ -969,6 +1122,7 @@ export function TelaDaChamada(props: Props) {
         estadoSala={estadoSala}
         eu={eu}
         estreita={comoEstreita}
+        gravacao={props.gravacao}
       />
     );
 

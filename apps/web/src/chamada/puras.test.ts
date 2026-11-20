@@ -15,7 +15,10 @@ import {
   limitarVolume,
   listaDeNomes,
   mascaraEstaInvertida,
+  NOME_DO_NIVEL_DO_FUNDO,
   nivelDasAmostras,
+  proximoNivelDoFundo,
+  RAIO_DO_DESFOQUE,
   SEGURAR_FALA_MS,
   VigiaDeFps,
 } from "./puras";
@@ -187,5 +190,24 @@ describe("medidas e textos", () => {
     expect(listaDeNomes(["Ana"])).toBe("Ana");
     expect(listaDeNomes(["Ana", "Bruno"])).toBe("Ana e Bruno");
     expect(listaDeNomes(["Ana", "Bruno", "Caio"])).toBe("Ana, Bruno e Caio");
+  });
+});
+
+describe("o desfoque em três níveis (CH3)", () => {
+  it("Leve é bem mais suave que o Forte, e o Forte é o de antes do CH3 (7 px)", () => {
+    expect(RAIO_DO_DESFOQUE.nenhum).toBe(0);
+    expect(RAIO_DO_DESFOQUE.desfocar).toBeLessThan(RAIO_DO_DESFOQUE.forte / 2);
+    expect(RAIO_DO_DESFOQUE.forte).toBe(7);
+    expect(NOME_DO_NIVEL_DO_FUNDO).toEqual({
+      nenhum: "Desligado",
+      desfocar: "Leve",
+      forte: "Forte",
+    });
+  });
+
+  it("o atalho B passa ao próximo nível e volta ao Desligado", () => {
+    expect(proximoNivelDoFundo("nenhum")).toBe("desfocar");
+    expect(proximoNivelDoFundo("desfocar")).toBe("forte");
+    expect(proximoNivelDoFundo("forte")).toBe("nenhum");
   });
 });

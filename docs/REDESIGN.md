@@ -2653,3 +2653,31 @@ O Vilella pediu: soltar imagem ou gif na cena, uma lista "Assets da mesa", o upl
 - O Claude de um jogador listar os assets dele (hoje só o mestre lista, renomeia e apaga).
 - Mover os arquivos antigos de `recebidos/` para `assets/` (hoje só se copia).
 - Miniaturas de mapas em pedaços e de sons (ícone do tipo).
+
+## CH3 — como ficou (2026-11-20): tela de entrar enxuta, desfoque em três níveis, gravar e transcrever
+
+O Vilella pediu: os botões de entrar largos demais (a coluna inteira esticada), a prévia da câmera maior, o desfoque com "o pouco" (só havia o forte) e "cadê a opção do mestre gravar pro whisper?". Os prints dele mostraram os botões na largura toda e a barra de baixo da chamada.
+
+**O que foi feito**
+- **A tela de entrar** virou um bloco só, centrado (máx. 720 px), com a prévia 16:9 como maior elemento; câmera, microfone e fundo na mesma linha, alinhados; "Entrar na chamada" e "Entrar só ouvindo" com a largura do texto.
+- **O desfoque**: Desligado, Leve e Forte. `SeletorSegmentado` antes de entrar; na chamada, o botão do fundo abre um menu com os três e mostra a letra do nível no ícone; o B passa ao próximo.
+- **A gravação** (parte B): o mestre liga pelo botão da chamada (com confirmação), todos veem o aviso (também antes de entrar), cada um tira a própria voz, o navegador do mestre grava só a fala em WAV de 16 kHz na pasta da mesa, mais `gravacao.json`, `nomes.txt` e `eventos.jsonl`. `pnpm transcrever` junta, roda o whisper.cpp e escreve `transcricao.md` e `transcricao.json`. A aba Mesa lista as gravações, traz a transcrição para uma nota só do mestre e pergunta se apaga o áudio. `docs/WHISPER.md` é o passo a passo de instalação.
+
+**Decisões (assumido)**
+- Os níveis do desfoque: **Leve 2,5 px e Forte 7 px**. "Forte é o de hoje" foi lido como o que o botão da barra dava (7 px); o antigo "Desfocar forte" de 16 px saiu. O protocolo e as preferências guardam `desfocar` (Leve) e `forte`, sem mudança de formato.
+- A largura máxima do bloco de entrar é de 720 px; a prévia tem a largura que a altura da janela deixa (`100dvh - 388px`), no máximo a do bloco.
+- A pessoa que **marca "Não gravar a minha voz" antes de entrar** já entra de fora (o `chamada.entrar` leva `naoGravar`): o brief diz que quem entra depois começa gravado, mas sem isso haveria um instante em que a voz de quem quis ficar de fora seria gravada. Quem não marcou começa gravado.
+- A fala mínima de 0,5 s conta a **fala**, sem as folgas (com 300 ms de cada lado o trecho nunca teria menos que 0,6 s).
+- O início do trecho no nome do arquivo conta desde que a gravação começou, a partir de quando a voz dessa pessoa foi ligada (o detector de cada voz nasce quando ela entra).
+- Um arquivo WAV por pessoa para o whisper, com 1 s de silêncio entre os trechos (e o mapa de deslocamentos), e não vários `-f` numa execução: o whisper gasta o mesmo tempo num trecho de 2 s e num de 30 s, então emendar é bem mais rápido. A volta à hora da sessão fica presa ao trecho de onde o segmento começa.
+- A nota da transcrição é só do mestre (`visivel: mestre`); o "rascunho" do pedido é isto: a sala só carimba `rascunho` o que o Claude cria. Uma sessão acima dos 20 mil caracteres da nota vira partes.
+- O Claude **lê a nota pelo `ler`** (tipo handout) e escreve o resumo pelo `notas`; o brief dizia "lida pelo `notas`", mas a leitura do texto inteiro é do `ler`. As instruções do servidor e a descrição de `notas` dizem isso.
+- A gravação para quando o mestre sai da chamada (fechar a janela, recarregar, sair, ou ser substituído por outra janela): o aviso some para todos.
+- O estado da gravação é o `gravando` do mestre mais o `naoGravar` de cada um nos `participantes` de `chamada.quem`; não há campo novo no estado nem migração.
+- `gravacoes/` fica fora da biblioteca de sons e de imagens da pasta.
+
+**O que ficou para depois**
+- Testar com o whisper.cpp de verdade e com fala de verdade (ver o roteiro do CH3).
+- Legendas ao vivo, e gravar a chamada de vídeo (só o áudio é gravado, e só a fala).
+- Escolher, antes de gravar, quem entra na gravação (hoje é cada um que sai).
+- Gravar quando o mestre usa a chamada em duas janelas ao mesmo tempo (a última que liga vale).

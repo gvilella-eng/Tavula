@@ -89,6 +89,7 @@ import { AvisoDaCaixaDoClaude, copiarParaAPasta, useCaixaDoClaude } from "./caix
 import { type CamadaDeTrabalho, camadaDoNovoToken } from "./camadas";
 import { BotaoDaChamada } from "./chamada/BotaoDaChamada";
 import { useFalandoNaChamada } from "./chamada/canalDaChamada";
+import type { PropsDasGravacoes } from "./chamada/gravacao/SecaoDasGravacoes";
 import { RascunhosDoClaude } from "./claude/RascunhosDoClaude";
 import { pedirTokenNoMapa } from "./colocarNoMapa";
 import { ATRASO_DA_DICA } from "./Dica";
@@ -2231,6 +2232,17 @@ export function Mesa({
         : undefined,
     [fatiaDosAssets, eu, enviar, avisar, gerente, porAssetNoCentro, linhasDeAssets],
   );
+  // CH3: a seção "Gravações da sessão" (só o mestre; a aba Mesa só existe para ele).
+  const propsDasGravacoes = useMemo<PropsDasGravacoes>(
+    () => ({
+      fontes,
+      enviar,
+      avisar,
+      titulosDeNotas: () => (estadoAtual.current?.handouts ?? []).map((h) => h.titulo),
+      pastas: () => estadoAtual.current?.pastas ?? [],
+    }),
+    [fontes, enviar, avisar],
+  );
   const pedirAnteriores = useCallback(() => {
     // O primeiro `seq` de agora, lido na hora do clique (o chat inteiro não vira dependência da aba).
     const primeiro = estadoAtual.current?.chat?.[0]?.seq;
@@ -2344,6 +2356,7 @@ export function Mesa({
                       aoAbrirAutomacoes={aoAbrirAutomacoes}
                       registrarAnimacao={registrarAnimacao}
                       assets={propsDosAssets}
+                      gravacoes={propsDasGravacoes}
                     />
                   ),
                 },

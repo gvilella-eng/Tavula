@@ -13,6 +13,7 @@ import {
   limitarVolume,
   type PreferenciaDePessoa,
   type PreferenciasDaChamada,
+  proximoNivelDoFundo,
 } from "./puras";
 
 // CH1: o controlador da janela da chamada. Dono de tudo o que não é desenho: a câmera e o microfone (e o fundo
@@ -35,6 +36,8 @@ export type EstadoDoControle = {
   fundo: FundoDaChamada;
   surdo: boolean;
   soOuvindo: boolean;
+  /** CH3: "Não gravar a minha voz" (vale na gravação da sessão; quem entra começa gravado, a menos que marque antes). */
+  naoGravar: boolean;
   /** O navegador deu o aparelho (ou ainda não pediu). */
   temMicrofone: boolean;
   temCamera: boolean;
@@ -110,6 +113,7 @@ export class ControleDaChamada {
       fundo: prefs.fundo,
       surdo: false,
       soOuvindo: false,
+      naoGravar: false,
       temMicrofone: false,
       temCamera: false,
       erroDeMidia: null,
@@ -376,7 +380,7 @@ export class ControleDaChamada {
 
   /** "Desfocar o fundo" no botão de baixo: liga no modo escolhido (ou no leve) ou desliga. */
   alternarFundo = (): void => {
-    void this.definirFundo(this.estado.fundo === "nenhum" ? "desfocar" : "nenhum");
+    void this.definirFundo(proximoNivelDoFundo(this.estado.fundo));
   };
 
   definirFundo = async (modo: FundoDaChamada): Promise<void> => {
@@ -517,12 +521,32 @@ export class ControleDaChamada {
     );
   };
 
+  /**
+   * CH3: "Não gravar a minha voz". Antes de entrar só guarda a escolha (ela vai junto com o `chamada.entrar`, e a voz nunca
+   * começa gravada contra a vontade); dentro da chamada avisa a sala, e o mestre para de gravar a voz na hora.
+   */
+  definirNaoGravar = (fora: boolean): void => {
+    this.mudar({ naoGravar: fora });
+    if (this.entrei) this.o.enviar("chamada.naoGravar", { fora });
+  };
+
+  /** CH3: só o mestre (a sala confere). Liga ou desliga a gravação da sessão. */
+  ligarGravacao = (ligada: boolean): void => {
+    if (this.entrei) this.o.enviar("chamada.gravar", { ligada });
+  };
+
+  /** CH3: o fluxo do meu microfone e os recebidos, para o gravador (que só os escuta, nunca os muda). */
+  fluxosDeVoz(): { meu: MediaStream | null; outros: Record<string, MediaStream | null> } {
+    return { meu: this.streamMic, outros: this.estado.fluxos };
+  }
+
   private enviarEntrar(): void {
     const e = this.estado;
     this.o.enviar("chamada.entrar", {
       microfone: e.microfone && !e.soOuvindo,
       camera: e.camera && !e.soOuvindo,
       soOuvindo: e.soOuvindo,
+      ...(e.naoGravar ? { naoGravar: true } : {}),
     });
     if (!e.soOuvindo && (e.fundo !== "nenhum" || e.surdo)) this.enviarEstado();
   }
@@ -569,6 +593,7 @@ export class ControleDaChamada {
       fase,
       aviso,
       soOuvindo: false,
+      naoGravar: false,
       fluxos: {},
       conexoes: {},
       falando: new Set(),

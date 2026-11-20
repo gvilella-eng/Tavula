@@ -48,6 +48,7 @@ import {
   LIMITES_DO_ENVIO,
   lerFrameDePedaco,
   lerIntencao,
+  ligarGravacao,
   limitarPing,
   limiteDoUso,
   listarAssetsDaMesa,
@@ -81,6 +82,7 @@ import {
   sonsDasZonasParaJogador,
   type TokenApagadoRecente,
   tempoDaSala,
+  tirarMinhaVoz,
   tokenDoCabecalho,
   tokenVisivelPara,
   type UltimoPing,
@@ -2877,7 +2879,15 @@ export class Sala extends DurableObject<Env> {
       if (ws === ignorar) continue;
       const id = this.identidadeDe(ws);
       if (!id?.chamada || id.claude) continue;
-      lista.push({ ...id.chamada, usuarioId: id.usuarioId, conexaoId: id.conexaoId, ws });
+      // Uma participação guardada antes do CH3 não tem as marcas da gravação: valem como desligadas.
+      lista.push({
+        ...id.chamada,
+        gravando: id.chamada.gravando ?? false,
+        naoGravar: id.chamada.naoGravar ?? false,
+        usuarioId: id.usuarioId,
+        conexaoId: id.conexaoId,
+        ws,
+      });
     }
     return lista.sort((a, b) => a.desdeMs - b.desdeMs);
   }
@@ -2957,6 +2967,8 @@ export class Sala extends DurableObject<Env> {
           fundo: minha.fundo,
           surdo: minha.surdo,
           soOuvindo: minha.soOuvindo,
+          gravando: minha.gravando,
+          naoGravar: minha.naoGravar,
           desdeMs,
         });
         this.difundirChamada();
@@ -2974,8 +2986,40 @@ export class Sala extends DurableObject<Env> {
           fundo: minha.fundo,
           surdo: minha.surdo,
           soOuvindo: minha.soOuvindo,
+          gravando: minha.gravando,
+          naoGravar: minha.naoGravar,
           desdeMs: antes.desdeMs,
         });
+        this.difundirChamada();
+        return { ok: true };
+      }
+      case "chamada.gravar":
+      case "chamada.naoGravar": {
+        // CH3: só o mestre liga a gravação (o papel vem da conta no servidor, nunca do cliente); cada um tira só a
+        // própria voz (a marca é da conexão que pediu). Nada disto grava na sala: o áudio fica no navegador do mestre.
+        const r =
+          intencao.tipo === "chamada.gravar"
+            ? ligarGravacao(
+                entradas,
+                identidade.conexaoId,
+                usuario.papel === "mestre",
+                intencao.dados.ligada,
+              )
+            : tirarMinhaVoz(entradas, identidade.conexaoId, intencao.dados.fora);
+        if (r.erro) return recusa(r.erro.codigo, r.erro.mensagem);
+        // `ligarGravacao` desliga a marca de outras conexões: cada uma guarda o que mudou.
+        for (const e of r.entradas) {
+          const alvo = entradas.find((x) => x.conexaoId === e.conexaoId);
+          if (!alvo?.ws) continue;
+          if (alvo.gravando === e.gravando && alvo.naoGravar === e.naoGravar) continue;
+          const atual = this.identidadeDe(alvo.ws)?.chamada;
+          if (!atual) continue;
+          this.guardarChamada(alvo.ws, {
+            ...atual,
+            gravando: e.gravando,
+            naoGravar: e.naoGravar,
+          });
+        }
         this.difundirChamada();
         return { ok: true };
       }

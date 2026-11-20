@@ -1117,6 +1117,26 @@ Continua em aberto, por ser decisão e não erro de doc: `ficha.verOutras` (seç
 
 **Suposições**: ver `docs/REDESIGN.md`, "Q16 — como ficou".
 
+## CH3 (2026-11-20): tela de entrar enxuta, desfoque em três níveis, gravar e transcrever
+
+**Onde mexer**
+- **Tela de entrar e desfoque**: `TelaDaChamada.tsx` (`AntesDeEntrar`, `Aparelhos` com o `fundo` na mesma grade, `BotaoDoFundo` com o menu), `puras.ts` (`RAIO_DO_DESFOQUE`, `NIVEIS_DO_FUNDO`, `proximoNivelDoFundo`), `fundo.ts` (o raio vem de `RAIO_DO_DESFOQUE`; o `medio` é a reserva do Leve sem `filter`). CSS em `.chamada-antes-bloco`, `.chamada-previa` (a largura sai de `100dvh - 388px`), `.chamada-aparelhos-campos`, `.chamada-fundo-menu`.
+- **Protocolo e sala**: `packages/shared/src/chamada.ts` (`gravando` e `naoGravar` nos participantes, `ligarGravacao`, `tirarMinhaVoz`, `gravacaoLigada`, `quemFicouDeFora`), `protocolo.ts` (`chamada.gravar`, `chamada.naoGravar`), `apps/server/src/sala.ts` (`tratarChamada`, caso `chamada.gravar`).
+- **Regras da gravação (puras)**: `packages/shared/src/gravacao.ts` (nomes de pasta e de arquivo, WAV, `gravacao.json`, `eventos.jsonl`, mapa de deslocamentos, leitura do JSON do whisper, linha do tempo). Teste: `ch3.test.ts`.
+- **Gravar (navegador do mestre)**: `apps/web/src/chamada/gravacao/` — `detectorDeFala.ts` (corte em trechos), `captura.ts` (AudioContext a 16 kHz + AudioWorklet por um Blob local), `gravador.ts` (pasta, escrita em fila, `gravacao.json`), `eventos.ts` (chat, rolagem, cena, combate; `nomes.txt`), `useGravacao.ts` (liga tudo à chamada), `PecasDaGravacao.tsx` (aviso, botão, confirmação), `SecaoDasGravacoes.tsx` (aba Mesa: lista, trazer, apagar o áudio). `assets/fonte.ts` ganhou `listarPasta` e `apagar` nas três fontes.
+- **Transcrever**: `packages/shared/src/transcricao/` (`transcrever.ts` com a configuração e a segurança, `cli.ts` com o terminal); `pnpm transcrever`. O whisper falso dos testes é `fixtures/whisper-falso.mjs`.
+- **Ganchos de teste** (só no modo e2e): `window.__tabletopPasta` (`ganchoE2E.ts`: simular a pasta, levar e trazer o que foi gravado), `__tabletopE2E.gravacao` (ajustes do detector) e `__tabletopE2E.semVigiaDoDesfoque`.
+
+**Frágil**
+- O Leve e o Forte do desfoque guardam os valores `desfocar` e `forte` no protocolo, nas preferências e nos `data-fundo`: os nomes na tela (Leve e Forte) e os valores não coincidem de propósito (o protocolo não mudou).
+- O detector usa os limiares do anel verde (`LIMIAR_DE_FALA_LIGA` e `LIMIAR_DE_FALA_DESLIGA`): mudar um muda o outro. Eles foram feitos para a voz de microfone com "Reduzir ruído e eco" ligado.
+- A gravação depende de `AudioContext({ sampleRate: 16000 })` e de `AudioWorklet` (Chrome e Edge, os mesmos que têm a pasta); sem eles a confirmação diz que o navegador não deixou gravar. A voz dos outros precisa estar tocando em algum `<audio>` (o `AudioDaChamada` já faz) para o Chrome entregá-la ao WebAudio.
+- A marca `gravando` mora no socket do mestre: se o socket cair e voltar, a sala o põe de novo na chamada sem a marca, e `useGravacao` a reenvia (`meuRegistro`). Quem lê `chamada.quem` não deve supor que a marca é permanente.
+- "Rascunho" da nota da transcrição é só "visível só ao mestre": a sala tira o carimbo `rascunho` de quem não é o Claude, então a nota não ganha o selo.
+- `chamada.spec.ts` e os testes de câmera deste lote às vezes mostram a prévia a 0 quando o computador está ocupado (outros lotes rodando E2E ao mesmo tempo); com o computador livre passam.
+
+**Suposições**: ver `REDESIGN.md`, "CH3 — como ficou".
+
 ## CH2 (2026-11-20): a grade da chamada
 
 **Onde mexer**

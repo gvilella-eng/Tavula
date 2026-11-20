@@ -4573,4 +4573,38 @@ Ver `PASSAGEM.md`, "AS1".
 ### Roteiro manual
 Ver `ROTEIRO-DE-TESTES.md`, "AS1".
 
-## Próximo: o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b, N4, N5, M1, M2, Q1 a Q16, CH1, CH2, MU1, MU2, MU3, A1, AU1, AU2, FG1, AS1 e das otimizações O1–O4
+## Ajustes CH3 — tela de entrar enxuta, desfoque em três níveis, gravar e transcrever (entregue, aguardando o roteiro manual)
+
+### O que foi entregue
+- **Parte A**: a tela de antes de entrar virou um bloco centrado (máx. 720 px) com a prévia 16:9 como maior elemento, câmera/microfone/fundo alinhados e botões com a largura do texto; desfoque em **Desligado, Leve e Forte** (seletor antes de entrar; menu pequeno na barra da chamada com a letra do nível no ícone; B passa ao próximo).
+- **Parte B**: o mestre grava a sessão pela chamada (botão com confirmação), todos veem "● Gravando para transcrição" (também antes de entrar), cada um tira a própria voz; o navegador do mestre grava só a fala em WAV 16 kHz mono 16 bits em `gravacoes/<data_hora>/<pessoa>/<ms>.wav`, mais `gravacao.json`, `nomes.txt` e `eventos.jsonl`; `pnpm transcrever "<pasta>"` chama o whisper.cpp (sem shell) e escreve `transcricao.md` e `transcricao.json`; a aba Mesa lista as gravações (gravada, transcrita, trazida), traz a transcrição para uma nota só do mestre e pergunta "Apagar o áudio da gravação?". `docs/WHISPER.md` é o passo a passo. Ver `PROJETO.md` 4.18.
+
+### Como rodar
+`pnpm dev`; botão Chamada; como mestre, o círculo "Gravar para transcrição" na barra de baixo. Transcrever: `pnpm transcrever "<pasta da mesa>\gravacoes\<data_hora>"` (precisa do whisper.cpp: `docs/WHISPER.md`). E2E: `pnpm --filter @tabletop/e2e test tests/ch3.spec.ts` (portas por `E2E_PORTA_SALA` e `E2E_PORTA_WEB`).
+
+### Verificação
+Typecheck, lint e unidade verdes: shared 1508 (24 novos em `ch3.test.ts`, 10 em `transcricao/transcrever.test.ts`, com o whisper falso), server 141, web 342+ (detector de fala, gravador, eventos, reamostrador, níveis do desfoque; 17 em `puras.test.ts`), mcp 19. E2E inteiro em duas metades (8794/5180), uma depois da outra: 1ª metade 290 passaram; 2ª metade 271 passaram e 2 reprovaram (`ch3.spec.ts`, a prévia da câmera a 0 por 30 s nos dois testes de layout da tela de entrar, as primeiras da rodada, com o computador ocupado pelos outros lotes); rodado de novo só o `ch3.spec.ts`: 7 passaram (4 s cada). Nenhum E2E antigo falhou; `chamada.spec.ts` passou. Sem mudança de código depois do verify (só prints e docs). Prints: Grimório e Pergaminho (1920×1000, 1280×720 e estreita; menu do desfoque; confirmação; aviso do mestre, do jogador e antes de entrar; lista de gravações; apagar o áudio), conferidos.
+
+**Medidas** (neste computador, Chrome sem a placa do Vilella; `pnpm --filter @tabletop/e2e prints ch3-medidas`):
+- **Custo do desfoque, Leve (2,5 px) contra Forte (7 px)**, o `blur` do canvas num quadro de 640×360, mediana de 5 rodadas: canvas por GPU 3,69 ms (Leve) contra 3,46 ms (Forte); canvas por CPU 6,13 ms contra 5,28 ms; sem desfoque 1,87 ms e 3,0 ms. Ou seja, **o Leve custa o mesmo que o Forte** (a diferença está no ruído da medida): o desfoque do Chrome tem custo quase fixo por raio. O que pesa é a segmentação da pessoa, igual nos dois níveis.
+- **Processador durante a gravação**: a thread principal da janela da chamada do mestre ficou em 7,0% gravando contra 7,7% sem gravar (duas pessoas, sem vídeo; a diferença é ruído). O detector de fala sozinho gastou 4,8 s de um núcleo por hora de áudio de cada voz (0,13%) num teste de unidade. O AudioWorklet roda fora da thread principal e não aparece nessa medida.
+- **MB por hora**: o WAV tem 32 000 bytes por segundo de fala = **115,2 MB por hora de fala contínua por voz**. Como só a fala é gravada: com 40% do tempo falando, uma voz gasta uns 46 MB por hora de sessão (mais uns 10% de folga). O áudio falso do Chromium é um tom contínuo e deu 136,6 MB/h (os trechos de 30 s do corte forçado).
+
+### Decisões
+Ver `REDESIGN.md`, "CH3 — como ficou".
+
+### Desvios
+- E2E antigo alterado: `chamada.spec.ts`, o teste do desfoque (o botão da barra agora abre um menu: clica em "Leve" no menu; o B passa por Leve, Forte e Desligado). Motivo: o comportamento mudou de propósito. A unidade de `chamada.test.ts` ganhou `gravando` e `naoGravar` no resultado de `visaoDaChamada`.
+- A nota da transcrição não leva o carimbo de rascunho (a sala só o dá ao que o Claude cria): é "só do mestre".
+- O MCP lê a nota pelo `ler`, não pelo `notas`.
+
+### Frágil
+Ver `PASSAGEM.md`, "CH3". Em especial: a prévia da câmera às vezes fica a 0 nos primeiros testes de uma rodada cheia, e a primeira carga fria do Vite pode derrubar a janela da chamada (uma recarga resolve).
+
+### O que falta conferir com o whisper.cpp de verdade
+Os nomes dos pacotes e do modelo e os tamanhos (marcados "conferir na página" no `WHISPER.md`); os argumentos `-pp`, `-oj`, `-of`, `--prompt` e `-ng` na sua versão (`whisper-cli -h`); se o formato do JSON (`transcription[].offsets`) é o da sua versão; se a placa é usada e quanto tempo leva; a qualidade do português e dos nomes; e fala de verdade no detector (limiares do anel verde podem cortar fala baixa ou deixar passar ruído de fundo).
+
+### Roteiro manual
+Ver `ROTEIRO-DE-TESTES.md`, "CH3".
+
+## Próximo: o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b, N4, N5, M1, M2, Q1 a Q16, CH1, CH2, CH3, MU1, MU2, MU3, A1, AU1, AU2, FG1, AS1 e das otimizações O1–O4
