@@ -296,7 +296,7 @@ código e a divergência está anotada na decisão.
 - **Situação.** Vale.
 
 ### 6.2 Memória do mapa no navegador, não na sala
-- **O quê.** O que o token já viu fica numa grade de 0,5 m no IndexedDB por usuário e cena. A sala guarda só uma versão de
+- **O quê.** O que o token já viu fica numa grade de 0,5 m no IndexedDB por mesa, usuário e cena (a mesa entrou na chave no C2). A sala guarda só uma versão de
   "esquecer" por cena.
 - **Por quê.** Zero custo de servidor. **Trocada**: o plano original gravava a névoa explorada na sala; o Lote 6 a trocou
   pela memória local.
@@ -587,8 +587,7 @@ código e a divergência está anotada na decisão.
   (`paridade.ts`) e todo campo tem caminho em `paridadeCampos.ts`; um teste falha se faltar.
 - **Por quê.** Pedido do Vilella (M2, 2026-11-14; Q16, 2026-11-18).
 - **Onde.** `packages/shared/src/mcp/paridade.ts`. Fora do MCP, por serem gestos de tela: arrastar, pincel, chamada.
-- **Situação.** Vale. Divergência de documentação: o `PROJETO.md` fala em 11 e 12 ferramentas; o código tem hoje **19**
-  (`TODAS_AS_FERRAMENTAS`).
+- **Situação.** Vale. O `PROJETO.md` e o `docs/MCP.md` já dizem o número de hoje: **19** ferramentas (`TODAS_AS_FERRAMENTAS`) e 150 intenções na paridade (123 com ferramenta e 27 de fora).
 
 ### 10.6 O Claude sobe arquivos por um caminho próprio
 - **O quê.** A ferramenta `arquivos` devolve um link de envio de uso único (15 min) e a sala coloca os bytes numa caixa de entrada;

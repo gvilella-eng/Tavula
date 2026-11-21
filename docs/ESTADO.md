@@ -91,10 +91,17 @@ pnpm 10.34.9 · Node 24.11.1 · TypeScript 7.0.2 · Biome 2.6.5 · wrangler 4.15
 
 ### Fluxo de trabalho
 
-- Cada lote num branch `lote-N`; quando o próximo lote é
-  liberado, o anterior entra no `main` por fast-forward.
-- Implementação feita por agente; revisão do código e `pnpm verify` refeitos antes de cada commit de
-  fechamento.
+- Git: no começo cada lote era um branch `lote-N`, que entrava no
+  `main` por fast-forward; esses branches ainda existem. Desde o N1, 2026-11-13, o fluxo é este:
+  - Cada lote roda num worktree próprio (`.claude/worktrees/agent-<id>`, branch `worktree-agent-<id>`), e o agente
+    implementa sem commitar.
+  - O orquestrador revisa o relatório, o diff e os prints, e commita com `git commit -F <arquivo>` (no PowerShell 5.1,
+    aspas duplas quebram o `-m`).
+  - O branch do worktree entra no `redesign` com `git merge --ff-only`, e o `main` acompanha com
+    `git fetch -q . redesign:main` (fetch local).
+- Testes enxutos: um `pnpm verify` por lote (completo só quando o lote mexe em servidor, `packages/shared` ou banco),
+  sem `--repeat-each`; se algo falhar, reteste só o que falhou. O passo a passo está em
+  `docs/explicacao/12-testes-e-fluxo-de-trabalho.md`.
 - Ideias não decididas e notas da campanha de referência ficam em `docs/IDEIAS.md`.
 
 ## Lote 1 — Sala, papéis e sincronização (entregue)
@@ -912,7 +919,7 @@ Nada novo. Para ver: entrar como mestre, abrir a lanterna → Paredes e portas, 
 ### Decisões
 
 - **Véu em RenderTexture, não máscara**: a máscara de stencil do Pixi soma sobreposições (a visão de dois jogadores se cruza e o cruzamento furaria). O véu é desenhado na
-  RenderTexture com buracos em blend `erase` por polígono; jogador: cor do fundo, opaca; mestre (noturna): preto a 55%. Resolução limitada a 3000 px no lado maior.
+  RenderTexture com buracos em blend `erase` por polígono; jogador: cor do fundo, opaca; mestre (noturna): preto a 55%. Resolução limitada a 3000 px no lado maior. (depois: hoje o véu é o `naoVisto` da `CamadaDeLuz` (`apps/web/src/mapa/camadaDeLuz.ts`), com teto de 1.800 px no lado maior, `LADO_MAXIMO`.)
 - **Token fora da visão**: não aparece (`container.visible = false`) e não é clicável; a camada `mapa` (cenário) só é coberta pelo véu. As fontes (os próprios tokens) sempre aparecem.
 - **Algoritmo**: um raio por ponta, e os dois vizinhos só quando a ponta é alcançada; segmentos ordenados por distância e o raio para cedo. Alcance = polígono de 32 lados.
 - **Visão noturna** sem nenhum jogador na cena fica toda clara (nada a contrastar).
@@ -977,7 +984,7 @@ Aplicadas na revisão (4.1, 4.7, 4.13.1 e o Lote 5). Texto original do agente:
 - **Render** (`apps/web/src/mapa/camadaDeLuz.ts`, só de tela): texturas do tamanho da cena (RenderTexture): "não visto" (véu do Lote 5), luz (ambiente + penumbra + luz plena, em blend aditivo,
   cada luz com o próprio polígono, as paredes bloqueiam a luz), visão no escuro (meia luz + máscara do cinza) e saída (memória onde não vê, luz onde vê). Entrega três sprites sobre o mapa:
   `multiplicar` (blend multiply), `brilho` (blend add, 10%) e `cinza` (blend `saturation`, dos modos avançados do Pixi).
-- **Memória do mapa** (`memoriaLocal.ts` + `mapaPixi.ts`): grade de 0,5 m por usuário e cena no IndexedDB (com cópia em memória se o IndexedDB falhar), marcada a cada ≥ 120 ms, esquecida além do alcance,
+- **Memória do mapa** (`memoriaLocal.ts` + `mapaPixi.ts`): grade de 0,5 m por usuário e cena (depois, no C2: por mesa, usuário e cena, `chaveDaMemoria`) no IndexedDB (com cópia em memória se o IndexedDB falhar), marcada a cada ≥ 120 ms, esquecida além do alcance,
   gravada 500 ms depois da última mudança (e no `pagehide`). "Esquecer a memória desta cena" do mestre vira `memoria.esquecida`, e o navegador compara a versão com a que já aplicou.
 - **Interface**: lanterna com "Iluminação dinâmica" mostrando **Ligada/Desligada** em destaque (e um ponto vermelho no ícone da lanterna quando está desligada); **painel flutuante de fontes de luz**
   (`PainelDeFontesDeLuz.tsx`: slider geral, lista com acender/apagar, intensidade e lixeira, "+ Luz fixa" e clique no mapa, edição de nome, raios, cor e tremular, duplo clique no cabeçalho recolhe
@@ -4726,6 +4733,16 @@ Ver `docs/PASSAGEM.md`, seção LP1.
 ### Roteiro manual
 `docs/ROTEIRO-DE-TESTES.md`, seção LP1.
 
----
+## Ajuste LP2 — limpeza dos docs que ficaram velhos (entregue, 2026-11-21)
 
-## Próximo: LP1 (roteiro manual) e o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b, N4, N5, M1, M2, Q1 a Q16, CH1, CH2, CH3, CH4, MU1, MU2, MU3, A1, AU1, AU2, AU3, AU3b, AU3c, AU4, FG1, FG2, AS1 e das otimizações O1–O4
+Só docs (mais um comentário de `e2e/playwright.config.ts`). Cada número foi conferido no código antes de escrever.
+
+- `docs/MCP.md` e `PROJETO.md`: 19 ferramentas (`TODAS_AS_FERRAMENTAS`, `packages/shared/src/mcp/ferramentas/index.ts`); paridade com 150 intenções, 123 com ferramenta e 27 de fora (4 proibidas, 12 de transporte, 11 gestos ao vivo; contadas lendo `PARIDADE_COM_O_MCP`); o compêndio do MCP tem monstros e itens mágicos e o servidor local lê a pasta `compendio/` inteira (`apps/mcp/src/compendioLocal.ts`); o exemplo do SRD da sala tem 3 magias, 9 armas, 5 itens, 3 monstros e 4 itens mágicos.
+- `PROJETO.md` §9 e `e2e/playwright.config.ts`: o `--repeat-each=3` deixou de ser regra (um verify só; reteste só o que falhou).
+- `docs/WHISPER.md`: a forma real do `transcricao.json` (objeto com `versao`, `titulo`, `inicioEpochMs`, `fusoMin`, `geradaEmMs`, `falhas` e `linhas`).
+- `docs/PASSAGEM.md`: intenções de automação de hoje (7b-1, 7b-3), compêndio do MCP (12-2), lista de assets do jogador montada pela sala (AS1) e o `fluxo.editar` que só cancela as esperas quando muda a estrutura.
+- `docs/ESTADO.md`, "Fluxo de trabalho": o fluxo de hoje (worktree por lote, `git commit -F`, `merge --ff-only` na `redesign`, `main` acompanhando por fetch local). Notas "(depois: ...)" no véu (teto de 1.800 px) e na chave da memória (mesa, usuário e cena).
+- `docs/REDESIGN.md`: notas "(depois: ...)" no N5 (a ferramenta `som`), no compêndio do MCP e na chave da memória. `docs/protocolo.md`: chave da memória.
+- `docs/explicacao/achados-ao-escrever.md`: itens de "Nos docs" apagados. `02-decisoes.md`: acertos nas decisões 10.5 e da memória.
+
+## Próximo: o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b, N4, N5, M1, M2, Q1 a Q16, CH1, CH2, CH3, CH4, MU1, MU2, MU3, A1, AU1, AU2, AU3, AU3b, AU3c, AU4, FG1, FG2, AS1, LP1 e das otimizações O1–O4 (o LP2 foi só de docs)

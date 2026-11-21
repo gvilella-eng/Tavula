@@ -1098,7 +1098,7 @@ Primeiro lote do marco "Mesas e contas" (PROJETO 4.14): várias mesas no mesmo s
 - (assumido) O cookie ganhou outro nome (`tabletop_sessao`): o `tabletop_usuario` de antes (`Path=/`) valeria em toda mesa. Quem já estava logado escolhe o usuário de novo, uma vez.
 - (assumido) Renomear é uma rota (`POST /api/m/<id>/renomear`), não uma intenção da sala: o nome é do diretório. Os outros navegadores só veem o nome novo ao recarregar.
 - (assumido) O nome e o id ficam na aba Mesa (só do mestre): o jogador recebe o link do mestre.
-- (assumido) A memória do mapa (IndexedDB, por usuário e cena) não é separada por mesa: os ids de cena de mesas diferentes quase nunca coincidem.
+- (assumido) A memória do mapa (IndexedDB, por usuário e cena) não é separada por mesa: os ids de cena de mesas diferentes quase nunca coincidem. (depois, no C2: a chave passou a ser mesa, usuário e cena, `chaveDaMemoria`; a memória antiga só é herdada pela mesa legada.)
 - (assumido) Título da aba: "Távola · nome da mesa" (e " · cena" com a mesa aberta).
 - (assumido) A tela inicial lembra até 30 mesas por navegador.
 
@@ -1690,10 +1690,10 @@ Menus (tipos de parede, importar e exportar, atalhos) e dois acertos que sobrara
 - (assumido) Som de zona sem laço toca uma vez por entrada.
 - (assumido) O volume geral começa em 80%, o da trilha e o dos efeitos em 100%.
 - (assumido) Efeito para "cena" vale para quem está na cena do grupo; "token" para quem controla o token do evento (o mestre ouve sempre). Um efeito disparado numa intenção que manda snapshot novo ainda chega, logo depois dele.
-- (assumido) O Claude (MCP) não ganhou ferramenta de som.
+- (assumido) O Claude (MCP) não ganhou ferramenta de som. (depois: o M2 acrescentou a ferramenta `som` e o Q4 a refez, para a mesa de som e os ambientes da cena; ver `docs/MCP.md`.)
 
 **O que ficou para depois**
-- Pausar a trilha (hoje só tocar e parar), lista de reprodução, som posicional (volume pela distância), "Preparar" os sons de zona e de efeito e ferramenta de som no MCP.
+- Pausar a trilha (hoje só tocar e parar), lista de reprodução, som posicional (volume pela distância), "Preparar" os sons de zona e de efeito e ferramenta de som no MCP. (depois: a ferramenta de som no MCP veio no M2, refeita no Q4.)
 - Uma pasta de sons própria na tela inicial (hoje vale a pasta de imagens da mesa).
 
 ## Em aberto
@@ -1854,7 +1854,7 @@ Os lotes 7b-1 a 7b-3 (motor, zonas, editor e campanhas) vêm depois dos ajustes 
 
 **Decisões (assumido)**
 - (assumido) O servidor é **uma conexão por token**, aberta quando o processo sobe; `TAVOLA_URL` é a origem da página (5173 pelo proxy do Vite ou 8787 direto): os dois servem, o proxy repassa o cabeçalho `Authorization` (o E2E usa a porta do Vite).
-- (assumido) O compêndio do MCP vem do **arquivo do próprio computador** (o mesmo `magias.json` do mestre), não da mesa: o Claude não pede arquivos à sala (`asset.pedir` é proibido). Ordem: `TAVOLA_COMPENDIO`, `compendio/magias.json` na pasta onde o processo roda, o exemplo do SRD embutido (3 magias, 9 armas, 5 itens). O compêndio **não tem monstros** (o formato não prevê): o NPC se monta por partes. O nome do compêndio aceita o tipo na frente ("magia:Luz") para desfazer empate.
+- (assumido) O compêndio do MCP vem do **arquivo do próprio computador** (o mesmo `magias.json` do mestre), não da mesa: o Claude não pede arquivos à sala (`asset.pedir` é proibido). Ordem: `TAVOLA_COMPENDIO`, `compendio/magias.json` na pasta onde o processo roda, o exemplo do SRD embutido (3 magias, 9 armas, 5 itens). O compêndio **não tem monstros** (o formato não prevê): o NPC se monta por partes. O nome do compêndio aceita o tipo na frente ("magia:Luz") para desfazer empate. (depois: hoje o servidor local lê a pasta `compendio/` inteira, com monstros e itens mágicos; ver `docs/MCP.md`.)
 - (assumido) Criar ou editar pelo nome: se já existe item com o **nome exato** (sem acento nem caixa) na lista que a pessoa vê, edita; senão, cria. Nunca por trecho do nome (o trecho vale só para achar um item que já existe, em `ler`, cenas, tokens etc.).
 - (assumido) "Objetos" do jogador são os itens da ficha dele (dentro de `fichas`); a ferramenta `objetos` é só do mestre.
 - (assumido) O mestre cria **NPC por padrão**; `dono` (nomes de jogadores) cria personagem de jogador. NPC fica na pasta NPCs, personagem na pasta Personagens; o jogador sempre na pasta própria (a sala decide).

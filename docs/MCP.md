@@ -68,18 +68,20 @@ existindo em `apps/mcp`. Isso **exige** o Távola baixado e o Node:
 (Uma ponte que ligue o Desktop à rota HTTP sem esse arquivo existe como pacote da internet, mas o Távola não baixa
 nada da internet por conta própria; por isso ela não é o caminho indicado.)
 
-### O compêndio (magias, armas e itens)
+### O compêndio (magias, armas, itens, monstros e itens mágicos)
 
 **Pelo caminho HTTP (o principal)** o Claude consulta o exemplo do SRD que vai dentro da sala (poucas entradas: 3
-magias, 9 armas e 5 itens); o compêndio completo da mesa ainda não é lido por ele. **Pelo servidor local (stdio, o do
-Claude Desktop)** ele lê o compêndio do seu computador, nesta ordem:
+magias, 9 armas, 5 itens, 3 monstros e 4 itens mágicos); o compêndio completo da mesa ainda não é lido por ele. **Pelo
+servidor local (stdio, o do Claude Desktop)** ele lê o compêndio do seu computador, nesta ordem:
 
-1. o arquivo da variável `TAVOLA_COMPENDIO` (o caminho do seu `magias.json`);
-2. `compendio/magias.json` na pasta onde o servidor roda;
+1. o caminho da variável `TAVOLA_COMPENDIO`, que pode ser um arquivo ou uma pasta;
+2. a pasta `compendio/` onde o servidor roda;
 3. o exemplo do SRD que vai dentro do programa (poucas entradas).
 
-Para ter o compêndio completo no servidor local, ponha `"TAVOLA_COMPENDIO": "C:/caminho/magias.json"` no `env`. O compêndio
-**não tem monstros**: para um NPC, o Claude monta a ficha por partes a partir da sua descrição.
+Numa pasta, o servidor lê e junta os que existirem entre `magias.json`, `monstros.json`, `itens.json` e `compendio.json`
+(`ARQUIVOS_DO_COMPENDIO`; `apps/mcp/src/compendioLocal.ts`), como a mesa faz. Para ter o compêndio completo no servidor
+local, ponha `"TAVOLA_COMPENDIO": "C:/caminho/compendio"` no `env`. O compêndio **tem monstros e itens mágicos** (desde
+o N3a): o Claude os busca com `compendio`, e `fichas` cria NPCs de um monstro pelo nome.
 
 ## Exemplos de pedidos
 
@@ -110,7 +112,7 @@ chamada só. Se um nome for repetido ou não existir, a resposta diz o que corri
 | `panorama` | todos | Mostra o que existe e que você vê: cenas, fichas, notas, modelos e, para o mestre, automações e rascunhos. |
 | `ler` | todos | Detalhe de uma ficha, nota, cena, modelo ou (mestre) automação, pelo nome. |
 | `fichas` | jogador (as dele) e mestre (todas e NPCs) | Cria e edita fichas em lote, por partes; a mesa calcula modificadores, proficiência, CA e PV. |
-| `compendio` | todos | Procura magias, armas e itens por nome, classe, nível ou escola. |
+| `compendio` | todos | Procura magias, armas, itens, monstros e itens mágicos por nome, classe, nível, escola, tipo ou ND. |
 | `notas` | jogador (as dele) e mestre (todas) | Cria, edita e apaga handouts em lote. |
 | `objetos` | mestre | Modelos de objeto de luz, pontos (suportes e inflamáveis) e luzes fixas. |
 | `cenas` | mestre | Cenas: nome, grid, chegada, cartão, luz, paredes, portas, arcos e tokens de NPC. |
@@ -133,7 +135,7 @@ chamada só. Se um nome for repetido ou não existir, a resposta diz o que corri
 
 ### A tabela de paridade (M2)
 
-Cada intenção do protocolo tem entrada em `packages/shared/src/mcp/paridade.ts`: a ferramenta e o campo que a alcançam, ou o motivo de ficar de fora (`proibida`, `transporte` ou `gesto ao vivo`). O teste `paridade.test.ts` falha se aparecer uma intenção nova sem entrada, ou se a tabela apontar uma ferramenta ou campo que não existe. **Regra: intenção nova precisa de entrada na tabela.** Hoje são 130 intenções: 107 com ferramenta e 23 de fora (4 proibidas, 10 de transporte, 9 gestos ao vivo).
+Cada intenção do protocolo tem entrada em `packages/shared/src/mcp/paridade.ts`: a ferramenta e o campo que a alcançam, ou o motivo de ficar de fora (`proibida`, `transporte` ou `gesto ao vivo`). O teste `paridade.test.ts` falha se aparecer uma intenção nova sem entrada, ou se a tabela apontar uma ferramenta ou campo que não existe. **Regra: intenção nova precisa de entrada na tabela.** Hoje são 150 intenções: 123 com ferramenta e 27 de fora (4 proibidas, 12 de transporte, 11 gestos ao vivo).
 
 ### A paridade campo a campo (Q16)
 

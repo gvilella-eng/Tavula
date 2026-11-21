@@ -522,7 +522,7 @@ ConfigDaMesa { iluminacao: { memoriaLigada, memoriaModo: "inteligencia" | "fixo"
   penumbra, mais escura; escuro, nada. Dentro da visão no escuro (`Personagem.visao.visaoNoEscuroM`, ou `Token.visaoNoEscuroM` sem
   personagem; também parada pelas paredes e pelo alcance de visão), o escuro aparece em **cinza** e a penumbra vale como luz plena.
   Token só é desenhado onde o jogador o vê.
-- **Memória do mapa** (`memoria.ts`): só de tela, em IndexedDB por usuário e cena, grade de 0,5 m. Onde o jogador já viu, fora do que vê agora, aparece
+- **Memória do mapa** (`memoria.ts`): só de tela, em IndexedDB por mesa, usuário e cena (`chaveDaMemoria`, desde o C2), grade de 0,5 m. Onde o jogador já viu, fora do que vê agora, aparece
   só a camada do mapa, escurecida pelo `tomDaMemoria`, com opacidade que cai em linha reta com a distância até o token mais próximo (pelo alcance
   de cada um). Alcance (`alcanceDaMemoria`): modo `inteligencia` = `memoriaBaseM` + `memoriaPorModM` × `Personagem.modInteligencia` (15 m + 3 m × mod),
   nunca abaixo de 0; `fixo` = `memoriaFixaM`; `memoriaLigada: false` = sem memória. O que passa do alcance de todos os tokens do jogador é **apagado**.
