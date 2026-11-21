@@ -174,7 +174,7 @@ for (const c of CASOS) {
     const [e2] = await Promise.all([m.waitForEvent("popup"), m.getByTestId("auto-nova").click()]);
     await e2.setViewportSize({ width: c.width, height: c.height });
     await e2.getByTestId("ed-conhecer").click();
-    for (let i = 0; i < 10; i++) await e2.getByTestId("tour-auto-proximo").click();
+    for (let i = 0; i < 8; i++) await e2.getByTestId("tour-auto-proximo").click();
     await expect(e2.getByTestId("tour-auto")).toHaveAttribute("data-passo", "relogio");
     await e2.getByTestId("tour-auto-fazer").click();
     await e2.getByTestId("tour-auto-proximo").click();
