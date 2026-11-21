@@ -6,6 +6,7 @@ import {
   type Fluxo,
   FluxoSchema,
   idDoBotaoDeEvento,
+  LARGURA_DO_NO as LARGURA_DO_NO_DA_SHARED,
   MARGEM_DA_CAIXA,
   organizarGrafo,
   VAO_DA_CAIXA,
@@ -94,6 +95,11 @@ describe("a geometria da grade", () => {
         ALTURA_DO_MAIS,
     );
   });
+  it("LP1: a largura do nó tem uma fonte só (a da shared) e vale 208", () => {
+    expect(LARGURA_DO_NO).toBe(LARGURA_DO_NO_DA_SHARED);
+    expect(LARGURA_DO_NO).toBe(208);
+  });
+
   it("as portas ficam nas bordas e a altura cresce com duas saídas", () => {
     const f = fluxoNovo("x");
     const g = f.nos[0];

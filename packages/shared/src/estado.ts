@@ -473,7 +473,7 @@ export const ConfigDaMesaSchema = z.object({
   maosPorPersonagem: z.number().int().min(1).max(6),
   /** Segundos descontados do saldo ao apagar uma luz com tempo. */
   penalidadeAoApagarS: z.number().min(0).max(3600),
-  /** Entregar tocha, usar ponto: alcance em metros (distância de quadrados do 5e). */
+  /** Entregar tocha, usar ponto: alcance em metros (distância de quadrados do 5e). A porta não usa: abre a 2 quadrados, fixo. */
   alcanceInteracaoM: z.number().min(0).max(30),
   /** O que o jogador vê do tempo; o mestre sempre vê o exato. */
   tempoParaJogadores: TempoParaJogadoresSchema,

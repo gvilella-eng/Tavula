@@ -362,6 +362,15 @@ código e a divergência está anotada na decisão.
 - **Onde.** `packages/shared/src/importarUvtt.ts`.
 - **Situação.** Vale. Limites: 3000 paredes, 200 luzes, 64 MB.
 
+### 6.11 A porta abre a 2 quadrados, fixo
+- **O quê.** O jogador abre ou fecha a porta com um token dele a até 2 quadrados do meio dela. Sem configuração; o `alcanceInteracaoM`
+  da mesa vale só para tochas e pontos.
+- **Por quê.** Decisão do Vilella no LP1 (2026-11-21): "a porta deixa 2 quadrados como padrão e é isso". Antes era uma constante em
+  metros (1,5 m) que o doc do Lote 5 descrevia como se fosse a configuração da mesa.
+- **Onde.** `ALCANCE_DA_PORTA_EM_QUADRADOS` e `alternarPortaDoJogador` (`packages/shared/src/paredes.ts`); as coordenadas da cena são
+  em metros, então a conta usa o lado do quadrado da cena.
+- **Situação.** Vale.
+
 ---
 
 ## 7. Tempo da sala e objetos de luz

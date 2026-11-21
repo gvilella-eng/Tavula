@@ -1,5 +1,5 @@
 import type { APIRequestContext, Page } from "@playwright/test";
-import { enviarCru, expect, intencaoCrua, test } from "./ajudas";
+import { abrirPreferencia, enviarCru, expect, intencaoCrua, test } from "./ajudas";
 import { entrarNoMapa, type GanchoDoMapa } from "./ajudasMapa";
 
 // AU2: as automações como o n8n. O editor SEMPRE numa janela própria do navegador (a principal nunca o mostra), a grade livre
@@ -602,4 +602,27 @@ test("armadilha de zona: o token entra e a ação acontece (feita pelo editor, c
   await ok(p, "token.soltar", { id: "tok-ogro", x: 30, y: 10 });
   await expect.poll(() => anunciou(mestre.frames, "Cuidado, espinhos!")).toBe(true);
   await expect(p.getByTestId("auto-situacao-armadilha-de-espinhos")).toContainText("rodou há");
+});
+
+test("LP1: o editor numa janela própria acompanha a troca de tema da mesa, sem recarregar", async ({
+  mesa,
+}) => {
+  const mestre = await entrarNoMapa(mesa, "mestre");
+  const p = mestre.pagina;
+  await ok(p, "fluxo.criar", { fluxo: fluxoDeBotao("aviso", "Aviso", "oi") });
+  await abrirAutomacoes(p);
+  const popup = await abrirEditor(p, "auto-editar-aviso");
+  await expect(popup.locator("html")).not.toHaveAttribute("data-tema", "claro");
+  // marca a página: se ela recarregar, a marca some
+  await popup.evaluate(() => {
+    (window as unknown as { __semRecarregar: boolean }).__semRecarregar = true;
+  });
+  await abrirPreferencia(p, "aparencia");
+  await p.getByTestId("tema-claro").click();
+  await expect(popup.locator("html")).toHaveAttribute("data-tema", "claro");
+  expect(
+    await popup.evaluate(
+      () => (window as unknown as { __semRecarregar?: boolean }).__semRecarregar,
+    ),
+  ).toBe(true);
 });

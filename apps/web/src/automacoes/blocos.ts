@@ -10,6 +10,7 @@ import {
   FluxoSchema,
   type Gatilho,
   LARGURA_DA_CAIXA,
+  LARGURA_DO_NO,
   larguraDaCaixa,
   motivoDaRecusa,
   NOMES_DAS_CAIXAS,
@@ -309,7 +310,8 @@ export function grupoDoNo(
 
 // --- A geometria (a grade tem tamanho fixo de nó, para os fios saberem onde ficam as portas) -----
 
-export const LARGURA_DO_NO = 208;
+// A medida vem da `shared` (fonte única, `fluxosGrafo.ts`); aqui só se reexporta para o editor.
+export { LARGURA_DO_NO };
 
 /** A largura do nó na grade: a caixa é mais larga (as peças ficam empilhadas dentro dela). */
 export const larguraDoNo = (no: Pick<No, "tipo">, nos?: readonly No[]): number =>

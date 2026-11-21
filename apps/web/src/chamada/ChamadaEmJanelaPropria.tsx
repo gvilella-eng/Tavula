@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { AvisoPerto } from "../AvisoPerto";
 import type { DadosDaMesa } from "../api";
 import { guardarMedida, ID_DA_CHAMADA, nomeDaJanela } from "../ficha/foraDaMesa";
-import { aplicarTema, CHAVE_TEMA, lerTema } from "../tema/temas";
 import { useSala } from "../useSala";
 import { anunciarFalando } from "./canalDaChamada";
 import { ControleDaChamada } from "./controlador";
@@ -143,15 +142,8 @@ export function ChamadaEmJanelaPropria({ mesa, aoPerderSessao }: Props) {
     document.title = "Chamada — Távola";
   }, []);
 
-  // O tema é o da mesa: o `main.tsx` o aplica ao abrir; quando a mesa (outra janela, mesma origem) troca de tema, o evento
-  // `storage` chega aqui e a janela o acompanha. Não há seletor de tema na chamada.
-  useEffect(() => {
-    const aoMudar = (e: StorageEvent) => {
-      if (e.key === null || e.key === CHAVE_TEMA) aplicarTema(lerTema());
-    };
-    window.addEventListener("storage", aoMudar);
-    return () => window.removeEventListener("storage", aoMudar);
-  }, []);
+  // O tema é o da mesa: o `main.tsx` o aplica ao abrir e o acompanha ao vivo (`acompanharTemaDeOutrasJanelas`). Não há
+  // seletor de tema na chamada.
 
   return (
     <div className="chamada-pagina" data-area-do-mapa="" data-testid="chamada-pagina">

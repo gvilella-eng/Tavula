@@ -1653,8 +1653,9 @@ no editor; ligar a ordem de turno.
   (V10b, 2026-11-13: **quem põe token no mapa.** O mestre, onde quiser (`personagem.colocar`, `token.criar`). O jogador põe o token do personagem que controla, na cena do grupo, **só na área da bandeira** (círculo de 3 quadrados de raio em volta do ponto de chegada) e só se esse personagem ainda não tem token nessa cena: pelo botão "Colocar no mapa" (lista de Fichas e cabeçalho da ficha) ou arrastando a ficha para o mapa (a área se acende). Intenção `token.colocarMeu`, capacidade `token.colocarProprio` (ligada por padrão, em Permissões). O jogador vê a bandeira quando não tem token dele na cena; só o mestre a arrasta. A sala confere tudo e tira os campos do token da ficha.)
   (Q8, 2026-11-16: **um token do personagem por cena.** Ter token em outra cena não impede: `personagem.colocar` e `token.colocarMeu` só recusam o segundo token do mesmo personagem de jogador **na mesma cena**. O jogador vai **sempre para a bandeira**: o ponto que ele manda é ignorado e a sala arruma o token no grid ao lado dos que já estão lá (sem o erro "perto da bandeira"). O mestre põe onde quiser. `grupo.moverPara` leva os tokens de personagens de jogador da cena ativa, **menos** os de quem já tem token na cena de destino (fica o do destino; o da origem fica na origem). As buscas do token do personagem usam a cena em questão. Sem migração.)
 - **Portas:** ícone no meio da porta. O jogador abre ou fecha porta destrancada **ao alcance** de um token
-  que controla (1,5 m por padrão; o mesmo `alcanceInteracaoM` da tocha), com `porta.abrir`. O mestre
-  tranca, destranca e abre qualquer uma. Porta trancada avisa "trancada".
+  que controla (**2 quadrados do meio da porta, fixo, sem configuração**: LP1, 2026-11-21; o `alcanceInteracaoM` da mesa
+  vale só para tochas e pontos), com `porta.abrir`. O mestre tranca, destranca e abre qualquer uma. Porta trancada avisa
+  "trancada".
 - **Paredes bloqueiam passagem:** parede, porta fechada, janela e invisível bloqueiam o movimento. O
   jogador não consegue soltar o token atravessando uma delas (a sala confere o trajeto; o mestre
   ignora). Janela e invisível não bloqueiam a visão.
@@ -1676,7 +1677,7 @@ no editor; ligar a ordem de turno.
 
 **Como ficou:**
 - a secreta é operada só pelo mestre, mesmo aberta;
-- o alcance para abrir porta é a constante 1,5 m até existir `ConfigDaMesa` (Lote 7);
+- o alcance para abrir porta é fixo em 2 quadrados (`ALCANCE_DA_PORTA_EM_QUADRADOS`, LP1), sem configuração;
 - a conferência do trajeto usa o segmento reto, sem o raio do token;
 - sem migração de banco: as paredes entram como uma coleção nova e os campos são opcionais;
 - exportação v6.

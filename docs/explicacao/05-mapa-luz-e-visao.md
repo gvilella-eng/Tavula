@@ -140,7 +140,7 @@ O jogador **nunca recebe** o tipo `secreta`. `paredeParaJogador` converte: secre
 
 ### Portas
 
-O jogador só opera `tipo: "porta"` (a secreta responde como "não há porta aí"), destrancada, com algum token dele a no máximo 1,5 m do meio da porta (`alternarPortaDoJogador`). O mestre alterna qualquer porta ou secreta sem conferir alcance, e o clique direito dele no ícone tranca ou destranca (`trancarPorta`). O ícone da porta só é clicável e visível **onde o jogador enxerga** (`portaVisivel` consulta `veNoPonto` um pouco para cada lado do meio da porta: o meio fica exatamente na borda do polígono de visão, e testar só o ponto central dava falso "não vejo").
+O jogador só opera `tipo: "porta"` (a secreta responde como "não há porta aí"), destrancada, com algum token dele a no máximo **2 quadrados** do meio da porta (`alternarPortaDoJogador`, constante `ALCANCE_DA_PORTA_EM_QUADRADOS`; as coordenadas da cena são em metros, então a conta é 2 x o lado do quadrado da cena; fixo, sem configuração: decisão do Vilella no LP1). O mestre alterna qualquer porta ou secreta sem conferir alcance, e o clique direito dele no ícone tranca ou destranca (`trancarPorta`). O ícone da porta só é clicável e visível **onde o jogador enxerga** (`portaVisivel` consulta `veNoPonto` um pouco para cada lado do meio da porta: o meio fica exatamente na borda do polígono de visão, e testar só o ponto central dava falso "não vejo").
 
 ### Paredes em arco (V5)
 
@@ -403,7 +403,7 @@ A solução, em `ancoraDaAlca`: a distância do pino ao centro vale `max(raioPx 
 
 Antes o objeto num ponto era uma alça em tamanho de tela. No FG1 virou **o objeto no lugar do ícone**, em tamanho de **mundo** (a chama é um sprite esticado a `larguraM × alturaM`; apagado, um toco ou achas escuras desenhados em `Graphics`). O relógio fica sob ele em tamanho de tela e some abaixo de `ZOOM_MIN_DO_ROTULO` (0,7), onde viraria ruído. O inflamável selecionado mostra oito alças (`alcasDeTamanho`) para o mestre esticar a chama; o tamanho vale ao vivo enquanto arrasta (`chamaArrastada`). `AlcaVisual` tem dois modos (pino da mão, objeto no ponto): trocar de modo reseta a `chave`, senão o desenho fica velho.
 
-A área de soltar uma tocha num suporte ou inflamável é de no mínimo uma célula e 40 px de tela (`areaDeSoltarM`); o alvo mais próximo é destacado (`atualizarAlvoDaAlca`). O alcance para acender ou pôr é a distância em **quadrados** do 5e entre ocupantes (`dentroDoAlcance`, Chebyshev), o mesmo das portas (mas ver "Divergências").
+A área de soltar uma tocha num suporte ou inflamável é de no mínimo uma célula e 40 px de tela (`areaDeSoltarM`); o alvo mais próximo é destacado (`atualizarAlvoDaAlca`). O alcance para acender ou pôr é a distância em **quadrados** do 5e entre ocupantes (`dentroDoAlcance`, Chebyshev); a porta tem o seu próprio alcance fixo (2 quadrados, em linha reta).
 
 ### O que a sala garante
 
@@ -536,6 +536,6 @@ Outras:
 
 ## Divergências conhecidas entre os docs e o código
 
-- A descrição do Lote 5 diz que o alcance de interação da porta é o mesmo `alcanceInteracaoM` da tocha, mas **o código usa a constante `ALCANCE_INTERACAO_PADRAO_M = 1,5`** em `alternarPortaDoJogador` (a configuração `alcanceInteracaoM` da mesa só vale para as tochas e pontos).
+- A descrição do Lote 5 diz que o alcance de interação da porta é o mesmo `alcanceInteracaoM` da tocha. Não é: desde o LP1 a porta abre a 2 quadrados fixos (`ALCANCE_DA_PORTA_EM_QUADRADOS`); o `alcanceInteracaoM` da mesa vale só para tochas e pontos.
 - O Lote 5 fala em véu com resolução limitada a 3.000 px; hoje o véu é o `naoVisto` da `CamadaDeLuz` e o limite é **1.800 px** (`LADO_MAXIMO`).
 - O Lote 6 fala em memória "por usuário e cena"; a chave real é **mesa, usuário e cena** (C2).

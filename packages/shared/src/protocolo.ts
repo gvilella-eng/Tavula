@@ -974,7 +974,7 @@ export const IntencaoSchema = z.discriminatedUnion("tipo", [
   /** Manda todos os navegadores esquecerem a memória do mapa de uma cena (omitida: a ativa). */
   intencao("memoria.esquecer", z.object({ cenaId: IdSchema.optional() })),
   /**
-   * Abre ou fecha uma porta. Jogador: só `porta` destrancada, com um token dele ao alcance. Mestre:
+   * Abre ou fecha uma porta. Jogador: só `porta` destrancada, com um token dele a até 2 quadrados do meio (fixo). Mestre:
    * qualquer porta (inclusive a secreta e a trancada, que abre).
    */
   intencao("porta.alternar", z.object({ id: IdSchema })),
@@ -1283,7 +1283,9 @@ export const capacidadeDaIntencao: Record<TipoIntencao, Capacidade | null> = {
   "chamada.sair": null,
   "chamada.sinal": null,
   "chamada.chamar": null,
-  // CH3: só o mestre liga a gravação (a sala confere o papel); cada um só tira a própria voz.
+  // CH3: só o mestre liga a gravação, sem delegar. `mesa.configurar` é a capacidade exclusiva do mestre (a marca do projeto
+  // para isso); mas a chamada não passa por `processar`: quem confere é `tratarChamada` na sala (papel `mestre` da conta),
+  // e o teste do ch3 garante que a tabela e a sala dizem a mesma coisa. Cada um só tira a própria voz.
   "chamada.gravar": "mesa.configurar",
   "chamada.naoGravar": null,
   "cena.configurarGrid": "cena.editar",

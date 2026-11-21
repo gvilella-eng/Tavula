@@ -1288,7 +1288,7 @@ Um pedido do Vilella: transformar qualquer ficha numa janela do navegador, para 
 **O que ficou para depois**
 - Arrastar entre janelas não funciona (do compêndio para a ficha de fora, da ficha de fora para o mapa): o arrasto do navegador não atravessa janelas. Não se tentou contornar.
 - O navegador decide se respeita `left`/`top` (outro monitor, tela que foi desligada): ele pode abrir a janela em outro lugar.
-- Mudar o tema na mesa depois de a janela da ficha abrir só vale na janela da ficha na próxima carga (a aparência da ficha já ouve o `storage`).
+- Mudar o tema na mesa com a janela da ficha aberta vale na hora (LP1: um ouvinte do `storage` no `main.tsx` serve a todas as janelas próprias; antes só a janela da chamada ouvia).
 
 ## C4 — como ficou (2026-11-12)
 

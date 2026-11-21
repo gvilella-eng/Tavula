@@ -12,7 +12,7 @@ import {
   IntencaoSchema,
   listarAssetsDaMesa,
   nomeDeArquivoNoDisco,
-  ordemDeOrigem,
+  PASTA_DO_TIPO,
   processar,
   trechoDeCaminhoSeguro,
   validarMeta,
@@ -232,6 +232,9 @@ describe("segurança dos arquivos (AS1)", () => {
     expect(mapa?.pasta).toEqual(["assets", "Mestre", "mapas"]);
     expect(caminhoNaPastaOrganizada(meta(H1, "tile"), "x", { extensao: "webp" })).toBeNull();
     expect(caminhoNaPastaOrganizada(meta(H1, "cifrado"), "x", { extensao: "bin" })).toBeNull();
+    // LP1: nenhuma pasta para o que não vai para a organizada
+    expect(Object.keys(PASTA_DO_TIPO)).not.toContain("cifrado");
+    expect(Object.keys(PASTA_DO_TIPO)).not.toContain("tile");
     // Dois arquivos de mesmo nome não se sobrescrevem (o hash entra no nome); o mesmo arquivo sempre cai no mesmo lugar.
     const a = caminhoNaPastaOrganizada(meta(H1, "imagem", { nomeOriginal: "x.png" }), "Ana", {
       extensao: "webp",
@@ -392,35 +395,6 @@ describe("lista de assets da mesa (AS1)", () => {
     const som = verificarApagar(e, H4);
     expect(som.ok).toBe(false);
     expect(verificarApagar(e, "9".repeat(64)).ok).toBe(false);
-  });
-});
-
-describe("de onde carregar (AS1)", () => {
-  const base = {
-    noCache: false,
-    naPasta: false,
-    souODono: false,
-    donoOnline: false,
-    mestreOnline: false,
-  };
-  it("o que é local sempre vence a rede; sem cópia local, o dono online e depois o mestre", () => {
-    expect(ordemDeOrigem({ ...base, noCache: true, souODono: true, mestreOnline: true })).toEqual([
-      "cache",
-      "mestre",
-      "qualquer",
-    ]);
-    expect(ordemDeOrigem({ ...base, naPasta: true, mestreOnline: true })).toEqual([
-      "pasta",
-      "mestre",
-      "qualquer",
-    ]);
-    expect(ordemDeOrigem({ ...base, donoOnline: true, mestreOnline: true })).toEqual([
-      "dono",
-      "mestre",
-      "qualquer",
-    ]);
-    expect(ordemDeOrigem(base)).toEqual(["qualquer"]);
-    expect(ordemDeOrigem({ ...base, noCache: true, naPasta: true })[0]).toBe("cache");
   });
 });
 

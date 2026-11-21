@@ -287,34 +287,3 @@ export function verificarApagar(estado: Estado, hash: string): VerificacaoDeApag
     usos: rotulos,
   };
 }
-
-// --- de onde carregar -------------------------------------------------------------------------
-
-export type OrigemDoArquivo = "cache" | "pasta" | "dono" | "mestre" | "qualquer";
-
-export type SituacaoDoArquivo = {
-  /** Já está no cache deste navegador (o que ele mesmo subiu ou já baixou). */
-  noCache: boolean;
-  /** Sou o mestre e a pasta da mesa tem o arquivo (o hash confere ao ler). */
-  naPasta: boolean;
-  /** Fui eu que enviei. */
-  souODono: boolean;
-  donoOnline: boolean;
-  mestreOnline: boolean;
-};
-
-/**
- * AS1: de onde buscar um arquivo, em ordem. O que é local sempre vence a rede (ler o disco do próprio computador não gasta
- * a conexão de ninguém): primeiro o cache (que já guarda o que eu mesmo enviei: é o "subi esse arquivo, ele ainda está aqui"),
- * depois a pasta da mesa (só o mestre tem). Sem cópia local, pede pela rede, como sempre: o dono online, depois o mestre.
- * Nunca se confia no local sem conferir o hash.
- */
-export function ordemDeOrigem(s: SituacaoDoArquivo): OrigemDoArquivo[] {
-  const ordem: OrigemDoArquivo[] = [];
-  if (s.noCache) ordem.push("cache");
-  if (s.naPasta) ordem.push("pasta");
-  if (!s.souODono && s.donoOnline) ordem.push("dono");
-  if (s.mestreOnline) ordem.push("mestre");
-  ordem.push("qualquer");
-  return ordem;
-}

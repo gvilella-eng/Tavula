@@ -1,7 +1,10 @@
 import type { Cena, EstadoDePorta, Parede, Personagem, Ponto, Token } from "./estado.ts";
 
-/** Alcance padrão para abrir uma porta (o mesmo `alcanceInteracaoM` da tocha), em metros. */
-export const ALCANCE_INTERACAO_PADRAO_M = 1.5;
+/**
+ * LP1: o jogador abre a porta com o token a até 2 quadrados do meio dela. Fixo, sem configuração (decisão do Vilella: "a porta
+ * deixa 2 quadrados como padrão e é isso"); o `alcanceInteracaoM` da mesa vale só para tochas e pontos.
+ */
+export const ALCANCE_DA_PORTA_EM_QUADRADOS = 2;
 
 /** A porta (ou porta secreta) está aberta? Aberta não bloqueia nada. */
 function estaAberta(p: Pick<Parede, "tipo" | "estado">): boolean {
@@ -145,14 +148,16 @@ export type ResultadoDaPorta =
 
 /**
  * O jogador pode alternar esta porta? Só `porta` (a secreta responde como parede: não existe porta
- * ali para ele), destrancada e com algum token dele a no máximo `alcanceM` do meio. A secreta é só do
- * mestre (que passa por `alternarPorta` sem a conferência de alcance).
+ * ali para ele), destrancada e com algum token dele a no máximo `ALCANCE_DA_PORTA_EM_QUADRADOS` quadrados do meio (as
+ * coordenadas da cena são em metros; `quadradoM` é o lado do quadrado da cena). A secreta é só do mestre (que passa por
+ * `alternarPorta` sem a conferência de alcance).
  */
 export function alternarPortaDoJogador(
   porta: Parede | undefined,
   tokensDele: readonly Pick<Token, "x" | "y" | "cenaId">[],
-  alcanceM: number,
+  quadradoM: number,
 ): ResultadoDaPorta {
+  const alcanceM = ALCANCE_DA_PORTA_EM_QUADRADOS * quadradoM;
   if (porta?.tipo !== "porta") return { ok: false, motivo: "inexistente" };
   if (porta.estado === "trancada") return { ok: false, motivo: "trancada" };
   const meio = meioDaParede(porta);

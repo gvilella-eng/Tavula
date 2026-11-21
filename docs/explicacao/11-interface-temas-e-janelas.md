@@ -164,8 +164,7 @@ A mesa de som, a de eventos e a automação reaproveitam o mesmo mecanismo com u
 `mesa-de-som`, `mesa-de-eventos`, `automacao-<id>` (ou `automacao-nova`) e `chamada`. O som continua **saindo da aba da
 mesa**: a janela do som é só o controle (assumido no Q4b). O "Ouvir" da configuração toca só na janela.
 
-O tema na janela própria: o `main.tsx` aplica o tema ao abrir. Só a janela da chamada escuta o evento `storage` para
-seguir uma troca de tema feita depois na mesa (`ChamadaEmJanelaPropria`); as outras só pegam o tema novo na próxima carga.
+O tema na janela própria: o `main.tsx` aplica o tema ao abrir e liga um ouvinte só do evento `storage` (`acompanharTemaDeOutrasJanelas`, em `tema/temas.ts`) que vale para toda página: ficha, mesa de som, editor de automação, mesa de eventos e chamada seguem uma troca de tema feita depois na mesa, sem recarregar (LP1). O evento só chega às outras janelas da mesma origem, nunca a quem gravou.
 
 ### A tela inicial e "Minhas mesas"
 

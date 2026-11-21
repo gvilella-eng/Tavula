@@ -160,7 +160,8 @@ export function semOsNos<T extends Pick<Fluxo, "nos" | "fios">>(
 
 // --- Arrumar na grade ------------------------------------------------------------------------
 
-export const LARGURA_DO_NO = 210;
+/** A largura do nó na grade: a única fonte (o desenho do editor, a arrumação e os fios usam esta medida). */
+export const LARGURA_DO_NO = 208;
 export const ALTURA_DO_NO = 84;
 /** AU3: as medidas da caixa na grade (o desenho do editor usa as mesmas, para a arrumação e os fios não desalinharem). */
 export const LARGURA_DA_CAIXA = 250;

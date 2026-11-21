@@ -757,3 +757,16 @@ export function escolherTema(id: IdDoTema): void {
   }
   aplicarTema(id);
 }
+
+/**
+ * LP1: faz esta janela acompanhar a troca de tema feita em outra janela da mesma origem (o evento `storage` só chega às
+ * outras janelas, nunca a quem gravou). Um ouvinte só, ligado pelo `main.tsx` em toda página, vale para a mesa e para as
+ * janelas próprias (ficha, som, automação, eventos, chamada).
+ */
+export function acompanharTemaDeOutrasJanelas(alvo: Window = window): () => void {
+  const aoMudar = (e: StorageEvent) => {
+    if (e.key === null || e.key === CHAVE_TEMA) aplicarTema(lerTema());
+  };
+  alvo.addEventListener("storage", aoMudar);
+  return () => alvo.removeEventListener("storage", aoMudar);
+}

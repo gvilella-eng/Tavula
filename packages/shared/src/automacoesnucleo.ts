@@ -104,6 +104,11 @@ type Rodada = {
   /** Quantos nós esta rodada já percorreu (o teto pega ciclos que não pausam). */
   passos: number;
   porId: Map<string, No>;
+  /**
+   * LP1: as saídas (caixas de fora, ou o próprio gatilho solto) que este acontecimento já seguiu. Gatilhos guardados na mesma
+   * caixa seguem os mesmos fios; se dois casam com o mesmo acontecimento, a cadeia roda uma vez só.
+   */
+  seguidas: Set<string>;
 };
 
 // ---------------------------------------------------------------------------------------------
@@ -560,6 +565,7 @@ function novaRodada(
   profundidade: number,
   referenciaSala: number,
   encadeados: Encadeado[] = [],
+  seguidas: Set<string> = new Set(),
 ): Rodada {
   return {
     fluxo: f,
@@ -568,6 +574,7 @@ function novaRodada(
     encadeados,
     passos: 0,
     porId: new Map(f.nos.map((n) => [n.id, n])),
+    seguidas,
   };
 }
 
@@ -654,7 +661,10 @@ function executarNo(m: Motor, rd: Rodada, no: No, ctx: ContextoDoFluxo): void {
       const condicoes = condicoesDoGatilho(rd.fluxo.nos, no.id);
       const memo = new Map<string, boolean>();
       if (!condicoes.every((c) => valorDoNo(m, rd, c, ctx, memo, new Set()))) break;
-      seguir(m, rd, noDosFios(rd.fluxo.nos, no.id), "saida", ctx);
+      const saida = noDosFios(rd.fluxo.nos, no.id);
+      if (rd.seguidas.has(saida)) break; // LP1: outro gatilho da mesma caixa já levou este acontecimento adiante
+      rd.seguidas.add(saida);
+      seguir(m, rd, saida, "saida", ctx);
       break;
     }
     case "caixa":
@@ -794,8 +804,9 @@ function dispararFluxo(
   ctx: ContextoDoFluxo,
   profundidade: number,
   referenciaSala: number,
+  seguidas?: Set<string>,
 ): Encadeado[] {
-  const rd = novaRodada(f, profundidade, referenciaSala);
+  const rd = novaRodada(f, profundidade, referenciaSala, [], seguidas);
   m.slice.ultimaVez[f.id] = m.sala;
   executarNo(m, rd, inicio, ctx);
   return rd.encadeados;
@@ -868,9 +879,10 @@ function executarEvento(m: Motor, ev: EventoDeAutomacao, profundidade: number): 
     if (cenas === "nunca") continue;
     if (m.cortado) return;
     rodados.push(f);
+    const seguidas = new Set<string>(); // LP1: uma vez por acontecimento e por caixa de saída
     for (const inicio of inicios) {
       encadeados.push(
-        ...dispararFluxo(m, f, inicio, contextoDoEvento(ev, cenas), profundidade, m.sala),
+        ...dispararFluxo(m, f, inicio, contextoDoEvento(ev, cenas), profundidade, m.sala, seguidas),
       );
     }
   }

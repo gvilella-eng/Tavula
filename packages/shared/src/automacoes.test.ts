@@ -13,6 +13,7 @@ import {
   eventoPara,
   type Fluxo,
   FluxoDeQualquerFormaSchema,
+  FluxoSchema,
   fonteComSemente,
   fraseDoFluxo,
   gatilhoPrincipal,
@@ -644,6 +645,69 @@ describe("os gatilhos do sistema", () => {
       5,
     );
     expect(textos(r2.estado)).toEqual([]);
+  });
+
+  describe("LP1: dois gatilhos que casam com o mesmo acontecimento", () => {
+    const montar = (guardados: boolean) => {
+      const gat = (id: string, config: object, em?: string, espaco?: number) => ({
+        id,
+        tipo: "gatilho",
+        x: 0,
+        y: 0,
+        config,
+        ...(em === undefined ? {} : { em, espaco }),
+      });
+      return FluxoSchema.parse({
+        id: "f1",
+        nome: "Tocha OU",
+        nos: [
+          ...(guardados ? [{ id: "c", tipo: "caixa", x: 0, y: 0, config: { porta: "ou" } }] : []),
+          gat(
+            "g1",
+            { tipo: "tocha", muda: "acende", modelo: "modelo-tocha" },
+            guardados ? "c" : undefined,
+            0,
+          ),
+          gat(
+            "g2",
+            { tipo: "tocha", muda: "acende", etiqueta: "chama" },
+            guardados ? "c" : undefined,
+            1,
+          ),
+          ...["a", "b"].map((id) => ({
+            id,
+            tipo: "acao",
+            x: 0,
+            y: 0,
+            config: { acao: { acao: "chat.anunciar", texto: "acendeu", para: "todos" } },
+          })),
+        ],
+        // soltos: cada gatilho com a sua ação (o esquema agrupa em caixa OU os que dividem a mesma saída)
+        fios: guardados
+          ? [{ de: { no: "c", saida: "saida" }, para: { no: "a", entrada: "entrada" } }]
+          : [
+              { de: { no: "g1", saida: "saida" }, para: { no: "a", entrada: "entrada" } },
+              { de: { no: "g2", saida: "saida" }, para: { no: "b", entrada: "entrada" } },
+            ],
+      });
+    };
+    const acender = (f: Fluxo) => {
+      const apagada = tocha("o1", "pulmao", { estado: "apagada", acesaDesdeSala: undefined });
+      return ok(
+        comFluxos(criarEstado([apagada]), f),
+        "m",
+        intencao("tocha.alternar", { id: "o1" }),
+        5,
+      ).estado;
+    };
+
+    it("na mesma caixa OU, a tocha que é as duas coisas dispara a cadeia uma vez só", () => {
+      expect(textos(acender(montar(true)))).toEqual(["acendeu"]);
+    });
+
+    it("gatilhos soltos, cada um com os seus fios, disparam cada um a sua cadeia", () => {
+      expect(textos(acender(montar(false)))).toEqual(["acendeu", "acendeu"]);
+    });
   });
 
   it("tocha apaga: a ação cai na tocha que apagou", () => {

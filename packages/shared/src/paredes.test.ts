@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  ALCANCE_DA_PORTA_EM_QUADRADOS,
   alcanceDeVisao,
   alternarPortaDoJogador,
   criarExportacao,
@@ -278,8 +279,9 @@ describe("abrir e fechar portas", () => {
   const alternar = intencao("porta.alternar", { id: "d" });
 
   it("o jogador abre e fecha a porta destrancada ao alcance de um token dele", () => {
-    // t1 está em (5.25; 5.25): o meio da porta (7.5; 5.25) está a 2,25 m
-    const longe = comParedes(porta("fechada"));
+    // t1 está em (5.25; 5.25), a 2,25 m do meio da porta (7.5; 5.25): já dentro dos 2 quadrados (3 m); a 3,5 m, fora
+    const base = comParedes(porta("fechada"));
+    const longe = { ...base, tokens: base.tokens.map((t) => ({ ...t, x: 4, y: 5.25 })) };
     expect(codigo(longe, "j1", alternar)).toBe("fora_de_alcance");
     const perto = {
       ...longe,
@@ -335,11 +337,22 @@ describe("abrir e fechar portas", () => {
     expect(codigo(sem, "j1", alternar)).toBe("sem_permissao");
   });
 
-  it("alternarPortaDoJogador: alcance exato", () => {
-    const p = porta("fechada");
+  it("LP1: alternarPortaDoJogador abre a até 2 quadrados do meio da porta (2 abre, 2,1 não), seja qual for o quadrado", () => {
+    const p = porta("fechada"); // meio em (7.5; 5.25)
     const token = (x: number) => [{ x, y: 5.25, cenaId: "c1" }];
-    expect(alternarPortaDoJogador(p, token(6), 1.5).ok).toBe(true);
-    expect(alternarPortaDoJogador(p, token(5.9), 1.5)).toEqual({ ok: false, motivo: "longe" });
+    expect(ALCANCE_DA_PORTA_EM_QUADRADOS).toBe(2);
+    // quadrado de 1,5 m: 2 quadrados são 3 m
+    expect(alternarPortaDoJogador(p, token(4.5), 1.5).ok).toBe(true);
+    expect(alternarPortaDoJogador(p, token(7.5 - 2.1 * 1.5), 1.5)).toEqual({
+      ok: false,
+      motivo: "longe",
+    });
+    // quadrado de 3 m: 2 quadrados são 6 m
+    expect(alternarPortaDoJogador(p, token(1.5), 3).ok).toBe(true);
+    expect(alternarPortaDoJogador(p, token(7.5 - 2.1 * 3), 3)).toEqual({
+      ok: false,
+      motivo: "longe",
+    });
   });
 });
 

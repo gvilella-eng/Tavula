@@ -228,9 +228,8 @@ Há duas coisas com "chave" no projeto, e vale separar.
 - **Quem calcula a lista depende de quem é.** A do mestre é calculada no navegador dele (`AssetsDaMesa.tsx`, `listarAssetsDaMesa` com 250 ms de espera depois de cada mudança do estado). A do jogador é calculada **na sala**: ele manda `assets.listar` e a sala responde `assets.lista` (`sala.ts`), assim nenhum asset que ele não vê chega ao navegador dele. Com milhares de assets e tokens, vigiar o custo (`PASSAGEM.md`, AS1, frágil 3).
 - O jogador mantém a **posse**: `asset.inventario` e `asset.tenho` só valem para assets que a pessoa vê (`conhecido`), para ninguém usar o inventário como oráculo de "este hash existe".
 - O nome de um `som` é trocado por `"som"` ao ir para um jogador (`asset.pedir` em `sala.ts`): o nome do arquivo pode contar o que a zona secreta faz.
-- `ordemDeOrigem` (em `assetsDaMesa.ts`) descreve a ordem cache, pasta, dono, mestre, qualquer, mas **só os testes a chamam**. Quem implementa a ordem de verdade é o `GerenteDeAssets` (`garantir`, `perguntar` e `tentarDaPasta`). Mudar a função sem mudar o gerente não muda o comportamento.
 
-**Quem vigia.** `packages/shared/src/as1.test.ts` ("lista de assets da mesa", "de onde carregar") e `packages/shared/src/assets.test.ts` ("assetVisivelPara").
+**Quem vigia.** `packages/shared/src/as1.test.ts` ("lista de assets da mesa") e `packages/shared/src/assets.test.ts` ("assetVisivelPara").
 
 ### 9. A caixa de entrada do Claude
 
@@ -254,7 +253,6 @@ Na sala, `concluirEnvio`: espera o `asset.registrar` aparecer (até 2 s), confer
 - Sem o navegador do mestre aberto, o arquivo **espera na caixa** (até 24 h) e é processado quando ele abre a mesa. Passou das 24 h, `limpar` apaga.
 - `processando` tem prazo (`PRAZO_DO_PROCESSAMENTO_MS`, 90 s): se o navegador sumir no meio, a sala oferece o arquivo de novo.
 - `SUBPASTA_DO_USO` (`caixaDoClaude.tsx`) decide em que subpasta da pasta local vai a cópia do arquivo original (`mapas`, `tokens`, `retratos`, `handouts`, `sons`). `imagem` e `animacao` ficam `null` porque têm a pasta organizada do gerente, e o compêndio também, porque não se sobrescreve o arquivo do mestre. Detalhe: `copiarParaAPasta` grava com `fontes.pastaDoCompendio()`, que só devolve a pasta se ela está autorizada para escrita.
-- O comentário no topo de `caixaDoClaude.tsx` diz "cifra se a pasta tem chave"; isso é resto de um desenho antigo e não corresponde a código (ver divergências).
 
 **Quem vigia.** `apps/server/src/caixaDeEntrada.test.ts` (link único, linhas, tetos, migração), `packages/shared/src/envios.test.ts` (formato pelos bytes, segredo, usos) e `e2e/tests/envio-m1.spec.ts`.
 

@@ -230,17 +230,15 @@ export function temExtensaoPerigosa(nome: string): boolean {
     .some((parte) => (EXTENSOES_PERIGOSAS as readonly string[]).includes(parte.trim()));
 }
 
-/** A subpasta de cada tipo de asset na pasta organizada do mestre. */
-export const PASTA_DO_TIPO: Record<TipoDeAsset, string> = {
+/** A subpasta de cada tipo de asset na pasta organizada do mestre (o tile e o cifrado não vão para ela: ver `caminhoNaPastaOrganizada`). */
+export const PASTA_DO_TIPO: Record<Exclude<TipoDeAsset, "tile" | "cifrado">, string> = {
   mapa: "mapas",
-  tile: "mapas",
   token: "tokens",
   retrato: "retratos",
   imagem: "imagens",
   animacao: "animacoes",
   som: "sons",
   compendio: "json",
-  cifrado: "cifrados",
 };
 
 export const RAIZ_DA_PASTA_ORGANIZADA = "assets";

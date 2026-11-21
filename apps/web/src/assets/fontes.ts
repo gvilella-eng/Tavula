@@ -102,7 +102,10 @@ export class Fontes {
     return ok;
   }
 
-  /** Onde gravar `recebidos/<jogador>/` (só o mestre usa): a pasta com escrita, ou a memória nos testes. */
+  /**
+   * Onde o mestre grava a cópia dos arquivos na pasta organizada (`assets/<pessoa>/<tipo>/`, ver `caminhoNaPastaOrganizada`):
+   * a pasta com escrita, ou a memória nos testes. Só o mestre usa.
+   */
   destinoDeCopia(): FonteDeAssets | null {
     if (this.pasta && this.estadoDaPasta === "autorizada") return this.pasta;
     return this.memoria;

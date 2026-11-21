@@ -339,8 +339,8 @@ A vantagem é que vale para qualquer intenção, para o tempo que passa e para a
 `entradasESaidas`, que compara quem estava dentro antes e depois, e só sai uma vez por mudança.
 
 Uma consequência do código que vale saber: se **dois gatilhos de um mesmo fluxo casam com o mesmo evento** (por exemplo, dois
-gatilhos "sinal X" dentro da mesma caixa OU), o laço de `executarEvento` dispara a cadeia **uma vez por gatilho**, não uma vez
-só. Não vi teste cobrindo esse caso.
+gatilhos "sinal X" dentro da mesma caixa OU), a cadeia roda **uma vez só** (LP1): a `Rodada` guarda em `seguidas` as saídas já seguidas e o gatilho guardado que chega depois, com a mesma caixa de fora, não segue de novo (`noDosFios`). Gatilhos soltos, cada um com os seus fios, continuam rodando cada um a sua cadeia. Teste: `automacoes.test.ts` ("LP1").
+
 
 ### O escopo de cenas: `escopoDoFluxo`
 

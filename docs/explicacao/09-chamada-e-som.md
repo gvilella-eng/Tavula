@@ -141,8 +141,8 @@ isso em memória (hiberna) nem no banco (a chamada não é estado da campanha).
 
 **Frágil.** Se o formato de `Identidade` mudar, a chamada precisa continuar sobrevivendo à hibernação. A conferência do
 papel do mestre para `chamada.gravar` é feita aqui (`usuario.papel === "mestre"`), **não** pela tabela de capacidades:
-`capacidadeDaIntencao["chamada.gravar"]` diz `mesa.configurar`, mas `tratarChamada` roda antes de `processar` e nunca chama
-`pode`. Quem mexer na regra de quem grava precisa mexer em `tratarChamada`.
+`capacidadeDaIntencao["chamada.gravar"]` diz `mesa.configurar` (a capacidade exclusiva do mestre, nunca delegável), mas `tratarChamada` roda antes de `processar` e nunca chama
+`pode`. Os dois dizem a mesma coisa (só o mestre grava, sem delegar; o LP1 deixou a tabela, o comentário e um teste em `ch3.test.ts` de acordo). Quem mexer na regra de quem grava precisa mexer nos dois.
 
 **Testes.** `packages/shared/src/chamada.test.ts` (as regras puras) e `e2e/tests/chamada.spec.ts` (duas e três janelas).
 

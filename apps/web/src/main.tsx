@@ -23,10 +23,11 @@ import { App } from "./App";
 import "./styles.css";
 import "./ficha/ficha.css";
 import "./rolagem/rolagem.css";
-import { aplicarTema, lerTema } from "./tema/temas";
+import { acompanharTemaDeOutrasJanelas, aplicarTema, lerTema } from "./tema/temas";
 
-// O tema vale desde antes da primeira renderização (preferência deste navegador).
+// O tema vale desde antes da primeira renderização (preferência deste navegador) e acompanha a troca feita em outra janela.
 aplicarTema(lerTema());
+acompanharTemaDeOutrasJanelas();
 
 const raiz = document.getElementById("raiz");
 if (!raiz) throw new Error("Elemento #raiz não encontrado");

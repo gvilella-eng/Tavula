@@ -4697,4 +4697,35 @@ O Vilella pediu "a opção de cena ativa também" em "Cenas onde vale". O fluxo 
 
 Pedido do Vilella: "uma pasta dentro do projeto, com toda a explicação do projeto. Cada uma das decisões, explique como é feito cada um dos trechos mais complexos do código". São 12 arquivos (visão geral, decisões e uma área por arquivo, do 03 ao 12), com "onde fica", "como funciona", "decisões e por quê" e "os trechos complexos", conferidos contra o código. O `achados-ao-escrever.md` lista o que a conferência achou: possíveis defeitos e docs velhos, para um lote de limpeza. Todo lote que muda como uma área funciona acerta o arquivo da área e o `02-decisoes.md`.
 
-## Próximo: o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b, N4, N5, M1, M2, Q1 a Q16, CH1, CH2, CH3, CH4, MU1, MU2, MU3, A1, AU1, AU2, AU3, AU3b, AU3c, AU4, FG1, FG2, AS1 e das otimizações O1–O4
+## Ajuste LP1 — limpeza do código (entregue, aguardando o roteiro manual)
+
+Os sete achados "No código" de `docs/explicacao/achados-ao-escrever.md`, cada um conferido no código antes e com teste.
+
+### O que foi entregue
+- **OU com dois gatilhos:** gatilhos guardados na mesma caixa de fora rodam a cadeia uma vez por acontecimento (`Rodada.seguidas`, por `noDosFios`). Soltos e independentes seguem rodando cada um a sua.
+- **Tema ao vivo:** um ouvinte de `storage` só (`acompanharTemaDeOutrasJanelas`), ligado no `main.tsx`, serve a todas as janelas próprias; o ouvinte da chamada saiu.
+- **Instrução do MCP:** o passo 6 fala em `ambientesDaCena` e nas zonas.
+- **Porta:** abre a 2 quadrados, fixo (`ALCANCE_DA_PORTA_EM_QUADRADOS`); as coordenadas da cena são em metros, então a conta usa o quadrado da cena. Antes: 1,5 m (1 quadrado na grade padrão).
+- **`chamada.gravar`:** tabela, `tratarChamada` e um teste dizem a mesma coisa (só o mestre, sem delegar).
+- **`LARGURA_DO_NO`:** uma fonte só (`fluxosGrafo.ts`, 208); `organizarGrafo` não dependia do valor.
+- **Comentários e código morto:** `caixaDoClaude.tsx`, `Fontes.destinoDeCopia`, `PASTA_DO_TIPO` (sem `tile` e `cifrado`); apagados `ordemDeOrigem` e os tipos dela, com o teste.
+
+### Como rodar
+`pnpm dev` como sempre. Sem migração.
+
+### Verificação
+Typecheck e lint limpos; `pnpm test` verde. E2E dos specs que tocam o que mudou (au2, au3, au4, automacoes, paredes, interacoes, chamada, ch3, sala), nas portas 8792 e 5178. Detalhes no relatório do lote.
+
+### Decisões
+- A porta usa distância reta em quadrados (não a regra do 5e das tochas) (assumido).
+- Sem prints: nada mudou na tela além do tema acompanhar ao vivo.
+
+### Frágil
+Ver `docs/PASSAGEM.md`, seção LP1.
+
+### Roteiro manual
+`docs/ROTEIRO-DE-TESTES.md`, seção LP1.
+
+---
+
+## Próximo: LP1 (roteiro manual) e o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b, N4, N5, M1, M2, Q1 a Q16, CH1, CH2, CH3, CH4, MU1, MU2, MU3, A1, AU1, AU2, AU3, AU3b, AU3c, AU4, FG1, FG2, AS1 e das otimizações O1–O4

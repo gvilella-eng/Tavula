@@ -163,7 +163,6 @@ import {
   relogioParaVisao,
 } from "./objetos.ts";
 import {
-  ALCANCE_INTERACAO_PADRAO_M,
   alternarPortaDoJogador,
   alternarPortaDoMestre,
   arcoPorTresPontos,
@@ -3289,7 +3288,7 @@ function processarIntencao(
           tokenVisivelPara(t, usuario, estado.cenaAtivaId) &&
           controlaToken(t, usuario, estado.personagens),
       );
-      const r = alternarPortaDoJogador(porta, tokensDele, ALCANCE_INTERACAO_PADRAO_M);
+      const r = alternarPortaDoJogador(porta, tokensDele, cenaAtiva(estado).grid.quadradoM);
       if (!r.ok) {
         if (r.motivo === "trancada") return recusa("porta_trancada", "A porta está trancada.");
         if (r.motivo === "longe") {

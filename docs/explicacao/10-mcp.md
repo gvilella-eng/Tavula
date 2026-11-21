@@ -135,7 +135,7 @@ papel ou uma permissão mudar no meio da conversa, o servidor avisa `tools/list_
 próxima `tools/list`.
 
 O texto que o Claude lê ao conectar (`INSTRUCOES`, em `servidor.ts`) tem o roteiro de preparar uma sessão: criar a cena,
-enviar o mapa, paredes e luz, névoa, NPCs, som, handouts, combate, levar o grupo.
+enviar o mapa, paredes e luz, névoa, NPCs, som (os ambientes da cena, `ambientesDaCena`, e as zonas), handouts, combate, levar o grupo.
 
 ### Como uma ferramenta é escrita
 
@@ -470,8 +470,6 @@ Para quem for atualizar os docs: o código manda.
 - `docs/MCP.md` diz "130 intenções: 107 com ferramenta e 23 de fora"; a tabela `paridade.ts` tem hoje **149** (122 + 27).
 - `docs/MCP.md` e a seção "12-2" da `PASSAGEM.md` dizem que "o compêndio não tem monstros". Desde o N3a o compêndio tem monstros
   e itens mágicos (`MonstroDoCompendio`, `buscarMonstros`), a ferramenta `compendio` os procura e `fichas[].monstro` cria NPCs.
-- `INSTRUCOES` (em `servidor.ts`) ainda diz, no passo 6 do roteiro, "`som` define a trilha da cena". Desde o Q4 a trilha da cena
-  virou os **ambientes da cena** (`som` com `ambientesDaCena`).
 - A seção "N5" do `REDESIGN.md` diz que o Claude não ganhou ferramenta de som; o M2 acrescentou `som` e o Q4 a refez.
 
 ---

@@ -3,6 +3,7 @@ import {
   capacidadeDaIntencao,
   dividirEmNotas,
   type EntradaNaChamada,
+  ehCapacidadeDelegavel,
   entrarNaChamada,
   escreverWav,
   estadoDaGravacao,
@@ -290,6 +291,18 @@ describe("na sala: só o mestre liga a gravação; cada um tira só a própria v
     const r = entrarNaChamada([], membro("a"), { ...ENTRAR, naoGravar: true });
     expect(r.entradas?.[0]).toMatchObject({ gravando: false, naoGravar: true });
     expect(com("b")[0]).toMatchObject({ gravando: false, naoGravar: false });
+  });
+
+  it("LP1: a tabela de capacidades e a sala dizem a mesma coisa: gravar é só do mestre, sem delegar; não gravar é de cada um", () => {
+    const cap = capacidadeDaIntencao["chamada.gravar"];
+    expect(cap).not.toBeNull();
+    // exclusiva do mestre: nunca delegável, e o jogador não a tem nem com tudo liberado
+    expect(ehCapacidadeDelegavel(cap as string)).toBe(false);
+    expect(capacidadeDaIntencao["chamada.naoGravar"]).toBeNull();
+    const e = com("mestre", "ana");
+    expect(ligarGravacao(e, "c-ana", false, true).erro?.codigo).toBe("sem_permissao");
+    expect(ligarGravacao(e, "c-mestre", true, true).erro).toBeUndefined();
+    expect(tirarMinhaVoz(e, "c-ana", true).erro).toBeUndefined();
   });
 
   it("o jogador não liga a gravação (sem_permissao); o mestre liga e desliga", () => {

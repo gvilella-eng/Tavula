@@ -547,4 +547,9 @@ describe("o guia das automações", () => {
     expect(INSTRUCOES).toContain("`guia`");
     expect(INSTRUCOES).toContain("`explicar`");
   });
+
+  it("LP1: o roteiro de preparar a sessão fala dos ambientes da cena, não de uma trilha", () => {
+    expect(INSTRUCOES).toContain("`ambientesDaCena`");
+    expect(INSTRUCOES).not.toContain("trilha da cena");
+  });
 });

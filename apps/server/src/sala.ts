@@ -2995,8 +2995,9 @@ export class Sala extends DurableObject<Env> {
       }
       case "chamada.gravar":
       case "chamada.naoGravar": {
-        // CH3: só o mestre liga a gravação (o papel vem da conta no servidor, nunca do cliente); cada um tira só a
-        // própria voz (a marca é da conexão que pediu). Nada disto grava na sala: o áudio fica no navegador do mestre.
+        // CH3: só o mestre liga a gravação, sem delegar (é o que a tabela `capacidadeDaIntencao` diz com `mesa.configurar`,
+        // a capacidade exclusiva do mestre; a chamada não passa por `processar`, então é aqui que se confere). O papel vem
+        // da conta no servidor, nunca do cliente; cada um tira só a própria voz (a marca é da conexão que pediu). Nada disto grava na sala: o áudio fica no navegador do mestre.
         const r =
           intencao.tipo === "chamada.gravar"
             ? ligarGravacao(

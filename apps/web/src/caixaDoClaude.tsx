@@ -10,8 +10,8 @@ import type { Fontes } from "./assets/fontes";
 import type { GerenteDeAssets } from "./assets/gerente";
 
 // M1: o navegador do mestre processa os arquivos que o Claude mandou. A sala guarda o arquivo numa caixa de entrada e avisa
-// (`caixa.pendentes`); aqui o arquivo é baixado, passa pelo MESMO caminho do botão de subir (tiles, redução a 512 px, cifra se a
-// pasta tem chave), é registrado como asset e a sala aplica o uso como o Claude (`caixa.concluir`). Sem esta aba aberta o
+// (`caixa.pendentes`); aqui o arquivo é baixado, passa pelo MESMO caminho do botão de subir (tiles e redução a 512 px; a cifra só
+// existe no pré-envio da cena), é registrado como asset e a sala aplica o uso como o Claude (`caixa.concluir`). Sem esta aba aberta o
 // arquivo espera na caixa: a mesa o processa sozinha ao abrir.
 
 /** A subpasta da pasta local onde a cópia do arquivo vai (só com a pasta liberada para escrita). */
