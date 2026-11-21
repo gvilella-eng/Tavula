@@ -4693,4 +4693,8 @@ O Vilella pediu: sem o nome de outro programa no tour e sem tanto pormenor de l�
 
 O Vilella pediu "a opção de cena ativa também" em "Cenas onde vale". O fluxo ganhou o campo opcional `naCenaAtiva` (sem migração: vive no JSON do estado). Vale a cena onde o grupo está no instante do disparo, somada às cenas marcadas; sem nada marcado e sem "Cena ativa", vale em todas. No painel "Esta automação" é a primeira caixa da lista ("Cena ativa", "onde o grupo está agora"); a frase diz "na cena ativa" ou "na cena ativa e na cena X"; o MCP aceita `naCenaAtiva` em criar e editar. Verificação: typecheck, lint, `pnpm test`, `au4.spec`, `au3.spec`, `au2.spec`, `automacoes.spec` e `sala.spec` verdes (um flaky do `au2.spec` de arrastar, que passou isolado). Decisões (assumido): união com as marcadas; escopo fixado no disparo; texto da segunda linha. Frágil: ver `PASSAGEM.md`. Roteiro manual: `ROTEIRO-DE-TESTES.md`, "AU4".
 
+## Docs — a pasta `docs/explicacao/` (entregue, 2026-11-21)
+
+Pedido do Vilella: "uma pasta dentro do projeto, com toda a explicação do projeto. Cada uma das decisões, explique como é feito cada um dos trechos mais complexos do código". São 12 arquivos (visão geral, decisões e uma área por arquivo, do 03 ao 12), com "onde fica", "como funciona", "decisões e por quê" e "os trechos complexos", conferidos contra o código. O `achados-ao-escrever.md` lista o que a conferência achou: possíveis defeitos e docs velhos, para um lote de limpeza. Todo lote que muda como uma área funciona acerta o arquivo da área e o `02-decisoes.md`.
+
 ## Próximo: o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b, N4, N5, M1, M2, Q1 a Q16, CH1, CH2, CH3, CH4, MU1, MU2, MU3, A1, AU1, AU2, AU3, AU3b, AU3c, AU4, FG1, FG2, AS1 e das otimizações O1–O4
