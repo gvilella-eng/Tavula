@@ -12,7 +12,7 @@ export default defineConfig({
   workers: 1,
   // Uma rodada só (decidido em 2026-11-10): o teste que falhar é repetido UMA vez, e o que só passar na
   // repetição é "instável" e reprova o verify do mesmo jeito (failOnFlakyTests). Instável se corrige,
-  // nunca se aceita. Os testes novos de cada lote rodam também com --repeat-each=3 (ver PROJETO.md, 9).
+  // nunca se aceita. Hoje não se usa --repeat-each: um verify só por lote e, se algo falhar, retesta só o que falhou (ver PROJETO.md, 9).
   retries: 1,
   failOnFlakyTests: true,
   reporter: [["list"]],

@@ -575,7 +575,7 @@ quem escolhe o usuário mestre na tela de entrada é mestre.
   shader próprio; o cinza usa o blend `saturation` (exige `useBackBuffer`). Os polígonos das luzes ficam
   em cache e só são refeitos quando algo se move.
 - **Névoa explorada:** ~~gravada na sala~~ trocada no Lote 6 pela **memória do mapa no navegador**
-  (IndexedDB por usuário e cena, grade de 0,5 m), sem custo de servidor. A sala guarda só uma versão de
+  (IndexedDB por mesa, usuário e cena, grade de 0,5 m), sem custo de servidor. A sala guarda só uma versão de
   "esquecer" por cena: o mestre manda esquecer e cada navegador limpa ao ver a versão nova, mesmo se
   estava offline.
 - **Memória do mapa** (definida pelo Vilella em 2026-11-06; detalhes em aberto na 4.13.1):
@@ -927,11 +927,11 @@ Regras que continuam:
 **12-2: como ficou** (2026-11-13; o servidor MCP em `apps/mcp`; detalhes em `docs/REDESIGN.md` e o passo a passo em `docs/MCP.md`)
 
 - **O programa**: servidor MCP em stdio, em Node (`@modelcontextprotocol/sdk` 1.32.2; WebSocket nativo). `pnpm --filter @tabletop/mcp build` gera `apps/mcp/dist/tavola-mcp.mjs`. Variáveis: `TAVOLA_URL` (a origem da página, ou o endereço do WebSocket; padrão `http://127.0.0.1:8787`), `TAVOLA_MESA`, `TAVOLA_TOKEN` (nunca vai para log nem resposta) e, opcional, `TAVOLA_COMPENDIO`. Abre `ws(s)://<host>/api/m/<id>/ws` com `Authorization: Bearer`, mantém o estado com o `reduzir` do `shared`, reconecta sozinho e, com o token recusado (401 ou close 4001), responde "Token inválido ou revogado: gere outro em Preferências → Conectar o Claude." sem tentar de novo. Nada da internet em execução.
-- **As 11 ferramentas** (nenhuma genérica; o MCP não tem permissão própria): `panorama`, `ler`, `fichas`, `compendio`, `notas`, `objetos`, `cenas`, `automacoes`, `rolar`, `rascunhos`, `desfazer`. A lista de cada usuário sai das capacidades do snapshot: o jogador não vê `objetos`, `cenas`, `automacoes` nem `rascunhos`. Nomes no lugar de ids, lote numa chamada só, resumo por padrão, erro que diz o que corrigir, e um `loteId` por chamada (com a descrição) em toda intenção que ela manda.
+- **As 19 ferramentas** (hoje; eram 11 no 12-2; nenhuma genérica; o MCP não tem permissão própria): `panorama`, `ler`, `fichas`, `compendio`, `notas`, `objetos`, `cenas`, `mapa`, `tokens`, `automacoes`, `combate`, `mesa`, `som`, `musica`, `chat`, `rolar`, `rascunhos`, `arquivos`, `desfazer` (`TODAS_AS_FERRAMENTAS`). A lista de cada usuário sai das capacidades do snapshot: o jogador não vê as do mestre (`objetos`, `cenas`, `mapa`, `automacoes`, `mesa`, `som`, `musica`, `rascunhos`). Nomes no lugar de ids, lote numa chamada só, resumo por padrão, erro que diz o que corrigir, e um `loteId` por chamada (com a descrição) em toda intenção que ela manda.
 - **Automações como grafo no MCP** (AU2, 2026-11-20). A ferramenta `automacoes` monta o desenho como o editor: `nos` (cada um com `nome` único, `tipo`, `config` e, se quiser, `x` e `y`; sem posição, a mesa arruma na grade) e `fios` (`de` e `para` pelo **nome** do nó, e `saida` e `entrada` só quando o padrão não serve: "saida" e "entrada" nos nós de ordem, "valor" nas condições e portas, que chegam em "condicao" do "se" ou em "entradas" das portas E e OU). A forma curta do AU1 (`gatilho` + `trilhas`) continua valendo e a mesa a converte em grafo; em edição, `nos` e `fios` trocam o desenho inteiro. Os erros vêm em português com o nome do nó ("o nó \"Se\": este \"se\" está sem condição..."). `explicar` descreve o grafo em português, inclusive OU de gatilhos, E, OU, NÃO e caminhos paralelos; o `guia` cobre nós, portas lógicas e fios (um teste vigia que todo tipo de nó, de porta, de gatilho, de condição e de ação esteja nele). A ferramenta não ganhou campo fora da tabela de paridade (`fluxo.nos[]` e `fluxo.fios[]` apontam para `automacoes:fluxos[].nos[]` e `.fios[]`). **AU3:** as portas viram **caixas** no MCP (`tipo: "caixa"`, `config: { porta: "ou" | "e" | "nao" }`) e as peças entram nos espaços pelo campo `em` do nó, que leva o **nome** da caixa, e `espaco` (0 é o de cima; sem ele, a peça vai no primeiro espaço livre, na ordem em que aparece; `config.espacos` pede mais de 2, até 12) (as peças guardadas não têm fio: o fio sai da caixa; o tipo antigo `porta` deixou de valer no MCP, mas as automações salvas com portas são convertidas ao ler); `explicar` descreve as caixas e o `guia` explica cada uma e para que serve (o teste que reprova peça fora do guia continua); `fluxo.caixas` é da sala (`paridadeCampos`).
 - **Automações por blocos e o MCP que explica** (AU1, 2026-11-19). A ferramenta `automacoes` cria e edita automações **pelo nome**, com o JSON da árvore de blocos (gatilho + trilhas) e **nomes** de zona, modelo, cena, token e som, nunca ids; confere o fluxo com a mesma validação do editor e diz, em português, em que trilha e bloco está o erro. Também: `acionar` (disparar, ligar, desligar), `usarBotoes`, `listar`, **`explicar`** (a frase em português de uma automação, ou de todas: a mesma função pura `fraseDoFluxo` da lista e do editor) e **`guia`** (um texto curto e fiel de como as peças funcionam: gatilhos, trilhas, esperar, se e sortear, para cada, ações, prazos, sinais, limites e o que "nada fica preso" quer dizer). As **instruções do servidor** ganharam uma linha: perguntaram sobre automações, chame `guia` e `explicar` antes de responder; o `panorama` repete a dica. Um teste falha se existir tipo de bloco, de gatilho, de condição ou de ação que o guia não cita. Paridade: `fluxo.criar|editar` → `automacoes.fluxos`, `fluxo.apagar` → `fluxos[].apagar`, `fluxo.ligar|disparar` → `acionar`; a trava por campo (`paridadeCampos`) cobre o gatilho e os blocos.
 - **Cenas em células** (a partir do canto de cima à esquerda, com meias células): as paredes usam `encaixarMeiaCelula`, o arco "de a até b passando por c" vira `meio` (e há o arco tangente, `meioDoArcoTangente`). Os tokens de NPC saem da ficha.
-- **Compêndio local**: os arquivos da pasta `compendio/` do computador (ou o exemplo do SRD embutido), com magias, armas, itens, monstros e itens mágicos (N3a). **Fora do MCP**: levar o grupo, disparar eventos, botões, mapa e imagens, combate, desenhos, relógio e configuração.
+- **Compêndio local**: os arquivos da pasta `compendio/` do computador (ou o exemplo do SRD embutido), com magias, armas, itens, monstros e itens mágicos (N3a). **Fora do MCP** hoje é só o que a tabela de paridade marca (150 intenções: 123 com ferramenta e 27 de fora, entre proibidas, de transporte e gestos ao vivo); levar o grupo, eventos, botões, mapa, combate, desenhos, relógio e configuração entraram no M2.
 - O texto de "Conectar o Claude" na mesa é o comando final (`claude mcp add tavola --env TAVOLA_URL=... --env TAVOLA_MESA=... --env TAVOLA_TOKEN=... -- node apps/mcp/dist/tavola-mcp.mjs`).
 
 **12-3: o MCP mora na própria sala, por HTTP** (2026-11-13; o usuário cola **um comando só**; detalhes em `docs/REDESIGN.md`, `docs/protocolo.md` e `docs/MCP.md`)
@@ -939,7 +939,7 @@ Regras que continuam:
 - **Motivo**: o comando do 12-2 dependia da pasta do repositório, do `build` e da ordem das opções, e um jogador de outro computador nem tem o repositório. Agora a mesa mostra uma linha que funciona em qualquer pasta, sem arquivo, sem build e sem Node: `claude mcp add --transport http --scope user tavola-<id da mesa> <origem da página>/api/m/<id>/mcp --header "Authorization: Bearer <token>"` (só aspas duplas: vale no PowerShell 5.1, no cmd e no bash).
 - **A rota**: `POST /api/m/<id>/mcp`, Streamable HTTP sem estado (JSON-RPC em JSON, `initialize`, `notifications/initialized` com 202, `tools/list`, `tools/call`, `ping` e lotes); GET e DELETE são 405. Autenticação por `Authorization: Bearer tvc_...` com a mesma validação do 12-1 (hash, conta ativa, mesma vaga, bloqueio por IP); 401 sem dizer o motivo, 429 com o IP bloqueado; sem cookie, sem sessão, sem CORS e **qualquer `Origin` é recusado**.
 - **Mesmo tratamento do WebSocket do Claude**: a sala tem uma função só para tratar uma intenção (`tratarIntencao`), chamada pelo WebSocket e pelo HTTP: limite por token, proibidos, marca "pelo Claude", rascunho, diário do Desfazer, limite do chat e difusão. Não há caminho paralelo.
-- **O código das ferramentas** (as 11, os nomes, os esquemas, `fichaPorPartes`, o formato e os erros) mora em `packages/shared/src/mcp` (entrada `@tabletop/shared/mcp`, que o navegador nunca carrega); a sala (HTTP) e o `apps/mcp` (stdio) usam o mesmo código. A rota HTTP é uma "conexão" que lê o estado da própria sala (a visão do usuário) e responde na hora.
+- **O código das ferramentas** (as 19, os nomes, os esquemas, `fichaPorPartes`, o formato e os erros) mora em `packages/shared/src/mcp` (entrada `@tabletop/shared/mcp`, que o navegador nunca carrega); a sala (HTTP) e o `apps/mcp` (stdio) usam o mesmo código. A rota HTTP é uma "conexão" que lê o estado da própria sala (a visão do usuário) e responde na hora.
 - **Presença**: sem conexão aberta, "Claude conectado" vale por 2 minutos depois de cada chamada (assumido); o "último uso" do token é gravado a cada chamada e a tela mostra "conectado agora" ou "usado há X min".
 - **Claude Desktop** continua com o servidor local (`apps/mcp`, stdio); o texto da tela diz com honestidade que isso exige o Távola baixado e o Node. O compêndio pela rota HTTP é o exemplo do SRD embutido no Worker.
 
@@ -1731,7 +1731,7 @@ no editor; ligar a ordem de turno.
   - desbota com a distância até o token mais próximo dele;
   - alcance = 15 m + 3 m × modificador de Inteligência (padrão configurável), nunca abaixo de 0;
   - o que passa do alcance é **esquecido**;
-  - fica guardada no navegador (IndexedDB, por usuário e cena) e sobrevive ao refresh. O mestre pode
+  - fica guardada no navegador (IndexedDB, por mesa, usuário e cena) e sobrevive ao refresh. O mestre pode
     mandar todos esquecerem a cena;
   - o modificador vem de um campo novo no editor do personagem; token sem personagem usa o padrão.
 - **`ConfigDaMesa`** passa a existir no estado (o Lote 7 a completa) com `iluminacao: { memoriaLigada,
@@ -2306,7 +2306,7 @@ O papel `assistente` deixa de existir. Divisão em dois lotes:
   - a marca "pelo Claude" no chat.
 - **12-2, o servidor MCP** (`apps/mcp`):
   - poucas ferramentas, com nomes em vez de ids: panorama, ler, fichas, compêndio, notas, objetos, cenas,
-    automações, rolar, rascunhos e desfazer;
+    automações, rolar, rascunhos e desfazer (eram 11; hoje são 19, ver "As 19 ferramentas" no 12-2);
   - cada usuário só vê as ferramentas que pode usar;
   - as instruções para o Claude Code e o Desktop;
   - um E2E com o mestre e o jogador, cada um com o próprio token.
@@ -2460,8 +2460,7 @@ Regras para o agente que implementa:
 2. **Só avança com tudo verde:** `pnpm verify` passando e o roteiro manual feito pelo Vilella.
    O `verify` roda **uma vez** (desde 2026-11-10; antes eram duas rodadas seguidas). O Playwright repete
    uma vez o teste que falhar e reprova o que só passar na repetição (instável: corrigir, nunca aceitar).
-   Os E2E novos ou alterados no lote rodam também 3 vezes seguidas:
-   `pnpm --filter @tabletop/e2e test --repeat-each=3 <arquivos>`.
+   A regra de hoje (Vilella, 2026-11-11): um verify só, sem `--repeat-each`; se algo falhar, reteste só o que falhou.
 3. Ao terminar um lote, atualizar `docs/ESTADO.md` (o que foi feito, decisões tomadas, desvios deste
    plano e o porquê) e `docs/protocolo.md` se o protocolo mudou.
 4. **Nada vem da internet em tempo de execução:** não usar CDN, fontes remotas, analytics ou APIs de

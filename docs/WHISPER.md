@@ -8,7 +8,7 @@ O que está marcado com **(conferir na página)** eu não consegui afirmar sem e
 
 - `pnpm transcrever "<pasta da gravação>"` lê a gravação (os trechos de voz, um WAV por fala, na pasta da mesa), roda o whisper.cpp na placa de vídeo e escreve dentro da mesma pasta:
   - `transcricao.md`: a linha do tempo, com horário, nome e fala, misturada com o que a mesa registrou (chat, rolagens, troca de cena, combate);
-  - `transcricao.json`: só as falas, uma linha por fala (`hora`, `pessoa`, `personagem`, `texto`).
+  - `transcricao.json`: só as falas, num objeto (não é uma lista): `versao`, `titulo`, `inicioEpochMs`, `fusoMin`, `geradaEmMs`, `falhas` (quem não deu para transcrever e o motivo, `pessoa` e `motivo`) e `linhas`, uma por fala (`hora`, `pessoa`, `personagem`, `texto` e `t`, o instante em milissegundos).
 - Na aba **Mesa**, seção **Gravações da sessão**, o botão **Trazer a transcrição** põe o texto numa nota só sua. Depois o Claude, pelo MCP, lê essa nota e escreve o resumo.
 
 ## 1. Baixar o whisper.cpp
