@@ -4685,4 +4685,8 @@ Teste de unidade novo (falha sem a correção: 60 em vez de 40); `au3.spec.ts` c
 ### Roteiro manual
 Numa caixa OU, pôr 4 gatilhos: os 4 e o "+" ficam dentro da borda.
 
-## Próximo: o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b, N4, N5, M1, M2, Q1 a Q16, CH1, CH2, CH3, CH4, MU1, MU2, MU3, A1, AU1, AU2, AU3, AU3b, FG1, FG2, AS1 e das otimizações O1–O4
+## Ajuste AU3c — o passo das caixas no tour, curto e sem nome de outro produto (entregue)
+
+O Vilella pediu: sem o nome de outro programa no tour e sem tanto pormenor de lógica. Os três passos das caixas ("Caixas lógicas", "Uma caixa, por exemplo", "Mais espaços e combinações") viraram um: "Juntam peças com E, OU ou NÃO. Por exemplo: a cada 3 min OU ao apertar um botão." O texto do MCP também deixou de citar o outro programa. Verificação: typecheck, lint, unidade da web e `au3.spec.ts`.
+
+## Próximo: o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b, N4, N5, M1, M2, Q1 a Q16, CH1, CH2, CH3, CH4, MU1, MU2, MU3, A1, AU1, AU2, AU3, AU3b, AU3c, FG1, FG2, AS1 e das otimizações O1–O4

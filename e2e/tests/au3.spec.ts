@@ -600,9 +600,7 @@ test("o tour aparece na primeira vez que se abre o centro, não na segunda, e o 
     ["quando", "fluxo", "ed-grupo-quando"],
     ["fluxo", "condicoes", "ed-grupo-fluxo"],
     ["condicoes", "caixas", "ed-grupo-condicao"],
-    ["caixas", "caixa-exemplo", "ed-grupo-logica"],
-    ["caixa-exemplo", "caixa-espacos", "ed-grupo-logica"],
-    ["caixa-espacos", "acoes", "ed-grupo-logica"],
+    ["caixas", "acoes", "ed-grupo-logica"],
     ["acoes", "eventos", "ed-grupo-faca"],
   ] as const) {
     await expect(passoDoTour(e)).toHaveAttribute("data-passo", passo);
@@ -649,14 +647,12 @@ test("o tour monta 'as tochas têm 30% de chance de apagar a cada 3 minutos'; li
   await e.setViewportSize({ width: 1500, height: 860 });
   await expect(passoDoTour(e)).toHaveAttribute("data-passo", "boas-vindas");
 
-  // as peças: sete explicações
+  // as peças: seis explicações
   for (const proximo of [
     "quando",
     "fluxo",
     "condicoes",
     "caixas",
-    "caixa-exemplo",
-    "caixa-espacos",
     "acoes",
     "eventos",
     "montar",
@@ -749,8 +745,6 @@ test("o tour aparece de novo pelo botão do editor, e numa automação com traba
     "fluxo",
     "condicoes",
     "caixas",
-    "caixa-exemplo",
-    "caixa-espacos",
     "acoes",
     "eventos",
     "sem-exemplo",

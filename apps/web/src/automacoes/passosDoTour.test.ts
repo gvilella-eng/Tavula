@@ -21,8 +21,6 @@ describe("o tour das automações: os passos", () => {
       "fluxo",
       "condicoes",
       "caixas",
-      "caixa-exemplo",
-      "caixa-espacos",
       "acoes",
       "eventos",
       "montar",

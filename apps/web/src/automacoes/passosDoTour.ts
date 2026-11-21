@@ -133,24 +133,7 @@ const PASSOS_DAS_PECAS: readonly PassoDoTourDasAutomacoes[] = [
     id: "caixas",
     tipo: "info",
     titulo: "Caixas lógicas",
-    texto:
-      "Como os blocos “e”, “ou” e “não” do Scratch, na vertical. Cada espaço da caixa guarda uma peça: gatilho, condição, ação ou outra caixa. Clique no rótulo entre os espaços para trocar E por OU.",
-    alvos: () => ["ed-grupo-logica"],
-  },
-  {
-    id: "caixa-exemplo",
-    tipo: "info",
-    titulo: "Uma caixa, por exemplo",
-    texto:
-      "“A cada 3 min OU o botão Combate”: o relógio no espaço de cima e o botão no de baixo. Qualquer um dos dois dispara.",
-    alvos: () => ["ed-grupo-logica"],
-  },
-  {
-    id: "caixa-espacos",
-    tipo: "info",
-    titulo: "Mais espaços e combinações",
-    texto:
-      "O “+” no pé da caixa acrescenta um espaço, e o “×” tira um vazio. Ação E ação faz as duas; ação OU ação sorteia uma. Gatilho E condição só segue se a condição vale.",
+    texto: "Juntam peças com E, OU ou NÃO. Por exemplo: a cada 3 min OU ao apertar um botão.",
     alvos: () => ["ed-grupo-logica"],
   },
   {

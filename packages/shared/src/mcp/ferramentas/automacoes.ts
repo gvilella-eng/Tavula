@@ -621,7 +621,7 @@ async function usarBotao(
  */
 export const GUIA_DAS_AUTOMACOES = [
   "AUTOMAÇÕES (como funcionam)",
-  'Uma automação é um GRAFO, como no editor da mesa: NÓS (blocos soltos na grade) ligados por FIOS. Ela tem as cenas onde vale (vazio = todas), os `nos` e os `fios`. Um gatilho dispara e a execução percorre os fios; uma saída com vários fios roda os caminhos em paralelo (um depois do outro, no mesmo instante); um nó com vários fios chegando roda a cada chegada. As CAIXAS (tipo "caixa") são a lógica, como os blocos e/ou/não do Scratch na vertical: "e" e "ou" têm dois espaços (ou mais, com `config.espacos`), um em cima do outro, e "nao" tem um; cada espaço guarda UMA peça (um gatilho, uma condição, uma ação ou outra caixa) e a caixa tem uma saída só.',
+  'Uma automação é um GRAFO, como no editor da mesa: NÓS (blocos soltos na grade) ligados por FIOS. Ela tem as cenas onde vale (vazio = todas), os `nos` e os `fios`. Um gatilho dispara e a execução percorre os fios; uma saída com vários fios roda os caminhos em paralelo (um depois do outro, no mesmo instante); um nó com vários fios chegando roda a cada chegada. As CAIXAS (tipo "caixa") são a lógica, empilhadas na vertical: "e" e "ou" têm dois espaços (ou mais, com `config.espacos`), um em cima do outro, e "nao" tem um; cada espaço guarda UMA peça (um gatilho, uma condição, uma ação ou outra caixa) e a caixa tem uma saída só.',
   "NÓS (campo `nos`; cada um tem `nome` único, `tipo`, `config` e, se quiser, `x` e `y`; sem posição a mesa arruma na grade): " +
     '{"nome":"Quando","tipo":"gatilho","config":{"tipo":"zona",...}} (o "Quando": veja GATILHOS); ' +
     '{"tipo":"esperar","config":{"s":90}}; ' +

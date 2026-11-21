@@ -160,20 +160,13 @@ for (const c of CASOS) {
     await e3.getByTestId("ed-organizar").click();
     await foto(e3, "06-editor-organizado");
 
-    // o tour no editor: as caixas lógicas e o passo que mostra uma caixa
+    // o tour no editor: o passo das caixas lógicas
     await e3.getByTestId("ed-conhecer").click();
-    for (const passo of [
-      "quando",
-      "fluxo",
-      "condicoes",
-      "caixas",
-      "caixa-exemplo",
-      "caixa-espacos",
-    ]) {
+    for (const passo of ["quando", "fluxo", "condicoes", "caixas"]) {
       await e3.getByTestId("tour-auto-proximo").click();
       await expect(e3.getByTestId("tour-auto")).toHaveAttribute("data-passo", passo);
     }
-    await foto(e3, "07-tour-caixa-espacos");
+    await foto(e3, "07-tour-caixas");
     await e3.getByTestId("tour-auto-pular").click();
     await e3.close();
 
