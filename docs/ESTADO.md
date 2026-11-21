@@ -4689,4 +4689,8 @@ Numa caixa OU, pôr 4 gatilhos: os 4 e o "+" ficam dentro da borda.
 
 O Vilella pediu: sem o nome de outro programa no tour e sem tanto pormenor de lógica. Os três passos das caixas ("Caixas lógicas", "Uma caixa, por exemplo", "Mais espaços e combinações") viraram um: "Juntam peças com E, OU ou NÃO. Por exemplo: a cada 3 min OU ao apertar um botão." O texto do MCP também deixou de citar o outro programa. Verificação: typecheck, lint, unidade da web e `au3.spec.ts`.
 
-## Próximo: o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b, N4, N5, M1, M2, Q1 a Q16, CH1, CH2, CH3, CH4, MU1, MU2, MU3, A1, AU1, AU2, AU3, AU3b, AU3c, FG1, FG2, AS1 e das otimizações O1–O4
+## Ajuste AU4 — "Cena ativa" em "Cenas onde vale" (entregue, aguardando o roteiro manual)
+
+O Vilella pediu "a opção de cena ativa também" em "Cenas onde vale". O fluxo ganhou o campo opcional `naCenaAtiva` (sem migração: vive no JSON do estado). Vale a cena onde o grupo está no instante do disparo, somada às cenas marcadas; sem nada marcado e sem "Cena ativa", vale em todas. No painel "Esta automação" é a primeira caixa da lista ("Cena ativa", "onde o grupo está agora"); a frase diz "na cena ativa" ou "na cena ativa e na cena X"; o MCP aceita `naCenaAtiva` em criar e editar. Verificação: typecheck, lint, `pnpm test`, `au4.spec`, `au3.spec`, `au2.spec`, `automacoes.spec` e `sala.spec` verdes (um flaky do `au2.spec` de arrastar, que passou isolado). Decisões (assumido): união com as marcadas; escopo fixado no disparo; texto da segunda linha. Frágil: ver `PASSAGEM.md`. Roteiro manual: `ROTEIRO-DE-TESTES.md`, "AU4".
+
+## Próximo: o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b, N4, N5, M1, M2, Q1 a Q16, CH1, CH2, CH3, CH4, MU1, MU2, MU3, A1, AU1, AU2, AU3, AU3b, AU3c, AU4, FG1, FG2, AS1 e das otimizações O1–O4

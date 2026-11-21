@@ -841,6 +841,11 @@ Mesa de eventos: crie duas automações com gatilho de botão (escolha cor e íc
 7. **Automações antigas.** Abra uma automação feita no AU2 com portas E, OU e NÃO ligadas por fios (ou com dois gatilhos no mesmo bloco, ou uma porta com três entradas): o editor mostra caixas com as peças nos espaços (a de três entradas vira uma caixa com 3 espaços), e ela faz o mesmo que antes.
 8. **O tour.** Num navegador novo (ou apagando a marca `tabletop:pref:tourDasAutomacoes`), entre com uma conta e abra **Automações**: o tour abre sozinho (centro, mesa de eventos, e o último passo abre o editor). Pule em qualquer passo (Pular ou Esc): na segunda vez não abre. O botão **Conhecer as automações** (no centro e no editor) abre de novo. No editor, passe pelas peças (Quando, Fluxo, Condições, Caixas lógicas, um passo que mostra uma caixa, Faça, mesa de eventos e "Liberar aos jogadores") e monte "as tochas têm 30% de chance de apagar a cada 3 minutos", arrastando e ligando (ou com "Fazer este passo por mim"): a frase vai se completando. No fim a automação fica desligada: **Ligar agora**, **Apagar o exemplo** ou **Concluir**. Com tochas acesas e a automação ligada, ao fim de uns minutos (use "Testar agora") algumas tochas apagam.
 
+### AU4 — "Cena ativa" nas automações
+1. **Marcar.** Numa automação de botão com "para cada tocha acesa, apagar", abra o painel "Esta automação": a primeira caixa de "Cenas onde vale" é "Cena ativa", alinhada às outras. Marque e salve: a frase mostra "na cena ativa".
+2. **Disparar.** Com tochas acesas em duas cenas, dispare no botão: só apagam as da cena onde o grupo está. Leve o grupo à outra cena e dispare de novo: apagam as de lá.
+3. **Soma.** Marque também uma cena: vale na ativa e nessa. Desmarque tudo: vale em todas.
+
 ### FG2 — fogo melhor, tocha na mão, cor da luz do mestre e som solto
 1. **Fogueira.** Acenda um inflamável (fogueira): é um fogo só, com a base brilhante, as línguas juntas e as brasas subindo, sem lenha nem gravetos embaixo. Estique a chama (palha, barril, uma fogueira bem larga): continua uma massa, nunca uma fileira de chamas de tocha.
 2. **Tocha no suporte.** Olhe a tocha no suporte por alguns segundos, em zoom alto: a chama treme, mas é uma só em todos os momentos (nunca se divide em duas). Veja nos três estágios (adiante o relógio da mesa).

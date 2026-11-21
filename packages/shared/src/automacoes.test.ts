@@ -14,12 +14,14 @@ import {
   type Fluxo,
   FluxoDeQualquerFormaSchema,
   fonteComSemente,
+  fraseDoFluxo,
   gatilhoPrincipal,
   type Intencao,
   IntencaoSchema,
   lerExportacao,
   limiteDeVisaoDoToken,
   modelosPadrao,
+  nomesDaMesa,
   type ObjetoDeLuz,
   PROFUNDIDADE_MAXIMA,
   processar,
@@ -107,14 +109,19 @@ function criarEstado(luzes: ObjetoDeLuz[] = [tocha("o1")]): Estado {
   );
 }
 
-const fluxo = (parcial: Record<string, unknown>): Fluxo =>
-  FluxoDeQualquerFormaSchema.parse({
+const fluxo = (parcial: Record<string, unknown>): Fluxo => {
+  const f = FluxoDeQualquerFormaSchema.parse({
     id: "f1",
     nome: "Fluxo",
     gatilho: { tipo: "botao", nome: "Botão" },
     trilhas: [[]],
     ...parcial,
   });
+  // A forma de árvore (AU1) não conhece `naCenaAtiva` (AU4): entra no grafo depois.
+  return parcial.naCenaAtiva === undefined
+    ? f
+    : { ...f, naCenaAtiva: parcial.naCenaAtiva as boolean };
+};
 /** As mudanças de desenho (nós e fios) de um fluxo montado como árvore (o `fluxo.editar` troca o desenho inteiro). */
 const muda = (parcial: Record<string, unknown>) => {
   const g = fluxo(parcial);
@@ -503,6 +510,80 @@ describe("o escopo por cena", () => {
     ).estado;
     expect(modificadoresDe(e, "a")).toHaveLength(1);
     expect(modificadoresDe(e, "b")).toHaveLength(1);
+  });
+
+  describe("AU4: cena ativa", () => {
+    const dois = () => criarEstado([tocha("a", "pulmao"), tocha("b", "fora")]);
+
+    it("só atinge o que está na cena ativa", () => {
+      const f = fluxo({ naCenaAtiva: true, trilhas: [[paraCadaObjeto([luz(0.5, 5)])]] });
+      const e = disparar(comFluxos(dois(), f)).estado;
+      expect(modificadoresDe(e, "a")).toHaveLength(1);
+      expect(modificadoresDe(e, "b")).toEqual([]);
+    });
+
+    it("depois de trocar a cena do grupo, vale na nova", () => {
+      const f = fluxo({ naCenaAtiva: true, trilhas: [[paraCadaObjeto([luz(0.5, 5)])]] });
+      const trocada = ok(
+        comFluxos(dois(), f),
+        "m",
+        intencao("grupo.moverPara", { cenaId: "fora" }),
+        1,
+      ).estado;
+      const e = disparar(trocada, "f1", 2).estado;
+      expect(modificadoresDe(e, "a")).toEqual([]);
+      expect(modificadoresDe(e, "b")).toHaveLength(1);
+    });
+
+    it("soma-se às cenas marcadas", () => {
+      const f = fluxo({
+        naCenaAtiva: true,
+        cenas: ["fora"],
+        trilhas: [[paraCadaObjeto([luz(0.5, 5)])]],
+      });
+      const e = disparar(comFluxos(dois(), f)).estado;
+      expect(modificadoresDe(e, "a")).toHaveLength(1);
+      expect(modificadoresDe(e, "b")).toHaveLength(1);
+    });
+
+    it("um evento de outra cena não dispara um fluxo que só vale na ativa", () => {
+      const quem = fluxo({ id: "f0", nome: "Quem", cenas: ["fora"], trilhas: [[sinal("vento")]] });
+      const ouve = fluxo({
+        naCenaAtiva: true,
+        gatilho: { tipo: "sinal", nome: "vento" },
+        trilhas: [[paraCadaObjeto([luz(0.5, 5)])]],
+      });
+      const e = disparar(comFluxos(dois(), quem, ouve), "f0").estado;
+      expect(modificadoresDe(e, "a")).toEqual([]);
+      expect(modificadoresDe(e, "b")).toEqual([]);
+    });
+
+    it("sem marcar nada e sem cena ativa, vale em todas", () => {
+      const f = fluxo({ naCenaAtiva: false, trilhas: [[paraCadaObjeto([luz(0.5, 5)])]] });
+      const e = disparar(comFluxos(dois(), f)).estado;
+      expect(modificadoresDe(e, "a")).toHaveLength(1);
+      expect(modificadoresDe(e, "b")).toHaveLength(1);
+    });
+
+    it("a frase diz 'na cena ativa'", () => {
+      const e = dois();
+      const nomes = nomesDaMesa(e);
+      const frase = (p: Record<string, unknown>) => fraseDoFluxo(fluxo(p), nomes);
+      expect(frase({ naCenaAtiva: true })).toContain("na cena ativa");
+      expect(frase({ naCenaAtiva: true })).not.toContain("na cena ativa e");
+      expect(frase({ naCenaAtiva: true, cenas: ["fora"] })).toContain(
+        "na cena ativa e na cena Fora",
+      );
+      expect(frase({ naCenaAtiva: true, cenas: ["fora", "pulmao"] })).toContain(
+        "na cena ativa e nas cenas Fora e Pulmão",
+      );
+      expect(frase({})).not.toContain("cena ativa");
+    });
+
+    it("o schema aceita o campo e ele é opcional", () => {
+      expect(fluxo({ naCenaAtiva: true }).naCenaAtiva).toBe(true);
+      expect(fluxo({}).naCenaAtiva).toBeUndefined();
+    });
   });
 
   it("um sinal leva as cenas de quem o mandou", () => {

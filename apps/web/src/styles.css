@@ -6074,6 +6074,15 @@ button.inicio-botao-largo {
   border: 1px solid var(--borda);
   border-radius: 8px;
 }
+.ed-opcao-texto {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+.ed-opcao-texto small {
+  font-size: 11px;
+  color: var(--texto-suave);
+}
 .ed-escolha-de-cenas {
   display: flex;
   flex-direction: column;

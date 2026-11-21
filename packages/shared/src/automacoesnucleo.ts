@@ -201,10 +201,12 @@ function tagsDe(m: Motor, o: Pick<ObjetoDeLuz, "modeloId">): readonly string[] {
 
 /**
  * O escopo de cenas em que o fluxo vale para este evento (regra 4), ou `"nunca"` quando o fluxo, preso a umas cenas, não
- * está entre as do evento. Fluxo sem cenas (ou com a lista vazia) vale em todas.
+ * está entre as do evento. Fluxo sem cenas (ou com a lista vazia) vale em todas. Com `naCenaAtiva`, a cena ativa entra na lista.
  */
-function escopoDoFluxo(f: Fluxo, evCenas: Escopo): Escopo | "nunca" {
-  const a = f.cenas === null || f.cenas.length === 0 ? null : f.cenas;
+function escopoDoFluxo(f: Fluxo, evCenas: Escopo, cenaAtivaId: string): Escopo | "nunca" {
+  const marcadas = f.cenas === null || f.cenas.length === 0 ? null : f.cenas;
+  // AU4: "cena ativa" é a cena do grupo agora; soma-se às marcadas.
+  const a = f.naCenaAtiva === true ? [...new Set([...(marcadas ?? []), cenaAtivaId])] : marcadas;
   if (a === null) return evCenas;
   if (evCenas === null) return a;
   const comum = a.filter((c) => evCenas.includes(c));
@@ -862,7 +864,7 @@ function executarEvento(m: Motor, ev: EventoDeAutomacao, profundidade: number): 
     if (!f.ligado || f.rascunho) continue;
     const inicios = gatilhosQueCasam(m, f, ev);
     if (inicios.length === 0) continue;
-    const cenas = escopoDoFluxo(f, ev.cenas);
+    const cenas = escopoDoFluxo(f, ev.cenas, m.ctx.atual().cenaAtivaId);
     if (cenas === "nunca") continue;
     if (m.cortado) return;
     rodados.push(f);
@@ -886,7 +888,7 @@ function executarFluxoDireto(
 ): void {
   if (m.cortado || inicio === undefined) return;
   const antes = m.ctx.atual();
-  const cenas = escopoDoFluxo(f, ev.cenas);
+  const cenas = escopoDoFluxo(f, ev.cenas, m.ctx.atual().cenaAtivaId);
   if (cenas === "nunca") return;
   const encadeados = dispararFluxo(
     m,

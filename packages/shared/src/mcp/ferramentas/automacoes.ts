@@ -123,6 +123,10 @@ const FluxoPedidoSchema = z
       .nullable()
       .optional()
       .describe("Nomes das cenas onde vale. Vazio ou null = todas."),
+    naCenaAtiva: z
+      .boolean()
+      .optional()
+      .describe("Vale na cena onde o grupo está no momento do disparo, somada às `cenas`."),
     fixado: z.boolean().optional().describe("O chip fica na barra de cima do mestre."),
     liberadoParaJogadores: z.boolean().optional(),
     nos: z
@@ -477,6 +481,7 @@ async function fluxo(p: FluxoPedido, ctx: Contexto, lote: Lote): Promise<string>
       nome: p.nome,
       ligado: p.ligado ?? true,
       cenas: cenas ?? null,
+      ...(p.naCenaAtiva === undefined ? {} : { naCenaAtiva: p.naCenaAtiva }),
       ...(p.fixado === undefined ? {} : { fixado: p.fixado }),
       ...(p.liberadoParaJogadores === undefined
         ? {}
@@ -492,6 +497,7 @@ async function fluxo(p: FluxoPedido, ctx: Contexto, lote: Lote): Promise<string>
   const mudancas: Record<string, unknown> = {};
   if (p.ligado !== undefined) mudancas.ligado = p.ligado;
   if (cenas !== undefined) mudancas.cenas = cenas;
+  if (p.naCenaAtiva !== undefined) mudancas.naCenaAtiva = p.naCenaAtiva;
   if (p.fixado !== undefined) mudancas.fixado = p.fixado;
   if (p.liberadoParaJogadores !== undefined)
     mudancas.liberadoParaJogadores = p.liberadoParaJogadores;
@@ -708,7 +714,7 @@ function explicarEsse(p: { fluxo?: string | undefined }, estado: Estado): string
 export const automacoes = definir({
   nome: "automacoes",
   descricao:
-    'Só do mestre. Automações como grafo (nós: gatilhos, esperar, se, sortear, para cada, condições, caixas lógicas QUALQUER UM, TODAS e NÃO (com gatilhos ou condições dentro), ações e sinais, ligados por fios, as peças das caixas sem fio; ou a forma curta gatilho + trilhas) e zonas (polígonos com efeitos). `fluxos` cria e edita pelo nome (nomes no lugar de ids); `zonas` também; tudo entra como rascunho e não roda até o mestre publicar. Ordem: zonas, depois as automações que as usam. Durante a sessão: `acionar` ([{fluxo, acao: disparar|ligar|desligar}]) e `usarBotoes` ([{botao}]). PERGUNTARAM COMO FUNCIONA, O QUE UMA AUTOMAÇÃO FAZ OU COMO MONTAR UMA? Chame `guia: true` (como as peças funcionam) e `explicar` (o que cada automação da mesa faz, em português) ANTES de responder; `listar: true` mostra todas. Exemplo: {"fluxos":[{"nome":"Vento","gatilho":{"tipo":"relogio","cadaS":600},"trilhas":[[{"bloco":"paraCada","alvo":{"tipo":"tokens"},"corpo":[{"bloco":"acao","acao":{"acao":"visao.limitar","alcanceM":3,"porS":60}}]}]]}]}',
+    'Só do mestre. Automações como grafo (nós: gatilhos, esperar, se, sortear, para cada, condições, caixas lógicas QUALQUER UM, TODAS e NÃO (com gatilhos ou condições dentro), ações e sinais, ligados por fios, as peças das caixas sem fio; ou a forma curta gatilho + trilhas) e zonas (polígonos com efeitos). `fluxos` cria e edita pelo nome (nomes no lugar de ids; naCenaAtiva: vale na cena onde o grupo está no momento do disparo, somada às `cenas`); `zonas` também; tudo entra como rascunho e não roda até o mestre publicar. Ordem: zonas, depois as automações que as usam. Durante a sessão: `acionar` ([{fluxo, acao: disparar|ligar|desligar}]) e `usarBotoes` ([{botao}]). PERGUNTARAM COMO FUNCIONA, O QUE UMA AUTOMAÇÃO FAZ OU COMO MONTAR UMA? Chame `guia: true` (como as peças funcionam) e `explicar` (o que cada automação da mesa faz, em português) ANTES de responder; `listar: true` mostra todas. Exemplo: {"fluxos":[{"nome":"Vento","gatilho":{"tipo":"relogio","cadaS":600},"trilhas":[[{"bloco":"paraCada","alvo":{"tipo":"tokens"},"corpo":[{"bloco":"acao","acao":{"acao":"visao.limitar","alcanceM":3,"porS":60}}]}]]}]}',
   entrada: z
     .object({
       zonas: z.array(ZonaPedidaSchema).max(30).optional(),

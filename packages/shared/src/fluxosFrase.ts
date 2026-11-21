@@ -62,9 +62,15 @@ function listaDeNomes(nomes: string[]): string {
   return `${nomes.slice(0, -1).join(", ")} e ${nomes.at(-1)}`;
 }
 
-function nasCenas(f: Pick<Fluxo, "cenas">, n: NomesParaAFrase): string | null {
-  if (f.cenas === null || f.cenas.length === 0) return null;
-  const nomes = f.cenas.map((c) => n.cena(c) ?? APAGADO);
+function nasCenas(f: Pick<Fluxo, "cenas" | "naCenaAtiva">, n: NomesParaAFrase): string | null {
+  const marcadas = f.cenas === null || f.cenas.length === 0 ? [] : f.cenas;
+  const nomes = marcadas.map((c) => n.cena(c) ?? APAGADO);
+  if (f.naCenaAtiva === true) {
+    if (nomes.length === 0) return "na cena ativa";
+    if (nomes.length === 1) return `na cena ativa e na cena ${nomes[0]}`;
+    return `na cena ativa e nas cenas ${listaDeNomes(nomes)}`;
+  }
+  if (nomes.length === 0) return null;
   return `${nomes.length === 1 ? "na cena" : "nas cenas"} ${listaDeNomes(nomes)}`;
 }
 
@@ -101,7 +107,11 @@ type Quem = string | null;
 /** Um pedaço de frase: o sujeito (quando a ação o usa) e o predicado. Sujeitos iguais de seguida se juntam com "e". */
 type Pedaco = { sujeito: Quem; predicado: string };
 
-function descreverAlvo(a: AlvoDoParaCada, f: Pick<Fluxo, "cenas">, n: NomesParaAFrase): string {
+function descreverAlvo(
+  a: AlvoDoParaCada,
+  f: Pick<Fluxo, "cenas" | "naCenaAtiva">,
+  n: NomesParaAFrase,
+): string {
   if (a.tipo === "objetos") {
     const base =
       a.modelo === undefined
@@ -231,7 +241,7 @@ type Segmento = { espera: number; pedacos: Pedaco[] };
 // --- O grafo em português (AU2) --------------------------------------------------------------
 
 type Grafo = {
-  f: Pick<Fluxo, "nos" | "fios" | "cenas">;
+  f: Pick<Fluxo, "nos" | "fios" | "cenas" | "naCenaAtiva">;
   n: NomesParaAFrase;
   porId: Map<string, No>;
 };
@@ -420,7 +430,10 @@ const minuscula = (t: string) =>
   t.length === 0 ? t : t.charAt(0).toLocaleLowerCase("pt-BR") + t.slice(1);
 
 /** O fluxo inteiro em português, sem ids. Vários gatilhos juntos são um OU: qualquer um dispara. */
-export function fraseDoFluxo(f: Pick<Fluxo, "nos" | "fios" | "cenas">, n: NomesParaAFrase): string {
+export function fraseDoFluxo(
+  f: Pick<Fluxo, "nos" | "fios" | "cenas" | "naCenaAtiva">,
+  n: NomesParaAFrase,
+): string {
   const g: Grafo = { f, n, porId: new Map(f.nos.map((x) => [x.id, x])) };
   const gatilhos = f.nos.filter((x): x is NoDe<"gatilho"> => x.tipo === "gatilho");
   if (gatilhos.length === 0) return "Sem gatilho ainda: não roda.";

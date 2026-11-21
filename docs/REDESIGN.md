@@ -2680,6 +2680,20 @@ O Vilella testou o AU2: "as portas lógicas estão um pouco diferentes do que eu
 ### O que ficou para depois
 Minimapa do editor (continua em `IDEIAS.md`); copiar uma caixa com o que tem dentro entre automações; arrastar uma condição direto para o "Se"; reabrir o tour num editor "nova" que já estava aberto.
 
+## AU4 — como ficou (2026-11-21): "Cena ativa" em "Cenas onde vale"
+
+### O que foi feito
+`naCenaAtiva?: boolean` no fluxo; `escopoDoFluxo` soma `cenaAtivaId` à lista; caixa "Cena ativa" no painel; frase "na cena ativa"; campo no MCP (`automacoes`, `paridadeCampos.ts`). Testes de unidade (escopo, troca de cena, união, evento de outra cena, frase, schema) e `au4.spec.ts`.
+
+### Decisões (assumido)
+- Com cenas marcadas vale a união: a ativa mais as marcadas.
+- O escopo é calculado no disparo e fica no contexto: depois de um "esperar" continua o mesmo.
+- A interseção com as cenas do evento segue igual: evento numa cena que não é a ativa não dispara um fluxo que só vale na ativa.
+- Segunda linha da caixa: "onde o grupo está agora".
+
+### O que ficou para depois
+A condição "cena", o gatilho "cena" e o tour (fora do lote).
+
 ## CH3 — como ficou (2026-11-20): tela de entrar enxuta, desfoque em três níveis, gravar e transcrever
 
 O Vilella pediu: os botões de entrar largos demais (a coluna inteira esticada), a prévia da câmera maior, o desfoque com "o pouco" (só havia o forte) e "cadê a opção do mestre gravar pro whisper?". Os prints dele mostraram os botões na largura toda e a barra de baixo da chamada.

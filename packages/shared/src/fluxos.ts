@@ -565,6 +565,8 @@ const FluxoBaseSchema = z
     ligado: z.boolean().default(true),
     /** As cenas onde o fluxo vale. `null` (ou vazio) = todas. */
     cenas: z.array(Id).max(100).nullable().default(null),
+    /** AU4: vale também na cena onde o grupo está no instante do disparo (soma-se a `cenas`). */
+    naCenaAtiva: z.boolean().optional(),
     /** O chip do fluxo fica na barra de cima do mestre (preferência dele; só relógio e botão). */
     fixado: z.boolean().optional(),
     /** O mestre libera o botão (gatilho "botão") ou os controles (gatilho "relógio") a todos os jogadores. */
@@ -684,6 +686,7 @@ export const MudancasDoFluxoSchema = z
     nome: z.string().trim().min(1, "Dê um nome à automação.").max(64),
     ligado: z.boolean(),
     cenas: z.array(Id).max(100).nullable(),
+    naCenaAtiva: z.boolean(),
     fixado: z.boolean(),
     liberadoParaJogadores: z.boolean(),
     nos: z.array(NoSchema).max(MAXIMO_DE_NOS),

@@ -1007,6 +1007,20 @@ export function PainelDaAutomacao(p: {
         <legend>Cenas onde vale</legend>
         <p className="nota">Sem nenhuma marcada, vale em todas.</p>
         <div className="ed-escolha-de-cenas" data-testid="ed-campo-cenas-do-fluxo">
+          <Caixa
+            testid="ed-cena-ativa"
+            rotulo={
+              <span className="ed-opcao-texto">
+                Cena ativa
+                <small>onde o grupo está agora</small>
+              </span>
+            }
+            marcado={p.rascunho.naCenaAtiva === true}
+            aoMudar={(m) => {
+              const { naCenaAtiva: _fora, ...resto } = p.rascunho;
+              p.aoMudarFluxo(m ? { ...resto, naCenaAtiva: true } : resto);
+            }}
+          />
           {cenas.map((c) => {
             const lista = p.rascunho.cenas ?? [];
             return (

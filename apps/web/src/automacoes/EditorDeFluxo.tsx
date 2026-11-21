@@ -440,6 +440,8 @@ export function EditorDeFluxo(p: PropsDoEditor) {
           ...resto,
           fixado: f.fixado ?? false,
           liberadoParaJogadores: f.liberadoParaJogadores ?? false,
+          // a sala junta as mudanças com o que tinha: sem o false explícito, desmarcar não pegava
+          naCenaAtiva: f.naCenaAtiva ?? false,
         },
       });
     }
