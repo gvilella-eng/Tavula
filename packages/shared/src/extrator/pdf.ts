@@ -4,7 +4,7 @@ import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import type { PaginaDoPdf } from "./linhas.ts";
 
 /**
- * Lê o texto com posição de um PDF no Node (pdf.js, o mesmo do importador de ficha impressa, pelo build legado). Só
+ * Lê o texto com posição de um PDF no Node (pdf.js, o mesmo do importador da ficha em PDF, pelo build legado). Só
  * lê o arquivo: nada é enviado a lugar nenhum. PDF escaneado (sem texto) volta com páginas vazias; quem chama avisa.
  */
 export async function lerPdf(caminho: string): Promise<PaginaDoPdf[]> {

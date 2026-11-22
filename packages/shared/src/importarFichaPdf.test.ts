@@ -468,9 +468,7 @@ comRendan("importar o PDF do Rendan (B1)", () => {
     itens: unknown[];
   };
   beforeAll(async () => {
-    r = importarFichaDoPdf(
-      await pedacosDoPdf(arquivoPrivado("fixtures/fichas/brendan.pdf")),
-    );
+    r = importarFichaDoPdf(await pedacosDoPdf(arquivoPrivado("fixtures/fichas/brendan.pdf")));
   });
 
   it("reconhece a ficha e valida no schema", () => {

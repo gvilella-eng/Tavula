@@ -5,8 +5,8 @@ paredes e luz; os jogadores movem tokens, rolam dados e usam a ficha; a mesa con
 e conversa com o Claude.
 
 É uma mesa para um grupo (até 8 pessoas), não um produto para desconhecidos. Ela corrige o que incomoda nas mesas
-virtuais de assinatura: sem assinatura, sem limite de armazenamento de mapas e tokens e sem ficha presa (a ficha impressa em PDF
-é importada).
+virtuais de assinatura: não tem mensalidade, não tem limite de armazenamento de mapas e tokens e a ficha não fica presa
+(a ficha impressa em PDF é importada).
 
 ## O que tem
 
@@ -15,7 +15,7 @@ virtuais de assinatura: sem assinatura, sem limite de armazenamento de mapas e t
 - **Tochas e objetos de luz** com tempo contado pelo relógio da sala, que para quando a mesa pausa.
 - **Automações** num editor de blocos ligados por fios (gatilhos, esperas, condições, caixas E/OU/NÃO e ações), que
   rodam na sala: "a cada 3 minutos, cada tocha acesa tem 30% de chance de apagar".
-- **Ficha 5e** de personagem e de NPC, com os derivados calculados, conjuração e importação do PDF da ficha.
+- **Ficha 5e** de personagem e de NPC, com os derivados calculados, conjuração e importação da ficha impressa em PDF.
 - **Compêndio** de magias, monstros e itens, com busca em português e inglês.
 - **Chat e rolagens** (os dados rolam na sala), ordem de turno e condições.
 - **Chamada de vídeo** dentro da mesa, com fundo desfocado, gravação e transcrição local com o whisper.cpp.
@@ -130,3 +130,17 @@ As regras vêm do **SRD 5.1** (regras de 2014), da Wizards of the Coast, sob a l
 [CC-BY-4.0](https://creativecommons.org/licenses/by/4.0/legalcode); a atribuição está em
 [`packages/shared/src/srd/ATRIBUICAO-SRD.md`](packages/shared/src/srd/ATRIBUICAO-SRD.md). Nenhum texto de livro entra no
 repositório: o compêndio completo é um arquivo do mestre, na pasta dele.
+
+## Licença
+
+O código do Távola está sob a [PolyForm Noncommercial 1.0.0](LICENSE.md). Em resumo (o texto que vale é o da licença):
+
+- **Pode:** usar para você, estudar, modificar à vontade e repassar o código, com ou sem mudanças, para fins não
+  comerciais: uso pessoal, hobby, mesas com os amigos, estudo, e também organizações sem fins lucrativos, escolas e
+  órgãos públicos.
+- **Não pode:** vender, cobrar pelo uso, oferecer como serviço pago ou monetizar de qualquer outra forma.
+- **Ao repassar:** inclua a licença (ou o link dela) e a linha `Required Notice:` do topo do `LICENSE.md`.
+
+Uso comercial só com uma licença à parte, do autor, [Gabriel Vilella](https://github.com/gvilella-eng).
+
+O conteúdo do SRD 5.1 não é coberto por esta licença: continua na CC-BY-4.0, como dito acima.

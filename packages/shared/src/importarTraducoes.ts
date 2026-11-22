@@ -1,4 +1,4 @@
-// Tradução dos nomes em inglês (e das siglas) que a ficha impressa traz na ficha para o texto em português da
+// Tradução dos nomes em inglês (e das siglas) que a ficha impressa traz para o texto em português da
 // Távola. Tabelas pequenas e puras. Nome que não está na tabela fica como veio (assumido).
 
 function chave(texto: string): string {

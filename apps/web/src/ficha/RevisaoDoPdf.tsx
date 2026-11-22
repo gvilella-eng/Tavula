@@ -185,7 +185,7 @@ function apenasNumero(texto: string): number | undefined {
 type Editar = (caminho: string, valor: unknown) => void;
 
 /**
- * Tela de revisão da importação do PDF da ficha (Lote 10): cada seção da ficha com o valor lido, o trecho
+ * Tela de revisão da importação da ficha em PDF (Lote 10): cada seção da ficha com o valor lido, o trecho
  * do PDF ao lado e os campos incertos em amarelo e editáveis. Nada vai para a sala sem "Confirmar".
  */
 export function RevisaoDoPdf({

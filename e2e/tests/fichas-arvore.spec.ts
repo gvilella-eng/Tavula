@@ -364,7 +364,7 @@ test("o menu da pasta (botão direito e Shift+F10): renomear, quem vê e apagar 
   await m.keyboard.press("Escape");
 });
 
-test("criar personagem pelo '+ Novo' abre a ficha em Configurar com 'Importar PDF' à vista; o importador abre dali e nenhum texto cita outro programa", async ({
+test("criar personagem pelo '+ Novo' abre a ficha em Configurar com 'Importar PDF' à vista; o importador abre dali", async ({
   mesa,
 }) => {
   exigirPrivado("fixtures/fichas/darion.pdf");
@@ -390,7 +390,7 @@ test("criar personagem pelo '+ Novo' abre a ficha em Configurar com 'Importar PD
 
   // o importador abre dali
   const [seletor] = await Promise.all([m.waitForEvent("filechooser"), botao.click()]);
-  // um nome de arquivo neutro: o nome do arquivo aparece na revisão
+  // o arquivo vai com um nome neutro: o nome do arquivo aparece na tela da revisão
   await seletor.setFiles({
     name: "ficha.pdf",
     mimeType: "application/pdf",

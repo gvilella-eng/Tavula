@@ -8,7 +8,7 @@ import { abrirFicha, clicarImportarPdf, DARION_ID, mandar } from "./ajudasFicha"
 import { entrarNoMapa, noElementoDoMapa, pontoNaPagina, tokensDe } from "./ajudasMapa";
 
 // Redesign R5b (combate adaptado ao V2: ordem de turno simples): combate, ficha com um clique, compêndio com "Usar o exemplo" e
-// o PDF da ficha com um caminho e um nome. Nada muda na sala: só a disposição e o que a tela diz.
+// a ficha em PDF com um caminho e um nome. Nada muda na sala: só a disposição e o que a tela diz.
 
 const TEXTO_DO_SRD = readFileSync(
   new URL("../../fixtures/compendio/exemplo-srd.json", import.meta.url),
@@ -331,7 +331,7 @@ async function criarDarionSimples(p: Page) {
 
 const fichaFrames = (s: Sessao) => s.enviados.filter((f) => /"tipo":"(ficha|personagem)\./.test(f));
 
-test("PDF: o botão 'Importar PDF' mora na aba Configurar da ficha, sem citar outro programa, e o destino já vem preenchido", async ({
+test("PDF: o botão 'Importar PDF' mora na aba Configurar da ficha e o destino já vem preenchido", async ({
   mesa,
 }) => {
   test.setTimeout(90_000);

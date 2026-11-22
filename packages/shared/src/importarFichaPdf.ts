@@ -29,7 +29,7 @@ import {
 } from "./srd/index.ts";
 
 // ---------------------------------------------------------------------------------------------
-// Importação da ficha em PDF (Lote 10, seção 4.10). Este arquivo é PURO: recebe os pedaços de
+// Importação da ficha 5e impressa em PDF (Lote 10, seção 4.10). Este arquivo é PURO: recebe os pedaços de
 // texto que o pdf.js extraiu (com posição) e devolve a ficha mais a lista de campos incertos. Nada de
 // coordenada absoluta: tudo é procurado em relação a um rótulo (acima, abaixo, na mesma linha) e as
 // distâncias são medidas na "escala" do documento, para o PDF A4 e o de Carta darem o mesmo resultado.
@@ -54,7 +54,7 @@ export type Incerto = {
 };
 
 export type ImportacaoDoPdf = {
-  /** Falso quando o PDF não parece uma ficha impressa (nada foi lido). */
+  /** Falso quando o PDF não parece uma ficha 5e impressa (nada foi lido). */
   reconhecido: boolean;
   /** Nome do personagem, se lido (a ficha não guarda o nome; ele é do item). */
   nome?: string;
@@ -840,7 +840,7 @@ export function importarFichaDoPdf(pedacos: readonly Pedaco[]): ImportacaoDoPdf 
     const texto = r ? textoDosItens(acima(principal, r, 120, 8, u), u) : "";
     reg("idiomas", `OUTRAS PROFICIÊNCIAS & IDIOMAS: ${texto || "(vazio)"}`);
     if (texto) {
-      // A ficha impressa traz "IDIOMA: Common ARMADURA: Light Armor ARMA: Simple Weapons": separa pelos rótulos.
+      // A ficha imprime "IDIOMA: Common ARMADURA: Light Armor ARMA: Simple Weapons": separa pelos rótulos.
       const secoes = texto.split(/\b([A-ZÀ-Ý]{4,})\s*:\s*/u);
       const rotulado = secoes.length > 2 && /^(idiomas?|languages?)$/i.test(secoes[1] ?? "");
       const separar = (t: string) =>
