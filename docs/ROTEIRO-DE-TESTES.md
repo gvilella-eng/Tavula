@@ -164,7 +164,7 @@ as mãos. Cada item diz **o que fazer** e, depois de "→", **o que deve acontec
 4. O modificador extra de perícia e salvaguarda **não** aparece no hover: abre com o botão direito ("Modificador:").
 
 ## B1 — Importador do PDF (Rendan)
-1. Fichas → importe `fixtures/fichas/brendan.pdf` → **Clérigo 10, Domínio da Sepultura, Acólito, Humano,
+1. Fichas → importe `privado/fixtures/fichas/brendan.pdf` → **Clérigo 10, Domínio da Sepultura, Acólito, Humano,
    Leal e Bom**; CD 16, ataque +8, espaços 4/3/3/3/2.
 2. **Confira à mão** (o PDF não traz direito):
    - o nível, que vem marcado para conferir;

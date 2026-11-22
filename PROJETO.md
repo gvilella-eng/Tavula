@@ -45,7 +45,7 @@ Campanha de referência ("A Chama Primordial", D&D 5e, níveis 6→9): horror de
 absoluta, **tochas de 30 minutos reais** (estilo Shadowdark) e uma montanha que "respira" (ciclos que
 ameaçam as tochas e enchem as cavernas de névoa). Ela é a primeira campanha inserida na mesa e serve de
 **teste de aceitação**: o motor tem que expressá-la só com configuração
-(`fixtures/campanhas/chama-primordial.json`), ao lado de uma campanha "5e padrão" (tocha de 1 h, sem
+(`privado/fixtures/campanhas/chama-primordial.json`, só no computador do mestre), ao lado de uma campanha "5e padrão" (tocha de 1 h, sem
 ciclos). A história está no projeto 3D da campanha (`../Dungeon/docs/MASMORRA.md`), que não é ligado
 ao tabletop. O mundo é todo métrico: **1 quadrado = 1,5 m** (5 ft).
 
@@ -1352,10 +1352,10 @@ Tabletop/
 │  └─ shared/                 tipos, schemas zod, regras 5e, geometria, dados, automações, import de PDF
 ├─ e2e/                       testes Playwright com vários jogadores
 ├─ fixtures/
-│  ├─ fichas/darion.pdf
 │  ├─ mapas/                  imagens de teste (pequena, grande para tiles)
-│  ├─ campanhas/              chama-primordial.json e 5e-padrao.json (testes de aceitação)
+│  ├─ campanhas/              5e-padrao.json (teste de aceitação)
 │  └─ campanha.seed.json      usuários de teste (1 mestre + 7 jogadores)
+├─ privado/                   fora do git: fichas dos jogadores, a Chama Primordial e o ouro dela, notas
 └─ package.json               scripts do monorepo
 ```
 

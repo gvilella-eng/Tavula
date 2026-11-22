@@ -1,8 +1,8 @@
 import { mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { crc32, deflateSync } from "node:zlib";
 import type { APIRequestContext, Locator, Page } from "@playwright/test";
+import { arquivoPrivado } from "../privado";
 import {
   abrirAba,
   test as base,
@@ -42,7 +42,7 @@ const SRD = readFileSync(
   new URL("../../fixtures/compendio/exemplo-srd.json", import.meta.url),
   "utf8",
 );
-const PDF = fileURLToPath(new URL("../../fixtures/fichas/darion.pdf", import.meta.url));
+const PDF = arquivoPrivado("fixtures/fichas/darion.pdf");
 
 const test = base;
 

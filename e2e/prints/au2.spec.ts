@@ -1,6 +1,7 @@
 import { mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Page } from "@playwright/test";
+import { arquivoPrivado } from "../privado";
 import {
   abrirAba,
   abrirPreferencia,
@@ -61,9 +62,7 @@ for (const c of CASOS) {
     await importarCampanha(m, {
       name: "chama-primordial.json",
       mimeType: "application/json",
-      buffer: readFileSync(
-        new URL("../../fixtures/campanhas/chama-primordial.json", import.meta.url),
-      ),
+      buffer: readFileSync(arquivoPrivado("fixtures/campanhas/chama-primordial.json")),
     });
     await expect(m.getByTestId("chip-ciclo-respiracao")).toBeVisible();
     await m.getByTestId("menu-pausa").click();

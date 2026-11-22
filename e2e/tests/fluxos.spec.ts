@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
 import type { Locator, Page } from "@playwright/test";
+import { arquivoPrivado, exigirPrivado } from "../privado";
 import { abrirAba, expect, type Sessao, test } from "./ajudas";
 import { assets } from "./ajudasAssets";
 import { definirValor, ligarOrdem, linha, nomesNaOrdem } from "./ajudasCombate";
@@ -14,9 +14,7 @@ const TEXTO_DO_SRD = readFileSync(
   new URL("../../fixtures/compendio/exemplo-srd.json", import.meta.url),
   "utf8",
 );
-const PDF_DO_DARION = fileURLToPath(
-  new URL("../../fixtures/fichas/darion.pdf", import.meta.url),
-);
+const PDF_DO_DARION = arquivoPrivado("fixtures/fichas/darion.pdf");
 const CAMINHO_DO_COMPENDIO = "compendio/magias.json";
 
 const framesDeCombate = (s: Sessao) => s.enviados.filter((f) => f.includes('"tipo":"combate.'));
@@ -306,6 +304,7 @@ test("compêndio: com a pasta local, 'Usar o exemplo' grava compendio/magias.jso
 // --- Importar PDF ---------------------------------------------------------------------------------
 
 async function escolherPdf(p: Page, abrir: () => Promise<void>) {
+  exigirPrivado("fixtures/fichas/darion.pdf");
   const [seletor] = await Promise.all([p.waitForEvent("filechooser"), abrir()]);
   // um nome de arquivo neutro: o nome do arquivo aparece na revisão
   await seletor.setFiles({

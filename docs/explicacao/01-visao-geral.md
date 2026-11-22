@@ -37,8 +37,8 @@ Estão em `PROJETO.md`, seção 3.1. Os que mais explicam o código:
    escuridão são só de tela**: o token que só está no escuro chega ao navegador (decisão do Vilella: o grupo não vai
    caçar no F12).
 4. **Mesa genérica.** Nenhuma regra de campanha no código. Duração de tocha, ciclos e efeitos são configuração do
-   mestre. A campanha "A Chama Primordial" (`fixtures/campanhas/chama-primordial.json`) existe como teste de
-   aceitação: o motor tem que expressá-la só com configuração.
+   mestre. A campanha "A Chama Primordial" (`privado/fixtures/campanhas/chama-primordial.json`, só no computador do
+   mestre) existe como teste de aceitação: o motor tem que expressá-la só com configuração.
 5. **O tempo é da sala.** Tochas, ciclos e esperas são contados pelo relógio da sala (um agendador único e o alarme do
    Durable Object), nunca pelo relógio do PC de um jogador. Pausar a mesa congela tudo.
 6. **Imagens e sons ficam no computador de quem os tem.** O servidor não guarda imagem; o arquivo é identificado pelo
@@ -149,8 +149,11 @@ Fora das pastas: as abas do painel direito (`AbaChat`, `AbaFichas`, `AbaCompendi
 - `apps/mcp`: o MCP em stdio, em Node. Usa o mesmo código de `packages/shared/src/mcp`; existe para o Claude Desktop.
   O caminho principal hoje é o MCP por HTTP dentro da própria sala.
 - `e2e`: os testes do Playwright (`tests/`), os testes que geram prints (`prints/`) e as medidas de desempenho.
-- `fixtures`: `campanha.seed.json` (a semente da mesa legada e dos testes), `campanhas/` (5e padrão e Chama Primordial),
-  `fichas/` (PDFs de teste), `compendio/exemplo-srd.json` e `ouro/` (o resultado de referência do motor de automações).
+- `fixtures`: `campanha.seed.json` (a semente da mesa legada e dos testes), `campanhas/5e-padrao.json` e
+  `compendio/exemplo-srd.json`.
+- `privado/` (fora do git, só no computador do mestre): as fichas dos jogadores usadas nos testes (PDFs das fichas e
+  JSONs), a campanha Chama Primordial, o `ouro/` dela e as notas da campanha. Os testes que dependem dela pulam quando
+  ela não está. Ver [12](12-testes-e-fluxo-de-trabalho.md).
 
 ## 5. Uma sessão de jogo, de ponta a ponta
 

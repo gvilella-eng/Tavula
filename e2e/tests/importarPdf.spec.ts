@@ -1,5 +1,5 @@
-import { fileURLToPath } from "node:url";
 import type { Page } from "@playwright/test";
+import { arquivoPrivado, exigirPrivado } from "../privado";
 import { abrirAba, expect, type Sessao, test } from "./ajudas";
 import { abrirFicha, clicarImportarPdf, DARION_ID, mandar } from "./ajudasFicha";
 import { entrarNoMapa } from "./ajudasMapa";
@@ -8,13 +8,9 @@ import { entrarNoMapa } from "./ajudasMapa";
 // Configurar da ficha). O PDF é lido no
 // navegador; só o JSON da ficha vai para a sala, e só depois de "Confirmar".
 
-const decodificado = fileURLToPath(
-  new URL("../../fixtures/fichas/darion.pdf", import.meta.url),
-);
+const decodificado = arquivoPrivado("fixtures/fichas/darion.pdf");
 
-const decodificadoDoRendan = fileURLToPath(
-  new URL("../../fixtures/fichas/brendan.pdf", import.meta.url),
-);
+const decodificadoDoRendan = arquivoPrivado("fixtures/fichas/brendan.pdf");
 
 /** Um item "Darion" simples, para a importação passar por cima. */
 async function criarDarionSimples(mestre: Page) {
@@ -33,6 +29,7 @@ async function criarDarionSimples(mestre: Page) {
 
 /** Ficha → aba Configurar → "Importar PDF" → escolhe o PDF do Darion. */
 async function escolherPdfPelaFicha(p: Page, personagemId: string, arquivo = decodificado) {
+  exigirPrivado("fixtures/fichas/darion.pdf");
   const [seletor] = await Promise.all([
     p.waitForEvent("filechooser"),
     clicarImportarPdf(p, personagemId),
@@ -121,6 +118,7 @@ test("importar o PDF do Darion pela aba Configurar da ficha: revisão com incert
 test("importar o PDF do Rendan (B1): classe, nível, raça e tendência saem em português e o domínio não vai para o antecedente", async ({
   mesa,
 }) => {
+  exigirPrivado("fixtures/fichas/brendan.pdf", "fixtures/fichas/darion.pdf");
   test.setTimeout(90_000);
   const mestre = await entrarNoMapa(mesa, "mestre");
   await criarDarionSimples(mestre.pagina);
@@ -207,6 +205,7 @@ test("o PDF não sai do PC: nenhum frame do WebSocket leva os bytes do PDF, só 
 test("+ Novo → Personagem abre a ficha em Configurar com 'Importar PDF' à vista; o PDF lido entra nesse personagem", async ({
   mesa,
 }) => {
+  exigirPrivado("fixtures/fichas/darion.pdf");
   test.setTimeout(90_000);
   const mestre = await entrarNoMapa(mesa, "mestre");
   const p = mestre.pagina;

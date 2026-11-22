@@ -26,3 +26,9 @@ e2e/.estado-sala/
 
 # CH3: onde o whisper.cpp está nesta máquina (cada um tem o seu)
 transcrever.config.json
+
+# só no computador do mestre: fichas dos jogadores, a campanha de referência e as notas dela
+privado/
+
+# as cópias de trabalho dos agentes
+.claude/

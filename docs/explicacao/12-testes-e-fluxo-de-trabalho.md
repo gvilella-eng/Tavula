@@ -14,8 +14,8 @@ pasta de trabalho do `pnpm dev` pede cuidado.
 - **E2E:** `e2e/playwright.config.ts`, `e2e/portas.ts`, `e2e/midiaFalsa.ts`, `e2e/tests/*.spec.ts` (e as ajudas
   `e2e/tests/ajudas*.ts`), `e2e/.estado-sala/` (o estado da sala de teste, fora do git).
 - **Prints e medidas:** `e2e/playwright.prints.config.ts`, `e2e/playwright.medidas.config.ts`, `e2e/prints/*.spec.ts`.
-- **Os "ouro":** `packages/shared/src/ouro.test.ts` com `fixtures/ouro/chama-primordial-10min.json`; as fixtures de ficha
-  em `fixtures/fichas/` (PDFs e JSONs de referência).
+- **Os "ouro":** `packages/shared/src/ouro.test.ts` com `privado/fixtures/ouro/chama-primordial-10min.json`; as fixtures
+  de ficha em `privado/fixtures/fichas/` (PDFs e JSONs de referência). Ver "A pasta `privado/`".
 - **Servidor de teste:** `apps/server/scripts/dev-e2e.mjs`, as rotas `/teste/*` em `apps/server/src/sala.ts`
   (`rotaDeTeste`) e os ganchos `import.meta.env.MODE === "e2e"` em `apps/web/src`.
 - **Regras do fluxo:** `PROJETO.md` seção 9, `docs/ESTADO.md` (seção "Fluxo de trabalho" e o diário dos lotes) e as regras
@@ -78,15 +78,15 @@ Cobrem `Armazenamento` e suas migrações, `contas.ts`, `autenticacao.ts`, `orig
 **Os testes "ouro" (fixtures golden).** Dois tipos:
 - `ouro.test.ts` (AU1): a campanha **Chama Primordial** roda 10 minutos simulados (semente `20261113`; tokens entrando e
   saindo de zonas, tochas acesas, um botão, uma tocha reacesa) e o que acontece a cada instante (estado das luzes,
-  modificadores, limite de visão, mensagens do chat) fica gravado em `fixtures/ouro/chama-primordial-10min.json`. O
+  modificadores, limite de visão, mensagens do chat) fica gravado em `privado/fixtures/ouro/chama-primordial-10min.json`. O
   teste roda de novo e exige `toEqual` com o arquivo. Foi gravado **antes** de trocar o motor de automações por
   fluxos; o motor novo, com a conversão dos ciclos e reações antigos, tem de chegar ao mesmo resultado, inclusive na
   **ordem** em que o gerador aleatório é sorteado (a ordem dos fios é a ordem de execução). Para regravar, só de
   propósito: `OURO_GRAVAR=1`. Se o ouro quebra, ou a regra mudou de propósito (regrave e diga no relatório) ou algo
   quebrou.
-- As fixtures de ficha (`fixtures/fichas/brendan.json`, `darion.json` e os PDFs das fichas): o `importarFichaPdf.test.ts`
-  lê o PDF real e confere campo a campo contra o JSON de referência (e contra os valores do PDF do Darion no
-  `PROJETO.md`, seção 8). O `extrator` do compêndio (SRD) tem o mesmo desenho em `extrator/extrator.test.ts`.
+- As fixtures de ficha (`privado/fixtures/fichas/brendan.json`, `darion.json` e os PDFs das fichas): o
+  `importarFichaPdf.test.ts` lê o PDF real e confere campo a campo contra o JSON de referência (e contra os valores do PDF
+  do Darion, em `privado/notas/darion.md`). O `extrator` do compêndio (SRD) tem o mesmo desenho em `extrator/extrator.test.ts`.
 
 ### O E2E com Playwright
 
@@ -182,6 +182,27 @@ teste inspeciona os **frames que o jogador recebeu** e prova que o segredo do me
 (o mesmo segredo **está** nos frames do mestre, para provar que a captura funciona). Modelos: os testes `frames ...` em
 `sala.spec.ts`, `mapa.spec.ts`, `assets.spec.ts` e `cenas.spec.ts`. Ao mesmo tempo, `tema.spec.ts` vigia que nenhuma
 requisição do navegador sai para um host diferente de `127.0.0.1` (nada de CDN, fonte remota ou analytics).
+
+### A pasta `privado/`
+
+As fichas dos jogadores (os PDFs impressos das fichas e os JSONs de referência), a campanha Chama Primordial, o ouro
+dela e as notas da campanha ficam **só no computador do mestre**, em `privado/` na raiz do repositório. A pasta está no
+`.gitignore` e nunca entra no git. A forma dela:
+
+```
+privado/
+├─ fixtures/
+│  ├─ fichas/      darion.pdf, darion.json, brendan.pdf, brendan.json
+│  ├─ campanhas/   chama-primordial.json
+│  └─ ouro/        chama-primordial-10min.json
+└─ notas/          darion.md (os valores do PDF), campanha.md (as notas da campanha)
+```
+
+Os testes acham esses arquivos pelos ajudantes `packages/shared/src/testes/privado.ts` (unidade: `arquivoPrivado`,
+`temPrivado`, `lerJsonPrivado`) e `e2e/privado.ts` (E2E: os mesmos, mais `exigirPrivado`, que pula o teste). Sem a
+pasta, o que depende dela pula e o resto roda: na unidade, `darion` vira uma ficha vazia e só pulam os testes que
+conferem os números dele; no E2E, todo teste que cria o Darion (`criarDarion`) ou lê um PDF pula. No computador do
+mestre tudo roda. Arquivo pessoal novo para teste vai para `privado/`, nunca para `fixtures/`.
 
 ### Os prints
 

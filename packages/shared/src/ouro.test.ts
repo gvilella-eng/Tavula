@@ -14,14 +14,24 @@ import {
   type Token,
 } from "./index.ts";
 import { tempoDaSala } from "./relogio.ts";
+import { arquivoPrivado, temPrivado } from "./testes/privado.ts";
 
 // AU1: o "ouro". A campanha Chama Primordial roda 10 minutos simulados (semente fixa, tokens entrando e saindo das zonas,
-// tochas acesas, um botão, uma tocha reacesa) e o que acontece fica guardado em fixtures/ouro/. O motor de fluxos, com a
+// tochas acesas, um botão, uma tocha reacesa) e o que acontece fica guardado em privado/fixtures/ouro/. O motor de fluxos, com a
 // conversão dos ciclos e reações, tem de chegar ao MESMO resultado. Para regravar (só de propósito): OURO_GRAVAR=1.
 
-const ARQUIVO = new URL("../../../fixtures/ouro/chama-primordial-10min.json", import.meta.url);
+// A campanha e o ouro ficam só no computador do mestre (privado/): sem a campanha, o teste pula.
+const ARQUIVO = arquivoPrivado("fixtures/ouro/chama-primordial-10min.json");
+const COM_CHAMA = temPrivado("fixtures/campanhas/chama-primordial.json");
 const ler = (nome: string): unknown =>
-  JSON.parse(readFileSync(new URL(`../../../fixtures/campanhas/${nome}`, import.meta.url), "utf8"));
+  JSON.parse(
+    readFileSync(
+      nome === "chama-primordial.json"
+        ? arquivoPrivado("fixtures/campanhas/chama-primordial.json")
+        : new URL(`../../../fixtures/campanhas/${nome}`, import.meta.url),
+      "utf8",
+    ),
+  );
 const T0 = Date.parse("2026-01-01T00:00:00.000Z");
 const iso = (s: number) => new Date(T0 + s * 1000).toISOString();
 let n = 0;
@@ -148,7 +158,7 @@ function simular(): Linha[] {
   return linhas;
 }
 
-describe("o ouro: a Chama Primordial por 10 minutos", () => {
+describe.skipIf(!COM_CHAMA)("o ouro: a Chama Primordial por 10 minutos", () => {
   it("o motor chega ao mesmo resultado guardado", () => {
     const linhas = simular();
     if (process.env.OURO_GRAVAR === "1" || !existsSync(ARQUIVO)) {

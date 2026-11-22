@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
 import type { Locator, Page } from "@playwright/test";
+import { arquivoPrivado, exigirPrivado } from "../privado";
 import { abrirAba, expect, test } from "./ajudas";
 import { abrirFicha, criarHandoutPelaSala, mandar } from "./ajudasFicha";
 import { entrarNoMapa } from "./ajudasMapa";
@@ -8,7 +8,7 @@ import { entrarNoMapa } from "./ajudasMapa";
 // V3: a aba Fichas em árvore (pais e filhos, sem caixas), "+ Novo" com as quatro opções, renomear a pasta
 // clicando no nome, menu de clique direito (e Shift+F10) no lugar dos "⋯", e "Importar PDF" dentro da ficha.
 
-const PDF = fileURLToPath(new URL("../../fixtures/fichas/darion.pdf", import.meta.url));
+const PDF = arquivoPrivado("fixtures/fichas/darion.pdf");
 
 type Caixa = { x: number; y: number; width: number; height: number };
 async function caixa(l: Locator): Promise<Caixa> {
@@ -367,6 +367,7 @@ test("o menu da pasta (botão direito e Shift+F10): renomear, quem vê e apagar 
 test("criar personagem pelo '+ Novo' abre a ficha em Configurar com 'Importar PDF' à vista; o importador abre dali e nenhum texto cita outro programa", async ({
   mesa,
 }) => {
+  exigirPrivado("fixtures/fichas/darion.pdf");
   test.setTimeout(90_000);
   const m = (await entrarNoMapa(mesa, "mestre")).pagina;
   await abrirAba(m, "fichas");

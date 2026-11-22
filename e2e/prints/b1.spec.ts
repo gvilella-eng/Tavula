@@ -1,7 +1,7 @@
 import { mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 import type { Locator, Page } from "@playwright/test";
+import { arquivoPrivado } from "../privado";
 import { abrirAba, test as base, expect, Mesa } from "../tests/ajudas";
 import { assets } from "../tests/ajudasAssets";
 import { clicarImportarPdf, criarDarion, DARION_ID, mandar } from "../tests/ajudasFicha";
@@ -26,7 +26,7 @@ const TEXTO_DO_SRD = readFileSync(
   "utf8",
 );
 
-const RENDAN = fileURLToPath(new URL("../../fixtures/fichas/brendan.pdf", import.meta.url));
+const RENDAN = arquivoPrivado("fixtures/fichas/brendan.pdf");
 
 const tiradas: string[] = [];
 const falhas: string[] = [];

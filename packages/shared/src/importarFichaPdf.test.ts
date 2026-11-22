@@ -17,10 +17,11 @@ import {
   racaEmPortugues,
   tendenciaEmPortugues,
 } from "./index.ts";
+import { arquivoPrivado, lerJsonPrivado, temPrivado } from "./testes/privado.ts";
 
 // ---------------------------------------------------------------------------------------------
-// O PDF de verdade (fixtures/fichas/darion.pdf), lido pelo pdf.js em Node, contra a seção 8
-// do PROJETO.md.
+// O PDF de verdade (privado/fixtures/fichas/darion.pdf, só no computador do mestre), lido pelo pdf.js em
+// Node, contra os valores de privado/notas/darion.md. Sem a pasta privado/, pula.
 // ---------------------------------------------------------------------------------------------
 
 async function pedacosDoPdf(caminho: URL): Promise<Pedaco[]> {
@@ -34,12 +35,12 @@ async function pedacosDoPdf(caminho: URL): Promise<Pedaco[]> {
   return pedacos;
 }
 
-describe("importar o PDF do Darion (seção 8)", () => {
+const comDarion = describe.skipIf(!temPrivado("fixtures/fichas/darion.pdf"));
+
+comDarion("importar o PDF do Darion (seção 8)", () => {
   let r: ImportacaoDoPdf;
   beforeAll(async () => {
-    const pedacos = await pedacosDoPdf(
-      new URL("../../../fixtures/fichas/darion.pdf", import.meta.url),
-    );
+    const pedacos = await pedacosDoPdf(arquivoPrivado("fixtures/fichas/darion.pdf"));
     r = importarFichaDoPdf(pedacos);
   });
 
@@ -449,15 +450,17 @@ describe("parser com pedaços sintéticos", () => {
 });
 
 // ---------------------------------------------------------------------------------------------
-// O PDF do Rendan (fixtures/fichas/brendan.pdf), contra fixtures/fichas/brendan.json (B1).
+// O PDF do Rendan (privado/fixtures/fichas/brendan.pdf), contra privado/fixtures/fichas/brendan.json (B1).
 // O campo "Classe & nível" vem cortado ("Domínio da Sepultura Cl…"): o nível sai dos dados de vida.
 // ---------------------------------------------------------------------------------------------
 
-describe("importar o PDF do Rendan (B1)", () => {
+const comRendan = describe.skipIf(
+  !temPrivado("fixtures/fichas/brendan.pdf") || !temPrivado("fixtures/fichas/brendan.json"),
+);
+
+comRendan("importar o PDF do Rendan (B1)", () => {
   let r: ImportacaoDoPdf;
-  const esperado = JSON.parse(
-    readFileSync(new URL("../../../fixtures/fichas/brendan.json", import.meta.url), "utf8"),
-  ) as {
+  const esperado = (lerJsonPrivado("fixtures/fichas/brendan.json") ?? {}) as {
     nome: string;
     ficha: Record<string, unknown>;
     magiasPorNivel: Record<string, string[]>;
@@ -466,7 +469,7 @@ describe("importar o PDF do Rendan (B1)", () => {
   };
   beforeAll(async () => {
     r = importarFichaDoPdf(
-      await pedacosDoPdf(new URL("../../../fixtures/fichas/brendan.pdf", import.meta.url)),
+      await pedacosDoPdf(arquivoPrivado("fixtures/fichas/brendan.pdf")),
     );
   });
 
@@ -498,7 +501,7 @@ describe("importar o PDF do Rendan (B1)", () => {
     }
   });
 
-  it("bate com fixtures/fichas/brendan.json", () => {
+  it("bate com privado/fixtures/fichas/brendan.json", () => {
     for (const [campo, valor] of Object.entries(esperado.ficha)) {
       expect([campo, (r.ficha as Record<string, unknown>)[campo]]).toEqual([campo, valor]);
     }

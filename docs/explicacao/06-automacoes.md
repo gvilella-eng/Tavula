@@ -306,7 +306,8 @@ posições fixas, e roda **600 segundos simulados** com semente fixa (`fonteComS
 cada segundo e fazendo ações do mestre em instantes combinados (usar o botão da rajada no 50 s, mover tokens para dentro e fora
 das zonas, apagar e reacender uma tocha). A cada segundo em que algo muda, anota uma linha: o estado e o saldo de cada luz, os
 limites de visão e as mensagens novas do chat. O resultado tem de ser **igual** ao guardado em
-`fixtures/ouro/chama-primordial-10min.json`.
+`privado/fixtures/ouro/chama-primordial-10min.json`. A campanha e o ouro ficam só no computador do mestre (a pasta
+`privado/` não entra no git); sem eles o teste pula.
 
 A fixture nasceu no commit do AU1 (o cabeçalho do teste diz que o motor de fluxos tem de chegar ao mesmo resultado do motor de
 ciclos e reações do 7b) e continua batendo depois do AU2 e do AU3. Isso é a prova de

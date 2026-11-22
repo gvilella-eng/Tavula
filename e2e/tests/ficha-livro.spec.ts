@@ -1,5 +1,5 @@
-import { fileURLToPath } from "node:url";
 import type { Page } from "@playwright/test";
+import { arquivoPrivado, exigirPrivado } from "../privado";
 import { abrirAba, expect, test } from "./ajudas";
 import {
   abrirFicha,
@@ -16,9 +16,7 @@ import { entrarNoMapa } from "./ajudasMapa";
 // V4a: a ficha de personagem no desenho aprovado (docs/desenho/): editor da engrenagem, conjurar, moedas, equipamento,
 // característica no chat, minimizar, aparência Livro/Clássica, janela estreita e o crítico verde.
 
-const PDF_DO_DARION = fileURLToPath(
-  new URL("../../fixtures/fichas/darion.pdf", import.meta.url),
-);
+const PDF_DO_DARION = arquivoPrivado("fixtures/fichas/darion.pdf");
 const SEMENTE_20_NATURAL = 36;
 
 async function recarregar(p: Page) {
@@ -283,6 +281,7 @@ test("crítico: o 20 natural fica no verde fixo e o dano é do crítico; PV temp
 test("o PDF do Darion preenche os campos da ficha (personalidade, moedas, características)", async ({
   mesa,
 }) => {
+  exigirPrivado("fixtures/fichas/darion.pdf");
   test.setTimeout(90_000);
   const mestre = await entrarNoMapa(mesa, "mestre");
   const p = mestre.pagina;

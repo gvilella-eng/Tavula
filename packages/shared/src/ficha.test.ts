@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import darionArquivo from "../../../fixtures/fichas/darion.json";
 import {
   absorverMochila,
   aplicarOperacoes,
@@ -43,19 +42,29 @@ import {
   VERSAO_EXPORTACAO,
   visaoPara,
 } from "./index.ts";
+import { lerJsonPrivado } from "./testes/privado.ts";
 
 const AGORA = "2026-01-01T00:00:00.000Z";
 const mestre = { id: "m", papel: "mestre" as const };
 const j1 = { id: "j1", papel: "jogador" as const };
 const j2 = { id: "j2", papel: "jogador" as const };
 
-const darion = FichaSchema.parse((darionArquivo as { ficha: unknown }).ficha);
+// O Darion fica só no computador do mestre (privado/fixtures/fichas/darion.json). Sem ele, `darion` é uma ficha mínima:
+// os testes que só precisam de uma ficha qualquer rodam, e os que conferem os números dele pulam.
+const darionArquivo = lerJsonPrivado<{ ficha: unknown }>("fixtures/fichas/darion.json");
+const comDarion = darionArquivo !== undefined;
+const FICHA_MINIMA = {
+  pvAtual: 10,
+  pvMax: 10,
+  itens: [{ nome: "Tocha 5e", quantidade: 9, modeloId: "modelo-tocha" }],
+};
+const darion = FichaSchema.parse(darionArquivo?.ficha ?? FICHA_MINIMA);
 
 // ---------------------------------------------------------------------------------------------
 // Os números do Darion (PROJETO.md, seção 8)
 // ---------------------------------------------------------------------------------------------
 
-describe("derivados do Darion", () => {
+describe.skipIf(!comDarion)("derivados do Darion", () => {
   const d = derivar(darion);
 
   it("modificadores, proficiência pelo nível total e salvaguardas", () => {
@@ -223,7 +232,8 @@ describe("regras", () => {
     expect(espacosDeMagia(20)).toEqual([4, 3, 3, 3, 3, 2, 2, 1, 1]);
   });
 
-  it("espaços gastos nunca passam do total; sem classe de conjuração, não há espaços", () => {
+  it("espaços gastos nunca passam do total; sem classe de conjuração, não há espaços", (ctx) => {
+    if (!comDarion) ctx.skip();
     const f: Ficha = {
       ...darion,
       espacosGastos: { "1": 9, "2": 1 },
@@ -270,7 +280,8 @@ describe("regras", () => {
     expect(d.ca).toBe(10);
   });
 
-  it("Inteligência: vem da ficha; sem ficha preenchida vale o campo antigo", () => {
+  it("Inteligência: vem da ficha; sem ficha preenchida vale o campo antigo", (ctx) => {
+    if (!comDarion) ctx.skip();
     const antigo = { ficha: { pvAtual: 1, pvMax: 1 }, modInteligencia: 3 };
     expect(modInteligenciaDoPersonagem(antigo)).toBe(3);
     expect(modInteligenciaDoPersonagem({ ficha: darion, modInteligencia: 3 })).toBe(2);
@@ -304,7 +315,8 @@ describe("descansos", () => {
     expect(c.espacosGastos).toEqual({ "1": 2 });
   });
 
-  it("longo: PV, metade dos dados de vida, espaços, recursos e testes contra a morte", () => {
+  it("longo: PV, metade dos dados de vida, espaços, recursos e testes contra a morte", (ctx) => {
+    if (!comDarion) ctx.skip();
     const l = descansoLongo(f);
     expect(l.pvAtual).toBe(97);
     expect(l.pvTemp).toBeUndefined();
@@ -391,7 +403,8 @@ describe("aplicarOperacoes", () => {
 });
 
 describe("arquivo da ficha", () => {
-  it("exporta e importa a mesma ficha; arquivo inválido é recusado", () => {
+  it("exporta e importa a mesma ficha; arquivo inválido é recusado", (ctx) => {
+    if (!comDarion) ctx.skip();
     const arquivo = criarArquivoDeFicha("Darion", darion, AGORA);
     const json = JSON.parse(JSON.stringify(arquivo));
     const lido = lerArquivoDeFicha(json);
@@ -457,7 +470,8 @@ describe("ficha.alterar", () => {
   const pv = (valor: number) =>
     intencao("ficha.alterar", { personagemId: "p1", operacoes: [{ caminho: "pvAtual", valor }] });
 
-  it("quem edita grava; o mestre também", () => {
+  it("quem edita grava; o mestre também", (ctx) => {
+    if (!comDarion) ctx.skip();
     const r = aplicar(e, "j1", pv(50));
     expect(r.estado.personagens.find((p) => p.id === "p1")?.ficha?.pvAtual).toBe(50);
     expect(r.eventos.map((x) => x.tipo)).toEqual(["personagem.alterado"]);
@@ -506,7 +520,8 @@ describe("ficha.alterar", () => {
     ).toBe(false);
   });
 
-  it("FG1: o jogador dá e tira equipamento de modelo (tocha) do próprio personagem, não do dos outros; o mestre pode tirar a capacidade", () => {
+  it("FG1: o jogador dá e tira equipamento de modelo (tocha) do próprio personagem, não do dos outros; o mestre pode tirar a capacidade", (ctx) => {
+    if (!comDarion) ctx.skip();
     const mais = intencao("ficha.alterar", {
       personagemId: "p1",
       operacoes: [{ caminho: "itens.12.quantidade", valor: 12 }],
@@ -560,7 +575,8 @@ describe("sigilo da ficha (ficha.verOutras)", () => {
     intencao("permissao.alterar", { capacidade: "ficha.verOutras", valor: true }),
   );
 
-  it("sem a capacidade o jogador recebe o item do outro sem a ficha; a própria vem inteira", () => {
+  it("sem a capacidade o jogador recebe o item do outro sem a ficha; a própria vem inteira", (ctx) => {
+    if (!comDarion) ctx.skip();
     const v = visaoPara(e, j1);
     const proprio = v.personagens.find((p) => p.id === "p1");
     const outro = v.personagens.find((p) => p.id === "p2");
@@ -632,7 +648,8 @@ describe("sigilo da ficha (ficha.verOutras)", () => {
     expect(eventoPara(ev2, j1, com.estado, vendo.estado)).toEqual(ev2);
   });
 
-  it("evento de mudança que o jogador vê (nome) chega SEM a ficha", () => {
+  it("evento de mudança que o jogador vê (nome) chega SEM a ficha", (ctx) => {
+    if (!comDarion) ctx.skip();
     const r = aplicar(
       e,
       "m",
@@ -657,7 +674,8 @@ describe("sigilo da ficha (ficha.verOutras)", () => {
     expect(JSON.stringify(eventoPara(ev, j1, e, r.estado))).not.toContain("Sun Blade");
   });
 
-  it("mudar quem edita: o novo editor recebe a ficha e o antigo passa a receber o item sem ela", () => {
+  it("mudar quem edita: o novo editor recebe a ficha e o antigo passa a receber o item sem ela", (ctx) => {
+    if (!comDarion) ctx.skip();
     const r = aplicar(
       e,
       "m",

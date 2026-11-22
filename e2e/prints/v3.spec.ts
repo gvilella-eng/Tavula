@@ -1,7 +1,7 @@
 import { mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 import type { Page } from "@playwright/test";
+import { arquivoPrivado } from "../privado";
 import { abrirAba, test as base, expect, Mesa } from "../tests/ajudas";
 import { arquivoPng, escolherNoSeletor, pngDeRuido } from "../tests/ajudasAssets";
 import { abrirHandout, criarHandoutPelaSala } from "../tests/ajudasFicha";
@@ -14,7 +14,7 @@ const PASTA = process.env.PRINTS_DIR;
 if (!PASTA) throw new Error("Defina PRINTS_DIR (a pasta onde os prints serão gravados).");
 mkdirSync(PASTA, { recursive: true });
 
-const PDF = fileURLToPath(new URL("../../fixtures/fichas/darion.pdf", import.meta.url));
+const PDF = arquivoPrivado("fixtures/fichas/darion.pdf");
 const TEMAS = ["grimorio", "escuro", "claro", "edgerunner"] as const;
 const TAMANHOS = [
   { nome: "1600x900", width: 1600, height: 900 },

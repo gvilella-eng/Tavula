@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import type { Page } from "@playwright/test";
+import { arquivoPrivado, exigirPrivado } from "../privado";
 import { abrirAba, enviarCru, expect, importarCampanha, intencaoCrua, test } from "./ajudas";
 import { entrarNoMapa } from "./ajudasMapa";
 
@@ -129,15 +130,14 @@ test("editar, desligar e ligar, apagar e desfazer", async ({ mesa }) => {
 test("a Chama Primordial importada: a forma antiga vira fluxos, com a frase em português na lista", async ({
   mesa,
 }) => {
+  exigirPrivado("fixtures/campanhas/chama-primordial.json");
   const mestre = await entrarNoMapa(mesa, "mestre");
   const p = mestre.pagina;
   await abrirAba(p, "mesa");
   await importarCampanha(p, {
     name: "chama-primordial.json",
     mimeType: "application/json",
-    buffer: readFileSync(
-      new URL("../../fixtures/campanhas/chama-primordial.json", import.meta.url),
-    ),
+    buffer: readFileSync(arquivoPrivado("fixtures/campanhas/chama-primordial.json")),
   });
   await expect(p.getByTestId("automacoes-resumo")).toHaveText("5 automações · 5 ligadas");
   // o ciclo vinha fixado na barra

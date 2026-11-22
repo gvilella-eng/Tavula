@@ -14,12 +14,24 @@ import {
   processarSistema,
   visaoPara,
 } from "./index.ts";
+import { arquivoPrivado, temPrivado } from "./testes/privado.ts";
 
-// Lote 7b-3: as duas campanhas prontas (fixtures/campanhas/) passam pelo schema da importação, e a Chama Primordial
+// Lote 7b-3: as duas campanhas prontas passam pelo schema da importação, e a Chama Primordial
 // roda: a respiração do Pulmão reduz e apaga as tochas, e nada da história do mestre chega ao jogador.
 
+// A 5e padrão está em fixtures/campanhas/; a Chama Primordial fica só no computador do mestre (privado/), e os
+// testes dela pulam sem ela.
+const CHAMA = "fixtures/campanhas/chama-primordial.json";
+const COM_CHAMA = temPrivado(CHAMA);
 const ler = (nome: string): unknown =>
-  JSON.parse(readFileSync(new URL(`../../../fixtures/campanhas/${nome}`, import.meta.url), "utf8"));
+  JSON.parse(
+    readFileSync(
+      nome === "chama-primordial.json"
+        ? arquivoPrivado(CHAMA)
+        : new URL(`../../../fixtures/campanhas/${nome}`, import.meta.url),
+      "utf8",
+    ),
+  );
 
 const T0 = Date.parse("2026-01-01T00:00:00.000Z");
 const iso = (s: number) => new Date(T0 + s * 1000).toISOString();
@@ -87,7 +99,8 @@ describe("as campanhas prontas passam pelo schema da importação", () => {
     expect(d.modelos.map((m) => m.nome)).toEqual(["Tocha 5e", "Lanterna", "Fogueira"]);
   });
 
-  it("Chama Primordial: a tocha de 30 min, a respiração, as reações, as zonas e o farol", () => {
+  it("Chama Primordial: a tocha de 30 min, a respiração, as reações, as zonas e o farol", (ctx) => {
+    if (!COM_CHAMA) ctx.skip();
     const lida = lerExportacao(ler("chama-primordial.json"));
     expect(lida.ok).toBe(true);
     if (!lida.ok) return;
@@ -138,7 +151,8 @@ describe("as campanhas prontas passam pelo schema da importação", () => {
 });
 
 describe("a Chama Primordial rodando", () => {
-  it("a inspiração reduz o raio da tocha e a rajada pode apagá-la com a penalidade de 5 min", () => {
+  it("a inspiração reduz o raio da tocha e a rajada pode apagá-la com a penalidade de 5 min", (ctx) => {
+    if (!COM_CHAMA) ctx.skip();
     // a primeira fase (emS 0) dispara na hora em que o ciclo começa, quando a mesa corre
     const e = importar("chama-primordial.json", (x) => ({
       ...x,
@@ -164,7 +178,8 @@ describe("a Chama Primordial rodando", () => {
     }
   });
 
-  it("a expiração fecha a visão dos tokens do Pulmão em 1,5 m", () => {
+  it("a expiração fecha a visão dos tokens do Pulmão em 1,5 m", (ctx) => {
+    if (!COM_CHAMA) ctx.skip();
     const e = importar("chama-primordial.json", (x) => ({
       ...x,
       tokens: [
@@ -189,7 +204,8 @@ describe("a Chama Primordial rodando", () => {
     );
   });
 
-  it("acender uma luz avisa só o mestre (os Gricks)", () => {
+  it("acender uma luz avisa só o mestre (os Gricks)", (ctx) => {
+    if (!COM_CHAMA) ctx.skip();
     const e = importar("chama-primordial.json");
     const apagada: ObjetoDeLuz = { ...tocha("t1"), estado: "apagada", acesaDesdeSala: undefined };
     const comLuz = { ...e, luzes: [apagada] };
@@ -206,7 +222,8 @@ describe("a Chama Primordial rodando", () => {
     for (const m of sussurros) expect(m.visivelPara).not.toBe("todos");
   });
 
-  it("nada da história do mestre chega ao jogador: nem a visão, nem as notas, nem as zonas", () => {
+  it("nada da história do mestre chega ao jogador: nem a visão, nem as notas, nem as zonas", (ctx) => {
+    if (!COM_CHAMA) ctx.skip();
     const e = importar("chama-primordial.json");
     const v = visaoPara(e, { id: "jogador-1", papel: "jogador" }, T0);
     const json = JSON.stringify(v);

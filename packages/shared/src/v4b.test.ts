@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import darionArquivo from "../../../fixtures/fichas/darion.json";
 import {
   type ArmaDoCompendio,
   aplicarEntradaNaFicha,
@@ -29,6 +28,7 @@ import {
   rolagemDaMagia,
   xpDoND,
 } from "./index.ts";
+import { lerJsonPrivado } from "./testes/privado.ts";
 
 const espada: ArmaDoCompendio = {
   nome: "Espada longa",
@@ -151,7 +151,9 @@ describe("V4b: ND, proficiência e a regra de NPC", () => {
     const lida = FichaSchema.parse(antiga);
     expect(lida).toEqual(antiga);
     expect(lida.npc).toBeUndefined();
-    expect(FichaSchema.safeParse(darionArquivo.ficha).success).toBe(true);
+    // o Darion fica só no computador do mestre (privado/): sem ele, esta conferência fica de fora
+    const darion = lerJsonPrivado<{ ficha: unknown }>("fixtures/fichas/darion.json");
+    if (darion) expect(FichaSchema.safeParse(darion.ficha).success).toBe(true);
 
     const completa: Ficha = {
       pvAtual: 59,

@@ -50,7 +50,7 @@ código e a divergência está anotada na decisão.
   só um arquivo de configuração e o teste de aceitação do motor.
 - **Por quê.** O Vilella rejeitou explicitamente mecânicas de campanha no código; se uma campanha precisa de um `if`,
   falta configuração. Isso também tornou o motor de automações algo geral (ver tema 8).
-- **Onde.** `fixtures/campanhas/chama-primordial.json` e `5e-padrao.json`; `fixtures/ouro/` e
+- **Onde.** `fixtures/campanhas/5e-padrao.json`; a Chama Primordial e o ouro dela em `privado/` (fora do git) e
   `packages/shared/src/ouro.test.ts` (o motor tem de reproduzir a campanha); princípio 9 em `PROJETO.md` 3.1.
 - **Quando.** 2026-11-04 (decisão); 2026-11-19 (o teste "ouro" passa a vigiar a conversão do AU1).
 - **Situação.** Vale. O "padrão" é o **5e**: a mesa nova nasce com modelos de luz e regras iguais ao `5e-padrao.json`
@@ -447,7 +447,7 @@ código e a divergência está anotada na decisão.
   (gatilho, trilhas) e, em 2026-11-20, por um **grafo** (nós e fios). A conversão automática preserva o que existia
   (`converterParaFluxos`, `arvoreParaGrafo`); o formato antigo fica em `Automacoes.legado`, só leitura.
 - **Por quê.** Pedido do Vilella: um editor "como o n8n". O teste "ouro" garante que a Chama Primordial continua dando o mesmo resultado.
-- **Onde.** `fluxosConversao.ts`, `fluxosGrafo.ts`, `ouro.test.ts`, `fixtures/ouro/chama-primordial-10min.json`.
+- **Onde.** `fluxosConversao.ts`, `fluxosGrafo.ts`, `ouro.test.ts`, `privado/fixtures/ouro/chama-primordial-10min.json`.
 - **Situação.** **Trocada** duas vezes (ciclos/reações → blocos → grafo); vale o grafo. As intenções `ciclo.*`, `reacao.*` e `evento.disparar` deram lugar a `fluxo.*`.
 
 ### 8.5 O editor mora numa janela própria

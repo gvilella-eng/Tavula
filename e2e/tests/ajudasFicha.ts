@@ -1,18 +1,20 @@
 import { readFileSync } from "node:fs";
 import type { Page } from "@playwright/test";
+import { arquivoPrivado, exigirPrivado, temPrivado } from "../privado";
 import { abrirAba, enviarCru, expect, intencaoCrua } from "./ajudas";
 
-// Ajudas do Lote 9 (ficha 5e): o Darion da seção 8 do PROJETO.md (fixtures/fichas/darion.json), criado
-// pelo mestre, e abrir a janela da ficha.
+// Ajudas do Lote 9 (ficha 5e): o Darion (privado/fixtures/fichas/darion.json, só no computador do mestre), criado
+// pelo mestre, e abrir a janela da ficha. Sem a pasta privado/, todo teste que cria o Darion pula.
 
 export const DARION_ID = "pers-darion";
 export const PASTA_GRUPO = "pasta-grupo";
 
-const arquivo = JSON.parse(
-  readFileSync(new URL("../../fixtures/fichas/darion.json", import.meta.url), "utf8"),
+const FICHA = "fixtures/fichas/darion.json";
+const arquivo = (
+  temPrivado(FICHA) ? JSON.parse(readFileSync(arquivoPrivado(FICHA), "utf8")) : { ficha: {} }
 ) as { ficha: Record<string, unknown> };
 
-/** A ficha do Darion como está na fixture. */
+/** A ficha do Darion como está na fixture (vazia sem a pasta privado/). */
 export const FICHA_DARION = arquivo.ficha;
 
 /** Envia uma intenção por um socket novo e espera o evento (falha se a sala recusar). */
@@ -26,6 +28,7 @@ export async function criarDarion(
   mestre: Page,
   opcoes: { pastaId?: string; editores?: string[]; id?: string } = {},
 ) {
+  exigirPrivado(FICHA);
   await mandar(mestre, "personagem.criar", {
     personagem: {
       id: opcoes.id ?? DARION_ID,

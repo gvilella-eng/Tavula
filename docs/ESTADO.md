@@ -4745,4 +4745,27 @@ Só docs (mais um comentário de `e2e/playwright.config.ts`). Cada número foi c
 - `docs/REDESIGN.md`: notas "(depois: ...)" no N5 (a ferramenta `som`), no compêndio do MCP e na chave da memória. `docs/protocolo.md`: chave da memória.
 - `docs/explicacao/achados-ao-escrever.md`: itens de "Nos docs" apagados. `02-decisoes.md`: acertos nas decisões 10.5 e da memória.
 
+
+## Ajuste PV1 — a pasta `privado/` (entregue, 2026-11-22)
+
+As fichas dos jogadores e a campanha de referência saem do repositório e ficam só no computador do mestre, em
+`privado/` (no `.gitignore`).
+
+### O que foi entregue
+- `privado/fixtures/`: os PDFs e os JSONs do Darion e do Rendan, a Chama Primordial e o ouro dela. `privado/notas/`: os
+  valores do PDF do Darion (antes no `PROJETO.md` §8) e as notas da campanha (antes no `docs/IDEIAS.md`).
+- Ajudantes `packages/shared/src/testes/privado.ts` e `e2e/privado.ts`. Sem a pasta, o que depende dela pula e o resto
+  roda: na unidade, `darion` vira uma ficha vazia e só pulam os testes que conferem os números dele; no E2E, todo teste
+  que cria o Darion (`criarDarion`) ou lê um PDF pula (`exigirPrivado`). Os prints só trocaram o caminho.
+- `.gitignore`: `privado/` e `.claude/`.
+- Docs vivos acertados (`docs/explicacao/` 01, 02, 06 e 12, a árvore e a visão do `PROJETO.md`, o roteiro do B1). Os
+  diários antigos continuam dizendo `fixtures/`: é como era na época.
+
+### Como rodar
+`pnpm dev` como sempre. Sem migração. Os testes precisam da pasta `privado/` para rodar inteiros.
+
+### Frágil
+- Arquivo pessoal novo para teste vai para `privado/`, nunca para `fixtures/`.
+- A pasta não está em nenhum outro lugar: cópia de segurança é por conta do mestre.
+
 ## Próximo: o roteiro manual dos Lotes 12 (12-3 incluído), P1, N1, N2, N3a, N3b, N4, N5, M1, M2, Q1 a Q16, CH1, CH2, CH3, CH4, MU1, MU2, MU3, A1, AU1, AU2, AU3, AU3b, AU3c, AU4, FG1, FG2, AS1, LP1 e das otimizações O1–O4 (o LP2 foi só de docs)
