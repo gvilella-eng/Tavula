@@ -2477,6 +2477,10 @@ Regras para o agente que implementa:
 10. Toda intenção nova declara a capacidade exigida.
 11. Nada de regra de campanha no código: o que for específico de uma campanha vira configuração e vai
     para `fixtures/campanhas/`.
+12. **Branches** (2026-11-22): `main` só recebe releases (`merge --no-ff` do `develop` e tag `vX.Y.Z`); o trabalho se
+    junta no `develop`; cada feature, lote ou correção sai do `develop` num branch `<tipo>-<breve-descricao>`
+    (`feature-`, `fix-`, `docs-`, `chore-`) e volta por `merge --no-ff` depois de validado. Detalhes em
+    `docs/explicacao/12-testes-e-fluxo-de-trabalho.md`, "Branches e releases".
 
 ---
 

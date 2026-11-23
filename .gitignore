@@ -30,5 +30,5 @@ transcrever.config.json
 # só no computador do mestre: fichas dos jogadores, a campanha de referência e as notas dela
 privado/
 
-# as cópias de trabalho dos agentes
+# as cópias de trabalho dos agentes e o que o Claude Code guarda só nesta máquina (inclusive as skills)
 .claude/

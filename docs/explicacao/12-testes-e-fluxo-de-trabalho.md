@@ -229,20 +229,40 @@ Quem trabalha: o Vilella decide o gosto e o plano; um orquestrador (um agente em
 revisa e junta; um agente por lote implementa. Em seguida, o passo a passo.
 
 ```
-brief  ->  worktree  ->  agente implementa  ->  testes só do que tocou
-                                                      |
-   junção <- commit -F <- revisão (código e prints) <-+ pnpm verify (quando precisa)
-   (ff-only em redesign; main acompanha)
+brief  ->  branch + worktree  ->  agente implementa  ->  testes só do que tocou
+           (sai do develop)                                    |
+   junção <- commit -F <- revisão (código e prints) <----------+ pnpm verify (quando precisa)
+   (merge --no-ff no develop; o main só anda numa release)
 ```
+
+#### Branches e releases (desde 2026-11-22)
+
+O Vilella reorganizou o repositório em 2026-11-22: até ali tudo entrava num branch `redesign` por fast-forward, o `main`
+o acompanhava e sobravam 85 branches antigos (`lote-N`, `worktree-agent-<id>`). Agora:
+
+- **`main`**: só releases. Anda por `git merge --no-ff develop` mais uma tag anotada `vX.Y.Z` (em `0.x`, o MINOR sobe
+  com feature e o PATCH só com correção). Ninguém commita direto nele.
+- **`develop`**: onde o desenvolvimento se junta. Ninguém commita direto nele; tudo chega de um branch de trabalho.
+- **Branch de trabalho**: sai do `develop`, num worktree com o mesmo nome (`.claude/worktrees/<nome>`). O nome é
+  `<tipo>-<breve-descricao>`, minúsculo, sem acento, com hífen: `feature-` (funcionalidade ou lote de features),
+  `fix-` (correção ou lote de correções), `docs-` (só documentação) e `chore-` (manutenção: limpeza, dependências,
+  configuração). O código do lote vem logo depois do tipo: `feature-au4-mesa-de-som`.
+- **A volta**: depois de implementado e validado (testes do lote e revisão do orquestrador), o branch entra no `develop`
+  com `git merge --no-ff`, e o branch e o worktree são apagados. O roteiro manual do Vilella pode ser feito antes, no
+  worktree e nas portas de teste, ou depois, no `develop`; o que ele achar vira um `fix-` (assumido). Uma release só sai
+  com o roteiro manual feito.
+- **Push** para o GitHub só com pedido do Vilella.
+- Os branches `lote-N` viraram tags `lote-N` (o marco ficou na história); os outros branches antigos foram apagados.
 
 1. **O brief.** O orquestrador escreve o pedido do lote. Ele traz o objetivo, o que ler antes (`PASSAGEM.md`,
    `REDESIGN.md`, o fim do `ESTADO.md`, as seções do `PROJETO.md`), o que não fazer, e o bloco de regras comuns a todo lote
    (o `regras-dos-lotes-V.md`, que cresce a cada vez que um problema aparece). Dois itens do brief existem por incidente:
    proibir encerrar processos que o agente não iniciou (o `pnpm dev` do Vilella) e exigir migrações novas em vez de
    edições (ver adiante).
-2. **Um worktree por lote.** Desde o N1 (2026-11-13) cada lote roda numa cópia separada do repositório (um `git worktree`
-   em `.claude/worktrees/agent-<id>`, num branch `worktree-agent-<id>`), para o `pnpm dev` do Vilella só ver código
-   commitado. Na cópia: `pnpm install --prefer-offline --frozen-lockfile` antes de tudo, as portas de teste de sempre
+2. **Um worktree por lote.** Desde o N1 (2026-11-13) cada lote roda numa cópia separada do repositório (um `git worktree`),
+   para o `pnpm dev` do Vilella só ver código commitado. Desde 2026-11-22 o worktree é criado à mão, a partir do
+   `develop`, com o nome do branch: `git worktree add -b <nome> .claude/worktrees/<nome> develop` (o `isolation: "worktree"`
+   da ferramenta Agent cria um `worktree-agent-<id>`, fora do padrão; se for usado, o branch é renomeado antes da junção). Na cópia: `pnpm install --prefer-offline --frozen-lockfile` antes de tudo, as portas de teste de sempre
    (8788/5174) e **nunca** rodar nada na pasta principal. Dois lotes em paralelo usam `E2E_PORTA_SALA` e `E2E_PORTA_WEB` diferentes.
 3. **O que o agente faz.** Implementa **sem commitar**; enquanto trabalha, roda só os specs que tocou
    (`pnpm --filter @tabletop/e2e test tests/<spec>.ts`) e a unidade do pacote mexido; depois de uma falha, roda só o
@@ -261,11 +281,12 @@ brief  ->  worktree  ->  agente implementa  ->  testes só do que tocou
    passada em `git commit -m` é partida em vários argumentos e o git falha com "pathspec ... did not match" (aconteceu no
    commit do R6a). A mensagem tem um título curto com o código do lote ("AU3c: ..."), um corpo e termina com a linha
    `Co-Authored-By` do modelo.
-7. **A junção fast-forward.** O branch do worktree entra no `redesign` com `git merge --ff-only <branch>` (na pasta
-   principal) e o `main` acompanha sem trocar de branch, com `git fetch -q . redesign:main` (um fetch local, da própria
-   pasta). Se dois lotes correram em paralelo e o `redesign` andou, o orquestrador junta os dois com
-   um commit de junção ("Junta o CH3 e o FG2 ao AU3"), que costuma ter conflito **só nos docs** (`ESTADO`, `PASSAGEM`,
-   `REDESIGN`, `ROTEIRO-DE-TESTES`): as seções dos lotes ficam todas e sobra uma só linha "Próximo".
+7. **A junção no `develop`.** Na pasta principal, o branch entra no `develop` com `git merge --no-ff <nome> -F <arquivo>`
+   (título "Junta <nome>: ..."); depois `git worktree remove` e `git branch -d`. Até 2026-11-21 a junção era
+   `merge --ff-only` no `redesign`, com o `main` acompanhando por `git fetch -q . redesign:main`. Se dois lotes correram
+   em paralelo, a junção do segundo costuma ter conflito **só nos docs** (`ESTADO`, `PASSAGEM`, `REDESIGN`,
+   `ROTEIRO-DE-TESTES`): as seções dos lotes ficam todas e sobra uma só linha "Próximo". O `main` não anda aqui: só numa
+   release (veja "Branches e releases").
 8. **Os docs que todo lote atualiza.** No fim do lote, em português, frases curtas, suposições marcadas "(assumido)":
    - `docs/REDESIGN.md`: a seção "<lote> — como ficou (data)" (O que foi feito, Decisões, O que ficou para depois);
    - `docs/ESTADO.md`: a seção "Ajustes <lote> — ... (entregue, aguardando o roteiro manual)" (O que foi entregue,
@@ -424,9 +445,6 @@ altura fixa. Esse é o padrão: o teste descreve a regra ("alinhados"), não a m
 
 - `PROJETO.md` seção 9, item 2, e o comentário de `e2e/playwright.config.ts` ainda dizem que os E2E novos rodam também com
   `--repeat-each=3`. A regra do Vilella de 2026-11-11 (e as regras dos lotes) é **não rodar `--repeat-each`**.
-- A seção "Fluxo de trabalho" do `docs/ESTADO.md` (Lote 0) fala em "um branch `lote-N` por lote", entrando no `main` por
-  fast-forward quando o próximo é liberado. Hoje o branch é o de um worktree (`worktree-agent-<id>`), a junção é no
-  `redesign` e o `main` acompanha por `git fetch -q . redesign:main`. Os branches `lote-N` ainda existem no repositório.
 
 ## Para ir além
 
