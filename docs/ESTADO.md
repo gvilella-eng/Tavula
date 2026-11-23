@@ -91,14 +91,14 @@ pnpm 10.34.9 · Node 24.11.1 · TypeScript 7.0.2 · Biome 2.6.5 · wrangler 4.15
 
 ### Fluxo de trabalho
 
-- Git: no começo cada lote era um branch `lote-N`, que entrava no
-  `main` por fast-forward; esses branches ainda existem. Desde o N1, 2026-11-13, o fluxo é este:
-  - Cada lote roda num worktree próprio (`.claude/worktrees/agent-<id>`, branch `worktree-agent-<id>`), e o agente
-    implementa sem commitar.
+- Git, desde 2026-11-22 (antes: branches `lote-N`, depois `worktree-agent-<id>` em fast-forward no `redesign`, com o
+  `main` acompanhando; os `lote-N` viraram tags):
+  - `main` só anda numa release (`merge --no-ff` do `develop` e tag `vX.Y.Z`); o desenvolvimento se junta no `develop`.
+  - Todo trabalho sai do `develop` num branch `<tipo>-<breve-descricao>` (`feature-`, `fix-`, `docs-`, `chore-`), num
+    worktree com o mesmo nome (`.claude/worktrees/<nome>`); o agente implementa sem commitar.
   - O orquestrador revisa o relatório, o diff e os prints, e commita com `git commit -F <arquivo>` (no PowerShell 5.1,
     aspas duplas quebram o `-m`).
-  - O branch do worktree entra no `redesign` com `git merge --ff-only`, e o `main` acompanha com
-    `git fetch -q . redesign:main` (fetch local).
+  - Validado, o branch volta ao `develop` com `git merge --no-ff`.
 - Testes enxutos: um `pnpm verify` por lote (completo só quando o lote mexe em servidor, `packages/shared` ou banco),
   sem `--repeat-each`; se algo falhar, reteste só o que falhou. O passo a passo está em
   `docs/explicacao/12-testes-e-fluxo-de-trabalho.md`.
